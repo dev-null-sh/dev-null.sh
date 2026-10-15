@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Dto;
 
 use App\Enums\PollDuration;
-use InvalidArgumentException;
 
 final readonly class NewPoll
 {
@@ -22,6 +21,6 @@ final readonly class NewPoll
         public array $options,
         public PollDuration $duration,
     ) {
-        throw_if(count($options) < self::MinOptions || count($options) > self::MaxOptions, InvalidArgumentException::class, 'A poll needs between 2 and 4 options.');
+        //
     }
 }

@@ -51,14 +51,34 @@ it('may not vote on a commit without a poll', function (): void {
         ->assertJsonValidationErrors('option');
 });
 
-it('explains why a vote is refused', function (): void {
-    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->closed()->create();
+it('explains why a vote is refused', function (Closure $scenario, string $message): void {
+    [$user, $poll] = $scenario();
 
-    $this->actingAs(User::factory()->create())
+    $this->actingAs($user)
         ->postJson(route('commit-poll-vote.store', $poll->commit), ['option' => $poll->options[0]->id])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors(['poll' => 'This poll has closed.']);
-});
+        ->assertJsonValidationErrors(['option' => $message]);
+
+    expect(PollVote::query()->count())->toBe(0);
+})->with([
+    'own poll' => [function (): array {
+        $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+
+        return [$poll->commit->user, $poll];
+    }, "You can't vote on your own poll."],
+    'own pending poll' => [function (): array {
+        $poll = Poll::factory()->for(Commit::factory()->pending())->withOptions('Tabs', 'Spaces')->unopened()->create();
+
+        return [$poll->commit->user, $poll];
+    }, 'This poll is not open for votes.'],
+    'own rejected poll' => [function (): array {
+        $poll = Poll::factory()->for(Commit::factory()->rejected())->withOptions('Tabs', 'Spaces')->create();
+
+        return [$poll->commit->user, $poll];
+    }, 'This poll is not open for votes.'],
+    'unopened poll' => [fn (): array => [User::factory()->create(), Poll::factory()->withOptions('Tabs', 'Spaces')->unopened()->create()], 'This poll is not open for votes.'],
+    'closed poll' => [fn (): array => [User::factory()->create(), Poll::factory()->withOptions('Tabs', 'Spaces')->closed()->create()], 'This poll has closed.'],
+]);
 
 it('refuses a second vote', function (): void {
     $user = User::factory()->create();
@@ -68,7 +88,7 @@ it('refuses a second vote', function (): void {
     $this->actingAs($user)
         ->postJson(route('commit-poll-vote.store', $poll->commit), ['option' => $poll->options[1]->id])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors(['poll' => 'You have already voted on this poll.']);
+        ->assertJsonValidationErrors(['option' => 'You have already voted on this poll.']);
 
     expect($user->pollVotes()->sole()->poll_option_id)->toBe($poll->options[0]->id);
 });

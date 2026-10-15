@@ -13,7 +13,6 @@ use App\Models\User;
 use App\Services\EmojiShortcodes;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 
 final readonly class CreateCommit
 {
@@ -32,9 +31,6 @@ final readonly class CreateCommit
      */
     public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], ?NewPoll $poll = null): Commit
     {
-        throw_if($parent instanceof Commit && $poll instanceof NewPoll, InvalidArgumentException::class, 'Replies can not have polls.');
-        throw_if($images !== [] && $poll instanceof NewPoll, InvalidArgumentException::class, 'A commit has either images or a poll.');
-
         return DB::transaction(function () use ($user, $body, $parent, $images, $poll): Commit {
             $linkPreview = $this->linkPreviewFor($body);
 
