@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import type { ActivityDay } from '@/types';
+import type { Activity, ActivityBucket, ActivityScale } from '@/types';
 
 const monthNames = [
     'Jan',
@@ -18,9 +18,18 @@ const monthNames = [
     'Dec',
 ];
 
+const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 const weekdayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 
 const levelMix = [0, 32, 56, 80, 100];
+
+const windows: Record<ActivityScale, string> = {
+    day: 'in the last 24 hours',
+    week: 'in the last 7 days',
+    month: 'in the last 30 days',
+    year: 'in the last year',
+};
 
 function levelColor(level: number): string {
     return level === 0
@@ -28,44 +37,117 @@ function levelColor(level: number): string {
         : `color-mix(in oklab, var(--lane) ${levelMix[level]}%, var(--card))`;
 }
 
+function levelOf(count: number, max: number): number {
+    return count === 0 ? 0 : Math.max(1, Math.ceil((count / max) * 4));
+}
+
+function utcDay(date: string): Date {
+    return new Date(`${date}T00:00:00Z`);
+}
+
 function monthOf(date: string): number {
-    return Number(date.slice(5, 7)) - 1;
+    return utcDay(date).getUTCMonth();
 }
 
-function formatDay(date: string): string {
-    return `${monthNames[monthOf(date)]} ${Number(date.slice(8, 10))}, ${date.slice(0, 4)}`;
+function formatDay(date: string, withYear: boolean): string {
+    const day = utcDay(date);
+    const monthDay = `${monthNames[day.getUTCMonth()]} ${day.getUTCDate()}`;
+
+    return withYear
+        ? `${monthDay}, ${day.getUTCFullYear()}`
+        : `${weekdayNames[day.getUTCDay()]}, ${monthDay}`;
 }
 
-function describe(day: ActivityDay): string {
-    if (day.count === 0) {
-        return `No commits on ${formatDay(day.date)}`;
+function formatTime(time: Date): string {
+    return [time.getHours(), time.getMinutes()]
+        .map((part) => String(part).padStart(2, '0'))
+        .join(':');
+}
+
+function describe(bucket: ActivityBucket, scale: ActivityScale): string {
+    const commits =
+        bucket.count === 0
+            ? 'No commits'
+            : `${bucket.count} ${bucket.count === 1 ? 'commit' : 'commits'}`;
+
+    if (scale !== 'day') {
+        return `${commits} on ${formatDay(bucket.date, scale === 'year')}`;
     }
 
-    return `${day.count} ${day.count === 1 ? 'commit' : 'commits'} on ${formatDay(day.date)}`;
+    const start = new Date(bucket.date);
+    const end = new Date(start.getTime() + 3_600_000);
+    const isToday = start.toDateString() === new Date().toDateString();
+
+    return `${commits} between ${formatTime(start)} and ${formatTime(end)} ${isToday ? 'today' : 'yesterday'}`;
 }
 
-type HoveredDay = {
-    day: ActivityDay;
+function periodOf(bucket: ActivityBucket, scale: ActivityScale): string {
+    return scale === 'day' ? bucket.date.slice(0, 13) : bucket.date;
+}
+
+function stripLabel(
+    bucket: ActivityBucket,
+    scale: ActivityScale,
+    index: number,
+    length: number,
+): string | null {
+    if (scale === 'week') {
+        const day = utcDay(bucket.date);
+
+        return `${weekdayNames[day.getUTCDay()]} ${day.getUTCDate()}`;
+    }
+
+    if (scale === 'day') {
+        const start = new Date(bucket.date);
+
+        return start.getHours() % 6 === 0 && index < length - 2
+            ? formatTime(start)
+            : null;
+    }
+
+    const day = utcDay(bucket.date);
+
+    return day.getUTCDay() === 1 && index < length - 3
+        ? `${monthNames[day.getUTCMonth()]} ${day.getUTCDate()}`
+        : null;
+}
+
+type HoveredBucket = {
+    bucket: ActivityBucket;
     left: number;
     top: number;
     align: 'start' | 'center' | 'end';
 };
 
-const tooltipHalfWidth = 96;
+type CellsProps = {
+    buckets: ActivityBucket[];
+    max: number;
+    onEnter: (
+        bucket: ActivityBucket,
+        event: MouseEvent<HTMLSpanElement>,
+    ) => void;
+    onLeave: () => void;
+};
+
+const tooltipHalfWidth = 128;
 
 export function ActivityGraph({
     activity,
     lane,
-    onDayHover,
+    onPeriodHover,
 }: {
-    activity: ActivityDay[];
+    activity: Activity;
     lane: string;
-    onDayHover?: (date: string | null) => void;
+    onPeriodHover?: (period: string | null) => void;
 }) {
     const sectionRef = useRef<HTMLElement>(null);
-    const [hovered, setHovered] = useState<HoveredDay | null>(null);
+    const [hovered, setHovered] = useState<HoveredBucket | null>(null);
+    const { scale, buckets } = activity;
 
-    const hoverDay = (day: ActivityDay, event: MouseEvent<HTMLSpanElement>) => {
+    const hoverBucket = (
+        bucket: ActivityBucket,
+        event: MouseEvent<HTMLSpanElement>,
+    ) => {
         const section = sectionRef.current?.getBoundingClientRect();
         const cell = event.currentTarget.getBoundingClientRect();
 
@@ -76,7 +158,7 @@ export function ActivityGraph({
         const left = cell.left - section.left + cell.width / 2;
 
         setHovered({
-            day,
+            bucket,
             left,
             top: cell.top - section.top,
             align:
@@ -86,18 +168,163 @@ export function ActivityGraph({
                       ? 'end'
                       : 'center',
         });
-        onDayHover?.(day.count > 0 ? day.date : null);
+        onPeriodHover?.(bucket.count > 0 ? periodOf(bucket, scale) : null);
     };
 
     const clearHover = () => {
         setHovered(null);
-        onDayHover?.(null);
+        onPeriodHover?.(null);
     };
 
-    const total = activity.reduce((sum, day) => sum + day.count, 0);
-    const max = Math.max(1, ...activity.map((day) => day.count));
+    const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
+    const max = Math.max(1, ...buckets.map((bucket) => bucket.count));
+    const isEmpty = total === 0 && scale !== 'year';
+    const summary = isEmpty
+        ? 'No commits yet'
+        : `${total} ${total === 1 ? 'commit' : 'commits'} ${windows[scale]}`;
 
-    const weekStarts = activity.filter((_, index) => index % 7 === 0);
+    return (
+        <section
+            ref={sectionRef}
+            aria-labelledby="activity-heading"
+            className="relative border-b px-4 py-5 sm:px-6"
+            style={{ '--lane': lane } as CSSProperties}
+        >
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h2 id="activity-heading" className="text-sm font-semibold">
+                    Commit activity
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                    {isEmpty ? (
+                        'No commits yet'
+                    ) : (
+                        <>
+                            <span className="font-mono text-foreground">
+                                {total}
+                            </span>{' '}
+                            {total === 1 ? 'commit' : 'commits'}{' '}
+                            {windows[scale]}
+                        </>
+                    )}
+                </p>
+            </div>
+
+            {scale === 'year' ? (
+                <YearGrid
+                    buckets={buckets}
+                    max={max}
+                    summary={summary}
+                    onEnter={hoverBucket}
+                    onLeave={clearHover}
+                />
+            ) : (
+                <Strip
+                    scale={scale}
+                    buckets={buckets}
+                    max={max}
+                    summary={summary}
+                    onEnter={hoverBucket}
+                    onLeave={clearHover}
+                />
+            )}
+
+            {hovered && (
+                <div
+                    aria-hidden
+                    className={cn(
+                        'pointer-events-none absolute z-10 -translate-y-full rounded-md bg-foreground px-2 py-1 text-xs whitespace-nowrap text-background shadow-md',
+                        {
+                            '-translate-x-3': hovered.align === 'start',
+                            '-translate-x-1/2': hovered.align === 'center',
+                            'translate-x-[calc(-100%+0.75rem)]':
+                                hovered.align === 'end',
+                        },
+                    )}
+                    data-tooltip
+                    style={{ left: hovered.left, top: hovered.top - 6 }}
+                >
+                    {describe(hovered.bucket, scale)}
+                </div>
+            )}
+
+            <div
+                aria-hidden
+                className="mt-2 flex items-center justify-end gap-1 text-xs text-muted-foreground"
+            >
+                <span className="mr-1">Less</span>
+                {levelMix.map((_, level) => (
+                    <span
+                        key={level}
+                        className="size-2.5 rounded-[2px]"
+                        style={{ background: levelColor(level) }}
+                    />
+                ))}
+                <span className="ml-1">More</span>
+            </div>
+        </section>
+    );
+}
+
+function Strip({
+    scale,
+    buckets,
+    max,
+    summary,
+    onEnter,
+    onLeave,
+}: CellsProps & { scale: ActivityScale; summary: string }) {
+    const columns = {
+        gridTemplateColumns: `repeat(${buckets.length}, minmax(0, 1fr))`,
+    };
+
+    return (
+        <div role="img" aria-label={summary}>
+            <div
+                onMouseLeave={onLeave}
+                className="grid gap-[3px]"
+                style={columns}
+            >
+                {buckets.map((bucket) => (
+                    <span
+                        key={bucket.date}
+                        onMouseEnter={(event) => onEnter(bucket, event)}
+                        className="h-10 rounded-[2px] transition-shadow hover:shadow-[0_0_0_1.5px_var(--foreground)] sm:h-12"
+                        style={{
+                            background: levelColor(levelOf(bucket.count, max)),
+                        }}
+                    />
+                ))}
+            </div>
+
+            <div
+                aria-hidden
+                className={cn(
+                    'mt-1.5 grid text-xs text-muted-foreground',
+                    scale === 'day' && 'font-mono',
+                )}
+                style={columns}
+            >
+                {buckets.map((bucket, index) => (
+                    <span
+                        key={bucket.date}
+                        className="overflow-visible whitespace-nowrap"
+                    >
+                        {stripLabel(bucket, scale, index, buckets.length)}
+                    </span>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function YearGrid({
+    buckets,
+    max,
+    summary,
+    onEnter,
+    onLeave,
+}: CellsProps & { summary: string }) {
+    const weekStarts = buckets.filter((_, index) => index % 7 === 0);
     const monthLabels = weekStarts.map((day, index) => {
         const changesMonth =
             index === 0 ||
@@ -118,126 +345,66 @@ export function ActivityGraph({
     };
 
     return (
-        <section
-            ref={sectionRef}
-            aria-labelledby="activity-heading"
-            className="relative border-b px-4 py-5 sm:px-6"
-            style={{ '--lane': lane } as CSSProperties}
+        <div
+            ref={(node) => {
+                if (node) {
+                    node.scrollLeft = node.scrollWidth;
+                }
+            }}
+            className="overflow-x-auto pb-1"
         >
-            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <h2 id="activity-heading" className="text-sm font-semibold">
-                    Commit activity
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                    <span className="font-mono text-foreground">{total}</span>{' '}
-                    {total === 1 ? 'commit' : 'commits'} in the last year
-                </p>
-            </div>
-
             <div
-                ref={(node) => {
-                    if (node) {
-                        node.scrollLeft = node.scrollWidth;
-                    }
-                }}
-                className="overflow-x-auto pb-1"
+                role="img"
+                aria-label={summary}
+                className="grid min-w-[34rem] grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5"
             >
-                <div
-                    role="img"
-                    aria-label={`${total} ${total === 1 ? 'commit' : 'commits'} in the last year`}
-                    className="grid min-w-[34rem] grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5"
-                >
-                    <span aria-hidden />
-                    <div
-                        aria-hidden
-                        className="grid text-xs text-muted-foreground"
-                        style={columns}
-                    >
-                        {monthLabels.map((label, index) => (
-                            <span
-                                key={weekStarts[index].date}
-                                className="overflow-visible whitespace-nowrap"
-                            >
-                                {label}
-                            </span>
-                        ))}
-                    </div>
-
-                    <div
-                        aria-hidden
-                        className="grid grid-rows-7 gap-[3px] text-xs text-muted-foreground"
-                    >
-                        {weekdayLabels.map((label, index) => (
-                            <span
-                                key={index}
-                                className="flex items-center leading-none"
-                            >
-                                {label}
-                            </span>
-                        ))}
-                    </div>
-
-                    <div
-                        onMouseLeave={clearHover}
-                        className="grid grid-flow-col grid-rows-7 gap-[3px]"
-                        style={columns}
-                    >
-                        {activity.map((day) => (
-                            <span
-                                key={day.date}
-                                onMouseEnter={(event) => hoverDay(day, event)}
-                                className="aspect-square rounded-[2px] transition-shadow hover:shadow-[0_0_0_1.5px_var(--foreground)]"
-                                style={{
-                                    background: levelColor(
-                                        day.count === 0
-                                            ? 0
-                                            : Math.max(
-                                                  1,
-                                                  Math.ceil(
-                                                      (day.count / max) * 4,
-                                                  ),
-                                              ),
-                                    ),
-                                }}
-                            />
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {hovered && (
+                <span aria-hidden />
                 <div
                     aria-hidden
-                    className={cn(
-                        'pointer-events-none absolute z-10 -translate-y-full rounded-md bg-foreground px-2 py-1 text-xs whitespace-nowrap text-background shadow-md',
-                        {
-                            '-translate-x-3': hovered.align === 'start',
-                            '-translate-x-1/2': hovered.align === 'center',
-                            'translate-x-[calc(-100%+0.75rem)]':
-                                hovered.align === 'end',
-                        },
-                    )}
-                    data-tooltip
-                    style={{ left: hovered.left, top: hovered.top - 6 }}
+                    className="grid text-xs text-muted-foreground"
+                    style={columns}
                 >
-                    {describe(hovered.day)}
+                    {monthLabels.map((label, index) => (
+                        <span
+                            key={weekStarts[index].date}
+                            className="overflow-visible whitespace-nowrap"
+                        >
+                            {label}
+                        </span>
+                    ))}
                 </div>
-            )}
 
-            <div
-                aria-hidden
-                className="mt-2 flex items-center justify-end gap-1 text-xs text-muted-foreground"
-            >
-                <span className="mr-1">Less</span>
-                {levelMix.map((_, level) => (
-                    <span
-                        key={level}
-                        className="size-2.5 rounded-[2px]"
-                        style={{ background: levelColor(level) }}
-                    />
-                ))}
-                <span className="ml-1">More</span>
+                <div
+                    aria-hidden
+                    className="grid grid-rows-7 gap-[3px] text-xs text-muted-foreground"
+                >
+                    {weekdayLabels.map((label, index) => (
+                        <span
+                            key={index}
+                            className="flex items-center leading-none"
+                        >
+                            {label}
+                        </span>
+                    ))}
+                </div>
+
+                <div
+                    onMouseLeave={onLeave}
+                    className="grid grid-flow-col grid-rows-7 gap-[3px]"
+                    style={columns}
+                >
+                    {buckets.map((day) => (
+                        <span
+                            key={day.date}
+                            onMouseEnter={(event) => onEnter(day, event)}
+                            className="aspect-square rounded-[2px] transition-shadow hover:shadow-[0_0_0_1.5px_var(--foreground)]"
+                            style={{
+                                background: levelColor(levelOf(day.count, max)),
+                            }}
+                        />
+                    ))}
+                </div>
             </div>
-        </section>
+        </div>
     );
 }

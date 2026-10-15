@@ -64,6 +64,7 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
+        ->withTrashed()
         ->name('commit-reply.index');
 
     // Notifications...

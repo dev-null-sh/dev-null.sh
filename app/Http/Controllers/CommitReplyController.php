@@ -14,7 +14,7 @@ final readonly class CommitReplyController
 {
     public function index(#[CurrentUser] User $user, Commit $commit, CommitRepliesQuery $replies): JsonResponse
     {
-        abort_unless(Commit::query()->visibleTo($user)->whereKey($commit->id)->exists(), 404);
+        abort_unless(Commit::query()->withTrashed()->visibleTo($user)->whereKey($commit->id)->exists(), 404);
 
         return response()->json($replies->paginate($commit, $user));
     }

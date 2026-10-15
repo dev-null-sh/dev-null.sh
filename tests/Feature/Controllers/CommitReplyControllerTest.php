@@ -98,6 +98,43 @@ it('only pages through replies visible to the viewer', function (): void {
         ->assertJsonPath('next_cursor', null);
 });
 
+it('lists deleted replies that still have replies as tombstones', function (): void {
+    $viewer = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $tombstone = Commit::factory()->for($parent, 'parent')->create(['body' => 'Gone', 'created_at' => now()->subMinutes(2)]);
+    Commit::factory()->for($tombstone, 'parent')->create();
+    $tombstone->delete();
+    Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinute()])->delete();
+    Commit::factory()->for($parent, 'parent')->create(['body' => 'Kept']);
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.id', $tombstone->id)
+        ->assertJsonPath('data.0.deleted_at', fn (string $deletedAt): bool => $deletedAt !== '')
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.body')
+        ->assertJsonMissingPath('data.0.user')
+        ->assertJsonMissingPath('data.0.user_id')
+        ->assertJsonPath('data.1.body', 'Kept');
+});
+
+it('lists the replies of a deleted commit', function (): void {
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->create(['body' => 'Still here']);
+    $parent->delete();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.body', 'Still here');
+});
+
 it('does not list replies of a commit that is not visible', function (): void {
     $parent = Commit::factory()->pending()->create();
 

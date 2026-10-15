@@ -78,3 +78,16 @@ it('only counts the commits visible to the viewer', function (): void {
     expect($query->get($user, User::factory()->create()))->toBe(['longest' => 1, 'current' => 0])
         ->and($query->get($user, $user))->toBe(['longest' => 3, 'current' => 3]);
 });
+
+it('does not extend streaks through deleted commits', function (): void {
+    $user = User::factory()->create();
+
+    Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->create(['created_at' => now()->subDay()])->delete();
+    Commit::factory()->for($user)->create(['created_at' => now()->subDays(2)]);
+
+    $query = resolve(UserStreakQuery::class);
+
+    expect($query->get($user, $user))->toBe(['longest' => 1, 'current' => 1])
+        ->and($query->get($user, User::factory()->create()))->toBe(['longest' => 1, 'current' => 1]);
+});

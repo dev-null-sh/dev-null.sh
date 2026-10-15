@@ -2,6 +2,7 @@ import type { InertiaLinkProps } from '@inertiajs/react';
 import type { ClassValue } from 'clsx';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import type { DeletedCommit, ThreadCommit } from '@/types';
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -57,6 +58,16 @@ export function formatFullDateTime(date: string): string {
 
 export function laneColor(lane: number): string {
     return `var(--lane-${lane})`;
+}
+
+export function isDeleted(commit: {
+    deleted_at?: string | null;
+}): commit is DeletedCommit {
+    return typeof commit.deleted_at === 'string';
+}
+
+export function laneOf(commit: ThreadCommit): string {
+    return isDeleted(commit) ? 'var(--rail)' : laneColor(commit.user.lane);
 }
 
 export function shortHash(id: string): string {

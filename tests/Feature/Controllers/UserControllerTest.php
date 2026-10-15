@@ -80,10 +80,30 @@ it('renders the user commit activity for the last year', function (): void {
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->has('activity', 369)
-            ->where('activity.0', ['date' => '2025-10-12', 'count' => 0])
-            ->where('activity.365', ['date' => '2026-10-12', 'count' => 1])
-            ->where('activity.368', ['date' => '2026-10-15', 'count' => 2]));
+            ->where('activity.scale', 'year')
+            ->has('activity.buckets', 369)
+            ->where('activity.buckets.0', ['date' => '2025-10-12', 'count' => 0])
+            ->where('activity.buckets.365', ['date' => '2026-10-12', 'count' => 1])
+            ->where('activity.buckets.368', ['date' => '2026-10-15', 'count' => 2]));
+});
+
+it('renders the hourly commit activity of a user who only committed today', function (): void {
+    $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
+
+    $user = User::factory()->create(['username' => 'octocat', 'created_at' => now()->subMonths(3)]);
+
+    Commit::factory()->for($user)->count(2)->create();
+    Commit::factory()->for($user)->create(['created_at' => now()->subHours(3)]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('activity.scale', 'day')
+            ->has('activity.buckets', 24)
+            ->where('activity.buckets.20', ['date' => '2026-10-15T09:00:00Z', 'count' => 1])
+            ->where('activity.buckets.23', ['date' => '2026-10-15T12:00:00Z', 'count' => 2]));
 });
 
 it('renders the user commit streaks', function (): void {
@@ -263,7 +283,7 @@ it('hides pending and rejected commits from other users', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('user.commits_count', 1)
-            ->where('activity.368.count', 1)
+            ->where('activity.buckets.23.count', 1)
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'Approved'));
 });
@@ -281,8 +301,27 @@ it('shows own pending and rejected commits', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('user.commits_count', 3)
-            ->where('activity.368.count', 3)
+            ->where('activity.buckets.23.count', 3)
             ->has('commits.data', 3));
+});
+
+it('hides deleted commits from profiles', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    Commit::factory()->for($user)->create(['body' => 'Kept']);
+    Commit::factory()->for($user)->create()->delete();
+
+    $response = $this->actingAs($user)
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('user.commits_count', 1)
+            ->where('activity.scale', 'day')
+            ->where('activity.buckets.23.count', 1)
+            ->where('streaks', ['longest' => 1, 'current' => 1])
+            ->has('commits.data', 1)
+            ->where('commits.data.0.body', 'Kept'));
 });
 
 it('only shows top-level commits on profiles', function (): void {

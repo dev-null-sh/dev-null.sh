@@ -75,3 +75,14 @@ it('returns not found for unknown commits', function (): void {
 
     $this->get("/@{$user->username}/commits/01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3/og.png")->assertNotFound();
 });
+
+it('returns not found for deleted commits without rendering an image', function (): void {
+    Http::fake();
+
+    $commit = Commit::factory()->create();
+    $commit->delete();
+
+    $this->get(route('commit-open-graph-image.show', [$commit->user, $commit]))->assertNotFound();
+
+    Http::assertNothingSent();
+});

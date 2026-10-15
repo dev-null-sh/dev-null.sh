@@ -29,6 +29,21 @@ it('renders pending commits oldest first', function (): void {
             ->has('commits.data.0.user'));
 });
 
+it('drops deleted pending commits from the queue', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+
+    Commit::factory()->pending()->create(['body' => 'Kept']);
+    Commit::factory()->pending()->create()->delete();
+
+    $response = $this->actingAs($admin)
+        ->get(route('moderation.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 1)
+            ->where('commits.data.0.body', 'Kept'));
+});
+
 it('may not be viewed by non admins', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->get(route('moderation.show'));

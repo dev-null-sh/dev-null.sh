@@ -18,17 +18,17 @@ import { UserPreview } from '@/components/user-preview';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
-import { cn, formatRelativeTime } from '@/lib/utils';
+import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, CursorPaginated } from '@/types';
+import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 const maxIndentDepth = 3;
 const maxBodyLength = 280;
 
 type Thread = {
-    commit: Commit;
+    commit: ThreadCommit;
     count: number;
-    replies: Commit[] | null;
+    replies: ThreadCommit[] | null;
     hasMore: boolean;
     isOpen: boolean;
     isLoading: boolean;
@@ -42,9 +42,9 @@ type Thread = {
 };
 
 async function fetchReplies(
-    commit: Commit,
+    commit: ThreadCommit,
     cursor: string | null,
-): Promise<CursorPaginated<Commit>> {
+): Promise<CursorPaginated<ThreadCommit>> {
     const response = await fetch(
         CommitReplyController.index(commit, { query: { cursor } }).url,
         {
@@ -59,13 +59,13 @@ async function fetchReplies(
         throw new Error('Unable to load replies');
     }
 
-    return (await response.json()) as CursorPaginated<Commit>;
+    return (await response.json()) as CursorPaginated<ThreadCommit>;
 }
 
 async function fetchRepliesUntil(
-    commit: Commit,
+    commit: ThreadCommit,
     minimum: number,
-): Promise<CursorPaginated<Commit>> {
+): Promise<CursorPaginated<ThreadCommit>> {
     const page = await fetchReplies(commit, null);
     let data = page.data;
     let cursor = page.next_cursor;
@@ -80,10 +80,10 @@ async function fetchRepliesUntil(
 }
 
 function useThread(
-    commit: Commit,
-    initialReplies?: CursorPaginated<Commit>,
+    commit: ThreadCommit,
+    initialReplies?: CursorPaginated<ThreadCommit>,
 ): Thread {
-    const [replies, setReplies] = useState<Commit[] | null>(
+    const [replies, setReplies] = useState<ThreadCommit[] | null>(
         initialReplies?.data ?? null,
     );
     const [nextCursor, setNextCursor] = useState<string | null>(
@@ -94,7 +94,7 @@ function useThread(
     const [isLoading, setIsLoading] = useState(false);
     const [isReplying, setIsReplying] = useState(false);
 
-    const applyPage = (loaded: Commit[], cursor: string | null) => {
+    const applyPage = (loaded: ThreadCommit[], cursor: string | null) => {
         setReplies(loaded);
         setNextCursor(cursor);
 
@@ -168,7 +168,7 @@ export function CommitThread({
     initialReplies,
 }: {
     commit: Commit;
-    initialReplies?: CursorPaginated<Commit>;
+    initialReplies?: CursorPaginated<ThreadCommit>;
 }) {
     const thread = useThread(commit, initialReplies);
 
@@ -188,40 +188,43 @@ function ThreadActions({
     hasKeyboardShortcuts?: boolean;
 }) {
     const { auth } = usePage().props;
-    const hasStash = useHasStash(auth.user.id, `reply-${thread.commit.id}`);
+    const { commit } = thread;
+    const hasStash = useHasStash(auth.user.id, `reply-${commit.id}`);
 
     return (
         <>
             <div className="mt-1 -ml-2 flex flex-wrap items-center gap-0.5 text-[13px]">
-                <button
-                    type="button"
-                    onClick={
-                        thread.isReplying
-                            ? thread.cancelReply
-                            : thread.startReply
-                    }
-                    aria-expanded={thread.isReplying}
-                    aria-keyshortcuts={
-                        hasKeyboardShortcuts && !thread.isReplying
-                            ? 'r'
-                            : undefined
-                    }
-                    title={hasKeyboardShortcuts ? 'Reply (r)' : undefined}
-                    className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    data-test="reply-button"
-                >
-                    <MessageSquareReply className="size-4" />
-                    Reply
-                    {hasStash && !thread.isReplying && (
-                        <span
-                            title="You have an unsent reply here"
-                            className="font-mono text-[11px] opacity-70"
-                            data-test="reply-stash-hint"
-                        >
-                            {'stash@{0}'}
-                        </span>
-                    )}
-                </button>
+                {!isDeleted(commit) && (
+                    <button
+                        type="button"
+                        onClick={
+                            thread.isReplying
+                                ? thread.cancelReply
+                                : thread.startReply
+                        }
+                        aria-expanded={thread.isReplying}
+                        aria-keyshortcuts={
+                            hasKeyboardShortcuts && !thread.isReplying
+                                ? 'r'
+                                : undefined
+                        }
+                        title={hasKeyboardShortcuts ? 'Reply (r)' : undefined}
+                        className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        data-test="reply-button"
+                    >
+                        <MessageSquareReply className="size-4" />
+                        Reply
+                        {hasStash && !thread.isReplying && (
+                            <span
+                                title="You have an unsent reply here"
+                                className="font-mono text-[11px] opacity-70"
+                                data-test="reply-stash-hint"
+                            >
+                                {'stash@{0}'}
+                            </span>
+                        )}
+                    </button>
+                )}
 
                 {thread.count > 0 && (
                     <button
@@ -250,15 +253,17 @@ function ThreadActions({
                     </button>
                 )}
 
-                <CopyLinkButton
-                    commit={thread.commit}
-                    keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
-                />
+                {!isDeleted(commit) && (
+                    <CopyLinkButton
+                        commit={commit}
+                        keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
+                    />
+                )}
             </div>
 
-            {thread.isReplying && (
+            {thread.isReplying && !isDeleted(commit) && (
                 <ReplyComposer
-                    parent={thread.commit}
+                    parent={commit}
                     onCancel={thread.cancelReply}
                     onReplied={thread.onReplied}
                 />
@@ -332,7 +337,7 @@ function MoreRepliesButton({
                     {remaining > 0
                         ? `Show ${remaining} more ${remaining === 1 ? 'reply' : 'replies'}`
                         : 'Show more replies'}
-                    {isFlattened && (
+                    {isFlattened && !isDeleted(thread.commit) && (
                         <>
                             {' to '}
                             <span className="font-mono text-xs">
@@ -352,14 +357,61 @@ function ReplyItem({
     depth,
     onDeleted,
 }: {
-    reply: Commit;
-    parent: Commit;
+    reply: ThreadCommit;
+    parent: ThreadCommit;
     depth: number;
+    onDeleted: () => void;
+}) {
+    const thread = useThread(reply);
+
+    if (isDeleted(reply)) {
+        return (
+            <article className="pt-2.5" data-test="reply-tombstone">
+                <div className="flex gap-2 sm:gap-2.5">
+                    <span
+                        aria-hidden
+                        className="size-6 shrink-0 rounded-full border-2 border-dashed border-rail sm:size-7"
+                    />
+                    <div className="min-w-0 flex-1">
+                        <p className="flex min-h-6 items-center gap-1.5 text-sm text-muted-foreground sm:min-h-7">
+                            <span className="font-mono text-xs">[deleted]</span>
+                            This commit was deleted.
+                        </p>
+                        <ThreadActions thread={thread} />
+                    </div>
+                </div>
+
+                <ThreadReplies thread={thread} depth={depth} />
+            </article>
+        );
+    }
+
+    return (
+        <CommitReply
+            reply={reply}
+            parent={parent}
+            depth={depth}
+            thread={thread}
+            onDeleted={onDeleted}
+        />
+    );
+}
+
+function CommitReply({
+    reply,
+    parent,
+    depth,
+    thread,
+    onDeleted,
+}: {
+    reply: Commit;
+    parent: ThreadCommit;
+    depth: number;
+    thread: Thread;
     onDeleted: () => void;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
-    const thread = useThread(reply);
     const [isConfirming, setIsConfirming] = useState(false);
 
     const isOwn = reply.user_id === auth.user.id;
@@ -455,7 +507,9 @@ function ReplyItem({
                         <p className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
                             <CornerDownRight className="size-3 shrink-0" />
                             <span className="truncate">
-                                replying to @{parent.user.username}
+                                {isDeleted(parent)
+                                    ? 'replying to [deleted]'
+                                    : `replying to @${parent.user.username}`}
                             </span>
                         </p>
                     )}

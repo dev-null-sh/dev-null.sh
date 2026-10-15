@@ -33,6 +33,29 @@ it('scopes commits to top-level ones', function (): void {
     expect(Commit::query()->topLevel()->pluck('id')->all())->toBe([$parent->id]);
 });
 
+it('scopes thread commits to visible ones and deleted ones that still have visible replies', function (): void {
+    $user = User::factory()->create();
+
+    $commit = Commit::factory()->create();
+    $tombstone = Commit::factory()->create();
+    Commit::factory()->for($tombstone, 'parent')->create();
+    $tombstone->delete();
+    $deletedChain = Commit::factory()->create();
+    $deletedReply = Commit::factory()->for($deletedChain, 'parent')->create();
+    Commit::factory()->for($deletedReply, 'parent')->create();
+    $deletedReply->delete();
+    $deletedChain->delete();
+    $onlyHiddenReplies = Commit::factory()->create();
+    Commit::factory()->for($onlyHiddenReplies, 'parent')->pending()->create();
+    $onlyHiddenReplies->delete();
+    Commit::factory()->create()->delete();
+    Commit::factory()->pending()->create();
+
+    $ids = Commit::query()->topLevel()->visibleInThreadTo($user)->pluck('id')->sort()->values()->all();
+
+    expect($ids)->toBe(collect([$commit->id, $tombstone->id, $deletedChain->id])->sort()->values()->all());
+});
+
 it('scopes commits to approved ones', function (): void {
     $user = User::factory()->create();
     $approved = Commit::factory()->for($user)->create();

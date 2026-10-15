@@ -144,6 +144,27 @@ it('counts commits newer than a given commit', function (): void {
         ->assertJsonPath('props.newCommitsCount', 2);
 });
 
+it('counts new commits since a commit that was deleted, without deleted ones', function (): void {
+    $user = User::factory()->create();
+
+    $seen = Commit::factory()->for($user)->create(['created_at' => now()->subMinutes(5)]);
+    Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->create()->delete();
+    $seen->delete();
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'newCommitsCount',
+        ])
+        ->get('/log/following?since='.$seen->id);
+
+    $response->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 1);
+});
+
 it('does not count new commits on a regular visit', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->get('/log/following');

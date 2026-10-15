@@ -20,7 +20,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
 import type {
-    ActivityDay,
+    Activity,
     Commit,
     CursorPaginated,
     Profile,
@@ -40,14 +40,16 @@ export default function Show({
 }: {
     user: Profile;
     isFollowing: boolean;
-    activity: ActivityDay[];
+    activity: Activity;
     streaks: Streaks;
     commits: CursorPaginated<Commit>;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user.id === user.id;
     const lane = laneColor(user.lane);
-    const [highlightedDate, setHighlightedDate] = useState<string | null>(null);
+    const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
+        null,
+    );
 
     return (
         <>
@@ -207,14 +209,14 @@ export default function Show({
             <ActivityGraph
                 activity={activity}
                 lane={lane}
-                onDayHover={setHighlightedDate}
+                onPeriodHover={setHighlightedPeriod}
             />
 
             <ActivityStreaks streaks={streaks} lane={lane} />
 
             <CommitFeed
                 commits={commits}
-                highlightedDate={highlightedDate}
+                highlightedPeriod={highlightedPeriod}
                 end={
                     isCurrentUser
                         ? 'That was your first commit. Everyone starts somewhere.'

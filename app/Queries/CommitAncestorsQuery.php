@@ -34,6 +34,6 @@ final readonly class CommitAncestorsQuery
 
     private function visibleCommit(string $id, User $user): ?Commit
     {
-        return Commit::query()->visibleTo($user)->with('user')->find($id);
+        return Commit::query()->withTrashed()->visibleTo($user)->with('user')->find($id);
     }
 }

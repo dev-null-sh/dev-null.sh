@@ -13,19 +13,20 @@ import {
     cn,
     formatFullDateTime,
     formatRelativeTime,
+    isDeleted,
     isWithinSeconds,
     laneColor,
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, CursorPaginated } from '@/types';
+import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 export function CommitCard({
     commit,
     previousLane,
     isDimmed = false,
     isPreviousDimmed = false,
-    isDayHighlighted = false,
+    isHighlighted = false,
     onAuthorHover,
     actions,
     isFocused = false,
@@ -36,12 +37,12 @@ export function CommitCard({
     previousLane?: string;
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
-    isDayHighlighted?: boolean;
+    isHighlighted?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
     actions?: ReactNode;
     isFocused?: boolean;
     canDelete?: boolean;
-    initialReplies?: CursorPaginated<Commit>;
+    initialReplies?: CursorPaginated<ThreadCommit>;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
@@ -75,7 +76,7 @@ export function CommitCard({
         <article
             className={cn(
                 'group grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
-                { 'bg-primary-soft/60': isDayHighlighted },
+                { 'bg-primary-soft/60': isHighlighted },
                 deletion === 'deleting'
                     ? 'grid-rows-[0fr] opacity-0 delay-400'
                     : 'grid-rows-[1fr]',
@@ -213,7 +214,13 @@ export function CommitCard({
                             </p>
                         ) : (
                             <>
-                                {commit.parent && (
+                                {commit.parent && isDeleted(commit.parent) && (
+                                    <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
+                                        <CornerDownRight className="size-3" />
+                                        replying to [deleted]
+                                    </p>
+                                )}
+                                {commit.parent && !isDeleted(commit.parent) && (
                                     <Link
                                         href={CommitController.show({
                                             user: commit.parent.user,
@@ -299,6 +306,29 @@ export function CommitCard({
                         )}
                     </div>
                 </div>
+            </div>
+        </article>
+    );
+}
+
+export function CommitTombstone({ previousLane }: { previousLane?: string }) {
+    return (
+        <article className="flex" data-test="commit-tombstone">
+            <GraphRail
+                lane="var(--rail)"
+                previousLane={previousLane}
+                isFilled={false}
+            />
+
+            <div className="flex min-w-0 flex-1 items-center gap-3 border-b py-3 pr-4">
+                <span
+                    aria-hidden
+                    className="size-10 shrink-0 rounded-full border-2 border-dashed border-rail"
+                />
+                <p className="flex items-baseline gap-1.5 text-[15px] text-muted-foreground">
+                    <span className="font-mono text-[13px]">[deleted]</span>
+                    This commit was deleted.
+                </p>
             </div>
         </article>
     );

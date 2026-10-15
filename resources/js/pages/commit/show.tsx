@@ -1,11 +1,11 @@
 import { Head, router } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
-import { CommitCard } from '@/components/commit-card';
+import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import AppLayout from '@/layouts/app-layout';
-import { laneColor, shortHash } from '@/lib/utils';
-import type { Commit, CursorPaginated } from '@/types';
+import { isDeleted, laneOf, shortHash } from '@/lib/utils';
+import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 const titleLength = 60;
 
@@ -15,8 +15,8 @@ export default function Show({
     replies,
 }: {
     commit: Commit;
-    ancestors: Commit[];
-    replies: CursorPaginated<Commit>;
+    ancestors: ThreadCommit[];
+    replies: CursorPaginated<ThreadCommit>;
 }) {
     const excerpt =
         commit.body.length > titleLength
@@ -55,25 +55,29 @@ export default function Show({
                 <CopyLinkButton commit={commit} className="-mr-1 -ml-1.5" />
             </div>
 
-            {ancestors.map((ancestor, index) => (
-                <CommitCard
-                    key={ancestor.id}
-                    commit={ancestor}
-                    previousLane={
-                        index > 0
-                            ? laneColor(ancestors[index - 1].user.lane)
-                            : undefined
-                    }
-                    canDelete={false}
-                />
-            ))}
+            {ancestors.map((ancestor, index) => {
+                const previousLane =
+                    index > 0 ? laneOf(ancestors[index - 1]) : undefined;
+
+                return isDeleted(ancestor) ? (
+                    <CommitTombstone
+                        key={ancestor.id}
+                        previousLane={previousLane}
+                    />
+                ) : (
+                    <CommitCard
+                        key={ancestor.id}
+                        commit={ancestor}
+                        previousLane={previousLane}
+                        canDelete={false}
+                    />
+                );
+            })}
 
             <CommitCard
                 key={commit.id}
                 commit={commit}
-                previousLane={
-                    lastAncestor ? laneColor(lastAncestor.user.lane) : undefined
-                }
+                previousLane={lastAncestor ? laneOf(lastAncestor) : undefined}
                 initialReplies={replies}
                 isFocused
             />

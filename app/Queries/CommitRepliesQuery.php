@@ -18,7 +18,7 @@ final readonly class CommitRepliesQuery
     public function paginate(Commit $commit, User $user): CursorPaginator
     {
         return $commit->replies()
-            ->visibleTo($user)
+            ->visibleInThreadTo($user)
             ->withVisibleReplyCount($user)
             ->with('user')
             ->oldest()

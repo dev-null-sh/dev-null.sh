@@ -32,6 +32,19 @@ it('returns a summary of the user for the user preview', function (): void {
         ->assertJsonMissingPath('user.github_id');
 });
 
+it('does not count deleted commits in the user preview', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->create()->delete();
+
+    $response = $this->actingAs($user)
+        ->getJson('/@octocat/preview');
+
+    $response->assertOk()
+        ->assertJsonPath('user.commits_count', 1);
+});
+
 it('loads counts without joining users', function (): void {
     $viewer = User::factory()->create();
     $user = User::factory()->create(['username' => 'octocat']);

@@ -26,7 +26,7 @@ final readonly class LogController
                 ->cursorPaginate(20)),
             'newCommitsCount' => Inertia::optional(function () use ($request, $user, $log): int {
                 $since = $request->string('since')->value();
-                $seen = Str::isUuid($since) ? Commit::query()->find($since) : null;
+                $seen = Str::isUuid($since) ? Commit::query()->withTrashed()->find($since) : null;
 
                 return $seen instanceof Commit
                     ? $log->query()->builder($user)->where('created_at', '>', $seen->created_at)->count()
