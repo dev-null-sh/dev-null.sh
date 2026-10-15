@@ -41,6 +41,6 @@ final readonly class DeleteCommit
             return $imagePaths;
         });
 
-        Storage::disk(CommitImage::DISK)->delete($imagePaths);
+        Storage::disk(CommitImage::disk())->delete($imagePaths);
     }
 }

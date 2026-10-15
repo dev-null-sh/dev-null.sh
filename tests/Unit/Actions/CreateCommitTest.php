@@ -196,7 +196,7 @@ it('attaches no link preview without a url', function (): void {
 });
 
 it('stores the images of a commit', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake(CommitImage::disk());
 
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at this', images: [
         UploadedFile::fake()->image('photo.jpg', 10, 10),

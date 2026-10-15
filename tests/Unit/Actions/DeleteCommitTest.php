@@ -27,15 +27,15 @@ it('keeps the replies of a deleted commit', function (): void {
 });
 
 it('erases the images of a deleted commit', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake(CommitImage::disk());
 
     $commit = Commit::factory()->create();
     $image = CommitImage::factory()->for($commit)->create();
-    Storage::disk(CommitImage::DISK)->put($image->path, 'image');
+    Storage::disk(CommitImage::disk())->put($image->path, 'image');
 
     resolve(DeleteCommit::class)->handle($commit);
 
     expect(CommitImage::query()->count())->toBe(0);
 
-    Storage::disk(CommitImage::DISK)->assertMissing($image->path);
+    Storage::disk(CommitImage::disk())->assertMissing($image->path);
 });

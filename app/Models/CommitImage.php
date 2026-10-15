@@ -36,9 +36,17 @@ final class CommitImage extends Model
     use HasUuids;
 
     /**
-     * Images only ever leave the private disk through the controller, which checks the commit is visible.
+     * @deprecated Use CommitImage::disk() instead.
      */
     public const string DISK = 'local';
+
+    /**
+     * The disk used to store commit images. Defaults to the application's default filesystem disk.
+     */
+    public static function disk(): string
+    {
+        return config()->string('filesystems.default', 'local');
+    }
 
     /**
      * @return array<string, string>

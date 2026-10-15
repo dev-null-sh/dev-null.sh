@@ -22,7 +22,9 @@ final readonly class CommitImageController
 
         abort_unless($commit instanceof Commit && $commit->imagesAreVisibleTo($user), 404);
 
-        return Storage::disk(CommitImage::DISK)->response($commitImage->path, headers: [
+        abort_unless(Storage::disk(CommitImage::disk())->exists($commitImage->path), 404);
+
+        return Storage::disk(CommitImage::disk())->response($commitImage->path, headers: [
             'Content-Type' => 'image/webp',
             'Content-Disposition' => 'inline',
             'Content-Security-Policy' => "default-src 'none'; sandbox",

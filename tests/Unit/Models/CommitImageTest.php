@@ -30,3 +30,13 @@ it('is deleted with its commit', function (): void {
 
     expect(CommitImage::query()->count())->toBe(0);
 });
+
+it('uses the configured default filesystem disk', function (): void {
+    config()->set('filesystems.default', 's3');
+
+    expect(CommitImage::disk())->toBe('s3');
+
+    config()->set('filesystems.default', 'local');
+
+    expect(CommitImage::disk())->toBe('local');
+});

@@ -41,7 +41,7 @@ final readonly class StoreCommitImages
         $optimized = array_map($this->optimize(...), array_slice($images, 0, self::MAX_IMAGES));
 
         foreach ($optimized as $position => $image) {
-            $path = $image->storeAs('commit-images', Str::uuid7()->toString().'.webp', CommitImage::DISK);
+            $path = $image->storeAs('commit-images', Str::uuid7()->toString().'.webp', CommitImage::disk());
 
             $commit->images()->create([
                 'path' => $path,
