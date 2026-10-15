@@ -1,4 +1,5 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { RailSegment } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,9 @@ function reasonFor(user: SuggestedUser): string | null {
     return null;
 }
 
+/**
+ * Only the counts reload after a follow, so the suggestion stays where it is and flips to "Following".
+ */
 function FollowButton({
     user,
     className,
@@ -31,17 +35,48 @@ function FollowButton({
     user: SuggestedUser;
     className?: string;
 }) {
+    const [isFollowing, setIsFollowing] = useState(false);
+
     return (
-        <Button size="sm" className={cn('shrink-0', className)} asChild>
+        <Button
+            size="sm"
+            variant={isFollowing ? 'outline' : 'default'}
+            className={cn('group/follow min-w-24 shrink-0', className)}
+            asChild
+        >
             <Link
-                href={UserFollowController.store(user)}
+                href={
+                    isFollowing
+                        ? UserFollowController.destroy(user)
+                        : UserFollowController.store(user)
+                }
                 as="button"
+                only={['auth']}
                 preserveScroll
-                onSuccess={() => router.flushAll()}
-                aria-label={`Follow @${user.username}`}
+                preserveState
+                onSuccess={() => {
+                    setIsFollowing(!isFollowing);
+                    router.flushAll();
+                }}
+                aria-label={
+                    isFollowing
+                        ? `Unfollow @${user.username}`
+                        : `Follow @${user.username}`
+                }
                 data-test="suggested-follow-button"
             >
-                Follow
+                {isFollowing ? (
+                    <>
+                        <span className="group-hover/follow:hidden">
+                            Following
+                        </span>
+                        <span className="hidden text-destructive group-hover/follow:inline">
+                            Unfollow
+                        </span>
+                    </>
+                ) : (
+                    'Follow'
+                )}
             </Link>
         </Button>
     );
