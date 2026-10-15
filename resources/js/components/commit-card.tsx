@@ -18,7 +18,7 @@ import {
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit } from '@/types';
+import type { Commit, CursorPaginated } from '@/types';
 
 export function CommitCard({
     commit,
@@ -41,7 +41,7 @@ export function CommitCard({
     actions?: ReactNode;
     isFocused?: boolean;
     canDelete?: boolean;
-    initialReplies?: Commit[];
+    initialReplies?: CursorPaginated<Commit>;
 }) {
     const { auth } = usePage().props;
     const now = useNow();

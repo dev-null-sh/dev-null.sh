@@ -4,7 +4,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard } from '@/components/commit-card';
 import AppLayout from '@/layouts/app-layout';
 import { laneFor, shortHash } from '@/lib/utils';
-import type { Commit } from '@/types';
+import type { Commit, CursorPaginated } from '@/types';
 
 const titleLength = 60;
 
@@ -15,7 +15,7 @@ export default function Show({
 }: {
     commit: Commit;
     ancestors: Commit[];
-    replies: Commit[];
+    replies: CursorPaginated<Commit>;
 }) {
     const excerpt =
         commit.body.length > titleLength
