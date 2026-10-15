@@ -4,6 +4,8 @@ import UserFollowersController from '@/actions/App/Http/Controllers/UserFollower
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
+import { useSharedState } from '@/hooks/use-shared-state';
+import { commitStateKey } from '@/lib/commit-state';
 import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 
@@ -22,6 +24,10 @@ export function AppAside({
     onSearch: () => void;
 }) {
     const { auth } = usePage().props;
+    const [commitsCount] = useSharedState(
+        commitStateKey('commits_count', auth.user.id),
+        auth.user.commits_count,
+    );
 
     return (
         <aside className="sticky top-0 hidden h-svh w-80 shrink-0 flex-col gap-8 px-6 py-6 xl:flex">
@@ -66,11 +72,8 @@ export function AppAside({
                 <dl className="mt-4 flex gap-4 text-sm">
                     {[
                         {
-                            count: auth.user.commits_count,
-                            label:
-                                auth.user.commits_count === 1
-                                    ? 'commit'
-                                    : 'commits',
+                            count: commitsCount,
+                            label: commitsCount === 1 ? 'commit' : 'commits',
                             href: show(auth.user),
                         },
                         {
