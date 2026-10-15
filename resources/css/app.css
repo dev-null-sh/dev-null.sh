@@ -228,3 +228,49 @@
         animation: none;
     }
 }
+
+/* Syntax highlighting for the classes tempest/highlight emits, built from the app's own colours. */
+@layer components {
+    .hl-keyword {
+        color: var(--primary);
+    }
+
+    .hl-type,
+    .hl-generic {
+        color: var(--lane-2);
+    }
+
+    .hl-property {
+        color: var(--lane-3);
+    }
+
+    .hl-value {
+        color: var(--lane-1);
+    }
+
+    .hl-number,
+    .hl-literal {
+        color: var(--lane-0);
+    }
+
+    .hl-variable {
+        color: var(--lane-4);
+    }
+
+    .hl-comment {
+        color: var(--muted-foreground);
+        font-style: italic;
+    }
+
+    .hl-attribute {
+        font-style: italic;
+    }
+
+    .hl-addition {
+        color: var(--lane-1);
+    }
+
+    .hl-deletion {
+        color: var(--destructive);
+    }
+}
