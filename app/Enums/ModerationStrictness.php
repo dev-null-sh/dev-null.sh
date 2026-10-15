@@ -11,6 +11,24 @@ enum ModerationStrictness: string
     case Lenient = 'lenient';
 
     /**
+     * Every preset's thresholds for every action, for showing them before a rule is saved.
+     *
+     * @return array<string, array<string, array{act: int|null, review: int|null}>>
+     */
+    public static function presets(): array
+    {
+        $presets = [];
+
+        foreach (self::cases() as $strictness) {
+            foreach (ModerationRuleAction::cases() as $action) {
+                $presets[$strictness->value][$action->value] = $strictness->thresholds($action);
+            }
+        }
+
+        return $presets;
+    }
+
+    /**
      * The match percentages at which a rule acts on a commit or sends it to a moderator. Reject rules use both, flag
      * rules only send to review, and approve rules only act.
      *

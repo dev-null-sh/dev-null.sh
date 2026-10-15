@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Services;
 
 use App\Dto\RuleResult;
 use App\Models\ModerationRule;
@@ -10,11 +10,11 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use UnexpectedValueException;
 
-final readonly class PreviewModerationRules
+final readonly class ModerationRulePreviews
 {
     public function __construct(
-        private RunModerationRules $runModerationRules,
-        private DecideModeration $decideModeration,
+        private Jev $jev,
+        private ModerationDecisions $moderationDecisions,
     ) {
         //
     }
@@ -26,12 +26,12 @@ final readonly class PreviewModerationRules
      *
      * @throws ConnectionException|RequestException|UnexpectedValueException
      */
-    public function handle(string $body, ?string $parentBody = null): array
+    public function for(string $body, ?string $parentBody = null): array
     {
-        $run = $this->runModerationRules->handle(ModerationRule::query()->active()->ordered()->get(), $body, $parentBody);
+        $run = $this->jev->run(ModerationRule::query()->active()->ordered()->get(), $body, $parentBody);
 
-        $live = $this->decideModeration->handle($run->liveResults());
-        $all = $this->decideModeration->handle($run->results);
+        $live = $this->moderationDecisions->decide($run->liveResults());
+        $all = $this->moderationDecisions->decide($run->results);
 
         return [
             'decision' => $live['decision']->value,

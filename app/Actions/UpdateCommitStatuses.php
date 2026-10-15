@@ -22,12 +22,12 @@ final readonly class UpdateCommitStatuses
     }
 
     /**
+     * Moving commits back to pending takes back the approval or rejection their authors were told about.
+     *
      * @param  array<int, string>  $commitIds
      */
     public function handle(array $commitIds, CommitStatus $status, ?string $reason = null, bool $onlyPending = false): void
     {
-        assert($status !== CommitStatus::Pending);
-
         DB::transaction(function () use ($commitIds, $status, $reason, $onlyPending): void {
             $commits = Commit::query()
                 ->whereKey($commitIds)
@@ -47,6 +47,10 @@ final readonly class UpdateCommitStatuses
                 ->whereIn('commit_id', $commits->modelKeys())
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
                 ->delete();
+
+            if ($status === CommitStatus::Pending) {
+                return;
+            }
 
             Notification::query()->insert($commits->map(fn (Commit $commit): array => [
                 'id' => Str::uuid7()->toString(),

@@ -10,7 +10,7 @@ use App\Enums\ModerationStrictness;
 use App\Models\ModerationRule;
 use Illuminate\Support\Facades\DB;
 
-final readonly class AddStarterModerationRules
+final readonly class CreateStarterModerationRules
 {
     /**
      * Rules that were tested against real and adversarial commits. Each one says what doesn't count too, which kept

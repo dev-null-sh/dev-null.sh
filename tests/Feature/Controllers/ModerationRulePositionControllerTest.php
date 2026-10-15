@@ -9,7 +9,7 @@ beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 });
 
-it('moves a rule up or down the list', function (string $name, string $direction, array $order): void {
+it('moves a rule to another place in the list', function (string $name, int $position, array $order): void {
     $admin = User::factory()->create(['username' => 'admin']);
     ModerationRule::factory()->create(['name' => 'Spam', 'position' => 0]);
     ModerationRule::factory()->create(['name' => 'Scams', 'position' => 1]);
@@ -19,34 +19,24 @@ it('moves a rule up or down the list', function (string $name, string $direction
 
     $response = $this->actingAs($admin)
         ->fromRoute('moderation-rule.index')
-        ->put(route('moderation-rule-position.update', $rule), ['direction' => $direction]);
+        ->put(route('moderation-rule-position.update', $rule), ['position' => $position]);
 
     $response->assertRedirectToRoute('moderation-rule.index');
 
-    expect(ModerationRule::query()->ordered()->pluck('name')->all())->toBe($order);
+    expect(ModerationRule::query()->ordered()->pluck('name')->all())->toBe($order)
+        ->and(ModerationRule::query()->ordered()->pluck('position')->all())->toBe([0, 1, 2]);
 })->with([
-    'up' => ['Scams', 'up', ['Scams', 'Spam', 'Hate']],
-    'down' => ['Scams', 'down', ['Spam', 'Hate', 'Scams']],
-    'up from the top' => ['Spam', 'up', ['Spam', 'Scams', 'Hate']],
-    'down from the bottom' => ['Hate', 'down', ['Spam', 'Scams', 'Hate']],
+    'up' => ['Scams', 0, ['Scams', 'Spam', 'Hate']],
+    'down' => ['Scams', 2, ['Spam', 'Hate', 'Scams']],
+    'where it already is' => ['Spam', 0, ['Spam', 'Scams', 'Hate']],
+    'past the end' => ['Spam', 9, ['Scams', 'Hate', 'Spam']],
 ]);
 
-it('renumbers the rules when moving one', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
-    ModerationRule::factory()->create(['position' => 3]);
-    $last = ModerationRule::factory()->create(['position' => 9]);
-
-    $this->actingAs($admin)->put(route('moderation-rule-position.update', $last), ['direction' => 'up']);
-
-    expect(ModerationRule::query()->ordered()->pluck('position')->all())->toBe([0, 1])
-        ->and($last->refresh()->position)->toBe(0);
-});
-
-it('validates the direction', function (): void {
+it('validates the position', function (mixed $position): void {
     $admin = User::factory()->create(['username' => 'admin']);
     $rule = ModerationRule::factory()->create();
 
-    $response = $this->actingAs($admin)->put(route('moderation-rule-position.update', $rule), ['direction' => 'sideways']);
+    $response = $this->actingAs($admin)->put(route('moderation-rule-position.update', $rule), ['position' => $position]);
 
-    $response->assertSessionHasErrors('direction');
-});
+    $response->assertSessionHasErrors('position');
+})->with([-1, 'up', null, 256]);

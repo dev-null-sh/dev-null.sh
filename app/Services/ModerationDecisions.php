@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Services;
 
 use App\Dto\RuleResult;
 use App\Enums\EvaluationDecision;
 use App\Enums\ModerationRuleAction;
 use App\Enums\RuleOutcome;
 
-final readonly class DecideModeration
+final readonly class ModerationDecisions
 {
     /**
      * Reject beats review beats approve, and doubt goes to a moderator: a commit is only approved when every approve
@@ -18,7 +18,7 @@ final readonly class DecideModeration
      * @param  list<RuleResult>  $results
      * @return array{decision: EvaluationDecision, rule: RuleResult|null}
      */
-    public function handle(array $results): array
+    public function decide(array $results): array
     {
         $byProbability = collect($results)->sortByDesc(fn (RuleResult $result): float => $result->probability);
 

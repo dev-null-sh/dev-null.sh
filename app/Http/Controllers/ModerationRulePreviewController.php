@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\PreviewModerationRules;
-use App\Http\Requests\PreviewModerationRulesRequest;
+use App\Http\Requests\CreateModerationRulePreviewRequest;
+use App\Services\ModerationRulePreviews;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
@@ -13,10 +13,10 @@ use UnexpectedValueException;
 
 final readonly class ModerationRulePreviewController
 {
-    public function store(PreviewModerationRulesRequest $request, PreviewModerationRules $action): JsonResponse
+    public function store(CreateModerationRulePreviewRequest $request, ModerationRulePreviews $previews): JsonResponse
     {
         try {
-            return response()->json($action->handle($request->body(), $request->parentBody()));
+            return response()->json($previews->for($request->body(), $request->parentBody()));
         } catch (ConnectionException|RequestException|UnexpectedValueException $exception) {
             report($exception);
 

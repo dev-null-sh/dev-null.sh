@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use App\Actions\RunModerationRules;
 use App\Enums\ModerationRuleMode;
 use App\Enums\RuleOutcome;
 use App\Models\LinkPreview;
 use App\Models\ModerationRule;
+use App\Services\Jev;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -23,7 +23,7 @@ it('asks one noul per rule in a single request', function (): void {
         "rule_{$offTopic->id}" => 0.16,
     ]), 200, ['x-typesafe-request-id' => 'req_abc'])]);
 
-    $run = resolve(RunModerationRules::class)->handle(collect([$spam, $offTopic]), 'Buy 1,000 GitHub stars for $5');
+    $run = resolve(Jev::class)->run(collect([$spam, $offTopic]), 'Buy 1,000 GitHub stars for $5');
 
     expect($run)
         ->model->toBe('jev-1.13.0')
@@ -84,7 +84,7 @@ it('puts the parent before the reply and adds what the link says', function (): 
 
     Http::fake(['api.typesafe.ai/*' => Http::response(jevAnswers(["rule_{$rule->id}" => 0.95]))]);
 
-    resolve(RunModerationRules::class)->handle(collect([$rule]), 'Free spins', 'What are you building this weekend?', $linkPreview);
+    resolve(Jev::class)->run(collect([$rule]), 'Free spins', 'What are you building this weekend?', $linkPreview);
 
     Http::assertSent(function (Request $request): bool {
         $state = $request['state'];

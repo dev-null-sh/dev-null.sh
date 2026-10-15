@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Actions\EvaluateCommit;
+use App\Actions\CreateCommitEvaluation;
 use App\Enums\CommitStatus;
 use App\Enums\EvaluationDecision;
 use App\Enums\NotificationType;
@@ -35,7 +35,7 @@ it('rejects a commit a live reject rule is sure about, telling the author why', 
 
     fakeJev(["rule_{$spam->id}" => 0.99, "rule_{$friendly->id}" => 0.02]);
 
-    $evaluation = resolve(EvaluateCommit::class)->handle($commit);
+    $evaluation = resolve(CreateCommitEvaluation::class)->handle($commit);
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Rejected)
         ->and($evaluation)
@@ -63,7 +63,7 @@ it('approves a commit every live approve rule is sure about, telling the author'
 
     fakeJev(["rule_{$spam->id}" => 0.09, "rule_{$friendly->id}" => 0.97]);
 
-    $evaluation = resolve(EvaluateCommit::class)->handle($commit);
+    $evaluation = resolve(CreateCommitEvaluation::class)->handle($commit);
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Approved)
         ->and($evaluation->decision)->toBe(EvaluationDecision::Approved)
@@ -79,7 +79,7 @@ it('leaves a commit it is unsure about to the moderators', function (): void {
 
     fakeJev(["rule_{$harassment->id}" => 0.69, "rule_{$friendly->id}" => 0.08]);
 
-    $evaluation = resolve(EvaluateCommit::class)->handle($commit);
+    $evaluation = resolve(CreateCommitEvaluation::class)->handle($commit);
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Pending)
         ->and($evaluation->decision)->toBe(EvaluationDecision::Review)
@@ -93,7 +93,7 @@ it('records test rules without ever acting on them', function (): void {
 
     fakeJev(["rule_{$spam->id}" => 0.99, "rule_{$friendly->id}" => 0.02]);
 
-    $evaluation = resolve(EvaluateCommit::class)->handle($commit);
+    $evaluation = resolve(CreateCommitEvaluation::class)->handle($commit);
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Pending)
         ->and($evaluation)
@@ -109,7 +109,7 @@ it('never approves when a test rule would approve', function (): void {
 
     fakeJev(["rule_{$friendly->id}" => 0.99]);
 
-    $evaluation = resolve(EvaluateCommit::class)->handle($commit);
+    $evaluation = resolve(CreateCommitEvaluation::class)->handle($commit);
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Pending)
         ->and($evaluation)
@@ -127,7 +127,7 @@ it('leaves commits a moderator decided on while jev was thinking', function (): 
         return Http::response(jevAnswers(["rule_{$spam->id}" => 0.99]));
     });
 
-    $evaluation = resolve(EvaluateCommit::class)->handle($commit);
+    $evaluation = resolve(CreateCommitEvaluation::class)->handle($commit);
 
     expect($evaluation)->toBeNull()
         ->and($commit->refresh()->status)->toBe(CommitStatus::Approved)
@@ -142,7 +142,7 @@ it('leaves the commit pending when jev cannot answer', function (Closure $respon
 
     Http::fake(['api.typesafe.ai/*' => $response()]);
 
-    $evaluation = resolve(EvaluateCommit::class)->handle($commit);
+    $evaluation = resolve(CreateCommitEvaluation::class)->handle($commit);
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Pending)
         ->and($evaluation)
@@ -167,7 +167,7 @@ it('does nothing when automatic moderation is off', function (array $config): vo
 
     Http::fake();
 
-    expect(resolve(EvaluateCommit::class)->handle($commit))->toBeNull();
+    expect(resolve(CreateCommitEvaluation::class)->handle($commit))->toBeNull();
 
     Http::assertNothingSent();
 })->with([
@@ -181,7 +181,7 @@ it('does nothing without test or live rules', function (): void {
 
     Http::fake();
 
-    expect(resolve(EvaluateCommit::class)->handle($commit))->toBeNull();
+    expect(resolve(CreateCommitEvaluation::class)->handle($commit))->toBeNull();
 
     Http::assertNothingSent();
 });
@@ -191,7 +191,7 @@ it('does nothing for commits that are no longer pending', function (Closure $com
 
     Http::fake();
 
-    expect(resolve(EvaluateCommit::class)->handle($commit()))->toBeNull();
+    expect(resolve(CreateCommitEvaluation::class)->handle($commit()))->toBeNull();
 
     Http::assertNothingSent();
 })->with([
@@ -208,7 +208,7 @@ it('judges a reply with its parent and the link it shares', function (): void {
 
     fakeJev(["rule_{$harassment->id}" => 0.96]);
 
-    resolve(EvaluateCommit::class)->handle($reply);
+    resolve(CreateCommitEvaluation::class)->handle($reply);
 
     Http::assertSent(fn (Request $request): bool => $request['state'] === [
         'parent' => ['body' => 'Just shipped my first open source package!'],
@@ -224,7 +224,7 @@ it('judges a reply to a deleted commit on its own', function (): void {
 
     fakeJev(["rule_{$harassment->id}" => 0.4]);
 
-    resolve(EvaluateCommit::class)->handle($reply->refresh());
+    resolve(CreateCommitEvaluation::class)->handle($reply->refresh());
 
     Http::assertSent(fn (Request $request): bool => $request['state'] === ['commit' => ['body' => 'Nobody asked.']]);
 });

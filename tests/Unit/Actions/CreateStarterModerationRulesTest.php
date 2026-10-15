@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-use App\Actions\AddStarterModerationRules;
+use App\Actions\CreateStarterModerationRules;
 use App\Enums\ModerationRuleAction;
 use App\Enums\ModerationRuleMode;
 use App\Enums\ModerationStrictness;
 use App\Models\ModerationRule;
 
 it('adds the starter rules in test mode, with off-topic off', function (): void {
-    resolve(AddStarterModerationRules::class)->handle();
+    resolve(CreateStarterModerationRules::class)->handle();
 
     $rules = ModerationRule::query()->ordered()->get();
 
@@ -40,7 +40,7 @@ it('skips starter rules that already exist and adds the rest after them', functi
     ModerationRule::factory()->create(['name' => 'Spam and self-promotion', 'position' => 0]);
     ModerationRule::factory()->create(['name' => 'My own rule', 'position' => 4]);
 
-    resolve(AddStarterModerationRules::class)->handle();
+    resolve(CreateStarterModerationRules::class)->handle();
 
     expect(ModerationRule::query()->count())->toBe(9)
         ->and(ModerationRule::query()->where('name', 'Spam and self-promotion')->count())->toBe(1)

@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\AddStarterModerationRules;
 use App\Actions\CreateModerationRule;
+use App\Actions\CreateStarterModerationRules;
 use App\Actions\DeleteModerationRule;
 use App\Actions\UpdateModerationRule;
-use App\Enums\ModerationRuleAction;
 use App\Enums\ModerationStrictness;
 use App\Http\Requests\CreateModerationRuleRequest;
 use App\Http\Requests\DeleteModerationRuleRequest;
@@ -27,12 +26,8 @@ final readonly class ModerationRuleController
     {
         return Inertia::render('moderation/rules', [
             'rules' => ModerationRule::query()->ordered()->get(),
-            'templates' => AddStarterModerationRules::TEMPLATES,
-            'presets' => collect(ModerationStrictness::cases())->mapWithKeys(fn (ModerationStrictness $strictness): array => [
-                $strictness->value => collect(ModerationRuleAction::cases())->mapWithKeys(fn (ModerationRuleAction $action): array => [
-                    $action->value => $strictness->thresholds($action),
-                ]),
-            ]),
+            'templates' => CreateStarterModerationRules::TEMPLATES,
+            'presets' => ModerationStrictness::presets(),
             'maxRules' => CreateModerationRuleRequest::MAX_RULES,
             'status' => [
                 'isConfigured' => $typeSafe->isConfigured(),

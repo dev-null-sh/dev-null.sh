@@ -26,3 +26,13 @@ it('has the thresholds of each preset', function (ModerationStrictness $strictne
     [ModerationStrictness::Balanced, ModerationRuleAction::Approve, ['act' => 90, 'review' => null]],
     [ModerationStrictness::Lenient, ModerationRuleAction::Approve, ['act' => 80, 'review' => null]],
 ]);
+
+it('lists the thresholds of every preset and action', function (): void {
+    expect(ModerationStrictness::presets())
+        ->toHaveKeys(['strict', 'balanced', 'lenient'])
+        ->and(ModerationStrictness::presets()['strict'])->toBe([
+            'reject' => ['act' => 80, 'review' => 30],
+            'review' => ['act' => null, 'review' => 30],
+            'approve' => ['act' => 95, 'review' => null],
+        ]);
+});

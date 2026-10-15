@@ -10,18 +10,20 @@ use App\Enums\EvaluationDecision;
 use App\Models\Commit;
 use App\Models\CommitEvaluation;
 use App\Models\ModerationRule;
+use App\Services\Jev;
+use App\Services\ModerationDecisions;
 use App\Services\TypeSafe;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
 use UnexpectedValueException;
 
-final readonly class EvaluateCommit
+final readonly class CreateCommitEvaluation
 {
     public function __construct(
         private TypeSafe $typeSafe,
-        private RunModerationRules $runModerationRules,
-        private DecideModeration $decideModeration,
+        private Jev $jev,
+        private ModerationDecisions $moderationDecisions,
         private UpdateCommitStatuses $updateCommitStatuses,
     ) {
         //
@@ -44,7 +46,7 @@ final readonly class EvaluateCommit
         }
 
         try {
-            $run = $this->runModerationRules->handle($rules, $commit->body, $commit->parent?->body, $commit->linkPreview);
+            $run = $this->jev->run($rules, $commit->body, $commit->parent?->body, $commit->linkPreview);
         } catch (ConnectionException|RequestException|UnexpectedValueException $exception) {
             report($exception);
 
@@ -56,7 +58,7 @@ final readonly class EvaluateCommit
             ]);
         }
 
-        ['decision' => $decision, 'rule' => $rule] = $this->decideModeration->handle($run->liveResults());
+        ['decision' => $decision, 'rule' => $rule] = $this->moderationDecisions->decide($run->liveResults());
 
         return DB::transaction(function () use ($commit, $run, $decision, $rule): ?CommitEvaluation {
             if (! Commit::query()->whereKey($commit->id)->pending()->lockForUpdate()->exists()) {
@@ -66,7 +68,7 @@ final readonly class EvaluateCommit
             $evaluation = CommitEvaluation::query()->create([
                 'commit_id' => $commit->id,
                 'decision' => $decision,
-                'test_decision' => $this->decideModeration->handle($run->results)['decision'],
+                'test_decision' => $this->moderationDecisions->decide($run->results)['decision'],
                 'results' => array_map(fn (RuleResult $result): array => $result->toArray(), $run->results),
                 'model' => $run->model,
                 'request_id' => $run->requestId,

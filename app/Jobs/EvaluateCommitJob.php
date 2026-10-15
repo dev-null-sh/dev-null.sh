@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Actions\EvaluateCommit;
+use App\Actions\CreateCommitEvaluation;
 use App\Models\Commit;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -32,8 +32,8 @@ final class EvaluateCommitJob implements ShouldBeUnique, ShouldQueue
         return $this->commit->id;
     }
 
-    public function handle(EvaluateCommit $evaluateCommit): void
+    public function handle(CreateCommitEvaluation $createCommitEvaluation): void
     {
-        $evaluateCommit->handle($this->commit);
+        $createCommitEvaluation->handle($this->commit);
     }
 }

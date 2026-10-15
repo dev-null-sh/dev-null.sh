@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\AddStarterModerationRules;
-use App\Http\Requests\CreateStarterModerationRulesRequest;
+use App\Actions\CreateStarterModerationRules;
+use App\Http\Requests\CreateStarterModerationRuleRequest;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
 final readonly class StarterModerationRuleController
 {
-    public function store(CreateStarterModerationRulesRequest $request, AddStarterModerationRules $action): RedirectResponse
+    public function store(CreateStarterModerationRuleRequest $request, CreateStarterModerationRules $action): RedirectResponse
     {
         $action->handle();
 

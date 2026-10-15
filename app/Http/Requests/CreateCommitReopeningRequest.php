@@ -7,7 +7,7 @@ namespace App\Http\Requests;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 
-final class CreateStarterModerationRulesRequest extends FormRequest
+final class CreateCommitReopeningRequest extends FormRequest
 {
     public function authorize(): bool
     {

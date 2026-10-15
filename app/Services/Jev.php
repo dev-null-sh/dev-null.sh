@@ -2,19 +2,18 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Services;
 
 use App\Dto\ModerationRun;
 use App\Dto\RuleResult;
 use App\Models\LinkPreview;
 use App\Models\ModerationRule;
-use App\Services\TypeSafe;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Collection;
 use UnexpectedValueException;
 
-final readonly class RunModerationRules
+final readonly class Jev
 {
     public function __construct(private TypeSafe $typeSafe)
     {
@@ -29,7 +28,7 @@ final readonly class RunModerationRules
      *
      * @throws ConnectionException|RequestException|UnexpectedValueException
      */
-    public function handle(Collection $rules, string $body, ?string $parentBody = null, ?LinkPreview $linkPreview = null): ModerationRun
+    public function run(Collection $rules, string $body, ?string $parentBody = null, ?LinkPreview $linkPreview = null): ModerationRun
     {
         $startedAt = hrtime(true);
 

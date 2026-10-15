@@ -111,14 +111,14 @@ function Stats({ stats }: { stats: AutoModerationStats }) {
 function RuleCard({
     rule,
     presets,
-    isFirst,
+    index,
     isLast,
     onEdit,
     onDelete,
 }: {
     rule: ModerationRule;
     presets: StrictnessPresets;
-    isFirst: boolean;
+    index: number;
     isLast: boolean;
     onEdit: () => void;
     onDelete: () => void;
@@ -129,10 +129,10 @@ function RuleCard({
             preserveScroll: true,
             preserveState: true,
         });
-    const move = (direction: 'up' | 'down') =>
+    const move = (position: number) =>
         router.put(
             ModerationRulePositionController.update(rule),
-            { direction },
+            { position },
             { preserveScroll: true, preserveState: true },
         );
 
@@ -160,8 +160,8 @@ function RuleCard({
                         variant="ghost"
                         size="icon"
                         className="size-8"
-                        disabled={isFirst}
-                        onClick={() => move('up')}
+                        disabled={index === 0}
+                        onClick={() => move(index - 1)}
                         aria-label={`Move ${rule.name} up`}
                     >
                         <ArrowUp />
@@ -171,7 +171,7 @@ function RuleCard({
                         size="icon"
                         className="size-8"
                         disabled={isLast}
-                        onClick={() => move('down')}
+                        onClick={() => move(index + 1)}
                         aria-label={`Move ${rule.name} down`}
                     >
                         <ArrowDown />
@@ -365,7 +365,7 @@ export default function Rules({
                                 key={rule.id}
                                 rule={rule}
                                 presets={presets}
-                                isFirst={index === 0}
+                                index={index}
                                 isLast={index === rules.length - 1}
                                 onEdit={() => openEditor(rule)}
                                 onDelete={() => setDeleting(rule)}

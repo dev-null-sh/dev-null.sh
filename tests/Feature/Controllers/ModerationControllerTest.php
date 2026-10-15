@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Enums\EvaluationDecision;
 use App\Enums\CommitStatus;
+use App\Enums\EvaluationDecision;
 use App\Models\Commit;
 use App\Models\CommitEvaluation;
 use App\Models\LinkPreview;

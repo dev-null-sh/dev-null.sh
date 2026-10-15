@@ -7,7 +7,7 @@ namespace App\Http\Requests;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 
-final class MoveModerationRuleRequest extends FormRequest
+final class UpdateModerationRulePositionRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -23,12 +23,12 @@ final class MoveModerationRuleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'direction' => ['required', 'in:up,down'],
+            'position' => ['required', 'integer', 'min:0', 'max:255'],
         ];
     }
 
-    public function isUp(): bool
+    public function position(): int
     {
-        return $this->string('direction')->toString() === 'up';
+        return $this->integer('position');
     }
 }
