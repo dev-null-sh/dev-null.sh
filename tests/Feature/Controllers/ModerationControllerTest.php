@@ -25,6 +25,8 @@ it('renders pending commits oldest first', function (): void {
             ->component('moderation/show')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Older')
+            ->where('commits.data.0.stars_count', 0)
+            ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Newer')
             ->has('commits.data.0.user'));
 });

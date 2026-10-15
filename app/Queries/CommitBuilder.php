@@ -60,4 +60,13 @@ final class CommitBuilder extends Builder
     {
         return $this->where('status', CommitStatus::Pending);
     }
+
+    public function withStarsFor(User $viewer): self
+    {
+        return $this
+            ->withCount('stars')
+            ->withExists([
+                'stars as starred' => fn (Builder $query): Builder => $query->whereKey($viewer->id),
+            ]);
+    }
 }

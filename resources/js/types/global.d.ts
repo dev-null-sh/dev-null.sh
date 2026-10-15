@@ -1,4 +1,4 @@
-import type { Auth } from '@/types/auth';
+import type { Auth, SuggestedUser } from '@/types/auth';
 import type { Commit } from '@/types/commit';
 import type { CommittedFlash, DeletedFlash, FlashToast } from '@/types/ui';
 
@@ -15,6 +15,8 @@ declare module '@inertiajs/core' {
             auth: Auth;
             hasUnmoderatedCommits: boolean;
             sidebarOpen: boolean;
+            showsWhoToFollow: boolean;
+            suggestedUsers?: SuggestedUser[];
             [key: string]: unknown;
         };
     }

@@ -13,6 +13,7 @@ use App\Models\User;
 it('restores only the deletion state within thirty seconds', function (CommitStatus $status): void {
     $parent = Commit::factory()->create();
     $commit = Commit::factory()->for($parent, 'parent')->create(['status' => $status]);
+    $commit->stars()->attach($commit->user);
     $original = $commit->only(['body', 'status', 'parent_id', 'created_at']);
 
     $this->actingAs($commit->user)->delete(route('commit.destroy', $commit))->assertRedirect();
@@ -21,7 +22,9 @@ it('restores only the deletion state within thirty seconds', function (CommitSta
     $this->fromRoute('log.show', Log::Everyone)
         ->post(route('commit-restore', $commit), ['status' => 'approved', 'body' => 'Changed'])
         ->assertRedirectToRoute('log.show', Log::Everyone)
-        ->assertInertiaFlash('restored.id', $commit->id);
+        ->assertInertiaFlash('restored.id', $commit->id)
+        ->assertInertiaFlash('restored.stars_count', 1)
+        ->assertInertiaFlash('restored.starred', true);
 
     expect($commit->refresh()->only(array_keys($original)))->toEqual($original);
     $this->assertNotSoftDeleted($commit);

@@ -2,7 +2,7 @@
 
 A social network for developers. Sign in with GitHub, have a Twitter-style profile imported from GitHub, follow people, make commits (short text updates), and read the log.
 
-**Keep it stupidly simple:** no comments, reactions, images, or DMs.
+**Keep it stupidly simple:** no comments, images, or DMs.
 
 ---
 
@@ -12,7 +12,7 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 - **Profile:** Twitter-style, mirrored from GitHub on every login (avatar, name, username, bio, location, website, company). No editing on devnull.
 - **Commits:** a post is a *commit*: a required title (max 72 characters, like a git subject line) and an optional description (max 500 characters). The author can create and delete — no editing (no `--amend`). Rate limited to 10 commits per minute per user.
 - **Log:** a timeline is a *log*. "Following" = my commits + commits from people I follow; "Everyone" = all commits. Newest first, Inertia infinite scroll. A profile shows that user's log. Each log is a `Log` enum case served by `LogController@show`.
-- **Metaphor, nouns only:** the git vocabulary is limited to *commit* and *log*. No branches, forks, stars, pushes, diffs, or PRs — those would just be features from "Not now" in disguise.
+- **Metaphor, nouns only:** the git vocabulary is limited to *commit* and *log*. No branches, forks, pushes, diffs, or PRs. A *star* is the engagement action (star a commit), not a git ref.
 - **Visibility:** everything except the landing page requires login.
 
 ---
@@ -92,4 +92,4 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 
 ## Not now
 
-Comments, likes/reactions (stars), reposts (forks), editing (amend), images/media, mentions, hashtags, search, DMs, other OAuth providers, public API, admin/moderation tools, blocking/muting, header/banner images, importing real GitHub commits, email/push notifications.
+Comments, reposts (forks), editing (amend), images/media, mentions, hashtags, search, DMs, other OAuth providers, public API, admin/moderation tools, blocking/muting, header/banner images, importing real GitHub commits, email/push notifications. Stars are in: anyone who can see a commit can star and unstar it, and the count sits on the commit.

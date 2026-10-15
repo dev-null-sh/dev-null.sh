@@ -150,5 +150,5 @@ it('does not count deleted commits', function (): void {
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->create()->delete();
 
-    expect(resolve(UserActivityQuery::class)->get($user, $user)[368]['count'])->toBe(1);
+    expect(resolve(UserActivityQuery::class)->get($user, $user)['buckets'][23]['count'])->toBe(1);
 });

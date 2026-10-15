@@ -6,6 +6,7 @@ export const commitMutationOptions = {
         'auth',
         'user',
         'activity',
+        'streaks',
         'commit',
         'ancestors',
         'hasUnmoderatedCommits',

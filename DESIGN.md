@@ -168,7 +168,7 @@ components:
 
 **Creative North Star: "The Commit Graph"**
 
-Every post is a commit and the timeline is the log. The system draws a literal `git log --graph` down the left edge of the feed: a vertical rail, one ringed node per commit, the segment below each node colored by its author's lane. Everything else stays out of the way so the graph reads. The topology is the familiar three-column social layout (nav, a 620px feed, an aside), stripped of the default social skin: no engagement row, no trend panels, no pill-shaped blue chrome.
+Every post is a commit and the timeline is the log. The system draws a literal `git log --graph` down the left edge of the feed: a vertical rail, one ringed node per commit, the segment below each node colored by its author's lane. Everything else stays out of the way so the graph reads. The topology is the familiar three-column social layout (nav, a 620px feed, an aside), stripped of the default social skin: no reply row, no trend panels, no pill-shaped blue chrome. The one engagement control is a star under the commit body: muted until you star it, then Commit Blue, with a mono count.
 
 The register is a well-lit terminal rather than a dark hacker cosplay. A cool near-white shell holds a white feed column cut by hairline cool-gray rules; ink is near-black. Geist carries prose, Geist Mono carries everything a machine would print: handles, short hashes, relative times, counts, character budgets, `fatal:` lines, and `null` values. Dark mode is a faithful mirror on graphite, with the lanes and primary lifted for luminance rather than redesigned.
 
@@ -267,7 +267,7 @@ Quiet, rectangular, decisive.
 - **Side nav:** 15px medium, 20px line icons, 12px padding, 8px corners. Inactive is Muted Ink; hover adds the wash; active is Commit Blue text on Blue Wash. Labels collapse to icons at md.
 - **Page tabs:** full-width split under a sticky header, 15px medium. Active text goes to ink with a 3px Commit Blue underline hugging the label; inactive is muted.
 - **Mobile:** fixed bottom bar, four equal cells, icon over 12px label, active in Commit Blue.
-- **Vocabulary:** a post is a **commit** and a timeline is a **log**, in the UI and in code. No other git nouns.
+- **Vocabulary:** a post is a **commit** and a timeline is a **log**, in the UI and in code. **Star** is the engagement verb. No other git nouns.
 
 ### Inputs / Fields
 - **Composer:** borderless, no visible field chrome: a 17px textarea ("What did you ship?", max 280) that grows with content. Its state is carried by the graph: the staged node is hollow until the body reaches 3 characters, then fills with the author's lane; the tail below it is a dashed Rail Gray line. A mono countdown sits left of the "Commit" button; ⌘/Ctrl+Enter commits.
@@ -277,7 +277,7 @@ Quiet, rectangular, decisive.
 - **Theme switch:** a bordered segmented group (8px outer, 6px inner) whose selected option uses the active-nav treatment.
 
 ### Commit Row (signature)
-The graph rail, then avatar (40px circle), then a header line: author name (600), mono handle, a middle dot, mono relative time, and the 7-character short hash pushed right (from sm). The body follows at 15px, pre-wrapped. Your own rows reveal a trash icon on hover/focus (always visible on touch). Deleting is inline: a soft red strip asks "Delete this commit? There's no undo." with Cancel and Delete; confirming swaps the body for a mono `rm {hash} → /dev/null` status, then the row collapses (height and opacity, 300ms after a 400ms hold).
+The graph rail, then avatar (40px circle), then a header line: author name (600), mono handle, a middle dot, mono relative time, and the 7-character short hash pushed right (from sm). The body follows at 15px, pre-wrapped. Under the body, a quiet star: a 16px outline icon in Muted Ink, filled in Commit Blue once starred, with the count in mono 13px beside it when the count is at least 1. It is hidden on commits the viewer cannot star. The toggle updates immediately and rolls back if the request fails, without reloading the log. Your own rows reveal a trash icon on hover/focus (always visible on touch). Deleting is inline: a soft red strip asks "Delete this commit? There's no undo." with Cancel and Delete; confirming swaps the body for a mono `rm {hash} → /dev/null` status, then the row collapses (height and opacity, 300ms after a 400ms hold).
 
 ### Graph Rail (signature)
 A 14px circle (16px on the landing page) centered on a 2px vertical line. The segment above a node takes the previous author's lane; the segment below takes this author's. The first commit hangs from a Rail Gray segment beneath the staged composer. The end of history is a hollow **root** node with no tail and a muted line ("That's the root commit. There's nothing before it."). A commit you made in the last 15 seconds animates in with `node-in` (scale 0 to 1.25 to 1 with a lane-colored pulse, 700ms, expo-out); landing-page segments draw downward with `rail-draw`, staggered 140ms. Both respect reduced motion.
@@ -293,6 +293,8 @@ A 80px avatar with a 2px lane ring offset 4px from the surface, name in Title, m
 
 ### Commit Activity
 Below the profile header, scaled to how long the user has been visibly active (from their first visible commit, or account creation when there is none): the smallest window that holds all of it wins. Within the last 24 hours, a strip of 24 hourly cells labelled every six local hours in mono ("06:00"); within 7 days, a strip of 7 day cells labelled "Thu 15"; within 30 days, a strip of 30 day cells labelled on Mondays ("Oct 12"); anything longer, a GitHub-style 53-week grid (Sunday-first columns, Mon/Wed/Fri row labels, month labels on month change). Strips are zoomed-in rows of the grid: equal-width cells, 40px tall (48px from sm), same gaps and rounding. Cells are 2px-rounded with 3px gaps, filled in the profile owner's lane: Muted for empty buckets, then the lane mixed into the surface at 32/56/80/100% for levels 1–4 relative to the busiest bucket. The total is mono, followed by the window ("in the last 24 hours/7 days/30 days/year"); a user with no visible commits reads "No commits yet" over an empty strip. Day cells are UTC days; hourly cells are UTC hours labelled in the viewer's local time. On narrow screens the year grid scrolls horizontally, opening on the most recent week; strips always fit.
+
+Under the graph, a mono 13px strip prints the streaks, `longest streak 12 days · current 3`: muted labels, Foreground numbers, and a lane dot before an active current streak. Days are UTC calendar days (as the graph groups them); a streak stays current through the day after its last commit; the current part is dropped when it is 0 and the whole strip when there are no commits.
 
 ### Log Interactions
 - **Day markers:** a row that keeps the rail running (no node) with a mono 12px label, "Today", "Yesterday", or "Tue, Oct 13", wherever the local day changes between commits.
@@ -340,6 +342,6 @@ A profile or commit link shared to X, Slack, Discord, or iMessage unfurls as a 1
 - **Don't** use lane colors for text, buttons, badges, or backgrounds; they mark authors on the graph and nowhere else.
 - **Don't** give a lane to blue; blue belongs to action.
 - **Don't** wrap commits in cards or raise them with drop shadows.
-- **Don't** add an engagement row, counts beside commits, trend panels, or who-to-follow modules; the product has none of these.
+- **Don't** add a reply row, reaction pickers, trend panels, or who-to-follow modules. The only count on a commit is its stars.
 - **Don't** call posts "posts" or the following timeline "Home" in the UI; they are commits and the Log.
 - **Don't** set human sentences in mono to look technical.

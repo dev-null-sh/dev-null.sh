@@ -19,7 +19,7 @@ final readonly class CommitRestoreController
     {
         $commit = $action->handle($user, $commit);
 
-        Inertia::flash('restored', Commit::query()->withVisibleReplyCount($user)->with([
+        Inertia::flash('restored', Commit::query()->withVisibleReplyCount($user)->withStarsFor($user)->with([
             'user',
             'parent' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->with('user'),
         ])->findOrFail($commit->id));
