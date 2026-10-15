@@ -82,6 +82,7 @@ it('is idempotent', function (): void {
     $action = resolve(CreateMentionNotifications::class);
 
     $action->handle($commit);
+
     $user->update(['username' => 'renamed']);
     $replacement = User::factory()->create(['username' => 'nunomaduro']);
     $action->handle($commit);
