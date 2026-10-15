@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\ApproveCommitsController;
+use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitOpenGraphImageController;
+use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitStarController;
@@ -63,12 +65,19 @@ Route::middleware('auth')->group(function (): void {
     // Log...
     Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
 
+    // Private saved commits...
+    Route::get('saved', [BookmarkController::class, 'index'])->name('bookmark.index');
+    Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])->name('bookmark.store');
+    Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])->name('bookmark.destroy');
+
     // Commit...
     Route::post('commits', [CommitController::class, 'store'])
         ->middleware('throttle:commits')
         ->name('commit.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
+    Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');
+    Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])->name('commit-pin.destroy');
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->name('commit-star.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])

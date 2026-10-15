@@ -3,6 +3,7 @@ import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
+import { emojify } from '@/lib/emoji';
 import {
     cn,
     formatFullDateTime,
@@ -37,6 +39,7 @@ export function CommitCard({
     isFocused = false,
     canDelete = true,
     initialReplies,
+    threadActions,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -48,6 +51,7 @@ export function CommitCard({
     isFocused?: boolean;
     canDelete?: boolean;
     initialReplies?: CursorPaginated<ThreadCommit>;
+    threadActions?: ReactNode;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
@@ -246,7 +250,9 @@ export function CommitCard({
                                             : 'text-[15px]',
                                     )}
                                 >
-                                    <LinkifiedText text={commit.body} />
+                                    <LinkifiedText
+                                        text={emojify(commit.body)}
+                                    />
                                 </p>
                                 {commit.quoted_commit_id !== null && (
                                     <QuotedCommit
@@ -305,12 +311,20 @@ export function CommitCard({
                                                 commit={commit}
                                                 keyShortcut="q"
                                             />
+                                            {threadActions}
                                         </>
                                     }
                                 />
                             ))}
 
                         {actions}
+
+                        {commit.replies_count === undefined &&
+                            commit.is_saved !== undefined && (
+                                <div className="mt-1 -ml-1.5">
+                                    <BookmarkButton commit={commit} />
+                                </div>
+                            )}
 
                         {deletion === 'confirming' && (
                             <div

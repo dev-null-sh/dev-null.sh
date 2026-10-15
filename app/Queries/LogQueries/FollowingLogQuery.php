@@ -25,6 +25,7 @@ final readonly class FollowingLogQuery implements LogQuery
             ->visibleTo($user)
             ->topLevel()
             ->withVisibleReplyCount($user)
+            ->withSavedState($user)
             ->with(['user', 'linkPreview'])
             ->withQuotedCommitFor($user)
             ->withStarsFor($user)

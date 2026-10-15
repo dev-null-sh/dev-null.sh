@@ -20,6 +20,7 @@ final readonly class EveryoneLogQuery implements LogQuery
             ->visibleTo($user)
             ->topLevel()
             ->withVisibleReplyCount($user)
+            ->withSavedState($user)
             ->with(['user', 'linkPreview'])
             ->withQuotedCommitFor($user)
             ->withStarsFor($user)
