@@ -235,6 +235,14 @@ it('may not reply to a deleted commit', function (): void {
     expect(Commit::query()->count())->toBe(0);
 });
 
+it('may not reply to a commit that does not exist', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', '01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3'), ['body' => 'Hello'])
+        ->assertNotFound();
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
 it('requires a reply body of 3 to 280 characters', function (string $body): void {
     $parent = Commit::factory()->create();
 

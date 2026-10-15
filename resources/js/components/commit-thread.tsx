@@ -52,6 +52,11 @@ type CreatedReply = {
 
 const replyFailedMessage = 'Could not send your reply. Try again.';
 
+const parentUnavailableMessage =
+    'That commit is no longer available to reply to.';
+
+const changedThreadIds = new Set<string>();
+
 function replyFailureMessage(response: { status: number; data: string }) {
     if (response.status !== 429) {
         return replyFailedMessage;
@@ -62,10 +67,15 @@ function replyFailureMessage(response: { status: number; data: string }) {
     return message;
 }
 
-const updateCommitsCount = (change: number) =>
-    router.replaceProp('auth.user.commits_count', (count: unknown) =>
-        typeof count === 'number' ? count + change : count,
+function useCommitsCountUpdate(): (change: number) => void {
+    const { auth } = usePage().props;
+    const [, setCommitsCount] = useSharedState(
+        commitStateKey('commits_count', auth.user.id),
+        auth.user.commits_count,
     );
+
+    return (change) => setCommitsCount((count) => count + change);
+}
 
 type Thread = {
     commit: ThreadCommit;
@@ -136,7 +146,10 @@ function useThread(
         commitStateKey('replies_count', commit.id),
         commit.replies_count ?? 0,
     );
-    const [shouldLoadReplies] = useState(loadsReplies && count > 0);
+    const [shouldLoadReplies] = useState(
+        (loadsReplies && count > 0) ||
+            (initialReplies !== undefined && changedThreadIds.has(commit.id)),
+    );
     const [isOpen, setIsOpen] = useState(
         initialReplies !== undefined || shouldLoadReplies,
     );
@@ -223,12 +236,14 @@ function useThread(
         startReply: () => setIsReplying(true),
         cancelReply: () => setIsReplying(false),
         onReplied: () => {
+            changedThreadIds.add(commit.id);
             setIsReplying(false);
             setIsOpen(true);
             setCount((current) => current + 1);
             reload();
         },
         onDeleted: () => {
+            changedThreadIds.add(commit.id);
             setCount((current) => Math.max(current - 1, 0));
             reload();
         },
@@ -507,6 +522,7 @@ function CommitReply({
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
     const request = useHttp({});
+    const updateCommitsCount = useCommitsCountUpdate();
 
     const isOwn = reply.user_id === auth.user.id;
     const isFlattened = depth > maxIndentDepth;
@@ -672,6 +688,7 @@ function ReplyComposer({
         `reply-${parent.id}`,
     );
     const attachments = useImageAttachments();
+    const updateCommitsCount = useCommitsCountUpdate();
     const request = useHttp<{ body: string; images: File[] }, CreatedReply>({
         body: '',
         images: [],
@@ -729,6 +746,12 @@ function ReplyComposer({
                     onReplied();
                 },
                 onHttpException: (response) => {
+                    if (response.status === 404) {
+                        request.setError('body', parentUnavailableMessage);
+
+                        return;
+                    }
+
                     toast.error(replyFailureMessage(response));
                 },
                 onNetworkError: () => {

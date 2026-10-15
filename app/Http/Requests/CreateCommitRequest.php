@@ -5,9 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
-use App\Models\Commit;
-use App\Models\User;
-use App\Rules\VisibleCommit;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -29,12 +26,8 @@ final class CreateCommitRequest extends FormRequest
      */
     public function rules(): array
     {
-        $user = $this->user();
-        assert($user instanceof User);
-
         return [
             'body' => ['required', 'string', 'min:3', 'max:280'],
-            'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
                 'required',
@@ -55,15 +48,5 @@ final class CreateCommitRequest extends FormRequest
         $images = $this->file('images');
 
         return is_array($images) ? array_values($images) : [];
-    }
-
-    public function parent(): ?Commit
-    {
-        $user = $this->user();
-        assert($user instanceof User);
-
-        return $this->filled('parent_id')
-            ? Commit::query()->visibleTo($user)->find($this->string('parent_id')->value())
-            : null;
     }
 }
