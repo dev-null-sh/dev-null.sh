@@ -1,9 +1,9 @@
 import { Head, router } from '@inertiajs/react';
 import { Check, X } from 'lucide-react';
 import { useId, useState } from 'react';
-import ApproveCommitsController from '@/actions/App/Http/Controllers/ApproveCommitsController';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
+import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -215,7 +215,7 @@ export default function Show({
         );
 
     const approveSelected = () =>
-        router.visit(ApproveCommitsController(), {
+        router.visit(ModerationController.update(), {
             data: { commits: selectedIds },
             preserveScroll: true,
             reset: ['commits'],

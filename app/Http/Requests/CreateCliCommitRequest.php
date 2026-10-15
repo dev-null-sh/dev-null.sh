@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Actions\FindCommitByReference;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\CommitByReferenceQuery;
 use App\Rules\CommitReference;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -41,7 +41,7 @@ final class CreateCliCommitRequest extends FormRequest
         assert($user instanceof User);
 
         return $this->filled('reply_to')
-            ? resolve(FindCommitByReference::class)->handle($user, $this->string('reply_to')->value())?->first()
+            ? resolve(CommitByReferenceQuery::class)->get($user, $this->string('reply_to')->value())?->first()
             : null;
     }
 }

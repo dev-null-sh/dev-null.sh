@@ -29,7 +29,7 @@ const menuWidth = 288;
 const menuHeight = 320;
 const cache = new Map<string, User[]>();
 
-// The "@handle" being typed right before the caret. Keep the rules in sync with app/Actions/FindMentions.php.
+// The "@handle" being typed right before the caret. Keep the rules in sync with app/Services/Mentions.php.
 const mentionBeforeCaretPattern =
     /(?:^|[^\p{L}\p{N}_./@-])@([A-Za-z0-9][A-Za-z0-9-]{0,38}|)$/u;
 
