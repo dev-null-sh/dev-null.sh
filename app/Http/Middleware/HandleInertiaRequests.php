@@ -6,8 +6,8 @@ namespace App\Http\Middleware;
 
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Middleware;
 

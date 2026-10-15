@@ -39,7 +39,7 @@ it('suggests people with commits the user does not follow yet', function (): voi
 
     $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
 
-    expect($suggestions->modelKeys())->toBe([$stranger->id]);
+    expect($suggestions->pluck('id')->all())->toBe([$stranger->id]);
 });
 
 it('skips people without approved commits', function (): void {
@@ -48,6 +48,15 @@ it('skips people without approved commits', function (): void {
     User::factory()->create();
     User::factory()->has(Commit::factory()->pending())->create();
     User::factory()->has(Commit::factory()->rejected())->create();
+
+    expect(resolve(SuggestedUsersQuery::class)->get($user))->toBeEmpty();
+});
+
+it('skips people who only replied', function (): void {
+    $user = User::factory()->create();
+
+    $parent = Commit::factory()->for($user)->create();
+    User::factory()->has(Commit::factory()->for($parent, 'parent'))->create();
 
     expect(resolve(SuggestedUsersQuery::class)->get($user))->toBeEmpty();
 });
@@ -66,7 +75,7 @@ it('picks the people most followed by the user follows', function (): void {
 
     $suggestions = resolve(SuggestedUsersQuery::class)->get($user, limit: 1);
 
-    expect($suggestions->modelKeys())->toBe([$followedByBothFriends->id])
+    expect($suggestions->pluck('id')->all())->toBe([$followedByBothFriends->id])
         ->and($suggestions->first()->followed_by_following_count)->toBe(2);
 });
 
@@ -90,7 +99,7 @@ it('suggests only popular people when the user might know nobody', function (): 
     $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
 
     expect($suggestions)->toHaveCount(3)
-        ->and($suggestions->modelKeys())->each->toBeIn($popular->modelKeys());
+        ->and($suggestions->pluck('id')->all())->each->toBeIn($popular->modelKeys());
 });
 
 it('suggests only people the user might know when nobody else is around', function (): void {
@@ -100,7 +109,7 @@ it('suggests only people the user might know when nobody else is around', functi
     $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
 
     expect($suggestions)->toHaveCount(3)
-        ->and($suggestions->modelKeys())->each->toBeIn($network->modelKeys());
+        ->and($suggestions->pluck('id')->all())->each->toBeIn($network->modelKeys());
 });
 
 it('picks popular people from the most followed', function (): void {
@@ -113,7 +122,7 @@ it('picks popular people from the most followed', function (): void {
     $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
 
     expect($suggestions)->toHaveCount(3)
-        ->and($suggestions->modelKeys())->not->toContain($unknown->id)
+        ->and($suggestions->pluck('id')->all())->not->toContain($unknown->id)
         ->each->toBeIn($mostFollowed->modelKeys());
 });
 
@@ -124,7 +133,7 @@ it('keeps the same suggestions in the same order during the day', function (): v
 
     $query = resolve(SuggestedUsersQuery::class);
 
-    expect($query->get($user)->modelKeys())->toBe($query->get($user)->modelKeys());
+    expect($query->get($user)->pluck('id')->all())->toBe($query->get($user)->pluck('id')->all());
 });
 
 it('limits the number of suggestions', function (): void {

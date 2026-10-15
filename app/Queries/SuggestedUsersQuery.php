@@ -4,33 +4,35 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 
 final readonly class SuggestedUsersQuery
 {
-    private const int PopularPoolSize = 20;
-
     /**
-     * People the user does not follow yet: a mix of people their follows already follow and a few popular people.
+     * People the user does not follow yet: a mix of people their follows already follow and a few
+     * popular people picked from the 20 most followed. Either side fills in when the other runs short.
      *
      * @return Collection<int, User>
      */
     public function get(User $user, int $limit = 3): Collection
     {
         $randomizer = $this->randomizerFor($user);
-        $popularSlots = $randomizer->getInt(1, max(1, $limit - 1));
+        $networkSlots = $limit - $randomizer->getInt(1, max(1, $limit - 1));
 
         $following = $user->following();
         $followingIds = $following->newPivotQuery()->select($following->getRelatedPivotKeyName());
-        $followedByFollowing = DB::table('follows')->select('followed_id')->whereIn('follower_id', $followingIds);
+        $followedByFollowing = $following->newPivotStatement()
+            ->select($following->getRelatedPivotKeyName())
+            ->whereIn($following->getForeignPivotKeyName(), $followingIds);
 
-        $network = $this->candidates($user, $followingIds)
+        $network = $this->candidates($user, $following, $followingIds)
             ->whereIn('id', $followedByFollowing)
             ->orderByDesc('followed_by_following_count')
             ->orderByDesc('followers_count')
@@ -38,41 +40,38 @@ final readonly class SuggestedUsersQuery
             ->limit($limit)
             ->get();
 
-        $popularPool = $this->candidates($user, $followingIds)
+        $popularPool = $this->candidates($user, $following, $followingIds)
             ->whereNotIn('id', $followedByFollowing)
             ->orderByDesc('followers_count')
             ->latest('id')
-            ->limit(self::PopularPoolSize)
+            ->limit(20)
             ->get();
 
-        $popular = array_slice(
-            $randomizer->shuffleArray($popularPool->all()),
-            0,
-            $limit - min($network->count(), $limit - $popularSlots),
-        );
+        $network = $network->take(max($networkSlots, $limit - $popularPool->count()));
+        $popular = new Collection($randomizer->shuffleArray($popularPool->all()))->take($limit - $network->count());
 
-        $network = $network->take($limit - count($popular));
-
-        return new Collection($randomizer->shuffleArray([...$network->all(), ...$popular]));
+        return new Collection($randomizer->shuffleArray([...$network, ...$popular]));
     }
 
     /**
+     * @param  BelongsToMany<User, User>  $following
      * @return Builder<User>
      */
-    private function candidates(User $user, QueryBuilder $followingIds): Builder
+    private function candidates(User $user, BelongsToMany $following, QueryBuilder $followingIds): Builder
     {
-        return User::query()
+        $candidates = User::query();
+
+        $followersCount = fn (): QueryBuilder => $following->newPivotStatement()
+            ->selectRaw('count(*)')
+            ->whereColumn($following->getQualifiedRelatedPivotKeyName(), $candidates->qualifyColumn('id'));
+
+        return $candidates
             ->whereKeyNot($user->id)
             ->whereNotIn('id', $followingIds)
-            ->whereHas('commits', fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user))
+            ->whereIn('id', Commit::query()->visibleTo($user)->topLevel()->select('user_id'))
             ->addSelect([
-                'followed_by_following_count' => DB::table('follows')
-                    ->selectRaw('count(*)')
-                    ->whereColumn('followed_id', 'users.id')
-                    ->whereIn('follower_id', $followingIds),
-                'followers_count' => DB::table('follows')
-                    ->selectRaw('count(*)')
-                    ->whereColumn('followed_id', 'users.id'),
+                'followed_by_following_count' => $followersCount()->whereIn($following->getForeignPivotKeyName(), $followingIds),
+                'followers_count' => $followersCount(),
             ]);
     }
 
