@@ -17,6 +17,7 @@ export function CommitFeed({
     firstLane,
     highlightedPeriod = null,
     firstSeenId = null,
+    groupsByDay = true,
     actions,
     threadActions,
     pinnedCommit = null,
@@ -28,6 +29,7 @@ export function CommitFeed({
     firstLane?: string;
     highlightedPeriod?: string | null;
     firstSeenId?: string | null;
+    groupsByDay?: boolean;
     actions?: (commit: Commit) => ReactNode;
     threadActions?: (commit: Commit) => ReactNode;
     pinnedCommit?: Commit | null;
@@ -91,9 +93,10 @@ export function CommitFeed({
                         ? laneColor(previous.user.lane)
                         : pinnedLane;
                     const startsDay =
-                        !previous ||
-                        localDayKey(previous.created_at) !==
-                            localDayKey(commit.created_at);
+                        groupsByDay &&
+                        (!previous ||
+                            localDayKey(previous.created_at) !==
+                                localDayKey(commit.created_at));
 
                     return (
                         <Fragment key={commit.id}>

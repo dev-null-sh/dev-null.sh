@@ -86,7 +86,7 @@ it('paginates the log', function (Log $log): void {
         ->assertInertia(fn ($page) => $page
             ->has('commits.data', 20)
             ->whereNot('commits.next_cursor', null));
-})->with(Log::cases());
+})->with([Log::Following, Log::Everyone]);
 
 it('does not count the authenticated user relations when reloading only commits', function (): void {
     $user = User::factory()->has(Commit::factory())->create();
@@ -225,7 +225,7 @@ it('hides pending commits of others from the log', function (Log $log): void {
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'Mine')
             ->where('commits.data.0.status', 'pending'));
-})->with(Log::cases());
+})->with([Log::Following, Log::Everyone]);
 
 it('only suggests approved commits', function (): void {
     $user = User::factory()->create();
@@ -300,7 +300,7 @@ it('includes the link previews of commits', function (Log $log): void {
                 'image_url' => 'https://laravel.com/og.png',
                 'site_name' => 'Laravel',
             ]));
-})->with(Log::cases());
+})->with([Log::Following, Log::Everyone]);
 
 it('defers suggested users to follow', function (): void {
     $user = User::factory()->create();
@@ -336,4 +336,100 @@ it('does not suggest users to follow once they are hidden', function (): void {
             ->missing('suggestedUsers'));
 
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
+});
+
+it('renders commits trending this week', function (): void {
+    $user = User::factory()->create();
+
+    Commit::factory()->create(['body' => 'Quiet']);
+    $starred = Commit::factory()->create(['body' => 'Starred', 'created_at' => now()->subHour()]);
+    $starred->stars()->attach(User::factory()->count(2)->create());
+    $replied = Commit::factory()->create(['body' => 'Replied', 'created_at' => now()->subHours(2)]);
+    Commit::factory()->for($replied, 'parent')->create();
+    $lastWeek = Commit::factory()->create(['body' => 'Last week', 'created_at' => now()->subDays(8)]);
+    $lastWeek->stars()->attach(User::factory()->count(10)->create());
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', Log::Trending));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('log/show')
+            ->where('log', 'trending')
+            ->has('commits.data', 2)
+            ->where('commits.data.0.body', 'Starred')
+            ->where('commits.data.0.stars_count', 2)
+            ->where('commits.data.0.user.id', $starred->user_id)
+            ->where('commits.data.1.body', 'Replied')
+            ->where('commits.data.1.replies_count', 1)
+            ->where('suggestions', []));
+});
+
+it('paginates trending commits without repeating any', function (): void {
+    $user = User::factory()->create();
+    $fan = User::factory()->create();
+
+    Commit::factory()->count(25)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create()->each(fn (Commit $commit) => $commit->stars()->attach($fan));
+
+    $firstPage = $this->actingAs($user)
+        ->get(route('log.show', Log::Trending))
+        ->viewData('page')['props']['commits'];
+
+    $secondPage = $this->actingAs($user)
+        ->get(route('log.show', [Log::Trending, 'cursor' => $firstPage['next_cursor']]))
+        ->viewData('page')['props']['commits'];
+
+    $ids = collect([...$firstPage['data'], ...$secondPage['data']])->pluck('id');
+
+    expect($firstPage['data'])->toHaveCount(20)
+        ->and($secondPage['data'])->toHaveCount(5)
+        ->and($secondPage['next_cursor'])->toBeNull()
+        ->and($ids->unique())->toHaveCount(25)
+        ->and($ids->all())->toBe(Commit::query()->latest()->pluck('id')->all());
+});
+
+it('does not count new commits on the trending log', function (): void {
+    $user = User::factory()->create();
+    $fan = User::factory()->create();
+
+    $seen = Commit::factory()->create(['created_at' => now()->subMinutes(5)]);
+    $seen->stars()->attach($fan);
+    Commit::factory()->create()->stars()->attach($fan);
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'newCommitsCount',
+        ])
+        ->get(route('log.show', [Log::Trending, 'since' => $seen->id]));
+
+    $response->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 0);
+});
+
+it('loads trending commits with the same number of queries however many there are', function (): void {
+    $user = User::factory()->create();
+    $fan = User::factory()->create();
+
+    $queriesFor = function (int $count) use ($user, $fan): int {
+        Commit::factory()->count($count)->create()->each(function (Commit $commit) use ($fan): void {
+            $commit->stars()->attach($fan);
+            Commit::factory()->for($commit, 'parent')->create();
+        });
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->actingAs($user)->get(route('log.show', Log::Trending))->assertOk();
+
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    };
+
+    expect($queriesFor(1))->toBe($queriesFor(10));
 });

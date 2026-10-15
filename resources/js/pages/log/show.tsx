@@ -28,8 +28,14 @@ export default function Show({
     suggestions: Commit[];
 }) {
     const { auth } = usePage().props;
+    const isTrending = log === 'trending';
+    const title = titles[log];
     const newestId = commits.data[0]?.id;
-    const firstSeenId = useLastVisit(auth.user.id, log, commits.data);
+    const firstSeenId = useLastVisit(
+        auth.user.id,
+        log,
+        isTrending ? [] : commits.data,
+    );
 
     const { stop: stopPolling } = usePoll(
         30_000,
@@ -38,7 +44,7 @@ export default function Show({
             data: { since: newestId },
             preserveUrl: true,
         }),
-        { autoStart: newestId !== undefined },
+        { autoStart: newestId !== undefined && !isTrending },
     );
 
     useEffect(
@@ -62,12 +68,10 @@ export default function Show({
 
     return (
         <>
-            <Head title={log === 'following' ? 'Log' : 'Everyone'} />
+            <Head title={title} />
 
             <div className="sticky top-0 z-10 bg-card">
-                <h1 className="sr-only">
-                    {log === 'following' ? 'Log' : 'Everyone'}
-                </h1>
+                <h1 className="sr-only">{title}</h1>
                 <PageTabs
                     label="Logs"
                     tabs={[
@@ -80,6 +84,11 @@ export default function Show({
                             title: 'Everyone',
                             href: LogController.show('everyone'),
                             isActive: log === 'everyone',
+                        },
+                        {
+                            title: 'Trending',
+                            href: LogController.show('trending'),
+                            isActive: isTrending,
                         },
                     ]}
                 />
@@ -107,7 +116,12 @@ export default function Show({
                 commits={commits}
                 firstLane="var(--rail)"
                 firstSeenId={firstSeenId}
-                end="That's the root commit. There's nothing before it."
+                groupsByDay={!isTrending}
+                end={
+                    isTrending
+                        ? "That's everything trending this week."
+                        : "That's the root commit. There's nothing before it."
+                }
                 interlude={(lane, isDimmed) => (
                     <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
                 )}
@@ -134,6 +148,19 @@ export default function Show({
                                 <Suggestions suggestions={suggestions} />
                             )}
                         </EmptyFeed>
+                    ) : isTrending ? (
+                        <EmptyFeed command="fatal: nothing is trending this week">
+                            Commits from the last seven days show up here once
+                            other developers star or reply to them. Until then,
+                            see what's new on{' '}
+                            <Link
+                                href={LogController.show('everyone')}
+                                className="font-medium text-primary underline"
+                            >
+                                Everyone
+                            </Link>
+                            .
+                        </EmptyFeed>
                     ) : (
                         <EmptyFeed command="fatal: no commits yet">
                             Nobody has committed anything. Be the first. It's
@@ -145,6 +172,12 @@ export default function Show({
         </>
     );
 }
+
+const titles: Record<Log, string> = {
+    following: 'Log',
+    everyone: 'Everyone',
+    trending: 'Trending',
+};
 
 function Suggestions({ suggestions }: { suggestions: Commit[] }) {
     return (

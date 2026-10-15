@@ -28,7 +28,7 @@ final readonly class LogController
                 $since = $request->string('since')->value();
                 $seen = Str::isUuid($since) ? Commit::query()->withTrashed()->find($since) : null;
 
-                return $seen instanceof Commit
+                return $seen instanceof Commit && $log !== Log::Trending
                     ? $log->query()->builder($user)->where('created_at', '>', $seen->created_at)->count()
                     : 0;
             }),
