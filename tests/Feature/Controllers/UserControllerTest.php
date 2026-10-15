@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 it('renders a user profile', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['username' => 'octocat', 'preferred_lane' => 4]);
     $viewer = User::factory()->create();
 
     $user->followers()->attach($viewer);
@@ -26,6 +26,7 @@ it('renders a user profile', function (): void {
             ->component('user/show')
             ->where('user.id', $user->id)
             ->where('user.username', 'octocat')
+            ->where('user.lane', 4)
             ->where('user.commits_count', 2)
             ->where('user.followers_count', 1)
             ->where('user.following_count', 2)
@@ -142,6 +143,7 @@ it('shows guests the landing page with a link preview of the profile', function 
             ->missing('commits')
             ->missing('activity'))
         ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<meta property="og:type" content="profile">', false)
         ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
         ->assertSee('<meta property="og:description" content="I am the Octocat.">', false)
         ->assertSee('<meta property="og:url" content="'.route('user.show', $user).'">', false)

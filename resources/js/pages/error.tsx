@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import AppLogo from '@/components/app-logo';
 import { Button } from '@/components/ui/button';
-import { laneFor } from '@/lib/utils';
+import { laneColor } from '@/lib/utils';
 import { home } from '@/routes';
 import type { Profile } from '@/types';
 
@@ -72,7 +72,7 @@ export default function ErrorPage({ status }: { status: Status }) {
     const user: Profile | null = page.props.auth.user;
     const path = page.url.split('?')[0];
     const copy = errorCopy(status, path, user?.username ?? null);
-    const lane = user ? laneFor(user.id) : 'var(--rail)';
+    const lane = user ? laneColor(user.lane) : 'var(--rail)';
     const action =
         status === 503
             ? { label: 'Try again', href: home() }

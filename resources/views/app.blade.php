@@ -8,7 +8,7 @@
         <meta name="theme-color" content="#111112" media="(prefers-color-scheme: dark)">
 
         @isset($preview)
-            <meta property="og:type" content="profile">
+            <meta property="og:type" content="{{ $preview['type'] }}">
             <meta property="og:site_name" content="/dev/null">
             <meta property="og:title" content="{{ $preview['title'] }}">
             <meta property="og:description" content="{{ $preview['description'] }}">

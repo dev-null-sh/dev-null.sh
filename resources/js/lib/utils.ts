@@ -55,16 +55,8 @@ export function formatFullDateTime(date: string): string {
     })}`;
 }
 
-const laneCount = 6;
-
-export function laneFor(id: string): string {
-    let hash = 0;
-
-    for (const character of id) {
-        hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-    }
-
-    return `var(--lane-${hash % laneCount})`;
+export function laneColor(lane: number): string {
+    return `var(--lane-${lane})`;
 }
 
 export function shortHash(id: string): string {

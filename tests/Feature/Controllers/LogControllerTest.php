@@ -33,6 +33,24 @@ it('renders own commits and commits of followed users newest first', function ()
             ->where('commits.data.1.body', 'Mine'));
 });
 
+it('renders each author with their effective lane', function (): void {
+    $user = User::factory()->create();
+    $chosen = User::factory()->create(['preferred_lane' => 5]);
+    $automatic = User::factory()->create(['id' => 'edfd235d-6874-4a82-a1ba-4f40c5f40510']);
+
+    Commit::factory()->for($chosen)->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($automatic)->create();
+
+    $response = $this->actingAs($user)
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.user.lane', 2)
+            ->where('commits.data.1.user.lane', 5)
+            ->missing('commits.data.1.user.preferred_lane'));
+});
+
 it('renders commits of everyone newest first', function (): void {
     $user = User::factory()->create();
 

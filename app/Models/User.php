@@ -25,6 +25,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read string|null $location
  * @property-read string|null $website
  * @property-read string|null $company
+ * @property-read int|null $preferred_lane
  * @property-read string|null $remember_token
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -40,6 +41,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
     'github_id',
     'email',
     'remember_token',
+    'preferred_lane',
 ])]
 final class User extends Authenticatable
 {
@@ -64,6 +66,7 @@ final class User extends Authenticatable
             'location' => 'string',
             'website' => 'string',
             'company' => 'string',
+            'preferred_lane' => 'integer',
             'remember_token' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -137,20 +140,6 @@ final class User extends Authenticatable
     }
 
     /**
-     * Mirrors laneFor() in resources/js/lib/utils.ts so server-rendered images use the same author color.
-     */
-    public function lane(): int
-    {
-        $hash = 0;
-
-        foreach (mb_str_split($this->id) as $character) {
-            $hash = ($hash * 31 + mb_ord($character)) & 0xFFFFFFFF;
-        }
-
-        return $hash % 6;
-    }
-
-    /**
      * Changes whenever anything drawn on the profile's link preview image may have changed.
      */
     public function openGraphImageVersion(): string
@@ -163,9 +152,47 @@ final class User extends Authenticatable
         ]));
     }
 
+    /**
+     * How link previews title the user, without repeating a name that is just the username.
+     */
+    public function nameWithHandle(): string
+    {
+        return $this->name === $this->username ? "@{$this->username}" : "{$this->name} (@{$this->username})";
+    }
+
     public function isFollowing(self $user): bool
     {
         return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
+    }
+
+    public function lane(): int
+    {
+        return $this->preferred_lane ?? $this->automaticLane();
+    }
+
+    /**
+     * The same hash of the id the frontend used before lanes could be chosen, so nobody's color changes on its own.
+     */
+    public function automaticLane(): int
+    {
+        $hash = 0;
+
+        foreach (mb_str_split($this->id) as $character) {
+            $hash = ($hash * 31 + mb_ord($character)) & 0xFFFFFFFF;
+        }
+
+        return $hash % 6;
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            ...parent::toArray(),
+            'lane' => $this->lane(),
+        ];
     }
 
     private function fillCounts(int $commits): self

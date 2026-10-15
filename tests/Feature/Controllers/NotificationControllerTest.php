@@ -21,7 +21,8 @@ it('lists the notifications of the user, newest first', function (): void {
             ->where('notifications.data.0.id', $replied->id)
             ->where('notifications.data.0.type', 'replied')
             ->where('notifications.data.0.actor.id', $replied->actor_id)
-            ->where('notifications.data.0.commit.parent.id', $replied->commit->parent_id)
+            ->where('notifications.data.0.commit.id', $replied->commit_id)
+            ->missing('notifications.data.0.commit.parent')
             ->where('notifications.data.1.id', $followed->id)
             ->missing('notifications.data.0.key')
             ->missing('notifications.data.0.actor.email'));

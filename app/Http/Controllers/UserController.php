@@ -62,10 +62,9 @@ final readonly class UserController
 
         $user->loadPublicCounts();
 
-        $title = $user->name === $user->username ? "@{$user->username}" : "{$user->name} (@{$user->username})";
-
         return Inertia::render('welcome')->withViewData(['preview' => [
-            'title' => "{$title} on /dev/null",
+            'type' => 'profile',
+            'title' => "{$user->nameWithHandle()} on /dev/null",
             'description' => $user->bio ?? __("Sign in with GitHub to read @:username's commits on /dev/null.", ['username' => $user->username]),
             'url' => route('user.show', $user),
             'image' => route('user-open-graph-image.show', ['user' => $user, 'v' => $user->openGraphImageVersion()]),
