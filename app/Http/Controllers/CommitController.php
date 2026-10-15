@@ -13,17 +13,67 @@ use App\Http\Requests\ShowCommitRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
+use App\Queries\CommitBuilder;
 use App\Queries\CommitRepliesQuery;
+use App\Services\Terminal\TerminalRenderer;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final readonly class CommitController
 {
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies): RedirectResponse|Response
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, TerminalRenderer $renderer): RedirectResponse|Response|HttpResponse
     {
+        if (TerminalRenderer::wantsCli($request)) {
+            $color = TerminalRenderer::isColorSupported($request);
+            $force16 = TerminalRenderer::is16Color($request);
+
+            $commit->loadCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()])
+                ->loadCount('stars')
+                ->load('user');
+
+            if (! $currentUser instanceof User) {
+                return response($renderer->commitPreview($commit, $color, $force16))
+                    ->header('Content-Type', 'text/plain; charset=utf-8');
+            }
+
+            /** @var Collection<int, Commit> $ancestorCollection */
+            $ancestorCollection = new Collection();
+            $current = $commit;
+
+            while ($current->parent_id !== null) {
+                $parent = Commit::query()
+                    ->approved()
+                    ->with('user')
+                    ->withCount('stars')
+                    ->withCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()])
+                    ->find($current->parent_id);
+
+                if (! $parent instanceof Commit) {
+                    break;
+                }
+
+                $ancestorCollection->prepend($parent);
+                $current = $parent;
+            }
+
+            $repliesList = $commit->replies()
+                ->approved()
+                ->with('user')
+                ->withCount('stars')
+                ->withCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()])
+                ->latest()
+                ->get();
+
+            $content = $renderer->thread($commit, $ancestorCollection, $repliesList, $color, $force16);
+
+            return response($content)->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+
         if (! $currentUser instanceof User) {
             return $this->preview($user, $commit);
         }

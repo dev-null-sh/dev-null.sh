@@ -12,17 +12,46 @@ use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
+use App\Services\Terminal\TerminalRenderer;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final readonly class UserController
 {
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks): RedirectResponse|Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, TerminalRenderer $renderer): RedirectResponse|Response|HttpResponse
     {
+        if (TerminalRenderer::wantsCli($request)) {
+            $color = TerminalRenderer::isColorSupported($request);
+            $force16 = TerminalRenderer::is16Color($request);
+
+            if (! $currentUser instanceof User) {
+                return response($renderer->profilePreview($user, $color, $force16))
+                    ->header('Content-Type', 'text/plain; charset=utf-8');
+            }
+
+            $limit = min(max($request->integer('limit', 20), 1), 50);
+
+            $commits = $user->commits()
+                ->visibleTo($currentUser)
+                ->topLevel()
+                ->with('user')
+                ->withCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()])
+                ->withCount('stars')
+                ->latest()
+                ->latest('id')
+                ->take($limit)
+                ->get();
+
+            $content = $renderer->profile($user, $commits, $color, $force16);
+
+            return response($content)->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+
         if (! $currentUser instanceof User) {
             return $this->preview($request, $user);
         }

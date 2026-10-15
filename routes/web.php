@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\BookmarkController;
+use App\Http\Controllers\Cli\LogController as CliLogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
@@ -33,6 +34,9 @@ use Inertia\Inertia;
 
 // Commit from the terminal: curl -fsSL https://dev-null.sh/commit | bash -s -- 'Hello world!'
 Route::get('commit', [ScriptController::class, 'show'])->name('cli-script.show');
+
+// Read from the terminal: curl -s https://dev-null.sh/log
+Route::get('log', [CliLogController::class, 'index'])->name('cli-log.index');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/', [HomeController::class, 'show'])->name('home');
