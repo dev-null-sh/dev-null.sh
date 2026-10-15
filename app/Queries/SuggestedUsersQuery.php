@@ -17,15 +17,17 @@ final readonly class SuggestedUsersQuery
     private const int PopularPoolSize = 20;
 
     /**
-     * People the user does not follow yet: those their follows already follow, with a few popular people mixed in.
+     * People the user does not follow yet: a mix of people their follows already follow and a few popular people.
      *
      * @return Collection<int, User>
      */
-    public function get(User $user, int $limit = 6, int $popular = 2): Collection
+    public function get(User $user, int $limit = 3): Collection
     {
+        $randomizer = $this->randomizerFor($user);
+        $popularSlots = $randomizer->getInt(1, max(1, $limit - 1));
+
         $following = $user->following();
         $followingIds = $following->newPivotQuery()->select($following->getRelatedPivotKeyName());
-
         $followedByFollowing = DB::table('follows')->select('followed_id')->whereIn('follower_id', $followingIds);
 
         $network = $this->candidates($user, $followingIds)
@@ -43,19 +45,15 @@ final readonly class SuggestedUsersQuery
             ->limit(self::PopularPoolSize)
             ->get();
 
-        $picked = new Collection($this->randomizerFor($user)->shuffleArray($popularPool->all()))
-            ->take($limit - min($network->count(), $limit - $popular))
-            ->values();
+        $popular = array_slice(
+            $randomizer->shuffleArray($popularPool->all()),
+            0,
+            $limit - min($network->count(), $limit - $popularSlots),
+        );
 
-        $network = $network->take($limit - $picked->count());
+        $network = $network->take($limit - count($popular));
 
-        $pairs = $network->chunk(2);
-
-        return new Collection($pairs
-            ->values()
-            ->flatMap(fn (Collection $pair, int $index): array => [...$pair->values(), ...$picked->slice($index, 1)])
-            ->concat($picked->slice($pairs->count()))
-            ->all());
+        return new Collection($randomizer->shuffleArray([...$network->all(), ...$popular]));
     }
 
     /**
@@ -79,7 +77,7 @@ final readonly class SuggestedUsersQuery
     }
 
     /**
-     * Popular picks change once a day, so suggestions don't reshuffle on every page.
+     * The mix, the popular picks, and their order change once a day, so suggestions don't reshuffle on every page.
      */
     private function randomizerFor(User $user): Randomizer
     {

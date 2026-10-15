@@ -5,11 +5,12 @@ declare(strict_types=1);
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
- * @return list<User>
+ * @return Collection<int, User>
  */
-function vouchedFor(User $user, int $count): array
+function vouchedFor(User $user, int $count): Collection
 {
     $friend = User::factory()->create();
     $user->following()->attach($friend);
@@ -17,7 +18,16 @@ function vouchedFor(User $user, int $count): array
     $vouched = User::factory()->count($count)->has(Commit::factory())->create();
     $friend->following()->attach($vouched);
 
-    return $vouched->all();
+    return $vouched;
+}
+
+/**
+ * @return Collection<int, User>
+ */
+function popularUsers(int $count): Collection
+{
+    return User::factory()->count($count)->has(Commit::factory())->create()
+        ->each(fn (User $popular) => $popular->followers()->attach(User::factory()->count(2)->create()));
 }
 
 it('suggests people with commits the user does not follow yet', function (): void {
@@ -42,7 +52,7 @@ it('skips people without approved commits', function (): void {
     expect(resolve(SuggestedUsersQuery::class)->get($user))->toBeEmpty();
 });
 
-it('ranks people followed by more of the user follows first', function (): void {
+it('picks the people most followed by the user follows', function (): void {
     $user = User::factory()->create();
     [$friendA, $friendB] = User::factory()->count(2)->create();
 
@@ -54,69 +64,63 @@ it('ranks people followed by more of the user follows first', function (): void 
     $followedByOneFriend->followers()->attach($friendA);
     $followedByBothFriends->followers()->attach([$friendA->id, $friendB->id]);
 
-    $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user, limit: 1);
 
-    expect($suggestions->modelKeys())->toBe([$followedByBothFriends->id, $followedByOneFriend->id])
+    expect($suggestions->modelKeys())->toBe([$followedByBothFriends->id])
         ->and($suggestions->first()->followed_by_following_count)->toBe(2);
 });
 
-it('mixes popular people in after every two people from the user network', function (): void {
+it('mixes one or two popular people with people the user might know', function (): void {
     $user = User::factory()->create();
     $network = vouchedFor($user, 5);
+    $popular = popularUsers(5);
 
-    $popular = User::factory()->count(2)->has(Commit::factory())->create()
-        ->each(fn (User $popularUser) => $popularUser->followers()->attach(User::factory()->count(3)->create()));
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
+    $popularCount = $suggestions->filter(fn (User $suggested): bool => $popular->contains($suggested))->count();
 
-    $suggestions = resolve(SuggestedUsersQuery::class)->get($user, limit: 6, popular: 2);
-
-    expect($suggestions)->toHaveCount(6)
-        ->and($suggestions->get(2)->followed_by_following_count)->toBe(0)
-        ->and($suggestions->get(5)->followed_by_following_count)->toBe(0)
-        ->and([$suggestions->get(2)->id, $suggestions->get(5)->id])->toEqualCanonicalizing($popular->modelKeys())
-        ->and($suggestions->reject(fn (User $suggested): bool => $suggested->followed_by_following_count === 0)->modelKeys())
-        ->each->toBeIn(array_map(fn (User $vouched): string => $vouched->id, $network));
+    expect($suggestions)->toHaveCount(3)
+        ->and($popularCount)->toBeIn([1, 2])
+        ->and($suggestions->filter(fn (User $suggested): bool => $network->contains($suggested)))->toHaveCount(3 - $popularCount);
 });
 
-it('fills the list with popular people when the user network is small', function (): void {
+it('suggests only popular people when the user might know nobody', function (): void {
     $user = User::factory()->create();
-    [$vouched] = vouchedFor($user, 1);
+    $popular = popularUsers(4);
 
-    $popular = User::factory()->count(4)->has(Commit::factory())->create();
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
 
-    $suggestions = resolve(SuggestedUsersQuery::class)->get($user, limit: 6);
-
-    expect($suggestions)->toHaveCount(5)
-        ->and($suggestions->first()->id)->toBe($vouched->id)
-        ->and(array_values($suggestions->skip(1)->modelKeys()))->toEqualCanonicalizing($popular->modelKeys());
+    expect($suggestions)->toHaveCount(3)
+        ->and($suggestions->modelKeys())->each->toBeIn($popular->modelKeys());
 });
 
-it('fills the list with people from the user network when there are not enough popular people', function (): void {
+it('suggests only people the user might know when nobody else is around', function (): void {
     $user = User::factory()->create();
-    $network = vouchedFor($user, 6);
+    $network = vouchedFor($user, 4);
 
-    $suggestions = resolve(SuggestedUsersQuery::class)->get($user, limit: 6, popular: 2);
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
 
-    expect($suggestions->modelKeys())->toEqualCanonicalizing(array_map(fn (User $vouched): string => $vouched->id, $network));
+    expect($suggestions)->toHaveCount(3)
+        ->and($suggestions->modelKeys())->each->toBeIn($network->modelKeys());
 });
 
 it('picks popular people from the most followed', function (): void {
     $user = User::factory()->create();
 
     $mostFollowed = User::factory()->count(20)->has(Commit::factory())->create()
-        ->each(fn (User $popularUser) => $popularUser->followers()->attach(User::factory()->create()));
+        ->each(fn (User $popular) => $popular->followers()->attach(User::factory()->create()));
     $unknown = User::factory()->has(Commit::factory())->create();
 
-    $suggestions = resolve(SuggestedUsersQuery::class)->get($user, limit: 6);
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
 
-    expect($suggestions)->toHaveCount(6)
+    expect($suggestions)->toHaveCount(3)
         ->and($suggestions->modelKeys())->not->toContain($unknown->id)
         ->each->toBeIn($mostFollowed->modelKeys());
 });
 
-it('keeps the same popular picks for a user during the day', function (): void {
+it('keeps the same suggestions in the same order during the day', function (): void {
     $user = User::factory()->create();
-
-    User::factory()->count(10)->has(Commit::factory())->create();
+    vouchedFor($user, 3);
+    popularUsers(5);
 
     $query = resolve(SuggestedUsersQuery::class);
 
@@ -128,6 +132,6 @@ it('limits the number of suggestions', function (): void {
 
     User::factory()->count(5)->has(Commit::factory())->create();
 
-    expect(resolve(SuggestedUsersQuery::class)->get($user))->toHaveCount(5)
+    expect(resolve(SuggestedUsersQuery::class)->get($user))->toHaveCount(3)
         ->and(resolve(SuggestedUsersQuery::class)->get($user, limit: 2))->toHaveCount(2);
 });

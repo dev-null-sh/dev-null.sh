@@ -9,8 +9,6 @@ import { cn, laneFor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { SuggestedUser } from '@/types';
 
-const asideLimit = 3;
-
 function reasonFor(user: SuggestedUser): string | null {
     if (user.followed_by_following_count > 0) {
         return `Followed by ${user.followed_by_following_count} you follow`;
@@ -28,20 +26,14 @@ function reasonFor(user: SuggestedUser): string | null {
 /**
  * Only the counts reload after a follow, so the suggestion stays where it is and flips to "Following".
  */
-function FollowButton({
-    user,
-    className,
-}: {
-    user: SuggestedUser;
-    className?: string;
-}) {
+function FollowButton({ user }: { user: SuggestedUser }) {
     const [isFollowing, setIsFollowing] = useState(false);
 
     return (
         <Button
             size="sm"
             variant={isFollowing ? 'outline' : 'default'}
-            className={cn('group/follow min-w-24 shrink-0', className)}
+            className="group/follow min-w-24 shrink-0"
             asChild
         >
             <Link
@@ -82,24 +74,17 @@ function FollowButton({
     );
 }
 
-function Username({ user }: { user: SuggestedUser }) {
-    return (
-        <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
-            <span
-                aria-hidden
-                className="size-1.5 shrink-0 rounded-full"
-                style={{ background: laneFor(user.id) }}
-            />
-            <span className="truncate">@{user.username}</span>
-        </span>
-    );
-}
-
-function SuggestedUserRow({ user }: { user: SuggestedUser }) {
+function SuggestedUserRow({
+    user,
+    className,
+}: {
+    user: SuggestedUser;
+    className?: string;
+}) {
     const reason = reasonFor(user);
 
     return (
-        <li className="flex items-center gap-3">
+        <li className={cn('flex items-center gap-3', className)}>
             <Link
                 href={show(user)}
                 className="group flex min-w-0 flex-1 items-center gap-3"
@@ -109,9 +94,16 @@ function SuggestedUserRow({ user }: { user: SuggestedUser }) {
                     <span className="block truncate text-sm font-semibold group-hover:underline">
                         {user.name}
                     </span>
-                    <Username user={user} />
+                    <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                        <span
+                            aria-hidden
+                            className="size-1.5 shrink-0 rounded-full"
+                            style={{ background: laneFor(user.id) }}
+                        />
+                        <span className="truncate">@{user.username}</span>
+                    </span>
                     {reason && (
-                        <span className="block truncate text-xs text-muted-foreground">
+                        <span className="line-clamp-2 block text-xs text-muted-foreground">
                             {reason}
                         </span>
                     )}
@@ -122,11 +114,15 @@ function SuggestedUserRow({ user }: { user: SuggestedUser }) {
     );
 }
 
-function SuggestedUsersSkeleton() {
+function SuggestedUsersSkeleton({ rowClassName }: { rowClassName?: string }) {
     return (
-        <ul className="space-y-4" aria-hidden>
+        <>
             {[0, 1, 2].map((index) => (
-                <li key={index} className="flex items-center gap-3">
+                <li
+                    key={index}
+                    aria-hidden
+                    className={cn('flex items-center gap-3', rowClassName)}
+                >
                     <Skeleton className="size-9 rounded-full" />
                     <span className="flex-1 space-y-1.5">
                         <Skeleton className="h-3.5 w-28" />
@@ -134,7 +130,7 @@ function SuggestedUsersSkeleton() {
                     </span>
                 </li>
             ))}
-        </ul>
+        </>
     );
 }
 
@@ -153,67 +149,24 @@ export function WhoToFollow() {
             <h2 id="aside-who-to-follow" className="mb-4 text-sm font-semibold">
                 Who to follow
             </h2>
-            <Deferred
-                data="suggestedUsers"
-                fallback={<SuggestedUsersSkeleton />}
-            >
-                <ul className="space-y-4">
-                    {suggestedUsers?.slice(0, asideLimit).map((user) => (
+            <ul className="space-y-4">
+                <Deferred
+                    data="suggestedUsers"
+                    fallback={<SuggestedUsersSkeleton />}
+                >
+                    {suggestedUsers?.map((user) => (
                         <SuggestedUserRow key={user.id} user={user} />
                     ))}
-                </ul>
-            </Deferred>
+                </Deferred>
+            </ul>
         </section>
     );
 }
 
-function SuggestedUserCard({ user }: { user: SuggestedUser }) {
-    const reason = reasonFor(user);
-
-    return (
-        <li className="flex w-40 shrink-0 snap-start flex-col items-center rounded-lg border bg-card p-3 text-center">
-            <Link
-                href={show(user)}
-                className="group flex w-full min-w-0 flex-col items-center"
-            >
-                <UserAvatar user={user} className="size-14 text-base" />
-                <span className="mt-2 block w-full truncate text-sm font-semibold group-hover:underline">
-                    {user.name}
-                </span>
-                <span className="flex max-w-full justify-center">
-                    <Username user={user} />
-                </span>
-                <span className="mt-1 line-clamp-2 min-h-8 text-xs text-muted-foreground">
-                    {reason}
-                </span>
-            </Link>
-            <FollowButton user={user} className="mt-3 w-full" />
-        </li>
-    );
-}
-
-function SuggestedUserCardsSkeleton() {
-    return (
-        <ul className="flex gap-3 overflow-hidden" aria-hidden>
-            {[0, 1, 2].map((index) => (
-                <li
-                    key={index}
-                    className="flex w-40 shrink-0 flex-col items-center gap-2 rounded-lg border p-3"
-                >
-                    <Skeleton className="size-14 rounded-full" />
-                    <Skeleton className="h-3.5 w-24" />
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="mt-6 h-8 w-full" />
-                </li>
-            ))}
-        </ul>
-    );
-}
-
 /**
- * The aside is hidden below the xl breakpoint, so smaller screens get the suggestions as a swipeable row inside the log.
+ * The aside is hidden below the xl breakpoint, so smaller screens get the same suggestions inside the log.
  */
-export function WhoToFollowCarousel({
+export function WhoToFollowInLog({
     lane,
     isDimmed = false,
 }: {
@@ -229,23 +182,27 @@ export function WhoToFollowCarousel({
     return (
         <section aria-labelledby="log-who-to-follow" className="flex xl:hidden">
             <RailSegment lane={lane} isDimmed={isDimmed} />
-            <div className="min-w-0 flex-1 border-b py-3">
+            <div className="min-w-0 flex-1 border-b py-4 pr-4">
                 <h2
                     id="log-who-to-follow"
-                    className="mb-3 pr-4 text-sm font-semibold"
+                    className="mb-3 font-mono text-[13px] text-muted-foreground"
                 >
-                    Who to follow
+                    $ who --should-i-follow
                 </h2>
-                <Deferred
-                    data="suggestedUsers"
-                    fallback={<SuggestedUserCardsSkeleton />}
-                >
-                    <ul className="flex snap-x snap-mandatory [scrollbar-width:none] gap-3 overflow-x-auto pr-4 pb-1">
+                <ul className="divide-y rounded-lg border">
+                    <Deferred
+                        data="suggestedUsers"
+                        fallback={<SuggestedUsersSkeleton rowClassName="p-3" />}
+                    >
                         {suggestedUsers?.map((user) => (
-                            <SuggestedUserCard key={user.id} user={user} />
+                            <SuggestedUserRow
+                                key={user.id}
+                                user={user}
+                                className="p-3"
+                            />
                         ))}
-                    </ul>
-                </Deferred>
+                    </Deferred>
+                </ul>
             </div>
         </section>
     );

@@ -149,9 +149,9 @@ it('defers suggested users for authenticated users', function (): void {
         ->and($shared['suggestedUsers']()->modelKeys())->toBe([$suggested->id]);
 });
 
-it('shares up to six suggested users', function (): void {
+it('shares three suggested users', function (): void {
     $user = User::factory()->create();
-    User::factory()->count(7)->has(Commit::factory())->create();
+    User::factory()->count(5)->has(Commit::factory())->create();
 
     $middleware = new HandleInertiaRequests();
 
@@ -160,7 +160,7 @@ it('shares up to six suggested users', function (): void {
 
     $shared = $middleware->share($request);
 
-    expect($shared['suggestedUsers']())->toHaveCount(6);
+    expect($shared['suggestedUsers']())->toHaveCount(3);
 });
 
 it('does not share suggested users with guests', function (): void {
