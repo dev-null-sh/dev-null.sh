@@ -94,6 +94,13 @@ Route::middleware('auth')->group(function (): void {
     Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
         ->withTrashed()
         ->name('commit-reply.index');
+    Route::post('commits/{commit}/replies', [CommitReplyController::class, 'store'])
+        ->middleware('throttle:commits')
+        ->name('commit-reply.store');
+    Route::delete('commits/{commit}/replies/{reply}', [CommitReplyController::class, 'destroy'])
+        ->scopeBindings()
+        ->withTrashed()
+        ->name('commit-reply.destroy');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');

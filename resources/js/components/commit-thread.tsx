@@ -1,12 +1,13 @@
-import { Form, Link, router, usePage } from '@inertiajs/react';
+import { Link, router, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
     CornerDownRight,
     MessageSquareReply,
     Trash2,
 } from 'lucide-react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BookmarkButton } from '@/components/bookmark-button';
@@ -33,10 +34,38 @@ import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { commitStateKey } from '@/lib/commit-state';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+import type {
+    Commit,
+    CommittedFlash,
+    CursorPaginated,
+    FlashToast,
+    ThreadCommit,
+} from '@/types';
 
 const maxIndentDepth = 3;
 const maxBodyLength = 280;
+
+type CreatedReply = {
+    committed: CommittedFlash;
+    toast?: FlashToast;
+};
+
+const replyFailedMessage = 'Could not send your reply. Try again.';
+
+function replyFailureMessage(response: { status: number; data: string }) {
+    if (response.status !== 429) {
+        return replyFailedMessage;
+    }
+
+    const { message } = JSON.parse(response.data) as { message: string };
+
+    return message;
+}
+
+const updateCommitsCount = (change: number) =>
+    router.replaceProp('auth.user.commits_count', (count: unknown) =>
+        typeof count === 'number' ? count + change : count,
+    );
 
 type Thread = {
     commit: ThreadCommit;
@@ -477,16 +506,26 @@ function CommitReply({
     const { auth } = usePage().props;
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
+    const request = useHttp({});
 
     const isOwn = reply.user_id === auth.user.id;
     const isFlattened = depth > maxIndentDepth;
 
-    const deleteReply = () =>
-        router.visit(CommitController.destroy(reply), {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: onDeleted,
-        });
+    const deleteReply = async () => {
+        try {
+            await request.submit(
+                CommitReplyController.destroy({ commit: parent, reply }),
+            );
+        } catch {
+            toast.error('Could not delete your reply. Try again.');
+
+            return;
+        }
+
+        router.flushAll();
+        updateCommitsCount(-1);
+        onDeleted();
+    };
 
     return (
         <article className="group/reply pt-2.5" data-test="reply">
@@ -601,6 +640,7 @@ function CommitReply({
                             <Button
                                 variant="destructive"
                                 size="sm"
+                                disabled={request.processing}
                                 onClick={deleteReply}
                             >
                                 Delete
@@ -632,6 +672,10 @@ function ReplyComposer({
         `reply-${parent.id}`,
     );
     const attachments = useImageAttachments();
+    const request = useHttp<{ body: string; images: File[] }, CreatedReply>({
+        body: '',
+        images: [],
+    });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
@@ -664,114 +708,121 @@ function ReplyComposer({
         }
     };
 
-    return (
-        <Form
-            {...CommitController.store.form()}
-            errorBag="reply"
-            transform={(data) =>
-                attachments.images.length > 0
-                    ? { ...data, images: attachments.images }
-                    : data
-            }
-            options={{ preserveScroll: true, preserveState: true }}
-            onSuccess={(page) => {
-                if (page.flash.committed) {
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (request.processing) {
+            return;
+        }
+
+        request.setData({ body, images: attachments.images });
+
+        request
+            .submit(CommitReplyController.store(parent), {
+                onSuccess: (reply) => {
                     drop();
                     attachments.clear();
                     returnFocusToCommit();
+                    router.flash(() => reply);
+                    router.flushAll();
+                    updateCommitsCount(1);
                     onReplied();
-                }
-            }}
+                },
+                onHttpException: (response) => {
+                    toast.error(replyFailureMessage(response));
+                },
+                onNetworkError: () => {
+                    toast.error(replyFailedMessage);
+                },
+            })
+            .catch(() => undefined);
+    };
+
+    const { processing, errors } = request;
+
+    return (
+        <form
+            onSubmit={submit}
             className="mt-2 rounded-lg border bg-background p-2.5"
             data-test="reply-composer"
         >
-            {({ processing, errors }) => (
-                <>
-                    <input type="hidden" name="parent_id" value={parent.id} />
-                    <label htmlFor={`reply-${parent.id}`} className="sr-only">
-                        Reply to @{parent.user.username}
-                    </label>
-                    <MentionTextarea
-                        ref={textareaRef}
-                        id={`reply-${parent.id}`}
-                        name="body"
-                        rows={1}
-                        autoFocus
-                        value={body}
-                        onValueChange={updateBody}
-                        onKeyDown={onKeyDown}
-                        onPaste={attachments.onPaste}
-                        onDragOver={attachments.onDragOver}
-                        onDrop={attachments.onDrop}
-                        onFocus={isRestored ? moveCaretToEnd : undefined}
-                        maxLength={maxBodyLength}
-                        placeholder={`Reply to @${parent.user.username}`}
-                        className="block field-sizing-content min-h-9 w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+            <label htmlFor={`reply-${parent.id}`} className="sr-only">
+                Reply to @{parent.user.username}
+            </label>
+            <MentionTextarea
+                ref={textareaRef}
+                id={`reply-${parent.id}`}
+                name="body"
+                rows={1}
+                autoFocus
+                value={body}
+                onValueChange={updateBody}
+                onKeyDown={onKeyDown}
+                onPaste={attachments.onPaste}
+                onDragOver={attachments.onDragOver}
+                onDrop={attachments.onDrop}
+                onFocus={isRestored ? moveCaretToEnd : undefined}
+                maxLength={maxBodyLength}
+                placeholder={`Reply to @${parent.user.username}`}
+                className="block field-sizing-content min-h-9 w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+            />
+            <InputError message={errors.body} className="px-1" />
+            <ImagePickerPreviews
+                images={attachments.images}
+                onRemove={attachments.remove}
+            />
+            <InputError
+                message={attachments.error ?? imageErrorFrom(errors)}
+                className="mt-1 px-1"
+            />
+            <div className="mt-1.5 flex items-center justify-end gap-2">
+                <div className="mr-auto flex items-center gap-2">
+                    <ImagePickerButton
+                        count={attachments.images.length}
+                        disabled={processing}
+                        onPick={attachments.attach}
+                        className="size-8"
                     />
-                    <InputError
-                        message={errors.body ?? errors.parent_id}
-                        className="px-1"
-                    />
-                    <ImagePickerPreviews
-                        images={attachments.images}
-                        onRemove={attachments.remove}
-                    />
-                    <InputError
-                        message={attachments.error ?? imageErrorFrom(errors)}
-                        className="mt-1 px-1"
-                    />
-                    <div className="mt-1.5 flex items-center justify-end gap-2">
-                        <div className="mr-auto flex items-center gap-2">
-                            <ImagePickerButton
-                                count={attachments.images.length}
-                                disabled={processing}
-                                onPick={attachments.attach}
-                                className="size-8"
-                            />
-                            {isRestored && (
-                                <StashLabel
-                                    onDrop={() => {
-                                        drop();
-                                        document
-                                            .getElementById(
-                                                `reply-${parent.id}`,
-                                            )
-                                            ?.focus();
-                                    }}
-                                    className="px-1 text-xs"
-                                />
-                            )}
-                        </div>
-                        <span
-                            className={cn(
-                                'mr-1 font-mono text-xs text-muted-foreground',
-                                {
-                                    'text-amber-700 dark:text-amber-400':
-                                        remaining <= 20,
-                                },
-                            )}
-                        >
-                            {remaining}
-                        </span>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={onCancel}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            size="sm"
-                            disabled={processing || !isReplyable}
-                            data-test="submit-reply-button"
-                        >
-                            {processing ? 'Replying…' : 'Reply'}
-                        </Button>
-                    </div>
-                </>
-            )}
-        </Form>
+                    {isRestored && (
+                        <StashLabel
+                            onDrop={() => {
+                                drop();
+                                document
+                                    .getElementById(`reply-${parent.id}`)
+                                    ?.focus();
+                            }}
+                            className="px-1 text-xs"
+                        />
+                    )}
+                </div>
+                <span
+                    className={cn(
+                        'mr-1 font-mono text-xs text-muted-foreground',
+                        {
+                            'text-amber-700 dark:text-amber-400':
+                                remaining <= 20,
+                        },
+                    )}
+                >
+                    {remaining}
+                </span>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onCancel}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    type="submit"
+                    size="sm"
+                    disabled={processing || !isReplyable}
+                    data-test="submit-reply-button"
+                >
+                    {processing ? 'Replying…' : 'Reply'}
+                </Button>
+            </div>
+        </form>
     );
 }

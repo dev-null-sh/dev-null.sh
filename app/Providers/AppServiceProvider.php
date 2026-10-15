@@ -8,6 +8,7 @@ use App\Contracts\Services\DnsResolver;
 use App\Models\User;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -74,10 +75,16 @@ final class AppServiceProvider extends ServiceProvider
                 );
             }
 
-            return Limit::perMinute(10)->by($user->id)->response(function (): RedirectResponse {
+            return Limit::perMinute(10)->by($user->id)->response(function (Request $request, array $headers): JsonResponse|RedirectResponse {
+                $message = __('Slow down: 10 commits a minute. Even CI takes breaks.');
+
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => $message], 429, $headers);
+                }
+
                 Inertia::flash('toast', [
                     'type' => 'error',
-                    'message' => __('Slow down: 10 commits a minute. Even CI takes breaks.'),
+                    'message' => $message,
                 ]);
 
                 return back();

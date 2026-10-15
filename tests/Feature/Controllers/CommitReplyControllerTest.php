@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 it('lists visible replies oldest first with their own reply counts', function (): void {
     $viewer = User::factory()->create();
@@ -161,4 +164,216 @@ it('includes the link previews of replies', function (): void {
     $response->assertOk()
         ->assertJsonPath('data.0.link_preview.title', 'Reply link')
         ->assertJsonMissingPath('data.0.link_preview.url_hash');
+});
+
+it('may reply to a commit', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->postJson(route('commit-reply.store', $parent), ['body' => 'Agreed, ship it.']);
+
+    $reply = $user->commits()->sole();
+
+    $response->assertCreated()
+        ->assertExactJson([
+            'committed' => ['id' => $reply->id, 'body' => 'Agreed, ship it.'],
+            'toast' => [
+                'type' => 'info',
+                'message' => 'Your commit is pending review. Everyone will see it once it is approved.',
+            ],
+        ]);
+
+    expect($reply->parent_id)->toBe($parent->id)
+        ->and($reply->status)->toBe(CommitStatus::Pending);
+});
+
+it('publishes replies of admins right away', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $parent = Commit::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->postJson(route('commit-reply.store', $parent), ['body' => 'Shipped.']);
+
+    $response->assertCreated()
+        ->assertJsonMissingPath('toast');
+
+    expect($user->commits()->sole()->status)->toBe(CommitStatus::Approved);
+});
+
+it('may reply to own pending commit', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->for($user)->pending()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('commit-reply.store', $parent), ['body' => 'Follow-up'])
+        ->assertCreated();
+
+    expect($parent->replies()->count())->toBe(1);
+});
+
+it('may not reply to a commit that is not visible', function (): void {
+    $parent = Commit::factory()->pending()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', $parent), ['body' => 'Hello'])
+        ->assertNotFound();
+
+    expect($parent->replies()->count())->toBe(0);
+});
+
+it('may not reply to a deleted commit', function (): void {
+    $parent = Commit::factory()->create();
+    $parent->delete();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', $parent), ['body' => 'Hello'])
+        ->assertNotFound();
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('requires a reply body of 3 to 280 characters', function (string $body): void {
+    $parent = Commit::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', $parent), ['body' => $body])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('body');
+
+    expect($parent->replies()->count())->toBe(0);
+})->with([
+    'blank' => '   ',
+    'too short' => '  ab  ',
+    'too long' => str_repeat('a', 281),
+]);
+
+it('may attach images to a reply', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit-reply.store', $parent), [
+            'body' => 'Look at this',
+            'images' => [
+                UploadedFile::fake()->image('first.jpg', 40, 30),
+                UploadedFile::fake()->image('second.png', 10, 10),
+            ],
+        ], ['Accept' => 'application/json'])
+        ->assertCreated();
+
+    expect($user->commits()->sole()->images)->toHaveCount(2)
+        ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(2);
+});
+
+it('may only attach jpeg, png, gif or webp images to a reply', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit-reply.store', $parent), [
+            'body' => 'Not an image',
+            'images' => [UploadedFile::fake()->create('document.pdf', 10, 'application/pdf')],
+        ], ['Accept' => 'application/json'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('images.0');
+
+    expect($user->commits()->count())->toBe(0);
+});
+
+it('rate limits replies', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    for ($i = 0; $i < 10; $i++) {
+        $this->actingAs($user)
+            ->postJson(route('commit-reply.store', $parent), ['body' => "Reply {$i}"])
+            ->assertCreated();
+    }
+
+    $this->actingAs($user)
+        ->postJson(route('commit-reply.store', $parent), ['body' => 'One too many'])
+        ->assertTooManyRequests()
+        ->assertExactJson(['message' => 'Slow down: 10 commits a minute. Even CI takes breaks.']);
+
+    expect($user->commits()->count())->toBe(10);
+});
+
+it('requires authentication to reply', function (): void {
+    $parent = Commit::factory()->create();
+
+    $this->postJson(route('commit-reply.store', $parent), ['body' => 'Hello'])
+        ->assertUnauthorized();
+
+    expect($parent->replies()->count())->toBe(0);
+});
+
+it('may delete own reply', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+
+    $this->actingAs($reply->user)
+        ->deleteJson(route('commit-reply.destroy', [$parent, $reply]))
+        ->assertNoContent();
+
+    $this->assertSoftDeleted($reply);
+});
+
+it('may delete own reply to a deleted commit', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    $parent->delete();
+
+    $this->actingAs($reply->user)
+        ->deleteJson(route('commit-reply.destroy', [$parent, $reply]))
+        ->assertNoContent();
+
+    $this->assertSoftDeleted($reply);
+});
+
+it('may not delete replies of other users', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+
+    $this->actingAs(User::factory()->create())
+        ->deleteJson(route('commit-reply.destroy', [$parent, $reply]))
+        ->assertForbidden();
+
+    $this->assertNotSoftDeleted($reply);
+});
+
+it('may not delete a reply that is already deleted', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    $reply->delete();
+
+    $this->actingAs($reply->user)
+        ->deleteJson(route('commit-reply.destroy', [$parent, $reply]))
+        ->assertNotFound();
+});
+
+it('may not delete a reply through another commit', function (): void {
+    $reply = Commit::factory()->for(Commit::factory(), 'parent')->create();
+
+    $this->actingAs($reply->user)
+        ->deleteJson(route('commit-reply.destroy', [Commit::factory()->create(), $reply]))
+        ->assertNotFound();
+
+    $this->assertNotSoftDeleted($reply);
+});
+
+it('requires authentication to delete a reply', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+
+    $this->deleteJson(route('commit-reply.destroy', [$parent, $reply]))
+        ->assertUnauthorized();
+
+    $this->assertNotSoftDeleted($reply);
 });
