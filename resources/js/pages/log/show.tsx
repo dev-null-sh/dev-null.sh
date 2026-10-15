@@ -1,4 +1,4 @@
-import { Head, Link, router, usePoll } from '@inertiajs/react';
+import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
@@ -8,6 +8,7 @@ import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
@@ -22,7 +23,9 @@ export default function Show({
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
+    const { auth } = usePage().props;
     const newestId = commits.data[0]?.id;
+    const firstSeenId = useLastVisit(auth.user.id, log, commits.data);
 
     usePoll(
         30_000,
@@ -89,6 +92,7 @@ export default function Show({
             <CommitFeed
                 commits={commits}
                 firstLane="var(--rail)"
+                firstSeenId={firstSeenId}
                 end="That's the root commit. There's nothing before it."
                 empty={
                     log === 'following' ? (
