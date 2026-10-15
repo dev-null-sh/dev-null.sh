@@ -13,6 +13,12 @@ it('renders the landing page for guests', function (): void {
             ->component('welcome'));
 });
 
+it('titles the site dev-null.sh whatever the environment name is', function (): void {
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertSee('<title>dev-null.sh</title>', false);
+});
+
 it('redirects authenticated users to the log', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->get(route('home'));
