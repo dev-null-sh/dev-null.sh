@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Rules\NotBlank;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class CreateCommitRequest extends FormRequest
@@ -14,12 +15,12 @@ final class CreateCommitRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, NotBlank|string>>
      */
     public function rules(): array
     {
         return [
-            'title' => ['required', 'string', 'min:3', 'max:72'],
+            'title' => ['required', 'string', new NotBlank, 'min:3', 'max:72'],
             'description' => ['nullable', 'string', 'max:500'],
         ];
     }
