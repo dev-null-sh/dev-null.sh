@@ -1,4 +1,6 @@
+import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import { show } from '@/routes/user';
 
 // Keep these rules in sync with app/Actions/FindFirstUrl.php.
 
@@ -54,9 +56,45 @@ function withoutTrailingPunctuation(candidate: string): string {
     return url;
 }
 
-export function LinkifiedText({ text }: { text: string }) {
+export function LinkifiedText({
+    text,
+    mentions = [],
+}: {
+    text: string;
+    mentions?: string[];
+}) {
     const parts: ReactNode[] = [];
     let position = 0;
+
+    const known = new Map(
+        mentions.map((username) => [username.toLowerCase(), username]),
+    );
+    const plainText = (start: number, end = text.length): ReactNode => {
+        const value = text.slice(start, end);
+        const output: ReactNode[] = [];
+        let offset = 0;
+        for (const mention of value.matchAll(
+            /(?:^|[\s([{])@([a-zA-Z0-9][a-zA-Z0-9-]{0,38})(?![\p{L}\p{N}_-])/gu,
+        )) {
+            const username = known.get(mention[1].toLowerCase());
+            if (!username) continue;
+            const index =
+                mention.index + mention[0].length - mention[1].length - 1;
+            output.push(
+                value.slice(offset, index),
+                <Link
+                    key={start + index}
+                    href={show({ username })}
+                    className="wrap-anywhere text-primary hover:underline"
+                >
+                    @{mention[1]}
+                </Link>,
+            );
+            offset = index + mention[1].length + 1;
+        }
+        output.push(value.slice(offset));
+        return output;
+    };
 
     for (const match of text.matchAll(urlPattern)) {
         const linkText = withoutTrailingPunctuation(match[0]);
@@ -69,7 +107,7 @@ export function LinkifiedText({ text }: { text: string }) {
         }
 
         parts.push(
-            text.slice(position, match.index),
+            plainText(position, match.index),
             <a
                 key={match.index}
                 href={href}
@@ -84,7 +122,7 @@ export function LinkifiedText({ text }: { text: string }) {
         position = match.index + linkText.length;
     }
 
-    parts.push(text.slice(position));
+    parts.push(plainText(position));
 
     return <>{parts}</>;
 }

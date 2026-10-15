@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Actions\LoadCommitMentions;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
@@ -14,6 +15,11 @@ use Illuminate\Database\Eloquent\Builder;
  */
 final class CommitBuilder extends Builder
 {
+    public function withMentions(): self
+    {
+        return $this->afterQuery(resolve(LoadCommitMentions::class)->handle(...));
+    }
+
     /**
      * Approved commits are visible to everyone, while authors may also see their own pending or rejected commits.
      */

@@ -19,6 +19,7 @@ final readonly class SuggestedCommitsQuery
             ->visibleTo($user)
             ->topLevel()
             ->with('user')
+            ->withMentions()
             ->withStarsFor($user)
             ->whereNot('user_id', $user->id)
             ->latest()

@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
+import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -67,14 +68,12 @@ export function CommitComposer() {
                             <label htmlFor="body" className="sr-only">
                                 Body
                             </label>
-                            <textarea
+                            <MentionTextarea
                                 id="body"
                                 name="body"
                                 rows={1}
                                 value={body}
-                                onChange={(event) =>
-                                    updateBody(event.target.value)
-                                }
+                                onValueChange={updateBody}
                                 onKeyDown={submitOnModEnter}
                                 onFocus={
                                     isRestored ? moveCaretToEnd : undefined

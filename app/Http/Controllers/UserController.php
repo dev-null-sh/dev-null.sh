@@ -33,6 +33,7 @@ final readonly class UserController
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
                 ->with(['user', 'linkPreview'])
+                ->withMentions()
                 ->withStarsFor($currentUser)
                 ->latest()
                 ->latest('id')

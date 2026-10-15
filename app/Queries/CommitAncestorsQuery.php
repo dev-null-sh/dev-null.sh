@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Actions\LoadCommitMentions;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -28,6 +29,8 @@ final readonly class CommitAncestorsQuery
             $ancestors->prepend($parent);
             $parentId = $parent->parent_id;
         }
+
+        resolve(LoadCommitMentions::class)->handle($ancestors);
 
         return $ancestors;
     }

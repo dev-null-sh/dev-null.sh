@@ -13,6 +13,7 @@ import { CopyLinkButton } from '@/components/copy-link-button';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
 import { LinkifiedText } from '@/components/linkified-text';
+import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -517,7 +518,10 @@ function CommitReply({
                     )}
 
                     <p className="text-[15px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
-                        <LinkifiedText text={reply.body} />
+                        <LinkifiedText
+                            text={reply.body}
+                            mentions={reply.mentions}
+                        />
                     </p>
                     {reply.link_preview?.title && (
                         <LinkPreview preview={reply.link_preview} />
@@ -620,14 +624,14 @@ function ReplyComposer({
                     <label htmlFor={`reply-${parent.id}`} className="sr-only">
                         Reply to @{parent.user.username}
                     </label>
-                    <textarea
+                    <MentionTextarea
                         ref={textareaRef}
                         id={`reply-${parent.id}`}
                         name="body"
                         rows={1}
                         autoFocus
                         value={body}
-                        onChange={(event) => updateBody(event.target.value)}
+                        onValueChange={updateBody}
                         onKeyDown={onKeyDown}
                         onFocus={isRestored ? moveCaretToEnd : undefined}
                         maxLength={maxBodyLength}

@@ -15,6 +15,7 @@ export type Commit = {
     user_id: string;
     parent_id: string | null;
     body: string;
+    mentions?: string[];
     status: CommitStatus;
     created_at: string;
     updated_at: string;

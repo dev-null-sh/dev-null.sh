@@ -244,7 +244,10 @@ export function CommitCard({
                                             : 'text-[15px]',
                                     )}
                                 >
-                                    <LinkifiedText text={commit.body} />
+                                    <LinkifiedText
+                                        text={commit.body}
+                                        mentions={commit.mentions}
+                                    />
                                 </p>
                                 {commit.link_preview?.title && (
                                     <LinkPreview
