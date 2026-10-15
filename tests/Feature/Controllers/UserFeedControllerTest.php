@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 
 function atomFeed(TestResponse $response): SimpleXMLElement
@@ -69,6 +71,47 @@ it('serves the public top-level commits of a user as an atom feed', function ():
         ->and((string) $feed->entry[1]->updated)->toBe(now()->subDay()->toAtomString())
         ->and((string) $feed->entry[1]->content)->toBe('First commit')
         ->and((string) $feed->entry[1]->content['type'])->toBe('text');
+});
+
+it('attaches the images of commits as enclosures', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $commit = Commit::factory()->for($user)->create();
+    $second = CommitImage::factory()->for($commit)->create(['position' => 1]);
+    $first = CommitImage::factory()->for($commit)->create(['position' => 0]);
+    Commit::factory()->for($user)->create(['created_at' => now()->subDay()]);
+
+    $feed = atomFeed($this->get('/@octocat/feed.atom'));
+
+    expect($feed->entry[0]->link)->toHaveCount(3)
+        ->and((string) $feed->entry[0]->link[1]['rel'])->toBe('enclosure')
+        ->and((string) $feed->entry[0]->link[1]['type'])->toBe('image/webp')
+        ->and((string) $feed->entry[0]->link[1]['href'])->toBe(route('commit-image.show', $first))
+        ->and((string) $feed->entry[0]->link[2]['href'])->toBe(route('commit-image.show', $second))
+        ->and($feed->entry[1]->link)->toHaveCount(1);
+});
+
+it('renders the feed without a query per commit', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    $create = fn (int $count) => Commit::factory()->for($user)->count($count)
+        ->has(CommitImage::factory()->count(2)->sequence(['position' => 0], ['position' => 1]), 'images')
+        ->create();
+
+    $queries = function (): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->get('/@octocat/feed.atom')->assertOk();
+
+        return count(DB::getQueryLog());
+    };
+
+    $create(1);
+    $withOne = $queries();
+
+    $create(5);
+
+    expect($queries())->toBe($withOne);
 });
 
 it('lets readers cache the feed and revalidate it', function (): void {

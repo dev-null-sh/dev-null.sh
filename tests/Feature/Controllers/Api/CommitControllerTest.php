@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 
@@ -31,6 +32,7 @@ it('shows an approved commit to anyone', function (): void {
             'stars_count' => 0,
             'replies_count' => 0,
             'link_preview' => null,
+            'images' => [],
             'author' => [
                 'id' => $user->id,
                 'username' => 'octocat',
@@ -95,6 +97,20 @@ it('includes the link preview without internal fields', function (): void {
             'description' => $preview->description,
             'image_url' => $preview->image_url,
             'site_name' => $preview->site_name,
+        ]);
+});
+
+it('includes the images of the commit in order', function (): void {
+    $commit = Commit::factory()->create();
+    $second = CommitImage::factory()->for($commit)->create(['position' => 1, 'width' => 640, 'height' => 480]);
+    $first = CommitImage::factory()->for($commit)->create(['position' => 0]);
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertDontSee($first->path)
+        ->assertJsonPath('data.images', [
+            ['id' => $first->id, 'width' => 1200, 'height' => 800, 'url' => route('commit-image.show', $first)],
+            ['id' => $second->id, 'width' => 640, 'height' => 480, 'url' => route('commit-image.show', $second)],
         ]);
 });
 

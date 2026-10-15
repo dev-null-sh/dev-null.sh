@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -83,6 +84,7 @@ it('loads a page of commits without a query per commit', function (string $repli
 
     $create = fn (int $count) => Commit::factory()->for($user)->count($count)
         ->for(LinkPreview::factory()->fetched())
+        ->has(CommitImage::factory()->count(2)->sequence(['position' => 0], ['position' => 1]), 'images')
         ->state(fn (): array => ['parent_id' => $replies === '1' ? Commit::factory()->create()->id : null])
         ->create();
 

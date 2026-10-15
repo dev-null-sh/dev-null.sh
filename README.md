@@ -41,7 +41,7 @@ Read-only, no authentication, JSON, versioned under `/api/v1`. Only approved com
 |---|---|
 | `GET /api/v1/users/{username}` | A public profile with commit, follower, and following counts |
 | `GET /api/v1/users/{username}/commits` | The user's top-level commits, newest first, 20 per page (`?replies=1` for their replies instead) |
-| `GET /api/v1/commits/{id}` | One commit with its author, public parent id, star and reply counts, and link preview |
+| `GET /api/v1/commits/{id}` | One commit with its author, public parent id, star and reply counts, link preview, and images (`id`, `url`, `width`, `height`) |
 
 Lists are cursor-paginated: follow `links.next` (or pass `meta.next_cursor` as `?cursor=`) until it is `null`.
 
@@ -49,7 +49,7 @@ Lists are cursor-paginated: follow `links.next` (or pass `meta.next_cursor` as `
 curl -s https://dev-null.sh/api/v1/users/nunomaduro/commits | jq '.data[] | {short_hash, body}'
 ```
 
-Every profile also has an Atom feed of its latest 50 top-level commits at `/@{username}/feed.atom`, cached for five minutes.
+Every profile also has an Atom feed of its latest 50 top-level commits at `/@{username}/feed.atom`, with their images as enclosures, cached for five minutes.
 
 ## Available Tooling
 

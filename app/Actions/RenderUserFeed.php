@@ -21,6 +21,7 @@ final readonly class RenderUserFeed
         $commits = $user->commits()
             ->approved()
             ->topLevel()
+            ->with('images')
             ->latest()
             ->latest('id')
             ->limit(self::LIMIT)
@@ -64,6 +65,11 @@ final readonly class RenderUserFeed
         $xml->writeElement('id', "urn:uuid:{$commit->id}");
         $xml->writeElement('title', $this->text(Str::limit(Str::squish($commit->body), 72, '…', preserveWords: true)));
         $this->link($xml, 'alternate', route('commit.show', [$user, $commit]), 'text/html');
+
+        foreach ($commit->images as $image) {
+            $this->link($xml, 'enclosure', $image->url(), 'image/webp');
+        }
+
         $xml->writeElement('published', $commit->created_at->toAtomString());
         $xml->writeElement('updated', $commit->created_at->toAtomString());
 

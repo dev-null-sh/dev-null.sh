@@ -10,21 +10,27 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Services\EmojiShortcodes;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 final readonly class CreateCommit
 {
     public function __construct(
         private NotifyAboutReplies $notifyAboutReplies,
+        private NotifyAboutMentions $notifyAboutMentions,
+        private StoreCommitImages $storeCommitImages,
         private EmojiShortcodes $emojiShortcodes,
         private FindFirstUrl $findFirstUrl,
     ) {
         //
     }
 
-    public function handle(User $user, string $body, ?Commit $parent = null): Commit
+    /**
+     * @param  list<UploadedFile>  $images
+     */
+    public function handle(User $user, string $body, ?Commit $parent = null, array $images = []): Commit
     {
-        return DB::transaction(function () use ($user, $body, $parent): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $images): Commit {
             $linkPreview = $this->linkPreviewFor($body);
 
             $commit = $user->commits()->create([
@@ -34,7 +40,10 @@ final readonly class CreateCommit
                 'link_preview_id' => $linkPreview?->id,
             ]);
 
+            $this->storeCommitImages->handle($commit, $images);
+
             $this->notifyAboutReplies->handle($commit);
+            $this->notifyAboutMentions->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));
