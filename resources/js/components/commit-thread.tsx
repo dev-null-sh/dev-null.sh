@@ -429,6 +429,7 @@ function CommitReply({
 }) {
     const { auth } = usePage().props;
     const now = useNow();
+    const avatarRef = useRef<HTMLAnchorElement>(null);
     const [isConfirming, setIsConfirming] = useState(false);
 
     const isOwn = reply.user_id === auth.user.id;
@@ -444,8 +445,13 @@ function CommitReply({
     return (
         <article className="group/reply pt-2.5" data-test="reply">
             <div className="flex gap-2 sm:gap-2.5">
-                <UserPreview user={reply.user} className="shrink-0">
+                <UserPreview
+                    user={reply.user}
+                    anchor={avatarRef}
+                    className="shrink-0"
+                >
                     <Link
+                        ref={avatarRef}
                         href={show(reply.user)}
                         className="block rounded-full"
                     >
@@ -460,6 +466,7 @@ function CommitReply({
                     <div className="flex items-baseline gap-1.5 text-sm">
                         <UserPreview
                             user={reply.user}
+                            anchor={avatarRef}
                             className="flex min-w-0 items-baseline gap-1.5"
                         >
                             <Link

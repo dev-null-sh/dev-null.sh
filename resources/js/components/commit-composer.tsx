@@ -1,11 +1,10 @@
 import { Form, usePage } from '@inertiajs/react';
 import type { KeyboardEvent } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
-import { GraphRail } from '@/components/graph-rail';
+import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/user-avatar';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import { emojifyInput } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
@@ -55,15 +54,15 @@ export function CommitComposer() {
                     <GraphRail
                         lane={laneColor(auth.user.lane)}
                         variant="staged"
-                        isFilled={isCommittable}
+                        node={
+                            <RailAvatar
+                                user={auth.user}
+                                isStaged={!isCommittable}
+                            />
+                        }
                     />
 
-                    <div className="flex min-w-0 flex-1 gap-3 border-b py-3 pr-4">
-                        <UserAvatar
-                            user={auth.user}
-                            className="hidden size-10 sm:flex"
-                        />
-
+                    <div className="flex min-w-0 flex-1 border-b py-3 pr-4">
                         <div className="min-w-0 flex-1">
                             <label htmlFor="body" className="sr-only">
                                 Body

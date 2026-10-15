@@ -1,16 +1,15 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
-import { GraphRail } from '@/components/graph-rail';
+import { GraphRail, RailAvatar, RailDot } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { LinkifiedText } from '@/components/linkified-text';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import { emojify } from '@/lib/emoji';
@@ -32,6 +31,7 @@ export function CommitCard({
     isDimmed = false,
     isPreviousDimmed = false,
     isHighlighted = false,
+    isGroupedWithPrevious = false,
     onAuthorHover,
     actions,
     isFocused = false,
@@ -44,6 +44,7 @@ export function CommitCard({
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
     isHighlighted?: boolean;
+    isGroupedWithPrevious?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
     actions?: ReactNode;
     isFocused?: boolean;
@@ -53,6 +54,7 @@ export function CommitCard({
 }) {
     const { auth } = usePage().props;
     const now = useNow();
+    const nodeRef = useRef<HTMLAnchorElement>(null);
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
     >('idle');
@@ -101,247 +103,241 @@ export function CommitCard({
                     isDimmed={isDimmed}
                     isPreviousDimmed={isPreviousDimmed}
                     onHoverChange={onAuthorHover}
+                    node={
+                        <UserPreview
+                            user={commit.user}
+                            anchor={nodeRef}
+                            className="flex"
+                        >
+                            <Link
+                                ref={nodeRef}
+                                href={show(commit.user)}
+                                tabIndex={-1}
+                                className={cn('group/node flex rounded-full', {
+                                    '-translate-y-[9px]': isGroupedWithPrevious,
+                                })}
+                            >
+                                {isGroupedWithPrevious ? (
+                                    <RailDot className="group-hover/node:scale-125" />
+                                ) : (
+                                    <RailAvatar user={commit.user} />
+                                )}
+                            </Link>
+                        </UserPreview>
+                    }
                 />
 
-                <div className="flex min-w-0 flex-1 gap-3 border-b py-3 pr-4">
-                    <UserPreview
-                        user={commit.user}
-                        className="shrink-0"
-                        onHoverChange={onAuthorHover}
-                    >
-                        <Link
-                            href={show(commit.user)}
-                            className="shrink-0 rounded-full"
+                <div className="min-w-0 flex-1 border-b py-3 pr-4">
+                    <div className="flex items-baseline gap-1.5 text-[15px]">
+                        <UserPreview
+                            user={commit.user}
+                            anchor={nodeRef}
+                            className="flex min-w-0 items-baseline gap-1.5"
+                            onHoverChange={onAuthorHover}
                         >
-                            <UserAvatar
-                                user={commit.user}
-                                className="size-10"
-                            />
-                        </Link>
-                    </UserPreview>
-
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline gap-1.5 text-[15px]">
-                            <UserPreview
-                                user={commit.user}
-                                className="flex min-w-0 items-baseline gap-1.5"
-                                onHoverChange={onAuthorHover}
+                            <Link
+                                href={show(commit.user)}
+                                className="truncate font-semibold hover:underline"
                             >
-                                <Link
-                                    href={show(commit.user)}
-                                    className="truncate font-semibold hover:underline"
-                                >
-                                    {commit.user.name}
-                                </Link>
-                                <Link
-                                    href={show(commit.user)}
-                                    tabIndex={-1}
-                                    className="truncate font-mono text-[13px] text-muted-foreground"
-                                >
-                                    @{commit.user.username}
-                                </Link>
-                            </UserPreview>
-                            <span aria-hidden className="text-muted-foreground">
-                                ·
+                                {commit.user.name}
+                            </Link>
+                            <Link
+                                href={show(commit.user)}
+                                tabIndex={-1}
+                                className="truncate font-mono text-[13px] text-muted-foreground"
+                            >
+                                @{commit.user.username}
+                            </Link>
+                        </UserPreview>
+                        <span aria-hidden className="text-muted-foreground">
+                            ·
+                        </span>
+                        <Link
+                            href={permalink}
+                            className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
+                            data-test="commit-permalink"
+                        >
+                            <time
+                                dateTime={commit.created_at}
+                                title={new Date(
+                                    commit.created_at,
+                                ).toLocaleString()}
+                            >
+                                {formatRelativeTime(commit.created_at, now)}
+                            </time>
+                        </Link>
+
+                        {commit.status !== 'approved' && (
+                            <span
+                                className={cn(
+                                    'shrink-0 self-center rounded-full px-2 py-0.5 font-mono text-xs',
+                                    commit.status === 'pending'
+                                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                        : 'bg-destructive/10 text-destructive',
+                                )}
+                                title={
+                                    commit.status === 'pending'
+                                        ? 'Only you can see this commit until it is approved.'
+                                        : 'This commit was rejected. Only you can see it.'
+                                }
+                                data-test="commit-status"
+                            >
+                                {commit.status}
                             </span>
+                        )}
+
+                        <span className="relative ml-auto flex shrink-0 items-center self-center">
                             <Link
                                 href={permalink}
-                                className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
-                                data-test="commit-permalink"
+                                tabIndex={-1}
+                                className={cn(
+                                    'hidden font-mono text-[13px] text-muted-foreground transition-opacity hover:text-foreground sm:inline',
+                                    {
+                                        'group-focus-within:opacity-0 group-hover:opacity-0 [@media(hover:none)]:opacity-0':
+                                            isDeletable,
+                                        'sm:hidden': isFocused,
+                                    },
+                                )}
+                                title={`Commit ${commit.id}`}
                             >
-                                <time
-                                    dateTime={commit.created_at}
-                                    title={new Date(
-                                        commit.created_at,
-                                    ).toLocaleString()}
-                                >
-                                    {formatRelativeTime(commit.created_at, now)}
-                                </time>
+                                {hash}
                             </Link>
 
-                            {commit.status !== 'approved' && (
-                                <span
-                                    className={cn(
-                                        'shrink-0 self-center rounded-full px-2 py-0.5 font-mono text-xs',
-                                        commit.status === 'pending'
-                                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                                            : 'bg-destructive/10 text-destructive',
-                                    )}
-                                    title={
-                                        commit.status === 'pending'
-                                            ? 'Only you can see this commit until it is approved.'
-                                            : 'This commit was rejected. Only you can see it.'
-                                    }
-                                    data-test="commit-status"
+                            {isDeletable && (
+                                <button
+                                    type="button"
+                                    onClick={() => setDeletion('confirming')}
+                                    aria-label="Delete commit"
+                                    title="Delete commit"
+                                    className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                                    data-test="delete-commit-button"
                                 >
-                                    {commit.status}
-                                </span>
+                                    <Trash2 className="size-4" />
+                                </button>
                             )}
+                        </span>
+                    </div>
 
-                            <span className="relative ml-auto flex shrink-0 items-center self-center">
-                                <Link
-                                    href={permalink}
-                                    tabIndex={-1}
-                                    className={cn(
-                                        'hidden font-mono text-[13px] text-muted-foreground transition-opacity hover:text-foreground sm:inline',
-                                        {
-                                            'group-focus-within:opacity-0 group-hover:opacity-0 [@media(hover:none)]:opacity-0':
-                                                isDeletable,
-                                            'sm:hidden': isFocused,
-                                        },
-                                    )}
-                                    title={`Commit ${commit.id}`}
-                                >
-                                    {hash}
-                                </Link>
-
-                                {isDeletable && (
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setDeletion('confirming')
-                                        }
-                                        aria-label="Delete commit"
-                                        title="Delete commit"
-                                        className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-                                        data-test="delete-commit-button"
-                                    >
-                                        <Trash2 className="size-4" />
-                                    </button>
-                                )}
-                            </span>
-                        </div>
-
-                        {deletion === 'deleting' ? (
-                            <p
-                                className="mt-0.5 font-mono text-sm text-muted-foreground"
-                                role="status"
-                            >
-                                rm {hash} → /dev/null
-                            </p>
-                        ) : (
-                            <>
-                                {commit.parent && isDeleted(commit.parent) && (
-                                    <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
-                                        <CornerDownRight className="size-3" />
-                                        replying to [deleted]
-                                    </p>
-                                )}
-                                {commit.parent && !isDeleted(commit.parent) && (
-                                    <Link
-                                        href={CommitController.show({
-                                            user: commit.parent.user,
-                                            commit: commit.parent,
-                                        })}
-                                        className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
-                                    >
-                                        <CornerDownRight className="size-3" />
-                                        replying to @
-                                        {commit.parent.user.username}
-                                    </Link>
-                                )}
-                                <p
-                                    className={cn(
-                                        'mt-0.5 leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap',
-                                        isFocused
-                                            ? 'text-[17px]'
-                                            : 'text-[15px]',
-                                    )}
-                                >
-                                    <LinkifiedText
-                                        text={emojify(commit.body)}
-                                    />
+                    {deletion === 'deleting' ? (
+                        <p
+                            className="mt-0.5 font-mono text-sm text-muted-foreground"
+                            role="status"
+                        >
+                            rm {hash} → /dev/null
+                        </p>
+                    ) : (
+                        <>
+                            {commit.parent && isDeleted(commit.parent) && (
+                                <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
+                                    <CornerDownRight className="size-3" />
+                                    replying to [deleted]
                                 </p>
-                                {commit.link_preview?.title && (
-                                    <LinkPreview
-                                        preview={commit.link_preview}
-                                    />
-                                )}
-                                {isFocused && (
-                                    <p className="mt-2 font-mono text-[13px] text-muted-foreground">
-                                        <time dateTime={commit.created_at}>
-                                            {formatFullDateTime(
-                                                commit.created_at,
-                                            )}
-                                        </time>
-                                        <span aria-hidden> · </span>
-                                        <span
-                                            title={`Commit ${commit.id}`}
-                                            className="whitespace-nowrap"
-                                        >
-                                            commit {hash}
-                                        </span>
-                                    </p>
-                                )}
-                            </>
-                        )}
-
-                        {deletion !== 'deleting' &&
-                            (commit.replies_count === undefined ? (
-                                <CommitStarButton
-                                    key={`${commit.starred}-${commit.stars_count}`}
-                                    commit={commit}
-                                    className="mt-1.5 -ml-1.5"
-                                />
-                            ) : (
-                                <CommitThread
-                                    commit={commit}
-                                    initialReplies={initialReplies}
-                                    actions={
-                                        <>
-                                            <CommitStarButton
-                                                key={`${commit.starred}-${commit.stars_count}`}
-                                                commit={commit}
-                                                className="px-2 py-0.5"
-                                            />
-                                            {threadActions}
-                                        </>
-                                    }
-                                />
-                            ))}
-
-                        {actions}
-
-                        {commit.replies_count === undefined &&
-                            commit.is_saved !== undefined && (
-                                <div className="mt-1 -ml-1.5">
-                                    <BookmarkButton commit={commit} />
-                                </div>
                             )}
-
-                        {deletion === 'confirming' && (
-                            <div
-                                role="group"
-                                aria-label="Confirm delete"
-                                onKeyDown={(event) => {
-                                    if (event.key === 'Escape') {
-                                        setDeletion('idle');
-                                    }
-                                }}
-                                className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
+                            {commit.parent && !isDeleted(commit.parent) && (
+                                <Link
+                                    href={CommitController.show({
+                                        user: commit.parent.user,
+                                        commit: commit.parent,
+                                    })}
+                                    className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                    <CornerDownRight className="size-3" />
+                                    replying to @{commit.parent.user.username}
+                                </Link>
+                            )}
+                            <p
+                                className={cn(
+                                    'mt-0.5 leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap',
+                                    isFocused ? 'text-[17px]' : 'text-[15px]',
+                                )}
                             >
-                                <span className="mr-auto">
-                                    Delete this commit? There's no undo.
-                                </span>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    autoFocus
-                                    onClick={() => setDeletion('idle')}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={deleteCommit}
-                                    data-test="confirm-delete-commit-button"
-                                >
-                                    Delete
-                                </Button>
+                                <LinkifiedText text={emojify(commit.body)} />
+                            </p>
+                            {commit.link_preview?.title && (
+                                <LinkPreview preview={commit.link_preview} />
+                            )}
+                            {isFocused && (
+                                <p className="mt-2 font-mono text-[13px] text-muted-foreground">
+                                    <time dateTime={commit.created_at}>
+                                        {formatFullDateTime(commit.created_at)}
+                                    </time>
+                                    <span aria-hidden> · </span>
+                                    <span
+                                        title={`Commit ${commit.id}`}
+                                        className="whitespace-nowrap"
+                                    >
+                                        commit {hash}
+                                    </span>
+                                </p>
+                            )}
+                        </>
+                    )}
+
+                    {deletion !== 'deleting' &&
+                        (commit.replies_count === undefined ? (
+                            <CommitStarButton
+                                key={`${commit.starred}-${commit.stars_count}`}
+                                commit={commit}
+                                className="mt-1.5 -ml-1.5"
+                            />
+                        ) : (
+                            <CommitThread
+                                commit={commit}
+                                initialReplies={initialReplies}
+                                actions={
+                                    <>
+                                        <CommitStarButton
+                                            key={`${commit.starred}-${commit.stars_count}`}
+                                            commit={commit}
+                                            className="px-2 py-0.5"
+                                        />
+                                        {threadActions}
+                                    </>
+                                }
+                            />
+                        ))}
+
+                    {actions}
+
+                    {commit.replies_count === undefined &&
+                        commit.is_saved !== undefined && (
+                            <div className="mt-1 -ml-1.5">
+                                <BookmarkButton commit={commit} />
                             </div>
                         )}
-                    </div>
+
+                    {deletion === 'confirming' && (
+                        <div
+                            role="group"
+                            aria-label="Confirm delete"
+                            onKeyDown={(event) => {
+                                if (event.key === 'Escape') {
+                                    setDeletion('idle');
+                                }
+                            }}
+                            className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
+                        >
+                            <span className="mr-auto">
+                                Delete this commit? There's no undo.
+                            </span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                autoFocus
+                                onClick={() => setDeletion('idle')}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={deleteCommit}
+                                data-test="confirm-delete-commit-button"
+                            >
+                                Delete
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </div>
         </article>
@@ -354,14 +350,12 @@ export function CommitTombstone({ previousLane }: { previousLane?: string }) {
             <GraphRail
                 lane="var(--rail)"
                 previousLane={previousLane}
-                isFilled={false}
+                node={
+                    <span className="size-12 rounded-full border-2 border-dashed border-rail bg-card" />
+                }
             />
 
-            <div className="flex min-w-0 flex-1 items-center gap-3 border-b py-3 pr-4">
-                <span
-                    aria-hidden
-                    className="size-10 shrink-0 rounded-full border-2 border-dashed border-rail"
-                />
+            <div className="flex min-w-0 flex-1 items-center border-b py-3 pr-4">
                 <p className="flex items-baseline gap-1.5 text-[15px] text-muted-foreground">
                     <span className="font-mono text-[13px]">[deleted]</span>
                     This commit was deleted.

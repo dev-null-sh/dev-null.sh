@@ -56,8 +56,8 @@ export default function Show({
             </div>
 
             {ancestors.map((ancestor, index) => {
-                const previousLane =
-                    index > 0 ? laneOf(ancestors[index - 1]) : undefined;
+                const previous = ancestors[index - 1];
+                const previousLane = previous ? laneOf(previous) : undefined;
 
                 return isDeleted(ancestor) ? (
                     <CommitTombstone
@@ -69,6 +69,7 @@ export default function Show({
                         key={ancestor.id}
                         commit={ancestor}
                         previousLane={previousLane}
+                        isGroupedWithPrevious={isSameAuthor(previous, ancestor)}
                         canDelete={false}
                     />
                 );
@@ -78,10 +79,22 @@ export default function Show({
                 key={commit.id}
                 commit={commit}
                 previousLane={lastAncestor ? laneOf(lastAncestor) : undefined}
+                isGroupedWithPrevious={isSameAuthor(lastAncestor, commit)}
                 initialReplies={replies}
                 isFocused
             />
         </>
+    );
+}
+
+function isSameAuthor(
+    previous: ThreadCommit | undefined,
+    commit: Commit,
+): boolean {
+    return (
+        previous !== undefined &&
+        !isDeleted(previous) &&
+        previous.user_id === commit.user_id
     );
 }
 
