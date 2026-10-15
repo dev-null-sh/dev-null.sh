@@ -70,7 +70,7 @@ export default function Index({
                     </Button>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 sm:px-6">
-                    <label className="flex items-center gap-2 text-sm">
+                    <label className="relative text-sm">
                         <span className="sr-only">Notification type</span>
                         <select
                             aria-label="Notification type"
@@ -81,7 +81,7 @@ export default function Index({
                                     type: event.target.value as Filters['type'],
                                 })
                             }
-                            className="h-9 rounded-md border bg-background px-2 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+                            className="h-9 appearance-none rounded-md border bg-background pr-10 pl-3 text-sm focus-visible:outline-2 focus-visible:outline-ring"
                         >
                             <option value="all">All activity</option>
                             <option value="replies">Replies</option>
@@ -89,6 +89,10 @@ export default function Index({
                             <option value="follows">Follows</option>
                             <option value="moderation">Moderation</option>
                         </select>
+                        <ChevronDown
+                            aria-hidden="true"
+                            className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
+                        />
                     </label>
                 </div>
             </div>
