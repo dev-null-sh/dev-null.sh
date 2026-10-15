@@ -27,6 +27,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read string|null $company
  * @property-read int|null $preferred_lane
  * @property-read string|null $pinned_commit_id
+ * @property-read bool $is_trusted
  * @property-read string|null $remember_token
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -46,6 +47,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
     'remember_token',
     'preferred_lane',
     'pinned_commit_id',
+    'is_trusted',
 ])]
 final class User extends Authenticatable
 {
@@ -53,6 +55,9 @@ final class User extends Authenticatable
     use HasFactory;
 
     use HasUuids;
+
+    /** @var array<string, mixed> */
+    protected $attributes = ['is_trusted' => false];
 
     /**
      * @return array<string, string>
@@ -72,6 +77,7 @@ final class User extends Authenticatable
             'company' => 'string',
             'preferred_lane' => 'integer',
             'pinned_commit_id' => 'string',
+            'is_trusted' => 'boolean',
             'remember_token' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -129,6 +135,12 @@ final class User extends Authenticatable
     public function notifications(): HasMany
     {
         return $this->hasMany(Notification::class, 'recipient_id');
+    }
+
+    /** @return HasMany<UserTrustChange, $this> */
+    public function trustChanges(): HasMany
+    {
+        return $this->hasMany(UserTrustChange::class);
     }
 
     /**

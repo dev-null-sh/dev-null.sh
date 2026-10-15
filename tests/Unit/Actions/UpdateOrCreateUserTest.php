@@ -19,6 +19,7 @@ it('creates a user from github', function (): void {
         'location' => 'San Francisco',
         'blog' => 'https://github.blog',
         'company' => '@github',
+        'is_trusted' => true,
     ]));
 
     expect($user->exists)->toBeTrue()
@@ -30,11 +31,12 @@ it('creates a user from github', function (): void {
         ->and($user->bio)->toBe('I am the Octocat.')
         ->and($user->location)->toBe('San Francisco')
         ->and($user->website)->toBe('https://github.blog')
-        ->and($user->company)->toBe('@github');
+        ->and($user->company)->toBe('@github')
+        ->and($user->is_trusted)->toBeFalse();
 });
 
 it('updates an existing user from github', function (): void {
-    $existing = User::factory()->create([
+    $existing = User::factory()->trusted()->create([
         'github_id' => '583231',
         'username' => 'old-username',
         'bio' => 'Old bio',
@@ -51,7 +53,8 @@ it('updates an existing user from github', function (): void {
     expect($user->is($existing))->toBeTrue()
         ->and(User::query()->count())->toBeOne()
         ->and($existing->refresh()->username)->toBe('octocat')
-        ->and($existing->bio)->toBe('New bio');
+        ->and($existing->bio)->toBe('New bio')
+        ->and($existing->is_trusted)->toBeTrue();
 });
 
 it('falls back to the username when the name is blank', function (): void {

@@ -9,6 +9,7 @@ use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Models\UserTrustChange;
 use App\Queries\CommitBuilder;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
@@ -30,6 +31,17 @@ final readonly class UserController
         return Inertia::render('user/show', [
             'user' => fn (): User => $user->loadCounts($currentUser),
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
+            'moderation' => fn (): ?array => $currentUser->isAdmin() ? [
+                'isTrusted' => $user->is_trusted,
+                'isAdmin' => $user->isAdmin(),
+                'history' => $user->trustChanges()->with('actor')->latest('id')->limit(10)->get()
+                    ->map(fn (UserTrustChange $change): array => [
+                        'id' => $change->id,
+                        'is_trusted' => $change->is_trusted,
+                        'created_at' => $change->created_at->toIso8601String(),
+                        'actor' => $change->actor === null ? null : ['username' => $change->actor->username],
+                    ]),
+            ] : null,
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => fn (): array => $streaks->get($user, $currentUser),
             'tab' => $request->tab(...),

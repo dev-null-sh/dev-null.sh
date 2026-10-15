@@ -28,6 +28,7 @@ use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
+use App\Http\Controllers\UserTrustController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -112,6 +113,8 @@ Route::middleware('auth')->group(function (): void {
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
+
+    Route::put('@{user:username}/trust', [UserTrustController::class, 'update'])->name('user-trust.update');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');

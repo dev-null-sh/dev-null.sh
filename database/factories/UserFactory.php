@@ -35,6 +35,11 @@ final class UserFactory extends Factory
         ];
     }
 
+    public function trusted(): self
+    {
+        return $this->state(fn (array $attributes): array => ['is_trusted' => true]);
+    }
+
     public function withoutProfile(): self
     {
         return $this->state(fn (array $attributes): array => [

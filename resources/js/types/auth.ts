@@ -24,6 +24,17 @@ export type Auth = {
     unreadNotificationsCount: number;
 };
 
+export type UserModeration = {
+    isTrusted: boolean;
+    isAdmin: boolean;
+    history: {
+        id: number;
+        is_trusted: boolean;
+        created_at: string;
+        actor: { username: string } | null;
+    }[];
+};
+
 export type SuggestedUser = User & {
     followed_by_following_count: number;
     followers_count: number;

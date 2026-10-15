@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommit;
+use App\Actions\UpdateUserTrust;
 use App\Enums\CommitStatus;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
@@ -49,6 +50,22 @@ it('approves commits of admins right away', function (): void {
     $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Initial commit');
 
     expect($commit->status)->toBe(CommitStatus::Approved);
+});
+
+it('uses current trust when publishing even with a stale user instance', function (): void {
+    $moderator = User::factory()->create();
+    $author = User::factory()->create();
+    $trust = resolve(UpdateUserTrust::class);
+    $create = resolve(CreateCommit::class);
+
+    $trust->handle($author, $moderator, true);
+    $published = $create->handle($author, 'Published after trust was granted');
+    expect($published->status)->toBe(CommitStatus::Approved);
+
+    $previouslyTrusted = $author->fresh();
+    $trust->handle($author, $moderator, false);
+    $pending = $create->handle($previouslyTrusted, 'Pending after trust was revoked');
+    expect($pending->status)->toBe(CommitStatus::Pending);
 });
 
 it('notifies the parent author about replies of admins', function (): void {

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateUserTrust;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\SshKey;
@@ -70,6 +71,26 @@ it('replies to a commit', function (): void {
 
     expect($reply->parent_id)->toBe($parent->id)
         ->and($reply->body)->toBe('Agreed!');
+});
+
+it('publishes trusted authors signed replies and requires review after revocation', function (): void {
+    $moderator = User::factory()->create();
+    $parent = Commit::factory()->create();
+    $trust = resolve(UpdateUserTrust::class);
+    $trust->handle($this->user, $moderator, true);
+
+    postSignedCommit(signedCommit($this->keyPair, 'A trusted terminal reply', replyTo: $parent->id))
+        ->assertCreated();
+
+    $reply = $this->user->commits()->sole();
+    expect($reply)->status->toBe(CommitStatus::Approved)->parent_id->toBe($parent->id);
+    expect($parent->user->notifications()->sole()->commit_id)->toBe($reply->id);
+
+    $trust->handle($this->user, $moderator, false);
+    postSignedCommit(signedCommit($this->keyPair, 'A terminal commit after revocation'))
+        ->assertCreated();
+
+    expect($this->user->commits()->latest('id')->firstOrFail()->status)->toBe(CommitStatus::Pending);
 });
 
 it('fails to reply to an unknown commit', function (): void {

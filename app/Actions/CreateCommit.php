@@ -32,12 +32,14 @@ final readonly class CreateCommit
     public function handle(User $user, string $body, ?Commit $parent = null, array $images = []): Commit
     {
         return DB::transaction(function () use ($user, $body, $parent, $images): Commit {
+            // Serialize publishing with trust changes and use the current persisted permission.
+            $user = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             $linkPreview = $this->linkPreviewFor($body);
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
                 'parent_id' => $parent?->id,
-                'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
+                'status' => $user->isAdmin() || $user->is_trusted ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
             ]);
 

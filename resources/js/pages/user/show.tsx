@@ -20,6 +20,7 @@ import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserTrustControls } from '@/components/user-trust-controls';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
 import type {
@@ -28,6 +29,7 @@ import type {
     CursorPaginated,
     Profile,
     Streaks,
+    UserModeration,
 } from '@/types';
 
 function pluralize(count: number, singular: string, plural: string) {
@@ -42,6 +44,7 @@ export default function Show({
     commits,
     tab,
     pinnedCommit,
+    moderation,
 }: {
     user: Profile;
     isFollowing: boolean;
@@ -50,6 +53,7 @@ export default function Show({
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies';
     pinnedCommit: Commit | null;
+    moderation: UserModeration | null;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user.id === user.id;
@@ -212,6 +216,13 @@ export default function Show({
                     ))}
                 </dl>
             </header>
+
+            {moderation && (
+                <UserTrustControls
+                    username={user.username}
+                    moderation={moderation}
+                />
+            )}
 
             <ActivityGraph
                 activity={activity}
