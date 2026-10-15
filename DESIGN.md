@@ -301,6 +301,7 @@ Below the profile header: a GitHub-style 53-week grid (Sunday-first columns, Mon
 - **Loading:** skeleton rows keep the rail running (rail-gray node and line, pulsing bars) while the next page loads.
 - **Keyboard:** `j`/`k` move a focus highlight (Accent background) between commits, `c` focuses the composer, `g` then `l`/`e`/`p`/`s` navigates, `?` opens the shortcut sheet; keys render as bordered mono `kbd` caps. In the moderation queue `a`/`x` approve or reject the focused commit and focus moves to the next one; the caps sit inside the Approve/Reject buttons (from sm), and the sheet adds a Moderation section for admins.
 - **Starter suggestions:** an empty Log for someone who follows nobody lists three recent approved commits from different authors, each with a Follow button.
+- **Thread keys:** on the focused commit, `r` opens its reply composer with the cursor in it and `o` shows or hides its replies; focus stays on the commit (Esc or replying returns it there), so `j`/`k` keep stepping through top-level commits. The commit's own Reply and replies buttons carry `aria-keyshortcuts` and a `title` hint, with no caps in the action row.
 - **Activity tooltip:** one dark tooltip (Ink on Background inverted) follows the hovered cell, edge-aligned near the ends; hovering a day tints that day's commits in the profile feed with Primary Soft.
 
 ### User Preview
