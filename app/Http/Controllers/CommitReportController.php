@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\DismissCommitReport;
 use App\Actions\ReportCommit;
 use App\Http\Requests\CreateCommitReportRequest;
+use App\Http\Requests\DeleteCommitReportRequest;
 use App\Models\Commit;
 use App\Models\CommitReport;
 use App\Models\User;
@@ -25,7 +26,7 @@ final readonly class CommitReportController
         return back();
     }
 
-    public function destroy(CommitReport $report, DismissCommitReport $action): RedirectResponse
+    public function destroy(DeleteCommitReportRequest $request, CommitReport $report, DismissCommitReport $action): RedirectResponse
     {
         $action->handle($report);
 

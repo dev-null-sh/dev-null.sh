@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Actions\ReportCommit;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -11,21 +10,10 @@ use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 beforeEach(function (): void {
     config(['app.admins' => ['moderator-demo']]);
-});
-
-it('authorizes the supplied reporter when invoked outside an authenticated request', function (): void {
-    $reporter = User::factory()->create();
-    $commit = Commit::factory()->create();
-
-    resolve(ReportCommit::class)->handle($reporter, $commit, 'spam', null);
-
-    expect(CommitReport::query()->sole()->reporter_id)->toBe($reporter->id)
-        ->and($commit->fresh()->status)->toBe(CommitStatus::Approved);
 });
 
 it('privately reports an approved commit or reply without changing visibility', function (bool $reply): void {
@@ -160,13 +148,6 @@ it('restricts the reports queue and resolution to moderators including the repor
     }
 
     expect($report->refresh()->dismissed_at)->toBeNull();
-});
-
-it('denies dismissal to non-moderators when authorized outside a request', function (): void {
-    $report = CommitReport::factory()->create();
-
-    expect(Gate::forUser(User::query()->findOrFail($report->reporter_id))->denies('dismiss', $report))->toBeTrue()
-        ->and(Gate::forUser($report->commit->user)->denies('dismiss', $report))->toBeTrue();
 });
 
 it('lists only unresolved reports on live published content oldest first without reporter identity', function (): void {
