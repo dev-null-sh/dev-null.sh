@@ -25,17 +25,23 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read string|null $location
  * @property-read string|null $website
  * @property-read string|null $company
+ * @property-read int|null $preferred_lane
  * @property-read string|null $remember_token
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
  * @property-read Collection<int, User> $following
  * @property-read Collection<int, User> $followers
+ * @property-read Collection<int, Notification> $notifications
+ * @property-read int $commits_count
+ * @property-read int $following_count
+ * @property-read int $followers_count
  */
 #[Hidden([
     'github_id',
     'email',
     'remember_token',
+    'preferred_lane',
 ])]
 final class User extends Authenticatable
 {
@@ -60,6 +66,7 @@ final class User extends Authenticatable
             'location' => 'string',
             'website' => 'string',
             'company' => 'string',
+            'preferred_lane' => 'integer',
             'remember_token' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -91,6 +98,14 @@ final class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<Notification, $this>
+     */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class, 'recipient_id');
+    }
+
+    /**
      * Users sign in with GitHub, so they have no password.
      */
     public function getAuthPassword(): string
@@ -113,8 +128,77 @@ final class User extends Authenticatable
      */
     public function loadCounts(?self $viewer = null): self
     {
+        return $this->fillCounts($this->commits()->visibleTo($viewer ?? $this)->count());
+    }
+
+    /**
+     * Counts what anyone may see about the user, so only approved commits.
+     */
+    public function loadPublicCounts(): self
+    {
+        return $this->fillCounts($this->commits()->approved()->count());
+    }
+
+    /**
+     * Changes whenever anything drawn on the profile's link preview image may have changed.
+     */
+    public function openGraphImageVersion(): string
+    {
+        return hash('xxh3', implode(':', [
+            $this->updated_at->getTimestamp(),
+            $this->commits_count,
+            $this->following_count,
+            $this->followers_count,
+        ]));
+    }
+
+    /**
+     * How link previews title the user, without repeating a name that is just the username.
+     */
+    public function nameWithHandle(): string
+    {
+        return $this->name === $this->username ? "@{$this->username}" : "{$this->name} (@{$this->username})";
+    }
+
+    public function isFollowing(self $user): bool
+    {
+        return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
+    }
+
+    public function lane(): int
+    {
+        return $this->preferred_lane ?? $this->automaticLane();
+    }
+
+    /**
+     * The same hash of the id the frontend used before lanes could be chosen, so nobody's color changes on its own.
+     */
+    public function automaticLane(): int
+    {
+        $hash = 0;
+
+        foreach (mb_str_split($this->id) as $character) {
+            $hash = ($hash * 31 + mb_ord($character)) & 0xFFFFFFFF;
+        }
+
+        return $hash % 6;
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            ...parent::toArray(),
+            'lane' => $this->lane(),
+        ];
+    }
+
+    private function fillCounts(int $commits): self
+    {
         $counts = [
-            'commits_count' => $this->commits()->visibleTo($viewer ?? $this)->count(),
+            'commits_count' => $commits,
             'followers_count' => $this->followers()->newPivotQuery()->count(),
             'following_count' => $this->following()->newPivotQuery()->count(),
         ];
@@ -122,10 +206,5 @@ final class User extends Authenticatable
         $this->forceFill($counts)->syncOriginalAttributes(array_keys($counts));
 
         return $this;
-    }
-
-    public function isFollowing(self $user): bool
-    {
-        return $this->following()->whereKey($user->id)->exists();
     }
 }

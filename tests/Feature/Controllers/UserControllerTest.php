@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 it('renders a user profile', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
@@ -103,12 +104,97 @@ it('returns not found for unknown usernames', function (): void {
     $response->assertNotFound();
 });
 
-it('requires authentication to view a profile', function (): void {
-    $user = User::factory()->create();
+it('shows guests the landing page with a link preview of the profile', function (): void {
+    $user = User::factory()->create([
+        'username' => 'octocat',
+        'name' => 'The Octocat',
+        'bio' => 'I am the Octocat.',
+    ]);
 
-    $response = $this->get(route('user.show', $user));
+    Commit::factory()->for($user)->create(['body' => 'A commit only signed-in users may read']);
 
-    $response->assertRedirectToRoute('home');
+    $response = $this->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('welcome')
+            ->missing('user')
+            ->missing('commits')
+            ->missing('activity'))
+        ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<meta property="og:type" content="profile">', false)
+        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
+        ->assertSee('<meta property="og:description" content="I am the Octocat.">', false)
+        ->assertSee('<meta property="og:url" content="'.route('user.show', $user).'">', false)
+        ->assertSee('<meta property="og:image" content="'.route('user-open-graph-image.show', $user).'?v=', false)
+        ->assertSee('<meta name="twitter:card" content="summary_large_image">', false)
+        ->assertDontSee(url('/og.png'))
+        ->assertDontSee('A commit only signed-in users may read');
+
+    $this->assertGuest();
+});
+
+it('describes guests a profile without a bio', function (): void {
+    User::factory()->create(['username' => 'octocat', 'name' => 'octocat', 'bio' => null]);
+
+    $this->get('/@octocat')
+        ->assertOk()
+        ->assertSee('<meta property="og:title" content="@octocat on /dev/null">', false)
+        ->assertSee('<meta property="og:description" content="Sign in with GitHub to read @octocat&#039;s commits on /dev/null.">', false);
+});
+
+it('escapes the profile in the link preview', function (): void {
+    User::factory()->create([
+        'username' => 'octocat',
+        'name' => '"><script>alert(1)</script>',
+        'bio' => '<img src=x onerror=alert(1)>',
+    ]);
+
+    $this->get('/@octocat')
+        ->assertOk()
+        ->assertDontSee('<script>alert(1)</script>', false)
+        ->assertDontSee('<img src=x', false)
+        ->assertSee('&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt; (@octocat) on /dev/null', false);
+});
+
+it('changes the link preview image version only when public profile data changes', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    $version = fn (): string => Str::betweenFirst($this->get('/@octocat')->getContent(), 'og.png?v=', '"');
+
+    $initial = $version();
+
+    Commit::factory()->for($user)->pending()->create();
+    Commit::factory()->for($user)->rejected()->create();
+
+    expect($version())->toBe($initial);
+
+    Commit::factory()->for($user)->create();
+
+    expect($version())->not->toBe($initial);
+});
+
+it('returns guests to the profile after signing in', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    $this->get('/@octocat')->assertOk();
+
+    expect(session('url.intended'))->toBe(route('user.show', $user));
+});
+
+it('returns not found for unknown usernames to guests', function (): void {
+    $this->get('/@missing')->assertNotFound();
+});
+
+it('keeps the default link preview for signed-in users', function (): void {
+    User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+
+    $this->actingAs(User::factory()->create())
+        ->get('/@octocat')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('user/show'))
+        ->assertSee('<meta property="og:image" content="'.url('/og.png').'">', false)
+        ->assertDontSee('og:url', false);
 });
 
 it('may delete user account', function (): void {
@@ -160,49 +246,6 @@ it('shows own pending and rejected commits', function (): void {
             ->where('user.commits_count', 3)
             ->where('activity.368.count', 3)
             ->has('commits.data', 3));
-});
-
-it('lists who a user is following', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
-    $followed = User::factory()->create();
-    $user->following()->attach($followed);
-    $user->followers()->attach(User::factory()->create());
-
-    $response = $this->actingAs(User::factory()->create())
-        ->get(route('user-following.index', $user));
-
-    $response->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->component('user/connections')
-            ->where('type', 'following')
-            ->where('user.username', 'octocat')
-            ->has('users.data', 1)
-            ->where('users.data.0.id', $followed->id));
-});
-
-it("lists a user's followers", function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
-    $follower = User::factory()->create();
-    $user->followers()->attach($follower);
-    $user->following()->attach(User::factory()->create());
-
-    $response = $this->actingAs(User::factory()->create())
-        ->get(route('user-followers.index', $user));
-
-    $response->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->component('user/connections')
-            ->where('type', 'followers')
-            ->has('users.data', 1)
-            ->where('users.data.0.id', $follower->id)
-            ->missing('users.data.0.email'));
-});
-
-it('requires authentication to list follows', function (): void {
-    $user = User::factory()->create();
-
-    $this->get(route('user-following.index', $user))->assertRedirectToRoute('home');
-    $this->get(route('user-followers.index', $user))->assertRedirectToRoute('home');
 });
 
 it('only shows top-level commits on profiles', function (): void {

@@ -42,16 +42,21 @@ export function formatRelativeTime(date: string, now: Date = new Date()) {
     });
 }
 
-const laneCount = 6;
+export function formatFullDateTime(date: string): string {
+    const value = new Date(date);
 
-export function laneFor(id: string): string {
-    let hash = 0;
+    return `${value.toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+    })} · ${value.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    })}`;
+}
 
-    for (const character of id) {
-        hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-    }
-
-    return `var(--lane-${hash % laneCount})`;
+export function laneColor(lane: number): string {
+    return `var(--lane-${lane})`;
 }
 
 export function shortHash(id: string): string {

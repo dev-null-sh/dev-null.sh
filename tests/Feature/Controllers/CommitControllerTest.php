@@ -6,7 +6,9 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 it('may create a commit', function (): void {
     $user = User::factory()->create();
@@ -157,6 +159,18 @@ it('may not delete commits of other users', function (): void {
     expect($commit->fresh())->not->toBeNull();
 });
 
+it('may delete own commit from its page', function (): void {
+    $commit = Commit::factory()->create();
+
+    $response = $this->actingAs($commit->user)
+        ->from(route('commit.show', [$commit->user, $commit]))
+        ->delete(route('commit.destroy', $commit));
+
+    $response->assertRedirectToRoute('user.show', $commit->user);
+
+    expect($commit->fresh())->toBeNull();
+});
+
 it('tells users their commit is pending review', function (): void {
     $user = User::factory()->create();
 
@@ -231,4 +245,226 @@ it('may not reply to a commit that does not exist', function (): void {
         ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => '01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3']);
 
     $response->assertSessionHasErrors('parent_id');
+});
+
+it('shows a commit with its ancestors and reply count', function (): void {
+    $viewer = User::factory()->create();
+    $root = Commit::factory()->create();
+    $commit = Commit::factory()->for($root, 'parent')->create(['body' => 'Focused']);
+    Commit::factory()->for($commit, 'parent')->count(2)->create();
+    Commit::factory()->for($commit, 'parent')->pending()->create();
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('commit/show')
+            ->where('commit.id', $commit->id)
+            ->where('commit.body', 'Focused')
+            ->where('commit.user.username', $commit->user->username)
+            ->where('commit.replies_count', 2)
+            ->has('replies.data', 2)
+            ->where('replies.data.0.user.username', fn (string $username): bool => $username !== '')
+            ->where('replies.next_cursor', null)
+            ->has('ancestors', 1)
+            ->where('ancestors.0.id', $root->id)
+            ->where('ancestors.0.user.username', $root->user->username)
+            ->missing('commit.user.email'));
+});
+
+it('shows the first 50 replies of a commit with a cursor to the rest', function (): void {
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    Commit::factory()->for($commit, 'parent')->count(51)
+        ->state(new Sequence(fn (Sequence $sequence): array => [
+            'body' => "Reply {$sequence->index}",
+            'created_at' => now()->subMinutes(100 - $sequence->index),
+        ]))
+        ->create();
+    Commit::factory()->for($commit, 'parent')->pending()->create(['created_at' => now()->subMinutes(99)]);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.replies_count', 51)
+            ->has('replies.data', 50)
+            ->where('replies.data.0.body', 'Reply 0')
+            ->where('replies.data.1.body', 'Reply 1')
+            ->where('replies.data.49.body', 'Reply 49')
+            ->where('replies.next_cursor', fn (string $cursor): bool => $cursor !== ''));
+});
+
+it('shows own pending commit', function (): void {
+    $commit = Commit::factory()->pending()->create();
+
+    $response = $this->actingAs($commit->user)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.status', 'pending'));
+});
+
+it('does not show a commit that is not visible', function (): void {
+    $commit = Commit::factory()->pending()->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertNotFound();
+});
+
+it('does not show a commit under another username', function (): void {
+    $commit = Commit::factory()->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [User::factory()->create(), $commit]));
+
+    $response->assertNotFound();
+});
+
+it('shows guests the landing page with a link preview of the commit', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $commit = Commit::factory()->for($user)->create(['body' => "Shipped the new parser.\n\nIt is twice as fast."]);
+    Commit::factory()->for($commit, 'parent')->create(['body' => 'A reply only signed-in users may read']);
+    Commit::factory()->for($user)->create(['body' => 'Another commit only signed-in users may read']);
+
+    $response = $this->get(route('commit.show', [$user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('welcome')
+            ->missing('commit')
+            ->missing('ancestors')
+            ->missing('replies'))
+        ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<meta property="og:type" content="article">', false)
+        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
+        ->assertSee('<meta property="og:description" content="Shipped the new parser. It is twice as fast.">', false)
+        ->assertSee('<meta property="og:url" content="'.route('commit.show', [$user, $commit]).'">', false)
+        ->assertSee('<meta property="og:image" content="'.route('commit-open-graph-image.show', [$user, $commit]).'?v=', false)
+        ->assertSee('<meta name="twitter:card" content="summary_large_image">', false)
+        ->assertDontSee(url('/og.png'))
+        ->assertDontSee('A reply only signed-in users may read')
+        ->assertDontSee('Another commit only signed-in users may read');
+
+    $this->assertGuest();
+
+    expect(session('url.intended'))->toBe(route('commit.show', [$user, $commit]));
+});
+
+it('trims long commits in the link preview description', function (): void {
+    $commit = Commit::factory()->create(['body' => str_repeat('Writing PHP on purpose. ', 9).'The end is not described.']);
+
+    $response = $this->get(route('commit.show', [$commit->user, $commit]));
+
+    $description = Str::betweenFirst((string) $response->getContent(), '<meta property="og:description" content="', '"');
+
+    expect($description)->toEndWith('…')
+        ->and(mb_strlen($description))->toBeLessThanOrEqual(201)
+        ->and($description)->not->toContain('The end');
+});
+
+it('escapes the commit in the link preview', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => '"><script>alert(1)</script>']);
+    $commit = Commit::factory()->for($user)->create(['body' => '<img src=x onerror=alert(1)>']);
+
+    $this->get(route('commit.show', [$user, $commit]))
+        ->assertOk()
+        ->assertDontSee('<script>alert(1)</script>', false)
+        ->assertDontSee('<img src=x', false)
+        ->assertSee('<meta property="og:description" content="&lt;img src=x onerror=alert(1)&gt;">', false)
+        ->assertSee('&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt; (@octocat) on /dev/null', false);
+});
+
+it('mentions the approved parent of a reply in the link preview', function (): void {
+    $parent = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The parent commit']);
+    $reply = Commit::factory()->for($parent, 'parent')->for(User::factory()->state(['username' => 'octocat', 'name' => 'octocat']))->create();
+
+    $this->get(route('commit.show', [$reply->user, $reply]))
+        ->assertOk()
+        ->assertSee('<meta property="og:title" content="@octocat replying to @taylorotwell on /dev/null">', false)
+        ->assertDontSee('The parent commit');
+});
+
+it('does not mention a parent that is not approved in the link preview', function (Closure $state): void {
+    $parent = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The parent commit']);
+    $state($parent);
+    $reply = Commit::factory()->for($parent, 'parent')->for(User::factory()->state(['username' => 'octocat', 'name' => 'octocat']))->create();
+
+    $this->get(route('commit.show', [$reply->user, $reply]))
+        ->assertOk()
+        ->assertSee('<meta property="og:title" content="@octocat on /dev/null">', false)
+        ->assertDontSee('replying to')
+        ->assertDontSee('taylorotwell')
+        ->assertDontSee('The parent commit');
+})->with([
+    'pending' => [fn (Commit $parent): bool => $parent->update(['status' => CommitStatus::Pending])],
+    'rejected' => [fn (Commit $parent): bool => $parent->update(['status' => CommitStatus::Rejected])],
+]);
+
+it('changes the link preview image version only when the public commit changes', function (): void {
+    $commit = Commit::factory()->create();
+
+    $version = fn (): string => Str::betweenFirst((string) $this->get(route('commit.show', [$commit->user, $commit]))->getContent(), 'og.png?v=', '"');
+
+    $initial = $version();
+
+    Commit::factory()->for($commit, 'parent')->pending()->create();
+    Commit::factory()->for($commit, 'parent')->rejected()->create();
+
+    expect($version())->toBe($initial);
+
+    Commit::factory()->for($commit, 'parent')->create();
+
+    expect($version())->not->toBe($initial);
+});
+
+it('returns not found to guests for commits that are not approved', function (Closure $factory): void {
+    $commit = $factory();
+
+    $this->get(route('commit.show', [$commit->user, $commit]))->assertNotFound();
+
+    expect(session('url.intended'))->toBeNull();
+})->with([
+    'pending' => [fn (): Commit => Commit::factory()->pending()->create()],
+    'rejected' => [fn (): Commit => Commit::factory()->rejected()->create()],
+]);
+
+it('returns not found to guests for a commit under another username', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->get(route('commit.show', [User::factory()->create(), $commit]))->assertNotFound();
+});
+
+it('returns not found to guests for unknown commits', function (): void {
+    $user = User::factory()->create();
+
+    $this->get("/@{$user->username}/commits/01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3")->assertNotFound();
+    $this->get('/@missing/commits/01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3')->assertNotFound();
+});
+
+it('keeps the default link preview for signed-in users on a commit', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('commit/show'))
+        ->assertSee('<meta property="og:image" content="'.url('/og.png').'">', false)
+        ->assertDontSee('og:url', false);
+});
+
+it('returns to the intended commit after local sign in', function (): void {
+    app()->instance('env', 'local');
+    config()->set('app.auto_login', true);
+
+    $commit = Commit::factory()->create();
+
+    $this->get(route('commit.show', [$commit->user, $commit]))->assertRedirectToRoute('home');
+
+    $this->get(route('home'))->assertRedirect(route('commit.show', [$commit->user, $commit]));
 });

@@ -2,7 +2,7 @@
 
 A social network for developers. Sign in with GitHub, have a Twitter-style profile imported from GitHub, follow people, make commits (short text updates), and read the log.
 
-**Keep it stupidly simple:** no comments, reactions, images, notifications, or DMs.
+**Keep it stupidly simple:** no comments, reactions, images, or DMs.
 
 ---
 
@@ -19,11 +19,13 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 
 ## Data model
 
-**users** — `id` (uuid), `github_id` (unique), `username` (unique), `name`, `email` (nullable, hidden), `avatar_url`, `bio`, `location`, `website`, `company`, `remember_token`, timestamps
+**users** — `id` (uuid), `github_id` (unique), `username` (unique), `name`, `email` (nullable, hidden), `avatar_url`, `bio`, `location`, `website`, `company`, `preferred_lane` (nullable, 0–5, hidden), `remember_token`, timestamps
 
 **commits** — `id` (uuid), `user_id` (cascade delete), `title` (72), `description` (nullable, 500), timestamps; indexes on (`user_id`, `created_at`) and `created_at`
 
 **follows** — (`follower_id`, `followed_id`) primary key, both cascade delete, timestamps; index on `followed_id`
+
+**notifications** — `id` (uuid), `recipient_id` / `actor_id` (users, cascade delete), `type` (`NotificationType`), `commit_id` (nullable, cascade delete), `key` (unique per recipient: `followed:{actor}`, `replied:{commit}`), `read_at` (nullable), timestamps
 
 ---
 
@@ -70,6 +72,14 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 - [x] `CommitCard`: title in medium weight, description muted below; short hash in monospace next to the timestamp, from the **end** of the UUID (v7 UUIDs start with a timestamp). Computed on the frontend — Rector wants model accessors `protected`, the strict arch preset forbids protected methods.
 - [x] Copy: "Log" nav item, "Commits" profile count, empty states, delete confirmation
 
+## Milestone 6 — Notifications ✅
+
+- [x] `notifications` migration, `Notification` model + `NotificationFactory`, `NotificationType` enum (`Followed`, `Replied`), `User::notifications()`
+- [x] A notification is a pointer, not a copy: hard deletes (reply, parent, actor, recipient) cascade through foreign keys; reversible states are filtered by `NotificationBuilder::relevant()` (follow still exists, reply still approved), so unfollow/reject hide it and refollow/re-approve bring it back as it was
+- [x] Actions `NotifyAboutFollow`, `NotifyAboutReplies` (`insertOrIgnore` on the unique `key`, so never twice); called from `FollowUser`, `CreateCommit` (admins), `ApproveCommit`, `ApproveCommits` — not from observers, since bulk approvals and pivot detaches fire no model events
+- [x] `NotificationController@index` at `/notifications`; each page is marked as read with `defer()` after it is sent (`MarkNotificationsAsRead`), so it still renders as unread
+- [x] Nav item with unread badge (`auth.unreadNotificationsCount`), not prefetched so hovering never marks anything as read; a reply links to its commit page, a follow to the profile
+
 ---
 
 ## Next up
@@ -82,4 +92,4 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 
 ## Not now
 
-Comments, likes/reactions (stars), reposts (forks), editing (amend), images/media, mentions, hashtags, search, notifications, DMs, other OAuth providers, public API, admin/moderation tools, blocking/muting, header/banner images, importing real GitHub commits, commit permalink pages.
+Comments, likes/reactions (stars), reposts (forks), editing (amend), images/media, mentions, hashtags, search, DMs, other OAuth providers, public API, admin/moderation tools, blocking/muting, header/banner images, importing real GitHub commits, email/push notifications.

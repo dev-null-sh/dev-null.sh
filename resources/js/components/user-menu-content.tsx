@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
+import { clearStashes } from '@/hooks/use-stash';
 import { logout } from '@/routes';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
@@ -22,6 +23,7 @@ export function UserMenuContent({ user }: Props) {
 
     const handleLogout = () => {
         cleanup();
+        clearStashes(user.id);
         router.flushAll();
     };
 

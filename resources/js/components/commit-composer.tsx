@@ -1,19 +1,23 @@
 import { Form, usePage } from '@inertiajs/react';
 import type { KeyboardEvent } from 'react';
-import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
+import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
-import { cn, laneFor } from '@/lib/utils';
+import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
+import { cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
 const maxBodyLength = 280;
 
 export function CommitComposer() {
     const { auth } = usePage().props;
-    const [body, setBody] = useState('');
+    const { body, isRestored, updateBody, drop } = useStash(
+        auth.user.id,
+        'commit',
+    );
 
     const remaining = maxBodyLength - body.length;
     const isCommittable = body.trim().length >= minBodyLength;
@@ -38,7 +42,7 @@ export function CommitComposer() {
                     return;
                 }
 
-                setBody('');
+                drop();
                 requestAnimationFrame(() =>
                     document.getElementById('body')?.focus(),
                 );
@@ -48,7 +52,7 @@ export function CommitComposer() {
             {({ processing, errors }) => (
                 <>
                     <GraphRail
-                        lane={laneFor(auth.user.id)}
+                        lane={laneColor(auth.user.lane)}
                         variant="staged"
                         isFilled={isCommittable}
                     />
@@ -69,9 +73,12 @@ export function CommitComposer() {
                                 rows={1}
                                 value={body}
                                 onChange={(event) =>
-                                    setBody(event.target.value)
+                                    updateBody(event.target.value)
                                 }
                                 onKeyDown={submitOnModEnter}
+                                onFocus={
+                                    isRestored ? moveCaretToEnd : undefined
+                                }
                                 maxLength={maxBodyLength}
                                 placeholder="What did you ship?"
                                 autoComplete="off"
@@ -83,6 +90,17 @@ export function CommitComposer() {
                             <InputError message={errors.body} />
 
                             <div className="mt-2 flex items-center justify-end gap-4">
+                                {isRestored && (
+                                    <StashLabel
+                                        onDrop={() => {
+                                            drop();
+                                            document
+                                                .getElementById('body')
+                                                ?.focus();
+                                        }}
+                                        className="mr-auto text-[13px]"
+                                    />
+                                )}
                                 <span
                                     id="body-count"
                                     aria-label={`${remaining} characters left`}

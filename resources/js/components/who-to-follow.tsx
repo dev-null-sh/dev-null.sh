@@ -13,7 +13,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
 import { useWhoToFollow } from '@/hooks/use-who-to-follow';
-import { cn, laneFor } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import { edit } from '@/routes/appearance';
 import { show } from '@/routes/user';
 import type { SuggestedUser } from '@/types';
@@ -115,7 +115,7 @@ function SuggestedUserRow({
                         <span
                             aria-hidden
                             className="size-1.5 shrink-0 rounded-full"
-                            style={{ background: laneFor(user.id) }}
+                            style={{ background: laneColor(user.lane) }}
                         />
                         <span className="truncate">@{user.username}</span>
                     </span>

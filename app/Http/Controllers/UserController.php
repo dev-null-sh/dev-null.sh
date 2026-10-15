@@ -16,8 +16,12 @@ use Inertia\Response;
 
 final readonly class UserController
 {
-    public function show(#[CurrentUser] User $currentUser, User $user, UserActivityQuery $activity): Response
+    public function show(#[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity): RedirectResponse|Response
     {
+        if (! $currentUser instanceof User) {
+            return $this->preview($user);
+        }
+
         return Inertia::render('user/show', [
             'user' => fn (): User => $user->loadCounts($currentUser),
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
@@ -43,5 +47,27 @@ final readonly class UserController
         $request->session()->regenerateToken();
 
         return to_route('home');
+    }
+
+    /**
+     * Guests only get the landing page, with the profile's link preview for crawlers.
+     */
+    private function preview(User $user): RedirectResponse|Response
+    {
+        redirect()->setIntendedUrl(route('user.show', $user));
+
+        if (app()->isLocal() && config('app.auto_login')) {
+            return to_route('home');
+        }
+
+        $user->loadPublicCounts();
+
+        return Inertia::render('welcome')->withViewData(['preview' => [
+            'type' => 'profile',
+            'title' => "{$user->nameWithHandle()} on /dev/null",
+            'description' => $user->bio ?? __("Sign in with GitHub to read @:username's commits on /dev/null.", ['username' => $user->username]),
+            'url' => route('user.show', $user),
+            'image' => route('user-open-graph-image.show', ['user' => $user, 'v' => $user->openGraphImageVersion()]),
+        ]]);
     }
 }

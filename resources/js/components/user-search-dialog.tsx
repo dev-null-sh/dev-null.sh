@@ -7,7 +7,7 @@ import UserSearchController from '@/actions/App/Http/Controllers/UserSearchContr
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
-import { cn, laneFor } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { User } from '@/types';
 
@@ -186,9 +186,10 @@ export function UserSearchDialog({
                                                         aria-hidden
                                                         className="size-1.5 rounded-full"
                                                         style={{
-                                                            background: laneFor(
-                                                                user.id,
-                                                            ),
+                                                            background:
+                                                                laneColor(
+                                                                    user.lane,
+                                                                ),
                                                         }}
                                                     />
                                                     @{user.username}
