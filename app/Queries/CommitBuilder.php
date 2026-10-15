@@ -8,6 +8,7 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 /**
  * @extends Builder<Commit>
@@ -27,5 +28,19 @@ final class CommitBuilder extends Builder
     public function pending(): self
     {
         return $this->where('status', CommitStatus::Pending);
+    }
+
+    /**
+     * Eager-load each author with follower counts and whether the viewer follows them.
+     */
+    public function withAuthorFor(User $viewer): self
+    {
+        return $this->with([
+            'user' => function (Relation $relation) use ($viewer): void {
+                $relation->getQuery()->withCount(['followers', 'following'])->withExists([
+                    'followers as is_following' => fn (Builder $followers): Builder => $followers->whereKey($viewer->id),
+                ]);
+            },
+        ]);
     }
 }

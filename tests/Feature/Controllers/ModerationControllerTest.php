@@ -27,6 +27,8 @@ it('renders pending commits oldest first', function (): void {
             ->has('commits.data', 2)
             ->where('commits.data.0.title', 'Older')
             ->where('commits.data.1.title', 'Newer')
+            ->where('commits.data.0.user.is_following', false)
+            ->where('commits.data.0.user.followers_count', 0)
             ->has('commits.data.0.user'));
 });
 

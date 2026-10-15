@@ -33,6 +33,9 @@ it('renders a user profile', function (): void {
             ->has('commits.data', 2)
             ->where('commits.data.0.title', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
+            ->where('commits.data.0.user.is_following', true)
+            ->where('commits.data.0.user.followers_count', 1)
+            ->where('commits.data.0.user.following_count', 2)
             ->where('commits.data.1.title', 'Older'));
 });
 

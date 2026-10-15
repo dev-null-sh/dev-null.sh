@@ -5,7 +5,13 @@ import type { ReactNode } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { GraphRail } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
+import {
+    HoverCard,
+    HoverCardContent,
+    HoverCardTrigger,
+} from '@/components/ui/hover-card';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPopover } from '@/components/user-popover';
 import {
     cn,
     formatRelativeTime,
@@ -77,15 +83,28 @@ export function CommitCard({
 
                     <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-1.5 text-[15px]">
-                            <Link
-                                href={show(commit.user)}
-                                className="truncate font-semibold hover:underline"
-                            >
-                                {commit.user.name}
-                            </Link>
-                            <span className="truncate font-mono text-[13px] text-muted-foreground">
-                                @{commit.user.username}
-                            </span>
+                            <HoverCard openDelay={400} closeDelay={300}>
+                                <HoverCardTrigger asChild>
+                                    <span className="flex min-w-0 items-baseline gap-1.5">
+                                        <Link
+                                            href={show(commit.user)}
+                                            className="truncate font-semibold hover:underline"
+                                        >
+                                            {commit.user.name}
+                                        </Link>
+                                        <Link
+                                            href={show(commit.user)}
+                                            className="truncate font-mono text-[13px] text-muted-foreground hover:underline"
+                                            data-test="user-popover-trigger"
+                                        >
+                                            @{commit.user.username}
+                                        </Link>
+                                    </span>
+                                </HoverCardTrigger>
+                                <HoverCardContent>
+                                    <UserPopover user={commit.user} />
+                                </HoverCardContent>
+                            </HoverCard>
                             <span aria-hidden className="text-muted-foreground">
                                 ·
                             </span>
