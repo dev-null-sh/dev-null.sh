@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Actions\UnfollowUser;
+use App\Actions\DeleteUserFollow;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -46,7 +46,7 @@ it('hides notifications that no longer hold', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();
 
-    resolve(UnfollowUser::class)->handle($notification->actor, $user);
+    resolve(DeleteUserFollow::class)->handle($notification->actor, $user);
 
     $response = $this->actingAs($user)->get(route('notification.index'));
 

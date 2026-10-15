@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\UpdateCommitStatuses;
+use App\Enums\CommitStatus;
 use App\Http\Requests\ShowModerationRequest;
+use App\Http\Requests\UpdateModerationRequest;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,5 +29,18 @@ final readonly class ModerationController
                 ->oldest('id')
                 ->cursorPaginate(20)),
         ]);
+    }
+
+    /**
+     * Approves the selected commits that are still in the queue.
+     */
+    public function update(UpdateModerationRequest $request, UpdateCommitStatuses $action): RedirectResponse
+    {
+        /** @var array<int, string> $commitIds */
+        $commitIds = $request->validated('commits');
+
+        $action->handle($commitIds, CommitStatus::Approved, onlyPending: true);
+
+        return back();
     }
 }

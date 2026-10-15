@@ -22,7 +22,7 @@ final readonly class EvaluateCommit
         private TypeSafe $typeSafe,
         private RunModerationRules $runModerationRules,
         private DecideModeration $decideModeration,
-        private ModerateCommits $moderateCommits,
+        private UpdateCommitStatuses $updateCommitStatuses,
     ) {
         //
     }
@@ -75,11 +75,11 @@ final readonly class EvaluateCommit
             ]);
 
             if ($decision === EvaluationDecision::Approved) {
-                $this->moderateCommits->handle([$commit->id], CommitStatus::Approved, onlyPending: true);
+                $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Approved, onlyPending: true);
             }
 
             if ($decision === EvaluationDecision::Rejected) {
-                $this->moderateCommits->handle([$commit->id], CommitStatus::Rejected, $rule?->rejectionMessage, onlyPending: true);
+                $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Rejected, $rule?->rejectionMessage, onlyPending: true);
             }
 
             return $evaluation;

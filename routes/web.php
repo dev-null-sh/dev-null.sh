@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\ApproveCommitsController;
 use App\Http\Controllers\AutoModeratedCommitController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
@@ -16,6 +15,7 @@ use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReopeningController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitStarController;
+use App\Http\Controllers\ExportController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
@@ -24,7 +24,6 @@ use App\Http\Controllers\ModerationRuleController;
 use App\Http\Controllers\ModerationRulePositionController;
 use App\Http\Controllers\ModerationRulePreviewController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\PersonalDataExportController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\StarterModerationRuleController;
 use App\Http\Controllers\UserController;
@@ -107,8 +106,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-approval.store');
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
         ->name('commit-rejection.store');
-    Route::post('moderation/approve', ApproveCommitsController::class)
-        ->name('moderation.approve');
+    Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
     Route::post('moderation/{commit}/evaluation', [CommitEvaluationController::class, 'store'])
         ->name('commit-evaluation.store');
     Route::post('moderation/{commit}/reopening', [CommitReopeningController::class, 'store'])
@@ -136,7 +134,7 @@ Route::middleware('auth')->group(function (): void {
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
-    Route::get('settings/export', [PersonalDataExportController::class, 'show'])->name('personal-data-export.show');
+    Route::get('settings/export', ExportController::class)->name('export');
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');

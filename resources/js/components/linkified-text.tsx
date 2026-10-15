@@ -2,7 +2,7 @@ import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 import { show } from '@/routes/user';
 
-// Keep these rules in sync with app/Actions/FindFirstUrl.php and app/Actions/FindMentions.php.
+// Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
 
 // Top-level domains that a bare domain like "nativephp.com" may end with. It is an allowlist because most file
 // extensions are also real TLDs. Leave out any that read like code or files (sh, py, rs, md, pl, cc, in, mk, ml, so,
