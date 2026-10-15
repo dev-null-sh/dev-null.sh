@@ -26,13 +26,19 @@ final readonly class Urls
         'mx', 'ar', 'kr', 'cn', 'tw', 'hk', 'sg', 'vn', 'th',
     ];
 
+    public function __construct(private CodeSpans $codeSpans)
+    {
+        //
+    }
+
     /**
      * Finds the first http(s) URL or bare domain in the text, whichever comes first, and returns it as a URL. A bare
-     * domain gets an https scheme. Keep the rules in sync with resources/js/components/linkified-text.tsx.
+     * domain gets an https scheme. A URL in code doesn't count. Keep the rules in sync with
+     * resources/js/components/linkified-text.tsx.
      */
     public function first(string $text): ?string
     {
-        preg_match_all($this->pattern(), $text, $matches);
+        preg_match_all($this->pattern(), $this->codeSpans->withoutCode($text), $matches);
 
         foreach ($matches[0] as $candidate) {
             $match = $this->withoutTrailingPunctuation($candidate);

@@ -4,17 +4,16 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
+import { CommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
 import { GraphRail } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
-import { LinkifiedText } from '@/components/linkified-text';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
-import { emojify } from '@/lib/emoji';
 import {
     cn,
     formatFullDateTime,
@@ -241,18 +240,15 @@ export function CommitCard({
                                         {commit.parent.user.username}
                                     </Link>
                                 )}
-                                <p
+                                <CommitBody
+                                    segments={commit.body_segments}
                                     className={cn(
-                                        'mt-0.5 leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap',
+                                        'mt-0.5',
                                         isFocused
                                             ? 'text-[17px]'
                                             : 'text-[15px]',
                                     )}
-                                >
-                                    <LinkifiedText
-                                        text={emojify(commit.body)}
-                                    />
-                                </p>
+                                />
                                 {commit.images && (
                                     <CommitImages images={commit.images} />
                                 )}

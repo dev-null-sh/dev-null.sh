@@ -17,11 +17,17 @@ export type CommitImage = {
     height: number;
 };
 
+export type BodySegment =
+    | { type: 'text'; text: string }
+    | { type: 'code'; code: string }
+    | { type: 'block'; language: string | null; html: string };
+
 export type Commit = {
     id: string;
     user_id: string;
     parent_id: string | null;
     body: string;
+    body_segments: BodySegment[];
     status: CommitStatus;
     created_at: string;
     updated_at: string;
