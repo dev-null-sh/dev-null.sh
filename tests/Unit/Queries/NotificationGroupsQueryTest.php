@@ -76,24 +76,26 @@ it('groups replies per replied commit, counting each replier once', function ():
         ->and($group->actors->pluck('id')->all())->toBe([$bob->id, $carol->id]);
 });
 
-it('keeps commits, stars, replies, and follows apart', function (): void {
+it('keeps commits, stars, replies, mentions, and follows apart', function (): void {
     $user = User::factory()->create();
     [$first, $second] = Commit::factory()->for($user)->count(2)->create()->all();
     $other = User::factory()->create();
 
-    starAt($other, $first, 5);
-    starAt($other, $second, 4);
-    replyAt($other, $first, 3);
+    starAt($other, $first, 7);
+    starAt($other, $second, 6);
+    replyAt($other, $first, 5);
+    $this->travelTo(now()->subMinutes(4), fn () => Notification::factory()->for($user, 'recipient')->for($other, 'actor')->mentioned()->create());
+    $this->travelTo(now()->subMinutes(3), fn () => Notification::factory()->for($user, 'recipient')->for($other, 'actor')->mentioned()->create());
     followAt($other, $user, 2);
     followAt(User::factory()->create(), $user, 1);
 
     $groups = resolve(NotificationGroupsQuery::class)->paginate($user)->items();
 
     expect(array_map(fn (Notification $group): string => $group->type->value, $groups))
-        ->toBe(['followed', 'followed', 'replied', 'starred', 'starred'])
+        ->toBe(['followed', 'followed', 'mentioned', 'mentioned', 'replied', 'starred', 'starred'])
         ->and(array_map(fn (Notification $group): int => $group->actors_count, $groups))
-        ->toBe([1, 1, 1, 1, 1])
-        ->and($groups[4]->commit_id)->toBe($first->id)
+        ->toBe([1, 1, 1, 1, 1, 1, 1])
+        ->and($groups[6]->commit_id)->toBe($first->id)
         ->and($groups[0]->actors->sole()->is($groups[0]->actor))->toBeTrue();
 });
 

@@ -15,3 +15,11 @@ it('prevents the response from being framed', function (): void {
         ->and($response->headers->get('Content-Security-Policy'))->toBe("frame-ancestors 'none'")
         ->and($response->getContent())->toBe('OK');
 });
+
+it('keeps the content security policy of the response', function (): void {
+    $middleware = new PreventFraming();
+
+    $response = $middleware->handle(Request::create('/', 'GET'), fn ($req): Response => response('OK', headers: ['Content-Security-Policy' => "default-src 'none'"]));
+
+    expect($response->headers->get('Content-Security-Policy'))->toBe("default-src 'none'; frame-ancestors 'none'");
+});
