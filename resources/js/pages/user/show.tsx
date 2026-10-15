@@ -3,6 +3,7 @@ import {
     ArrowUpRight,
     Building2,
     CalendarDays,
+    Heart,
     Link2,
     MapPin,
 } from 'lucide-react';
@@ -154,6 +155,19 @@ export default function Show({
                             github.com/{user.username}
                         </a>
                     </li>
+                    {user.has_sponsors_listing && (
+                        <li className="flex items-center gap-1.5">
+                            <Heart className="size-4" />
+                            <a
+                                href={`https://github.com/sponsors/${user.username}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
+                            >
+                                Sponsor on GitHub
+                            </a>
+                        </li>
+                    )}
                     <li className="flex items-center gap-1.5">
                         <CalendarDays className="size-4" />
                         Joined{' '}
