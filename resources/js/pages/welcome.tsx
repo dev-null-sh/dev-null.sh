@@ -6,8 +6,14 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { login } from '@/routes';
 
+const commitStep = 820;
+const lineDelay = 250;
+const lineDuration = 450;
+const joinDuration = 120;
+
 function Commit({
     lane,
+    previousLane,
     index,
     nodeTop,
     isStaged = false,
@@ -15,38 +21,56 @@ function Commit({
     children,
 }: {
     lane: string;
+    previousLane?: string;
     index: number;
     nodeTop: string;
     isStaged?: boolean;
     isLast?: boolean;
     children: ReactNode;
 }) {
+    const nodeDelay = index * commitStep;
+
     return (
         <li
             className="group/commit flex"
             style={
                 {
                     '--lane': lane,
+                    '--previous-lane': previousLane,
                     '--node-top': nodeTop,
-                    '--delay': `${index * 140}ms`,
                 } as CSSProperties
             }
         >
             <div aria-hidden className="relative w-10 shrink-0 sm:w-16">
-                {index > 0 && (
-                    <span className="absolute top-0 left-1/2 h-(--node-top) w-0.5 -translate-x-1/2 bg-rail" />
+                {previousLane && (
+                    <span
+                        className="absolute top-0 left-1/2 h-(--node-top) w-0.5 origin-top -translate-x-1/2 bg-(--previous-lane) motion-safe:animate-rail-draw"
+                        style={{
+                            animationDelay: `${nodeDelay - joinDuration}ms`,
+                            animationDuration: `${joinDuration}ms`,
+                            animationTimingFunction: 'linear',
+                        }}
+                    />
                 )}
                 {!isLast && (
-                    <span className="absolute top-(--node-top) bottom-0 left-1/2 w-0.5 origin-top -translate-x-1/2 bg-(--lane) [animation-delay:var(--delay)] motion-safe:animate-rail-draw" />
+                    <span
+                        className="absolute top-(--node-top) bottom-0 left-1/2 w-0.5 origin-top -translate-x-1/2 bg-(--lane) motion-safe:animate-rail-draw"
+                        style={{
+                            animationDelay: `${nodeDelay + lineDelay}ms`,
+                            animationDuration: `${lineDuration}ms`,
+                            animationTimingFunction: 'linear',
+                        }}
+                    />
                 )}
                 <span
                     className={cn(
-                        'absolute top-(--node-top) left-1/2 size-4 -translate-1/2 rounded-full border-[3px] border-background bg-(--lane) shadow-[0_0_0_2px_var(--lane)] transition-colors duration-300 [animation-delay:var(--delay)] motion-safe:animate-node-in',
+                        'absolute top-(--node-top) left-1/2 size-4 -translate-1/2 rounded-full border-[3px] border-background bg-(--lane) shadow-[0_0_0_2px_var(--lane)] transition-colors duration-300 motion-safe:animate-node-in',
                         {
                             'bg-background group-focus-within/commit:bg-(--lane) group-hover/commit:bg-(--lane)':
                                 isStaged,
                         },
                     )}
+                    style={{ animationDelay: `${nodeDelay}ms` }}
                 />
             </div>
             <div
@@ -79,6 +103,7 @@ export default function Welcome() {
 
                         <Commit
                             lane="var(--lane-1)"
+                            previousLane="var(--lane-0)"
                             index={1}
                             nodeTop="1.125rem"
                         >
@@ -87,14 +112,14 @@ export default function Welcome() {
                             </h1>
                             <p className="mt-3 max-w-[38ch] text-lg text-pretty text-muted-foreground">
                                 Sign in with GitHub, follow people who write
-                                code, and commit plain text to a shared log: a
-                                72-character title, and a description if you
-                                need one.
+                                code, and commit plain text to a shared log, 280
+                                characters at a time.
                             </p>
                         </Commit>
 
                         <Commit
                             lane="var(--primary)"
+                            previousLane="var(--lane-1)"
                             index={2}
                             nodeTop="1.375rem"
                             isStaged

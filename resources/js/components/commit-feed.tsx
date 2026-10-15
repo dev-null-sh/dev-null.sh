@@ -1,9 +1,10 @@
 import { InfiniteScroll } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import { Fragment, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
-import { GraphRail } from '@/components/graph-rail';
-import { Spinner } from '@/components/ui/spinner';
-import { laneFor } from '@/lib/utils';
+import { GraphRail, RailSegment } from '@/components/graph-rail';
+import { useNow } from '@/hooks/use-now';
+import { formatDayLabel, laneFor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 export function CommitFeed({
@@ -11,17 +12,27 @@ export function CommitFeed({
     empty,
     end,
     firstLane,
+    highlightedDate = null,
     actions,
 }: {
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
     end: string;
     firstLane?: string;
+    highlightedDate?: string | null;
     actions?: (commit: Commit) => ReactNode;
 }) {
+    const now = useNow();
+    const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
+        null,
+    );
+
     if (commits.data.length === 0) {
         return <div className="px-6 py-16 text-center sm:px-12">{empty}</div>;
     }
+
+    const isDimmed = (userId: string | undefined) =>
+        highlightedAuthor !== null && userId !== highlightedAuthor;
 
     const lastCommit = commits.data.at(-1);
 
@@ -32,23 +43,58 @@ export function CommitFeed({
                 onlyNext
                 preserveUrl
                 loading={
-                    <div className="flex justify-center py-6">
-                        <Spinner className="text-muted-foreground" />
+                    <div role="status" aria-label="Loading more commits">
+                        <CommitSkeleton />
+                        <CommitSkeleton />
                     </div>
                 }
             >
-                {commits.data.map((commit, index) => (
-                    <CommitCard
-                        key={commit.id}
-                        commit={commit}
-                        previousLane={
-                            index === 0
-                                ? firstLane
-                                : laneFor(commits.data[index - 1].user_id)
-                        }
-                        actions={actions?.(commit)}
-                    />
-                ))}
+                {commits.data.map((commit, index) => {
+                    const previous = commits.data[index - 1];
+                    const previousLane = previous
+                        ? laneFor(previous.user_id)
+                        : firstLane;
+                    const startsDay =
+                        !previous ||
+                        localDayKey(previous.created_at) !==
+                            localDayKey(commit.created_at);
+
+                    return (
+                        <Fragment key={commit.id}>
+                            {startsDay && (
+                                <DayMarker
+                                    label={formatDayLabel(
+                                        commit.created_at,
+                                        now,
+                                    )}
+                                    lane={previousLane}
+                                    isDimmed={isDimmed(previous?.user_id)}
+                                />
+                            )}
+                            <CommitCard
+                                commit={commit}
+                                previousLane={previousLane}
+                                isDimmed={isDimmed(commit.user_id)}
+                                isPreviousDimmed={
+                                    previous
+                                        ? isDimmed(previous.user_id)
+                                        : highlightedAuthor !== null
+                                }
+                                isDayHighlighted={
+                                    highlightedDate !== null &&
+                                    commit.created_at.slice(0, 10) ===
+                                        highlightedDate
+                                }
+                                actions={actions?.(commit)}
+                                onAuthorHover={(isHovering) =>
+                                    setHighlightedAuthor(
+                                        isHovering ? commit.user_id : null,
+                                    )
+                                }
+                            />
+                        </Fragment>
+                    );
+                })}
             </InfiniteScroll>
 
             {commits.next_cursor === null && lastCommit && (
@@ -65,6 +111,46 @@ export function CommitFeed({
                 </div>
             )}
         </>
+    );
+}
+
+function DayMarker({
+    label,
+    lane,
+    isDimmed,
+}: {
+    label: string;
+    lane?: string;
+    isDimmed: boolean;
+}) {
+    return (
+        <div className="flex">
+            <RailSegment lane={lane} isDimmed={isDimmed} />
+            <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
+                <h3 className="font-mono text-xs text-muted-foreground">
+                    {label}
+                </h3>
+            </div>
+        </div>
+    );
+}
+
+export function CommitSkeleton() {
+    return (
+        <div aria-hidden className="flex">
+            <div className="relative w-11 shrink-0 sm:w-14">
+                <span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-rail" />
+                <span className="absolute top-8 left-1/2 size-3.5 -translate-1/2 rounded-full border-[3px] border-card bg-rail shadow-[0_0_0_2px_var(--rail)]" />
+            </div>
+            <div className="flex min-w-0 flex-1 gap-3 border-b py-3 pr-4 motion-safe:animate-pulse">
+                <span className="size-10 shrink-0 rounded-full bg-muted" />
+                <div className="flex-1 space-y-2.5 pt-1">
+                    <span className="block h-3 w-2/5 rounded bg-muted" />
+                    <span className="block h-3 w-4/5 rounded bg-muted" />
+                    <span className="block h-3 w-3/5 rounded bg-muted" />
+                </div>
+            </div>
+        </div>
     );
 }
 

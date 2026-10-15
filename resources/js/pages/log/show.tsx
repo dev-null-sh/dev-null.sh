@@ -1,18 +1,47 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router, usePoll } from '@inertiajs/react';
+import { ArrowUp } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { PageTabs } from '@/components/page-tabs';
+import { Button } from '@/components/ui/button';
+import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
     log,
     commits,
+    newCommitsCount = 0,
+    suggestions,
 }: {
     log: Log;
     commits: CursorPaginated<Commit>;
+    newCommitsCount?: number;
+    suggestions: Commit[];
 }) {
+    const newestId = commits.data[0]?.id;
+
+    usePoll(
+        30_000,
+        () => ({
+            only: ['newCommitsCount'],
+            data: { since: newestId },
+            preserveUrl: true,
+        }),
+        { autoStart: newestId !== undefined },
+    );
+
+    const showNewCommits = () =>
+        router.reload({
+            only: ['commits', 'newCommitsCount'],
+            reset: ['commits'],
+            data: { since: '' },
+            preserveUrl: true,
+            onSuccess: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
+        });
+
     return (
         <>
             <Head title={log === 'following' ? 'Log' : 'Everyone'} />
@@ -36,6 +65,22 @@ export default function Show({
                         },
                     ]}
                 />
+
+                {newCommitsCount > 0 && (
+                    <div className="absolute inset-x-0 top-full flex justify-center pt-3">
+                        <button
+                            type="button"
+                            onClick={showNewCommits}
+                            className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                        >
+                            <ArrowUp className="size-4" />
+                            {newCommitsCount}{' '}
+                            {newCommitsCount === 1
+                                ? 'new commit'
+                                : 'new commits'}
+                        </button>
+                    </div>
+                )}
             </div>
 
             <CommitComposer />
@@ -48,23 +93,80 @@ export default function Show({
                     log === 'following' ? (
                         <EmptyFeed command="fatal: your log does not have any commits yet">
                             Your log shows your commits and commits from people
-                            you follow. Find someone worth following on{' '}
-                            <Link
-                                href={LogController.show('everyone')}
-                                className="font-medium text-primary underline"
-                            >
-                                Everyone
-                            </Link>
-                            .
+                            you follow.{' '}
+                            {suggestions.length > 0
+                                ? 'Here is what a few developers committed lately:'
+                                : 'Find someone worth following on '}
+                            {suggestions.length === 0 && (
+                                <>
+                                    <Link
+                                        href={LogController.show('everyone')}
+                                        className="font-medium text-primary underline"
+                                    >
+                                        Everyone
+                                    </Link>
+                                    .
+                                </>
+                            )}
+                            {suggestions.length > 0 && (
+                                <Suggestions suggestions={suggestions} />
+                            )}
                         </EmptyFeed>
                     ) : (
                         <EmptyFeed command="fatal: no commits yet">
-                            Nobody has committed anything. Be the first. It's 72
-                            characters; you'll be fine.
+                            Nobody has committed anything. Be the first. It's
+                            280 characters; you'll be fine.
                         </EmptyFeed>
                     )
                 }
             />
+        </>
+    );
+}
+
+function Suggestions({ suggestions }: { suggestions: Commit[] }) {
+    return (
+        <>
+            <ul className="mt-5 divide-y rounded-lg border text-left">
+                {suggestions.map((commit) => (
+                    <li key={commit.id} className="flex items-center gap-3 p-3">
+                        <UserAvatar user={commit.user} className="size-9" />
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm">
+                                <span className="font-semibold">
+                                    {commit.user.name}
+                                </span>{' '}
+                                <span className="font-mono text-[13px] text-muted-foreground">
+                                    @{commit.user.username}
+                                </span>
+                            </p>
+                            <p className="truncate text-sm text-muted-foreground">
+                                {commit.body}
+                            </p>
+                        </div>
+                        <Button size="sm" asChild>
+                            <Link
+                                href={UserFollowController.store(commit.user)}
+                                as="button"
+                                preserveScroll
+                                aria-label={`Follow @${commit.user.username}`}
+                            >
+                                Follow
+                            </Link>
+                        </Button>
+                    </li>
+                ))}
+            </ul>
+            <p className="mt-4 text-sm text-muted-foreground">
+                Or browse{' '}
+                <Link
+                    href={LogController.show('everyone')}
+                    className="font-medium text-primary underline"
+                >
+                    Everyone
+                </Link>{' '}
+                for more.
+            </p>
         </>
     );
 }

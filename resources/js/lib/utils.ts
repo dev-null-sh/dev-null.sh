@@ -65,3 +65,41 @@ export function isWithinSeconds(
 ) {
     return now.getTime() - new Date(date).getTime() < seconds * 1000;
 }
+
+export function localDayKey(date: string): string {
+    const day = new Date(date);
+
+    return `${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`;
+}
+
+export function formatDayLabel(date: string, now: Date = new Date()): string {
+    const day = new Date(date);
+    const startOfToday = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+    );
+    const startOfDay = new Date(
+        day.getFullYear(),
+        day.getMonth(),
+        day.getDate(),
+    );
+    const daysAgo = Math.round(
+        (startOfToday.getTime() - startOfDay.getTime()) / 86_400_000,
+    );
+
+    if (daysAgo === 0) {
+        return 'Today';
+    }
+
+    if (daysAgo === 1) {
+        return 'Yesterday';
+    }
+
+    return day.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: day.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+    });
+}

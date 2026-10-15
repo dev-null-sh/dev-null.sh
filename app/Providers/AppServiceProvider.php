@@ -6,10 +6,12 @@ namespace App\Providers;
 
 use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Inertia\Inertia;
 
 final class AppServiceProvider extends ServiceProvider
 {
@@ -35,7 +37,14 @@ final class AppServiceProvider extends ServiceProvider
             $user = $request->user();
             assert($user instanceof User);
 
-            return Limit::perMinute(10)->by($user->id);
+            return Limit::perMinute(10)->by($user->id)->response(function (): RedirectResponse {
+                Inertia::flash('toast', [
+                    'type' => 'error',
+                    'message' => __('Slow down: 10 commits a minute. Even CI takes breaks.'),
+                ]);
+
+                return back();
+            });
         });
     }
 }

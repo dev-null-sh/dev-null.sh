@@ -10,7 +10,7 @@ const rules = [
     'Profiles mirror GitHub. Edit yours there.',
 ];
 
-export function AppAside() {
+export function AppAside({ onShowShortcuts }: { onShowShortcuts: () => void }) {
     const { auth } = usePage().props;
 
     return (
@@ -96,9 +96,19 @@ export function AppAside() {
                 </ul>
             </section>
 
-            <p className="mt-auto text-sm text-muted-foreground">
-                Everything else goes to /dev/null.
-            </p>
+            <div className="mt-auto space-y-2 text-sm text-muted-foreground">
+                <button
+                    type="button"
+                    onClick={onShowShortcuts}
+                    className="flex items-center gap-2 rounded-sm transition-colors hover:text-foreground"
+                >
+                    Keyboard shortcuts
+                    <kbd className="min-w-5 rounded border border-b-2 bg-muted px-1 text-center font-mono text-xs">
+                        ?
+                    </kbd>
+                </button>
+                <p>Everything else goes to /dev/null.</p>
+            </div>
         </aside>
     );
 }

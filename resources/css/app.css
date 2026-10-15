@@ -195,3 +195,16 @@
         text-underline-offset: 0.2em;
     }
 }
+
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 160ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none;
+    }
+}

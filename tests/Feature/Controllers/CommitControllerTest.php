@@ -13,91 +13,70 @@ it('may create a commit', function (): void {
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
         ->post(route('commit.store'), [
-            'title' => 'Initial commit',
-            'description' => 'Hello, devnull!',
+            'body' => 'Hello, devnull!',
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following);
+
+    expect($user->commits()->sole()->body)->toBe('Hello, devnull!');
+});
+
+it('flashes the created commit', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Initial commit']);
 
     $commit = $user->commits()->sole();
 
-    expect($commit->title)->toBe('Initial commit')
-        ->and($commit->description)->toBe('Hello, devnull!');
+    $response->assertInertiaFlash('committed', [
+        'id' => $commit->id,
+        'body' => 'Initial commit',
+    ]);
 });
 
-it('may create a commit without a description', function (): void {
+it('requires a body', function (): void {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
         ->post(route('commit.store'), [
-            'title' => 'Initial commit',
-            'description' => '   ',
-        ]);
-
-    $response->assertRedirectToRoute('log.show', Log::Following);
-
-    expect($user->commits()->sole()->description)->toBeNull();
-});
-
-it('requires a title', function (): void {
-    $user = User::factory()->create();
-
-    $response = $this->actingAs($user)
-        ->fromRoute('log.show', Log::Following)
-        ->post(route('commit.store'), [
-            'title' => '   ',
-            'description' => 'Hello, devnull!',
+            'body' => '   ',
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following)
-        ->assertSessionHasErrors('title');
+        ->assertSessionHasErrors('body');
 
     expect(Commit::query()->count())->toBe(0);
 });
 
-it('requires the title to be at least 3 characters', function (): void {
+it('requires the body to be at least 3 characters', function (): void {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
         ->post(route('commit.store'), [
-            'title' => '  ab  ',
+            'body' => '  ab  ',
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following)
-        ->assertSessionHasErrors('title');
+        ->assertSessionHasErrors('body');
 
     expect(Commit::query()->count())->toBe(0);
 });
 
-it('requires the title to be at most 72 characters', function (): void {
+it('requires the body to be at most 280 characters', function (): void {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
         ->post(route('commit.store'), [
-            'title' => str_repeat('a', 73),
+            'body' => str_repeat('a', 281),
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following)
-        ->assertSessionHasErrors('title');
-
-    expect(Commit::query()->count())->toBe(0);
-});
-
-it('requires the description to be at most 500 characters', function (): void {
-    $user = User::factory()->create();
-
-    $response = $this->actingAs($user)
-        ->fromRoute('log.show', Log::Following)
-        ->post(route('commit.store'), [
-            'title' => 'Initial commit',
-            'description' => str_repeat('a', 501),
-        ]);
-
-    $response->assertRedirectToRoute('log.show', Log::Following)
-        ->assertSessionHasErrors('description');
+        ->assertSessionHasErrors('body');
 
     expect(Commit::query()->count())->toBe(0);
 });
@@ -108,22 +87,26 @@ it('rate limits commit creation', function (): void {
     for ($i = 0; $i < 10; $i++) {
         $this->actingAs($user)
             ->fromRoute('log.show', Log::Following)
-            ->post(route('commit.store'), ['title' => "Commit {$i}"])
+            ->post(route('commit.store'), ['body' => "Commit {$i}"])
             ->assertRedirectToRoute('log.show', Log::Following);
     }
 
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
-        ->post(route('commit.store'), ['title' => 'One too many']);
+        ->post(route('commit.store'), ['body' => 'One too many']);
 
-    $response->assertTooManyRequests();
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertInertiaFlash('toast', [
+            'type' => 'error',
+            'message' => 'Slow down: 10 commits a minute. Even CI takes breaks.',
+        ]);
 
     expect($user->commits()->count())->toBe(10);
 });
 
 it('requires authentication to create a commit', function (): void {
     $response = $this->post(route('commit.store'), [
-        'title' => 'Initial commit',
+        'body' => 'Initial commit',
     ]);
 
     $response->assertRedirectToRoute('home');
@@ -160,7 +143,7 @@ it('tells users their commit is pending review', function (): void {
 
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
-        ->post(route('commit.store'), ['title' => 'Initial commit']);
+        ->post(route('commit.store'), ['body' => 'Initial commit']);
 
     $response->assertRedirectToRoute('log.show', Log::Following)
         ->assertInertiaFlash('toast.type', 'info');
@@ -175,7 +158,7 @@ it('publishes commits of admins right away', function (): void {
 
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
-        ->post(route('commit.store'), ['title' => 'Initial commit']);
+        ->post(route('commit.store'), ['body' => 'Initial commit']);
 
     $response->assertRedirectToRoute('log.show', Log::Following)
         ->assertInertiaFlashMissing('toast');

@@ -289,6 +289,17 @@ A 80px avatar with a 2px lane ring offset 4px from the surface, name in Title, m
 ### Commit Activity
 Below the profile header: a GitHub-style 53-week grid (Sunday-first columns, Mon/Wed/Fri row labels, month labels on month change). Cells are 2px-rounded squares with 3px gaps, filled in the profile owner's lane: Muted for empty days, then the lane mixed into the surface at 32/56/80/100% for levels 1–4 relative to that user's busiest day. The total count is mono; each cell carries a "N commits on Mon D, YYYY" title. On narrow screens it scrolls horizontally, opening on the most recent week.
 
+### Log Interactions
+- **Day markers:** a row that keeps the rail running (no node) with a mono 12px label, "Today", "Yesterday", or "Tue, Oct 13", wherever the local day changes between commits.
+- **Author highlight:** hovering a node or avatar keeps that author's lane at full strength and fades every other node and segment to 30% opacity (200ms).
+- **New commits pill:** polling every 30s; when commits arrive, a Commit Blue pill ("↑ 3 new commits") hangs under the tabs and reloads the log from the top.
+- **Commit toast:** after committing, a mono toast prints `[log <hash>] <title>`, the way `git commit` reports.
+- **Composer hints:** an amber 13px line under the title when it passes 50 characters or ends with a period. Advisory only, never blocking.
+- **Loading:** skeleton rows keep the rail running (rail-gray node and line, pulsing bars) while the next page loads.
+- **Keyboard:** `j`/`k` move a focus highlight (Accent background) between commits, `c` focuses the composer, `g` then `l`/`e`/`p`/`s` navigates, `?` opens the shortcut sheet; keys render as bordered mono `kbd` caps.
+- **Starter suggestions:** an empty Log for someone who follows nobody lists three recent approved commits from different authors, each with a Follow button.
+- **Activity tooltip:** one dark tooltip (Ink on Background inverted) follows the hovered cell, edge-aligned near the ends; hovering a day tints that day's commits in the profile feed with Primary Soft.
+
 ## Do's and Don'ts
 
 ### Do:

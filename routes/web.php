@@ -11,6 +11,8 @@ use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
+use App\Http\Controllers\UserFollowersController;
+use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\UserProfileController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -60,6 +62,11 @@ Route::middleware('auth')->group(function (): void {
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
     Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
+
+    Route::get('@{user:username}/following', [UserFollowingController::class, 'index'])
+        ->name('user-following.index');
+    Route::get('@{user:username}/followers', [UserFollowersController::class, 'index'])
+        ->name('user-followers.index');
 
     // User Follow...
     Route::post('@{user:username}/follow', [UserFollowController::class, 'store'])

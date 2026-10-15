@@ -1,8 +1,18 @@
+import { usePage } from '@inertiajs/react';
+import { useCallback, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import { AppNav, MobileHeader, MobileNav } from '@/components/app-nav';
+import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import type { AppLayoutProps } from '@/types';
 
 export default function AppLayout({ children }: AppLayoutProps) {
+    const { auth } = usePage().props;
+    const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
+    const showShortcuts = useCallback(() => setIsShowingShortcuts(true), []);
+
+    useKeyboardShortcuts(auth.user, showShortcuts);
+
     return (
         <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
             <AppNav />
@@ -12,9 +22,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 {children}
             </main>
 
-            <AppAside />
+            <AppAside onShowShortcuts={showShortcuts} />
 
             <MobileNav />
+
+            <KeyboardShortcutsDialog
+                open={isShowingShortcuts}
+                onOpenChange={setIsShowingShortcuts}
+            />
         </div>
     );
 }

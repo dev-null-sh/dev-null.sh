@@ -8,3 +8,8 @@ export type FlashToast = {
     type: 'success' | 'info' | 'warning' | 'error';
     message: string;
 };
+
+export type CommittedFlash = {
+    id: string;
+    body: string;
+};

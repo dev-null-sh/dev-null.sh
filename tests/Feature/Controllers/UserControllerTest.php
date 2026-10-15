@@ -12,8 +12,8 @@ it('renders a user profile', function (): void {
     $user->followers()->attach($viewer);
     $user->following()->attach(User::factory()->count(2)->create());
 
-    Commit::factory()->for($user)->create(['created_at' => now()->subDay(), 'title' => 'Older']);
-    Commit::factory()->for($user)->create(['title' => 'Newer']);
+    Commit::factory()->for($user)->create(['created_at' => now()->subDay(), 'body' => 'Older']);
+    Commit::factory()->for($user)->create(['body' => 'Newer']);
     Commit::factory()->create();
 
     $response = $this->actingAs($viewer)
@@ -31,12 +31,12 @@ it('renders a user profile', function (): void {
             ->missing('user.github_id')
             ->where('isFollowing', true)
             ->has('commits.data', 2)
-            ->where('commits.data.0.title', 'Newer')
+            ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
             ->where('commits.data.0.user.is_following', true)
             ->where('commits.data.0.user.followers_count', 1)
             ->where('commits.data.0.user.following_count', 2)
-            ->where('commits.data.1.title', 'Older'));
+            ->where('commits.data.1.body', 'Older'));
 });
 
 it('renders the user commit activity for the last year', function (): void {
@@ -106,7 +106,7 @@ it('may delete user account', function (): void {
 it('hides pending and rejected commits from other users', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 
-    Commit::factory()->for($user)->create(['title' => 'Approved']);
+    Commit::factory()->for($user)->create(['body' => 'Approved']);
     Commit::factory()->for($user)->pending()->create();
     Commit::factory()->for($user)->rejected()->create();
 
@@ -118,7 +118,7 @@ it('hides pending and rejected commits from other users', function (): void {
             ->where('user.commits_count', 1)
             ->where('activity.368.count', 1)
             ->has('commits.data', 1)
-            ->where('commits.data.0.title', 'Approved'));
+            ->where('commits.data.0.body', 'Approved'));
 });
 
 it('shows own pending and rejected commits', function (): void {
@@ -136,4 +136,47 @@ it('shows own pending and rejected commits', function (): void {
             ->where('user.commits_count', 3)
             ->where('activity.368.count', 3)
             ->has('commits.data', 3));
+});
+
+it('lists who a user is following', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
+    $user->followers()->attach(User::factory()->create());
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('user-following.index', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/connections')
+            ->where('type', 'following')
+            ->where('user.username', 'octocat')
+            ->has('users.data', 1)
+            ->where('users.data.0.id', $followed->id));
+});
+
+it('lists a user\'s followers', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $follower = User::factory()->create();
+    $user->followers()->attach($follower);
+    $user->following()->attach(User::factory()->create());
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('user-followers.index', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/connections')
+            ->where('type', 'followers')
+            ->has('users.data', 1)
+            ->where('users.data.0.id', $follower->id)
+            ->missing('users.data.0.email'));
+});
+
+it('requires authentication to list follows', function (): void {
+    $user = User::factory()->create();
+
+    $this->get(route('user-following.index', $user))->assertRedirectToRoute('home');
+    $this->get(route('user-followers.index', $user))->assertRedirectToRoute('home');
 });

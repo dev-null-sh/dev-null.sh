@@ -10,11 +10,10 @@ use App\Models\User;
 
 final readonly class CreateCommit
 {
-    public function handle(User $user, string $title, ?string $description = null): Commit
+    public function handle(User $user, string $body): Commit
     {
         return $user->commits()->create([
-            'title' => $title,
-            'description' => $description,
+            'body' => $body,
             'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
         ]);
     }

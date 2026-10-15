@@ -20,6 +20,7 @@ export function PageTabs({
                     key={tab.title}
                     href={tab.href}
                     prefetch
+                    viewTransition
                     aria-current={tab.isActive ? 'page' : undefined}
                     className={cn(
                         'flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
