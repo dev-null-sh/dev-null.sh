@@ -25,6 +25,21 @@ it('includes own posts and posts of followed users newest first', function (): v
         ->and($posts->first()->relationLoaded('user'))->toBeTrue();
 });
 
+it('orders posts by creation date rather than insertion order', function (): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+
+    $user->following()->attach($followed);
+
+    $older = Post::factory()->for($followed)->create(['created_at' => now()->subDay()]);
+    $newer = Post::factory()->for($user)->create(['created_at' => now()->subHour()]);
+    $oldest = Post::factory()->for($followed)->create(['created_at' => now()->subWeek()]);
+
+    $posts = resolve(FollowingTimelineQuery::class)->builder($user)->get();
+
+    expect($posts->modelKeys())->toBe([$newer->id, $older->id, $oldest->id]);
+});
+
 it('resolves followed users in a subquery instead of loading their ids', function (): void {
     $user = User::factory()->create();
 
