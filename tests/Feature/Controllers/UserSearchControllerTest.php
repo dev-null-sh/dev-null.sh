@@ -42,14 +42,16 @@ it('treats like wildcards literally', function (): void {
         ->assertJsonCount(0, 'users');
 });
 
-it('returns nothing for an empty query', function (): void {
-    User::factory()->create();
+it('suggests users for an empty query', function (): void {
+    User::factory()->create(['username' => 'alice']);
+    User::factory()->create(['username' => 'bob']);
 
-    $response = $this->actingAs(User::factory()->create())
+    $response = $this->actingAs(User::factory()->create(['username' => 'viewer']))
         ->getJson('/search/users?q=%20');
 
     $response->assertOk()
-        ->assertJsonCount(0, 'users');
+        ->assertJsonCount(3, 'users')
+        ->assertJsonPath('users.0.username', 'alice');
 });
 
 it('limits the number of results', function (): void {

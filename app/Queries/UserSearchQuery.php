@@ -16,12 +16,23 @@ final readonly class UserSearchQuery
      */
     public function get(string $term, int $limit = 8): Collection
     {
-        $term = Str::of($term)
+        $raw = Str::of($term)
             ->trim()
             ->ltrim('@')
             ->lower()
+            ->value();
+
+        $term = Str::of($raw)
             ->remove(['%', '_', '\\'])
             ->value();
+
+        if ($raw === '') {
+            return User::query()
+                ->orderBy('username')
+                ->limit($limit)
+                ->get()
+                ->toBase();
+        }
 
         if ($term === '') {
             return new Collection();

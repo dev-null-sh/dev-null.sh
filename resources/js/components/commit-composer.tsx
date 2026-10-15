@@ -1,5 +1,6 @@
 import { Form, usePage } from '@inertiajs/react';
 import type { KeyboardEvent } from 'react';
+import { useRef } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import {
     ImagePickerButton,
@@ -31,6 +32,10 @@ export function CommitComposer() {
     const isCommittable = body.trim().length >= minBodyLength;
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (mentions.onKeyDown(event)) {
+            return;
+        }
+
         if (
             event.key === 'Enter' &&
             (event.metaKey || event.ctrlKey) &&
@@ -77,7 +82,7 @@ export function CommitComposer() {
                             className="hidden size-10 sm:flex"
                         />
 
-                        <div className="min-w-0 flex-1">
+                        <div className="relative min-w-0 flex-1">
                             <label htmlFor="body" className="sr-only">
                                 Body
                             </label>
@@ -99,8 +104,26 @@ export function CommitComposer() {
                                 autoComplete="off"
                                 aria-invalid={errors.body ? true : undefined}
                                 aria-describedby="body-count"
+                                aria-expanded={mentions.isOpen}
+                                aria-controls={
+                                    mentions.isOpen
+                                        ? 'mention-suggestions'
+                                        : undefined
+                                }
                                 className="block field-sizing-content min-h-10 w-full resize-none bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
                             />
+
+                            {mentions.isOpen && (
+                                <MentionSuggestions
+                                    results={mentions.results}
+                                    isLoading={mentions.isLoading}
+                                    activeIndex={mentions.activeIndex}
+                                    onActiveIndexChange={
+                                        mentions.setActiveIndex
+                                    }
+                                    onSelect={mentions.select}
+                                />
+                            )}
 
                             <InputError message={errors.body} />
 

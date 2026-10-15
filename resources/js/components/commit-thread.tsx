@@ -27,6 +27,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { useMentionAutocomplete } from '@/hooks/use-mention-autocomplete';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { emojify } from '@/lib/emoji';
@@ -593,6 +594,11 @@ function ReplyComposer({
     );
     const attachments = useImageAttachments();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const mentions = useMentionAutocomplete({
+        value: body,
+        onChange: updateBody,
+        textareaRef,
+    });
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
 
@@ -609,6 +615,10 @@ function ReplyComposer({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (mentions.onKeyDown(event)) {
+            return;
+        }
+
         if (event.key === 'Escape') {
             returnFocusToCommit();
             onCancel();
