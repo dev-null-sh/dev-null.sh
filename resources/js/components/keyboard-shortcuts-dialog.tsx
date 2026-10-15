@@ -5,7 +5,9 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 
-const shortcuts: { keys: string[]; label: string }[] = [
+type Shortcut = { keys: string[]; label: string };
+
+const shortcuts: Shortcut[] = [
     { keys: ['j'], label: 'Next commit' },
     { keys: ['k'], label: 'Previous commit' },
     { keys: ['↵'], label: 'Open the focused commit' },
@@ -20,12 +22,44 @@ const shortcuts: { keys: string[]; label: string }[] = [
     { keys: ['?'], label: 'Show this list' },
 ];
 
+const moderationShortcuts: Shortcut[] = [
+    { keys: ['a'], label: 'Approve commit (in the queue)' },
+    { keys: ['x'], label: 'Reject commit (in the queue)' },
+];
+
+function ShortcutList({ shortcuts }: { shortcuts: Shortcut[] }) {
+    return (
+        <dl className="divide-y text-sm">
+            {shortcuts.map((shortcut) => (
+                <div
+                    key={shortcut.keys.join('')}
+                    className="flex items-center justify-between gap-4 py-2"
+                >
+                    <dt>{shortcut.label}</dt>
+                    <dd className="flex gap-1">
+                        {shortcut.keys.map((key) => (
+                            <kbd
+                                key={key}
+                                className="min-w-6 rounded border border-b-2 bg-muted px-1.5 py-0.5 text-center font-mono text-xs"
+                            >
+                                {key}
+                            </kbd>
+                        ))}
+                    </dd>
+                </div>
+            ))}
+        </dl>
+    );
+}
+
 export function KeyboardShortcutsDialog({
     open,
     onOpenChange,
+    canModerate,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    canModerate: boolean;
 }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -35,26 +69,19 @@ export function KeyboardShortcutsDialog({
                     They work anywhere except while you're typing.
                 </DialogDescription>
 
-                <dl className="divide-y text-sm">
-                    {shortcuts.map((shortcut) => (
-                        <div
-                            key={shortcut.keys.join('')}
-                            className="flex items-center justify-between gap-4 py-2"
+                <ShortcutList shortcuts={shortcuts} />
+
+                {canModerate && (
+                    <section aria-labelledby="moderation-shortcuts">
+                        <h3
+                            id="moderation-shortcuts"
+                            className="mb-1 text-sm font-semibold"
                         >
-                            <dt>{shortcut.label}</dt>
-                            <dd className="flex gap-1">
-                                {shortcut.keys.map((key) => (
-                                    <kbd
-                                        key={key}
-                                        className="min-w-6 rounded border border-b-2 bg-muted px-1.5 py-0.5 text-center font-mono text-xs"
-                                    >
-                                        {key}
-                                    </kbd>
-                                ))}
-                            </dd>
-                        </div>
-                    ))}
-                </dl>
+                            Moderation
+                        </h3>
+                        <ShortcutList shortcuts={moderationShortcuts} />
+                    </section>
+                )}
             </DialogContent>
         </Dialog>
     );

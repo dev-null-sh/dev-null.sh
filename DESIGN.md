@@ -299,7 +299,7 @@ Below the profile header: a GitHub-style 53-week grid (Sunday-first columns, Mon
 - **New commits pill:** polling every 30s; when commits arrive, a Commit Blue pill ("↑ 3 new commits") hangs under the tabs and reloads the log from the top.
 - **Commit toast:** after committing, a mono toast prints `[log <hash>] <body>`, the way `git commit` reports.
 - **Loading:** skeleton rows keep the rail running (rail-gray node and line, pulsing bars) while the next page loads.
-- **Keyboard:** `j`/`k` move a focus highlight (Accent background) between commits, `c` focuses the composer, `g` then `l`/`e`/`p`/`s` navigates, `?` opens the shortcut sheet; keys render as bordered mono `kbd` caps.
+- **Keyboard:** `j`/`k` move a focus highlight (Accent background) between commits, `c` focuses the composer, `g` then `l`/`e`/`p`/`s` navigates, `?` opens the shortcut sheet; keys render as bordered mono `kbd` caps. In the moderation queue `a`/`x` approve or reject the focused commit and focus moves to the next one; the caps sit inside the Approve/Reject buttons (from sm), and the sheet adds a Moderation section for admins.
 - **Starter suggestions:** an empty Log for someone who follows nobody lists three recent approved commits from different authors, each with a Follow button.
 - **Activity tooltip:** one dark tooltip (Ink on Background inverted) follows the hovered cell, edge-aligned near the ends; hovering a day tints that day's commits in the profile feed with Primary Soft.
 
