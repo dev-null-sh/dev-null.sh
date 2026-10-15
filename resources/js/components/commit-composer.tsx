@@ -1,42 +1,131 @@
 import { Form, usePage } from '@inertiajs/react';
-import type { KeyboardEvent } from 'react';
+import { Plus, X } from 'lucide-react';
+import type { ChangeEvent, KeyboardEvent } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import CommitSeriesController from '@/actions/App/Http/Controllers/CommitSeriesController';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
-import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
+import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
 import { emojifyInput } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
 const maxBodyLength = 280;
+const maxParts = 10;
+
+const partId = (index: number): string =>
+    index === 0 ? 'body' : `body-${index + 1}`;
+
+function focusPart(index: number, atEnd = false): void {
+    requestAnimationFrame(() => {
+        const part = document.getElementById(partId(index));
+
+        if (!(part instanceof HTMLTextAreaElement)) {
+            return;
+        }
+
+        part.focus();
+
+        if (atEnd) {
+            part.setSelectionRange(part.value.length, part.value.length);
+        }
+    });
+}
+
+function RemainingCount({ id, body }: { id: string; body: string }) {
+    const remaining = maxBodyLength - body.length;
+
+    return (
+        <span
+            id={id}
+            aria-label={`${remaining} characters left`}
+            className={cn('font-mono text-[13px] text-muted-foreground', {
+                'text-amber-700 dark:text-amber-400': remaining <= 20,
+                'text-destructive': remaining === 0,
+            })}
+        >
+            {remaining}
+        </span>
+    );
+}
 
 export function CommitComposer() {
     const { auth } = usePage().props;
-    const { body, isRestored, updateBody, drop } = useStash(
-        auth.user.id,
-        'commit',
+    const { bodies, isRestored, updateBody, insertPart, removePart, drop } =
+        useSeriesStash(auth.user.id, 'commit');
+
+    const isSeries = bodies.length > 1;
+    const canAddPart = bodies.length < maxParts;
+    const isCommittable = bodies.every(
+        (body) => body.trim().length >= minBodyLength,
     );
 
-    const remaining = maxBodyLength - body.length;
-    const isCommittable = body.trim().length >= minBodyLength;
+    const addPartAfter = (index: number) => {
+        if (!canAddPart) {
+            return;
+        }
 
-    const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (
-            event.key === 'Enter' &&
-            (event.metaKey || event.ctrlKey) &&
-            isCommittable
-        ) {
+        insertPart(index + 1);
+        focusPart(index + 1);
+    };
+
+    const removePartAt = (index: number) => {
+        removePart(index);
+        focusPart(Math.max(index - 1, 0), true);
+    };
+
+    const onChange = (
+        index: number,
+        event: ChangeEvent<HTMLTextAreaElement>,
+    ) => {
+        const target = event.currentTarget;
+        const { text, caret } = emojifyInput(
+            target.value,
+            target.selectionStart ?? target.value.length,
+        );
+
+        updateBody(index, text);
+
+        if (text !== target.value) {
+            requestAnimationFrame(() => target.setSelectionRange(caret, caret));
+        }
+    };
+
+    const onKeyDown = (
+        index: number,
+        event: KeyboardEvent<HTMLTextAreaElement>,
+    ) => {
+        const isModEnter =
+            event.key === 'Enter' && (event.metaKey || event.ctrlKey);
+
+        if (isModEnter && event.shiftKey) {
+            event.preventDefault();
+            addPartAfter(index);
+
+            return;
+        }
+
+        if (isModEnter && isCommittable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
+
+            return;
+        }
+
+        if (event.key === 'Backspace' && isSeries && bodies[index] === '') {
+            event.preventDefault();
+            removePartAt(index);
         }
     };
 
     return (
         <Form
-            {...CommitController.store.form()}
+            {...(isSeries
+                ? CommitSeriesController.store.form()
+                : CommitController.store.form())}
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
                 if (!page.flash.committed) {
@@ -44,105 +133,194 @@ export function CommitComposer() {
                 }
 
                 drop();
-                requestAnimationFrame(() =>
-                    document.getElementById('body')?.focus(),
-                );
+                focusPart(0);
             }}
-            className="flex"
+            className="flex flex-col"
+            data-test="commit-composer"
         >
             {({ processing, errors }) => (
                 <>
-                    <GraphRail
-                        lane={laneColor(auth.user.lane)}
-                        variant="staged"
-                        isFilled={isCommittable}
-                    />
+                    {bodies.map((body, index) => {
+                        const id = partId(index);
+                        const isLast = index === bodies.length - 1;
+                        const error =
+                            errors[`bodies.${index}`] ??
+                            (index === 0 ? errors.body : undefined);
 
-                    <div className="flex min-w-0 flex-1 gap-3 border-b py-3 pr-4">
-                        <UserAvatar
-                            user={auth.user}
-                            className="hidden size-10 sm:flex"
-                        />
-
-                        <div className="min-w-0 flex-1">
-                            <label htmlFor="body" className="sr-only">
-                                Body
-                            </label>
-                            <textarea
-                                id="body"
-                                name="body"
-                                rows={1}
-                                value={body}
-                                onChange={(event) => {
-                                    const target = event.currentTarget;
-                                    const { text, caret } = emojifyInput(
-                                        target.value,
-                                        target.selectionStart ??
-                                            target.value.length,
-                                    );
-
-                                    updateBody(text);
-
-                                    if (text !== target.value) {
-                                        requestAnimationFrame(() =>
-                                            target.setSelectionRange(
-                                                caret,
-                                                caret,
-                                            ),
-                                        );
+                        return (
+                            <div
+                                key={index}
+                                className="flex"
+                                data-test="commit-composer-part"
+                            >
+                                <GraphRail
+                                    lane={laneColor(auth.user.lane)}
+                                    previousLane={
+                                        index > 0 ? 'var(--rail)' : undefined
                                     }
-                                }}
-                                onKeyDown={submitOnModEnter}
-                                onFocus={
-                                    isRestored ? moveCaretToEnd : undefined
-                                }
-                                maxLength={maxBodyLength}
-                                placeholder="What did you ship?"
-                                autoComplete="off"
-                                aria-invalid={errors.body ? true : undefined}
-                                aria-describedby="body-count"
-                                className="block field-sizing-content min-h-10 w-full resize-none bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
-                            />
+                                    variant="staged"
+                                    isFilled={
+                                        body.trim().length >= minBodyLength
+                                    }
+                                />
 
-                            <InputError message={errors.body} />
-
-                            <div className="mt-2 flex items-center justify-end gap-4">
-                                {isRestored && (
-                                    <StashLabel
-                                        onDrop={() => {
-                                            drop();
-                                            document
-                                                .getElementById('body')
-                                                ?.focus();
-                                        }}
-                                        className="mr-auto text-[13px]"
-                                    />
-                                )}
-                                <span
-                                    id="body-count"
-                                    aria-label={`${remaining} characters left`}
+                                <div
                                     className={cn(
-                                        'font-mono text-[13px] text-muted-foreground',
-                                        {
-                                            'text-amber-700 dark:text-amber-400':
-                                                remaining <= 20,
-                                            'text-destructive': remaining === 0,
-                                        },
+                                        'flex min-w-0 flex-1 gap-3 pt-3 pr-4',
+                                        { 'border-b pb-3': isLast },
                                     )}
                                 >
-                                    {remaining}
-                                </span>
-                                <Button
-                                    type="submit"
-                                    disabled={processing || !isCommittable}
-                                    title="Commit (⌘/Ctrl + Enter)"
-                                    data-test="create-commit-button"
-                                >
-                                    {processing ? 'Committing…' : 'Commit'}
-                                </Button>
+                                    {index === 0 ? (
+                                        <UserAvatar
+                                            user={auth.user}
+                                            className="hidden size-10 sm:flex"
+                                        />
+                                    ) : (
+                                        <span
+                                            aria-hidden
+                                            className="hidden size-10 shrink-0 sm:block"
+                                        />
+                                    )}
+
+                                    <div className="min-w-0 flex-1">
+                                        <label htmlFor={id} className="sr-only">
+                                            {isSeries
+                                                ? `Commit ${index + 1} of ${bodies.length}`
+                                                : 'Body'}
+                                        </label>
+                                        <textarea
+                                            id={id}
+                                            name={
+                                                isSeries ? 'bodies[]' : 'body'
+                                            }
+                                            rows={1}
+                                            value={body}
+                                            onChange={(event) =>
+                                                onChange(index, event)
+                                            }
+                                            onKeyDown={(event) =>
+                                                onKeyDown(index, event)
+                                            }
+                                            onFocus={
+                                                isRestored
+                                                    ? moveCaretToEnd
+                                                    : undefined
+                                            }
+                                            maxLength={maxBodyLength}
+                                            placeholder={
+                                                index === 0
+                                                    ? 'What did you ship?'
+                                                    : 'And then?'
+                                            }
+                                            autoComplete="off"
+                                            aria-invalid={
+                                                error ? true : undefined
+                                            }
+                                            aria-describedby={`${id}-count`}
+                                            className="block field-sizing-content min-h-10 w-full resize-none bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                                        />
+
+                                        <InputError message={error} />
+
+                                        {isSeries && (
+                                            <div className="mt-1 flex items-center gap-3">
+                                                <span
+                                                    className="font-mono text-[13px] text-muted-foreground"
+                                                    data-test="commit-composer-position"
+                                                >
+                                                    {index + 1}/{bodies.length}
+                                                </span>
+                                                <span className="ml-auto">
+                                                    <RemainingCount
+                                                        id={`${id}-count`}
+                                                        body={body}
+                                                    />
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        removePartAt(index)
+                                                    }
+                                                    aria-label={`Remove commit ${index + 1}`}
+                                                    title="Remove this commit"
+                                                    className="-mr-1.5 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                                    data-test="remove-commit-part-button"
+                                                >
+                                                    <X className="size-4" />
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {isLast && (
+                                            <>
+                                                <InputError
+                                                    message={errors.bodies}
+                                                />
+
+                                                <div className="mt-2 flex items-center justify-end gap-4">
+                                                    <div className="mr-auto flex min-w-0 items-center gap-3">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                addPartAfter(
+                                                                    index,
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                !canAddPart
+                                                            }
+                                                            title={
+                                                                canAddPart
+                                                                    ? 'Add another commit (⌘/Ctrl + Shift + Enter)'
+                                                                    : `A series has at most ${maxParts} commits`
+                                                            }
+                                                            className="-ml-2 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                                                            data-test="add-commit-part-button"
+                                                        >
+                                                            <Plus className="size-4" />
+                                                            Add commit
+                                                        </button>
+                                                        {isRestored && (
+                                                            <StashLabel
+                                                                onDrop={() => {
+                                                                    drop();
+                                                                    focusPart(
+                                                                        0,
+                                                                    );
+                                                                }}
+                                                                className="text-[13px]"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    {!isSeries && (
+                                                        <RemainingCount
+                                                            id="body-count"
+                                                            body={body}
+                                                        />
+                                                    )}
+                                                    <Button
+                                                        type="submit"
+                                                        disabled={
+                                                            processing ||
+                                                            !isCommittable
+                                                        }
+                                                        title="Commit (⌘/Ctrl + Enter)"
+                                                        data-test="create-commit-button"
+                                                    >
+                                                        {processing
+                                                            ? 'Committing…'
+                                                            : isSeries
+                                                              ? `Commit ${bodies.length}`
+                                                              : 'Commit'}
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
+                        );
+                    })}
                 </>
             )}
         </Form>

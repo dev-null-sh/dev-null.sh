@@ -25,6 +25,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $body
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
+ * @property-read string|null $series_id
+ * @property-read int|null $series_position
+ * @property-read int|null $series_size
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -37,6 +40,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int $replies_count
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
+ * @property-read Collection<int, Commit> $seriesParts
  */
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -59,6 +63,9 @@ final class Commit extends Model
             'body' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
+            'series_id' => 'string',
+            'series_position' => 'integer',
+            'series_size' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -66,14 +73,16 @@ final class Commit extends Model
     }
 
     /**
-     * A deleted commit only ever leaves a tombstone behind: never its author or body.
+     * A deleted commit only ever leaves a tombstone behind: never its author or body. A deleted part of a series keeps its place in it.
      *
      * @return array<mixed>
      */
     public function toArray(): array
     {
         if ($this->trashed()) {
-            return array_intersect_key($this->attributesToArray(), array_flip(['id', 'parent_id', 'deleted_at', 'replies_count']));
+            $keys = ['id', 'parent_id', 'deleted_at', 'replies_count', ...($this->series_id === null ? [] : ['series_position', 'series_size'])];
+
+            return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
         return parent::toArray();
@@ -117,6 +126,16 @@ final class Commit extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
+    }
+
+    /**
+     * Every part of the series the commit belongs to, the commit included.
+     *
+     * @return HasMany<Commit, $this>
+     */
+    public function seriesParts(): HasMany
+    {
+        return $this->hasMany(self::class, 'series_id', 'series_id');
     }
 
     /**

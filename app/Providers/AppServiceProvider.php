@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Actions\CreateCommitSeries;
 use App\Contracts\Services\DnsResolver;
 use App\Models\User;
 use App\Services\DnsResolvers\SystemDnsResolver;
@@ -11,6 +12,8 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -69,6 +72,8 @@ final class AppServiceProvider extends ServiceProvider
 
     private function bootRateLimitingDefaults(): void
     {
+        ThrottleRequests::shouldHashKeys(false);
+
         RateLimiter::for('commits', function (Request $request): Limit {
             $user = $request->user();
             assert($user instanceof User);
@@ -81,13 +86,28 @@ final class AppServiceProvider extends ServiceProvider
                 );
             }
 
-            return Limit::perMinute(10)->by($user->id)->response(function (): RedirectResponse {
+            $limit = Limit::perMinute(10)->by($user->id)->response(function (): RedirectResponse {
                 Inertia::flash('toast', [
                     'type' => 'error',
                     'message' => __('Slow down: 10 commits a minute. Even CI takes breaks.'),
                 ]);
 
                 return back();
+            });
+
+            if (! $request->routeIs('commit-series.store')) {
+                return $limit;
+            }
+
+            // A series spends one of the 10 commits per part: it only goes through while all of its parts fit, the throttle middleware counts its first part under "commits:{key}", and the rest are counted here...
+            $parts = min(max(count(Arr::wrap($request->input('bodies'))), 1), CreateCommitSeries::MAX_PARTS);
+
+            $limit->maxAttempts = 11 - $parts;
+
+            return $limit->after(function () use ($user, $parts): bool {
+                RateLimiter::increment('commits:'.$user->id, 60, $parts - 1);
+
+                return true;
             });
         });
     }

@@ -11,6 +11,7 @@ use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
+use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
@@ -74,6 +75,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits', [CommitController::class, 'store'])
         ->middleware('throttle:commits')
         ->name('commit.store');
+    Route::post('commits/series', [CommitSeriesController::class, 'store'])
+        ->middleware('throttle:commits')
+        ->name('commit-series.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');

@@ -47,6 +47,7 @@ final readonly class UserController
                     $request->tab() === 'replies',
                     fn (CommitBuilder $query): CommitBuilder => $query
                         ->whereNotNull('parent_id')
+                        ->exceptSeriesContinuations()
                         ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
                             ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser))
                             ->with('user')]),
