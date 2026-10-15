@@ -207,10 +207,29 @@ it('defers suggested users to follow', function (): void {
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
+            ->where('showsWhoToFollow', true)
             ->missing('suggestedUsers')
             ->loadDeferredProps(fn ($reload) => $reload
                 ->has('suggestedUsers', 1)
                 ->where('suggestedUsers.0.id', $suggested->id)
                 ->where('suggestedUsers.0.followed_by_following_count', 0)
                 ->missing('suggestedUsers.0.email')));
+
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
+});
+
+it('does not suggest users to follow once they are hidden', function (): void {
+    $user = User::factory()->create();
+    User::factory()->has(Commit::factory())->create();
+
+    $response = $this->actingAs($user)
+        ->withUnencryptedCookie('who_to_follow', 'false')
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('showsWhoToFollow', false)
+            ->missing('suggestedUsers'));
+
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
 });

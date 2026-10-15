@@ -186,3 +186,32 @@ it('does not share suggested users with guests', function (): void {
 
     expect($shared)->not->toHaveKey('suggestedUsers');
 });
+
+it('shows who to follow by default', function (string $cookie): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => User::factory()->create());
+
+    if ($cookie !== '') {
+        $request->cookies->set('who_to_follow', $cookie);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['showsWhoToFollow'])->toBeTrue()
+        ->and($shared)->toHaveKey('suggestedUsers');
+})->with(['', 'true']);
+
+it('skips suggested users when who to follow is hidden', function (): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => User::factory()->create());
+    $request->cookies->set('who_to_follow', 'false');
+
+    $shared = $middleware->share($request);
+
+    expect($shared['showsWhoToFollow'])->toBeFalse()
+        ->and($shared)->not->toHaveKey('suggestedUsers');
+});

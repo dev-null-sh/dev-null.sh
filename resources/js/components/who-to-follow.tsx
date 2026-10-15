@@ -1,11 +1,20 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
+import { Ellipsis, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { RailSegment } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
+import { useWhoToFollow } from '@/hooks/use-who-to-follow';
 import { cn, laneFor } from '@/lib/utils';
+import { edit } from '@/routes/appearance';
 import { show } from '@/routes/user';
 import type { SuggestedUser } from '@/types';
 
@@ -142,10 +151,93 @@ function SuggestedUsersSkeleton({ rowClassName }: { rowClassName?: string }) {
     );
 }
 
-export function WhoToFollow() {
-    const { suggestedUsers } = usePage().props;
+function WhoToFollowMenu({ onHide }: { onHide: () => void }) {
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground"
+                    aria-label="Who to follow options"
+                    data-test="who-to-follow-menu"
+                >
+                    <Ellipsis />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onSelect={onHide}>
+                    <EyeOff />
+                    <span>
+                        Don't show again
+                        <span className="block font-mono text-xs text-muted-foreground">
+                            &gt; /dev/null
+                        </span>
+                    </span>
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
 
-    if (suggestedUsers?.length === 0) {
+/**
+ * Hiding only writes the cookie, so the block stays put with an undo until the next visit leaves it out.
+ */
+function useHideWhoToFollow() {
+    const { showsWhoToFollow, suggestedUsers } = usePage().props;
+    const { rememberShowsWhoToFollow } = useWhoToFollow();
+    const [isHidden, setIsHidden] = useState(false);
+
+    const toggle = (hides: boolean) => {
+        rememberShowsWhoToFollow(!hides);
+        setIsHidden(hides);
+    };
+
+    return {
+        isVisible: showsWhoToFollow && suggestedUsers?.length !== 0,
+        isHidden,
+        hide: () => toggle(true),
+        undo: () => toggle(false),
+        suggestedUsers,
+    };
+}
+
+function WhoToFollowHidden({ onUndo }: { onUndo: () => void }) {
+    return (
+        <div>
+            <p className="font-mono text-[13px] text-muted-foreground">
+                $ who --should-i-follow{' '}
+                <span className="whitespace-nowrap text-foreground">
+                    &gt; /dev/null
+                </span>
+            </p>
+            <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="min-w-0 text-xs text-muted-foreground">
+                    Bring it back in{' '}
+                    <Link href={edit()} className="underline">
+                        Settings
+                    </Link>
+                    .
+                </p>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={onUndo}
+                    data-test="who-to-follow-undo"
+                >
+                    Undo
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+export function WhoToFollow() {
+    const { isVisible, isHidden, hide, undo, suggestedUsers } =
+        useHideWhoToFollow();
+
+    if (!isVisible) {
         return null;
     }
 
@@ -154,19 +246,26 @@ export function WhoToFollow() {
             aria-labelledby="aside-who-to-follow"
             className="border-t pt-6"
         >
-            <h2 id="aside-who-to-follow" className="mb-4 text-sm font-semibold">
-                Who to follow
-            </h2>
-            <ul className="space-y-4">
-                <Deferred
-                    data="suggestedUsers"
-                    fallback={<SuggestedUsersSkeleton />}
-                >
-                    {suggestedUsers?.map((user) => (
-                        <SuggestedUserRow key={user.id} user={user} />
-                    ))}
-                </Deferred>
-            </ul>
+            <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 id="aside-who-to-follow" className="text-sm font-semibold">
+                    Who to follow
+                </h2>
+                {!isHidden && <WhoToFollowMenu onHide={hide} />}
+            </div>
+            {isHidden ? (
+                <WhoToFollowHidden onUndo={undo} />
+            ) : (
+                <ul className="space-y-4">
+                    <Deferred
+                        data="suggestedUsers"
+                        fallback={<SuggestedUsersSkeleton />}
+                    >
+                        {suggestedUsers?.map((user) => (
+                            <SuggestedUserRow key={user.id} user={user} />
+                        ))}
+                    </Deferred>
+                </ul>
+            )}
         </section>
     );
 }
@@ -181,9 +280,10 @@ export function WhoToFollowInLog({
     lane: string;
     isDimmed?: boolean;
 }) {
-    const { suggestedUsers } = usePage().props;
+    const { isVisible, isHidden, hide, undo, suggestedUsers } =
+        useHideWhoToFollow();
 
-    if (suggestedUsers?.length === 0) {
+    if (!isVisible) {
         return null;
     }
 
@@ -191,27 +291,41 @@ export function WhoToFollowInLog({
         <section aria-labelledby="log-who-to-follow" className="flex xl:hidden">
             <RailSegment lane={lane} isDimmed={isDimmed} />
             <div className="min-w-0 flex-1 border-b py-4 pr-4">
-                <h2
-                    id="log-who-to-follow"
-                    className="mb-3 font-mono text-[13px] text-muted-foreground"
+                <div
+                    className={cn(
+                        'mb-2 flex items-center justify-between gap-2',
+                        { 'sr-only': isHidden },
+                    )}
                 >
-                    $ who --should-i-follow
-                </h2>
-                <ul className="divide-y rounded-lg border">
-                    <Deferred
-                        data="suggestedUsers"
-                        fallback={<SuggestedUsersSkeleton rowClassName="p-3" />}
+                    <h2
+                        id="log-who-to-follow"
+                        className="font-mono text-[13px] text-muted-foreground"
                     >
-                        {suggestedUsers?.map((user) => (
-                            <SuggestedUserRow
-                                key={user.id}
-                                user={user}
-                                className="p-3"
-                                buttonClassName="min-w-[90px] px-2"
-                            />
-                        ))}
-                    </Deferred>
-                </ul>
+                        $ who --should-i-follow
+                    </h2>
+                    {!isHidden && <WhoToFollowMenu onHide={hide} />}
+                </div>
+                {isHidden ? (
+                    <WhoToFollowHidden onUndo={undo} />
+                ) : (
+                    <ul className="divide-y rounded-lg border">
+                        <Deferred
+                            data="suggestedUsers"
+                            fallback={
+                                <SuggestedUsersSkeleton rowClassName="p-3" />
+                            }
+                        >
+                            {suggestedUsers?.map((user) => (
+                                <SuggestedUserRow
+                                    key={user.id}
+                                    user={user}
+                                    className="p-3"
+                                    buttonClassName="min-w-[90px] px-2"
+                                />
+                            ))}
+                        </Deferred>
+                    </ul>
+                )}
             </div>
         </section>
     );

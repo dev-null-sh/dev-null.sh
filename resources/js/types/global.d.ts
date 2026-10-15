@@ -11,6 +11,7 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            showsWhoToFollow: boolean;
             suggestedUsers?: SuggestedUser[];
             [key: string]: unknown;
         };

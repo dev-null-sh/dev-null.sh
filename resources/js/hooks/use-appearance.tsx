@@ -20,7 +20,7 @@ const prefersDark = (): boolean => {
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
 };
 
-const setCookie = (name: string, value: string, days = 365): void => {
+export const setCookie = (name: string, value: string, days = 365): void => {
     if (typeof document === 'undefined') {
         return;
     }
