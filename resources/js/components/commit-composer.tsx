@@ -3,15 +3,21 @@ import { ChartBar } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import {
+    ImagePickerButton,
+    ImagePickerPreviews,
+    imageErrorFrom,
+} from '@/components/commit-image-picker';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
+import { MentionTextarea } from '@/components/mention-textarea';
 import type { PollDraft } from '@/components/poll-editor';
 import { emptyPollDraft, PollEditor } from '@/components/poll-editor';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
-import { emojifyInput } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
@@ -23,8 +29,9 @@ export function CommitComposer() {
         auth.user.id,
         'commit',
     );
-
+    const attachments = useImageAttachments();
     const [poll, setPoll] = useState<PollDraft | null>(null);
+    const hasImages = attachments.images.length > 0;
 
     const remaining = maxBodyLength - body.length;
     const isCommittable =
@@ -46,6 +53,11 @@ export function CommitComposer() {
     return (
         <Form
             {...CommitController.store.form()}
+            transform={(data) =>
+                attachments.images.length > 0
+                    ? { ...data, images: attachments.images }
+                    : data
+            }
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
                 if (!page.flash.committed) {
@@ -53,6 +65,7 @@ export function CommitComposer() {
                 }
 
                 drop();
+                attachments.clear();
                 setPoll(null);
                 requestAnimationFrame(() =>
                     document.getElementById('body')?.focus(),
@@ -78,31 +91,18 @@ export function CommitComposer() {
                             <label htmlFor="body" className="sr-only">
                                 Body
                             </label>
-                            <textarea
+                            <MentionTextarea
                                 id="body"
                                 name="body"
                                 rows={1}
                                 value={body}
-                                onChange={(event) => {
-                                    const target = event.currentTarget;
-                                    const { text, caret } = emojifyInput(
-                                        target.value,
-                                        target.selectionStart ??
-                                            target.value.length,
-                                    );
-
-                                    updateBody(text);
-
-                                    if (text !== target.value) {
-                                        requestAnimationFrame(() =>
-                                            target.setSelectionRange(
-                                                caret,
-                                                caret,
-                                            ),
-                                        );
-                                    }
-                                }}
+                                onValueChange={updateBody}
                                 onKeyDown={submitOnModEnter}
+                                onPaste={poll ? undefined : attachments.onPaste}
+                                onDragOver={
+                                    poll ? undefined : attachments.onDragOver
+                                }
+                                onDrop={poll ? undefined : attachments.onDrop}
                                 onFocus={
                                     isRestored ? moveCaretToEnd : undefined
                                 }
@@ -120,6 +120,17 @@ export function CommitComposer() {
 
                             <InputError message={errors.body} />
 
+                            <ImagePickerPreviews
+                                images={attachments.images}
+                                onRemove={attachments.remove}
+                            />
+                            <InputError
+                                message={
+                                    attachments.error ?? imageErrorFrom(errors)
+                                }
+                                className="mt-1"
+                            />
+
                             {poll && (
                                 <PollEditor
                                     poll={poll}
@@ -135,10 +146,24 @@ export function CommitComposer() {
                             )}
 
                             <div className="mt-2 flex items-center justify-end gap-4">
-                                <div className="mr-auto flex min-w-0 items-center gap-3">
-                                    {poll === null && (
-                                        <button
+                                <div className="mr-auto flex items-center gap-4">
+                                    <div className="-ml-2 flex items-center">
+                                        <ImagePickerButton
+                                            count={attachments.images.length}
+                                            disabled={
+                                                processing || poll !== null
+                                            }
+                                            onPick={attachments.attach}
+                                        />
+                                        <Button
                                             type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={
+                                                processing ||
+                                                poll !== null ||
+                                                hasImages
+                                            }
                                             onClick={() => {
                                                 setPoll(emptyPollDraft);
                                                 requestAnimationFrame(() =>
@@ -150,13 +175,17 @@ export function CommitComposer() {
                                                 );
                                             }}
                                             aria-label="Add poll"
-                                            title="Add poll"
-                                            className="-ml-1.5 rounded-md p-1.5 text-primary transition-colors hover:bg-primary-soft focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                            title={
+                                                hasImages
+                                                    ? 'A commit can have images or a poll, not both'
+                                                    : 'Add poll'
+                                            }
+                                            className="text-muted-foreground"
                                             data-test="add-poll-button"
                                         >
                                             <ChartBar className="size-5" />
-                                        </button>
-                                    )}
+                                        </Button>
+                                    </div>
                                     {isRestored && (
                                         <StashLabel
                                             onDrop={() => {

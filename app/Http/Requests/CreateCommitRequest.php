@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Actions\StoreCommitImages;
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\Commit;
@@ -11,8 +12,11 @@ use App\Models\User;
 use App\Rules\VisibleCommit;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rules\File;
 
 final class CreateCommitRequest extends FormRequest
 {
@@ -22,7 +26,9 @@ final class CreateCommitRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string|ValidationRule|Enum>>
+     * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
+     *
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum>>
      */
     public function rules(): array
     {
@@ -32,10 +38,19 @@ final class CreateCommitRequest extends FormRequest
         return [
             'body' => ['required', 'string', 'min:3', 'max:280'],
             'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
-            'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id'],
+            'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],
             'poll.options' => ['required_with:poll', 'list', 'min:'.NewPoll::MinOptions, 'max:'.NewPoll::MaxOptions],
             'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
             'poll.duration' => ['required_with:poll', Rule::enum(PollDuration::class)],
+            'images' => ['nullable', 'list', 'max:'.StoreCommitImages::MAX_IMAGES],
+            'images.*' => [
+                'required',
+                'image',
+                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(StoreCommitImages::MAX_UPLOAD_SIZE),
+                Rule::dimensions()
+                    ->maxWidth(StoreCommitImages::MAX_SOURCE_DIMENSION)
+                    ->maxHeight(StoreCommitImages::MAX_SOURCE_DIMENSION),
+            ],
         ];
     }
 
@@ -49,6 +64,16 @@ final class CreateCommitRequest extends FormRequest
         $options = $this->array('poll.options');
 
         return new NewPoll($options, PollDuration::from($this->integer('poll.duration')));
+    }
+
+    /**
+     * @return list<UploadedFile>
+     */
+    public function images(): array
+    {
+        $images = $this->file('images');
+
+        return is_array($images) ? array_values($images) : [];
     }
 
     public function parent(): ?Commit

@@ -39,6 +39,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
  * @property-read Poll|null $poll
+ * @property-read Collection<int, CommitImage> $images
  */
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -143,6 +144,30 @@ final class Commit extends Model
     public function poll(): HasOne
     {
         return $this->hasOne(Poll::class);
+    }
+
+    /**
+     * @return HasMany<CommitImage, $this>
+     */
+    public function images(): HasMany
+    {
+        return $this->hasMany(CommitImage::class)->orderBy('position');
+    }
+
+    /**
+     * Images follow the commit's visibility, and moderators see them to review the commit.
+     */
+    public function imagesAreVisibleTo(?User $user): bool
+    {
+        if ($this->trashed()) {
+            return false;
+        }
+
+        if ($this->status === CommitStatus::Approved) {
+            return true;
+        }
+
+        return $user instanceof User && ($this->user_id === $user->id || $user->can('moderate'));
     }
 
     /**

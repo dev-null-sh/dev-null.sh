@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
+import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
@@ -253,6 +254,9 @@ export function CommitCard({
                                         text={emojify(commit.body)}
                                     />
                                 </p>
+                                {commit.images && (
+                                    <CommitImages images={commit.images} />
+                                )}
                                 {commit.poll && (
                                     <CommitPoll
                                         key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}

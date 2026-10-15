@@ -11,6 +11,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Services\EmojiShortcodes;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -18,17 +19,23 @@ final readonly class CreateCommit
 {
     public function __construct(
         private NotifyAboutReplies $notifyAboutReplies,
+        private NotifyAboutMentions $notifyAboutMentions,
+        private StoreCommitImages $storeCommitImages,
         private EmojiShortcodes $emojiShortcodes,
         private FindFirstUrl $findFirstUrl,
     ) {
         //
     }
 
-    public function handle(User $user, string $body, ?Commit $parent = null, ?NewPoll $poll = null): Commit
+    /**
+     * @param  list<UploadedFile>  $images
+     */
+    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], ?NewPoll $poll = null): Commit
     {
         throw_if($parent instanceof Commit && $poll instanceof NewPoll, InvalidArgumentException::class, 'Replies can not have polls.');
+        throw_if($images !== [] && $poll instanceof NewPoll, InvalidArgumentException::class, 'A commit has either images or a poll.');
 
-        return DB::transaction(function () use ($user, $body, $parent, $poll): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $images, $poll): Commit {
             $linkPreview = $this->linkPreviewFor($body);
 
             $commit = $user->commits()->create([
@@ -38,11 +45,14 @@ final readonly class CreateCommit
                 'link_preview_id' => $linkPreview?->id,
             ]);
 
+            $this->storeCommitImages->handle($commit, $images);
+
             if ($poll instanceof NewPoll) {
                 $this->attachPoll($commit, $poll);
             }
 
             $this->notifyAboutReplies->handle($commit);
+            $this->notifyAboutMentions->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));

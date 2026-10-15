@@ -26,6 +26,13 @@ export type Poll = {
     options: PollOption[];
 };
 
+export type CommitImage = {
+    id: string;
+    url: string;
+    width: number;
+    height: number;
+};
+
 export type Commit = {
     id: string;
     user_id: string;
@@ -43,6 +50,7 @@ export type Commit = {
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
     poll?: Poll | null;
+    images?: CommitImage[];
 };
 
 export type DeletedCommit = {

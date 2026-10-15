@@ -6,10 +6,13 @@ use App\Enums\Log;
 use App\Enums\PollDuration;
 use App\Models\Bookmark;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 it('may attach a poll to a commit', function (): void {
     $user = User::factory()->create();
@@ -60,6 +63,22 @@ it('may not attach a poll to a reply', function (): void {
         ->assertSessionHasErrors('poll');
 
     expect($parent->replies()->count())->toBe(0);
+});
+
+it('may not attach a poll to a commit with images', function (): void {
+    Storage::fake(CommitImage::DISK);
+
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Tabs or spaces?',
+            'images' => [UploadedFile::fake()->image('desk.png', 10, 10)],
+            'poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 1440],
+        ])
+        ->assertSessionHasErrors('poll');
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and(Storage::disk(CommitImage::DISK)->allFiles())->toBeEmpty();
 });
 
 it('shows polls in the logs without the results before voting', function (Log $log): void {

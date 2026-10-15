@@ -1,0 +1,83 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Carbon\CarbonInterface;
+use Database\Factories\CommitImageFactory;
+use Illuminate\Database\Eloquent\Attributes\Visible;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * @property-read string $id
+ * @property-read string $commit_id
+ * @property-read string $path
+ * @property-read int $width
+ * @property-read int $height
+ * @property-read int $position
+ * @property-read CarbonInterface $created_at
+ * @property-read CarbonInterface $updated_at
+ * @property-read Commit $commit
+ */
+#[Visible([
+    'id',
+    'width',
+    'height',
+])]
+final class CommitImage extends Model
+{
+    /** @use HasFactory<CommitImageFactory> */
+    use HasFactory;
+
+    use HasUuids;
+
+    /**
+     * Images only ever leave the private disk through the controller, which checks the commit is visible.
+     */
+    public const string DISK = 'local';
+
+    /**
+     * @return array<string, string>
+     */
+    public function casts(): array
+    {
+        return [
+            'id' => 'string',
+            'commit_id' => 'string',
+            'path' => 'string',
+            'width' => 'integer',
+            'height' => 'integer',
+            'position' => 'integer',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * @return BelongsTo<Commit, $this>
+     */
+    public function commit(): BelongsTo
+    {
+        return $this->belongsTo(Commit::class);
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            ...parent::toArray(),
+            'url' => $this->url(),
+        ];
+    }
+
+    public function url(): string
+    {
+        return route('commit-image.show', $this);
+    }
+}
