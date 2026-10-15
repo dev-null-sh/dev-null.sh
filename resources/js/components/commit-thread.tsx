@@ -8,7 +8,6 @@ import {
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
-import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitBody } from '@/components/commit-body';
 import {
@@ -28,7 +27,9 @@ import { UserPreview } from '@/components/user-preview';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
+import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
+import { fetchReplies } from '@/lib/replies';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
@@ -51,27 +52,6 @@ type Thread = {
     onReplied: () => void;
     onDeleted: () => void;
 };
-
-export async function fetchReplies(
-    commit: ThreadCommit,
-    cursor: string | null,
-): Promise<CursorPaginated<ThreadCommit>> {
-    const response = await fetch(
-        CommitReplyController.index(commit, { query: { cursor } }).url,
-        {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        },
-    );
-
-    if (!response.ok) {
-        throw new Error('Unable to load replies');
-    }
-
-    return (await response.json()) as CursorPaginated<ThreadCommit>;
-}
 
 async function fetchRepliesUntil(
     commit: ThreadCommit,
@@ -100,7 +80,10 @@ function useThread(
     const [nextCursor, setNextCursor] = useState<string | null>(
         initialReplies?.next_cursor ?? null,
     );
-    const [count, setCount] = useState(commit.replies_count ?? 0);
+    const [count, setCount] = useSharedState(
+        `replies:${commit.id}`,
+        commit.replies_count ?? 0,
+    );
     const [isOpen, setIsOpen] = useState(initialReplies !== undefined);
     const [isLoading, setIsLoading] = useState(false);
     const [isReplying, setIsReplying] = useState(false);

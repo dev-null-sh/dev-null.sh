@@ -1,8 +1,9 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
 import { Bookmark } from 'lucide-react';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext } from 'react';
 import { toast } from 'sonner';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
+import { useSharedState } from '@/hooks/use-shared-state';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -12,7 +13,10 @@ export const BookmarkRemovalContext = createContext<
 
 export function BookmarkButton({ commit }: { commit: Commit }) {
     const { auth } = usePage().props;
-    const [isSaved, setIsSaved] = useState(commit.is_saved ?? false);
+    const [isSaved, setIsSaved] = useSharedState(
+        `saved:${commit.id}`,
+        commit.is_saved ?? false,
+    );
     const request = useHttp<Record<string, never>, { is_saved: boolean }>({});
     const onRemoved = useContext(BookmarkRemovalContext);
 

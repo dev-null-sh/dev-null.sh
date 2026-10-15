@@ -279,7 +279,6 @@ export function CommitCard({
                         {deletion !== 'deleting' &&
                             (commit.replies_count === undefined ? (
                                 <CommitStarButton
-                                    key={`${commit.starred}-${commit.stars_count}`}
                                     commit={commit}
                                     className="mt-1.5 -ml-1.5"
                                 />
@@ -290,7 +289,6 @@ export function CommitCard({
                                     actions={
                                         <>
                                             <CommitStarButton
-                                                key={`${commit.starred}-${commit.stars_count}`}
                                                 commit={commit}
                                                 className="px-2 py-0.5"
                                             />

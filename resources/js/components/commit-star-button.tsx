@@ -2,6 +2,7 @@ import { router, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
 import { useState } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
+import { useSharedState } from '@/hooks/use-shared-state';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -27,8 +28,14 @@ export function CommitStarButton({
     const { auth } = usePage().props;
     const canStar =
         commit.status === 'approved' || commit.user_id === auth.user.id;
-    const [starred, setStarred] = useState(commit.starred);
-    const [count, setCount] = useState(commit.stars_count);
+    const [starred, setStarred] = useSharedState(
+        `starred:${commit.id}`,
+        commit.starred,
+    );
+    const [count, setCount] = useSharedState(
+        `stars:${commit.id}`,
+        commit.stars_count,
+    );
     const [pending, setPending] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
 

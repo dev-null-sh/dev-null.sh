@@ -1,13 +1,8 @@
-import { createContext, useContext } from 'react';
+import { commitPhotoUrl, openCommitPhoto } from '@/lib/commit-photo';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
-export const CommitImageViewerContext = createContext<
-    ((commit: Commit, index: number) => void) | null
->(null);
-
 export function CommitImages({ commit }: { commit: Commit }) {
-    const openViewer = useContext(CommitImageViewerContext);
     const images = commit.images ?? [];
 
     if (images.length === 0) {
@@ -29,14 +24,11 @@ export function CommitImages({ commit }: { commit: Commit }) {
             {images.map((image, index) => (
                 <a
                     key={image.id}
-                    href={image.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={commitPhotoUrl(commit, index)}
                     onClick={(event) => {
                         event.stopPropagation();
 
                         if (
-                            !openViewer ||
                             event.metaKey ||
                             event.ctrlKey ||
                             event.shiftKey ||
@@ -46,7 +38,7 @@ export function CommitImages({ commit }: { commit: Commit }) {
                         }
 
                         event.preventDefault();
-                        openViewer(commit, index);
+                        openCommitPhoto(commit, index);
                     }}
                     className={cn('block min-h-0 bg-muted', {
                         'row-span-2': images.length === 3 && index === 0,

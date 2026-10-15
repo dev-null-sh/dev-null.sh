@@ -8,6 +8,7 @@ use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
+use App\Http\Controllers\CommitPhotoController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
@@ -54,6 +55,10 @@ Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'sho
 Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
     ->scopeBindings()
     ->name('commit.show');
+Route::get('@{user:username}/commits/{commit}/photos/{photo}', [CommitPhotoController::class, 'show'])
+    ->scopeBindings()
+    ->whereNumber('photo')
+    ->name('commit-photo.show');
 Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');

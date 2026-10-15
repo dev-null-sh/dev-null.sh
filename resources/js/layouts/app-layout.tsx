@@ -23,12 +23,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
             <main className="min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0">
                 <MobileHeader onSearch={openSearch} />
-                <CommitImageViewer>{children}</CommitImageViewer>
+                {children}
             </main>
 
             <AppAside onShowShortcuts={showShortcuts} onSearch={openSearch} />
 
             <MobileNav />
+
+            <CommitImageViewer />
 
             <UserSearchDialog
                 open={isSearching}
