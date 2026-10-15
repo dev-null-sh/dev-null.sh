@@ -17,7 +17,7 @@ export function FollowButton({
     isFollowing: boolean;
     size?: ComponentProps<typeof Button>['size'];
     className?: string;
-} & Omit<InertiaLinkProps, 'href' | 'as' | 'method'>) {
+} & Omit<InertiaLinkProps, 'href' | 'as' | 'method' | 'size' | 'className'>) {
     return (
         <Button
             variant={isFollowing ? 'outline' : 'default'}

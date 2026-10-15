@@ -1,13 +1,36 @@
-import { Head, InfiniteScroll, Link } from '@inertiajs/react';
+import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
+import { useState } from 'react';
 import { EmptyFeed } from '@/components/commit-feed';
+import { FollowButton } from '@/components/follow-button';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import { laneFor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, User } from '@/types';
+
+type Connection = User & { is_followed: boolean };
+
+function ConnectionFollowButton({ person }: { person: Connection }) {
+    const [isFollowing, setIsFollowing] = useState(person.is_followed);
+
+    return (
+        <FollowButton
+            user={person}
+            isFollowing={isFollowing}
+            size="sm"
+            className="mt-4 min-w-24 shrink-0"
+            only={['auth']}
+            preserveState
+            onSuccess={() => {
+                setIsFollowing(!isFollowing);
+                router.flushAll();
+            }}
+        />
+    );
+}
 
 export default function Connections({
     user,
@@ -16,8 +39,9 @@ export default function Connections({
 }: {
     user: User;
     type: 'following' | 'followers';
-    users: CursorPaginated<User & { is_followed: boolean }>;
+    users: CursorPaginated<Connection>;
 }) {
+    const { auth } = usePage().props;
     const title = type === 'following' ? 'Following' : 'Followers';
 
     return (
@@ -59,10 +83,13 @@ export default function Connections({
                 >
                     <ul className="divide-y">
                         {users.data.map((person) => (
-                            <li key={person.id}>
+                            <li
+                                key={person.id}
+                                className="flex items-start gap-3 pr-4 hover:bg-muted/50 sm:pr-6"
+                            >
                                 <Link
                                     href={show(person)}
-                                    className="flex items-start gap-3 px-4 py-3 hover:bg-muted/50 sm:px-6"
+                                    className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 sm:pl-6"
                                 >
                                     <UserAvatar
                                         user={person}
@@ -87,6 +114,9 @@ export default function Connections({
                                         )}
                                     </div>
                                 </Link>
+                                {person.id !== auth.user.id && (
+                                    <ConnectionFollowButton person={person} />
+                                )}
                             </li>
                         ))}
                     </ul>
