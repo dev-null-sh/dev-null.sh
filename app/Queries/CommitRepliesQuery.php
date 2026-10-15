@@ -22,7 +22,7 @@ final readonly class CommitRepliesQuery
             ->exceptSeriesContinuations()
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
-            ->with(['user', 'linkPreview'])
+            ->with(['user', 'linkPreview', 'images'])
             ->oldest()
             ->oldest('id')
             ->cursorPaginate(self::PER_PAGE);

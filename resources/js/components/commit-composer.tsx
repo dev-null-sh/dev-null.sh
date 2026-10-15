@@ -1,15 +1,21 @@
 import { Form, usePage } from '@inertiajs/react';
 import { Plus, X } from 'lucide-react';
-import type { ChangeEvent, KeyboardEvent } from 'react';
+import type { KeyboardEvent } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitSeriesController from '@/actions/App/Http/Controllers/CommitSeriesController';
+import {
+    ImagePickerButton,
+    ImagePickerPreviews,
+    imageErrorFrom,
+} from '@/components/commit-image-picker';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
+import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
-import { emojifyInput } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
@@ -56,6 +62,7 @@ export function CommitComposer() {
     const { auth } = usePage().props;
     const { bodies, isRestored, updateBody, insertPart, removePart, drop } =
         useSeriesStash(auth.user.id, 'commit');
+    const attachments = useImageAttachments();
 
     const isSeries = bodies.length > 1;
     const canAddPart = bodies.length < maxParts;
@@ -75,23 +82,6 @@ export function CommitComposer() {
     const removePartAt = (index: number) => {
         removePart(index);
         focusPart(Math.max(index - 1, 0), true);
-    };
-
-    const onChange = (
-        index: number,
-        event: ChangeEvent<HTMLTextAreaElement>,
-    ) => {
-        const target = event.currentTarget;
-        const { text, caret } = emojifyInput(
-            target.value,
-            target.selectionStart ?? target.value.length,
-        );
-
-        updateBody(index, text);
-
-        if (text !== target.value) {
-            requestAnimationFrame(() => target.setSelectionRange(caret, caret));
-        }
     };
 
     const onKeyDown = (
@@ -126,6 +116,11 @@ export function CommitComposer() {
             {...(isSeries
                 ? CommitSeriesController.store.form()
                 : CommitController.store.form())}
+            transform={(data) =>
+                attachments.images.length > 0
+                    ? { ...data, images: attachments.images }
+                    : data
+            }
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
                 if (!page.flash.committed) {
@@ -133,6 +128,7 @@ export function CommitComposer() {
                 }
 
                 drop();
+                attachments.clear();
                 focusPart(0);
             }}
             className="flex flex-col"
@@ -188,15 +184,30 @@ export function CommitComposer() {
                                                 ? `Commit ${index + 1} of ${bodies.length}`
                                                 : 'Body'}
                                         </label>
-                                        <textarea
+                                        <MentionTextarea
                                             id={id}
                                             name={
                                                 isSeries ? 'bodies[]' : 'body'
                                             }
                                             rows={1}
                                             value={body}
-                                            onChange={(event) =>
-                                                onChange(index, event)
+                                            onValueChange={(text) =>
+                                                updateBody(index, text)
+                                            }
+                                            onPaste={
+                                                index === 0
+                                                    ? attachments.onPaste
+                                                    : undefined
+                                            }
+                                            onDragOver={
+                                                index === 0
+                                                    ? attachments.onDragOver
+                                                    : undefined
+                                            }
+                                            onDrop={
+                                                index === 0
+                                                    ? attachments.onDrop
+                                                    : undefined
                                             }
                                             onKeyDown={(event) =>
                                                 onKeyDown(index, event)
@@ -221,6 +232,24 @@ export function CommitComposer() {
                                         />
 
                                         <InputError message={error} />
+
+                                        {index === 0 && (
+                                            <>
+                                                <ImagePickerPreviews
+                                                    images={attachments.images}
+                                                    onRemove={
+                                                        attachments.remove
+                                                    }
+                                                />
+                                                <InputError
+                                                    message={
+                                                        attachments.error ??
+                                                        imageErrorFrom(errors)
+                                                    }
+                                                    className="mt-1"
+                                                />
+                                            </>
+                                        )}
 
                                         {isSeries && (
                                             <div className="mt-1 flex items-center gap-3">
@@ -259,6 +288,20 @@ export function CommitComposer() {
 
                                                 <div className="mt-2 flex items-center justify-end gap-4">
                                                     <div className="mr-auto flex min-w-0 items-center gap-3">
+                                                        <ImagePickerButton
+                                                            count={
+                                                                attachments
+                                                                    .images
+                                                                    .length
+                                                            }
+                                                            disabled={
+                                                                processing
+                                                            }
+                                                            onPick={
+                                                                attachments.attach
+                                                            }
+                                                            className="-ml-2"
+                                                        />
                                                         <button
                                                             type="button"
                                                             onClick={() =>
@@ -274,7 +317,7 @@ export function CommitComposer() {
                                                                     ? 'Add another commit (⌘/Ctrl + Shift + Enter)'
                                                                     : `A series has at most ${maxParts} commits`
                                                             }
-                                                            className="-ml-2 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                                                            className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                                                             data-test="add-commit-part-button"
                                                         >
                                                             <Plus className="size-4" />

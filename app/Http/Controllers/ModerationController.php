@@ -25,9 +25,10 @@ final readonly class ModerationController
                     'user',
                     'parent.user',
                     'linkPreview',
+                    'images',
                     'seriesParts' => fn (HasMany $query): HasMany => $query
                         ->where('status', CommitStatus::Pending)
-                        ->with(['user', 'linkPreview'])
+                        ->with(['user', 'linkPreview', 'images'])
                         ->oldest('series_position'),
                 ])
                 ->withStarsFor($user)

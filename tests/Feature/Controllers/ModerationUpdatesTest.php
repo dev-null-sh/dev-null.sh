@@ -53,6 +53,21 @@ it('notifies each author in a bulk approval and preserves reply notifications', 
         ->and($deleted->user->notifications()->count())->toBe(0);
 });
 
+it('notifies mentioned users once a commit is approved', function (): void {
+    $mentioned = User::factory()->create(['username' => 'taylorotwell']);
+    $commit = Commit::factory()->pending()->create(['body' => 'Pairing with @taylorotwell today']);
+
+    expect($mentioned->notifications()->count())->toBe(0);
+
+    resolve(ApproveCommit::class)->handle($commit);
+
+    $notice = $mentioned->notifications()->sole();
+
+    expect($notice->type->value)->toBe('mentioned')
+        ->and($notice->actor_id)->toBe($commit->user_id)
+        ->and($notice->commit_id)->toBe($commit->id);
+});
+
 it('stores a concise rejection reason privately and leaves repeated rejections unchanged', function (): void {
     $admin = User::factory()->create(['username' => 'admin']);
     $commit = Commit::factory()->pending()->create();

@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 it('may post a series of commits', function (): void {
     $user = User::factory()->create();
@@ -142,6 +146,52 @@ it('spends one of the 10 commits a minute on each part', function (): void {
         ]);
 
     expect($user->commits()->count())->toBe(10);
+});
+
+it('attaches images to the first part of the series', function (): void {
+    Storage::fake(CommitImage::DISK);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit-series.store'), [
+            'bodies' => ['Look at this', 'And a second thought'],
+            'images' => [UploadedFile::fake()->image('first.jpg', 40, 30), UploadedFile::fake()->image('second.png', 10, 10)],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $parts = $user->commits()->with('images')->oldest('series_position')->get();
+
+    expect($parts[0]->images)->toHaveCount(2)
+        ->and($parts[1]->images)->toBeEmpty();
+});
+
+it('validates the images of a series like those of a commit', function (): void {
+    Storage::fake(CommitImage::DISK);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit-series.store'), [
+            'bodies' => ['First part', 'Second part'],
+            'images' => [UploadedFile::fake()->createWithContent('image.svg', '<svg xmlns="http://www.w3.org/2000/svg"></svg>')],
+        ]);
+
+    $response->assertSessionHasErrors('images.0');
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('notifies people mentioned in each part once the series is approved', function (): void {
+    config(['app.admins' => ['admin']]);
+
+    $mentioned = User::factory()->create(['username' => 'taylor']);
+
+    $this->actingAs(User::factory()->create(['username' => 'admin']))
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit-series.store'), ['bodies' => ['Paired with @taylor today', 'Thanks again @taylor']]);
+
+    expect($mentioned->notifications()->where('type', NotificationType::Mentioned)->count())->toBe(2);
 });
 
 it('requires authentication to post a series', function (): void {

@@ -6,11 +6,14 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 it('may create a commit', function (): void {
@@ -605,4 +608,106 @@ it('includes the link previews of a commit, its ancestors and its replies', func
             ->where('commit.link_preview.title', 'Focused link')
             ->where('ancestors.0.link_preview.title', 'Root link')
             ->where('replies.data.0.link_preview.title', 'Reply link'));
+});
+
+it('may attach images to a commit', function (): void {
+    Storage::fake(CommitImage::DISK);
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Look at this',
+            'images' => [
+                UploadedFile::fake()->image('first.jpg', 40, 30),
+                UploadedFile::fake()->image('second.gif', 10, 10),
+                UploadedFile::fake()->image('third.webp', 10, 10),
+            ],
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->status)->toBe(CommitStatus::Pending)
+        ->and($commit->images)->toHaveCount(3)
+        ->and(Storage::disk(CommitImage::DISK)->allFiles('commit-images'))->toHaveCount(3);
+});
+
+it('may not attach more than three images to a commit', function (): void {
+    Storage::fake(CommitImage::DISK);
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Too many',
+        'images' => array_map(fn (int $index): UploadedFile => UploadedFile::fake()->image("{$index}.png", 10, 10), range(1, 4)),
+    ]);
+
+    $response->assertSessionHasErrors('images');
+
+    expect($user->commits()->count())->toBe(0);
+});
+
+it('may only attach jpeg, png, gif or webp images to a commit', function (UploadedFile $file): void {
+    Storage::fake(CommitImage::DISK);
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Not an image',
+        'images' => [$file],
+    ]);
+
+    $response->assertSessionHasErrors('images.0');
+
+    expect($user->commits()->count())->toBe(0)
+        ->and(Storage::disk(CommitImage::DISK)->allFiles())->toBe([]);
+})->with([
+    'svg' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+    'html disguised as png' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.png', '<html><script>alert(1)</script></html>'),
+    'bmp' => fn (): UploadedFile => UploadedFile::fake()->image('image.bmp', 10, 10),
+    'pdf' => fn (): UploadedFile => UploadedFile::fake()->create('document.pdf', 10, 'application/pdf'),
+]);
+
+it('may not attach images larger than ten megabytes to a commit', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Too big',
+        'images' => [UploadedFile::fake()->image('huge.jpg', 10, 10)->size(10241)],
+    ]);
+
+    $response->assertSessionHasErrors('images.0');
+});
+
+it('may not attach images with too many pixels to a commit', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Too wide',
+        'images' => [UploadedFile::fake()->image('wide.png', 6001, 1)],
+    ]);
+
+    $response->assertSessionHasErrors('images.0');
+});
+
+it('includes the images of a commit, its ancestors and its replies', function (): void {
+    $root = Commit::factory()->create();
+    $commit = Commit::factory()->for($root, 'parent')->create();
+    Commit::factory()->for($commit, 'parent')->create();
+
+    Commit::query()->each(fn (Commit $commit): CommitImage => CommitImage::factory()->for($commit)->create());
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.images.0.url', route('commit-image.show', $commit->images()->sole()))
+            ->has('ancestors.0.images', 1)
+            ->has('replies.data.0.images', 1)
+            ->missing('commit.images.0.path'));
 });

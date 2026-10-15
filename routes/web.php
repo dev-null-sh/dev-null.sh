@@ -7,6 +7,7 @@ use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PersonalDataExportController;
@@ -28,6 +30,7 @@ use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
+use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -57,6 +60,9 @@ Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'
 Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');
+Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
+    ->whereUuid('commitImage')
+    ->name('commit-image.show');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -73,10 +79,10 @@ Route::middleware('auth')->group(function (): void {
 
     // Commit...
     Route::post('commits', [CommitController::class, 'store'])
-        ->middleware('throttle:commits')
+        ->middleware(ThrottleCommits::class)
         ->name('commit.store');
     Route::post('commits/series', [CommitSeriesController::class, 'store'])
-        ->middleware('throttle:commits')
+        ->middleware(ThrottleCommits::class)
         ->name('commit-series.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
@@ -106,6 +112,7 @@ Route::middleware('auth')->group(function (): void {
 
     // User Search...
     Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
+    Route::get('search/mentions', [MentionSuggestionController::class, 'index'])->name('mention-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));

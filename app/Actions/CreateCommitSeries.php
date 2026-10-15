@@ -8,6 +8,7 @@ use App\Dto\SeriesPosition;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -22,18 +23,19 @@ final readonly class CreateCommitSeries
     }
 
     /**
-     * Each part is a reply to the part before it, so the series reads as one thread.
+     * Each part is a reply to the part before it, so the series reads as one thread. Images go with the first part.
      *
      * @param  list<string>  $bodies
+     * @param  list<UploadedFile>  $images
      * @return Collection<int, Commit>
      */
-    public function handle(User $user, array $bodies): Collection
+    public function handle(User $user, array $bodies, array $images = []): Collection
     {
         $size = count($bodies);
 
         throw_if($size < 2 || $size > self::MAX_PARTS, InvalidArgumentException::class, 'A series has between 2 and '.self::MAX_PARTS.' parts.');
 
-        return DB::transaction(function () use ($user, $bodies, $size): Collection {
+        return DB::transaction(function () use ($user, $bodies, $images, $size): Collection {
             $seriesId = Str::uuid7()->toString();
             $parts = new Collection;
 
@@ -42,6 +44,7 @@ final readonly class CreateCommitSeries
                     $user,
                     $body,
                     $parts->last(),
+                    $index === 0 ? $images : [],
                     new SeriesPosition($seriesId, $index + 1, $size),
                 ));
             }
