@@ -15,6 +15,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
+use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
@@ -31,6 +32,11 @@ Route::middleware('guest')->group(function (): void {
         ->middleware('throttle:10,1')
         ->name('login.store');
 });
+
+// User, previewed for guests...
+Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
+Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
+    ->name('user-open-graph-image.show');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -72,7 +78,6 @@ Route::middleware('auth')->group(function (): void {
 
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
-    Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
     Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
         ->scopeBindings()
         ->name('commit.show');
