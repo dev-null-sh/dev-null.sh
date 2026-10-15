@@ -308,6 +308,9 @@ Under a commit's body, a quiet action row: "Reply" (muted, opens an inline borde
 ### People Search
 A command palette opened by ⌘K / Ctrl+K or `/` anywhere, the "Search developers ⌘K" pill at the top of the right column, a Search nav item where that column is hidden, or the search icon in the mobile header. Popover surface, 576px max, 12vh from the top: a borderless 17px input with a search icon and an `esc` cap, results as rows (36px avatar, name in 600, mono handle with lane dot, truncated bio) with the active row on Accent and a `↵` hint, and a footer of key hints (hidden on phones). Combobox semantics: arrow keys move, Enter opens the profile, Escape closes. Empty: "Type a name or @handle."; pending: "Searching…"; no match: mono `fatal: no developers match '…'`.
 
+### Link Previews
+A profile link shared to X, Slack, Discord, or iMessage unfurls as a 1200×630 PNG drawn server-side with GD in the light theme: the Cool Shell background, a 4px rail down the left in the profile's lane (Rail Gray above the first node), ringed lane nodes beside the avatar and the bio, a 152px avatar with the lane ring offset from the shell (a lane disc with a white initial when GitHub's avatar can't be fetched), the name in Geist 600, the mono handle led by the lane dot, up to three lines of bio ending in an ellipsis, and below a hairline the mono counts with sans labels and the `/dev/null` wordmark on the right. Fonts are the Geist TTFs in `resources/fonts`; emoji are dropped because Geist has none.
+
 ## Do's and Don'ts
 
 ### Do:
