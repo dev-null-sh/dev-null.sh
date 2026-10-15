@@ -39,6 +39,11 @@ final class CommitBuilder extends Builder
         ]);
     }
 
+    public function approved(): self
+    {
+        return $this->where('status', CommitStatus::Approved);
+    }
+
     public function pending(): self
     {
         return $this->where('status', CommitStatus::Pending);

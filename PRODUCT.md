@@ -22,6 +22,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 
 - Sign-in is GitHub OAuth only. Profile changes happen on GitHub ("Edit on GitHub"), then sync at next login.
 - Everything except the landing page requires login.
+- Profile links (`/@{username}`) unfurl with a link preview (name, handle, avatar, bio, counts) for guests and crawlers; a guest opening one sees the landing page, and the profile itself stays behind login.
 - Two logs: **Following** (my commits plus people I follow) and **Everyone** (all commits), newest first, infinite scroll.
 - Profiles live at `/@{username}` with commit, following, and follower counts, a commit activity graph with longest and current streaks, and the user's commits.
 - Settings: read-only profile, appearance (light/dark/system), delete account.
@@ -31,8 +32,9 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 - Commits (posts): plain text, 3–280 characters; create and delete only (no editing). Rate limited to 10 commits per minute per user.
 - Follow/unfollow, idempotent; self-follow rejected.
 - Replies: any visible commit can be replied to; a reply is itself a commit (same 280 limit, moderation, and rate limit). Threads expand inline under a commit; logs and profiles list top-level commits only. Every commit has its own page with its ancestors above it and its replies expanded; it is behind login like everything else. Deleting a commit deletes its replies.
+- Notifications: in-app only, for a new follower and for an approved reply to one of your commits (only the direct parent's author; never for replying to yourself). A notification points to the follow or reply, it never copies it: it disappears when the reply, its parent, or either user is deleted, and is hidden while the follow is undone or the reply is rejected. A follower notifies once, ever: unfollowing and following again never pings twice. Pending replies notify nobody until approved. No notification for moderation outcomes. Unread count in the nav; a page is marked as read once shown.
 - People search: find developers by name or GitHub username (⌘K). Commits are not searchable.
-- Deliberately excluded for now: likes/reactions, reposts, images/media, mentions, hashtags, searching commits, notifications, DMs, other OAuth providers, public API, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
+- Deliberately excluded for now: likes/reactions, reposts, images/media, mentions, hashtags, searching commits, DMs, other OAuth providers, public API, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
 - Open: handling GitHub username renames that collide with a stale username.
 
 ## Brand Commitments

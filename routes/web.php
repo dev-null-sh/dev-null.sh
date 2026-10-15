@@ -10,11 +10,13 @@ use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\ModerationController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
+use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
@@ -32,6 +34,11 @@ Route::middleware('guest')->group(function (): void {
         ->name('login.store');
 });
 
+// User, previewed for guests...
+Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
+Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
+    ->name('user-open-graph-image.show');
+
 Route::middleware('auth')->group(function (): void {
     // Session...
     Route::post('logout', [SessionController::class, 'destroy'])
@@ -48,6 +55,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.destroy');
     Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
         ->name('commit-reply.index');
+
+    // Notifications...
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
 
     // Moderation...
     Route::middleware('can:moderate')->group(function (): void {
@@ -72,7 +82,6 @@ Route::middleware('auth')->group(function (): void {
 
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
-    Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
     Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
         ->scopeBindings()
         ->name('commit.show');

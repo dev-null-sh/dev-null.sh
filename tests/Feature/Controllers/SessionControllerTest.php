@@ -77,7 +77,7 @@ it('redirects to the intended url after login', function (): void {
     ]));
 
     $this->get(route('user.show', $user))
-        ->assertRedirectToRoute('home');
+        ->assertOk();
 
     $response = $this->get(route('login.store'));
 

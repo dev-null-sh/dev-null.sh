@@ -16,8 +16,6 @@ final readonly class CommitReplyController
     {
         abort_unless(Commit::query()->visibleTo($user)->whereKey($commit->id)->exists(), 404);
 
-        return response()->json([
-            'replies' => $replies->get($commit, $user),
-        ]);
+        return response()->json($replies->paginate($commit, $user));
     }
 }
