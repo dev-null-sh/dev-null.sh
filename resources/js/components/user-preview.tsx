@@ -8,15 +8,20 @@ import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowin
 import UserPreviewController from '@/actions/App/Http/Controllers/UserPreviewController';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Profile, User } from '@/types';
 
 type PreviewData = {
-    user: Profile;
     isFollowing: boolean;
     followsYou: boolean;
-};
+    isMuting: boolean;
+    isBlocking: boolean;
+} & (
+    | { isUnavailable: false; user: Profile }
+    | { isUnavailable: true; user: User }
+);
 
 type Position =
     | { left: number; top: number; bottom?: never }
@@ -72,6 +77,7 @@ export function UserPreview({
 }) {
     const triggerRef = useRef<HTMLSpanElement>(null);
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    const isMenuOpen = useRef(false);
     const [position, setPosition] = useState<Position | null>(null);
     const [data, setData] = useState<PreviewData | null>(
         () => cache.get(user.username) ?? null,
@@ -99,6 +105,11 @@ export function UserPreview({
 
     const scheduleClose = () => {
         clearTimeout(timer.current);
+
+        if (isMenuOpen.current) {
+            return;
+        }
+
         timer.current = setTimeout(close, closeDelay);
     };
 
@@ -161,6 +172,10 @@ export function UserPreview({
                                 cache.set(user.username, next);
                                 setData(next);
                             }}
+                            onMenuOpenChange={(isOpen) => {
+                                isMenuOpen.current = isOpen;
+                                clearTimeout(timer.current);
+                            }}
                         />
                     </div>,
                     document.body,
@@ -173,17 +188,19 @@ function UserPreviewContent({
     user,
     data,
     onChange,
+    onMenuOpenChange,
 }: {
     user: User | Profile;
     data: PreviewData | null;
     onChange: (data: PreviewData) => void;
+    onMenuOpenChange: (isOpen: boolean) => void;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user.id === user.id;
     const lane = laneColor(user.lane);
 
     const toggleFollow = () => {
-        if (!data) {
+        if (!data || data.isUnavailable) {
             return;
         }
 
@@ -224,33 +241,46 @@ function UserPreviewContent({
 
                 {!isCurrentUser &&
                     (data ? (
-                        <Button
-                            size="sm"
-                            variant={data.isFollowing ? 'outline' : 'default'}
-                            className="group/follow min-w-24"
-                            onClick={toggleFollow}
-                            aria-label={
-                                data.isFollowing
-                                    ? `Unfollow @${user.username}`
-                                    : `Follow @${user.username}`
-                            }
-                            data-test="user-preview-follow-button"
-                        >
-                            {data.isFollowing ? (
-                                <>
-                                    <span className="group-hover/follow:hidden">
-                                        Following
-                                    </span>
-                                    <span className="hidden text-destructive group-hover/follow:inline">
-                                        Unfollow
-                                    </span>
-                                </>
-                            ) : (
-                                'Follow'
+                        <div className="flex gap-2">
+                            <UserSafetyMenu
+                                user={user}
+                                isMuting={data.isMuting}
+                                isBlocking={data.isBlocking}
+                                className="size-8"
+                                onOpenChange={onMenuOpenChange}
+                            />
+                            {!data.isUnavailable && (
+                                <Button
+                                    size="sm"
+                                    variant={
+                                        data.isFollowing ? 'outline' : 'default'
+                                    }
+                                    className="group/follow min-w-24"
+                                    onClick={toggleFollow}
+                                    aria-label={
+                                        data.isFollowing
+                                            ? `Unfollow @${user.username}`
+                                            : `Follow @${user.username}`
+                                    }
+                                    data-test="user-preview-follow-button"
+                                >
+                                    {data.isFollowing ? (
+                                        <>
+                                            <span className="group-hover/follow:hidden">
+                                                Following
+                                            </span>
+                                            <span className="hidden text-destructive group-hover/follow:inline">
+                                                Unfollow
+                                            </span>
+                                        </>
+                                    ) : (
+                                        'Follow'
+                                    )}
+                                </Button>
                             )}
-                        </Button>
+                        </div>
                     ) : (
-                        <span className="h-8 w-24 rounded-md bg-muted motion-safe:animate-pulse" />
+                        <span className="h-8 w-34 rounded-md bg-muted motion-safe:animate-pulse" />
                     ))}
             </div>
 
@@ -271,16 +301,27 @@ function UserPreviewContent({
                         Follows you
                     </span>
                 )}
+                {data?.isMuting && (
+                    <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                        Muted
+                    </span>
+                )}
             </p>
 
-            {user.bio && (
+            {user.bio && !data?.isUnavailable && (
                 <p className="mt-2 line-clamp-3 text-sm text-pretty">
                     {user.bio}
                 </p>
             )}
 
             <div className="mt-3 flex gap-4 text-sm">
-                {data ? (
+                {data?.isUnavailable ? (
+                    <p className="text-muted-foreground">
+                        {data.isBlocking
+                            ? `You blocked @${user.username}.`
+                            : 'This profile is unavailable.'}
+                    </p>
+                ) : data ? (
                     <>
                         <span>
                             <span className="font-mono font-medium">

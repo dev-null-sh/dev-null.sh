@@ -12,10 +12,15 @@ final readonly class UserPreviewController
 {
     public function show(#[CurrentUser] User $currentUser, User $user): JsonResponse
     {
+        $blockerId = $currentUser->blockerIdWith($user);
+
         return response()->json([
-            'user' => $user->loadCounts($currentUser),
+            'user' => $blockerId === null ? $user->loadCounts($currentUser) : $user,
             'isFollowing' => $currentUser->isFollowing($user),
             'followsYou' => $user->isFollowing($currentUser),
+            'isMuting' => $currentUser->isMuting($user),
+            'isBlocking' => $blockerId === $currentUser->id,
+            'isUnavailable' => $blockerId !== null,
         ]);
     }
 }

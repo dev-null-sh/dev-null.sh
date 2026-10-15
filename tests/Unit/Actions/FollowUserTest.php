@@ -69,3 +69,12 @@ it('never notifies twice about the same follower', function (): void {
 
     expect($user->notifications()->sole()->read_at)->not->toBeNull();
 });
+
+it('may not follow someone they block or who blocks them', function (bool $followerBlocks): void {
+    $follower = User::factory()->create();
+    $user = User::factory()->create();
+
+    $followerBlocks ? $follower->blocking()->attach($user) : $user->blocking()->attach($follower);
+
+    resolve(FollowUser::class)->handle($follower, $user);
+})->with([true, false])->throws(InvalidArgumentException::class, 'Users cannot follow someone they block or who blocks them.');

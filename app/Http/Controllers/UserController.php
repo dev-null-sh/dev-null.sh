@@ -27,9 +27,19 @@ final readonly class UserController
             return $this->preview($request, $user);
         }
 
+        $blockerId = $currentUser->blockerIdWith($user);
+
+        if ($blockerId !== null) {
+            return Inertia::render('user/unavailable', [
+                'username' => $user->username,
+                'blockedUser' => $blockerId === $currentUser->id ? $user : null,
+            ]);
+        }
+
         return Inertia::render('user/show', [
             'user' => fn (): User => $user->loadCounts($currentUser),
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
+            'isMuting' => fn (): bool => $currentUser->isMuting($user),
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => fn (): array => $streaks->get($user, $currentUser),
             'tab' => $request->tab(...),
