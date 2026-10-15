@@ -8,11 +8,13 @@ import {
 } from '@/components/commit-image-picker';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
+import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useLinkCard } from '@/hooks/use-link-card';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import { cn, laneColor } from '@/lib/utils';
 
@@ -26,6 +28,7 @@ export function CommitComposer() {
         'commit',
     );
     const attachments = useImageAttachments();
+    const linkCard = useLinkCard(body);
 
     const remaining = maxBodyLength - body.length;
     const isCommittable = body.trim().length >= minBodyLength;
@@ -57,6 +60,7 @@ export function CommitComposer() {
 
                 drop();
                 attachments.clear();
+                linkCard.reset();
                 requestAnimationFrame(() =>
                     document.getElementById('body')?.focus(),
                 );
@@ -102,7 +106,9 @@ export function CommitComposer() {
                                 className="block field-sizing-content min-h-10 w-full resize-none bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
                             />
 
-                            <InputError message={errors.body} />
+                            <InputError
+                                message={errors.body ?? errors.link_preview_url}
+                            />
 
                             <ImagePickerPreviews
                                 images={attachments.images}
@@ -116,12 +122,17 @@ export function CommitComposer() {
                             />
 
                             <div className="mt-2 flex items-center justify-end gap-4">
-                                <div className="mr-auto flex items-center gap-4">
+                                <div className="mr-auto flex min-w-0 items-center gap-4">
                                     <ImagePickerButton
                                         count={attachments.images.length}
                                         disabled={processing}
                                         onPick={attachments.attach}
                                         className="-ml-2"
+                                    />
+                                    <LinkCardPicker
+                                        linkCard={linkCard}
+                                        disabled={processing}
+                                        className="-ml-3"
                                     />
                                     {isRestored && (
                                         <StashLabel

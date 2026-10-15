@@ -72,6 +72,12 @@ it('replies to a commit', function (): void {
         ->and($reply->body)->toBe('Agreed!');
 });
 
+it('attaches a link preview for the first link', function (): void {
+    postSignedCommit(signedCommit($this->keyPair, 'Shipped https://example.com/first and https://example.com/second'))->assertCreated();
+
+    expect($this->user->commits()->sole()->linkPreview->url)->toBe('https://example.com/first');
+});
+
 it('fails to reply to an unknown commit', function (): void {
     $response = postSignedCommit(signedCommit($this->keyPair, 'Agreed!', replyTo: '0be0130'));
 

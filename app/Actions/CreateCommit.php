@@ -27,12 +27,20 @@ final readonly class CreateCommit
     }
 
     /**
+     * The link preview is of the first URL in the body when true, of the given URL when a string, or none when false.
+     *
      * @param  list<UploadedFile>  $images
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, array $images = []): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], bool|string $linkPreview = true): Commit
     {
-        return DB::transaction(function () use ($user, $body, $parent, $images): Commit {
-            $linkPreview = $this->linkPreviewFor($body);
+        $url = match ($linkPreview) {
+            true => $this->urls->first($body),
+            false => null,
+            default => $linkPreview,
+        };
+
+        return DB::transaction(function () use ($user, $body, $parent, $images, $url): Commit {
+            $linkPreview = $this->linkPreviewFor($url);
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
@@ -57,10 +65,8 @@ final readonly class CreateCommit
     /**
      * Commits that link to the same URL share one preview, so a page is fetched once however often it is linked.
      */
-    private function linkPreviewFor(string $body): ?LinkPreview
+    private function linkPreviewFor(?string $url): ?LinkPreview
     {
-        $url = $this->urls->first($body);
-
         if ($url === null) {
             return null;
         }
