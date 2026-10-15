@@ -103,3 +103,26 @@ it('keeps http websites as they are', function (): void {
 
     expect($user->website)->toBe('http://example.com');
 });
+
+it('frees a username still held by a stale user who renamed on github', function (string $staleUsername): void {
+    $stale = User::factory()->create([
+        'github_id' => '1',
+        'username' => $staleUsername,
+        'bio' => 'Renamed away',
+    ]);
+
+    $action = resolve(UpdateOrCreateUser::class);
+
+    $user = $action->handle(GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    expect($user->username)->toBe('octocat')
+        ->and($user->github_id)->toBe('583231')
+        ->and($user->is($stale))->toBeFalse()
+        ->and(User::query()->count())->toBe(2)
+        ->and($stale->refresh()->username)->toBe('_renamed-1')
+        ->and($stale->github_id)->toBe('1')
+        ->and($stale->bio)->toBe('Renamed away');
+})->with(['octocat', 'OctoCat']);

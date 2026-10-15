@@ -37,7 +37,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 - Notifications: in-app only, for a new follower, for an approved reply to one of your commits (only the direct parent's author; never for replying to yourself), and for an approved commit or reply that mentions you (never for mentioning yourself; the parent's author of a reply hears about it as a reply, not twice). A notification points to the follow, reply, or mention, it never copies it: it disappears when the commit, the replied commit, or either user is deleted, and is hidden while the follow is undone or the commit is rejected. A follower notifies once, ever: unfollowing and following again never pings twice. Pending replies and mentions notify nobody until approved. No notification for moderation outcomes. Unread count in the nav; a page is marked as read once shown.
 - People search: find developers by name or GitHub username (⌘K). Commits are not searchable.
 - Deliberately excluded for now: likes/reactions, reposts, images/media, hashtags, searching commits, DMs, other OAuth providers, public API, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
-- Open: handling GitHub username renames that collide with a stale username.
+- GitHub username renames: signing in takes the current GitHub username. If a stale account still holds it because its owner renamed on GitHub, that account moves to a `_renamed-<github id>` placeholder until its owner signs in again. Accounts are never merged.
 
 ## Brand Commitments
 
