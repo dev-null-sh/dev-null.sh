@@ -32,8 +32,22 @@ function moveCommitFocus(step: 1 | -1): void {
                 : commits.length - 1
             : Math.min(Math.max(current + step, 0), commits.length - 1);
 
-    commits[next].focus({ preventScroll: true });
-    commits[next].scrollIntoView({ block: 'nearest' });
+    focusCommit(commits[next]);
+}
+
+export function focusCommit(commit: HTMLElement): void {
+    commit.focus({ preventScroll: true });
+    commit.scrollIntoView({ block: 'nearest' });
+}
+
+function focusedCommitAction(key: string): HTMLButtonElement | null {
+    return (
+        document.activeElement
+            ?.closest('[data-commit]')
+            ?.querySelector<HTMLButtonElement>(
+                `button[aria-keyshortcuts="${CSS.escape(key)}"]`,
+            ) ?? null
+    );
 }
 
 function focusComposer(): void {
@@ -99,6 +113,15 @@ export function useKeyboardShortcuts(
                     event.preventDefault();
                     goTo[event.key]();
                 }
+
+                return;
+            }
+
+            const commitAction = focusedCommitAction(event.key);
+
+            if (commitAction) {
+                event.preventDefault();
+                commitAction.click();
 
                 return;
             }

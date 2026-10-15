@@ -6,13 +6,14 @@ import {
     Trash2,
 } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -86,13 +87,19 @@ export function CommitThread({ commit }: { commit: Commit }) {
 
     return (
         <>
-            <ThreadActions thread={thread} />
+            <ThreadActions thread={thread} hasKeyboardShortcuts />
             <ThreadReplies thread={thread} depth={0} />
         </>
     );
 }
 
-function ThreadActions({ thread }: { thread: Thread }) {
+function ThreadActions({
+    thread,
+    hasKeyboardShortcuts = false,
+}: {
+    thread: Thread;
+    hasKeyboardShortcuts?: boolean;
+}) {
     return (
         <>
             <div className="mt-1 -ml-2 flex flex-wrap items-center gap-0.5 text-[13px]">
@@ -104,6 +111,12 @@ function ThreadActions({ thread }: { thread: Thread }) {
                             : thread.startReply
                     }
                     aria-expanded={thread.isReplying}
+                    aria-keyshortcuts={
+                        hasKeyboardShortcuts && !thread.isReplying
+                            ? 'r'
+                            : undefined
+                    }
+                    title={hasKeyboardShortcuts ? 'Reply (r)' : undefined}
                     className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     data-test="reply-button"
                 >
@@ -116,6 +129,14 @@ function ThreadActions({ thread }: { thread: Thread }) {
                         type="button"
                         onClick={thread.toggle}
                         aria-expanded={thread.isOpen}
+                        aria-keyshortcuts={
+                            hasKeyboardShortcuts ? 'o' : undefined
+                        }
+                        title={
+                            hasKeyboardShortcuts
+                                ? `${thread.isOpen ? 'Hide' : 'Show'} replies (o)`
+                                : undefined
+                        }
                         className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
                         data-test="toggle-replies-button"
                     >
@@ -323,11 +344,25 @@ function ReplyComposer({
     onReplied: () => void;
 }) {
     const [body, setBody] = useState('');
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
 
+    const returnFocusToCommit = () => {
+        const commit =
+            textareaRef.current?.closest<HTMLElement>('[data-commit]');
+
+        if (
+            commit &&
+            textareaRef.current?.form?.contains(document.activeElement)
+        ) {
+            focusCommit(commit);
+        }
+    };
+
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Escape') {
+            returnFocusToCommit();
             onCancel();
         }
 
@@ -349,6 +384,7 @@ function ReplyComposer({
             onSuccess={(page) => {
                 if (page.flash.committed) {
                     setBody('');
+                    returnFocusToCommit();
                     onReplied();
                 }
             }}
@@ -362,6 +398,7 @@ function ReplyComposer({
                         Reply to @{parent.user.username}
                     </label>
                     <textarea
+                        ref={textareaRef}
                         id={`reply-${parent.id}`}
                         name="body"
                         rows={1}
