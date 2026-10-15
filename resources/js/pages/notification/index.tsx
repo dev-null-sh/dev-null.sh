@@ -1,5 +1,5 @@
 import { Head, InfiniteScroll, Link } from '@inertiajs/react';
-import { MessageSquareReply, UserPlus } from 'lucide-react';
+import { Check, MessageSquareReply, UserPlus, X } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -27,8 +27,8 @@ export default function Index({
             {notifications.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command="$ cat /dev/notifications">
-                        Nothing here yet. Follows and replies to your commits
-                        will show up here.
+                        Nothing here yet. Follows, replies, and moderation
+                        updates for your commits will show up here.
                     </EmptyFeed>
                 </div>
             ) : (
@@ -59,8 +59,14 @@ function NotificationItem({ notification }: { notification: Notification }) {
     const now = useNow();
     const { actor } = notification;
     const isUnread = notification.read_at === null;
-    const Icon =
-        notification.type === 'followed' ? UserPlus : MessageSquareReply;
+    const isModeration =
+        notification.type === 'approved' || notification.type === 'rejected';
+    const Icon = {
+        followed: UserPlus,
+        replied: MessageSquareReply,
+        approved: Check,
+        rejected: X,
+    }[notification.type];
 
     return (
         <Link
@@ -78,14 +84,27 @@ function NotificationItem({ notification }: { notification: Notification }) {
             )}
         >
             <Icon
-                className="mt-2 size-5 shrink-0 text-(--lane)"
-                style={{ '--lane': laneColor(actor.lane) } as CSSProperties}
+                className={cn(
+                    'mt-2 size-5 shrink-0',
+                    isModeration ? 'text-muted-foreground' : 'text-(--lane)',
+                )}
+                style={
+                    isModeration
+                        ? undefined
+                        : ({ '--lane': laneColor(actor.lane) } as CSSProperties)
+                }
                 aria-hidden
             />
 
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                    <UserAvatar user={actor} className="size-8" />
+                    {isModeration ? (
+                        <span className="text-sm font-medium">
+                            Moderation update
+                        </span>
+                    ) : (
+                        <UserAvatar user={actor} className="size-8" />
+                    )}
                     {isUnread && (
                         <span className="ml-auto size-2 shrink-0 rounded-full bg-primary">
                             <span className="sr-only">Unread</span>
@@ -94,10 +113,16 @@ function NotificationItem({ notification }: { notification: Notification }) {
                 </div>
 
                 <p className="mt-2 text-[15px]">
-                    <span className="font-medium">{actor.name}</span>{' '}
-                    {notification.type === 'followed'
-                        ? 'followed you'
-                        : 'replied to your commit'}
+                    {isModeration ? (
+                        `Your commit was ${notification.type}`
+                    ) : (
+                        <>
+                            <span className="font-medium">{actor.name}</span>{' '}
+                            {notification.type === 'followed'
+                                ? 'followed you'
+                                : 'replied to your commit'}
+                        </>
+                    )}
                     <span className="text-muted-foreground">
                         <span aria-hidden> · </span>
                         <time
@@ -111,10 +136,24 @@ function NotificationItem({ notification }: { notification: Notification }) {
                     </span>
                 </p>
 
-                {notification.type === 'replied' && (
+                {notification.type !== 'followed' && (
                     <p className="mt-1 truncate text-[15px]">
                         {notification.commit.body}
                     </p>
+                )}
+                {notification.type === 'rejected' && (
+                    <div className="mt-2 text-sm text-muted-foreground">
+                        {notification.reason && (
+                            <p className="wrap-anywhere whitespace-pre-wrap text-foreground">
+                                <span className="font-medium">Reason: </span>
+                                {notification.reason}
+                            </p>
+                        )}
+                        <p className="mt-1">
+                            Only you can see this update and your rejected
+                            commit.
+                        </p>
+                    </div>
                 )}
             </div>
         </Link>
