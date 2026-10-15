@@ -53,6 +53,7 @@ final readonly class UserController
                         ->when($user->pinned_commit_id, fn (CommitBuilder $query, string $id): CommitBuilder => $query->whereKeyNot($id)),
                 )
                 ->withVisibleReplyCount($currentUser)
+                ->withSavedState($currentUser)
                 ->with(['user', 'linkPreview'])
                 ->withStarsFor($currentUser)
                 ->latest()

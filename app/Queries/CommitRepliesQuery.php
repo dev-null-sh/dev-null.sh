@@ -20,6 +20,7 @@ final readonly class CommitRepliesQuery
         return $commit->replies()
             ->visibleInThreadTo($user)
             ->withVisibleReplyCount($user)
+            ->withSavedState($user)
             ->with(['user', 'linkPreview'])
             ->oldest()
             ->oldest('id')

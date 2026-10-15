@@ -14,8 +14,9 @@
         "laravel/framework": "^13.36.0",
         "laravel/socialite": "^5.31.0",
         "laravel/wayfinder": "^0.1.21",
+        "league/flysystem-aws-s3-v3": "^3.35",
         "nunomaduro/essentials": "^1.2.0",
-        "phpseclib/phpseclib": "^4.0"
+        "phpseclib/phpseclib": "^4.0.2"
     },
     "require-dev": {
         "driftingly/rector-laravel": "^2.6.2",
