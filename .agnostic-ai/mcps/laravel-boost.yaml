@@ -1,0 +1,5 @@
+args:
+    - artisan
+    - boost:mcp
+command: php
+name: laravel-boost

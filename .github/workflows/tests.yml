@@ -65,6 +65,9 @@ jobs:
       - name: Install Bun Dependencies
         run: bun install
 
+      - name: Check AI Tool Files
+        run: node_modules/.bin/agnostic-ai sync --check
+
       - name: Build Assets
         run: bun run build
 

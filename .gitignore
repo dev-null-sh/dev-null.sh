@@ -29,3 +29,13 @@ Homestead.yaml
 Thumbs.db
 _ide_helper.php
 /public/fonts-manifest.dev.json
+
+# >>> agnostic-ai (managed) >>>
+# Generated paths. Edit specs, not this block. Run `agnostic-ai sync` to refresh.
+# Not committed: a fresh clone or `git worktree` lacks these until `agnostic-ai sync` runs (e.g. a post-checkout hook).
+/.agnostic-ai/.command-lock
+/.agnostic-ai/.sync-state
+/.agnostic-ai/local/
+/.agnostic-ai/packs/
+/agnostic-ai.local.yaml
+# <<< agnostic-ai (managed) <<<
