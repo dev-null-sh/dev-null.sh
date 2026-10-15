@@ -12,8 +12,6 @@ use Illuminate\Contracts\Pagination\CursorPaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 
-use function Illuminate\Support\defer;
-
 final readonly class NotificationController
 {
     /**
