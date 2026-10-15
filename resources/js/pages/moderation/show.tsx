@@ -7,39 +7,45 @@ import CommitRejectionController from '@/actions/App/Http/Controllers/CommitReje
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
+type ModerationRoute =
+    | typeof CommitApprovalController.store
+    | typeof CommitRejectionController.store;
+
+function Keycap({ label, className }: { label: string; className?: string }) {
+    return (
+        <kbd
+            aria-hidden
+            className={cn(
+                '-mr-1 hidden min-w-5 rounded border border-b-2 px-1 text-center font-mono text-xs leading-4 sm:inline-block',
+                className,
+            )}
+        >
+            {label}
+        </kbd>
+    );
+}
+
 function ModerationActions({
-    commit,
     isSelected,
-    disabled,
+    isDisabled,
     onSelectedChange,
+    onModerate,
 }: {
-    commit: Commit;
     isSelected: boolean;
-    disabled: boolean;
+    isDisabled: boolean;
     onSelectedChange: (isSelected: boolean) => void;
+    onModerate: (route: ModerationRoute) => void;
 }) {
-    const [processing, setProcessing] = useState(false);
-
-    const moderate = (
-        route:
-            | typeof CommitApprovalController.store
-            | typeof CommitRejectionController.store,
-    ) =>
-        router.visit(route(commit), {
-            preserveScroll: true,
-            reset: ['commits'],
-            onStart: () => setProcessing(true),
-            onFinish: () => setProcessing(false),
-        });
-
     return (
         <div className="mt-3 flex items-center gap-2">
             <Checkbox
                 checked={isSelected}
-                disabled={processing || disabled}
+                disabled={isDisabled}
                 onCheckedChange={(checked) =>
                     onSelectedChange(checked === true)
                 }
@@ -49,22 +55,29 @@ function ModerationActions({
             />
             <Button
                 size="sm"
-                disabled={processing || disabled}
-                onClick={() => moderate(CommitApprovalController.store)}
+                disabled={isDisabled}
+                onClick={() => onModerate(CommitApprovalController.store)}
+                aria-keyshortcuts="a"
                 data-test="approve-commit-button"
             >
                 <Check />
                 Approve
+                <Keycap
+                    label="a"
+                    className="border-primary-foreground/30 bg-primary-foreground/15"
+                />
             </Button>
             <Button
                 variant="outline"
                 size="sm"
-                disabled={processing || disabled}
-                onClick={() => moderate(CommitRejectionController.store)}
+                disabled={isDisabled}
+                onClick={() => onModerate(CommitRejectionController.store)}
+                aria-keyshortcuts="x"
                 data-test="reject-commit-button"
             >
                 <X />
                 Reject
+                <Keycap label="x" className="bg-muted" />
             </Button>
         </div>
     );
@@ -75,6 +88,33 @@ export default function Show({
 }: {
     commits: CursorPaginated<Commit>;
 }) {
+    const [isModerating, setIsModerating] = useState(false);
+
+    const moderate = (commit: Commit, route: ModerationRoute) => {
+        const index = commits.data.findIndex(({ id }) => id === commit.id);
+        const neighbour = commits.data[index + 1] ?? commits.data[index - 1];
+
+        setIsModerating(true);
+
+        router.visit(route(commit), {
+            preserveScroll: true,
+            reset: ['commits'],
+            onSuccess: () =>
+                requestAnimationFrame(() => {
+                    const row = neighbour
+                        ? document.querySelector<HTMLElement>(
+                              `[data-commit="${neighbour.id}"]`,
+                          )
+                        : null;
+
+                    if (row) {
+                        focusCommit(row);
+                    }
+                }),
+            onFinish: () => setIsModerating(false),
+        });
+    };
+
     const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
     const [approving, setApproving] = useState(false);
 
@@ -135,7 +175,7 @@ export default function Show({
                                       ? 'indeterminate'
                                       : false
                             }
-                            disabled={approving}
+                            disabled={approving || isModerating}
                             onCheckedChange={(checked) =>
                                 toggleAll(checked === true)
                             }
@@ -152,7 +192,11 @@ export default function Show({
                         <Button
                             size="sm"
                             className="ml-auto"
-                            disabled={approving || selectedIds.length === 0}
+                            disabled={
+                                approving ||
+                                isModerating ||
+                                selectedIds.length === 0
+                            }
                             onClick={approveSelected}
                             data-test="approve-selected-commits-button"
                         >
@@ -173,12 +217,12 @@ export default function Show({
                 end="That's every pending commit."
                 actions={(commit) => (
                     <ModerationActions
-                        commit={commit}
                         isSelected={selected.has(commit.id)}
-                        disabled={approving}
+                        isDisabled={isModerating || approving}
                         onSelectedChange={(isSelected) =>
                             toggle(commit.id, isSelected)
                         }
+                        onModerate={(route) => moderate(commit, route)}
                     />
                 )}
                 empty={

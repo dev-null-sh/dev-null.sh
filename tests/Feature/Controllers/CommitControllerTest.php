@@ -157,6 +157,18 @@ it('may not delete commits of other users', function (): void {
     expect($commit->fresh())->not->toBeNull();
 });
 
+it('may delete own commit from its page', function (): void {
+    $commit = Commit::factory()->create();
+
+    $response = $this->actingAs($commit->user)
+        ->from(route('commit.show', [$commit->user, $commit]))
+        ->delete(route('commit.destroy', $commit));
+
+    $response->assertRedirectToRoute('user.show', $commit->user);
+
+    expect($commit->fresh())->toBeNull();
+});
+
 it('tells users their commit is pending review', function (): void {
     $user = User::factory()->create();
 
@@ -231,4 +243,65 @@ it('may not reply to a commit that does not exist', function (): void {
         ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => '01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3']);
 
     $response->assertSessionHasErrors('parent_id');
+});
+
+it('shows a commit with its ancestors and reply count', function (): void {
+    $viewer = User::factory()->create();
+    $root = Commit::factory()->create();
+    $commit = Commit::factory()->for($root, 'parent')->create(['body' => 'Focused']);
+    Commit::factory()->for($commit, 'parent')->count(2)->create();
+    Commit::factory()->for($commit, 'parent')->pending()->create();
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('commit/show')
+            ->where('commit.id', $commit->id)
+            ->where('commit.body', 'Focused')
+            ->where('commit.user.username', $commit->user->username)
+            ->where('commit.replies_count', 2)
+            ->has('replies', 2)
+            ->where('replies.0.user.username', fn (string $username): bool => $username !== '')
+            ->has('ancestors', 1)
+            ->where('ancestors.0.id', $root->id)
+            ->where('ancestors.0.user.username', $root->user->username)
+            ->missing('commit.user.email'));
+});
+
+it('shows own pending commit', function (): void {
+    $commit = Commit::factory()->pending()->create();
+
+    $response = $this->actingAs($commit->user)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.status', 'pending'));
+});
+
+it('does not show a commit that is not visible', function (): void {
+    $commit = Commit::factory()->pending()->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertNotFound();
+});
+
+it('does not show a commit under another username', function (): void {
+    $commit = Commit::factory()->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [User::factory()->create(), $commit]));
+
+    $response->assertNotFound();
+});
+
+it('requires authentication to show a commit', function (): void {
+    $commit = Commit::factory()->create();
+
+    $response = $this->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertRedirectToRoute('home');
 });

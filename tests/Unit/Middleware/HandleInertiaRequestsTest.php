@@ -148,3 +148,37 @@ it('shares guests as non admins', function (): void {
 
     expect($shared['auth']['isAdmin'])->toBeFalse();
 });
+
+it('shares whether there are unmoderated commits for admins', function (): void {
+    config(['app.admins' => ['admin']]);
+
+    $admin = User::factory()->create(['username' => 'admin']);
+
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $admin);
+
+    $shared = $middleware->share($request);
+
+    expect(value($shared['hasUnmoderatedCommits']))->toBeFalse();
+
+    Commit::factory()->pending()->create();
+
+    expect(value($shared['hasUnmoderatedCommits']))->toBeTrue();
+});
+
+it('shares hasUnmoderatedCommits as false for non admins', function (): void {
+    Commit::factory()->pending()->create();
+
+    $user = User::factory()->create(['username' => 'user']);
+
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    $shared = $middleware->share($request);
+
+    expect(value($shared['hasUnmoderatedCommits']))->toBeFalse();
+});

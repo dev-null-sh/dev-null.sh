@@ -271,6 +271,7 @@ Quiet, rectangular, decisive.
 
 ### Inputs / Fields
 - **Composer:** borderless, no visible field chrome: a 17px textarea ("What did you ship?", max 280) that grows with content. Its state is carried by the graph: the staged node is hollow until the body reaches 3 characters, then fills with the author's lane; the tail below it is a dashed Rail Gray line. A mono countdown sits left of the "Commit" button; ⌘/Ctrl+Enter commits.
+- **Stash:** unsent text in the composer and in each reply composer is kept in `localStorage` per signed-in user (cleared on commit, when emptied, and on log out). When a draft comes back after a reload or navigation, a quiet mono `stash@{0}` (title "Restored your unsent draft") sits at the left of the counter row with a muted `drop` text button that discards it. Merely typing never shows it. A thread with a stashed reply prints a muted 11px mono `stash@{0}` after its "Reply" action; Cancel and Escape close the reply composer but keep the stash. Neither element is blue.
 - **Read-only fields (settings):** a hairline-bordered 8px-radius list, mono keys in a 6.5rem column, values in sans; missing values print a mono `null`.
 - **Theme switch:** a bordered segmented group (8px outer, 6px inner) whose selected option uses the active-nav treatment.
 
@@ -282,6 +283,9 @@ A 14px circle (16px on the landing page) centered on a 2px vertical line. The se
 
 ### Empty States
 Centered in the feed: a mono `fatal: …` line in Muted Ink, then one or two plain sentences (15px, max 24rem) with a single Commit Blue link when there is somewhere to go.
+
+### Error Pages
+403, 404, 429, 500 (outside debug), and 503 render one standalone `error` page, with no app shell, for guests and signed-in users alike. A broken rail: the wordmark sits on a node in the viewer's lane (Rail Gray for guests) whose segment fades out before reaching a hollow, dangling node. Beside it, a mono git-style line (`fatal: path '/x' does not exist in 'HEAD'`), a Headline sentence saying what happened, one muted sentence saying what to do, and a single primary button ("Back to your log", "Go to the home page", or "Try again" during maintenance). A 419 is not a page: it redirects back with an error toast.
 
 ### Profile Header
 A 80px avatar with a 2px lane ring offset 4px from the surface, name in Title, mono handle led by the lane dot, metadata with 16px line icons, and mono counts paired with sans labels ("3 commits", "5 following").
@@ -295,7 +299,7 @@ Below the profile header: a GitHub-style 53-week grid (Sunday-first columns, Mon
 - **New commits pill:** polling every 30s; when commits arrive, a Commit Blue pill ("↑ 3 new commits") hangs under the tabs and reloads the log from the top.
 - **Commit toast:** after committing, a mono toast prints `[log <hash>] <body>`, the way `git commit` reports.
 - **Loading:** skeleton rows keep the rail running (rail-gray node and line, pulsing bars) while the next page loads.
-- **Keyboard:** `j`/`k` move a focus highlight (Accent background) between commits, `c` focuses the composer, `g` then `l`/`e`/`p`/`s` navigates, `?` opens the shortcut sheet; keys render as bordered mono `kbd` caps.
+- **Keyboard:** `j`/`k` move a focus highlight (Accent background) between commits, `c` focuses the composer, `g` then `l`/`e`/`p`/`s` navigates, `?` opens the shortcut sheet; keys render as bordered mono `kbd` caps. In the moderation queue `a`/`x` approve or reject the focused commit and focus moves to the next one; the caps sit inside the Approve/Reject buttons (from sm), and the sheet adds a Moderation section for admins.
 - **Starter suggestions:** an empty Log for someone who follows nobody lists three recent approved commits from different authors, each with a Follow button.
 - **Thread keys:** on the focused commit, `r` opens its reply composer with the cursor in it and `o` shows or hides its replies; focus stays on the commit (Esc or replying returns it there), so `j`/`k` keep stepping through top-level commits. The commit's own Reply and replies buttons carry `aria-keyshortcuts` and a `title` hint, with no caps in the action row.
 - **Activity tooltip:** one dark tooltip (Ink on Background inverted) follows the hovered cell, edge-aligned near the ends; hovering a day tints that day's commits in the profile feed with Primary Soft.
@@ -305,6 +309,9 @@ Hovering an avatar, name, or handle (mouse only, 450ms delay, 200ms grace to mov
 
 ### Reply Threads
 Under a commit's body, a quiet action row: "Reply" (muted, opens an inline bordered composer with its own counter, Cancel, and Reply; ⌘/Ctrl+Enter submits, Escape cancels) and "N replies" in Commit Blue, which expands the thread in place. Replies are compact rows: 24px (phone) / 28px avatar, name, mono handle (hidden on phones), time, status badge, then the body. Children render below their parent at the parent's left edge, not inside its text column, behind a 1px Rail Gray guide line; each level costs 19px (phone) / 27px. Indentation stops at three levels: deeper replies stay at that depth and carry a mono "↳ replying to @handle" label. Bodies wrap anywhere (`overflow-wrap: anywhere`) so long URLs and tokens never overflow.
+
+### Commit Page
+Every commit has a page at `/@username/commits/{id}`, reached from its relative time or short hash (both links), the "↳ replying to @handle" label, or Enter on a focused commit. A sticky header reads "Commit" with the mono short hash on the right. Visible ancestors (up to 20) stack above as regular commit rows on one continuous rail, without delete; the focused commit sits last with a 17px body, a mono "time · date · commit hash" line, and its replies already expanded.
 
 ### People Search
 A command palette opened by ⌘K / Ctrl+K or `/` anywhere, the "Search developers ⌘K" pill at the top of the right column, a Search nav item where that column is hidden, or the search icon in the mobile header. Popover surface, 576px max, 12vh from the top: a borderless 17px input with a search icon and an `esc` cap, results as rows (36px avatar, name in 600, mono handle with lane dot, truncated bio) with the active row on Accent and a `↵` hint, and a footer of key hints (hidden on phones). Combobox semantics: arrow keys move, Enter opens the profile, Escape closes. Empty: "Type a name or @handle."; pending: "Searching…"; no match: mono `fatal: no developers match '…'`.

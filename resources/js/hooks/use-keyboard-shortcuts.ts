@@ -50,6 +50,22 @@ function focusedCommitAction(key: string): HTMLButtonElement | null {
     );
 }
 
+function openFocusedCommit(): boolean {
+    const commit = document.activeElement;
+
+    if (
+        !(commit instanceof HTMLElement) ||
+        !commit.matches('[data-commit]') ||
+        !commit.dataset.permalink
+    ) {
+        return false;
+    }
+
+    router.visit(commit.dataset.permalink);
+
+    return true;
+}
+
 function focusComposer(): void {
     const body = document.getElementById('body');
 
@@ -112,6 +128,14 @@ export function useKeyboardShortcuts(
                 if (goTo[event.key]) {
                     event.preventDefault();
                     goTo[event.key]();
+                }
+
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                if (openFocusedCommit()) {
+                    event.preventDefault();
                 }
 
                 return;

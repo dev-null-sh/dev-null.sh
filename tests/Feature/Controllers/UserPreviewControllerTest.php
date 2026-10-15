@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it('returns a summary of the user for the user preview', function (): void {
     $viewer = User::factory()->create();
@@ -29,6 +30,19 @@ it('returns a summary of the user for the user preview', function (): void {
         ->assertJsonPath('followsYou', true)
         ->assertJsonMissingPath('user.email')
         ->assertJsonMissingPath('user.github_id');
+});
+
+it('loads counts without joining users', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    DB::enableQueryLog();
+
+    $this->actingAs($viewer)->getJson('/@octocat/preview');
+
+    $queries = array_column(DB::getQueryLog(), 'query');
+
+    expect($queries)->each->not->toContain('join');
 });
 
 it('reports when neither user follows the other', function (): void {

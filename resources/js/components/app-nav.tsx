@@ -25,7 +25,7 @@ import { edit } from '@/routes/user-profile';
 import type { NavItem } from '@/types';
 
 function useNavItems(): (NavItem & { isActive: boolean })[] {
-    const { auth } = usePage().props;
+    const { auth, hasUnmoderatedCommits } = usePage().props;
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
 
     const items: NavItem[] = [
@@ -50,6 +50,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                       title: 'Moderation',
                       href: ModerationController.show(),
                       icon: ShieldCheck,
+                      hasIndicator: hasUnmoderatedCommits,
                   },
               ]
             : []),
@@ -102,10 +103,24 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                             },
                         )}
                     >
-                        {item.icon && <item.icon className="size-5" />}
+                        <span className="relative">
+                            {item.icon && <item.icon className="size-5" />}
+                            {item.hasIndicator && (
+                                <span
+                                    className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary lg:hidden"
+                                    data-test="notification-indicator"
+                                />
+                            )}
+                        </span>
                         <span className="sr-only lg:not-sr-only">
                             {item.title}
                         </span>
+                        {item.hasIndicator && (
+                            <span
+                                className="ml-auto hidden size-2 rounded-full bg-primary lg:inline-block"
+                                data-test="notification-indicator"
+                            />
+                        )}
                     </Link>
                 ))}
                 <button
@@ -200,7 +215,15 @@ export function MobileNav() {
                         { 'text-primary': item.isActive },
                     )}
                 >
-                    {item.icon && <item.icon className="size-5" />}
+                    <span className="relative">
+                        {item.icon && <item.icon className="size-5" />}
+                        {item.hasIndicator && (
+                            <span
+                                className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary"
+                                data-test="notification-indicator"
+                            />
+                        )}
+                    </span>
                     {item.title}
                 </Link>
             ))}

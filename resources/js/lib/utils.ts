@@ -42,6 +42,19 @@ export function formatRelativeTime(date: string, now: Date = new Date()) {
     });
 }
 
+export function formatFullDateTime(date: string): string {
+    const value = new Date(date);
+
+    return `${value.toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+    })} · ${value.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    })}`;
+}
+
 const laneCount = 6;
 
 export function laneFor(id: string): string {
