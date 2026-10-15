@@ -1,4 +1,4 @@
-import { Plus, X } from 'lucide-react';
+import { ChevronDown, Plus, X } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -136,27 +136,33 @@ export function PollEditor({
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
                     Poll length
-                    <select
-                        id="poll-duration"
-                        name="poll[duration]"
-                        value={poll.duration}
-                        onChange={(event) =>
-                            onChange({
-                                ...poll,
-                                duration: Number(event.currentTarget.value),
-                            })
-                        }
-                        className="h-8 rounded-md border bg-background px-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                    >
-                        {durations.map((duration) => (
-                            <option
-                                key={duration.minutes}
-                                value={duration.minutes}
-                            >
-                                {duration.label}
-                            </option>
-                        ))}
-                    </select>
+                    <span className="relative inline-flex">
+                        <select
+                            id="poll-duration"
+                            name="poll[duration]"
+                            value={poll.duration}
+                            onChange={(event) =>
+                                onChange({
+                                    ...poll,
+                                    duration: Number(event.currentTarget.value),
+                                })
+                            }
+                            className="h-8 appearance-none rounded-md border bg-background pr-8 pl-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        >
+                            {durations.map((duration) => (
+                                <option
+                                    key={duration.minutes}
+                                    value={duration.minutes}
+                                >
+                                    {duration.label}
+                                </option>
+                            ))}
+                        </select>
+                        <ChevronDown
+                            aria-hidden="true"
+                            className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+                        />
+                    </span>
                 </label>
                 <Button
                     type="button"
