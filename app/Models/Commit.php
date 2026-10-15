@@ -69,14 +69,14 @@ final class Commit extends Model
     }
 
     /**
-     * The topics a commit card shows: only those enough commits share to have been promoted.
+     * The topics a commit card shows: only those enough approved commits share to have been promoted.
      *
      * @return BelongsToMany<Topic, $this>
      */
     public function promotedTopics(): BelongsToMany
     {
         return $this->topics()
-            ->has('commits', '>=', Topic::MIN_COMMITS)
+            ->whereHas('commits', fn (CommitBuilder $commits): CommitBuilder => $commits->approved(), '>=', Topic::MIN_COMMITS)
             ->select('topics.id', 'topics.name');
     }
 }

@@ -19,8 +19,10 @@ final readonly class CreateCommit
             'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
         ]);
 
-        // Queued so committing never waits on, or fails because of, the Claude call.
-        dispatch(new AssignCommitTopics($commit));
+        // Pending commits are filed once approved, so rejected ones never cost a Claude call.
+        if ($commit->status === CommitStatus::Approved) {
+            dispatch(new AssignCommitTopics($commit));
+        }
 
         return $commit;
     }

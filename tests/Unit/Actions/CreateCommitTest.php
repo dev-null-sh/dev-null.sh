@@ -48,10 +48,19 @@ it('approves commits of admins right away', function (): void {
     expect($commit->status)->toBe(CommitStatus::Approved);
 });
 
-it('queues the commit to be filed under topics', function (): void {
+it('queues an approved commit to be filed under topics', function (): void {
     Queue::fake();
+    config(['app.admins' => ['nunomaduro']]);
 
-    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Initial commit');
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Initial commit');
 
     Queue::assertPushed(AssignCommitTopics::class, fn (AssignCommitTopics $job): bool => $job->commit->is($commit));
+});
+
+it('leaves a pending commit unfiled until it is approved', function (): void {
+    Queue::fake();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(), 'Initial commit');
+
+    Queue::assertNotPushed(AssignCommitTopics::class);
 });

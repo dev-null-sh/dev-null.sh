@@ -50,3 +50,12 @@ it('has promoted topics', function (): void {
     expect($commit->promotedTopics->pluck('id')->all())->toBe([$promoted->id])
         ->and(array_keys($commit->promotedTopics->sole()->toArray()))->toBe(['id', 'name']);
 });
+
+it('only counts approved commits towards promoting a topic', function (): void {
+    $topic = Topic::factory()
+        ->hasAttached(Commit::factory()->count(Topic::MIN_COMMITS - 1)->pending())
+        ->create();
+    $commit = Commit::factory()->hasAttached($topic)->create();
+
+    expect($commit->promotedTopics)->toBeEmpty();
+});

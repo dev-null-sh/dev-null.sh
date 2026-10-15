@@ -25,3 +25,11 @@ it('scopes commits to pending ones', function (): void {
 
     expect(Commit::query()->pending()->sole()->is($pending))->toBeTrue();
 });
+
+it('scopes commits to approved ones', function (): void {
+    $approved = Commit::factory()->create();
+    Commit::factory()->pending()->create();
+    Commit::factory()->rejected()->create();
+
+    expect(Commit::query()->approved()->sole()->is($approved))->toBeTrue();
+});
