@@ -9,6 +9,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\TopicController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserProfileController;
@@ -49,6 +50,8 @@ Route::middleware('auth')->group(function (): void {
         Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
             ->name('commit-rejection.store');
     });
+    // Topic...
+    Route::get('topics/{topic:name}', [TopicController::class, 'show'])->name('topic.show');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));

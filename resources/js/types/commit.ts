@@ -1,4 +1,5 @@
 import type { User } from '@/types/auth';
+import type { Topic } from '@/types/topic';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
@@ -11,6 +12,7 @@ export type Commit = {
     created_at: string;
     updated_at: string;
     user: User;
+    promoted_topics: Pick<Topic, 'id' | 'name'>[];
 };
 
 export type CursorPaginated<T> = {

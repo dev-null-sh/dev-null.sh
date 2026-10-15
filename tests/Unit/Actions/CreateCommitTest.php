@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommit;
 use App\Enums\CommitStatus;
+use App\Jobs\AssignCommitTopics;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 
 it('may create a commit', function (): void {
     $user = User::factory()->create();
@@ -44,4 +46,12 @@ it('approves commits of admins right away', function (): void {
     $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Initial commit');
 
     expect($commit->status)->toBe(CommitStatus::Approved);
+});
+
+it('queues the commit to be filed under topics', function (): void {
+    Queue::fake();
+
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Initial commit');
+
+    Queue::assertPushed(AssignCommitTopics::class, fn (AssignCommitTopics $job): bool => $job->commit->is($commit));
 });

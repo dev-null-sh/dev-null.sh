@@ -17,7 +17,7 @@ final readonly class EveryoneLogQuery implements LogQuery
     {
         return Commit::query()
             ->visibleTo($user)
-            ->with('user')
+            ->with(['user', 'promotedTopics'])
             ->latest()
             ->latest('id');
     }

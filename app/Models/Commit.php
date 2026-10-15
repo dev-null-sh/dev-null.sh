@@ -9,10 +9,12 @@ use App\Queries\CommitBuilder;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
  * @property-read string $id
@@ -23,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read User $user
+ * @property-read Collection<int, Topic> $topics
+ * @property-read Collection<int, Topic> $promotedTopics
  */
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -54,5 +58,25 @@ final class Commit extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsToMany<Topic, $this>
+     */
+    public function topics(): BelongsToMany
+    {
+        return $this->belongsToMany(Topic::class);
+    }
+
+    /**
+     * The topics a commit card shows: only those enough commits share to have been promoted.
+     *
+     * @return BelongsToMany<Topic, $this>
+     */
+    public function promotedTopics(): BelongsToMany
+    {
+        return $this->topics()
+            ->has('commits', '>=', Topic::MIN_COMMITS)
+            ->select('topics.id', 'topics.name');
     }
 }

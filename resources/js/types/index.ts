@@ -2,5 +2,6 @@ export type * from './activity';
 export type * from './auth';
 export type * from './commit';
 export type * from './log';
+export type * from './topic';
 export type * from './navigation';
 export type * from './ui';

@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import TopicController from '@/actions/App/Http/Controllers/TopicController';
 import { GraphRail } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -155,6 +156,23 @@ export function CommitCard({
                                     <p className="mt-1 text-[15px] leading-relaxed break-words whitespace-pre-wrap text-muted-foreground">
                                         {commit.description}
                                     </p>
+                                )}
+                                {commit.promoted_topics.length > 0 && (
+                                    <ul className="mt-2 flex flex-wrap gap-1.5">
+                                        {commit.promoted_topics.map((topic) => (
+                                            <li key={topic.id}>
+                                                <Link
+                                                    href={TopicController.show(
+                                                        topic.name,
+                                                    )}
+                                                    className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[13px] text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                                                    data-test="topic-link"
+                                                >
+                                                    {topic.name}
+                                                </Link>
+                                            </li>
+                                        ))}
+                                    </ul>
                                 )}
                             </>
                         )}

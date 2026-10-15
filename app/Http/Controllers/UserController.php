@@ -31,7 +31,7 @@ final readonly class UserController
             'activity' => $activity->get($user, $currentUser),
             'commits' => Inertia::scroll(fn () => $user->commits()
                 ->visibleTo($currentUser)
-                ->with('user')
+                ->with(['user', 'promotedTopics'])
                 ->latest()
                 ->latest('id')
                 ->cursorPaginate(20)),
