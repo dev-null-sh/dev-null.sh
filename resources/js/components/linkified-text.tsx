@@ -1,8 +1,9 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 import TagController from '@/actions/App/Http/Controllers/TagController';
+import { show } from '@/routes/user';
 
-// Keep these rules in sync with app/Actions/FindFirstUrl.php.
+// Keep these rules in sync with app/Actions/FindFirstUrl.php and app/Actions/FindMentions.php.
 
 // Top-level domains that a bare domain like "nativephp.com" may end with. It is an allowlist because most file
 // extensions are also real TLDs. Leave out any that read like code or files (sh, py, rs, md, pl, cc, in, mk, ml, so,
@@ -27,6 +28,10 @@ const urlPattern = new RegExp(
         String.raw`(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?`,
     'gu',
 );
+// A GitHub username after an "@" that doesn't follow a letter, digit, "_", ".", "/", "@" or "-", and doesn't run
+// into a path or a domain, so emails, "@inertiajs/react" and "@vue.js" are not mentions.
+const mentionPattern =
+    /(?<![\p{L}\p{N}_./@-])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})(?![A-Za-z0-9_@/-]|\.[A-Za-z0-9])/gu;
 const schemePattern = /^https?:\/\//i;
 const maxUrlLength = 2048;
 const brackets = [
@@ -60,20 +65,40 @@ function withoutTrailingPunctuation(candidate: string): string {
 const tagPattern =
     /(?<![^\s(["'{])#([A-Za-z](?:[A-Za-z0-9_-]{0,48}[A-Za-z0-9])?)(?![A-Za-z0-9_-]*[A-Za-z0-9])/gu;
 
-function withTags(text: string, offset: number): ReactNode[] {
+// One pattern, so that each rule's lookbehind sees the text around it, as it does in PHP. A tag and a mention can't
+// overlap: neither can contain the other's sigil.
+const tagOrMentionPattern = new RegExp(
+    `${mentionPattern.source}|${tagPattern.source}`,
+    'gu',
+);
+
+function withTagsAndMentions(text: string, offset: number): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
 
-    for (const match of text.matchAll(tagPattern)) {
+    for (const match of text.matchAll(tagOrMentionPattern)) {
+        const [, username, tag] = match;
+
         parts.push(
             text.slice(position, match.index),
-            <Link
-                key={`tag-${offset + match.index}`}
-                href={TagController.show(match[1].toLowerCase())}
-                className="text-primary hover:underline"
-            >
-                {match[0]}
-            </Link>,
+            username !== undefined ? (
+                <Link
+                    key={`mention-${offset + match.index}`}
+                    href={show({ username })}
+                    className="font-medium text-primary hover:underline"
+                    data-test="mention"
+                >
+                    {match[0]}
+                </Link>
+            ) : (
+                <Link
+                    key={`tag-${offset + match.index}`}
+                    href={TagController.show(tag.toLowerCase())}
+                    className="text-primary hover:underline"
+                >
+                    {match[0]}
+                </Link>
+            ),
         );
 
         position = match.index + match[0].length;
@@ -99,7 +124,7 @@ export function LinkifiedText({ text }: { text: string }) {
         }
 
         parts.push(
-            ...withTags(text.slice(position, match.index), position),
+            ...withTagsAndMentions(text.slice(position, match.index), position),
             <a
                 key={match.index}
                 href={href}
@@ -114,7 +139,7 @@ export function LinkifiedText({ text }: { text: string }) {
         position = match.index + linkText.length;
     }
 
-    parts.push(...withTags(text.slice(position), position));
+    parts.push(...withTagsAndMentions(text.slice(position), position));
 
     return <>{parts}</>;
 }

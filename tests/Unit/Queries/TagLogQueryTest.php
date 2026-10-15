@@ -23,6 +23,7 @@ it('includes commits and replies with the tag newest first', function (): void {
     expect($commits->modelKeys())->toBe([$reply->id, $older->id])
         ->and($commits->first()->relationLoaded('user'))->toBeTrue()
         ->and($commits->first()->relationLoaded('linkPreview'))->toBeTrue()
+        ->and($commits->first()->relationLoaded('images'))->toBeTrue()
         ->and($commits->first()->parent->relationLoaded('user'))->toBeTrue()
         ->and($commits->first()->replies_count)->toBe(0)
         ->and($commits->first()->stars_count)->toBe(0);

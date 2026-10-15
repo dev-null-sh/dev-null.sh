@@ -28,6 +28,7 @@ final readonly class TagLogQuery
             ->with([
                 'user',
                 'linkPreview',
+                'images',
                 'parent' => fn (BelongsTo $query): BelongsTo => $query
                     ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user))
                     ->with('user'),
