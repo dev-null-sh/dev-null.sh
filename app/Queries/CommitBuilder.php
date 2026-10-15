@@ -20,8 +20,8 @@ final class CommitBuilder extends Builder
     public function visibleTo(User $user): self
     {
         return $this->where(fn (Builder $query): Builder => $query
-            ->where('status', CommitStatus::Approved)
-            ->orWhere('user_id', $user->id));
+            ->where($this->qualifyColumn('status'), CommitStatus::Approved)
+            ->orWhere($this->qualifyColumn('user_id'), $user->id));
     }
 
     /**
@@ -54,6 +54,13 @@ final class CommitBuilder extends Builder
     public function approved(): self
     {
         return $this->where('status', CommitStatus::Approved);
+    }
+
+    public function withSavedState(User $user): self
+    {
+        return $this->withExists([
+            'bookmarks as is_saved' => fn (Builder $query): Builder => $query->where('user_id', $user->id),
+        ]);
     }
 
     public function pending(): self
