@@ -8,7 +8,6 @@ use App\Enums\CommitStatus;
 use App\Enums\PollDuration;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
-use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\Poll;
@@ -241,7 +240,7 @@ it('does not attach a poll to a commit with images', function (): void {
 });
 
 it('stores the images of a commit', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at this', images: [
         UploadedFile::fake()->image('photo.jpg', 10, 10),

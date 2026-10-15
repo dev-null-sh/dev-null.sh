@@ -611,7 +611,7 @@ it('includes the link previews of a commit, its ancestors and its replies', func
 });
 
 it('may attach images to a commit', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $user = User::factory()->create();
 
@@ -633,11 +633,11 @@ it('may attach images to a commit', function (): void {
 
     expect($commit->status)->toBe(CommitStatus::Pending)
         ->and($commit->images)->toHaveCount(3)
-        ->and(Storage::disk(CommitImage::DISK)->allFiles('commit-images'))->toHaveCount(3);
+        ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
 });
 
 it('may not attach more than three images to a commit', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $user = User::factory()->create();
 
@@ -652,7 +652,7 @@ it('may not attach more than three images to a commit', function (): void {
 });
 
 it('may only attach jpeg, png, gif or webp images to a commit', function (UploadedFile $file): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $user = User::factory()->create();
 
@@ -664,7 +664,7 @@ it('may only attach jpeg, png, gif or webp images to a commit', function (Upload
     $response->assertSessionHasErrors('images.0');
 
     expect($user->commits()->count())->toBe(0)
-        ->and(Storage::disk(CommitImage::DISK)->allFiles())->toBe([]);
+        ->and(Storage::disk()->allFiles())->toBe([]);
 })->with([
     'svg' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
     'html disguised as png' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.png', '<html><script>alert(1)</script></html>'),

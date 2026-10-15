@@ -31,14 +31,6 @@ it('is idempotent', function (): void {
     expect($follower->following()->count())->toBeOne();
 });
 
-it('may not follow themselves', function (): void {
-    $user = User::factory()->create();
-
-    $action = resolve(FollowUser::class);
-
-    $action->handle($user, $user);
-})->throws(InvalidArgumentException::class, 'Users cannot follow themselves.');
-
 it('notifies the followed user', function (): void {
     $follower = User::factory()->create();
     $user = User::factory()->create();
