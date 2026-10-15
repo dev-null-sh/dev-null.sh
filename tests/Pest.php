@@ -80,3 +80,16 @@ function fakeAvatar(): string
 
     return (string) ob_get_clean();
 }
+
+/**
+ * @param  array<string, float>  $nouls
+ * @return array{model: string, answers: array<string, array{type: string, noul: float}>, usage: array{input_tokens: int, output_tokens: int}}
+ */
+function jevAnswers(array $nouls, int $inputTokens = 1646): array
+{
+    return [
+        'model' => 'jev-1.13.0',
+        'answers' => array_map(fn (float $noul): array => ['type' => 'noul', 'noul' => $noul], $nouls),
+        'usage' => ['input_tokens' => $inputTokens, 'output_tokens' => 153],
+    ];
+}

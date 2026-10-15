@@ -36,6 +36,14 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'typesafe' => [
+        'key' => env('TYPESAFE_API_KEY'),
+        'url' => env('TYPESAFE_BASE_URL', 'https://api.typesafe.ai'),
+        'model' => env('TYPESAFE_MODEL', 'jev-1.13.0'),
+        'timeout' => (int) env('TYPESAFE_TIMEOUT', 10),
+        'enabled' => (bool) env('TYPESAFE_MODERATION_ENABLED', false),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

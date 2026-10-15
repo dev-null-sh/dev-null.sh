@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -38,6 +39,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
  * @property-read Collection<int, CommitImage> $images
+ * @property-read CommitEvaluation|null $evaluation
  */
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -142,6 +144,16 @@ final class Commit extends Model
     public function images(): HasMany
     {
         return $this->hasMany(CommitImage::class)->orderBy('position');
+    }
+
+    /**
+     * The latest time the moderation rules looked at the commit. Only moderators may see it.
+     *
+     * @return HasOne<CommitEvaluation, $this>
+     */
+    public function evaluation(): HasOne
+    {
+        return $this->hasOne(CommitEvaluation::class)->latestOfMany('created_at');
     }
 
     /**
