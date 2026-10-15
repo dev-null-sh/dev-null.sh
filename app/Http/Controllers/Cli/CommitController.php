@@ -5,20 +5,17 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Cli;
 
 use App\Actions\CreateCommit;
-use App\Actions\FindCommitByReference;
 use App\Enums\CommitStatus;
-use App\Http\Requests\CreateCommitRequest;
+use App\Http\Requests\CreateCliCommitRequest;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\Response;
 
 final readonly class CommitController
 {
-    public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, FindCommitByReference $findCommitByReference): Response
+    public function store(CreateCliCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): Response
     {
-        $parent = $request->filled('reply_to') ? $findCommitByReference->handle($user, $request->string('reply_to')->value()) : null;
-
-        $commit = $action->handle($user, $request->string('body')->value(), $parent);
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent());
 
         $url = route('commit.show', [$user, $commit]);
 

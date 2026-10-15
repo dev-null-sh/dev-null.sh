@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateUserFollow;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
-use App\Actions\FollowUser;
-use App\Actions\RejectCommit;
-use App\Actions\UnfollowUser;
+use App\Actions\DeleteUserFollow;
+use App\Actions\UpdateCommitStatus;
+use App\Enums\CommitStatus;
 use App\Models\Notification;
 
 it('scopes notifications to unread ones', function (): void {
@@ -25,11 +26,11 @@ it('keeps follows that still hold', function (): void {
 it('hides follows once unfollowed, until followed again', function (): void {
     $notification = Notification::factory()->create();
 
-    resolve(UnfollowUser::class)->handle($notification->actor, $notification->recipient);
+    resolve(DeleteUserFollow::class)->handle($notification->actor, $notification->recipient);
 
     expect(Notification::query()->relevant()->exists())->toBeFalse();
 
-    resolve(FollowUser::class)->handle($notification->actor, $notification->recipient);
+    resolve(CreateUserFollow::class)->handle($notification->actor, $notification->recipient);
 
     expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
 });
@@ -37,8 +38,8 @@ it('hides follows once unfollowed, until followed again', function (): void {
 it('does not mistake a follow back for a follow', function (): void {
     $notification = Notification::factory()->create();
 
-    resolve(UnfollowUser::class)->handle($notification->actor, $notification->recipient);
-    resolve(FollowUser::class)->handle($notification->recipient, $notification->actor);
+    resolve(DeleteUserFollow::class)->handle($notification->actor, $notification->recipient);
+    resolve(CreateUserFollow::class)->handle($notification->recipient, $notification->actor);
 
     expect(Notification::query()->where('recipient_id', $notification->recipient_id)->relevant()->exists())->toBeFalse();
 });
@@ -52,7 +53,7 @@ it('keeps approved replies', function (): void {
 it('hides replies once rejected', function (): void {
     $notification = Notification::factory()->replied()->create();
 
-    resolve(RejectCommit::class)->handle($notification->commit);
+    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
 
     expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
 });
@@ -66,7 +67,7 @@ it('keeps approved mentions', function (): void {
 it('hides mentions once rejected', function (): void {
     $notification = Notification::factory()->mentioned()->create();
 
-    resolve(RejectCommit::class)->handle($notification->commit);
+    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
 
     expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
 });
