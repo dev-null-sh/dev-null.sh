@@ -6,6 +6,7 @@ use App\Actions\ReportCommit;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitReport;
+use App\Models\LinkPreview;
 use App\Models\User;
 use Inertia\Inertia;
 
@@ -54,6 +55,17 @@ it('requires authentication', function (): void {
     $this->post(route('commit-report.store', Commit::factory()->create()), ['reason' => 'spam'])->assertRedirectToRoute('home');
     $this->get(route('reported-commit.index'))->assertRedirectToRoute('home');
     expect(CommitReport::query()->count())->toBe(0);
+});
+
+it('includes link previews in the moderator report context', function (): void {
+    $preview = LinkPreview::factory()->fetched()->create(['url' => 'https://example.com/docs']);
+    $commit = Commit::factory()->create(['link_preview_id' => $preview->id]);
+    CommitReport::factory()->create(['commit_id' => $commit->id]);
+
+    $this->actingAs(User::factory()->create(['username' => 'moderator-demo']))
+        ->get(route('reported-commit.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('reports.data.0.commit.link_preview.url', $preview->url));
 });
 
 it('does not report hidden targets even for their authors or moderators', function (string $status, string $viewer): void {
