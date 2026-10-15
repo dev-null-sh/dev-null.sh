@@ -32,6 +32,7 @@ export function CommitCard({
     isFocused = false,
     canDelete = true,
     initialReplies,
+    threadActions,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -43,6 +44,7 @@ export function CommitCard({
     isFocused?: boolean;
     canDelete?: boolean;
     initialReplies?: CursorPaginated<ThreadCommit>;
+    threadActions?: ReactNode;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
@@ -267,6 +269,7 @@ export function CommitCard({
                                 <CommitThread
                                     commit={commit}
                                     initialReplies={initialReplies}
+                                    actions={threadActions}
                                 />
                             )}
 

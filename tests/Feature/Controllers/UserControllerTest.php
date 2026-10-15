@@ -281,7 +281,7 @@ it('hides deleted commits from profiles', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('user.commits_count', 1)
-            ->where('activity.368.count', 1)
+            ->where('activity.buckets.23.count', 1)
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'Kept'));
 });

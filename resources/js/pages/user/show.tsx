@@ -14,6 +14,7 @@ import { ActivityGraph } from '@/components/activity-graph';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
+import { PinCommitButton } from '@/components/pin-commit-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
@@ -29,11 +30,13 @@ export default function Show({
     isFollowing,
     activity,
     commits,
+    pinnedCommit,
 }: {
     user: Profile;
     isFollowing: boolean;
     activity: Activity;
     commits: CursorPaginated<Commit>;
+    pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user.id === user.id;
@@ -205,6 +208,17 @@ export default function Show({
 
             <CommitFeed
                 commits={commits}
+                pinnedCommit={pinnedCommit}
+                threadActions={
+                    isCurrentUser
+                        ? (commit) => (
+                              <PinCommitButton
+                                  commit={commit}
+                                  isPinned={commit.id === pinnedCommit?.id}
+                              />
+                          )
+                        : undefined
+                }
                 highlightedPeriod={highlightedPeriod}
                 end={
                     isCurrentUser

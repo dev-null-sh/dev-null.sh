@@ -5,7 +5,7 @@ import {
     MessageSquareReply,
     Trash2,
 } from 'lucide-react';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
@@ -166,15 +166,21 @@ function useThread(
 export function CommitThread({
     commit,
     initialReplies,
+    actions,
 }: {
     commit: Commit;
     initialReplies?: CursorPaginated<ThreadCommit>;
+    actions?: ReactNode;
 }) {
     const thread = useThread(commit, initialReplies);
 
     return (
         <>
-            <ThreadActions thread={thread} hasKeyboardShortcuts />
+            <ThreadActions
+                thread={thread}
+                hasKeyboardShortcuts
+                actions={actions}
+            />
             <ThreadReplies thread={thread} depth={0} />
         </>
     );
@@ -183,9 +189,11 @@ export function CommitThread({
 function ThreadActions({
     thread,
     hasKeyboardShortcuts = false,
+    actions,
 }: {
     thread: Thread;
     hasKeyboardShortcuts?: boolean;
+    actions?: ReactNode;
 }) {
     const { auth } = usePage().props;
     const { commit } = thread;
@@ -259,6 +267,7 @@ function ThreadActions({
                         keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                     />
                 )}
+                {actions}
             </div>
 
             {thread.isReplying && !isDeleted(commit) && (

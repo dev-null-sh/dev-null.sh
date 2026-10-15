@@ -6,9 +6,11 @@ namespace App\Http\Controllers;
 
 use App\Actions\DeleteUser;
 use App\Http\Requests\DeleteUserRequest;
+use App\Models\Commit;
 use App\Models\User;
 use App\Queries\UserActivityQuery;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -26,9 +28,16 @@ final readonly class UserController
             'user' => fn (): User => $user->loadCounts($currentUser),
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
             'activity' => fn (): array => $activity->get($user, $currentUser),
+            'pinnedCommit' => fn (): ?Commit => $user->pinned_commit_id === null ? null : $user->commits()
+                ->visibleTo($currentUser)
+                ->topLevel()
+                ->withVisibleReplyCount($currentUser)
+                ->with('user')
+                ->find($user->pinned_commit_id),
             'commits' => Inertia::scroll(fn () => $user->commits()
                 ->visibleTo($currentUser)
                 ->topLevel()
+                ->when($user->pinned_commit_id, fn (Builder $query, string $id): Builder => $query->whereKeyNot($id))
                 ->withVisibleReplyCount($currentUser)
                 ->with('user')
                 ->latest()
