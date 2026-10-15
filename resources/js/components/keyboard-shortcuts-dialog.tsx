@@ -9,6 +9,8 @@ const shortcuts: { keys: string[]; label: string }[] = [
     { keys: ['j'], label: 'Next commit' },
     { keys: ['k'], label: 'Previous commit' },
     { keys: ['c'], label: 'Write a commit' },
+    { keys: ['⌘', 'K'], label: 'Search developers' },
+    { keys: ['/'], label: 'Search developers' },
     { keys: ['⌘', '↵'], label: 'Commit (in the composer)' },
     { keys: ['g', 'l'], label: 'Go to your log' },
     { keys: ['g', 'e'], label: 'Go to everyone' },
@@ -35,7 +37,7 @@ export function KeyboardShortcutsDialog({
                 <dl className="divide-y text-sm">
                     {shortcuts.map((shortcut) => (
                         <div
-                            key={shortcut.label}
+                            key={shortcut.keys.join('')}
                             className="flex items-center justify-between gap-4 py-2"
                         >
                             <dt>{shortcut.label}</dt>

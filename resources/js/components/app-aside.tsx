@@ -1,4 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
+import { Search } from 'lucide-react';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
 import { laneFor } from '@/lib/utils';
@@ -11,11 +12,30 @@ const rules = [
     'Profiles mirror GitHub. Edit yours there.',
 ];
 
-export function AppAside({ onShowShortcuts }: { onShowShortcuts: () => void }) {
+export function AppAside({
+    onShowShortcuts,
+    onSearch,
+}: {
+    onShowShortcuts: () => void;
+    onSearch: () => void;
+}) {
     const { auth } = usePage().props;
 
     return (
         <aside className="sticky top-0 hidden h-svh w-80 shrink-0 flex-col gap-8 px-6 py-6 xl:flex">
+            <button
+                type="button"
+                onClick={onSearch}
+                className="-mb-2 flex h-11 items-center gap-2.5 rounded-full border bg-card px-4 text-[15px] text-muted-foreground transition-colors hover:border-input hover:text-foreground"
+                data-test="search-button"
+            >
+                <Search className="size-4" />
+                Search developers
+                <kbd className="ml-auto rounded border border-b-2 bg-muted px-1.5 font-mono text-xs">
+                    ⌘K
+                </kbd>
+            </button>
+
             <section aria-labelledby="aside-you">
                 <h2 id="aside-you" className="sr-only">
                     You

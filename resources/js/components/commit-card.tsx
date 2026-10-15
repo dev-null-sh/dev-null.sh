@@ -6,7 +6,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { GraphRail } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
-import { UserHoverCard } from '@/components/user-hover-card';
+import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import {
     cn,
@@ -85,7 +85,7 @@ export function CommitCard({
                 />
 
                 <div className="flex min-w-0 flex-1 gap-3 border-b py-3 pr-4">
-                    <UserHoverCard
+                    <UserPreview
                         user={commit.user}
                         className="shrink-0"
                         onHoverChange={onAuthorHover}
@@ -99,11 +99,11 @@ export function CommitCard({
                                 className="size-10"
                             />
                         </Link>
-                    </UserHoverCard>
+                    </UserPreview>
 
                     <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-1.5 text-[15px]">
-                            <UserHoverCard
+                            <UserPreview
                                 user={commit.user}
                                 className="flex min-w-0 items-baseline gap-1.5"
                                 onHoverChange={onAuthorHover}
@@ -121,7 +121,7 @@ export function CommitCard({
                                 >
                                     @{commit.user.username}
                                 </Link>
-                            </UserHoverCard>
+                            </UserPreview>
                             <span aria-hidden className="text-muted-foreground">
                                 ·
                             </span>

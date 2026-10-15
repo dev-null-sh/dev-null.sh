@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Models\Commit;
 use App\Models\User;
 
-it('returns a summary of the user for the hover card', function (): void {
+it('returns a summary of the user for the user preview', function (): void {
     $viewer = User::factory()->create();
     $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat', 'bio' => 'Hello']);
 
@@ -16,7 +16,7 @@ it('returns a summary of the user for the hover card', function (): void {
     Commit::factory()->for($user)->pending()->create();
 
     $response = $this->actingAs($viewer)
-        ->getJson('/@octocat/card');
+        ->getJson('/@octocat/preview');
 
     $response->assertOk()
         ->assertJsonPath('user.id', $user->id)
@@ -35,7 +35,7 @@ it('reports when neither user follows the other', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 
     $response = $this->actingAs(User::factory()->create())
-        ->getJson('/@octocat/card');
+        ->getJson('/@octocat/preview');
 
     $response->assertOk()
         ->assertJsonPath('isFollowing', false)
@@ -44,15 +44,15 @@ it('reports when neither user follows the other', function (): void {
 
 it('returns not found for unknown usernames', function (): void {
     $response = $this->actingAs(User::factory()->create())
-        ->getJson('/@missing/card');
+        ->getJson('/@missing/preview');
 
     $response->assertNotFound();
 });
 
-it('requires authentication to view a hover card', function (): void {
+it('requires authentication to view a user preview', function (): void {
     User::factory()->create(['username' => 'octocat']);
 
-    $response = $this->getJson('/@octocat/card');
+    $response = $this->getJson('/@octocat/preview');
 
     $response->assertUnauthorized();
 });

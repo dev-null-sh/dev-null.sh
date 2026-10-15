@@ -177,7 +177,7 @@ it('lists who a user is following', function (): void {
             ->where('users.data.0.id', $followed->id));
 });
 
-it('lists a user\'s followers', function (): void {
+it("lists a user's followers", function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
     $follower = User::factory()->create();
     $user->followers()->attach($follower);

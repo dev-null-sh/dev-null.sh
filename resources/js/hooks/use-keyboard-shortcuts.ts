@@ -53,7 +53,11 @@ function focusComposer(): void {
     });
 }
 
-export function useKeyboardShortcuts(user: User, onShowHelp: () => void): void {
+export function useKeyboardShortcuts(
+    user: User,
+    onShowHelp: () => void,
+    onSearch: () => void,
+): void {
     useEffect(() => {
         let awaitingGoTo = false;
         let goToTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -66,6 +70,16 @@ export function useKeyboardShortcuts(user: User, onShowHelp: () => void): void {
         };
 
         const onKeyDown = (event: KeyboardEvent) => {
+            if (
+                (event.metaKey || event.ctrlKey) &&
+                event.key.toLowerCase() === 'k'
+            ) {
+                event.preventDefault();
+                onSearch();
+
+                return;
+            }
+
             if (
                 event.defaultPrevented ||
                 event.metaKey ||
@@ -93,6 +107,7 @@ export function useKeyboardShortcuts(user: User, onShowHelp: () => void): void {
                 j: () => moveCommitFocus(1),
                 k: () => moveCommitFocus(-1),
                 c: focusComposer,
+                '/': onSearch,
                 '?': onShowHelp,
                 g: () => {
                     awaitingGoTo = true;
@@ -114,5 +129,5 @@ export function useKeyboardShortcuts(user: User, onShowHelp: () => void): void {
             window.removeEventListener('keydown', onKeyDown);
             clearTimeout(goToTimeout);
         };
-    }, [user, onShowHelp]);
+    }, [user, onShowHelp, onSearch]);
 }

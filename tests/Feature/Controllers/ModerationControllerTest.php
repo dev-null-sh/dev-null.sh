@@ -63,6 +63,57 @@ it('may reject a commit', function (): void {
     expect($commit->refresh()->status)->toBe(CommitStatus::Rejected);
 });
 
+it('may approve many commits', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    $commits = Commit::factory()->pending()->count(2)->create();
+    $other = Commit::factory()->pending()->create();
+
+    $response = $this->actingAs($admin)
+        ->fromRoute('moderation.show')
+        ->post(route('moderation.approve'), [
+            'commits' => $commits->modelKeys(),
+        ]);
+
+    $response->assertRedirectToRoute('moderation.show');
+
+    foreach ($commits as $commit) {
+        expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
+    }
+
+    expect($other->refresh()->status)->toBe(CommitStatus::Pending);
+});
+
+it('requires valid commits to approve many commits', function (mixed $commits): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+
+    $response = $this->actingAs($admin)
+        ->fromRoute('moderation.show')
+        ->post(route('moderation.approve'), [
+            'commits' => $commits,
+        ]);
+
+    $response->assertRedirectToRoute('moderation.show')
+        ->assertSessionHasErrors('commits');
+})->with([
+    'missing' => [null],
+    'empty' => [[]],
+    'not an array' => ['not-an-array'],
+    'too many' => [array_fill(0, 101, '0199a3b2-0000-7000-8000-000000000000')],
+]);
+
+it('may not approve many commits as a non admin', function (): void {
+    $commit = Commit::factory()->pending()->create();
+
+    $response = $this->actingAs($commit->user)
+        ->post(route('moderation.approve'), [
+            'commits' => [$commit->id],
+        ]);
+
+    $response->assertForbidden();
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Pending);
+});
+
 it('may not moderate commits as a non admin', function (string $route): void {
     $commit = Commit::factory()->pending()->create();
 

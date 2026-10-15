@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     GitCommitVertical,
     Globe,
+    Search,
     Settings2,
     ShieldCheck,
     UserRound,
@@ -68,7 +69,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     }));
 }
 
-export function AppNav() {
+export function AppNav({ onSearch }: { onSearch: () => void }) {
     const { auth } = usePage().props;
     const items = useNavItems();
 
@@ -107,6 +108,17 @@ export function AppNav() {
                         </span>
                     </Link>
                 ))}
+                <button
+                    type="button"
+                    onClick={onSearch}
+                    className="flex items-center gap-3 rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground xl:hidden"
+                >
+                    <Search className="size-5" />
+                    <span className="sr-only lg:not-sr-only">Search</span>
+                    <kbd className="ml-auto hidden rounded border border-b-2 bg-muted px-1.5 font-mono text-xs lg:block">
+                        ⌘K
+                    </kbd>
+                </button>
             </nav>
 
             <DropdownMenu>
@@ -132,7 +144,7 @@ export function AppNav() {
     );
 }
 
-export function MobileHeader() {
+export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     const { auth } = usePage().props;
 
     return (
@@ -144,17 +156,27 @@ export function MobileHeader() {
                 <AppLogo className="text-lg" />
             </Link>
 
-            <DropdownMenu>
-                <DropdownMenuTrigger
-                    className="rounded-full"
-                    aria-label="Account menu"
+            <div className="flex items-center gap-1">
+                <button
+                    type="button"
+                    onClick={onSearch}
+                    aria-label="Search developers"
+                    className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
-                    <UserAvatar user={auth.user} className="size-8" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-60" align="end">
-                    <UserMenuContent user={auth.user} />
-                </DropdownMenuContent>
-            </DropdownMenu>
+                    <Search className="size-5" />
+                </button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger
+                        className="rounded-full"
+                        aria-label="Account menu"
+                    >
+                        <UserAvatar user={auth.user} className="size-8" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-60" align="end">
+                        <UserMenuContent user={auth.user} />
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
         </div>
     );
 }

@@ -10,7 +10,7 @@ export default function AppLogo({ className }: { className?: string }) {
             )}
         >
             <AppLogoIcon className="size-[1.1em] fill-current" />
-            devnull
+            /dev/null
         </span>
     );
 }

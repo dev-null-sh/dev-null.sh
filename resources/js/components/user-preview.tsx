@@ -2,17 +2,17 @@ import { Link, router, usePage } from '@inertiajs/react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import UserCardController from '@/actions/App/Http/Controllers/UserCardController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import UserPreviewController from '@/actions/App/Http/Controllers/UserPreviewController';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { cn, laneFor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Profile, User } from '@/types';
 
-type CardData = {
+type PreviewData = {
     user: Profile;
     isFollowing: boolean;
     followsYou: boolean;
@@ -24,12 +24,12 @@ type Position =
 
 const openDelay = 450;
 const closeDelay = 200;
-const cardWidth = 304;
-const cardHeight = 260;
-const cache = new Map<string, CardData>();
+const previewWidth = 304;
+const previewHeight = 260;
+const cache = new Map<string, PreviewData>();
 
-async function fetchCard(user: User): Promise<CardData> {
-    const response = await fetch(UserCardController.show(user).url, {
+async function fetchPreview(user: User): Promise<PreviewData> {
+    const response = await fetch(UserPreviewController.show(user).url, {
         headers: {
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
@@ -40,7 +40,7 @@ async function fetchCard(user: User): Promise<CardData> {
         throw new Error(`Unable to load @${user.username}`);
     }
 
-    const data = (await response.json()) as CardData;
+    const data = (await response.json()) as PreviewData;
     cache.set(user.username, data);
 
     return data;
@@ -50,16 +50,16 @@ function positionFor(trigger: HTMLElement): Position {
     const rect = trigger.getBoundingClientRect();
     const left = Math.min(
         Math.max(rect.left, 8),
-        window.innerWidth - cardWidth - 8,
+        window.innerWidth - previewWidth - 8,
     );
 
-    return rect.bottom + 8 + cardHeight > window.innerHeight &&
-        rect.top > cardHeight
+    return rect.bottom + 8 + previewHeight > window.innerHeight &&
+        rect.top > previewHeight
         ? { left, bottom: window.innerHeight - rect.top + 8 }
         : { left, top: rect.bottom + 8 };
 }
 
-export function UserHoverCard({
+export function UserPreview({
     user,
     children,
     className,
@@ -73,7 +73,7 @@ export function UserHoverCard({
     const triggerRef = useRef<HTMLSpanElement>(null);
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const [position, setPosition] = useState<Position | null>(null);
-    const [data, setData] = useState<CardData | null>(
+    const [data, setData] = useState<PreviewData | null>(
         () => cache.get(user.username) ?? null,
     );
 
@@ -93,7 +93,7 @@ export function UserHoverCard({
 
             setPosition(positionFor(triggerRef.current));
             setData(cache.get(user.username) ?? null);
-            fetchCard(user).then(setData, () => undefined);
+            fetchPreview(user).then(setData, () => undefined);
         }, openDelay);
     };
 
@@ -152,9 +152,9 @@ export function UserHoverCard({
                         onMouseLeave={scheduleClose}
                         className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
                         style={position}
-                        data-test="user-hover-card"
+                        data-test="user-preview"
                     >
-                        <HoverCardContent
+                        <UserPreviewContent
                             user={data?.user ?? user}
                             data={data}
                             onChange={(next) => {
@@ -169,14 +169,14 @@ export function UserHoverCard({
     );
 }
 
-function HoverCardContent({
+function UserPreviewContent({
     user,
     data,
     onChange,
 }: {
     user: User | Profile;
-    data: CardData | null;
-    onChange: (data: CardData) => void;
+    data: PreviewData | null;
+    onChange: (data: PreviewData) => void;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user.id === user.id;
@@ -234,7 +234,7 @@ function HoverCardContent({
                                     ? `Unfollow @${user.username}`
                                     : `Follow @${user.username}`
                             }
-                            data-test="hover-card-follow-button"
+                            data-test="user-preview-follow-button"
                         >
                             {data.isFollowing ? (
                                 <>

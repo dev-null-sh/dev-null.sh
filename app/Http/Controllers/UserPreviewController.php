@@ -9,7 +9,7 @@ use App\Queries\CommitBuilder;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
 
-final readonly class UserCardController
+final readonly class UserPreviewController
 {
     public function show(#[CurrentUser] User $currentUser, User $user): JsonResponse
     {

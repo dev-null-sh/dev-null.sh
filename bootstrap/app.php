@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\Log;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\PreventFraming;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,6 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(PreventFraming::class);
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow']);
 
         $middleware->redirectGuestsTo(fn (): string => route('home'));
