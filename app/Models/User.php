@@ -126,6 +126,6 @@ final class User extends Authenticatable
 
     public function isFollowing(self $user): bool
     {
-        return $this->following()->whereKey($user->id)->exists();
+        return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
     }
 }
