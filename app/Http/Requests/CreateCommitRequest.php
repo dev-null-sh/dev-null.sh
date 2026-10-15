@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Actions\StoreCommitImages;
+use App\Actions\CreateCommitImages;
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\Commit;
@@ -42,14 +42,14 @@ final class CreateCommitRequest extends FormRequest
             'poll.options' => ['required_with:poll', 'list', 'min:'.NewPoll::MinOptions, 'max:'.NewPoll::MaxOptions],
             'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
             'poll.duration' => ['required_with:poll', Rule::enum(PollDuration::class)],
-            'images' => ['nullable', 'list', 'max:'.StoreCommitImages::MAX_IMAGES],
+            'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
                 'required',
                 'image',
-                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(StoreCommitImages::MAX_UPLOAD_SIZE),
+                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
                 Rule::dimensions()
-                    ->maxWidth(StoreCommitImages::MAX_SOURCE_DIMENSION)
-                    ->maxHeight(StoreCommitImages::MAX_SOURCE_DIMENSION),
+                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
+                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
             ],
         ];
     }

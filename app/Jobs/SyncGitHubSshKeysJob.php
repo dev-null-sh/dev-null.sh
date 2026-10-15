@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Actions\SyncGitHubSshKeys;
+use App\Actions\UpdateUserSshKeys;
 use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -22,8 +22,8 @@ final class SyncGitHubSshKeysJob implements ShouldQueue
         //
     }
 
-    public function handle(SyncGitHubSshKeys $syncGitHubSshKeys): void
+    public function handle(UpdateUserSshKeys $updateUserSshKeys): void
     {
-        $syncGitHubSshKeys->handle($this->user);
+        $updateUserSshKeys->handle($this->user);
     }
 }
