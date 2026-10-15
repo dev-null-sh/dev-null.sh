@@ -20,3 +20,16 @@ it('may approve many commits', function (): void {
 
     expect($other->refresh()->status)->toBe(CommitStatus::Pending);
 });
+
+it('notifies the parent authors of the approved replies', function (): void {
+    $parent = Commit::factory()->create();
+    $replies = Commit::factory()->pending()->for($parent, 'parent')->count(2)->create();
+    $rejected = Commit::factory()->rejected()->for($parent, 'parent')->create();
+
+    $action = resolve(ApproveCommits::class);
+
+    $action->handle([...$replies->modelKeys(), $rejected->id]);
+
+    expect($parent->user->notifications()->pluck('commit_id')->all())
+        ->toEqualCanonicalizing($replies->modelKeys());
+});

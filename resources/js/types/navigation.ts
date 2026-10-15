@@ -7,4 +7,6 @@ export type NavItem = {
     icon?: LucideIcon | null;
     isActive?: boolean;
     hasIndicator?: boolean;
+    badge?: number;
+    prefetch?: boolean;
 };
