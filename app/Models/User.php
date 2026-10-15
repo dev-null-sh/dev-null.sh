@@ -154,6 +154,14 @@ final class User extends Authenticatable
         ]));
     }
 
+    /**
+     * How link previews title the user, without repeating a name that is just the username.
+     */
+    public function nameWithHandle(): string
+    {
+        return $this->name === $this->username ? "@{$this->username}" : "{$this->name} (@{$this->username})";
+    }
+
     public function isFollowing(self $user): bool
     {
         return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();

@@ -22,7 +22,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 
 - Sign-in is GitHub OAuth only. Profile changes happen on GitHub ("Edit on GitHub"), then sync at next login.
 - Everything except the landing page requires login.
-- Profile links (`/@{username}`) unfurl with a link preview (name, handle, avatar, bio, counts) for guests and crawlers; a guest opening one sees the landing page, and the profile itself stays behind login.
+- Profile links (`/@{username}`) and links to approved commits (`/@{username}/commits/{id}`) unfurl with a link preview (the author and their bio or counts, or the commit body and reply count) for guests and crawlers; a guest opening one sees the landing page, and the profile or commit itself stays behind login. Pending and rejected commits are a 404 for guests.
 - Two logs: **Following** (my commits plus people I follow) and **Everyone** (all commits), newest first, infinite scroll.
 - Profiles live at `/@{username}` with commit, following, and follower counts, a commit activity graph, and the user's commits.
 - Settings: read-only profile, appearance (light/dark/system), delete account.

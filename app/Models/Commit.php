@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read User $user
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
+ * @property-read int $replies_count
  */
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -74,5 +75,27 @@ final class Commit extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
+    }
+
+    /**
+     * Loads what anyone may see around the commit: its author, its approved replies, and its parent only when approved.
+     */
+    public function loadPublicPreview(): self
+    {
+        return $this->loadCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()])
+            ->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
+    }
+
+    /**
+     * Changes whenever anything drawn on the commit's link preview image may have changed.
+     */
+    public function openGraphImageVersion(): string
+    {
+        return hash('xxh3', implode(':', [
+            $this->updated_at->getTimestamp(),
+            $this->replies_count,
+            $this->user->updated_at->getTimestamp(),
+            $this->parent?->user->username,
+        ]));
     }
 }

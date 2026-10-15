@@ -6,17 +6,6 @@ use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
-function fakeAvatar(): string
-{
-    $image = imagecreatetruecolor(4, 4);
-    imagefill($image, 0, 0, (int) imagecolorallocate($image, 255, 0, 0));
-
-    ob_start();
-    imagepng($image);
-
-    return (string) ob_get_clean();
-}
-
 it('renders a link preview image of a profile for guests', function (): void {
     Http::fake(['avatars.githubusercontent.com/*' => Http::response(fakeAvatar(), 200, ['Content-Type' => 'image/png'])]);
 
