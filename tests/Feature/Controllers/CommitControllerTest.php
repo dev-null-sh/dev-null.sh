@@ -316,6 +316,25 @@ it('shows a commit with its ancestors and reply count', function (): void {
             ->missing('commit.user.email'));
 });
 
+it('shows the commit and its replies split into prose and highlighted code', function (): void {
+    $commit = Commit::factory()->create(['body' => "Run `make` :fire\n```php\n\$name = '<b>';\n```"]);
+    Commit::factory()->for($commit, 'parent')->create(['body' => 'try `make test`']);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.body_segments', [
+                ['type' => 'text', 'text' => 'Run '],
+                ['type' => 'code', 'code' => 'make'],
+                ['type' => 'text', 'text' => ' :fire'],
+                ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-variable">$name</span> = <span class="hl-value">\'&lt;b&gt;\'</span>;'],
+            ])
+            ->where('replies.data.0.body_segments.1', ['type' => 'code', 'code' => 'make test'])
+            ->missing('replies.data.0.body_segments.2'));
+});
+
 it('shows the star count and whether the viewer starred the commit and its ancestors', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();
@@ -410,6 +429,7 @@ it('shows deleted ancestors and replies as tombstones', function (): void {
             ->where('ancestors.0.id', $root->id)
             ->where('ancestors.1.id', $deletedAncestor->id)
             ->missing('ancestors.1.body')
+            ->missing('ancestors.1.body_segments')
             ->missing('ancestors.1.user')
             ->has('replies.data', 1)
             ->where('replies.data.0.id', $deletedReply->id)
