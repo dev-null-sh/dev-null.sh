@@ -1,3 +1,4 @@
+import type { CancelToken } from '@inertiajs/core';
 import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
 import {
     AtSign,
@@ -7,7 +8,7 @@ import {
     UserPlus,
     X,
 } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
@@ -32,7 +33,9 @@ export default function Index({
     notifications: CursorPaginated<NotificationGroup>;
     filters: Filters;
 }) {
-    usePoll(
+    const pollRequest = useRef<CancelToken | null>(null);
+    const filterVisit = useRef(0);
+    const { start, stop } = usePoll(
         30_000,
         () => ({
             only: ['notifications', 'auth.unreadNotificationsCount'],
@@ -43,15 +46,28 @@ export default function Index({
             },
             preserveUrl: true,
             preserveErrors: true,
+            onCancelToken: (token) => {
+                pollRequest.current = token;
+            },
+            onFinish: () => {
+                pollRequest.current = null;
+            },
         }),
         { mode: 'rest', background: 'pause' },
     );
-    const changeFilters = (next: Filters) =>
+    const changeFilters = (next: Filters) => {
+        const visit = ++filterVisit.current;
+        stop();
+        pollRequest.current?.cancel();
         router.visit(index({ query: { type: next.type } }), {
             only: ['notifications', 'filters', 'auth'],
             reset: ['notifications'],
             preserveState: true,
+            onFinish: () => {
+                if (visit === filterVisit.current) start();
+            },
         });
+    };
 
     return (
         <>
@@ -110,7 +126,13 @@ export default function Index({
                         {notifications.data.map((notification) => (
                             <li key={notification.group_id}>
                                 <NotificationGroupItem
-                                    key={filters.type + '-' + notification.id}
+                                    key={
+                                        filters.type +
+                                        '-' +
+                                        notification.id +
+                                        '-' +
+                                        notification.event_count
+                                    }
                                     notification={notification}
                                     type={filters.type}
                                 />
