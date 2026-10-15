@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use App\Actions\DeleteUser;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 
 it('may delete a user', function (): void {
     $user = User::factory()->create();
@@ -26,4 +28,21 @@ it('erases the commits of a deleted user along with the replies under them', fun
     resolve(DeleteUser::class)->handle($user);
 
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
+});
+
+it('erases the images of a deleted user and of the replies under their commits', function (): void {
+    Storage::fake(CommitImage::DISK);
+
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    $nestedReply = Commit::factory()->for($reply, 'parent')->create();
+
+    $images = collect([$commit, $reply, $nestedReply, Commit::factory()->create()])
+        ->map(fn (Commit $commit): CommitImage => CommitImage::factory()->for($commit)->create())
+        ->each(fn (CommitImage $image): bool => Storage::disk(CommitImage::DISK)->put($image->path, 'image'));
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Storage::disk(CommitImage::DISK)->allFiles('commit-images'))->toBe([$images->last()->path]);
 });
