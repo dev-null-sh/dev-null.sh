@@ -16,7 +16,7 @@ final readonly class ReportCommit
     {
         DB::transaction(function () use ($user, $commit, $reason, $details): void {
             $target = Commit::query()->lockForUpdate()->findOrFail($commit->id);
-            Gate::authorize('create', [CommitReport::class, $target]);
+            Gate::forUser($user)->authorize('create', [CommitReport::class, $target]);
 
             CommitReport::query()->firstOrCreate([
                 'commit_id' => $target->id,

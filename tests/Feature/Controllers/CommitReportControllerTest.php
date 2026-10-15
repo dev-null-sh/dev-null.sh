@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\ReportCommit;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitReport;
@@ -10,6 +11,16 @@ use Inertia\Inertia;
 
 beforeEach(function (): void {
     config(['app.admins' => ['moderator-demo']]);
+});
+
+it('authorizes the supplied reporter when invoked outside an authenticated request', function (): void {
+    $reporter = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    resolve(ReportCommit::class)->handle($reporter, $commit, 'spam', null);
+
+    expect(CommitReport::query()->sole()->reporter_id)->toBe($reporter->id)
+        ->and($commit->fresh()->status)->toBe(CommitStatus::Approved);
 });
 
 it('privately reports an approved commit or reply without changing visibility', function (bool $reply): void {
