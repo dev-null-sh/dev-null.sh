@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\DismissCommitReport;
-use App\Actions\ReportCommit;
+use App\Actions\CreateCommitReport;
+use App\Actions\UpdateCommitReportDismissedAt;
 use App\Http\Requests\CreateCommitReportRequest;
 use App\Http\Requests\DeleteCommitReportRequest;
 use App\Models\Commit;
@@ -17,7 +17,7 @@ use Inertia\Inertia;
 
 final readonly class CommitReportController
 {
-    public function store(CreateCommitReportRequest $request, #[CurrentUser] User $user, Commit $commit, ReportCommit $action): RedirectResponse
+    public function store(CreateCommitReportRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitReport $action): RedirectResponse
     {
         $action->handle($user, $commit, $request->string('reason')->value(), $request->filled('details') ? $request->string('details')->value() : null);
 
@@ -26,7 +26,7 @@ final readonly class CommitReportController
         return back();
     }
 
-    public function destroy(DeleteCommitReportRequest $request, CommitReport $report, DismissCommitReport $action): RedirectResponse
+    public function destroy(DeleteCommitReportRequest $request, CommitReport $report, UpdateCommitReportDismissedAt $action): RedirectResponse
     {
         $action->handle($report);
 

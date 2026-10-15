@@ -6,7 +6,7 @@ namespace App\Actions;
 
 use App\Models\CommitReport;
 
-final readonly class DismissCommitReport
+final readonly class UpdateCommitReportDismissedAt
 {
     public function handle(CommitReport $report): void
     {

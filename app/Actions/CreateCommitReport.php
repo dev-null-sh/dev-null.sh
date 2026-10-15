@@ -8,7 +8,7 @@ use App\Models\Commit;
 use App\Models\CommitReport;
 use App\Models\User;
 
-final readonly class ReportCommit
+final readonly class CreateCommitReport
 {
     public function handle(User $user, Commit $commit, string $reason, ?string $details): void
     {
