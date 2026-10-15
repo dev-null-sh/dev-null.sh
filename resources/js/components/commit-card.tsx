@@ -278,11 +278,16 @@ export function CommitCard({
 
                         {deletion !== 'deleting' &&
                             (commit.replies_count === undefined ? (
-                                <CommitStarButton
-                                    key={`${commit.starred}-${commit.stars_count}`}
-                                    commit={commit}
-                                    className="mt-1.5 -ml-1.5"
-                                />
+                                <div className="mt-1 -ml-2 flex items-center justify-between gap-0.5 text-[13px] empty:hidden">
+                                    <CommitStarButton
+                                        key={`${commit.starred}-${commit.stars_count}`}
+                                        commit={commit}
+                                        className="px-2 py-0.5"
+                                    />
+                                    {commit.is_saved !== undefined && (
+                                        <BookmarkButton commit={commit} />
+                                    )}
+                                </div>
                             ) : (
                                 <CommitThread
                                     commit={commit}
@@ -301,13 +306,6 @@ export function CommitCard({
                             ))}
 
                         {actions}
-
-                        {commit.replies_count === undefined &&
-                            commit.is_saved !== undefined && (
-                                <div className="mt-1 -ml-1.5">
-                                    <BookmarkButton commit={commit} />
-                                </div>
-                            )}
 
                         {deletion === 'confirming' && (
                             <div
