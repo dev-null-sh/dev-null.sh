@@ -8,11 +8,11 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { ActivityGraph } from '@/components/activity-graph';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -72,41 +72,12 @@ export default function Show({
                             </a>
                         </Button>
                     ) : (
-                        <Button
-                            variant={isFollowing ? 'outline' : 'default'}
-                            className="group/follow min-w-28"
-                            asChild
-                        >
-                            <Link
-                                href={
-                                    isFollowing
-                                        ? UserFollowController.destroy(user)
-                                        : UserFollowController.store(user)
-                                }
-                                as="button"
-                                preserveScroll
-                                onSuccess={() => router.flushAll()}
-                                aria-label={
-                                    isFollowing
-                                        ? `Unfollow @${user.username}`
-                                        : `Follow @${user.username}`
-                                }
-                                data-test="follow-button"
-                            >
-                                {isFollowing ? (
-                                    <>
-                                        <span className="group-hover/follow:hidden">
-                                            Following
-                                        </span>
-                                        <span className="hidden text-destructive group-hover/follow:inline">
-                                            Unfollow
-                                        </span>
-                                    </>
-                                ) : (
-                                    'Follow'
-                                )}
-                            </Link>
-                        </Button>
+                        <FollowButton
+                            user={user}
+                            isFollowing={isFollowing}
+                            className="min-w-28"
+                            onSuccess={() => router.flushAll()}
+                        />
                     )}
                 </div>
 
