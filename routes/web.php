@@ -14,6 +14,7 @@ use App\Http\Controllers\LogController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PersonalDataExportController;
+use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
@@ -60,6 +61,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
 
     // Commit...
+    Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
+    Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
+        ->middleware('throttle:commits')->name('scheduled-commit.store');
+    Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
+
     Route::post('commits', [CommitController::class, 'store'])
         ->middleware('throttle:commits')
         ->name('commit.store');

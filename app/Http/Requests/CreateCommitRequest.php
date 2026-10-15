@@ -12,6 +12,8 @@ use Illuminate\Foundation\Http\FormRequest;
 
 final class CreateCommitRequest extends FormRequest
 {
+    public const array BODY_RULES = ['required', 'string', 'min:3', 'max:280'];
+
     public function authorize(): bool
     {
         return true;
@@ -26,7 +28,7 @@ final class CreateCommitRequest extends FormRequest
         assert($user instanceof User);
 
         return [
-            'body' => ['required', 'string', 'min:3', 'max:280'],
+            'body' => self::BODY_RULES,
             'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
         ];
     }
