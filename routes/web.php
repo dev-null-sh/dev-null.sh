@@ -112,7 +112,9 @@ Route::middleware('auth')->group(function (): void {
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
-    Route::get('settings/export', [PersonalDataExportController::class, 'show'])->name('personal-data-export.show');
+    Route::get('settings/export', [PersonalDataExportController::class, 'show'])
+        ->middleware('throttle:5,1')
+        ->name('personal-data-export.show');
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
