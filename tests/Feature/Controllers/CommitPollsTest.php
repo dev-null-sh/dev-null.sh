@@ -80,6 +80,16 @@ it('may not attach a poll to a commit with images', function (): void {
         ->and(Storage::allFiles())->toBeEmpty();
 });
 
+it('highlights code in the question of a poll like in any commit', function (): void {
+    Poll::factory()->for(Commit::factory()->state(['body' => 'Do you still run `composer dump`?']))->withOptions('Yes', 'No')->create();
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('log.show', Log::Everyone))
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.poll.options.0.label', 'Yes')
+            ->where('commits.data.0.body_segments.1', ['type' => 'code', 'code' => 'composer dump']));
+});
+
 it('shows polls in the logs without the results before voting', function (Log $log): void {
     $user = User::factory()->create();
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
