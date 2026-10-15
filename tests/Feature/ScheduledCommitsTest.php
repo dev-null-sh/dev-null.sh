@@ -225,19 +225,22 @@ it('rolls back a failed original create action and retries without loss or dupli
 });
 
 it('rolls back creation if saving the delivery receipt fails', function (): void {
-    $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()]);
+    config(['queue.default' => 'database']);
+    $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now(), 'body' => 'Read https://example.com/docs']);
     ScheduledCommit::updating(function (): void {
         throw new RuntimeException('Simulated receipt failure.');
     });
     try {
         expect(fn () => resolve(SubmitScheduledCommit::class)->handle($scheduled->id))->toThrow(RuntimeException::class);
         expect(Commit::query()->count())->toBe(0)->and($scheduled->fresh()->submitted_at)->toBeNull();
+        $this->assertDatabaseCount('jobs', 0);
     } finally {
         ScheduledCommit::flushEventListeners();
     }
 
     expect(resolve(SubmitScheduledCommit::class)->handle($scheduled->id))->toBeTrue();
     expect(Commit::query()->count())->toBe(1);
+    $this->assertDatabaseCount('jobs', 1);
 });
 
 it('rejects a competing claim and cancellation while creation is in progress', function (): void {

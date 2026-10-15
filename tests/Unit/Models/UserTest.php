@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -31,6 +32,14 @@ it('has commits', function (): void {
     Commit::factory()->create();
 
     expect($user->commits)->toHaveCount(2);
+});
+
+it('has ssh keys', function (): void {
+    $user = User::factory()->create();
+    SshKey::factory()->for($user)->count(2)->create();
+    SshKey::factory()->create();
+
+    expect($user->sshKeys)->toHaveCount(2);
 });
 
 it('has following and followers', function (): void {
