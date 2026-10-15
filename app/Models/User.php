@@ -6,7 +6,6 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
-use Illuminate\Database\Eloquent\Attributes\Appends;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -40,7 +39,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
     'remember_token',
     'preferred_lane',
 ])]
-#[Appends(['lane'])]
 final class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -153,8 +151,14 @@ final class User extends Authenticatable
         return $hash % 6;
     }
 
-    protected function getLaneAttribute(): int
+    /**
+     * @return array<mixed>
+     */
+    public function toArray(): array
     {
-        return $this->lane();
+        return [
+            ...parent::toArray(),
+            'lane' => $this->lane(),
+        ];
     }
 }
