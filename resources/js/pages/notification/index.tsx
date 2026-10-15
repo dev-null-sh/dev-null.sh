@@ -98,7 +98,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
             />
 
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex min-h-8 items-center gap-2">
                     {isModeration ? (
                         <span className="text-sm font-medium">
                             Moderation update

@@ -46,6 +46,7 @@ export function CommitFeed({
         highlightedAuthor !== null && userId !== highlightedAuthor;
 
     const lastCommit = commits.data.at(-1) ?? pinnedCommit;
+    const lastLane = lastCommit ? laneColor(lastCommit.user.lane) : undefined;
     const pinnedLane = pinnedCommit
         ? laneColor(pinnedCommit.user.lane)
         : firstLane;
@@ -80,7 +81,7 @@ export function CommitFeed({
                 preserveUrl
                 loading={
                     <div role="status" aria-label="Loading more commits">
-                        <CommitSkeleton />
+                        <CommitSkeleton previousLane={lastLane} />
                         <CommitSkeleton />
                     </div>
                 }
@@ -208,19 +209,26 @@ function LastVisitMarker({
     );
 }
 
-export function CommitSkeleton() {
+export function CommitSkeleton({ previousLane }: { previousLane?: string }) {
     return (
         <div aria-hidden className="flex">
             <div className="relative w-11 shrink-0 sm:w-14">
                 <span className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 bg-rail" />
+                {previousLane && (
+                    <span
+                        className="absolute top-0 left-1/2 h-8 w-0.5 -translate-x-1/2"
+                        style={{ background: previousLane }}
+                    />
+                )}
                 <span className="absolute top-8 left-1/2 size-3.5 -translate-1/2 rounded-full border-[3px] border-card bg-rail shadow-[0_0_0_2px_var(--rail)]" />
             </div>
             <div className="flex min-w-0 flex-1 gap-3 border-b py-3 pr-4 motion-safe:animate-pulse">
                 <span className="size-10 shrink-0 rounded-full bg-muted" />
-                <div className="flex-1 space-y-2.5 pt-1">
-                    <span className="block h-3 w-2/5 rounded bg-muted" />
-                    <span className="block h-3 w-4/5 rounded bg-muted" />
-                    <span className="block h-3 w-3/5 rounded bg-muted" />
+                <div className="flex-1">
+                    <span className="mt-[5px] mb-[7px] block h-3 w-2/5 rounded bg-muted" />
+                    <span className="my-[5px] block h-3 w-4/5 rounded bg-muted" />
+                    <span className="my-[5px] block h-3 w-3/5 rounded bg-muted" />
+                    <span className="mt-3 mb-[7px] block h-4 w-9 rounded-md bg-muted" />
                 </div>
             </div>
         </div>

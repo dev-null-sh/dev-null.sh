@@ -24,7 +24,7 @@ export function AppAside({
     const { auth } = usePage().props;
 
     return (
-        <aside className="sticky top-0 hidden h-svh w-80 shrink-0 flex-col gap-8 px-6 py-6 xl:flex">
+        <aside className="sticky top-0 hidden h-svh w-80 shrink-0 [scrollbar-width:none] flex-col gap-8 overflow-y-auto px-6 py-6 xl:flex">
             <button
                 type="button"
                 onClick={onSearch}
