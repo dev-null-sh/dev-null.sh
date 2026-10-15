@@ -123,14 +123,15 @@ it('hides notifications from muted actors until they are unmuted', function (Not
 })->with([
     'followed' => fn (): Notification => Notification::factory()->create(),
     'replied' => fn (): Notification => Notification::factory()->replied()->create(),
+    'mentioned' => fn (): Notification => Notification::factory()->mentioned()->create(),
 ]);
 
-it('hides replies across a block in either direction', function (bool $recipientBlocks): void {
-    $notification = Notification::factory()->replied()->create();
+it('hides replies and mentions across a block in either direction', function (string $state, bool $recipientBlocks): void {
+    $notification = Notification::factory()->{$state}()->create();
 
     $recipientBlocks
         ? $notification->recipient->blocking()->attach($notification->actor_id)
         : $notification->actor->blocking()->attach($notification->recipient_id);
 
     expect(Notification::query()->relevant()->exists())->toBeFalse();
-})->with([true, false]);
+})->with(['replied', 'mentioned'])->with([true, false]);

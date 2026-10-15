@@ -9,6 +9,7 @@ use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -22,7 +23,8 @@ final readonly class NotifyAboutMentions
     /**
      * Notifies everyone mentioned in each commit, but only once the commit is approved, so nobody hears about a
      * mention they cannot see yet. Never for mentioning yourself, and never the parent's author of a reply, who
-     * already hears about it as a reply. Safe to call more than once.
+     * already hears about it as a reply. Nobody hears from people they mute or from across a block either. Safe to
+     * call more than once.
      */
     public function handle(Commit ...$commits): void
     {
@@ -40,8 +42,12 @@ final readonly class NotifyAboutMentions
             return;
         }
 
+        $authorIds = $commits->pluck('user_id')->unique()->values()->all();
+        $silencedAuthors = fn (BelongsToMany $authors): BelongsToMany => $authors->whereKey($authorIds)->select('users.id');
+
         $users = User::query()
             ->whereIn(DB::raw('LOWER(username)'), $usernamesByCommit->flatten()->unique()->values()->all())
+            ->with(['muting' => $silencedAuthors, 'blocking' => $silencedAuthors, 'blockers' => $silencedAuthors])
             ->get(['id', 'username'])
             ->keyBy(fn (User $user): string => Str::lower($user->username));
 
@@ -51,7 +57,7 @@ final readonly class NotifyAboutMentions
             foreach ($usernamesByCommit->get($commit->id, []) as $username) {
                 $user = $users->get($username);
 
-                if (! $user instanceof User || $user->id === $commit->user_id || $user->id === $commit->parent?->user_id) {
+                if (! $user instanceof User || $user->id === $commit->user_id || $user->id === $commit->parent?->user_id || $this->isSilenced($user, $commit->user_id)) {
                     continue;
                 }
 
@@ -69,5 +75,13 @@ final readonly class NotifyAboutMentions
         }
 
         Notification::query()->insertOrIgnore($notifications);
+    }
+
+    /**
+     * Whether the mentioned user mutes the author, or either one blocks the other.
+     */
+    private function isSilenced(User $user, string $authorId): bool
+    {
+        return $user->muting->concat($user->blocking)->concat($user->blockers)->contains('id', $authorId);
     }
 }
