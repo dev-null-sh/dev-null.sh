@@ -1,4 +1,4 @@
-import { Head, InfiniteScroll, Link, router, useForm } from '@inertiajs/react';
+import { Head, InfiniteScroll, Link, router } from '@inertiajs/react';
 import {
     AtSign,
     Check,
@@ -8,12 +8,10 @@ import {
     UserPlus,
     X,
 } from 'lucide-react';
-import { useId, useRef, useState } from 'react';
-import { toast } from 'sonner';
+import { useId, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
-import { update as updateRead } from '@/actions/App/Http/Controllers/NotificationReadController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -26,7 +24,6 @@ import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
 
 type Filters = {
     type: 'all' | 'replies' | 'mentions' | 'follows' | 'moderation';
-    unread: boolean;
 };
 
 export default function Index({
@@ -38,14 +35,11 @@ export default function Index({
 }) {
     const [refreshing, setRefreshing] = useState(false);
     const changeFilters = (next: Filters) =>
-        router.visit(
-            index({ query: { type: next.type, unread: next.unread ? 1 : 0 } }),
-            {
-                only: ['notifications', 'filters', 'auth'],
-                reset: ['notifications'],
-                preserveState: true,
-            },
-        );
+        router.visit(index({ query: { type: next.type } }), {
+            only: ['notifications', 'filters', 'auth'],
+            reset: ['notifications'],
+            preserveState: true,
+        });
 
     return (
         <>
@@ -96,30 +90,14 @@ export default function Index({
                             <option value="moderation">Moderation</option>
                         </select>
                     </label>
-                    <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
-                        <input
-                            type="checkbox"
-                            checked={filters.unread}
-                            onChange={(event) =>
-                                changeFilters({
-                                    ...filters,
-                                    unread: event.target.checked,
-                                })
-                            }
-                            className="size-4 accent-primary"
-                        />
-                        Unread only
-                    </label>
                 </div>
             </div>
             {notifications.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command="$ cat /dev/notifications">
-                        {filters.unread
-                            ? "You're all caught up. No unread activity matches this filter."
-                            : filters.type !== 'all'
-                              ? 'No activity of this type yet.'
-                              : 'Nothing here yet. Follows, replies, mentions, and moderation updates will show up here.'}
+                        {filters.type !== 'all'
+                            ? 'No activity of this type yet.'
+                            : 'Nothing here yet. Follows, replies, mentions, and moderation updates will show up here.'}
                     </EmptyFeed>
                 </div>
             ) : (
@@ -147,61 +125,6 @@ export default function Index({
                 </InfiniteScroll>
             )}
         </>
-    );
-}
-
-function ReadButton({
-    notification,
-    group = false,
-    type,
-    onUpdated,
-    unread,
-}: {
-    notification: Notification;
-    group?: boolean;
-    type: Filters['type'];
-    onUpdated?: () => void;
-    unread?: boolean;
-}) {
-    const isUnread = unread ?? notification.read_at === null;
-    const form = useForm({ read: isUnread, group, type });
-    const restoreFocus = useRef(false);
-
-    return (
-        <Button
-            ref={(button) => {
-                if (button && !form.processing && restoreFocus.current) {
-                    restoreFocus.current = false;
-                    if (document.activeElement === document.body)
-                        button.focus();
-                }
-            }}
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={form.processing}
-            className="shrink-0 text-xs"
-            onClick={() => {
-                restoreFocus.current = true;
-                form.transform(() => ({ read: isUnread, group, type }));
-                form.submit(updateRead(notification), {
-                    only: ['notifications', 'auth'],
-                    reset: ['notifications'],
-                    preserveScroll: true,
-                    onSuccess: onUpdated,
-                    onError: () =>
-                        toast.error(
-                            'Could not update this notification. Try again.',
-                        ),
-                });
-            }}
-        >
-            {form.processing
-                ? 'Saving…'
-                : isUnread
-                  ? 'Mark read'
-                  : 'Mark unread'}
-        </Button>
     );
 }
 
@@ -245,9 +168,7 @@ function NotificationGroupItem({
     return (
         <article
             data-notification-group={notification.group_id}
-            className={cn('px-4 py-3 sm:px-6', {
-                'bg-primary-soft/40': notification.unread_count > 0,
-            })}
+            className="px-4 py-3 sm:px-6"
         >
             {grouped && (
                 <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
@@ -257,16 +178,11 @@ function NotificationGroupItem({
                             ? 'new followers'
                             : 'updates in this conversation'}
                     </span>
-                    {notification.unread_count > 0 && (
-                        <span className="text-xs text-primary">
-                            {notification.unread_count} unread
-                        </span>
-                    )}
                 </div>
             )}
             <NotificationContent notification={notification} />
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-1">
-                {grouped ? (
+            {grouped && (
+                <div className="mt-2">
                     <Button
                         type="button"
                         variant="ghost"
@@ -287,32 +203,14 @@ function NotificationGroupItem({
                         />
                         {open ? 'Hide activity' : 'Show activity'}
                     </Button>
-                ) : (
-                    <span />
-                )}
-                <ReadButton
-                    notification={notification}
-                    group={grouped}
-                    type={type}
-                    unread={notification.unread_count > 0}
-                    onUpdated={() => {
-                        if (open) void load();
-                    }}
-                />
-            </div>
+                </div>
+            )}
             {open && (
                 <div id={id} className="mt-2 border-t">
                     <ul className="divide-y">
                         {items.map((item) => (
                             <li key={item.id} className="py-3">
                                 <NotificationContent notification={item} />
-                                <div className="mt-1 flex justify-end">
-                                    <ReadButton
-                                        notification={item}
-                                        type={type}
-                                        onUpdated={() => void load()}
-                                    />
-                                </div>
                             </li>
                         ))}
                     </ul>
@@ -388,11 +286,6 @@ function NotificationContent({ notification }: { notification: Notification }) {
                         </span>
                     ) : (
                         <UserAvatar user={actor} className="size-8" />
-                    )}
-                    {notification.read_at === null && (
-                        <span className="ml-auto size-2 shrink-0 rounded-full bg-primary">
-                            <span className="sr-only">Unread notification</span>
-                        </span>
                     )}
                 </div>
                 <p className="mt-2 text-[15px] wrap-anywhere">

@@ -15,7 +15,6 @@ type BaseNotification = {
 export type NotificationGroup = Notification & {
     group_id: string;
     event_count: number;
-    unread_count: number;
 };
 
 export type Notification =

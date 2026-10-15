@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Models\Notification;
+use App\Models\User;
 
 final readonly class UpdateNotificationsReadAt
 {
-    public function handle(Notification ...$notifications): void
+    public function handle(User $user): void
     {
-        Notification::query()
-            ->whereKey(array_map(fn (Notification $notification): string => $notification->id, $notifications))
+        $user->notifications()
+            ->relevant()
             ->unread()
             ->update(['read_at' => now()]);
     }

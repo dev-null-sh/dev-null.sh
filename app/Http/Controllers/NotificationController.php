@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\UpdateNotificationsReadAt;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
@@ -14,11 +15,13 @@ use Inertia\Response;
 
 final readonly class NotificationController
 {
-    public function index(ListNotificationsRequest $request, #[CurrentUser] User $user, NotificationGroupsQuery $query): Response
+    public function index(ListNotificationsRequest $request, #[CurrentUser] User $user, NotificationGroupsQuery $query, UpdateNotificationsReadAt $action): Response
     {
+        $action->handle($user);
+
         return Inertia::render('notification/index', [
-            'notifications' => Inertia::scroll(fn (): CursorPaginator => $query->get($user, $request->type(), $request->unread()))->matchOn('data.group_id'),
-            'filters' => ['type' => $request->type(), 'unread' => $request->unread()],
+            'notifications' => Inertia::scroll(fn (): CursorPaginator => $query->get($user, $request->type()))->matchOn('data.group_id'),
+            'filters' => ['type' => $request->type()],
         ]);
     }
 }

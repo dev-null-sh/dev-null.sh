@@ -12,11 +12,10 @@ use Illuminate\Support\Facades\DB;
 final readonly class NotificationGroupsQuery
 {
     /** @return CursorPaginator<int, Notification> */
-    public function get(User $user, string $type = 'all', bool $unread = false): CursorPaginator
+    public function get(User $user, string $type = 'all'): CursorPaginator
     {
         return $this->events($user, $type)
             ->where('group_rank', 1)
-            ->when($unread, fn (NotificationBuilder $query): NotificationBuilder => $query->where('unread_count', '>', 0))
             ->with(['actor', 'commit'])
             ->latest()->latest('id')
             ->cursorPaginate(20)->withQueryString();
@@ -89,24 +88,12 @@ final readonly class NotificationGroupsQuery
             )
             SELECT filtered.*,
                 ROW_NUMBER() OVER (PARTITION BY group_id ORDER BY created_at DESC, id DESC) AS group_rank,
-                COUNT(*) OVER (PARTITION BY group_id) AS event_count,
-                SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) OVER (PARTITION BY group_id) AS unread_count
+                COUNT(*) OVER (PARTITION BY group_id) AS event_count
             FROM filtered
             SQL;
 
         return Notification::query()->fromSub($sql, 'notifications')->addBinding($visible->getBindings(), 'from')
             ->addBinding($filtered->getBindings(), 'from')
-            ->withCasts(['event_count' => 'integer', 'unread_count' => 'integer']);
-    }
-
-    /** @return list<Notification> */
-    public function snapshot(User $user, Notification $notification, string $type): array
-    {
-        return array_values($this->members($user, $notification, $type)
-            ->where(fn (NotificationBuilder $query): NotificationBuilder => $query
-                ->where('created_at', '<', $notification->created_at)
-                ->orWhere(fn (NotificationBuilder $query): NotificationBuilder => $query
-                    ->where('created_at', $notification->created_at)->where('id', '<=', $notification->id)))
-            ->get()->all());
+            ->withCasts(['event_count' => 'integer']);
     }
 }

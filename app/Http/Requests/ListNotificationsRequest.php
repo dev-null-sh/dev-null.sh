@@ -18,17 +18,11 @@ final class ListNotificationsRequest extends FormRequest
     {
         return [
             'type' => ['nullable', 'in:all,replies,mentions,follows,moderation'],
-            'unread' => ['nullable', 'boolean'],
         ];
     }
 
     public function type(): string
     {
         return $this->filled('type') ? $this->string('type')->value() : 'all';
-    }
-
-    public function unread(): bool
-    {
-        return $this->boolean('unread');
     }
 }

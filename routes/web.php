@@ -19,7 +19,6 @@ use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
-use App\Http\Controllers\NotificationReadController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
@@ -95,7 +94,6 @@ Route::middleware('auth')->group(function (): void {
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
     Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('notification-group.show');
-    Route::put('notifications/{notification}/read', [NotificationReadController::class, 'update'])->name('notification-read.update');
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');

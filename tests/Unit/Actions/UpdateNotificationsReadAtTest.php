@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 use App\Actions\UpdateNotificationsReadAt;
 use App\Models\Notification;
+use App\Models\User;
 
-it('marks the given notifications as read', function (): void {
-    $notifications = Notification::factory()->count(2)->create();
+it('marks all relevant notifications of the user as read', function (): void {
+    $user = User::factory()->create();
+    $notifications = Notification::factory()->for($user, 'recipient')->count(2)->create();
     $other = Notification::factory()->create();
 
     $action = resolve(UpdateNotificationsReadAt::class);
 
-    $action->handle(...$notifications);
+    $action->handle($user);
 
     foreach ($notifications as $notification) {
         expect($notification->refresh()->read_at)->not->toBeNull();
@@ -25,7 +27,7 @@ it('keeps when notifications were first read', function (): void {
 
     $action = resolve(UpdateNotificationsReadAt::class);
 
-    $action->handle($notification);
+    $action->handle($notification->recipient);
 
     expect($notification->refresh()->read_at->toDateTimeString())->toBe(now()->subDay()->toDateTimeString());
 });

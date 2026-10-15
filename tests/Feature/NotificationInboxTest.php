@@ -27,7 +27,6 @@ it('groups nested replies and mentions and bumps an old conversation using its l
         ->where('notifications.data.0.id', $latest->id)
         ->where('notifications.data.0.group_id', $old->id)
         ->where('notifications.data.0.event_count', 2)
-        ->where('notifications.data.0.unread_count', 1)
         ->where('notifications.data.0.created_at', $latest->created_at->toJSON())
         ->where('notifications.data.1.id', $other->id));
 
@@ -75,8 +74,6 @@ it('splits follows after an interrupted gap longer than an hour regardless of fi
 
     $this->getJson(route('notification-group.show', [$latest, 'type' => 'follows']))
         ->assertOk()->assertJsonCount($groups === 1 ? 2 : 1, 'data');
-    $this->put(route('notification-read.update', $latest), ['read' => true, 'group' => true, 'type' => 'follows'])->assertRedirect();
-    expect($old->refresh()->read_at === null)->toBe($groups === 2);
 })->with(['exactly one hour' => [3600, 1], 'one second too long' => [3601, 2], 'two days' => [172800, 2]]);
 
 it('extends the newest follow group after days without intervening relevant activity', function (): void {
@@ -116,8 +113,6 @@ it('extends an old conversation only when it is still the newest group', functio
     $this->get(route('notification.index', ['type' => 'replies']))->assertInertia(fn ($page) => $page
         ->has('notifications.data', 1)->where('notifications.data.0.group_id', $old->id));
     $this->getJson(route('notification-group.show', $latest))->assertOk()->assertJsonCount($interrupted ? 1 : 2, 'data');
-    $this->put(route('notification-read.update', $latest), ['read' => true, 'group' => true, 'type' => 'all'])->assertRedirect();
-    expect($old->refresh()->read_at === null)->toBe($interrupted);
 })->with(['uninterrupted' => false, 'interrupted' => true]);
 
 it('paginates complete groups rather than splitting a busy conversation', function (): void {
@@ -183,7 +178,7 @@ it('uses deleted ancestors only for group identity', function (): void {
     $this->getJson(route('notification-group.show', $one))->assertOk()->assertDontSee('Hidden ancestor body');
 });
 
-it('filters event types and retains read members of unread groups', function (): void {
+it('filters event types while retaining all members of each group', function (): void {
     $user = User::factory()->create();
     $root = Commit::factory()->create();
     foreach ([null, now()->subDay()] as $readAt) {
@@ -194,69 +189,66 @@ it('filters event types and retains read members of unread groups', function ():
     Notification::factory()->for($user, 'recipient')->mentioned()->read()->create();
     Notification::factory()->for($user, 'recipient')->create();
 
-    $this->actingAs($user)->get(route('notification.index', ['type' => 'replies', 'unread' => 1]))
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'replies']))
         ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
-            ->where('notifications.data.0.event_count', 2)->where('notifications.data.0.unread_count', 1)
-            ->where('filters.type', 'replies')->where('filters.unread', true));
-    $this->get(route('notification.index', ['type' => 'mentions', 'unread' => 1]))
-        ->assertInertia(fn ($page) => $page->has('notifications.data', 0));
+            ->where('notifications.data.0.event_count', 2)->where('filters.type', 'replies'));
+    $this->get(route('notification.index', ['type' => 'mentions']))
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 1));
     $this->get(route('notification.index', ['type' => 'follows']))
         ->assertInertia(fn ($page) => $page->has('notifications.data', 1)->where('notifications.data.0.type', 'followed'));
 });
 
-it('marks only a selected notification read and unread across reloads', function (): void {
+it('preserves the first read timestamp when reopening the inbox', function (): void {
     $user = User::factory()->create();
     $one = Notification::factory()->for($user, 'recipient')->create();
-    $other = Notification::factory()->for($user, 'recipient')->create();
-
-    $this->actingAs($user)->from(route('notification.index'))
-        ->put(route('notification-read.update', $one), ['read' => true, 'group' => false, 'type' => 'all'])
-        ->assertRedirectToRoute('notification.index');
+    $this->actingAs($user)->get(route('notification.index'))->assertOk();
     $readAt = $one->refresh()->read_at;
-    expect($readAt)->not->toBeNull()->and($other->refresh()->read_at)->toBeNull();
+    expect($readAt)->not->toBeNull();
     $this->travel(5)->minutes();
-    $this->put(route('notification-read.update', $one), ['read' => true, 'group' => false, 'type' => 'all'])->assertRedirect();
-    expect($one->refresh()->read_at->equalTo($readAt))->toBeTrue();
-    $this->put(route('notification-read.update', $one), ['read' => false, 'group' => false, 'type' => 'all'])->assertRedirect();
     $this->get(route('notification.index'))->assertOk();
-    expect($one->refresh()->read_at)->toBeNull();
+    expect($one->refresh()->read_at->equalTo($readAt))->toBeTrue();
 });
 
-it('marks a displayed group read without consuming newer hidden or unrelated activity', function (): void {
+it('marks all relevant activity read beyond the first page and selected type', function (): void {
     $user = User::factory()->create();
     $root = Commit::factory()->create();
     $events = collect();
-    foreach ([-30, -20, 0] as $minutes) {
+    for ($index = 0; $index < 24; $index++) {
         $reply = Commit::factory()->for($root, 'parent')->create();
         $events->push(Notification::factory()->for($user, 'recipient')->for($reply, 'commit')->create([
-            'type' => NotificationType::Replied, 'created_at' => now()->addMinutes($minutes),
+            'type' => NotificationType::Replied,
         ]));
     }
 
     $hiddenReply = Commit::factory()->for($root, 'parent')->create(['status' => CommitStatus::Pending]);
     $hidden = Notification::factory()->for($user, 'recipient')->for($hiddenReply, 'commit')->create(['type' => NotificationType::Replied]);
-    $other = Notification::factory()->for($user, 'recipient')->replied()->create();
+    Notification::factory()->for($user, 'recipient')->count(21)->replied()->create();
+    $follow = Notification::factory()->for($user, 'recipient')->create();
+    $other = Notification::factory()->replied()->create();
 
-    $this->actingAs($user)->put(route('notification-read.update', $events[1]), ['read' => true, 'group' => true, 'type' => 'all'])->assertRedirect();
-    expect($events[0]->refresh()->read_at)->not->toBeNull()
-        ->and($events[1]->refresh()->read_at)->not->toBeNull()
-        ->and($events[2]->refresh()->read_at)->toBeNull()
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'replies']))
+        ->assertOk()->assertInertia(fn ($page) => $page->has('notifications.data', 20)
+        ->where('auth.unreadNotificationsCount', 0));
+    expect($user->notifications()->relevant()->unread()->count())->toBe(0)
+        ->and($follow->refresh()->read_at)->not->toBeNull()
+        ->and($events->last()->refresh()->read_at)->not->toBeNull()
         ->and($hidden->refresh()->read_at)->toBeNull()
         ->and($other->refresh()->read_at)->toBeNull();
-
-    $this->put(route('notification-read.update', $events[1]), ['read' => false, 'group' => true, 'type' => 'all'])->assertRedirect();
-    expect($events[0]->refresh()->read_at)->toBeNull()->and($events[1]->refresh()->read_at)->toBeNull();
 });
 
-it('restricts filtered group mutations to the selected event type', function (): void {
+it('leaves later arrivals unread until the inbox is visited again', function (): void {
     $user = User::factory()->create();
-    $root = Commit::factory()->create();
-    $reply = Commit::factory()->for($root, 'parent')->create();
-    $mention = Notification::factory()->for($user, 'recipient')->for($root, 'commit')->create(['type' => NotificationType::Mentioned, 'created_at' => now()->subHour()]);
-    $replied = Notification::factory()->for($user, 'recipient')->for($reply, 'commit')->create(['type' => NotificationType::Replied]);
+    Notification::factory()->for($user, 'recipient')->create();
+    $this->actingAs($user)->get(route('notification.index'))->assertOk();
+    $this->travel(5)->minutes();
+    $latest = Notification::factory()->for($user, 'recipient')->mentioned()->create();
 
-    $this->actingAs($user)->put(route('notification-read.update', $replied), ['read' => true, 'group' => true, 'type' => 'replies'])->assertRedirect();
-    expect($replied->refresh()->read_at)->not->toBeNull()->and($mention->refresh()->read_at)->toBeNull();
+    $this->get(route('log.show', 'everyone'))->assertInertia(fn ($page) => $page
+        ->where('auth.unreadNotificationsCount', 1));
+    expect($latest->refresh()->read_at)->toBeNull();
+    $this->get(route('notification.index', ['type' => 'follows']))->assertInertia(fn ($page) => $page
+        ->where('auth.unreadNotificationsCount', 0));
+    expect($latest->refresh()->read_at)->not->toBeNull();
 });
 
 it('keeps moderation decisions independent from conversation groups', function (): void {
@@ -281,27 +273,22 @@ it('rejects other recipients and irrelevant notifications', function (): void {
 
     foreach ([$other, $hidden] as $notification) {
         $this->actingAs($user)->getJson(route('notification-group.show', $notification))->assertNotFound();
-        $this->put(route('notification-read.update', $notification), ['read' => true, 'group' => true, 'type' => 'all'])->assertNotFound();
         expect($notification->refresh()->read_at)->toBeNull();
     }
 });
 
-it('requires authentication for group reads and read mutations', function (): void {
+it('requires authentication for group history', function (): void {
     $notification = Notification::factory()->create();
     $this->get(route('notification-group.show', $notification))->assertRedirectToRoute('home');
-    $this->put(route('notification-read.update', $notification), ['read' => true, 'group' => true, 'type' => 'all'])->assertRedirectToRoute('home');
 });
 
-it('validates read controls and filters', function (): void {
+it('validates notification type filters', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();
 
-    $this->actingAs($user)->put(route('notification-read.update', $notification), [])
-        ->assertSessionHasErrors(['read' => 'The read field is required.', 'group' => 'The group field is required.', 'type' => 'The type field is required.']);
-    $this->put(route('notification-read.update', $notification), ['read' => 'yes', 'group' => 'all', 'type' => 'secrets'])
-        ->assertSessionHasErrors(['read' => 'The read field must be true or false.', 'group' => 'The group field must be true or false.', 'type' => 'The selected type is invalid.']);
-    $this->getJson(route('notification.index', ['type' => 'secret', 'unread' => 'yes']))->assertUnprocessable()
-        ->assertJsonValidationErrors(['type', 'unread']);
+    $this->actingAs($user)->getJson(route('notification.index', ['type' => 'secret']))->assertUnprocessable()
+        ->assertJsonValidationErrors('type');
+    expect($notification->refresh()->read_at)->toBeNull();
     $this->getJson(route('notification-group.show', [$notification, 'type' => 'secret']))->assertUnprocessable()->assertJsonValidationErrors('type');
     $this->get(route('notification.index', ['type' => '']))->assertOk();
 });

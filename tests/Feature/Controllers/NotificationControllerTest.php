@@ -53,15 +53,17 @@ it('hides notifications that no longer hold', function (): void {
     $response->assertInertia(fn ($page) => $page->has('notifications.data', 0));
 });
 
-it('keeps notifications unread until explicitly marked read', function (): void {
+it('marks notifications read when the inbox opens and clears the badge', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();
 
     $response = $this->actingAs($user)->get(route('notification.index'));
 
-    $response->assertInertia(fn ($page) => $page->where('notifications.data.0.read_at', null));
+    $response->assertInertia(fn ($page) => $page
+        ->where('notifications.data.0.read_at', now()->startOfSecond()->toJSON())
+        ->where('auth.unreadNotificationsCount', 0));
 
-    expect($notification->refresh()->read_at)->toBeNull();
+    expect($notification->refresh()->read_at)->not->toBeNull();
 });
 
 it('requires authentication', function (): void {

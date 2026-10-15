@@ -31,7 +31,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read Commit|null $commit
  * @property-read string $group_id
  * @property-read int $event_count
- * @property-read int $unread_count
  */
 #[Hidden([
     'key',
