@@ -11,7 +11,7 @@ export function useFlashToast(): void {
             if (committed) {
                 toast(
                     <span className="font-mono text-[13px]">
-                        [log {shortHash(committed.id)}] {committed.title}
+                        [log {shortHash(committed.id)}] {committed.body}
                     </span>,
                 );
             }

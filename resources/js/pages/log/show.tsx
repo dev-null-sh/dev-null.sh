@@ -7,6 +7,7 @@ import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserHoverCard } from '@/components/user-hover-card';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
 import AppLayout from '@/layouts/app-layout';
 import type { Commit, CursorPaginated, Log } from '@/types';
@@ -118,8 +119,8 @@ export default function Show({
                         </EmptyFeed>
                     ) : (
                         <EmptyFeed command="fatal: no commits yet">
-                            Nobody has committed anything. Be the first. It's 72
-                            characters; you'll be fine.
+                            Nobody has committed anything. Be the first. It's
+                            280 characters; you'll be fine.
                         </EmptyFeed>
                     )
                 }
@@ -134,18 +135,22 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
             <ul className="mt-5 divide-y rounded-lg border text-left">
                 {suggestions.map((commit) => (
                     <li key={commit.id} className="flex items-center gap-3 p-3">
-                        <UserAvatar user={commit.user} className="size-9" />
+                        <UserHoverCard user={commit.user} className="shrink-0">
+                            <UserAvatar user={commit.user} className="size-9" />
+                        </UserHoverCard>
                         <div className="min-w-0 flex-1">
                             <p className="truncate text-sm">
-                                <span className="font-semibold">
-                                    {commit.user.name}
-                                </span>{' '}
+                                <UserHoverCard user={commit.user}>
+                                    <span className="font-semibold">
+                                        {commit.user.name}
+                                    </span>
+                                </UserHoverCard>{' '}
                                 <span className="font-mono text-[13px] text-muted-foreground">
                                     @{commit.user.username}
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
-                                {commit.title}
+                                {commit.body}
                             </p>
                         </div>
                         <Button size="sm" asChild>

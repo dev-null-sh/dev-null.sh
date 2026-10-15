@@ -13,8 +13,8 @@ beforeEach(function (): void {
 it('renders pending commits oldest first', function (): void {
     $admin = User::factory()->create(['username' => 'admin']);
 
-    Commit::factory()->pending()->create(['title' => 'Newer']);
-    Commit::factory()->pending()->create(['title' => 'Older', 'created_at' => now()->subMinute()]);
+    Commit::factory()->pending()->create(['body' => 'Newer']);
+    Commit::factory()->pending()->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
     Commit::factory()->create();
     Commit::factory()->rejected()->create();
 
@@ -25,8 +25,8 @@ it('renders pending commits oldest first', function (): void {
         ->assertInertia(fn ($page) => $page
             ->component('moderation/show')
             ->has('commits.data', 2)
-            ->where('commits.data.0.title', 'Older')
-            ->where('commits.data.1.title', 'Newer')
+            ->where('commits.data.0.body', 'Older')
+            ->where('commits.data.1.body', 'Newer')
             ->has('commits.data.0.user'));
 });
 

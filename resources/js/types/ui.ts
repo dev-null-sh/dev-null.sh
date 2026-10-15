@@ -11,5 +11,5 @@ export type FlashToast = {
 
 export type CommittedFlash = {
     id: string;
-    title: string;
+    body: string;
 };

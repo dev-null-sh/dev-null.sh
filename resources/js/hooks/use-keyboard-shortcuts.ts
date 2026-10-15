@@ -37,10 +37,10 @@ function moveCommitFocus(step: 1 | -1): void {
 }
 
 function focusComposer(): void {
-    const title = document.getElementById('title');
+    const body = document.getElementById('body');
 
-    if (title) {
-        title.focus();
+    if (body) {
+        body.focus();
 
         return;
     }
@@ -48,7 +48,7 @@ function focusComposer(): void {
     router.visit(LogController.show('following'), {
         onFinish: () =>
             requestAnimationFrame(() =>
-                document.getElementById('title')?.focus(),
+                document.getElementById('body')?.focus(),
             ),
     });
 }

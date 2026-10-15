@@ -6,6 +6,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\DeferProp;
 
 it('shares app name from config', function (): void {
@@ -28,7 +29,7 @@ it('shares null user when guest', function (): void {
 
     expect($shared)->toHaveKey('auth')
         ->and($shared['auth'])->toHaveKey('user')
-        ->and($shared['auth']['user'])->toBeNull();
+        ->and($shared['auth']['user']())->toBeNull();
 });
 
 it('shares authenticated user data', function (): void {
@@ -42,12 +43,12 @@ it('shares authenticated user data', function (): void {
     $request = Request::create('/', 'GET');
     $request->setUserResolver(fn () => $user);
 
-    $shared = $middleware->share($request);
+    $sharedUser = $middleware->share($request)['auth']['user']();
 
-    expect($shared['auth']['user'])->not->toBeNull()
-        ->and($shared['auth']['user']->id)->toBe($user->id)
-        ->and($shared['auth']['user']->name)->toBe('Test User')
-        ->and($shared['auth']['user']->username)->toBe('test-user');
+    expect($sharedUser)->not->toBeNull()
+        ->and($sharedUser->id)->toBe($user->id)
+        ->and($sharedUser->name)->toBe('Test User')
+        ->and($sharedUser->username)->toBe('test-user');
 });
 
 it('shares the authenticated user commit and follow counts', function (): void {
@@ -60,11 +61,26 @@ it('shares the authenticated user commit and follow counts', function (): void {
     $request = Request::create('/', 'GET');
     $request->setUserResolver(fn () => $user);
 
-    $shared = $middleware->share($request);
+    $sharedUser = $middleware->share($request)['auth']['user']();
 
-    expect($shared['auth']['user']->commits_count)->toBe(2)
-        ->and($shared['auth']['user']->following_count)->toBe(3)
-        ->and($shared['auth']['user']->followers_count)->toBe(1);
+    expect($sharedUser->commits_count)->toBe(2)
+        ->and($sharedUser->following_count)->toBe(3)
+        ->and($sharedUser->followers_count)->toBe(1);
+});
+
+it('defers loading the authenticated user until the prop is resolved', function (): void {
+    $user = User::factory()->create();
+
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    DB::enableQueryLog();
+
+    $middleware->share($request);
+
+    expect(DB::getQueryLog())->toBeEmpty();
 });
 
 it('defaults sidebarOpen to true when no cookie', function (): void {

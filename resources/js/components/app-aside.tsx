@@ -6,7 +6,7 @@ import { show } from '@/routes/user';
 
 const rules = [
     'Everyone here signed in with GitHub.',
-    'A commit is a title of up to 72 characters, plus an optional description.',
+    'Commits are plain text, 280 characters max.',
     'No likes, no reposts, no algorithm. Newest first.',
     'Profiles mirror GitHub. Edit yours there.',
 ];

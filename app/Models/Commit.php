@@ -17,8 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * @property-read string $id
  * @property-read string $user_id
- * @property-read string $title
- * @property-read string|null $description
+ * @property-read string $body
  * @property-read CommitStatus $status
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -40,8 +39,7 @@ final class Commit extends Model
         return [
             'id' => 'string',
             'user_id' => 'string',
-            'title' => 'string',
-            'description' => 'string',
+            'body' => 'string',
             'status' => CommitStatus::class,
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

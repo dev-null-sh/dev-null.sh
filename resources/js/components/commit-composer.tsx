@@ -8,22 +8,17 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { cn, laneFor } from '@/lib/utils';
 
-const minTitleLength = 3;
-const maxTitleLength = 72;
-const maxDescriptionLength = 500;
+const minBodyLength = 3;
+const maxBodyLength = 280;
 
 export function CommitComposer() {
     const { auth } = usePage().props;
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
+    const [body, setBody] = useState('');
 
-    const remaining = maxTitleLength - title.length;
-    const isCommittable = title.trim().length >= minTitleLength;
-    const hint = titleHint(title);
+    const remaining = maxBodyLength - body.length;
+    const isCommittable = body.trim().length >= minBodyLength;
 
-    const submitOnModEnter = (
-        event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
-    ) => {
+    const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (
             event.key === 'Enter' &&
             (event.metaKey || event.ctrlKey) &&
@@ -43,10 +38,9 @@ export function CommitComposer() {
                     return;
                 }
 
-                setTitle('');
-                setDescription('');
+                setBody('');
                 requestAnimationFrame(() =>
-                    document.getElementById('title')?.focus(),
+                    document.getElementById('body')?.focus(),
                 );
             }}
             className="flex"
@@ -66,75 +60,37 @@ export function CommitComposer() {
                         />
 
                         <div className="min-w-0 flex-1">
-                            <label htmlFor="title" className="sr-only">
-                                Title
-                            </label>
-                            <input
-                                id="title"
-                                name="title"
-                                value={title}
-                                onChange={(event) =>
-                                    setTitle(event.target.value)
-                                }
-                                onKeyDown={(event) => {
-                                    if (
-                                        event.key === 'Enter' &&
-                                        !isCommittable
-                                    ) {
-                                        event.preventDefault();
-                                    }
-
-                                    submitOnModEnter(event);
-                                }}
-                                maxLength={maxTitleLength}
-                                placeholder="What did you ship?"
-                                autoComplete="off"
-                                aria-invalid={errors.title ? true : undefined}
-                                aria-describedby="title-count title-hint"
-                                className="block h-10 w-full bg-transparent text-[17px] font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground focus-visible:outline-none"
-                            />
-
-                            <InputError message={errors.title} />
-
-                            <p
-                                id="title-hint"
-                                aria-live="polite"
-                                className="text-[13px] text-amber-700 empty:hidden dark:text-amber-400"
-                            >
-                                {hint}
-                            </p>
-
-                            <label htmlFor="description" className="sr-only">
-                                Description
+                            <label htmlFor="body" className="sr-only">
+                                Body
                             </label>
                             <textarea
-                                id="description"
-                                name="description"
+                                id="body"
+                                name="body"
                                 rows={1}
-                                value={description}
+                                value={body}
                                 onChange={(event) =>
-                                    setDescription(event.target.value)
+                                    setBody(event.target.value)
                                 }
                                 onKeyDown={submitOnModEnter}
-                                maxLength={maxDescriptionLength}
-                                placeholder="Description (optional). It all goes to /dev/null eventually."
-                                aria-invalid={
-                                    errors.description ? true : undefined
-                                }
-                                className="block field-sizing-content min-h-7 w-full resize-none bg-transparent text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                                maxLength={maxBodyLength}
+                                placeholder="What did you ship?"
+                                autoComplete="off"
+                                aria-invalid={errors.body ? true : undefined}
+                                aria-describedby="body-count"
+                                className="block field-sizing-content min-h-10 w-full resize-none bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
                             />
 
-                            <InputError message={errors.description} />
+                            <InputError message={errors.body} />
 
                             <div className="mt-2 flex items-center justify-end gap-4">
                                 <span
-                                    id="title-count"
-                                    aria-label={`${remaining} title characters left`}
+                                    id="body-count"
+                                    aria-label={`${remaining} characters left`}
                                     className={cn(
                                         'font-mono text-[13px] text-muted-foreground',
                                         {
                                             'text-amber-700 dark:text-amber-400':
-                                                remaining <= 10,
+                                                remaining <= 20,
                                             'text-destructive': remaining === 0,
                                         },
                                     )}
@@ -156,18 +112,4 @@ export function CommitComposer() {
             )}
         </Form>
     );
-}
-
-function titleHint(title: string): string | null {
-    const trimmed = title.trim();
-
-    if (trimmed.length > 50) {
-        return 'git suggests keeping the subject under 50 characters.';
-    }
-
-    if (trimmed.endsWith('.') && !trimmed.endsWith('...')) {
-        return 'git subject lines skip the trailing period.';
-    }
-
-    return null;
 }

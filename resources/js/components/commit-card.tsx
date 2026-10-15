@@ -6,6 +6,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { GraphRail } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserHoverCard } from '@/components/user-hover-card';
 import { useNow } from '@/hooks/use-now';
 import {
     cn,
@@ -84,30 +85,43 @@ export function CommitCard({
                 />
 
                 <div className="flex min-w-0 flex-1 gap-3 border-b py-3 pr-4">
-                    <Link
-                        href={show(commit.user)}
-                        className="shrink-0 rounded-full"
-                        onMouseEnter={
-                            onAuthorHover && (() => onAuthorHover(true))
-                        }
-                        onMouseLeave={
-                            onAuthorHover && (() => onAuthorHover(false))
-                        }
+                    <UserHoverCard
+                        user={commit.user}
+                        className="shrink-0"
+                        onHoverChange={onAuthorHover}
                     >
-                        <UserAvatar user={commit.user} className="size-10" />
-                    </Link>
+                        <Link
+                            href={show(commit.user)}
+                            className="shrink-0 rounded-full"
+                        >
+                            <UserAvatar
+                                user={commit.user}
+                                className="size-10"
+                            />
+                        </Link>
+                    </UserHoverCard>
 
                     <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-1.5 text-[15px]">
-                            <Link
-                                href={show(commit.user)}
-                                className="truncate font-semibold hover:underline"
+                            <UserHoverCard
+                                user={commit.user}
+                                className="flex min-w-0 items-baseline gap-1.5"
+                                onHoverChange={onAuthorHover}
                             >
-                                {commit.user.name}
-                            </Link>
-                            <span className="truncate font-mono text-[13px] text-muted-foreground">
-                                @{commit.user.username}
-                            </span>
+                                <Link
+                                    href={show(commit.user)}
+                                    className="truncate font-semibold hover:underline"
+                                >
+                                    {commit.user.name}
+                                </Link>
+                                <Link
+                                    href={show(commit.user)}
+                                    tabIndex={-1}
+                                    className="truncate font-mono text-[13px] text-muted-foreground"
+                                >
+                                    @{commit.user.username}
+                                </Link>
+                            </UserHoverCard>
                             <span aria-hidden className="text-muted-foreground">
                                 ·
                             </span>
@@ -140,25 +154,35 @@ export function CommitCard({
                                 </span>
                             )}
 
-                            <span
-                                className="ml-auto hidden shrink-0 font-mono text-[13px] text-muted-foreground sm:inline"
-                                title={`Commit ${commit.id}`}
-                            >
-                                {hash}
-                            </span>
-
-                            {isOwn && (
-                                <button
-                                    type="button"
-                                    onClick={() => setDeletion('confirming')}
-                                    aria-label="Delete commit"
-                                    title="Delete commit"
-                                    className="-my-1 ml-auto shrink-0 self-center rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:ml-1 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-                                    data-test="delete-commit-button"
+                            <span className="relative ml-auto flex shrink-0 items-center self-center">
+                                <span
+                                    className={cn(
+                                        'hidden font-mono text-[13px] text-muted-foreground transition-opacity sm:inline',
+                                        {
+                                            'group-focus-within:opacity-0 group-hover:opacity-0 [@media(hover:none)]:opacity-0':
+                                                isOwn,
+                                        },
+                                    )}
+                                    title={`Commit ${commit.id}`}
                                 >
-                                    <Trash2 className="size-4" />
-                                </button>
-                            )}
+                                    {hash}
+                                </span>
+
+                                {isOwn && (
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setDeletion('confirming')
+                                        }
+                                        aria-label="Delete commit"
+                                        title="Delete commit"
+                                        className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                                        data-test="delete-commit-button"
+                                    >
+                                        <Trash2 className="size-4" />
+                                    </button>
+                                )}
+                            </span>
                         </div>
 
                         {deletion === 'deleting' ? (
@@ -169,16 +193,9 @@ export function CommitCard({
                                 rm {hash} → /dev/null
                             </p>
                         ) : (
-                            <>
-                                <p className="mt-0.5 text-[15px] leading-snug font-medium break-words">
-                                    {commit.title}
-                                </p>
-                                {commit.description && (
-                                    <p className="mt-1 text-[15px] leading-relaxed break-words whitespace-pre-wrap text-muted-foreground">
-                                        {commit.description}
-                                    </p>
-                                )}
-                            </>
+                            <p className="mt-0.5 text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+                                {commit.body}
+                            </p>
                         )}
 
                         {actions}

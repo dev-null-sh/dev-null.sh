@@ -270,12 +270,12 @@ Quiet, rectangular, decisive.
 - **Vocabulary:** a post is a **commit** and a timeline is a **log**, in the UI and in code. No other git nouns.
 
 ### Inputs / Fields
-- **Composer:** borderless, no visible field chrome: a 17px medium title input ("What did you ship?", max 72) over a 15px description textarea that grows with content (optional, max 500). Its state is carried by the graph: the staged node is hollow until the title reaches 3 characters, then fills with the author's lane; the tail below it is a dashed Rail Gray line. A mono title countdown sits left of the "Commit" button; ⌘/Ctrl+Enter commits from either field.
+- **Composer:** borderless, no visible field chrome: a 17px textarea ("What did you ship?", max 280) that grows with content. Its state is carried by the graph: the staged node is hollow until the body reaches 3 characters, then fills with the author's lane; the tail below it is a dashed Rail Gray line. A mono countdown sits left of the "Commit" button; ⌘/Ctrl+Enter commits.
 - **Read-only fields (settings):** a hairline-bordered 8px-radius list, mono keys in a 6.5rem column, values in sans; missing values print a mono `null`.
 - **Theme switch:** a bordered segmented group (8px outer, 6px inner) whose selected option uses the active-nav treatment.
 
 ### Commit Row (signature)
-The graph rail, then avatar (40px circle), then a header line: author name (600), mono handle, a middle dot, mono relative time, and the 7-character short hash pushed right (from sm). The title follows at 15px medium, then the optional description at 15px in Muted Ink, pre-wrapped. Your own rows reveal a trash icon on hover/focus (always visible on touch). Deleting is inline: a soft red strip asks "Delete this commit? There's no undo." with Cancel and Delete; confirming swaps the body for a mono `rm {hash} → /dev/null` status, then the row collapses (height and opacity, 300ms after a 400ms hold).
+The graph rail, then avatar (40px circle), then a header line: author name (600), mono handle, a middle dot, mono relative time, and the 7-character short hash pushed right (from sm). The body follows at 15px, pre-wrapped. Your own rows reveal a trash icon on hover/focus (always visible on touch). Deleting is inline: a soft red strip asks "Delete this commit? There's no undo." with Cancel and Delete; confirming swaps the body for a mono `rm {hash} → /dev/null` status, then the row collapses (height and opacity, 300ms after a 400ms hold).
 
 ### Graph Rail (signature)
 A 14px circle (16px on the landing page) centered on a 2px vertical line. The segment above a node takes the previous author's lane; the segment below takes this author's. The first commit hangs from a Rail Gray segment beneath the staged composer. The end of history is a hollow **root** node with no tail and a muted line ("That's the root commit. There's nothing before it."). A commit you made in the last 15 seconds animates in with `node-in` (scale 0 to 1.25 to 1 with a lane-colored pulse, 700ms, expo-out); landing-page segments draw downward with `rail-draw`, staggered 140ms. Both respect reduced motion.
@@ -291,14 +291,16 @@ Below the profile header: a GitHub-style 53-week grid (Sunday-first columns, Mon
 
 ### Log Interactions
 - **Day markers:** a row that keeps the rail running (no node) with a mono 12px label, "Today", "Yesterday", or "Tue, Oct 13", wherever the local day changes between commits.
-- **Author highlight:** hovering a node or avatar keeps that author's lane at full strength and fades every other node and segment to 30% opacity (200ms).
+- **Author highlight:** hovering a node, avatar, name, or handle keeps that author's lane at full strength and fades every other node and segment to 30% opacity (200ms).
 - **New commits pill:** polling every 30s; when commits arrive, a Commit Blue pill ("↑ 3 new commits") hangs under the tabs and reloads the log from the top.
-- **Commit toast:** after committing, a mono toast prints `[log <hash>] <title>`, the way `git commit` reports.
-- **Composer hints:** an amber 13px line under the title when it passes 50 characters or ends with a period. Advisory only, never blocking.
+- **Commit toast:** after committing, a mono toast prints `[log <hash>] <body>`, the way `git commit` reports.
 - **Loading:** skeleton rows keep the rail running (rail-gray node and line, pulsing bars) while the next page loads.
 - **Keyboard:** `j`/`k` move a focus highlight (Accent background) between commits, `c` focuses the composer, `g` then `l`/`e`/`p`/`s` navigates, `?` opens the shortcut sheet; keys render as bordered mono `kbd` caps.
 - **Starter suggestions:** an empty Log for someone who follows nobody lists three recent approved commits from different authors, each with a Follow button.
 - **Activity tooltip:** one dark tooltip (Ink on Background inverted) follows the hovered cell, edge-aligned near the ends; hovering a day tints that day's commits in the profile feed with Primary Soft.
+
+### User Hover Card
+Hovering an avatar, name, or handle (mouse only, 450ms delay, 200ms grace to move into it) opens a 304px Popover card below the trigger, flipping above near the viewport bottom: a 56px avatar ringed in the user's lane, Follow / Following (Unfollow on hover) top right, name, mono handle with lane dot and a "Follows you" chip, a 3-line bio, and mono counts linking to following and followers. Follow toggles optimistically and rolls back on error. Closes on scroll, Escape, or leaving.
 
 ## Do's and Don'ts
 

@@ -19,8 +19,7 @@ final class CreateCommitRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title' => ['required', 'string', 'min:3', 'max:72'],
-            'description' => ['nullable', 'string', 'max:500'],
+            'body' => ['required', 'string', 'min:3', 'max:280'],
         ];
     }
 }

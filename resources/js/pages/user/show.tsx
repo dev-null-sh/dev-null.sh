@@ -9,6 +9,8 @@ import {
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
+import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
+import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { ActivityGraph } from '@/components/activity-graph';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { GitHubIcon } from '@/components/github-icon';
@@ -183,7 +185,11 @@ export default function Show({
                                 'commits',
                             ),
                         },
-                        { count: user.following_count, label: 'following' },
+                        {
+                            count: user.following_count,
+                            label: 'following',
+                            href: UserFollowingController.index(user),
+                        },
                         {
                             count: user.followers_count,
                             label: pluralize(
@@ -191,6 +197,7 @@ export default function Show({
                                 'follower',
                                 'followers',
                             ),
+                            href: UserFollowersController.index(user),
                         },
                     ].map((stat) => (
                         <div
@@ -198,7 +205,16 @@ export default function Show({
                             className="flex flex-row-reverse gap-1.5"
                         >
                             <dt className="text-muted-foreground">
-                                {stat.label}
+                                {stat.href ? (
+                                    <Link
+                                        href={stat.href}
+                                        className="hover:underline"
+                                    >
+                                        {stat.label}
+                                    </Link>
+                                ) : (
+                                    stat.label
+                                )}
                             </dt>
                             <dd className="font-mono font-medium">
                                 {stat.count}

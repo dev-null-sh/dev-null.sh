@@ -89,7 +89,7 @@
             "pint --parallel",
             "bun run lint"
         ],
-        "test:type-coverage": "pest --type-coverage --min=100",
+        "test:type-coverage": "pest --type-coverage --min=100 --memory-limit=2G",
         "test:lint": [
             "pint --parallel --test",
             "rector --dry-run",

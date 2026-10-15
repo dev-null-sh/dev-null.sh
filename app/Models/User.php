@@ -106,6 +106,24 @@ final class User extends Authenticatable
         return in_array(mb_strtolower($this->username), array_map(mb_strtolower(...), $admins), true);
     }
 
+    /**
+     * Unlike loadCount(), counts follows on the pivot table alone: the self-referencing
+     * relations would otherwise join the users table for every follow. Commits are
+     * counted as the viewer sees them, which is all of them for the user themselves.
+     */
+    public function loadCounts(?self $viewer = null): self
+    {
+        $counts = [
+            'commits_count' => $this->commits()->visibleTo($viewer ?? $this)->count(),
+            'followers_count' => $this->followers()->newPivotQuery()->count(),
+            'following_count' => $this->following()->newPivotQuery()->count(),
+        ];
+
+        $this->forceFill($counts)->syncOriginalAttributes(array_keys($counts));
+
+        return $this;
+    }
+
     public function isFollowing(self $user): bool
     {
         return $this->following()->whereKey($user->id)->exists();

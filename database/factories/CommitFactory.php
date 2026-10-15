@@ -21,8 +21,7 @@ final class CommitFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'title' => fake()->text(72),
-            'description' => fake()->optional()->realText(200),
+            'body' => fake()->realText(280),
             'status' => CommitStatus::Approved,
         ];
     }

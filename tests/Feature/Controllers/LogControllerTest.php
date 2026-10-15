@@ -6,6 +6,7 @@ use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it('renders own commits and commits of followed users newest first', function (): void {
     $user = User::factory()->create();
@@ -14,9 +15,9 @@ it('renders own commits and commits of followed users newest first', function ()
 
     $user->following()->attach($followed);
 
-    Commit::factory()->for($user)->create(['title' => 'Mine', 'created_at' => now()->subMinutes(2)]);
-    Commit::factory()->for($followed)->create(['title' => 'Followed', 'created_at' => now()->subMinute()]);
-    Commit::factory()->for($stranger)->create(['title' => 'Stranger']);
+    Commit::factory()->for($user)->create(['body' => 'Mine', 'created_at' => now()->subMinutes(2)]);
+    Commit::factory()->for($followed)->create(['body' => 'Followed', 'created_at' => now()->subMinute()]);
+    Commit::factory()->for($stranger)->create(['body' => 'Stranger']);
 
     $response = $this->actingAs($user)
         ->get('/log/following');
@@ -26,17 +27,17 @@ it('renders own commits and commits of followed users newest first', function ()
             ->component('log/show')
             ->where('log', 'following')
             ->has('commits.data', 2)
-            ->where('commits.data.0.title', 'Followed')
+            ->where('commits.data.0.body', 'Followed')
             ->where('commits.data.0.user.id', $followed->id)
             ->missing('commits.data.0.user.email')
-            ->where('commits.data.1.title', 'Mine'));
+            ->where('commits.data.1.body', 'Mine'));
 });
 
 it('renders commits of everyone newest first', function (): void {
     $user = User::factory()->create();
 
-    Commit::factory()->create(['title' => 'Older', 'created_at' => now()->subMinute()]);
-    Commit::factory()->create(['title' => 'Newer']);
+    Commit::factory()->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
+    Commit::factory()->create(['body' => 'Newer']);
 
     $response = $this->actingAs($user)
         ->get('/log/everyone');
@@ -46,8 +47,8 @@ it('renders commits of everyone newest first', function (): void {
             ->component('log/show')
             ->where('log', 'everyone')
             ->has('commits.data', 2)
-            ->where('commits.data.0.title', 'Newer')
-            ->where('commits.data.1.title', 'Older'));
+            ->where('commits.data.0.body', 'Newer')
+            ->where('commits.data.1.body', 'Older'));
 });
 
 it('paginates the log', function (Log $log): void {
@@ -65,6 +66,26 @@ it('paginates the log', function (Log $log): void {
             ->has('commits.data', 20)
             ->whereNot('commits.next_cursor', null));
 })->with(Log::cases());
+
+it('does not count the authenticated user relations when reloading only commits', function (): void {
+    $user = User::factory()->has(Commit::factory())->create();
+
+    $response = $this->actingAs($user)
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(function ($page): void {
+            $page->where('auth.user.commits_count', 1);
+
+            DB::enableQueryLog();
+
+            $page->reloadOnly('commits', fn ($reload) => $reload->missing('auth'));
+        });
+
+    expect(array_column(DB::getQueryLog(), 'query'))
+        ->not->toBeEmpty()
+        ->each->not->toContain('count(*)');
+});
 
 it('returns not found for unknown logs', function (): void {
     $response = $this->actingAs(User::factory()->create())
@@ -114,8 +135,8 @@ it('suggests recent commits from other developers when following nobody', functi
     $user = User::factory()->create();
     $author = User::factory()->create();
 
-    Commit::factory()->for($author)->create(['title' => 'Older', 'created_at' => now()->subMinute()]);
-    Commit::factory()->for($author)->create(['title' => 'Newer']);
+    Commit::factory()->for($author)->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
+    Commit::factory()->for($author)->create(['body' => 'Newer']);
     Commit::factory()->for(User::factory())->create(['created_at' => now()->subMinutes(2)]);
     Commit::factory()->for($user)->create();
 
@@ -125,7 +146,7 @@ it('suggests recent commits from other developers when following nobody', functi
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->has('suggestions', 2)
-            ->where('suggestions.0.title', 'Newer')
+            ->where('suggestions.0.body', 'Newer')
             ->where('suggestions.0.user.id', $author->id)
             ->where('suggestions.1.user.id', fn (string $id): bool => $id !== $author->id && $id !== $user->id));
 });
@@ -148,8 +169,8 @@ it('hides pending commits of others from the log', function (Log $log): void {
 
     $user->following()->attach($followed);
 
-    Commit::factory()->for($user)->pending()->create(['title' => 'Mine']);
-    Commit::factory()->for($followed)->pending()->create(['title' => 'Followed']);
+    Commit::factory()->for($user)->pending()->create(['body' => 'Mine']);
+    Commit::factory()->for($followed)->pending()->create(['body' => 'Followed']);
 
     $response = $this->actingAs($user)
         ->get(route('log.show', $log));
@@ -157,16 +178,16 @@ it('hides pending commits of others from the log', function (Log $log): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->has('commits.data', 1)
-            ->where('commits.data.0.title', 'Mine')
+            ->where('commits.data.0.body', 'Mine')
             ->where('commits.data.0.status', 'pending'));
 })->with(Log::cases());
 
 it('only suggests approved commits', function (): void {
     $user = User::factory()->create();
 
-    Commit::factory()->pending()->create(['title' => 'Pending']);
-    Commit::factory()->rejected()->create(['title' => 'Rejected']);
-    Commit::factory()->create(['title' => 'Approved']);
+    Commit::factory()->pending()->create(['body' => 'Pending']);
+    Commit::factory()->rejected()->create(['body' => 'Rejected']);
+    Commit::factory()->create(['body' => 'Approved']);
 
     $response = $this->actingAs($user)
         ->get('/log/following');
@@ -174,7 +195,7 @@ it('only suggests approved commits', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->has('suggestions', 1)
-            ->where('suggestions.0.title', 'Approved'));
+            ->where('suggestions.0.body', 'Approved'));
 });
 
 it('defers suggested users to follow', function (): void {
