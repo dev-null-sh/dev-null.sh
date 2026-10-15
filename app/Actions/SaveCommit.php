@@ -12,8 +12,6 @@ final readonly class SaveCommit
 {
     public function handle(User $user, Commit $commit): void
     {
-        Commit::query()->visibleTo($user)->findOrFail($commit->id);
-
         Bookmark::query()->firstOrCreate([
             'user_id' => $user->id,
             'commit_id' => $commit->id,

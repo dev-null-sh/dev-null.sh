@@ -9,14 +9,14 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 });
 
 function storedCommitImage(Commit $commit): CommitImage
 {
     $path = 'commit-images/'.fake()->uuid().'.webp';
 
-    Storage::disk(CommitImage::DISK)->put($path, (string) UploadedFile::fake()->image('image.webp', 10, 10)->getContent());
+    Storage::disk()->put($path, (string) UploadedFile::fake()->image('image.webp', 10, 10)->getContent());
 
     return CommitImage::factory()->for($commit)->create(['path' => $path]);
 }
@@ -32,7 +32,7 @@ it('serves images of approved commits to everyone', function (): void {
         ->assertHeader('Content-Security-Policy', "default-src 'none'; sandbox; frame-ancestors 'none'");
 
     expect($response->headers->get('Content-Disposition'))->toBe('inline')
-        ->and($response->streamedContent())->toBe(Storage::disk(CommitImage::DISK)->get($image->path));
+        ->and($response->streamedContent())->toBe(Storage::disk()->get($image->path));
 });
 
 it('hides images of pending commits from guests and other users', function (): void {
@@ -81,6 +81,12 @@ it('hides images of deleted commits', function (): void {
     $this->actingAs($commit->user)
         ->get(route('commit-image.show', $image))
         ->assertNotFound();
+});
+
+it('responds not found when the image file is missing from the disk', function (): void {
+    $image = CommitImage::factory()->for(Commit::factory())->create();
+
+    $this->get(route('commit-image.show', $image))->assertNotFound();
 });
 
 it('does not cache images publicly', function (): void {
