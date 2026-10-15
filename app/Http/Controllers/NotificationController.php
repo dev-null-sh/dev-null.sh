@@ -23,7 +23,7 @@ final readonly class NotificationController
             'notifications' => Inertia::scroll(function () use ($user, $action): CursorPaginator {
                 $notifications = $user->notifications()
                     ->relevant()
-                    ->with(['actor', 'commit.parent'])
+                    ->with(['actor', 'commit'])
                     ->latest()
                     ->latest('id')
                     ->cursorPaginate(20);

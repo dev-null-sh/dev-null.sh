@@ -191,7 +191,7 @@ A cool, nearly colorless shell with one working blue and six author lanes reserv
 - **Blue Wash** (`primary-soft`): fill behind the active nav item and the selected appearance option; also the text selection color.
 
 ### Secondary
-- **Author Lanes** (`lane-0` through `lane-5`, burnt orange, green, violet, teal, rose, ochre; each with a `-dark` lift): assigned by hashing the user id (`laneFor`). Used only for graph nodes, rail segments, the staged composer node, the 8px dot before a handle in profile contexts, and the 2px ring around a profile avatar. Never text, never fills behind text, never buttons.
+- **Author Lanes** (`lane-0` through `lane-5`, burnt orange, green, violet, teal, rose, ochre; each with a `-dark` lift): chosen by the user in Settings → Profile, otherwise assigned by hashing the user id (`User::automaticLane()`); every serialized user carries the effective `lane` (0–5) and the frontend paints it with `laneColor(user.lane)`. Used only for graph nodes, rail segments, the staged composer node, the 8px dot before a handle in profile contexts, and the 2px ring around a profile avatar. Never text, never fills behind text, never buttons.
 
 ### Tertiary
 - **Rm Red** (`destructive`): delete affordances (trash icon on hover, inline confirm wash at 8% opacity, destructive button), "Unfollow" on hover, the composer counter at 0.
@@ -273,6 +273,7 @@ Quiet, rectangular, decisive.
 - **Composer:** borderless, no visible field chrome: a 17px textarea ("What did you ship?", max 280) that grows with content. Its state is carried by the graph: the staged node is hollow until the body reaches 3 characters, then fills with the author's lane; the tail below it is a dashed Rail Gray line. A mono countdown sits left of the "Commit" button; ⌘/Ctrl+Enter commits.
 - **Stash:** unsent text in the composer and in each reply composer is kept in `localStorage` per signed-in user (cleared on commit, when emptied, and on log out). When a draft comes back after a reload or navigation, a quiet mono `stash@{0}` (title "Restored your unsent draft") sits at the left of the counter row with a muted `drop` text button that discards it. Merely typing never shows it. A thread with a stashed reply prints a muted 11px mono `stash@{0}` after its "Reply" action; Cancel and Escape close the reply composer but keep the stash. Neither element is blue.
 - **Read-only fields (settings):** a hairline-bordered 8px-radius list, mono keys in a 6.5rem column, values in sans; missing values print a mono `null`.
+- **Color picker (settings):** a live preview row (rail node, 48px avatar with the lane ring, lane-dotted handle) above a radio group of seven 28px swatches with sans captions: a dashed "Auto" swatch showing the hashed lane, then the six lanes. The checked swatch gets the 2px lane ring offset from the surface; focus shows the standard focus ring on the whole option. Saved with a primary "Save color" button, disabled until the choice changes. Only the six lanes are offered so light/dark lifts and contrast keep working.
 - **Theme switch:** a bordered segmented group (8px outer, 6px inner) whose selected option uses the active-nav treatment.
 
 ### Commit Row (signature)
@@ -295,6 +296,7 @@ Below the profile header: a GitHub-style 53-week grid (Sunday-first columns, Mon
 
 ### Log Interactions
 - **Day markers:** a row that keeps the rail running (no node) with a mono 12px label, "Today", "Yesterday", or "Tue, Oct 13", wherever the local day changes between commits.
+- **Last visit marker:** a row like the day marker (rail runs through, no node) with a muted mono `HEAD@{last visit}` and a dashed hairline, between the commits that arrived since your last visit to that log and the first one you had already seen. The newest commit's time you saw is kept in `localStorage` per signed-in user and per log, updated on every load and after the new commits pill; the marker stays where it was at page load. It is skipped on a first visit, when nothing is new, or when the only new commits are your own; when it falls past the loaded page it appears once infinite scroll reaches it. Never blue.
 - **Author highlight:** hovering a node, avatar, name, or handle keeps that author's lane at full strength and fades every other node and segment to 30% opacity (200ms).
 - **New commits pill:** polling every 30s; when commits arrive, a Commit Blue pill ("↑ 3 new commits") hangs under the tabs and reloads the log from the top.
 - **Commit toast:** after committing, a mono toast prints `[log <hash>] <body>`, the way `git commit` reports.
@@ -318,12 +320,12 @@ Every commit has a page at `/@username/commits/{id}`, reached from its relative 
 A command palette opened by ⌘K / Ctrl+K or `/` anywhere, the "Search developers ⌘K" pill at the top of the right column, a Search nav item where that column is hidden, or the search icon in the mobile header. Popover surface, 576px max, 12vh from the top: a borderless 17px input with a search icon and an `esc` cap, results as rows (36px avatar, name in 600, mono handle with lane dot, truncated bio) with the active row on Accent and a `↵` hint, and a footer of key hints (hidden on phones). Combobox semantics: arrow keys move, Enter opens the profile, Escape closes. Empty: "Type a name or @handle."; pending: "Searching…"; no match: mono `fatal: no developers match '…'`.
 
 ### Link Previews
-A profile link shared to X, Slack, Discord, or iMessage unfurls as a 1200×630 PNG drawn server-side with GD in the light theme: the Cool Shell background, a 4px rail down the left in the profile's lane (Rail Gray above the first node), ringed lane nodes beside the avatar and the bio, a 152px avatar with the lane ring offset from the shell (a lane disc with a white initial when GitHub's avatar can't be fetched), the name in Geist 600, the mono handle led by the lane dot, up to three lines of bio ending in an ellipsis, and below a hairline the mono counts with sans labels and the `/dev/null` wordmark on the right. Fonts are the Geist TTFs in `resources/fonts`; emoji are dropped because Geist has none.
+A profile or commit link shared to X, Slack, Discord, or iMessage unfurls as a 1200×630 PNG drawn server-side with GD in the light theme: the Cool Shell background, a 4px rail down the left in the author's lane (Rail Gray above the first node), ringed lane nodes beside the avatar and the bio, a 152px avatar with the lane ring offset from the shell (a lane disc with a white initial when GitHub's avatar can't be fetched), the name in Geist 600, the mono handle led by the lane dot, up to three lines of bio ending in an ellipsis, and below a hairline the mono counts with sans labels and the `/dev/null` wordmark on the right. A commit link uses the same card (both drawn by `App\Services\OpenGraphCanvas`): an 80px avatar with the name and mono handle beside it and one lane node on the rail, a mono "↳ replying to @handle" line when the parent is approved, the body as the hero in Geist Regular (56px for one-liners, stepping down to 32px so up to six lines fit, then an ellipsis; line breaks are kept and long URLs wrap by character), and a footer reading mono `commit <short hash> · <date>` plus the approved reply count. Fonts are the Geist TTFs in `resources/fonts`; emoji are dropped because Geist has none.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** put every list of commits on the graph rail, with node and lower segment in the author's `laneFor` color and the upper segment in the previous author's.
+- **Do** put every list of commits on the graph rail, with node and lower segment in the author's lane color and the upper segment in the previous author's.
 - **Do** set handles, hashes, times, counts, and `fatal:` lines in Geist Mono at 13px.
 - **Do** keep Commit Blue for the primary action, links, focus, and current location only.
 - **Do** separate rows with 1px hairlines that start to the right of the rail.

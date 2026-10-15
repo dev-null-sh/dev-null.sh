@@ -8,7 +8,7 @@
         <meta name="theme-color" content="#111112" media="(prefers-color-scheme: dark)">
 
         @isset($preview)
-            <meta property="og:type" content="profile">
+            <meta property="og:type" content="{{ $preview['type'] }}">
             <meta property="og:site_name" content="/dev/null">
             <meta property="og:title" content="{{ $preview['title'] }}">
             <meta property="og:description" content="{{ $preview['description'] }}">
@@ -54,6 +54,7 @@
         <link rel="icon" href="/favicon.ico" sizes="any">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="manifest" href="/site.webmanifest">
 
         @fonts
 
