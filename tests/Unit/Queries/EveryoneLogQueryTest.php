@@ -30,3 +30,25 @@ it('only includes approved commits of others', function (): void {
 
     expect($commits->modelKeys())->toBe([$ownPending->id, $approved->id]);
 });
+
+it('excludes deleted commits', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->create()->delete();
+
+    $commits = resolve(EveryoneLogQuery::class)->builder(User::factory()->create())->get();
+
+    expect($commits->modelKeys())->toBe([$commit->id]);
+});
+
+it('counts replies including deleted ones that still have replies', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'parent')->create()->delete();
+    $tombstone = Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($tombstone, 'parent')->create();
+    $tombstone->delete();
+
+    $commits = resolve(EveryoneLogQuery::class)->builder(User::factory()->create())->get();
+
+    expect($commits->sole()->replies_count)->toBe(2);
+});

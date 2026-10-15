@@ -12,5 +12,14 @@ it('may delete a commit', function (): void {
 
     $action->handle($commit);
 
-    expect($commit->exists)->toBeFalse();
+    $this->assertSoftDeleted($commit);
+});
+
+it('keeps the replies of a deleted commit', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    resolve(DeleteCommit::class)->handle($commit);
+
+    $this->assertNotSoftDeleted($reply);
 });

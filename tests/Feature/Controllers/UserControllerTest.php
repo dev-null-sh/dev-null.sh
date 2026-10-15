@@ -162,6 +162,23 @@ it('shows own pending and rejected commits', function (): void {
             ->has('commits.data', 3));
 });
 
+it('hides deleted commits from profiles', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    Commit::factory()->for($user)->create(['body' => 'Kept']);
+    Commit::factory()->for($user)->create()->delete();
+
+    $response = $this->actingAs($user)
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('user.commits_count', 1)
+            ->where('activity.368.count', 1)
+            ->has('commits.data', 1)
+            ->where('commits.data.0.body', 'Kept'));
+});
+
 it('only shows top-level commits on profiles', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
     $parent = Commit::factory()->for($user)->create(['body' => 'Root']);

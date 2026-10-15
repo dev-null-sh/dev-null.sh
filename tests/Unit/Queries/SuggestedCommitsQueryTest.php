@@ -33,6 +33,15 @@ it('only suggests approved commits', function (): void {
     expect($commits->pluck('id')->all())->toBe([$approved->id]);
 });
 
+it('does not suggest deleted commits', function (): void {
+    $commit = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->create()->delete();
+
+    $commits = resolve(SuggestedCommitsQuery::class)->get(User::factory()->create());
+
+    expect($commits->pluck('id')->all())->toBe([$commit->id]);
+});
+
 it('limits the suggested commits', function (?int $limit, int $count): void {
     $user = User::factory()->create();
 

@@ -142,7 +142,31 @@ it('may delete own commit', function (): void {
 
     $response->assertRedirectToRoute('log.show', Log::Following);
 
-    expect($commit->fresh())->toBeNull();
+    $this->assertSoftDeleted($commit);
+});
+
+it('keeps the replies of others when deleting own commit', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $this->actingAs($commit->user)
+        ->fromRoute('log.show', Log::Following)
+        ->delete(route('commit.destroy', $commit));
+
+    $this->assertSoftDeleted($commit);
+
+    $this->assertNotSoftDeleted($reply);
+});
+
+it('may not delete a commit that is already deleted', function (): void {
+    $commit = Commit::factory()->create();
+    $commit->delete();
+
+    $response = $this->actingAs($commit->user)
+        ->fromRoute('log.show', Log::Following)
+        ->delete(route('commit.destroy', $commit));
+
+    $response->assertNotFound();
 });
 
 it('may not delete commits of other users', function (): void {
@@ -154,7 +178,7 @@ it('may not delete commits of other users', function (): void {
 
     $response->assertForbidden();
 
-    expect($commit->fresh())->not->toBeNull();
+    $this->assertNotSoftDeleted($commit);
 });
 
 it('may delete own commit from its page', function (): void {
@@ -166,7 +190,7 @@ it('may delete own commit from its page', function (): void {
 
     $response->assertRedirectToRoute('user.show', $commit->user);
 
-    expect($commit->fresh())->toBeNull();
+    $this->assertSoftDeleted($commit);
 });
 
 it('tells users their commit is pending review', function (): void {
@@ -237,6 +261,19 @@ it('may not reply to a commit that is not visible', function (): void {
     expect($parent->replies()->count())->toBe(0);
 });
 
+it('may not reply to a deleted commit', function (): void {
+    $parent = Commit::factory()->create();
+    $parent->delete();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
+
+    $response->assertSessionHasErrors('parent_id');
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
 it('may not reply to a commit that does not exist', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->fromRoute('log.show', Log::Everyone)
@@ -287,6 +324,44 @@ it('does not show a commit that is not visible', function (): void {
         ->get(route('commit.show', [$commit->user, $commit]));
 
     $response->assertNotFound();
+});
+
+it('does not show a deleted commit', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'parent')->create();
+    $commit->delete();
+
+    $response = $this->actingAs($commit->user)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertNotFound();
+});
+
+it('shows deleted ancestors and replies as tombstones', function (): void {
+    $root = Commit::factory()->create();
+    $deletedAncestor = Commit::factory()->for($root, 'parent')->create();
+    $commit = Commit::factory()->for($deletedAncestor, 'parent')->create();
+    $deletedReply = Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($deletedReply, 'parent')->create();
+    Commit::factory()->for($commit, 'parent')->create()->delete();
+    $deletedAncestor->delete();
+    $deletedReply->delete();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.replies_count', 1)
+            ->has('ancestors', 2)
+            ->where('ancestors.0.id', $root->id)
+            ->where('ancestors.1.id', $deletedAncestor->id)
+            ->missing('ancestors.1.body')
+            ->missing('ancestors.1.user')
+            ->has('replies', 1)
+            ->where('replies.0.id', $deletedReply->id)
+            ->where('replies.0.replies_count', 1)
+            ->missing('replies.0.body'));
 });
 
 it('does not show a commit under another username', function (): void {

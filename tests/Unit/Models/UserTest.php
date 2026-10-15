@@ -68,6 +68,13 @@ it('loads commit counts visible to the viewer', function (): void {
         ->and($user->loadCounts()->commits_count)->toBe(3);
 });
 
+it('does not count deleted commits', function (): void {
+    $user = User::factory()->has(Commit::factory())->create();
+    Commit::factory()->for($user)->create()->delete();
+
+    expect($user->loadCounts()->commits_count)->toBe(1);
+});
+
 it('loads counts without joining users', function (): void {
     $user = User::factory()->create();
 

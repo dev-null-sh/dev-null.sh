@@ -18,6 +18,7 @@ test('to array', function (): void {
             'updated_at',
             'status',
             'parent_id',
+            'deleted_at',
         ]);
 });
 
@@ -42,13 +43,37 @@ it('may reply to another commit', function (): void {
         ->and($parent->replies->sole()->is($reply))->toBeTrue();
 });
 
-it('deletes replies along with their parent', function (): void {
+it('keeps replies when their parent is deleted', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+
+    $parent->delete();
+
+    $this->assertSoftDeleted($parent);
+    $this->assertNotSoftDeleted($reply);
+});
+
+it('erases replies along with their parent when force deleted', function (): void {
     $parent = Commit::factory()->create();
     $reply = Commit::factory()->for($parent, 'parent')->create();
     $nested = Commit::factory()->for($reply, 'parent')->create();
 
-    $parent->delete();
+    $parent->forceDelete();
 
-    expect($reply->fresh())->toBeNull()
-        ->and($nested->fresh())->toBeNull();
+    expect(Commit::withTrashed()->whereKey([$reply->id, $nested->id])->exists())->toBeFalse();
+});
+
+it('serializes a deleted commit as a tombstone without its author or body', function (): void {
+    $parent = Commit::factory()->create();
+    $commit = Commit::factory()->for($parent, 'parent')->create();
+    $commit->delete();
+
+    $tombstone = Commit::withTrashed()->withCount('replies')->with('user')->findOrFail($commit->id);
+
+    expect($tombstone->toArray())->toBe([
+        'id' => $commit->id,
+        'parent_id' => $parent->id,
+        'deleted_at' => $tombstone->deleted_at?->toJSON(),
+        'replies_count' => 0,
+    ]);
 });

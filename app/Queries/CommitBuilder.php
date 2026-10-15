@@ -24,6 +24,18 @@ final class CommitBuilder extends Builder
             ->orWhere('user_id', $user->id));
     }
 
+    /**
+     * Deleted commits stay in a thread as tombstones while they still have replies the given user can see.
+     */
+    public function visibleInThreadTo(User $user): self
+    {
+        return $this->withTrashed()
+            ->visibleTo($user)
+            ->where(fn (self $query): self => $query
+                ->whereNull($query->getModel()->getQualifiedDeletedAtColumn())
+                ->orWhereHas('replies', fn (self $replies): self => $replies->withTrashed()->visibleTo($user)));
+    }
+
     public function topLevel(): self
     {
         return $this->whereNull('parent_id');
@@ -35,7 +47,7 @@ final class CommitBuilder extends Builder
     public function withVisibleReplyCount(User $user): self
     {
         return $this->withCount([
-            'replies' => fn (self $query): self => $query->visibleTo($user),
+            'replies' => fn (self $query): self => $query->visibleInThreadTo($user),
         ]);
     }
 

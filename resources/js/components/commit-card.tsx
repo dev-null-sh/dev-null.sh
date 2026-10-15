@@ -13,12 +13,13 @@ import {
     cn,
     formatFullDateTime,
     formatRelativeTime,
+    isDeleted,
     isWithinSeconds,
     laneFor,
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit } from '@/types';
+import type { Commit, ThreadCommit } from '@/types';
 
 export function CommitCard({
     commit,
@@ -41,7 +42,7 @@ export function CommitCard({
     actions?: ReactNode;
     isFocused?: boolean;
     canDelete?: boolean;
-    initialReplies?: Commit[];
+    initialReplies?: ThreadCommit[];
 }) {
     const { auth } = usePage().props;
     const now = useNow();
@@ -213,7 +214,13 @@ export function CommitCard({
                             </p>
                         ) : (
                             <>
-                                {commit.parent && (
+                                {commit.parent && isDeleted(commit.parent) && (
+                                    <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
+                                        <CornerDownRight className="size-3" />
+                                        replying to [deleted]
+                                    </p>
+                                )}
+                                {commit.parent && !isDeleted(commit.parent) && (
                                     <Link
                                         href={CommitController.show({
                                             user: commit.parent.user,
@@ -299,6 +306,29 @@ export function CommitCard({
                         )}
                     </div>
                 </div>
+            </div>
+        </article>
+    );
+}
+
+export function CommitTombstone({ previousLane }: { previousLane?: string }) {
+    return (
+        <article className="flex" data-test="commit-tombstone">
+            <GraphRail
+                lane="var(--rail)"
+                previousLane={previousLane}
+                isFilled={false}
+            />
+
+            <div className="flex min-w-0 flex-1 items-center gap-3 border-b py-3 pr-4">
+                <span
+                    aria-hidden
+                    className="size-10 shrink-0 rounded-full border-2 border-dashed border-rail"
+                />
+                <p className="flex items-baseline gap-1.5 text-[15px] text-muted-foreground">
+                    <span className="font-mono text-[13px]">[deleted]</span>
+                    This commit was deleted.
+                </p>
             </div>
         </article>
     );

@@ -67,3 +67,13 @@ it('only includes approved commits of followed users', function (): void {
 
     expect($commits->modelKeys())->toBe([$ownPending->id, $approved->id]);
 });
+
+it('excludes deleted commits', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->create()->delete();
+
+    $commits = resolve(FollowingLogQuery::class)->builder($user)->get();
+
+    expect($commits->modelKeys())->toBe([$commit->id]);
+});

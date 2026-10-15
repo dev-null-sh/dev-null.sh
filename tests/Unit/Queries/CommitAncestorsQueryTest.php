@@ -36,6 +36,22 @@ it('stops at the first ancestor that is not visible', function (): void {
         ->and($ancestors->first()->relationLoaded('parent'))->toBeFalse();
 });
 
+it('keeps deleted ancestors as tombstones and continues past them', function (): void {
+    $root = Commit::factory()->create();
+    $deleted = Commit::factory()->for($root, 'parent')->create();
+    $reply = Commit::factory()->for($deleted, 'parent')->create();
+    $deleted->delete();
+
+    $ancestors = new CommitAncestorsQuery()->get($reply, User::factory()->create());
+
+    expect($ancestors->pluck('id')->all())->toBe([$root->id, $deleted->id])
+        ->and($ancestors->last()->toArray())->toBe([
+            'id' => $deleted->id,
+            'parent_id' => $root->id,
+            'deleted_at' => $deleted->deleted_at?->toJSON(),
+        ]);
+});
+
 it('includes own pending ancestors', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->for($viewer)->pending()->create();

@@ -16,7 +16,7 @@ final readonly class CommitRepliesQuery
     public function get(Commit $commit, User $user): Collection
     {
         return $commit->replies()
-            ->visibleTo($user)
+            ->visibleInThreadTo($user)
             ->withVisibleReplyCount($user)
             ->with('user')
             ->oldest()

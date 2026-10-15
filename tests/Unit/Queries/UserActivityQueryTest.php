@@ -40,3 +40,12 @@ it('only counts the commits visible to the viewer', function (): void {
     expect($query->get($user, User::factory()->create())[368]['count'])->toBe(1)
         ->and($query->get($user, $user)[368]['count'])->toBe(3);
 });
+
+it('does not count deleted commits', function (): void {
+    $user = User::factory()->create();
+
+    Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->create()->delete();
+
+    expect(resolve(UserActivityQuery::class)->get($user, $user)[368]['count'])->toBe(1);
+});
