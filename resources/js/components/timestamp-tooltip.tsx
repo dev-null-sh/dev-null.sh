@@ -1,14 +1,13 @@
 import { usePage } from '@inertiajs/react';
-import type { ReactNode } from 'react';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import type { CSSProperties, ReactNode } from 'react';
+import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     browserTimeZone,
-    formatZonedDateTime,
-    timeZoneLabel,
+    formatZonedDay,
+    formatZonedTime,
+    laneColor,
+    timeZoneCity,
 } from '@/lib/utils';
 import type { User } from '@/types';
 
@@ -24,9 +23,15 @@ export function TimestampTooltip({
     return (
         <Tooltip>
             <TooltipTrigger asChild>{children}</TooltipTrigger>
-            <TooltipContent className="max-w-none">
-                <ZonedTimes date={date} author={author} />
-            </TooltipContent>
+            <TooltipPrimitive.Portal>
+                <TooltipPrimitive.Content
+                    sideOffset={6}
+                    className="z-50 animate-in rounded-lg border bg-popover text-popover-foreground shadow-md fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+                >
+                    <ZonedTimes date={date} author={author} />
+                    <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%-1px)] rotate-45 rounded-[2px] border-r border-b bg-popover fill-popover" />
+                </TooltipPrimitive.Content>
+            </TooltipPrimitive.Portal>
         </Tooltip>
     );
 }
@@ -34,27 +39,48 @@ export function TimestampTooltip({
 function ZonedTimes({ date, author }: { date: string; author: User }) {
     const { auth } = usePage().props;
 
-    const rows = [
-        { who: 'You', timeZone: auth.user.timezone ?? browserTimeZone() },
+    const columns = [
+        {
+            who: 'You',
+            lane: auth.user.lane,
+            timeZone: auth.user.timezone ?? browserTimeZone(),
+        },
         ...(author.timezone !== null && author.id !== auth.user.id
-            ? [{ who: `@${author.username}`, timeZone: author.timezone }]
+            ? [
+                  {
+                      who: author.name.split(' ')[0],
+                      lane: author.lane,
+                      timeZone: author.timezone,
+                  },
+              ]
             : []),
     ];
 
     return (
         <div
-            className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1"
+            className="flex divide-x overflow-hidden rounded-[calc(var(--radius)-1px)]"
             data-test="timestamp-tooltip"
         >
-            {rows.map((row) => (
-                <p key={row.who} className="col-span-2 grid grid-cols-subgrid">
-                    <span className="tabular-nums">
-                        {formatZonedDateTime(date, row.timeZone)}
-                    </span>
-                    <span className="text-primary-foreground/60">
-                        {row.who} · {timeZoneLabel(date, row.timeZone)}
-                    </span>
-                </p>
+            {columns.map((column) => (
+                <div
+                    key={column.who}
+                    className="border-t-2 border-t-(--lane) px-2.5 py-1.5 whitespace-nowrap"
+                    style={
+                        { '--lane': laneColor(column.lane) } as CSSProperties
+                    }
+                >
+                    <p className="text-[11px] text-muted-foreground">
+                        {column.who} · {timeZoneCity(column.timeZone)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                        <span className="text-[13px] font-semibold text-popover-foreground tabular-nums">
+                            {formatZonedTime(date, column.timeZone)}
+                        </span>{' '}
+                        {formatZonedDay(date, column.timeZone, {
+                            brief: columns.length > 1,
+                        })}
+                    </p>
+                </div>
             ))}
         </div>
     );
