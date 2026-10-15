@@ -8,8 +8,9 @@ use App\Models\User;
 
 it('lists the notifications of the user, newest first', function (): void {
     $user = User::factory()->create();
-    $followed = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinute()]);
-    $replied = Notification::factory()->for($user, 'recipient')->replied()->create();
+    $followed = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinutes(2)]);
+    $replied = Notification::factory()->for($user, 'recipient')->replied()->create(['created_at' => now()->subMinute()]);
+    $mentioned = Notification::factory()->for($user, 'recipient')->mentioned()->create();
     Notification::factory()->create();
 
     $response = $this->actingAs($user)->get(route('notification.index'));
@@ -17,13 +18,17 @@ it('lists the notifications of the user, newest first', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('notification/index')
-            ->has('notifications.data', 2)
-            ->where('notifications.data.0.id', $replied->id)
-            ->where('notifications.data.0.type', 'replied')
-            ->where('notifications.data.0.actor.id', $replied->actor_id)
-            ->where('notifications.data.0.commit.id', $replied->commit_id)
-            ->missing('notifications.data.0.commit.parent')
-            ->where('notifications.data.1.id', $followed->id)
+            ->has('notifications.data', 3)
+            ->where('notifications.data.0.id', $mentioned->id)
+            ->where('notifications.data.0.type', 'mentioned')
+            ->where('notifications.data.0.actor.id', $mentioned->actor_id)
+            ->where('notifications.data.0.commit.id', $mentioned->commit_id)
+            ->where('notifications.data.1.id', $replied->id)
+            ->where('notifications.data.1.type', 'replied')
+            ->where('notifications.data.1.actor.id', $replied->actor_id)
+            ->where('notifications.data.1.commit.id', $replied->commit_id)
+            ->missing('notifications.data.1.commit.parent')
+            ->where('notifications.data.2.id', $followed->id)
             ->missing('notifications.data.0.key')
             ->missing('notifications.data.0.actor.email'));
 });

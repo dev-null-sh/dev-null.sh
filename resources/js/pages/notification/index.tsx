@@ -69,6 +69,14 @@ function NotificationItem({ notification }: { notification: Notification }) {
         rejected: X,
     }[notification.type];
 
+    const action = {
+        followed: 'followed you',
+        replied: 'replied to your commit',
+        mentioned: 'mentioned you',
+        approved: null,
+        rejected: null,
+    }[notification.type];
+
     return (
         <Link
             href={
@@ -119,11 +127,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
                     ) : (
                         <>
                             <span className="font-medium">{actor.name}</span>{' '}
-                            {notification.type === 'followed'
-                                ? 'followed you'
-                                : notification.type === 'mentioned'
-                                  ? 'mentioned you'
-                                  : 'replied to your commit'}
+                            {action}
                         </>
                     )}
                     <span className="text-muted-foreground">
