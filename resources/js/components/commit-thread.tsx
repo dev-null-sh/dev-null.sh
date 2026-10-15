@@ -9,6 +9,7 @@ import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
+import { CopyLinkButton } from '@/components/copy-link-button';
 import InputError from '@/components/input-error';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
@@ -96,13 +97,19 @@ export function CommitThread({
 
     return (
         <>
-            <ThreadActions thread={thread} />
+            <ThreadActions thread={thread} hasKeyboardShortcuts />
             <ThreadReplies thread={thread} depth={0} />
         </>
     );
 }
 
-function ThreadActions({ thread }: { thread: Thread }) {
+function ThreadActions({
+    thread,
+    hasKeyboardShortcuts = false,
+}: {
+    thread: Thread;
+    hasKeyboardShortcuts?: boolean;
+}) {
     const { auth } = usePage().props;
     const hasStash = useHasStash(auth.user.id, `reply-${thread.commit.id}`);
 
@@ -151,6 +158,11 @@ function ThreadActions({ thread }: { thread: Thread }) {
                             : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
                     </button>
                 )}
+
+                <CopyLinkButton
+                    commit={thread.commit}
+                    keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
+                />
             </div>
 
             {thread.isReplying && (

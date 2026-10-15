@@ -2,6 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard } from '@/components/commit-card';
+import { CopyLinkButton } from '@/components/copy-link-button';
 import AppLayout from '@/layouts/app-layout';
 import { laneFor, shortHash } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -51,6 +52,7 @@ export default function Show({
                 <p className="ml-auto shrink-0 font-mono text-[13px] text-muted-foreground">
                     {shortHash(commit.id)}
                 </p>
+                <CopyLinkButton commit={commit} className="-mr-1 -ml-1.5" />
             </div>
 
             {ancestors.map((ancestor, index) => (
