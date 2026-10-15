@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use App\Actions\StoreCommitImages;
-use App\Actions\VerifySignedCommit;
+use App\Actions\CreateCommitImages;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -44,7 +44,7 @@ arch('controllers leave authorization and validation to form requests')
         ValidationException::class,
     ]);
 
-// Signed commits are verified by middleware, before the user is known, and images can only fail to decode once they are processed...
+// Images can only fail to decode once they are processed...
 arch('actions leave authorization and validation to form requests')
     ->expect('App\Actions')
     ->not->toUse([
@@ -58,8 +58,34 @@ arch('actions leave authorization and validation to form requests')
         ValidationException::class,
     ])
     ->ignoring([
-        VerifySignedCommit::class,
-        StoreCommitImages::class,
+        CreateCommitImages::class,
     ]);
 
-//
+test('actions only create, update, or delete', function (): void {
+    foreach (File::allFiles(app_path('Actions')) as $file) {
+        expect($file->getFilenameWithoutExtension())->toMatch('/^(Create|Update|Delete)[A-Z]/');
+    }
+});
+
+test('controllers are cruddy by design, or invokable', function (): void {
+    foreach (File::allFiles(app_path('Http/Controllers')) as $file) {
+        $controller = 'App\\Http\\Controllers\\'.str_replace(['/', '.php'], ['\\', ''], $file->getRelativePathname());
+
+        $methods = array_values(array_map(
+            fn (ReflectionMethod $method): string => $method->getName(),
+            array_filter(
+                new ReflectionClass($controller)->getMethods(ReflectionMethod::IS_PUBLIC),
+                fn (ReflectionMethod $method): bool => ! $method->isConstructor(),
+            ),
+        ));
+
+        expect($methods === ['__invoke'] || array_diff($methods, ['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']) === [])
+            ->toBeTrue("{$controller} may only have the resource methods, or a single __invoke method.");
+    }
+});
+
+test('form requests are named after the controller method they serve', function (): void {
+    foreach (File::allFiles(app_path('Http/Requests')) as $file) {
+        expect($file->getFilenameWithoutExtension())->toMatch('/^(List|Show|Create|Update|Delete)[A-Z]\w*Request$/');
+    }
+});
