@@ -60,6 +60,7 @@ it('shows a pinned commit once above the log with visible reply counts and uncha
 
     $viewer = User::factory()->create();
     $pinned->stars()->attach($viewer);
+    $pinned->bookmarks()->create(['user_id' => $viewer->id]);
 
     $this->actingAs($viewer)->get(route('user.show', $user))
         ->assertOk()
@@ -69,12 +70,14 @@ it('shows a pinned commit once above the log with visible reply counts and uncha
             ->where('pinnedCommit.replies_count', 1)
             ->where('pinnedCommit.stars_count', 1)
             ->where('pinnedCommit.starred', true)
+            ->where('pinnedCommit.is_saved', true)
             ->missing('pinnedCommit.user.pinned_commit_id')
             ->missing('user.pinned_commit_id')
             ->where('user.commits_count', 2)
             ->where('activity.scale', 'day')
             ->where('activity.buckets', fn ($buckets): bool => collect($buckets)->sum('count') === 2)
             ->has('commits.data', 1)
+            ->where('commits.data.0.is_saved', false)
             ->where('commits.data.0.id', $normal->id));
 });
 
