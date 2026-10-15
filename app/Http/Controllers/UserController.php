@@ -10,6 +10,7 @@ use App\Http\Requests\ShowUserRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
+use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -21,7 +22,7 @@ use Inertia\Response;
 
 final readonly class UserController
 {
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks): RedirectResponse|Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
             return $this->preview($request, $user);
@@ -32,6 +33,7 @@ final readonly class UserController
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => fn (): array => $streaks->get($user, $currentUser),
+            'achievements' => fn (): array => $achievements->get($user, $currentUser),
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)
