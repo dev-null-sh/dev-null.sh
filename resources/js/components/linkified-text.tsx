@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import { mentionPattern } from '@/lib/mentions';
 import { show } from '@/routes/user';
 
 // Keep these rules in sync with app/Actions/FindFirstUrl.php and app/Actions/FindMentions.php.
@@ -60,34 +61,13 @@ function withoutTrailingPunctuation(candidate: string): string {
     return url;
 }
 
-function withMentions(text: string, offset: number): ReactNode[] {
-    const parts: ReactNode[] = [];
-    let position = 0;
+type Segment =
+    | { type: 'text'; value: string; index: number }
+    | { type: 'url'; value: string; href: string; index: number }
+    | { type: 'mention'; value: string; username: string; index: number };
 
-    for (const match of text.matchAll(mentionPattern)) {
-        parts.push(
-            text.slice(position, match.index),
-            <Link
-                key={`mention-${offset + match.index}`}
-                href={show({ username: match[1] })}
-                className="font-medium text-primary hover:underline"
-                data-test="mention"
-            >
-                {match[0]}
-            </Link>,
-        );
-
-        position = match.index + match[0].length;
-    }
-
-    parts.push(text.slice(position));
-
-    return parts;
-}
-
-export function LinkifiedText({ text }: { text: string }) {
-    const parts: ReactNode[] = [];
-    let position = 0;
+function segmentsFor(text: string): Segment[] {
+    const matches: Segment[] = [];
 
     for (const match of text.matchAll(urlPattern)) {
         const linkText = withoutTrailingPunctuation(match[0]);
@@ -99,23 +79,91 @@ export function LinkifiedText({ text }: { text: string }) {
             continue;
         }
 
-        parts.push(
-            ...withMentions(text.slice(position, match.index), position),
-            <a
-                key={match.index}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer nofollow ugc"
-                className="wrap-anywhere text-primary hover:underline"
-            >
-                {linkText}
-            </a>,
-        );
-
-        position = match.index + linkText.length;
+        matches.push({
+            type: 'url',
+            value: linkText,
+            href,
+            index: match.index,
+        });
     }
 
-    parts.push(...withMentions(text.slice(position), position));
+    for (const match of text.matchAll(mentionPattern)) {
+        matches.push({
+            type: 'mention',
+            value: match[0],
+            username: match[1],
+            index: match.index,
+        });
+    }
+
+    matches.sort((a, b) => a.index - b.index);
+
+    const segments: Segment[] = [];
+    let position = 0;
+
+    for (const match of matches) {
+        if (match.index < position) {
+            continue;
+        }
+
+        if (match.index > position) {
+            segments.push({
+                type: 'text',
+                value: text.slice(position, match.index),
+                index: position,
+            });
+        }
+
+        segments.push(match);
+        position = match.index + match.value.length;
+    }
+
+    if (position < text.length) {
+        segments.push({
+            type: 'text',
+            value: text.slice(position),
+            index: position,
+        });
+    }
+
+    return segments;
+}
+
+export function LinkifiedText({ text }: { text: string }) {
+    const parts: ReactNode[] = [];
+
+    for (const segment of segmentsFor(text)) {
+        if (segment.type === 'text') {
+            parts.push(segment.value);
+            continue;
+        }
+
+        if (segment.type === 'url') {
+            parts.push(
+                <a
+                    key={`url-${segment.index}`}
+                    href={segment.href}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow ugc"
+                    className="wrap-anywhere text-primary hover:underline"
+                >
+                    {segment.value}
+                </a>,
+            );
+            continue;
+        }
+
+        parts.push(
+            <Link
+                key={`mention-${segment.index}`}
+                href={show({ username: segment.username })}
+                className="font-medium text-primary hover:underline"
+                data-test="mention"
+            >
+                {segment.value}
+            </Link>,
+        );
+    }
 
     return <>{parts}</>;
 }
