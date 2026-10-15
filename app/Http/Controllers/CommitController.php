@@ -36,7 +36,7 @@ final readonly class CommitController
         return Inertia::render('commit/show', [
             'commit' => $commit,
             'ancestors' => $ancestors->get($commit, $currentUser),
-            'replies' => $replies->get($commit, $currentUser),
+            'replies' => $replies->paginate($commit, $currentUser),
         ]);
     }
 

@@ -20,7 +20,7 @@ import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit } from '@/types';
+import type { Commit, CursorPaginated } from '@/types';
 
 const maxIndentDepth = 3;
 const maxBodyLength = 280;
@@ -29,43 +29,101 @@ type Thread = {
     commit: Commit;
     count: number;
     replies: Commit[] | null;
+    hasMore: boolean;
     isOpen: boolean;
     isLoading: boolean;
     isReplying: boolean;
     toggle: () => void;
+    loadMore: () => void;
     startReply: () => void;
     cancelReply: () => void;
-    reload: () => void;
     onReplied: () => void;
+    onDeleted: () => void;
 };
 
-function useThread(commit: Commit, initialReplies?: Commit[]): Thread {
-    const [replies, setReplies] = useState<Commit[] | null>(
-        initialReplies ?? null,
-    );
-    const [isOpen, setIsOpen] = useState(initialReplies !== undefined);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isReplying, setIsReplying] = useState(false);
-
-    const reload = () => {
-        setIsLoading(true);
-
-        fetch(CommitReplyController.index(commit).url, {
+async function fetchReplies(
+    commit: Commit,
+    cursor: string | null,
+): Promise<CursorPaginated<Commit>> {
+    const response = await fetch(
+        CommitReplyController.index(commit, { query: { cursor } }).url,
+        {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },
-        })
-            .then((response) => response.json())
-            .then((data: { replies: Commit[] }) => setReplies(data.replies))
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error('Unable to load replies');
+    }
+
+    return (await response.json()) as CursorPaginated<Commit>;
+}
+
+async function fetchRepliesUntil(
+    commit: Commit,
+    minimum: number,
+): Promise<CursorPaginated<Commit>> {
+    const page = await fetchReplies(commit, null);
+    let data = page.data;
+    let cursor = page.next_cursor;
+
+    while (cursor !== null && data.length < minimum) {
+        const next = await fetchReplies(commit, cursor);
+        data = [...data, ...next.data];
+        cursor = next.next_cursor;
+    }
+
+    return { ...page, data, next_cursor: cursor };
+}
+
+function useThread(
+    commit: Commit,
+    initialReplies?: CursorPaginated<Commit>,
+): Thread {
+    const [replies, setReplies] = useState<Commit[] | null>(
+        initialReplies?.data ?? null,
+    );
+    const [nextCursor, setNextCursor] = useState<string | null>(
+        initialReplies?.next_cursor ?? null,
+    );
+    const [count, setCount] = useState(commit.replies_count ?? 0);
+    const [isOpen, setIsOpen] = useState(initialReplies !== undefined);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isReplying, setIsReplying] = useState(false);
+
+    const applyPage = (loaded: Commit[], cursor: string | null) => {
+        setReplies(loaded);
+        setNextCursor(cursor);
+
+        if (cursor === null) {
+            setCount(loaded.length);
+        }
+    };
+
+    const reload = () => {
+        const minimum =
+            replies === null
+                ? 0
+                : nextCursor === null
+                  ? Infinity
+                  : replies.length;
+
+        setIsLoading(true);
+
+        fetchRepliesUntil(commit, minimum)
+            .then((page) => applyPage(page.data, page.next_cursor))
             .catch(() => undefined)
             .finally(() => setIsLoading(false));
     };
 
     return {
         commit,
-        count: replies?.length ?? commit.replies_count ?? 0,
+        count,
         replies,
+        hasMore: replies !== null && nextCursor !== null,
         isOpen,
         isLoading,
         isReplying,
@@ -76,12 +134,30 @@ function useThread(commit: Commit, initialReplies?: Commit[]): Thread {
 
             setIsOpen(!isOpen);
         },
+        loadMore: () => {
+            if (isLoading || replies === null || nextCursor === null) {
+                return;
+            }
+
+            setIsLoading(true);
+
+            fetchReplies(commit, nextCursor)
+                .then((page) =>
+                    applyPage([...replies, ...page.data], page.next_cursor),
+                )
+                .catch(() => undefined)
+                .finally(() => setIsLoading(false));
+        },
         startReply: () => setIsReplying(true),
         cancelReply: () => setIsReplying(false),
-        reload,
         onReplied: () => {
             setIsReplying(false);
             setIsOpen(true);
+            setCount((current) => current + 1);
+            reload();
+        },
+        onDeleted: () => {
+            setCount((current) => Math.max(current - 1, 0));
             reload();
         },
     };
@@ -92,7 +168,7 @@ export function CommitThread({
     initialReplies,
 }: {
     commit: Commit;
-    initialReplies?: Commit[];
+    initialReplies?: CursorPaginated<Commit>;
 }) {
     const thread = useThread(commit, initialReplies);
 
@@ -209,17 +285,64 @@ function ThreadReplies({ thread, depth }: { thread: Thread; depth: number }) {
                     Loading replies…
                 </p>
             ) : (
-                thread.replies.map((reply) => (
-                    <ReplyItem
-                        key={reply.id}
-                        reply={reply}
-                        parent={thread.commit}
-                        depth={depth + 1}
-                        onDeleted={thread.reload}
-                    />
-                ))
+                <>
+                    {thread.replies.map((reply) => (
+                        <ReplyItem
+                            key={reply.id}
+                            reply={reply}
+                            parent={thread.commit}
+                            depth={depth + 1}
+                            onDeleted={thread.onDeleted}
+                        />
+                    ))}
+                    {thread.hasMore && (
+                        <MoreRepliesButton
+                            thread={thread}
+                            isFlattened={depth + 1 > maxIndentDepth}
+                        />
+                    )}
+                </>
             )}
         </div>
+    );
+}
+
+function MoreRepliesButton({
+    thread,
+    isFlattened,
+}: {
+    thread: Thread;
+    isFlattened: boolean;
+}) {
+    const remaining = thread.count - (thread.replies?.length ?? 0);
+
+    return (
+        <button
+            type="button"
+            onClick={thread.loadMore}
+            aria-disabled={thread.isLoading}
+            className="mt-1.5 -ml-2 flex max-w-full items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none"
+            data-test="more-replies-button"
+        >
+            <ChevronDown className="size-4 shrink-0" />
+            {thread.isLoading ? (
+                <span role="status">Loading replies…</span>
+            ) : (
+                <span className="truncate">
+                    {remaining > 0
+                        ? `Show ${remaining} more ${remaining === 1 ? 'reply' : 'replies'}`
+                        : 'Show more replies'}
+                    {isFlattened && (
+                        <>
+                            {' to '}
+                            <span className="font-mono text-xs">
+                                @{thread.commit.user.username}
+                            </span>
+                        </>
+                    )}
+                </span>
+            )}
+        </button>
     );
 }
 

@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitStatus;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -181,4 +183,26 @@ it('shares hasUnmoderatedCommits as false for non admins', function (): void {
     $shared = $middleware->share($request);
 
     expect(value($shared['hasUnmoderatedCommits']))->toBeFalse();
+});
+
+it('shares the count of unread notifications that still hold', function (): void {
+    $user = User::factory()->create();
+    Notification::factory()->for($user, 'recipient')->count(2)->create();
+    Notification::factory()->for($user, 'recipient')->read()->create();
+    Notification::factory()->for($user, 'recipient')->replied()->create()->commit->update(['status' => CommitStatus::Rejected]);
+
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    expect($middleware->share($request)['auth']['unreadNotificationsCount']())->toBe(2);
+});
+
+it('shares no unread notifications for guests', function (): void {
+    $middleware = new HandleInertiaRequests();
+
+    $shared = $middleware->share(Request::create('/', 'GET'));
+
+    expect($shared['auth']['unreadNotificationsCount']())->toBe(0);
 });

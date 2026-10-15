@@ -13,6 +13,7 @@ export function CommitFeed({
     end,
     firstLane,
     highlightedDate = null,
+    firstSeenId = null,
     actions,
 }: {
     commits: CursorPaginated<Commit>;
@@ -20,6 +21,7 @@ export function CommitFeed({
     end: string;
     firstLane?: string;
     highlightedDate?: string | null;
+    firstSeenId?: string | null;
     actions?: (commit: Commit) => ReactNode;
 }) {
     const now = useNow();
@@ -61,6 +63,12 @@ export function CommitFeed({
 
                     return (
                         <Fragment key={commit.id}>
+                            {commit.id === firstSeenId && (
+                                <LastVisitMarker
+                                    lane={previousLane}
+                                    isDimmed={isDimmed(previous?.user_id)}
+                                />
+                            )}
                             {startsDay && (
                                 <DayMarker
                                     label={formatDayLabel(
@@ -130,6 +138,30 @@ function DayMarker({
                 <h3 className="font-mono text-xs text-muted-foreground">
                     {label}
                 </h3>
+            </div>
+        </div>
+    );
+}
+
+function LastVisitMarker({
+    lane,
+    isDimmed,
+}: {
+    lane?: string;
+    isDimmed: boolean;
+}) {
+    return (
+        <div
+            role="separator"
+            aria-label="Commits above are new since your last visit"
+            className="flex"
+        >
+            <RailSegment lane={lane} isDimmed={isDimmed} />
+            <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
+                <span className="font-mono text-xs text-muted-foreground">
+                    HEAD@{'{last visit}'}
+                </span>
+                <span className="flex-1 border-t border-dashed" />
             </div>
         </div>
     );

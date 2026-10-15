@@ -295,6 +295,7 @@ Below the profile header: a GitHub-style 53-week grid (Sunday-first columns, Mon
 
 ### Log Interactions
 - **Day markers:** a row that keeps the rail running (no node) with a mono 12px label, "Today", "Yesterday", or "Tue, Oct 13", wherever the local day changes between commits.
+- **Last visit marker:** a row like the day marker (rail runs through, no node) with a muted mono `HEAD@{last visit}` and a dashed hairline, between the commits that arrived since your last visit to that log and the first one you had already seen. The newest commit's time you saw is kept in `localStorage` per signed-in user and per log, updated on every load and after the new commits pill; the marker stays where it was at page load. It is skipped on a first visit, when nothing is new, or when the only new commits are your own; when it falls past the loaded page it appears once infinite scroll reaches it. Never blue.
 - **Author highlight:** hovering a node, avatar, name, or handle keeps that author's lane at full strength and fades every other node and segment to 30% opacity (200ms).
 - **New commits pill:** polling every 30s; when commits arrive, a Commit Blue pill ("↑ 3 new commits") hangs under the tabs and reloads the log from the top.
 - **Commit toast:** after committing, a mono toast prints `[log <hash>] <body>`, the way `git commit` reports.

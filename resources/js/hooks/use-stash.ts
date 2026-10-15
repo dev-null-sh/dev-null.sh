@@ -1,5 +1,6 @@
 import type { FocusEvent } from 'react';
 import { useState, useSyncExternalStore } from 'react';
+import { readStorage, storedKeys, writeStorage } from '@/lib/storage';
 
 export type UseStashReturn = {
     readonly body: string;
@@ -18,50 +19,8 @@ const prefixFor = (userId: string): string => `stash:${userId}:`;
 const keyFor = (userId: string, name: string): string =>
     `${prefixFor(userId)}${name}`;
 
-const storage = (): Storage | null => {
-    try {
-        return typeof window === 'undefined' ? null : window.localStorage;
-    } catch {
-        return null;
-    }
-};
-
-const read = (key: string): string => {
-    if (pending.has(key)) {
-        return pending.get(key) ?? '';
-    }
-
-    try {
-        return storage()?.getItem(key) ?? '';
-    } catch {
-        return '';
-    }
-};
-
-const write = (key: string, body: string): void => {
-    try {
-        if (body === '') {
-            storage()?.removeItem(key);
-        } else {
-            storage()?.setItem(key, body);
-        }
-    } catch {
-        return;
-    }
-};
-
-const storedKeys = (): string[] => {
-    try {
-        const store = storage();
-
-        return Array.from(
-            { length: store?.length ?? 0 },
-            (_, index) => store?.key(index) ?? '',
-        );
-    } catch {
-        return [];
-    }
-};
+const read = (key: string): string =>
+    pending.has(key) ? (pending.get(key) ?? '') : readStorage(key);
 
 const subscribe = (callback: () => void) => {
     listeners.add(callback);
@@ -73,7 +32,7 @@ const notify = (): void => listeners.forEach((listener) => listener());
 
 const flush = (): void => {
     clearTimeout(timeout);
-    pending.forEach((body, key) => write(key, body));
+    pending.forEach((body, key) => writeStorage(key, body));
     pending.clear();
     notify();
 };
@@ -91,7 +50,7 @@ const schedule = (key: string, body: string): void => {
 
 const discard = (key: string): void => {
     pending.delete(key);
-    write(key, '');
+    writeStorage(key, '');
     notify();
 };
 
@@ -113,7 +72,7 @@ export function clearStashes(userId: string): void {
         .filter((key) => key.startsWith(prefix))
         .forEach((key) => {
             pending.delete(key);
-            write(key, '');
+            writeStorage(key, '');
         });
 
     notify();

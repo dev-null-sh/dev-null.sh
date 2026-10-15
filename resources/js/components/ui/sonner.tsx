@@ -3,11 +3,13 @@ import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 import { useAppearance } from "@/hooks/use-appearance"
 import { useFlashToast } from "@/hooks/use-flash-toast"
+import { useNewVersionToast } from "@/hooks/use-new-version-toast"
 
 function Toaster({ ...props }: ToasterProps) {
   const { appearance } = useAppearance()
 
   useFlashToast()
+  useNewVersionToast()
 
   return (
     <Sonner
