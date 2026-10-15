@@ -35,6 +35,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
+ * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
  */
 #[UseEloquentBuilder(CommitBuilder::class)]
@@ -116,6 +117,14 @@ final class Commit extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
+    }
+
+    /**
+     * @return HasMany<Bookmark, $this>
+     */
+    public function bookmarks(): HasMany
+    {
+        return $this->hasMany(Bookmark::class);
     }
 
     /**

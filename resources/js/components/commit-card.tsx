@@ -3,6 +3,7 @@ import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
 import { GraphRail } from '@/components/graph-rail';
@@ -273,21 +274,35 @@ export function CommitCard({
                             </>
                         )}
 
-                        {deletion !== 'deleting' && (
-                            <CommitStarButton
-                                key={`${commit.starred}-${commit.stars_count}`}
-                                commit={commit}
-                            />
-                        )}
-                        {commit.replies_count !== undefined &&
-                            deletion !== 'deleting' && (
+                        {deletion !== 'deleting' &&
+                            (commit.replies_count === undefined ? (
+                                <CommitStarButton
+                                    key={`${commit.starred}-${commit.stars_count}`}
+                                    commit={commit}
+                                    className="mt-1.5 -ml-1.5"
+                                />
+                            ) : (
                                 <CommitThread
                                     commit={commit}
                                     initialReplies={initialReplies}
+                                    actions={
+                                        <CommitStarButton
+                                            key={`${commit.starred}-${commit.stars_count}`}
+                                            commit={commit}
+                                            className="px-2 py-0.5"
+                                        />
+                                    }
                                 />
-                            )}
+                            ))}
 
                         {actions}
+
+                        {commit.replies_count === undefined &&
+                            commit.is_saved !== undefined && (
+                                <div className="mt-1 -ml-1.5">
+                                    <BookmarkButton commit={commit} />
+                                </div>
+                            )}
 
                         {deletion === 'confirming' && (
                             <div
