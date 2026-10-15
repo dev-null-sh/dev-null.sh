@@ -21,7 +21,6 @@ final readonly class FollowingTimelineQuery implements TimelineQuery
             ->where(fn (Builder $query): Builder => $query
                 ->whereIn('user_id', $following->newPivotQuery()->select($following->getRelatedPivotKeyName()))
                 ->orWhere('user_id', $user->id))
-            ->with('user')
             ->latest('id');
     }
 }

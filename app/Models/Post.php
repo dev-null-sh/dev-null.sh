@@ -26,6 +26,9 @@ final class Post extends Model
 
     use HasUuids;
 
+    /** @var list<string> */
+    protected $with = ['user'];
+
     /**
      * @return array<string, string>
      */

@@ -16,7 +16,6 @@ final readonly class EveryoneTimelineQuery implements TimelineQuery
     public function builder(User $user): Builder
     {
         return Post::query()
-            ->with('user')
             ->latest()
             ->latest('id');
     }

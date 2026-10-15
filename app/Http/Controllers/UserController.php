@@ -23,7 +23,6 @@ final readonly class UserController
             'user' => $user,
             'isFollowing' => $currentUser->isFollowing($user),
             'posts' => Inertia::scroll(fn () => $user->posts()
-                ->with('user')
                 ->latest()
                 ->latest('id')
                 ->cursorPaginate(20)),
