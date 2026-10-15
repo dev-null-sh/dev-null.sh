@@ -41,21 +41,23 @@ it('renders a user profile', function (): void {
             ->where('commits.data.1.body', 'Older'));
 });
 
-it('does not count the user relations or activity when reloading only commits', function (): void {
+it('does not count the user relations or activity when reloading only commits', function (string $tab): void {
     $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+    Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->get('/@octocat');
+        ->get(route('user.show', ['user' => $user, 'tab' => $tab]));
 
     $response->assertOk()
         ->assertInertia(function ($page): void {
-            $page->where('user.commits_count', 1);
+            $page->where('user.commits_count', 2);
 
             DB::enableQueryLog();
 
             $page->reloadOnly('commits', fn ($reload) => $reload
                 ->missing('user')
                 ->missing('isFollowing')
+                ->missing('tab')
                 ->missing('activity'));
         });
 
@@ -65,7 +67,7 @@ it('does not count the user relations or activity when reloading only commits', 
         ->all())
         ->not->toBeEmpty()
         ->each(fn ($query) => $query->not->toContain('count(*)')->not->toContain('exists'));
-});
+})->with(['commits', 'replies']);
 
 it('renders the user commit activity for the last year', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
