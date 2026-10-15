@@ -31,3 +31,10 @@ it('does not modify text without shortcodes', function (): void {
     expect($emoji->replace('plain text with a url https://example.com'))
         ->toBe('plain text with a url https://example.com');
 });
+
+it('leaves shortcodes in code untouched', function (): void {
+    $emoji = resolve(EmojiShortcodes::class);
+
+    expect($emoji->replace("ship :fire `a ? b :like` and\n```php\nx :heart\n```"))
+        ->toBe("ship 🔥 `a ? b :like` and\n```php\nx :heart\n```");
+});
