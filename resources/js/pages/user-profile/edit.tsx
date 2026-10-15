@@ -1,5 +1,6 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowUpRight, Download } from 'lucide-react';
+import ActivityGraphEmbed from '@/components/activity-graph-embed';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
@@ -13,9 +14,13 @@ import { show } from '@/routes/user';
 export default function Edit({
     preferredLane,
     automaticLane,
+    activityGraphUrl,
+    profileUrl,
 }: {
     preferredLane: number | null;
     automaticLane: number;
+    activityGraphUrl: string;
+    profileUrl: string;
 }) {
     const { auth } = usePage().props;
 
@@ -92,6 +97,11 @@ export default function Edit({
             <LanePicker
                 preferredLane={preferredLane}
                 automaticLane={automaticLane}
+            />
+
+            <ActivityGraphEmbed
+                activityGraphUrl={activityGraphUrl}
+                profileUrl={profileUrl}
             />
 
             <section className="px-4 py-6 sm:px-6">

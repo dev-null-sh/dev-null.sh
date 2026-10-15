@@ -15,13 +15,13 @@ use Illuminate\Database\Eloquent\Builder;
 final class CommitBuilder extends Builder
 {
     /**
-     * Approved commits are visible to everyone, while authors may also see their own pending or rejected commits.
+     * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
      */
-    public function visibleTo(User $user): self
+    public function visibleTo(?User $user): self
     {
         return $this->where(fn (Builder $query): Builder => $query
             ->where('status', CommitStatus::Approved)
-            ->orWhere('user_id', $user->id));
+            ->when($user, fn (Builder $query, User $user): Builder => $query->orWhere('user_id', $user->id)));
     }
 
     /**

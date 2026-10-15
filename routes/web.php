@@ -16,6 +16,7 @@ use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PersonalDataExportController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
@@ -46,6 +47,11 @@ Route::middleware('guest')->group(function (): void {
 Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
 Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
+
+// User activity graph, embedded in READMEs...
+Route::get('@{user:username}/graph.svg', [UserActivityGraphController::class, 'show'])
+    ->middleware(['throttle:activity-graph', 'cache.headers:public;max_age=3600;etag'])
+    ->name('user-activity-graph.show');
 
 // Commit, previewed for guests...
 Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])

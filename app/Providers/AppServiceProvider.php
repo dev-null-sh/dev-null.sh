@@ -69,6 +69,9 @@ final class AppServiceProvider extends ServiceProvider
 
     private function bootRateLimitingDefaults(): void
     {
+        // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
+        RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
+
         RateLimiter::for('commits', function (Request $request): Limit {
             $user = $request->user();
             assert($user instanceof User);

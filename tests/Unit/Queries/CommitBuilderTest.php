@@ -19,6 +19,14 @@ it('scopes commits to those visible to a user', function (): void {
         ->toBe(collect([$approved->id, $ownPending->id, $ownRejected->id])->sort()->values()->all());
 });
 
+it('scopes commits to the approved ones for guests', function (): void {
+    $approved = Commit::factory()->create();
+    Commit::factory()->pending()->create();
+    Commit::factory()->rejected()->create();
+
+    expect(Commit::query()->visibleTo(null)->pluck('id')->all())->toBe([$approved->id]);
+});
+
 it('loads the star count and whether the viewer starred', function (): void {
     $viewer = User::factory()->create();
     $starred = Commit::factory()->create();
