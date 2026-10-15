@@ -24,7 +24,6 @@ final readonly class AutoModeratedCommitController
             'commits' => Inertia::scroll(fn () => Commit::query()
                 ->whereHas('evaluation', fn (Builder $query): Builder => $query
                     ->whereIn('decision', [EvaluationDecision::Approved, EvaluationDecision::Rejected]))
-                ->withSavedState($user)
                 ->with(['user', 'parent.user', 'linkPreview', 'images', 'evaluation'])
                 ->withStarsFor($user)
                 ->latest('updated_at')
