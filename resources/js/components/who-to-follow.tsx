@@ -1,7 +1,9 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
 import { Ellipsis, EyeOff } from 'lucide-react';
 import { useState } from 'react';
+import { index as githubPeople } from '@/actions/App/Http/Controllers/GitHubPeopleController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
+import { GitHubIcon } from '@/components/github-icon';
 import { RailSegment } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
 import {
@@ -233,6 +235,18 @@ function WhoToFollowHidden({ onUndo }: { onUndo: () => void }) {
     );
 }
 
+function GitHubPeopleLink() {
+    return (
+        <Link
+            href={githubPeople()}
+            className="mt-4 inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground hover:underline"
+        >
+            <GitHubIcon className="size-3.5" />
+            Find your GitHub people
+        </Link>
+    );
+}
+
 export function WhoToFollow() {
     const { isVisible, isHidden, hide, undo, suggestedUsers } =
         useHideWhoToFollow();
@@ -255,16 +269,19 @@ export function WhoToFollow() {
             {isHidden ? (
                 <WhoToFollowHidden onUndo={undo} />
             ) : (
-                <ul className="space-y-4">
-                    <Deferred
-                        data="suggestedUsers"
-                        fallback={<SuggestedUsersSkeleton />}
-                    >
-                        {suggestedUsers?.map((user) => (
-                            <SuggestedUserRow key={user.id} user={user} />
-                        ))}
-                    </Deferred>
-                </ul>
+                <>
+                    <ul className="space-y-4">
+                        <Deferred
+                            data="suggestedUsers"
+                            fallback={<SuggestedUsersSkeleton />}
+                        >
+                            {suggestedUsers?.map((user) => (
+                                <SuggestedUserRow key={user.id} user={user} />
+                            ))}
+                        </Deferred>
+                    </ul>
+                    <GitHubPeopleLink />
+                </>
             )}
         </section>
     );
@@ -308,23 +325,26 @@ export function WhoToFollowInLog({
                 {isHidden ? (
                     <WhoToFollowHidden onUndo={undo} />
                 ) : (
-                    <ul className="divide-y rounded-lg border">
-                        <Deferred
-                            data="suggestedUsers"
-                            fallback={
-                                <SuggestedUsersSkeleton rowClassName="p-3" />
-                            }
-                        >
-                            {suggestedUsers?.map((user) => (
-                                <SuggestedUserRow
-                                    key={user.id}
-                                    user={user}
-                                    className="p-3"
-                                    buttonClassName="min-w-[90px] px-2"
-                                />
-                            ))}
-                        </Deferred>
-                    </ul>
+                    <>
+                        <ul className="divide-y rounded-lg border">
+                            <Deferred
+                                data="suggestedUsers"
+                                fallback={
+                                    <SuggestedUsersSkeleton rowClassName="p-3" />
+                                }
+                            >
+                                {suggestedUsers?.map((user) => (
+                                    <SuggestedUserRow
+                                        key={user.id}
+                                        user={user}
+                                        className="p-3"
+                                        buttonClassName="min-w-[90px] px-2"
+                                    />
+                                ))}
+                            </Deferred>
+                        </ul>
+                        <GitHubPeopleLink />
+                    </>
                 )}
             </div>
         </section>

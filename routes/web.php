@@ -13,6 +13,8 @@ use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\GitHubPeopleController;
+use App\Http\Controllers\GitHubPeopleFollowController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
@@ -62,6 +64,14 @@ Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show']
     ->name('commit-image.show');
 
 Route::middleware('auth')->group(function (): void {
+    Route::get('people/github', [GitHubPeopleController::class, 'index'])->name('github-people.index');
+    Route::post('people/github', [GitHubPeopleController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('github-people.store');
+    Route::post('people/github/follows', [GitHubPeopleFollowController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('github-people-follow.store');
+
     // Session...
     Route::post('logout', [SessionController::class, 'destroy'])
         ->name('logout');
