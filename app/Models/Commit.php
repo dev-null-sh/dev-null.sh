@@ -166,7 +166,7 @@ final class Commit extends Model
             return true;
         }
 
-        return $user instanceof User && ($this->user_id === $user->id || $user->can('moderate'));
+        return $user instanceof User && ($this->user_id === $user->id || $user->isAdmin());
     }
 
     /**

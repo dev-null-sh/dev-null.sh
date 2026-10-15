@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
+import { CommitImages } from '@/components/commit-images';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
 import { GraphRail } from '@/components/graph-rail';
@@ -252,6 +253,9 @@ export function CommitCard({
                                         text={emojify(commit.body)}
                                     />
                                 </p>
+                                {commit.images && (
+                                    <CommitImages images={commit.images} />
+                                )}
                                 {commit.link_preview?.title && (
                                     <LinkPreview
                                         preview={commit.link_preview}

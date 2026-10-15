@@ -6,19 +6,8 @@ use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Support\SessionKey;
-
-it('only allows admins to moderate', function (): void {
-    config(['app.admins' => ['admin']]);
-
-    $admin = User::factory()->create(['username' => 'admin']);
-    $user = User::factory()->create();
-
-    expect(Gate::forUser($admin)->allows('moderate'))->toBeTrue()
-        ->and(Gate::forUser($user)->allows('moderate'))->toBeFalse();
-});
 
 it('limits each user to 10 commits a minute', function (): void {
     $user = User::factory()->create();
