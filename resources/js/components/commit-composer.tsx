@@ -1,13 +1,19 @@
 import { Form, usePage } from '@inertiajs/react';
 import type { KeyboardEvent } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import {
+    ImagePickerButton,
+    ImagePickerPreviews,
+    imageErrorFrom,
+} from '@/components/commit-image-picker';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
+import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
-import { emojifyInput } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
@@ -19,6 +25,7 @@ export function CommitComposer() {
         auth.user.id,
         'commit',
     );
+    const attachments = useImageAttachments();
 
     const remaining = maxBodyLength - body.length;
     const isCommittable = body.trim().length >= minBodyLength;
@@ -37,6 +44,11 @@ export function CommitComposer() {
     return (
         <Form
             {...CommitController.store.form()}
+            transform={(data) =>
+                attachments.images.length > 0
+                    ? { ...data, images: attachments.images }
+                    : data
+            }
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
                 if (!page.flash.committed) {
@@ -44,6 +56,7 @@ export function CommitComposer() {
                 }
 
                 drop();
+                attachments.clear();
                 requestAnimationFrame(() =>
                     document.getElementById('body')?.focus(),
                 );
@@ -68,31 +81,16 @@ export function CommitComposer() {
                             <label htmlFor="body" className="sr-only">
                                 Body
                             </label>
-                            <textarea
+                            <MentionTextarea
                                 id="body"
                                 name="body"
                                 rows={1}
                                 value={body}
-                                onChange={(event) => {
-                                    const target = event.currentTarget;
-                                    const { text, caret } = emojifyInput(
-                                        target.value,
-                                        target.selectionStart ??
-                                            target.value.length,
-                                    );
-
-                                    updateBody(text);
-
-                                    if (text !== target.value) {
-                                        requestAnimationFrame(() =>
-                                            target.setSelectionRange(
-                                                caret,
-                                                caret,
-                                            ),
-                                        );
-                                    }
-                                }}
+                                onValueChange={updateBody}
                                 onKeyDown={submitOnModEnter}
+                                onPaste={attachments.onPaste}
+                                onDragOver={attachments.onDragOver}
+                                onDrop={attachments.onDrop}
                                 onFocus={
                                     isRestored ? moveCaretToEnd : undefined
                                 }
@@ -106,18 +104,37 @@ export function CommitComposer() {
 
                             <InputError message={errors.body} />
 
+                            <ImagePickerPreviews
+                                images={attachments.images}
+                                onRemove={attachments.remove}
+                            />
+                            <InputError
+                                message={
+                                    attachments.error ?? imageErrorFrom(errors)
+                                }
+                                className="mt-1"
+                            />
+
                             <div className="mt-2 flex items-center justify-end gap-4">
-                                {isRestored && (
-                                    <StashLabel
-                                        onDrop={() => {
-                                            drop();
-                                            document
-                                                .getElementById('body')
-                                                ?.focus();
-                                        }}
-                                        className="mr-auto text-[13px]"
+                                <div className="mr-auto flex items-center gap-4">
+                                    <ImagePickerButton
+                                        count={attachments.images.length}
+                                        disabled={processing}
+                                        onPick={attachments.attach}
+                                        className="-ml-2"
                                     />
-                                )}
+                                    {isRestored && (
+                                        <StashLabel
+                                            onDrop={() => {
+                                                drop();
+                                                document
+                                                    .getElementById('body')
+                                                    ?.focus();
+                                            }}
+                                            className="text-[13px]"
+                                        />
+                                    )}
+                                </div>
                                 <span
                                     id="body-count"
                                     aria-label={`${remaining} characters left`}
