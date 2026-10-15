@@ -116,7 +116,9 @@ export function useKeyboardShortcuts(
                 event.ctrlKey ||
                 event.altKey ||
                 isTyping(event.target) ||
-                document.querySelector('[role="dialog"][data-state="open"]')
+                document.querySelector(
+                    '[role="dialog"][data-state="open"], [role="dialog"][aria-modal="true"]',
+                )
             ) {
                 return;
             }
