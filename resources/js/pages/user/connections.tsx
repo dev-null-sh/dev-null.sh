@@ -16,7 +16,7 @@ export default function Connections({
 }: {
     user: User;
     type: 'following' | 'followers';
-    users: CursorPaginated<User>;
+    users: CursorPaginated<User & { is_followed: boolean }>;
 }) {
     const title = type === 'following' ? 'Following' : 'Followers';
 
