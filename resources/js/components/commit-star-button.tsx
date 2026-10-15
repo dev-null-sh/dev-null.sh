@@ -17,7 +17,13 @@ function starLabel(starred: boolean, count: number): string {
     return `${verb} commit, ${count} ${noun}`;
 }
 
-export function CommitStarButton({ commit }: { commit: Commit }) {
+export function CommitStarButton({
+    commit,
+    className,
+}: {
+    commit: Commit;
+    className?: string;
+}) {
     const { auth } = usePage().props;
     const canStar =
         commit.status === 'approved' || commit.user_id === auth.user.id;
@@ -77,8 +83,9 @@ export function CommitStarButton({ commit }: { commit: Commit }) {
             aria-label={starLabel(starred, count)}
             title={starred ? 'Unstar' : 'Star'}
             className={cn(
-                'mt-1.5 -ml-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                'inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                 starred && 'text-primary hover:text-primary',
+                className,
             )}
             data-test="star-commit-button"
         >
