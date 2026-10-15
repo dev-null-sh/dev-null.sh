@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\DnsResolver;
 use App\Models\LinkPreview;
-use App\Services\DnsResolver;
 use Dom\HTMLDocument;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Psr7\Utils;
@@ -71,14 +71,14 @@ final readonly class FetchLinkPreview
      */
     public function handle(LinkPreview $linkPreview): void
     {
+        $metadata = self::NO_METADATA;
+
         try {
             $metadata = $this->fetchMetadata($linkPreview->url);
         } catch (HttpClientException) {
-            $metadata = self::NO_METADATA;
+            //
         } catch (Throwable $exception) {
             report($exception);
-
-            $metadata = self::NO_METADATA;
         }
 
         $linkPreview->update([...$metadata, 'fetched_at' => now()]);

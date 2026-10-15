@@ -5,7 +5,7 @@ import {
     MessageSquareReply,
     Trash2,
 } from 'lucide-react';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
@@ -169,15 +169,21 @@ function useThread(
 export function CommitThread({
     commit,
     initialReplies,
+    actions,
 }: {
     commit: Commit;
     initialReplies?: CursorPaginated<ThreadCommit>;
+    actions?: ReactNode;
 }) {
     const thread = useThread(commit, initialReplies);
 
     return (
         <>
-            <ThreadActions thread={thread} hasKeyboardShortcuts />
+            <ThreadActions
+                thread={thread}
+                actions={actions}
+                hasKeyboardShortcuts
+            />
             <ThreadReplies thread={thread} depth={0} />
         </>
     );
@@ -185,9 +191,11 @@ export function CommitThread({
 
 function ThreadActions({
     thread,
+    actions,
     hasKeyboardShortcuts = false,
 }: {
     thread: Thread;
+    actions?: ReactNode;
     hasKeyboardShortcuts?: boolean;
 }) {
     const { auth } = usePage().props;
@@ -229,6 +237,8 @@ function ThreadActions({
                     </button>
                 )}
 
+                {actions}
+
                 {thread.count > 0 && (
                     <button
                         type="button"
@@ -262,9 +272,7 @@ function ThreadActions({
                         keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                     />
                 )}
-                {!hasKeyboardShortcuts && !isDeleted(commit) && (
-                    <CommitReportButton commit={commit} />
-                )}
+                {!isDeleted(commit) && <CommitReportButton commit={commit} />}
             </div>
 
             {thread.isReplying && !isDeleted(commit) && (
