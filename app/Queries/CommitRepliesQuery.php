@@ -21,7 +21,7 @@ final readonly class CommitRepliesQuery
             ->visibleInThreadTo($user)
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
-            ->with('user')
+            ->with(['user', 'linkPreview'])
             ->oldest()
             ->oldest('id')
             ->cursorPaginate(self::PER_PAGE);

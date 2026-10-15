@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
-use App\Queries\EveryoneLogQuery;
-use App\Queries\FollowingLogQuery;
-use App\Queries\LogQuery;
+use App\Contracts\Queries\LogQuery;
+use App\Queries\LogQueries\EveryoneLogQuery;
+use App\Queries\LogQueries\FollowingLogQuery;
 
 enum Log: string
 {

@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $parent_id
  * @property-read string $body
  * @property-read CommitStatus $status
+ * @property-read string|null $link_preview_id
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -35,6 +36,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
  * @property-read bool $is_saved
+ * @property-read LinkPreview|null $linkPreview
  */
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -56,6 +58,7 @@ final class Commit extends Model
             'parent_id' => 'string',
             'body' => 'string',
             'status' => CommitStatus::class,
+            'link_preview_id' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -122,6 +125,14 @@ final class Commit extends Model
     public function bookmarks(): HasMany
     {
         return $this->hasMany(Bookmark::class);
+    }
+
+    /**
+     * @return BelongsTo<LinkPreview, $this>
+     */
+    public function linkPreview(): BelongsTo
+    {
+        return $this->belongsTo(LinkPreview::class);
     }
 
     /**

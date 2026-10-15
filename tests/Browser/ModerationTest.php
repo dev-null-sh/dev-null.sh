@@ -2,12 +2,48 @@
 
 declare(strict_types=1);
 
+use App\Actions\RejectCommit;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 
 beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
+});
+
+it('may add a private reason while rejecting a commit', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    $commit = Commit::factory()->pending()->create();
+    $this->actingAs($admin);
+
+    visit(route('moderation.show'))
+        ->assertDontSee('Reason (optional)')
+        ->click('Add reason')
+        ->fill('textarea[maxlength="280"]', 'Please remove the access token before sharing the log.')
+        ->assertSee('Only the author will see this.')
+        ->click('[data-test="reject-commit-button"]')
+        ->assertSee('No commits are waiting for review.')
+        ->assertNoJavaScriptErrors();
+
+    expect($commit->fresh()->status)->toBe(CommitStatus::Rejected)
+        ->and($commit->user->notifications()->sole()->reason)->toBe('Please remove the access token before sharing the log.');
+});
+
+it('lets authors open their rejected commit from a moderation update', function (): void {
+    $commit = Commit::factory()->pending()->create(['body' => 'A deployment log from my local test app.']);
+    resolve(RejectCommit::class)->handle($commit, 'Please add context for other developers.');
+    $this->actingAs($commit->user);
+
+    visit(route('notification.index'))
+        ->assertSee('Your commit was rejected')
+        ->assertSee('Please add context for other developers.')
+        ->assertSee('Only you can see this update and your rejected commit.')
+        ->click('a[href="'.route('commit.show', [$commit->user, $commit], absolute: false).'"]')
+        ->assertPathIs('/@'.$commit->user->username.'/commits/'.$commit->id)
+        ->assertSee($commit->body)
+        ->assertSee('rejected')
+        ->assertDontSee('Please add context for other developers.')
+        ->assertNoJavaScriptErrors();
 });
 
 it('may approve the selected commits', function (): void {

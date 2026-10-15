@@ -18,7 +18,7 @@ final readonly class ModerationController
             'commits' => Inertia::scroll(fn () => Commit::query()
                 ->pending()
                 ->withSavedState($user)
-                ->with(['user', 'parent.user'])
+                ->with(['user', 'parent.user', 'linkPreview'])
                 ->withStarsFor($user)
                 ->oldest()
                 ->oldest('id')

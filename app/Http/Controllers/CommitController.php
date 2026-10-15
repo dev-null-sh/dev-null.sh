@@ -31,7 +31,7 @@ final readonly class CommitController
             ->visibleTo($currentUser)
             ->withVisibleReplyCount($currentUser)
             ->withSavedState($currentUser)
-            ->with('user')
+            ->with(['user', 'linkPreview'])
             ->withStarsFor($currentUser)
             ->findOrFail($commit->id);
 
