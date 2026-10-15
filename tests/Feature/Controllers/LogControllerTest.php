@@ -342,7 +342,7 @@ it('renders commits trending this week', function (): void {
     $user = User::factory()->create();
 
     Commit::factory()->create(['body' => 'Quiet']);
-    $starred = Commit::factory()->create(['body' => 'Starred', 'created_at' => now()->subHour()]);
+    $starred = Commit::factory()->create(['body' => 'Starred `make`', 'created_at' => now()->subHour()]);
     $starred->stars()->attach(User::factory()->count(2)->create());
     $replied = Commit::factory()->create(['body' => 'Replied', 'created_at' => now()->subHours(2)]);
     Commit::factory()->for($replied, 'parent')->create();
@@ -357,7 +357,11 @@ it('renders commits trending this week', function (): void {
             ->component('log/show')
             ->where('log', 'trending')
             ->has('commits.data', 2)
-            ->where('commits.data.0.body', 'Starred')
+            ->where('commits.data.0.body', 'Starred `make`')
+            ->where('commits.data.0.body_segments', [
+                ['type' => 'text', 'text' => 'Starred '],
+                ['type' => 'code', 'code' => 'make'],
+            ])
             ->where('commits.data.0.stars_count', 2)
             ->where('commits.data.0.user.id', $starred->user_id)
             ->where('commits.data.1.body', 'Replied')
