@@ -19,7 +19,7 @@ export function refreshSharedState(fresh: Map<string, SharedValue>): void {
     let hasChanged = false;
 
     fresh.forEach((value, key) => {
-        if (values.has(key) && values.get(key) !== value) {
+        if (values.get(key) !== value) {
             values.set(key, value);
             hasChanged = true;
         }

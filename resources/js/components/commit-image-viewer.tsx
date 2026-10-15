@@ -5,8 +5,9 @@ import {
     PanelRightClose,
     PanelRightOpen,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Lightbox from 'yet-another-react-lightbox';
+import type { ControllerRef } from 'yet-another-react-lightbox';
 import Counter from 'yet-another-react-lightbox/plugins/counter';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/plugins/counter.css';
@@ -20,7 +21,36 @@ import { cn } from '@/lib/utils';
 export function CommitImageViewer() {
     const { photo } = usePage<{ photo?: CommitPhoto }>().props;
     const [isPanelOpen, setIsPanelOpen] = useState(true);
+    const controller = useRef<ControllerRef>(null);
+    const isOpen = photo !== undefined;
     const images = photo?.commit.images;
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            const lightbox = controller.current;
+            const actions: Record<string, (() => void) | undefined> = {
+                Escape: lightbox?.close,
+                ArrowLeft: lightbox?.prev,
+                ArrowRight: lightbox?.next,
+            };
+
+            if (
+                document.activeElement === document.body &&
+                actions[event.key]
+            ) {
+                event.preventDefault();
+                actions[event.key]?.();
+            }
+        };
+
+        document.addEventListener('keydown', onKeyDown);
+
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [isOpen]);
 
     const slides = useMemo(
         () =>
@@ -37,7 +67,7 @@ export function CommitImageViewer() {
 
     return (
         <Lightbox
-            open={photo !== undefined}
+            open={isOpen}
             close={() => photo && closeCommitPhoto(photo)}
             index={photo?.index ?? 0}
             slides={slides}
@@ -73,6 +103,7 @@ export function CommitImageViewer() {
             }}
             carousel={{ finite: true }}
             controller={{
+                ref: controller,
                 closeOnBackdropClick: true,
                 closeOnPullDown: true,
             }}

@@ -1,7 +1,13 @@
 import { http } from '@inertiajs/react';
 import { refreshSharedState } from '@/hooks/use-shared-state';
 
-const fields = ['starred', 'stars_count', 'is_saved', 'replies_count'] as const;
+const fields = [
+    'starred',
+    'stars_count',
+    'is_saved',
+    'replies_count',
+    'commits_count',
+] as const;
 
 type CommitStateField = (typeof fields)[number];
 
