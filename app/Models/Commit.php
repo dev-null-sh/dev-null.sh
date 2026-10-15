@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property-read string $id
- * @property-read string $user_id
+ * @property-read string|null $user_id
  * @property-read string|null $parent_id
  * @property-read string $body
  * @property-read CommitStatus $status
@@ -31,7 +31,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CarbonInterface|null $deleted_at
  * @property-read int $stars_count
  * @property-read bool $starred
- * @property-read User $user
+ * @property-read User|null $user
  * @property-read Collection<int, User> $stars
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
@@ -179,8 +179,8 @@ final class Commit extends Model
         return hash('xxh3', implode(':', [
             $this->updated_at->getTimestamp(),
             $this->replies_count,
-            $this->user->updated_at->getTimestamp(),
-            $this->parent?->user->username,
+            $this->user?->updated_at->getTimestamp(),
+            $this->parent?->user?->username,
         ]));
     }
 }

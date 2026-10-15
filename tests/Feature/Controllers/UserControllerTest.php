@@ -283,6 +283,34 @@ it('may delete user account', function (): void {
     $this->assertGuest();
 });
 
+it('keeps the replies other people left under the replies of a deleted account', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($root, 'parent')->create();
+    $otherReply = Commit::factory()->for($reply, 'parent')->create();
+
+    $this->actingAs($user)->delete(route('user.destroy'));
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$otherReply->user, $otherReply]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('ancestors', 2)
+            ->where('ancestors.0.id', $root->id)
+            ->where('ancestors.1.id', $reply->id)
+            ->missing('ancestors.1.body')
+            ->missing('ancestors.1.user'));
+
+    $this->actingAs($root->user)
+        ->getJson(route('commit-reply.index', $root))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.user');
+});
+
 it('hides pending and rejected commits from other users', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 

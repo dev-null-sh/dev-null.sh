@@ -85,9 +85,11 @@ final readonly class CommitController
 
         $commit->loadPublicPreview();
 
-        $title = $commit->parent instanceof Commit
-            ? "{$user->nameWithHandle()} replying to @{$commit->parent->user->username} on /dev/null"
-            : "{$user->nameWithHandle()} on /dev/null";
+        $replyingTo = $commit->parent?->user?->username;
+
+        $title = $replyingTo === null
+            ? "{$user->nameWithHandle()} on /dev/null"
+            : "{$user->nameWithHandle()} replying to @{$replyingTo} on /dev/null";
 
         return Inertia::render('welcome')->withViewData(['preview' => [
             'type' => 'article',
