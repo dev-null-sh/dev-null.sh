@@ -48,7 +48,7 @@ final readonly class CommitController
 
         Inertia::flash('committed', [
             'id' => $commit->id,
-            'body' => $commit->body,
+            'body' => $commit->summary(),
         ]);
 
         if ($commit->status === CommitStatus::Pending) {
@@ -92,7 +92,7 @@ final readonly class CommitController
         return Inertia::render('welcome')->withViewData(['preview' => [
             'type' => 'article',
             'title' => $title,
-            'description' => Str::limit(Str::squish($commit->body), 200, '…', preserveWords: true),
+            'description' => Str::limit(Str::squish($commit->summary()), 200, '…', preserveWords: true),
             'url' => route('commit.show', [$user, $commit]),
             'image' => route('commit-open-graph-image.show', ['user' => $user, 'commit' => $commit, 'v' => $commit->openGraphImageVersion()]),
         ]]);

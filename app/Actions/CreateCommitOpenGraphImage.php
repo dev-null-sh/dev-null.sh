@@ -49,7 +49,7 @@ final readonly class CreateCommitOpenGraphImage
         $replyingTo = $commit->parent?->user->username;
 
         $headerHeight = self::AVATAR_SIZE + ($replyingTo === null ? 0 : self::REPLYING_TO_HEIGHT) + self::BODY_GAP;
-        [$size, $lineHeight, $body] = $this->fit($canvas, $commit->body, OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);
+        [$size, $lineHeight, $body] = $this->fit($canvas, $commit->summary(), OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);
 
         $top = max(self::MIN_TOP, intdiv(OpenGraphCanvas::FOOTER_RULE_Y - $headerHeight - count($body) * $lineHeight, 2));
 

@@ -70,6 +70,14 @@ export function laneOf(commit: ThreadCommit): string {
     return isDeleted(commit) ? 'var(--rail)' : laneColor(commit.user.lane);
 }
 
+export function hostname(url: string): string {
+    try {
+        return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+        return url;
+    }
+}
+
 export function shortHash(id: string): string {
     return id.replaceAll('-', '').slice(-7);
 }

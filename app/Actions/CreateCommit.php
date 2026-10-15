@@ -9,6 +9,7 @@ use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Services\Embeds;
 use App\Services\EmojiShortcodes;
 use App\Services\Urls;
 use Illuminate\Http\UploadedFile;
@@ -22,6 +23,7 @@ final readonly class CreateCommit
         private CreateCommitImages $createCommitImages,
         private EmojiShortcodes $emojiShortcodes,
         private Urls $urls,
+        private Embeds $embeds,
     ) {
         //
     }
@@ -32,6 +34,8 @@ final readonly class CreateCommit
     public function handle(User $user, string $body, ?Commit $parent = null, array $images = []): Commit
     {
         return DB::transaction(function () use ($user, $body, $parent, $images): Commit {
+            ['body' => $body, 'url' => $embedUrl, 'ratio' => $embedRatio] = $this->withoutEmbed($body);
+
             $linkPreview = $this->linkPreviewFor($body);
 
             $commit = $user->commits()->create([
@@ -39,6 +43,8 @@ final readonly class CreateCommit
                 'parent_id' => $parent?->id,
                 'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
+                'embed_url' => $embedUrl,
+                'embed_ratio' => $embedRatio,
             ]);
 
             $this->createCommitImages->handle($commit, $images);
@@ -52,6 +58,21 @@ final readonly class CreateCommit
 
             return $commit;
         });
+    }
+
+    /**
+     * Moves the "/embed <url> [<ratio>]" command that may end the body out of it. A command that can't be embedded
+     * stays in the body as text.
+     *
+     * @return array{body: string, url: string|null, ratio: string|null}
+     */
+    private function withoutEmbed(string $body): array
+    {
+        $embed = $this->embeds->extract($body);
+
+        return $embed === null || $embed['url'] === null || $embed['ratio'] === null
+            ? ['body' => $body, 'url' => null, 'ratio' => null]
+            : $embed;
     }
 
     /**

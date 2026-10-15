@@ -108,6 +108,95 @@ it('requires the body to be at most 280 characters', function (): void {
     expect(Commit::query()->count())->toBe(0);
 });
 
+it('may embed a page at the end of a commit', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => "Here's my cool new game\n\n/embed https://example.com/game 16:9",
+        ])
+        ->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole())
+        ->body->toBe("Here's my cool new game")
+        ->embed_url->toBe('https://example.com/game')
+        ->embed_ratio->toBe('16:9');
+});
+
+it('requires embeds to be https links to other sites', function (string $url): void {
+    config(['app.url' => 'https://devnull.example']);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => "Here's my cool new game\n/embed {$url}",
+        ])
+        ->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasErrors(['body' => 'Only https:// links to other sites can be embedded.']);
+
+    expect(Commit::query()->count())->toBe(0);
+})->with([
+    'http' => 'http://example.com/game',
+    'javascript' => 'javascript:alert(document.cookie)',
+    'this site' => 'https://devnull.example/@nunomaduro',
+]);
+
+it('requires embed ratios from 1:4 to 4:1', function (string $ratio): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => "Here's my cool new game\n/embed https://example.com/game {$ratio}",
+        ])
+        ->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasErrors(['body' => 'Embed ratios look like 16:9, from 1:4 to 4:1.']);
+
+    expect(Commit::query()->count())->toBe(0);
+})->with(['16x9', '5:1']);
+
+it('may commit only an embed', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => '/embed https://www.example.com/game',
+        ])
+        ->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit)
+        ->body->toBe('')
+        ->embed_url->toBe('https://www.example.com/game');
+
+    $response->assertInertiaFlash('committed', [
+        'id' => $commit->id,
+        'body' => '/embed example.com',
+    ]);
+});
+
+it('includes the embeds of a commit, its ancestors and its replies', function (): void {
+    $root = Commit::factory()->create(['embed_url' => 'https://example.com/root']);
+    $commit = Commit::factory()->for($root, 'parent')->create(['embed_url' => 'https://example.com/focused', 'embed_ratio' => '16:9']);
+    Commit::factory()->for($commit, 'parent')->create(['embed_url' => 'https://example.com/reply']);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.embed_url', 'https://example.com/focused')
+            ->where('commit.embed_ratio', '16:9')
+            ->where('ancestors.0.embed_url', 'https://example.com/root')
+            ->where('replies.data.0.embed_url', 'https://example.com/reply'));
+});
+
 it('rate limits commit creation', function (): void {
     $user = User::factory()->create();
 
@@ -474,6 +563,14 @@ it('shows guests the landing page with a link preview of the commit', function (
     $this->assertGuest();
 
     expect(session('url.intended'))->toBe(route('commit.show', [$user, $commit]));
+});
+
+it('describes a commit that is only an embed by the embedded site', function (): void {
+    $commit = Commit::factory()->create(['body' => '', 'embed_url' => 'https://example.com/game', 'embed_ratio' => '1:1']);
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('<meta property="og:description" content="/embed example.com">', false);
 });
 
 it('trims long commits in the link preview description', function (): void {

@@ -40,6 +40,8 @@ export type Commit = {
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
     images?: CommitImage[];
+    embed_url?: string | null;
+    embed_ratio?: string | null;
 };
 
 export type DeletedCommit = {

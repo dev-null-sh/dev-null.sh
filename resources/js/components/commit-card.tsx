@@ -5,6 +5,7 @@ import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitBody } from '@/components/commit-body';
+import { CloseEmbedButton, CommitEmbed } from '@/components/commit-embed';
 import { CommitImages } from '@/components/commit-images';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
@@ -13,6 +14,7 @@ import { LinkPreview } from '@/components/link-preview';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import { useEmbed } from '@/hooks/use-embed';
 import { useNow } from '@/hooks/use-now';
 import {
     cn,
@@ -56,6 +58,7 @@ export function CommitCard({
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
     >('idle');
+    const embed = useEmbed();
 
     const isOwn = commit.user_id === auth.user.id;
     const isDeletable = isOwn && canDelete;
@@ -240,21 +243,30 @@ export function CommitCard({
                                         {commit.parent.user.username}
                                     </Link>
                                 )}
-                                <CommitBody
-                                    segments={commit.body_segments}
-                                    className={cn(
-                                        'mt-0.5',
-                                        isFocused
-                                            ? 'text-[17px]'
-                                            : 'text-[15px]',
-                                    )}
-                                />
+                                {commit.body !== '' && (
+                                    <CommitBody
+                                        segments={commit.body_segments}
+                                        className={cn(
+                                            'mt-0.5',
+                                            isFocused
+                                                ? 'text-[17px]'
+                                                : 'text-[15px]',
+                                        )}
+                                    />
+                                )}
                                 {commit.images && (
                                     <CommitImages images={commit.images} />
                                 )}
                                 {commit.link_preview?.title && (
                                     <LinkPreview
                                         preview={commit.link_preview}
+                                    />
+                                )}
+                                {commit.embed_url && (
+                                    <CommitEmbed
+                                        url={commit.embed_url}
+                                        ratio={commit.embed_ratio}
+                                        embed={embed}
                                     />
                                 )}
                                 {isFocused && (
@@ -278,11 +290,13 @@ export function CommitCard({
 
                         {deletion !== 'deleting' &&
                             (commit.replies_count === undefined ? (
-                                <CommitStarButton
-                                    key={`${commit.starred}-${commit.stars_count}`}
-                                    commit={commit}
-                                    className="mt-1.5 -ml-1.5"
-                                />
+                                <div className="mt-1.5 -ml-1.5 flex items-center">
+                                    <CommitStarButton
+                                        key={`${commit.starred}-${commit.stars_count}`}
+                                        commit={commit}
+                                    />
+                                    <CloseEmbedButton embed={embed} />
+                                </div>
                             ) : (
                                 <CommitThread
                                     commit={commit}
@@ -296,6 +310,9 @@ export function CommitCard({
                                             />
                                             {threadActions}
                                         </>
+                                    }
+                                    endActions={
+                                        <CloseEmbedButton embed={embed} />
                                     }
                                 />
                             ))}

@@ -22,6 +22,8 @@ test('to array', function (): void {
             'parent_id',
             'deleted_at',
             'link_preview_id',
+            'embed_url',
+            'embed_ratio',
             'body_segments',
         ]);
 });
@@ -173,4 +175,16 @@ it('never shows the images of a deleted commit in its tombstone', function (): v
     $tombstone = Commit::withTrashed()->with('images')->findOrFail($commit->id);
 
     expect($tombstone->toArray())->not->toHaveKey('images');
+});
+
+it('summarizes a commit by its body', function (): void {
+    $commit = Commit::factory()->make(['body' => 'Shipped it', 'embed_url' => 'https://example.com/game']);
+
+    expect($commit->summary())->toBe('Shipped it');
+});
+
+it('summarizes a commit that is only an embed by the embedded site', function (): void {
+    $commit = Commit::factory()->make(['body' => '', 'embed_url' => 'https://www.example.com/game']);
+
+    expect($commit->summary())->toBe('/embed example.com');
 });

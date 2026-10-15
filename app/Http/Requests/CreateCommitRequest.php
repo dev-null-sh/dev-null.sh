@@ -7,6 +7,7 @@ namespace App\Http\Requests;
 use App\Actions\CreateCommitImages;
 use App\Models\Commit;
 use App\Models\User;
+use App\Rules\ValidEmbed;
 use App\Rules\VisibleCommit;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -33,7 +34,7 @@ final class CreateCommitRequest extends FormRequest
         assert($user instanceof User);
 
         return [
-            'body' => ['required', 'string', 'min:3', 'max:280'],
+            'body' => ['required', 'string', 'min:3', 'max:280', resolve(ValidEmbed::class)],
             'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [

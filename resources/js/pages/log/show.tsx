@@ -13,6 +13,7 @@ import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
+import { commitSummary } from '@/lib/embed';
 import { emojify } from '@/lib/emoji';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
@@ -167,7 +168,9 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
-                                <LinkifiedText text={emojify(commit.body)} />
+                                <LinkifiedText
+                                    text={emojify(commitSummary(commit))}
+                                />
                             </p>
                         </div>
                         <Button size="sm" asChild>

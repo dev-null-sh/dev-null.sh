@@ -1,13 +1,6 @@
 import { useState } from 'react';
+import { hostname } from '@/lib/utils';
 import type { LinkPreview as LinkPreviewData } from '@/types';
-
-function hostname(url: string): string {
-    try {
-        return new URL(url).hostname.replace(/^www\./, '');
-    } catch {
-        return url;
-    }
-}
 
 export function LinkPreview({ preview }: { preview: LinkPreviewData }) {
     const [isImageBroken, setIsImageBroken] = useState(false);

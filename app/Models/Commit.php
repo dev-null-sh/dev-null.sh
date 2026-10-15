@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 /**
  * @property-read string $id
@@ -26,6 +27,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $body
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
+ * @property-read string|null $embed_url
+ * @property-read string|null $embed_ratio
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -61,6 +64,8 @@ final class Commit extends Model
             'body' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
+            'embed_url' => 'string',
+            'embed_ratio' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -104,6 +109,19 @@ final class Commit extends Model
     public function isVisibleTo(User $user): bool
     {
         return $this->status === CommitStatus::Approved || $this->user_id === $user->id;
+    }
+
+    /**
+     * The body as it reads in a single line of text: an embed without a message stands in as "/embed <host>". Keep in
+     * sync with commitSummary() in resources/js/lib/embed.ts.
+     */
+    public function summary(): string
+    {
+        if ($this->body !== '' || $this->embed_url === null) {
+            return $this->body;
+        }
+
+        return '/embed '.Str::chopStart((string) parse_url($this->embed_url, PHP_URL_HOST), 'www.');
     }
 
     /**

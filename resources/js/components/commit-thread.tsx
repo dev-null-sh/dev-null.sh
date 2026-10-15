@@ -11,6 +11,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitBody } from '@/components/commit-body';
+import { CloseEmbedButton, CommitEmbed } from '@/components/commit-embed';
 import {
     ImagePickerButton,
     ImagePickerPreviews,
@@ -18,6 +19,7 @@ import {
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CopyLinkButton } from '@/components/copy-link-button';
+import { EmbedCommandHighlight } from '@/components/embed-command-highlight';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
@@ -25,6 +27,7 @@ import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import { useEmbed } from '@/hooks/use-embed';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
@@ -178,10 +181,12 @@ export function CommitThread({
     commit,
     initialReplies,
     actions,
+    endActions,
 }: {
     commit: Commit;
     initialReplies?: CursorPaginated<ThreadCommit>;
     actions?: ReactNode;
+    endActions?: ReactNode;
 }) {
     const thread = useThread(commit, initialReplies);
 
@@ -190,6 +195,7 @@ export function CommitThread({
             <ThreadActions
                 thread={thread}
                 actions={actions}
+                endActions={endActions}
                 hasKeyboardShortcuts
             />
             <ThreadReplies thread={thread} depth={0} />
@@ -200,10 +206,12 @@ export function CommitThread({
 function ThreadActions({
     thread,
     actions,
+    endActions,
     hasKeyboardShortcuts = false,
 }: {
     thread: Thread;
     actions?: ReactNode;
+    endActions?: ReactNode;
     hasKeyboardShortcuts?: boolean;
 }) {
     const { auth } = usePage().props;
@@ -288,6 +296,7 @@ function ThreadActions({
                             keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                         />
                     )}
+                    {endActions}
                 </div>
             </div>
 
@@ -443,6 +452,7 @@ function CommitReply({
     const { auth } = usePage().props;
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
+    const embed = useEmbed();
 
     const isOwn = reply.user_id === auth.user.id;
     const isFlattened = depth > maxIndentDepth;
@@ -544,13 +554,22 @@ function CommitReply({
                         </p>
                     )}
 
-                    <CommitBody
-                        segments={reply.body_segments}
-                        className="text-[15px]"
-                    />
+                    {reply.body !== '' && (
+                        <CommitBody
+                            segments={reply.body_segments}
+                            className="text-[15px]"
+                        />
+                    )}
                     {reply.images && <CommitImages images={reply.images} />}
                     {reply.link_preview?.title && (
                         <LinkPreview preview={reply.link_preview} />
+                    )}
+                    {reply.embed_url && (
+                        <CommitEmbed
+                            url={reply.embed_url}
+                            ratio={reply.embed_ratio}
+                            embed={embed}
+                        />
                     )}
 
                     {isConfirming ? (
@@ -573,7 +592,10 @@ function CommitReply({
                             </Button>
                         </div>
                     ) : (
-                        <ThreadActions thread={thread} />
+                        <ThreadActions
+                            thread={thread}
+                            endActions={<CloseEmbedButton embed={embed} />}
+                        />
                     )}
                 </div>
             </div>
@@ -657,23 +679,29 @@ function ReplyComposer({
                     <label htmlFor={`reply-${parent.id}`} className="sr-only">
                         Reply to @{parent.user.username}
                     </label>
-                    <MentionTextarea
-                        ref={textareaRef}
-                        id={`reply-${parent.id}`}
-                        name="body"
-                        rows={1}
-                        autoFocus
-                        value={body}
-                        onValueChange={updateBody}
-                        onKeyDown={onKeyDown}
-                        onPaste={attachments.onPaste}
-                        onDragOver={attachments.onDragOver}
-                        onDrop={attachments.onDrop}
-                        onFocus={isRestored ? moveCaretToEnd : undefined}
-                        maxLength={maxBodyLength}
-                        placeholder={`Reply to @${parent.user.username}`}
-                        className="block field-sizing-content min-h-9 w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
-                    />
+                    <div className="relative">
+                        <EmbedCommandHighlight
+                            text={body}
+                            className="px-1 text-[15px] leading-relaxed"
+                        />
+                        <MentionTextarea
+                            ref={textareaRef}
+                            id={`reply-${parent.id}`}
+                            name="body"
+                            rows={1}
+                            autoFocus
+                            value={body}
+                            onValueChange={updateBody}
+                            onKeyDown={onKeyDown}
+                            onPaste={attachments.onPaste}
+                            onDragOver={attachments.onDragOver}
+                            onDrop={attachments.onDrop}
+                            onFocus={isRestored ? moveCaretToEnd : undefined}
+                            maxLength={maxBodyLength}
+                            placeholder={`Reply to @${parent.user.username}`}
+                            className="relative block field-sizing-content min-h-9 w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                        />
+                    </div>
                     <InputError
                         message={errors.body ?? errors.parent_id}
                         className="px-1"

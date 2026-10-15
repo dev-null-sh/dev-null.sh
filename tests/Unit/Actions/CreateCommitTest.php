@@ -204,3 +204,70 @@ it('stores the images of a commit', function (): void {
     expect($commit->images()->count())->toBe(1)
         ->and($commit->status)->toBe(CommitStatus::Pending);
 });
+
+it('moves an embed at the end of the body to the embed url', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), "Here's my cool new game :rocket\n\n/embed https://example.com/game");
+
+    expect($commit->refresh())
+        ->body->toBe("Here's my cool new game 🚀")
+        ->embed_url->toBe('https://example.com/game')
+        ->embed_ratio->toBe('1:1')
+        ->link_preview_id->toBeNull();
+
+    Queue::assertNothingPushed();
+});
+
+it('still previews a link before the embed', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), "Source at https://example.com/source\n/embed https://example.com/game");
+
+    expect($commit->refresh())
+        ->embed_url->toBe('https://example.com/game')
+        ->linkPreview->url->toBe('https://example.com/source');
+});
+
+it('may embed in a reply', function (): void {
+    $parent = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $reply = $action->handle(User::factory()->create(), 'Try mine /embed https://example.com/game', $parent);
+
+    expect($reply->refresh())
+        ->body->toBe('Try mine')
+        ->embed_url->toBe('https://example.com/game');
+});
+
+it('stores the ratio of an embed', function (): void {
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Watch it /embed https://example.com/video 16:9');
+
+    expect($commit->refresh())
+        ->body->toBe('Watch it')
+        ->embed_url->toBe('https://example.com/video')
+        ->embed_ratio->toBe('16:9');
+});
+
+it('keeps an embed that cannot be embedded as text', function (string $body): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), $body);
+
+    expect($commit->refresh())
+        ->body->toBe($body)
+        ->embed_url->toBeNull()
+        ->embed_ratio->toBeNull();
+})->with([
+    'http url' => 'Play it /embed http://example.com/game',
+    'bad ratio' => 'Play it /embed https://example.com/game 16x9',
+]);

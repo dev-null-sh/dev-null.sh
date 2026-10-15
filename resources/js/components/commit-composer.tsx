@@ -6,6 +6,7 @@ import {
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { EmbedCommandHighlight } from '@/components/embed-command-highlight';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
@@ -81,26 +82,34 @@ export function CommitComposer() {
                             <label htmlFor="body" className="sr-only">
                                 Body
                             </label>
-                            <MentionTextarea
-                                id="body"
-                                name="body"
-                                rows={1}
-                                value={body}
-                                onValueChange={updateBody}
-                                onKeyDown={submitOnModEnter}
-                                onPaste={attachments.onPaste}
-                                onDragOver={attachments.onDragOver}
-                                onDrop={attachments.onDrop}
-                                onFocus={
-                                    isRestored ? moveCaretToEnd : undefined
-                                }
-                                maxLength={maxBodyLength}
-                                placeholder="What did you ship?"
-                                autoComplete="off"
-                                aria-invalid={errors.body ? true : undefined}
-                                aria-describedby="body-count"
-                                className="block field-sizing-content min-h-10 w-full resize-none bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
-                            />
+                            <div className="relative">
+                                <EmbedCommandHighlight
+                                    text={body}
+                                    className="py-1.5 text-[17px] leading-relaxed"
+                                />
+                                <MentionTextarea
+                                    id="body"
+                                    name="body"
+                                    rows={1}
+                                    value={body}
+                                    onValueChange={updateBody}
+                                    onKeyDown={submitOnModEnter}
+                                    onPaste={attachments.onPaste}
+                                    onDragOver={attachments.onDragOver}
+                                    onDrop={attachments.onDrop}
+                                    onFocus={
+                                        isRestored ? moveCaretToEnd : undefined
+                                    }
+                                    maxLength={maxBodyLength}
+                                    placeholder="What did you ship?"
+                                    autoComplete="off"
+                                    aria-invalid={
+                                        errors.body ? true : undefined
+                                    }
+                                    aria-describedby="body-count"
+                                    className="relative block field-sizing-content min-h-10 w-full resize-none bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                                />
+                            </div>
 
                             <InputError message={errors.body} />
 

@@ -22,6 +22,14 @@ it('fits commits that would overflow the card', function (string $body): void {
     'nothing Geist can draw' => ['🚀🔥✨'],
 ]);
 
+it('draws a commit that is only an embed', function (): void {
+    $commit = Commit::factory()->for(User::factory()->withoutProfile())->create(['body' => '', 'embed_url' => 'https://example.com/game', 'embed_ratio' => '1:1']);
+
+    $image = resolve(CreateCommitOpenGraphImage::class)->handle($commit);
+
+    expect(array_slice((array) getimagesizefromstring($image), 0, 2))->toBe([1200, 630]);
+});
+
 it('draws the parent of a reply only when it is approved', function (CommitStatus $status, bool $isDrawn): void {
     $parent = Commit::factory()->create(['status' => $status]);
     $reply = Commit::factory()->for($parent, 'parent')->for(User::factory()->withoutProfile())->create(['body' => 'Agreed.']);
