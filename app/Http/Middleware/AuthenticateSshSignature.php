@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
-use App\Actions\VerifySignedCommit;
+use App\Services\SignedCommits;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final readonly class AuthenticateSshSignature
 {
-    public function __construct(private VerifySignedCommit $verifySignedCommit)
+    public function __construct(private SignedCommits $signedCommits)
     {
         //
     }
@@ -27,7 +27,7 @@ final readonly class AuthenticateSshSignature
     public function handle(Request $request, Closure $next): Response
     {
         try {
-            $commit = $this->verifySignedCommit->handle(
+            $commit = $this->signedCommits->verify(
                 $request->getContent(),
                 $request->headers->get('X-SSH-Signature', '') ?? '',
             );
