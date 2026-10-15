@@ -19,7 +19,7 @@ import {
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, ThreadCommit } from '@/types';
+import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 export function CommitCard({
     commit,
@@ -42,7 +42,7 @@ export function CommitCard({
     actions?: ReactNode;
     isFocused?: boolean;
     canDelete?: boolean;
-    initialReplies?: ThreadCommit[];
+    initialReplies?: CursorPaginated<ThreadCommit>;
 }) {
     const { auth } = usePage().props;
     const now = useNow();

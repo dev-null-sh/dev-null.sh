@@ -5,7 +5,7 @@ import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import AppLayout from '@/layouts/app-layout';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
-import type { Commit, ThreadCommit } from '@/types';
+import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 const titleLength = 60;
 
@@ -16,7 +16,7 @@ export default function Show({
 }: {
     commit: Commit;
     ancestors: ThreadCommit[];
-    replies: ThreadCommit[];
+    replies: CursorPaginated<ThreadCommit>;
 }) {
     const excerpt =
         commit.body.length > titleLength
