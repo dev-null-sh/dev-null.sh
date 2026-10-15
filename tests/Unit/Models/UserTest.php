@@ -69,6 +69,21 @@ it('loads commit counts visible to the viewer', function (): void {
         ->and($user->loadCounts()->commits_count)->toBe(3);
 });
 
+it('loads public counts with approved commits only', function (): void {
+    $user = User::factory()->has(Commit::factory())->create();
+    Commit::factory()->for($user)->pending()->create();
+    Commit::factory()->for($user)->rejected()->create();
+    $user->following()->attach(User::factory()->count(2)->create());
+    User::factory()->create()->following()->attach($user);
+
+    $user->loadPublicCounts();
+
+    expect($user->commits_count)->toBe(1)
+        ->and($user->following_count)->toBe(2)
+        ->and($user->followers_count)->toBe(1)
+        ->and($user->isDirty())->toBeFalse();
+});
+
 it('loads counts without joining users', function (): void {
     $user = User::factory()->create();
 

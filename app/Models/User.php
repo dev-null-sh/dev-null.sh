@@ -32,6 +32,10 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read Collection<int, Commit> $commits
  * @property-read Collection<int, User> $following
  * @property-read Collection<int, User> $followers
+ * @property-read Collection<int, Notification> $notifications
+ * @property-read int $commits_count
+ * @property-read int $following_count
+ * @property-read int $followers_count
  */
 #[Hidden([
     'github_id',
@@ -94,6 +98,14 @@ final class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<Notification, $this>
+     */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class, 'recipient_id');
+    }
+
+    /**
      * Users sign in with GitHub, so they have no password.
      */
     public function getAuthPassword(): string
@@ -116,15 +128,28 @@ final class User extends Authenticatable
      */
     public function loadCounts(?self $viewer = null): self
     {
-        $counts = [
-            'commits_count' => $this->commits()->visibleTo($viewer ?? $this)->count(),
-            'followers_count' => $this->followers()->newPivotQuery()->count(),
-            'following_count' => $this->following()->newPivotQuery()->count(),
-        ];
+        return $this->fillCounts($this->commits()->visibleTo($viewer ?? $this)->count());
+    }
 
-        $this->forceFill($counts)->syncOriginalAttributes(array_keys($counts));
+    /**
+     * Counts what anyone may see about the user, so only approved commits.
+     */
+    public function loadPublicCounts(): self
+    {
+        return $this->fillCounts($this->commits()->approved()->count());
+    }
 
-        return $this;
+    /**
+     * Changes whenever anything drawn on the profile's link preview image may have changed.
+     */
+    public function openGraphImageVersion(): string
+    {
+        return hash('xxh3', implode(':', [
+            $this->updated_at->getTimestamp(),
+            $this->commits_count,
+            $this->following_count,
+            $this->followers_count,
+        ]));
     }
 
     public function isFollowing(self $user): bool
@@ -160,5 +185,18 @@ final class User extends Authenticatable
             ...parent::toArray(),
             'lane' => $this->lane(),
         ];
+    }
+
+    private function fillCounts(int $commits): self
+    {
+        $counts = [
+            'commits_count' => $commits,
+            'followers_count' => $this->followers()->newPivotQuery()->count(),
+            'following_count' => $this->following()->newPivotQuery()->count(),
+        ];
+
+        $this->forceFill($counts)->syncOriginalAttributes(array_keys($counts));
+
+        return $this;
     }
 }
