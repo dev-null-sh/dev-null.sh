@@ -27,7 +27,12 @@ final class NotificationBuilder extends Builder
             ->orWhere(fn (Builder $query): Builder => $query
                 ->where('type', NotificationType::Replied)
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
-                    ->where('status', CommitStatus::Approved))));
+                    ->where('status', CommitStatus::Approved)))
+            ->orWhere(fn (Builder $query): Builder => $query
+                ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
+                ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
+                    ->whereColumn('commits.user_id', 'notifications.recipient_id')
+                    ->whereColumn('commits.status', 'notifications.type'))));
     }
 
     public function unread(): self

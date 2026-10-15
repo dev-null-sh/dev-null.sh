@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Contracts\Services\DnsResolver;
 use App\Models\User;
+use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -18,7 +21,7 @@ final class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
     }
 
     public function boot(): void
@@ -36,7 +39,8 @@ final class AppServiceProvider extends ServiceProvider
     private function bootExceptionHandling(): void
     {
         Inertia::handleExceptionsUsing(function (ExceptionResponse $response): ExceptionResponse|RedirectResponse|null {
-            if ($response->request->expectsJson()) {
+            // API routes render their own errors (JSON, or plain text for the `devnull commit` script)...
+            if ($response->request->expectsJson() || $response->request->is('api/*')) {
                 return null;
             }
 
@@ -68,6 +72,14 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('commits', function (Request $request): Limit {
             $user = $request->user();
             assert($user instanceof User);
+
+            // The `devnull commit` script prints plain text...
+            if ($request->routeIs('cli-commit.store')) {
+                return Limit::perMinute(10)->by($user->id)->response(
+                    fn (Request $request, array $headers): Response => response(__('Slow down: 10 commits a minute. Even CI takes breaks.')."\n", 429, $headers)
+                        ->header('Content-Type', 'text/plain; charset=utf-8'),
+                );
+            }
 
             return Limit::perMinute(10)->by($user->id)->response(function (): RedirectResponse {
                 Inertia::flash('toast', [

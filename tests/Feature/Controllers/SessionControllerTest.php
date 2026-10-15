@@ -3,10 +3,16 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 use Laravel\Socialite\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as GitHubUser;
+
+beforeEach(function (): void {
+    Queue::fake();
+});
 
 it('redirects to github', function (): void {
     Socialite::fake('github');
@@ -67,6 +73,19 @@ it('updates an existing user on login', function (): void {
         ->and($user->refresh()->username)->toBe('octocat');
 
     $this->assertAuthenticatedAs($user);
+});
+
+it('queues a sync of the ssh keys of the user on login', function (): void {
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $this->get(route('login.store'));
+
+    $user = User::query()->where('github_id', '583231')->sole();
+
+    Queue::assertPushed(SyncGitHubSshKeysJob::class, fn (SyncGitHubSshKeysJob $job): bool => $job->user->is($user));
 });
 
 it('redirects to the intended url after login', function (): void {

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 it('may create a commit', function (): void {
@@ -569,4 +572,37 @@ it('returns to the intended commit after local sign in', function (): void {
     $this->get(route('commit.show', [$commit->user, $commit]))->assertRedirectToRoute('home');
 
     $this->get(route('home'))->assertRedirect(route('commit.show', [$commit->user, $commit]));
+});
+
+it('queues a link preview for a commit with a link', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Read all about it at https://example.com/link-previews.',
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following);
+
+    expect($user->commits()->sole()->linkPreview->url)->toBe('https://example.com/link-previews');
+
+    Queue::assertPushed(UnfurlLink::class);
+});
+
+it('includes the link previews of a commit, its ancestors and its replies', function (): void {
+    $root = Commit::factory()->for(LinkPreview::factory()->fetched()->state(['title' => 'Root link']))->create();
+    $commit = Commit::factory()->for($root, 'parent')->for(LinkPreview::factory()->fetched()->state(['title' => 'Focused link']))->create();
+    Commit::factory()->for($commit, 'parent')->for(LinkPreview::factory()->fetched()->state(['title' => 'Reply link']))->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.link_preview.title', 'Focused link')
+            ->where('ancestors.0.link_preview.title', 'Root link')
+            ->where('replies.data.0.link_preview.title', 'Reply link'));
 });

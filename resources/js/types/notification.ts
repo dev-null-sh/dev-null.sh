@@ -9,6 +9,7 @@ type BaseNotification = {
     created_at: string;
     updated_at: string;
     actor: User;
+    reason: string | null;
 };
 
 export type Notification =
@@ -18,7 +19,7 @@ export type Notification =
           commit: null;
       })
     | (BaseNotification & {
-          type: 'replied';
+          type: 'replied' | 'approved' | 'rejected';
           commit_id: string;
           commit: Omit<Commit, 'user'>;
       });

@@ -38,7 +38,7 @@ it('does not extend the recovery window for a repeated stale delete', function (
     $deadline = $deleted->deleted_at;
     $this->travel(20)->seconds();
 
-    expect(fn () => $action->handle($commit))->toThrow(ModelNotFoundException::class);
+    expect($action->handle($commit)->deleted_at)->toEqual($deadline);
     expect($deleted->refresh()->deleted_at)->toEqual($deadline);
 });
 
