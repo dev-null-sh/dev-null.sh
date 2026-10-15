@@ -20,7 +20,7 @@ final readonly class DeleteUser
 
         $user->delete();
 
-        Storage::disk(CommitImage::DISK)->delete($imagePaths);
+        Storage::disk()->delete($imagePaths);
     }
 
     /**
