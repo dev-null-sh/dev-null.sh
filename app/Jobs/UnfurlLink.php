@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Actions\FetchLinkPreview;
+use App\Actions\UpdateLinkPreview;
 use App\Models\LinkPreview;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -25,7 +25,7 @@ final class UnfurlLink implements ShouldQueue
     /**
      * Commits that share a link may each queue this job before the first one runs, so only the first one fetches.
      */
-    public function handle(FetchLinkPreview $action): void
+    public function handle(UpdateLinkPreview $action): void
     {
         if ($this->linkPreview->fetched_at !== null) {
             return;

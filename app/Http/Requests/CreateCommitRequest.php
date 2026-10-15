@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Actions\StoreCommitImages;
+use App\Actions\CreateCommitImages;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
@@ -35,14 +35,14 @@ final class CreateCommitRequest extends FormRequest
         return [
             'body' => ['required', 'string', 'min:3', 'max:280'],
             'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
-            'images' => ['nullable', 'list', 'max:'.StoreCommitImages::MAX_IMAGES],
+            'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
                 'required',
                 'image',
-                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(StoreCommitImages::MAX_UPLOAD_SIZE),
+                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
                 Rule::dimensions()
-                    ->maxWidth(StoreCommitImages::MAX_SOURCE_DIMENSION)
-                    ->maxHeight(StoreCommitImages::MAX_SOURCE_DIMENSION),
+                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
+                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
             ],
         ];
     }
