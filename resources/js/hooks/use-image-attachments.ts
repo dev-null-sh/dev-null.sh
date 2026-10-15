@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { pickImages } from '@/components/commit-image-picker';
 
 export type UseImageAttachmentsReturn = {
-    readonly images: File[];
     readonly error: string | null;
     readonly attach: (files: File[]) => void;
     readonly remove: (index: number) => void;
@@ -17,10 +16,12 @@ const hasFiles = (dataTransfer: DataTransfer): boolean =>
     Array.from(dataTransfer.types).includes('Files');
 
 /**
- * Keeps the images attached to a commit being written, picked, pasted, or dropped.
+ * Attaches images to a commit being written, picked, pasted, or dropped.
  */
-export function useImageAttachments(): UseImageAttachmentsReturn {
-    const [images, setImages] = useState<File[]>([]);
+export function useImageAttachments(
+    images: File[],
+    onChange: (images: File[]) => void,
+): UseImageAttachmentsReturn {
     const [error, setError] = useState<string | null>(null);
 
     const attach = (files: File[]) => {
@@ -30,20 +31,19 @@ export function useImageAttachments(): UseImageAttachmentsReturn {
 
         const picked = pickImages(images, files);
 
-        setImages(picked.images);
+        onChange(picked.images);
         setError(picked.error);
     };
 
     return {
-        images,
         error,
         attach,
         remove: (index) => {
-            setImages(images.filter((_, position) => position !== index));
+            onChange(images.filter((_, position) => position !== index));
             setError(null);
         },
         clear: () => {
-            setImages([]);
+            onChange([]);
             setError(null);
         },
         onPaste: (event) => {

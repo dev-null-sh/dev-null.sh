@@ -21,11 +21,9 @@ const maxBodyLength = 280;
 
 export function CommitComposer() {
     const { auth } = usePage().props;
-    const { body, isRestored, updateBody, drop } = useStash(
-        auth.user.id,
-        'commit',
-    );
-    const attachments = useImageAttachments();
+    const { body, images, isRestored, updateBody, updateImages, drop } =
+        useStash(auth.user.id, 'commit');
+    const attachments = useImageAttachments(images, updateImages);
 
     const remaining = maxBodyLength - body.length;
     const isCommittable = body.trim().length >= minBodyLength;
@@ -45,9 +43,7 @@ export function CommitComposer() {
         <Form
             {...CommitController.store.form()}
             transform={(data) =>
-                attachments.images.length > 0
-                    ? { ...data, images: attachments.images }
-                    : data
+                images.length > 0 ? { ...data, images } : data
             }
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
@@ -55,8 +51,8 @@ export function CommitComposer() {
                     return;
                 }
 
-                drop();
                 attachments.clear();
+                drop();
                 requestAnimationFrame(() =>
                     document.getElementById('body')?.focus(),
                 );
@@ -105,7 +101,7 @@ export function CommitComposer() {
                             <InputError message={errors.body} />
 
                             <ImagePickerPreviews
-                                images={attachments.images}
+                                images={images}
                                 onRemove={attachments.remove}
                             />
                             <InputError
@@ -118,7 +114,7 @@ export function CommitComposer() {
                             <div className="mt-2 flex items-center justify-end gap-4">
                                 <div className="mr-auto flex items-center gap-4">
                                     <ImagePickerButton
-                                        count={attachments.images.length}
+                                        count={images.length}
                                         disabled={processing}
                                         onPick={attachments.attach}
                                         className="-ml-2"
@@ -126,6 +122,7 @@ export function CommitComposer() {
                                     {isRestored && (
                                         <StashLabel
                                             onDrop={() => {
+                                                attachments.clear();
                                                 drop();
                                                 document
                                                     .getElementById('body')

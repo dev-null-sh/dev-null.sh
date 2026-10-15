@@ -593,11 +593,9 @@ function ReplyComposer({
     onReplied: () => void;
 }) {
     const { auth } = usePage().props;
-    const { body, isRestored, updateBody, drop } = useStash(
-        auth.user.id,
-        `reply-${parent.id}`,
-    );
-    const attachments = useImageAttachments();
+    const { body, images, isRestored, updateBody, updateImages, drop } =
+        useStash(auth.user.id, `reply-${parent.id}`);
+    const attachments = useImageAttachments(images, updateImages);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
@@ -635,15 +633,13 @@ function ReplyComposer({
             {...CommitController.store.form()}
             errorBag="reply"
             transform={(data) =>
-                attachments.images.length > 0
-                    ? { ...data, images: attachments.images }
-                    : data
+                images.length > 0 ? { ...data, images } : data
             }
             options={{ preserveScroll: true, preserveState: true }}
             onSuccess={(page) => {
                 if (page.flash.committed) {
-                    drop();
                     attachments.clear();
+                    drop();
                     returnFocusToCommit();
                     onReplied();
                 }
@@ -679,7 +675,7 @@ function ReplyComposer({
                         className="px-1"
                     />
                     <ImagePickerPreviews
-                        images={attachments.images}
+                        images={images}
                         onRemove={attachments.remove}
                     />
                     <InputError
@@ -689,7 +685,7 @@ function ReplyComposer({
                     <div className="mt-1.5 flex items-center justify-end gap-2">
                         <div className="mr-auto flex items-center gap-2">
                             <ImagePickerButton
-                                count={attachments.images.length}
+                                count={images.length}
                                 disabled={processing}
                                 onPick={attachments.attach}
                                 className="size-8"
@@ -697,6 +693,7 @@ function ReplyComposer({
                             {isRestored && (
                                 <StashLabel
                                     onDrop={() => {
+                                        attachments.clear();
                                         drop();
                                         document
                                             .getElementById(
