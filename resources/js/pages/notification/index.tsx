@@ -1,34 +1,125 @@
-import { Head, InfiniteScroll, Link } from '@inertiajs/react';
-import { AtSign, Check, MessageSquareReply, UserPlus, X } from 'lucide-react';
-import type { CSSProperties } from 'react';
+import { Head, InfiniteScroll, Link, router, useForm } from '@inertiajs/react';
+import {
+    AtSign,
+    Check,
+    ChevronDown,
+    MessageSquareReply,
+    RefreshCw,
+    UserPlus,
+    X,
+} from 'lucide-react';
+import { useId, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { index } from '@/actions/App/Http/Controllers/NotificationController';
+import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
+import { update as updateRead } from '@/actions/App/Http/Controllers/NotificationReadController';
 import { EmptyFeed } from '@/components/commit-feed';
+import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
-import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
+import { cn, formatRelativeTime } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { CursorPaginated, Notification } from '@/types';
+import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
+
+type Filters = {
+    type: 'all' | 'replies' | 'mentions' | 'follows' | 'moderation';
+    unread: boolean;
+};
 
 export default function Index({
     notifications,
+    filters,
 }: {
-    notifications: CursorPaginated<Notification>;
+    notifications: CursorPaginated<NotificationGroup>;
+    filters: Filters;
 }) {
+    const [refreshing, setRefreshing] = useState(false);
+    const changeFilters = (next: Filters) =>
+        router.visit(
+            index({ query: { type: next.type, unread: next.unread ? 1 : 0 } }),
+            {
+                only: ['notifications', 'filters', 'auth'],
+                reset: ['notifications'],
+                preserveState: true,
+            },
+        );
+
     return (
         <>
             <Head title="Notifications" />
-
-            <div className="sticky top-0 z-10 flex h-14 items-center border-b bg-card px-4 sm:px-6">
-                <h1 className="font-semibold">Notifications</h1>
+            <div className="sticky top-0 z-10 border-b bg-card">
+                <div className="flex h-14 items-center justify-between px-4 sm:px-6">
+                    <h1 className="font-semibold">Notifications</h1>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={refreshing}
+                        onClick={() => {
+                            setRefreshing(true);
+                            router.reload({
+                                only: ['notifications', 'auth'],
+                                reset: ['notifications'],
+                                onFinish: () => setRefreshing(false),
+                            });
+                        }}
+                    >
+                        <RefreshCw
+                            className={cn('size-4', {
+                                'animate-spin motion-reduce:animate-none':
+                                    refreshing,
+                            })}
+                        />
+                        Refresh
+                    </Button>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 sm:px-6">
+                    <label className="flex items-center gap-2 text-sm">
+                        <span className="sr-only">Notification type</span>
+                        <select
+                            aria-label="Notification type"
+                            value={filters.type}
+                            onChange={(event) =>
+                                changeFilters({
+                                    ...filters,
+                                    type: event.target.value as Filters['type'],
+                                })
+                            }
+                            className="h-9 rounded-md border bg-background px-2 text-sm focus-visible:outline-2 focus-visible:outline-ring"
+                        >
+                            <option value="all">All activity</option>
+                            <option value="replies">Replies</option>
+                            <option value="mentions">Mentions</option>
+                            <option value="follows">Follows</option>
+                            <option value="moderation">Moderation</option>
+                        </select>
+                    </label>
+                    <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            checked={filters.unread}
+                            onChange={(event) =>
+                                changeFilters({
+                                    ...filters,
+                                    unread: event.target.checked,
+                                })
+                            }
+                            className="size-4 accent-primary"
+                        />
+                        Unread only
+                    </label>
+                </div>
             </div>
-
             {notifications.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command="$ cat /dev/notifications">
-                        Nothing here yet. Follows, replies, mentions, and
-                        moderation updates for your commits will show up here.
+                        {filters.unread
+                            ? "You're all caught up. No unread activity matches this filter."
+                            : filters.type !== 'all'
+                              ? 'No activity of this type yet.'
+                              : 'Nothing here yet. Follows, replies, mentions, and moderation updates will show up here.'}
                     </EmptyFeed>
                 </div>
             ) : (
@@ -44,8 +135,12 @@ export default function Index({
                 >
                     <ul className="divide-y">
                         {notifications.data.map((notification) => (
-                            <li key={notification.id}>
-                                <NotificationItem notification={notification} />
+                            <li key={notification.group_id}>
+                                <NotificationGroupItem
+                                    key={filters.type + '-' + notification.id}
+                                    notification={notification}
+                                    type={filters.type}
+                                />
                             </li>
                         ))}
                     </ul>
@@ -55,11 +150,208 @@ export default function Index({
     );
 }
 
-function NotificationItem({ notification }: { notification: Notification }) {
+function ReadButton({
+    notification,
+    group = false,
+    type,
+    onUpdated,
+    unread,
+}: {
+    notification: Notification;
+    group?: boolean;
+    type: Filters['type'];
+    onUpdated?: () => void;
+    unread?: boolean;
+}) {
+    const isUnread = unread ?? notification.read_at === null;
+    const form = useForm({ read: isUnread, group, type });
+    const restoreFocus = useRef(false);
+
+    return (
+        <Button
+            ref={(button) => {
+                if (button && !form.processing && restoreFocus.current) {
+                    restoreFocus.current = false;
+                    if (document.activeElement === document.body)
+                        button.focus();
+                }
+            }}
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={form.processing}
+            className="shrink-0 text-xs"
+            onClick={() => {
+                restoreFocus.current = true;
+                form.transform(() => ({ read: isUnread, group, type }));
+                form.submit(updateRead(notification), {
+                    only: ['notifications', 'auth'],
+                    reset: ['notifications'],
+                    preserveScroll: true,
+                    onSuccess: onUpdated,
+                    onError: () =>
+                        toast.error(
+                            'Could not update this notification. Try again.',
+                        ),
+                });
+            }}
+        >
+            {form.processing
+                ? 'Saving…'
+                : isUnread
+                  ? 'Mark read'
+                  : 'Mark unread'}
+        </Button>
+    );
+}
+
+function NotificationGroupItem({
+    notification,
+    type,
+}: {
+    notification: NotificationGroup;
+    type: Filters['type'];
+}) {
+    const [open, setOpen] = useState(false);
+    const [items, setItems] = useState<Notification[]>([]);
+    const [cursor, setCursor] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [failed, setFailed] = useState(false);
+    const id = useId();
+    const grouped = notification.event_count > 1;
+
+    const load = async (next: string | null = null) => {
+        setLoading(true);
+        setFailed(false);
+        try {
+            const response = await fetch(
+                groupShow(notification, { query: { type, cursor: next } }).url,
+                { headers: { Accept: 'application/json' } },
+            );
+            if (!response.ok) throw new Error('Unable to load activity');
+            const data =
+                (await response.json()) as CursorPaginated<Notification>;
+            setItems((previous) =>
+                next ? [...previous, ...data.data] : data.data,
+            );
+            setCursor(data.next_cursor);
+        } catch {
+            setFailed(true);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <article
+            data-notification-group={notification.group_id}
+            className={cn('px-4 py-3 sm:px-6', {
+                'bg-primary-soft/40': notification.unread_count > 0,
+            })}
+        >
+            {grouped && (
+                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span className="font-medium">
+                        {notification.event_count} updates in this conversation
+                    </span>
+                    {notification.unread_count > 0 && (
+                        <span className="text-xs text-primary">
+                            {notification.unread_count} unread
+                        </span>
+                    )}
+                </div>
+            )}
+            <NotificationContent notification={notification} />
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-1">
+                {grouped ? (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="-ml-2 text-xs"
+                        aria-expanded={open}
+                        aria-controls={id}
+                        onClick={() => {
+                            setOpen(!open);
+                            if (!open && items.length === 0) void load();
+                        }}
+                    >
+                        <ChevronDown
+                            className={cn(
+                                'size-4 transition-transform motion-reduce:transition-none',
+                                { 'rotate-180': open },
+                            )}
+                        />
+                        {open ? 'Hide activity' : 'Show activity'}
+                    </Button>
+                ) : (
+                    <span />
+                )}
+                <ReadButton
+                    notification={notification}
+                    group={grouped}
+                    type={type}
+                    unread={notification.unread_count > 0}
+                    onUpdated={() => {
+                        if (open) void load();
+                    }}
+                />
+            </div>
+            {open && (
+                <div id={id} className="mt-2 border-t">
+                    <ul className="divide-y">
+                        {items.map((item) => (
+                            <li key={item.id} className="py-3">
+                                <NotificationContent notification={item} />
+                                <div className="mt-1 flex justify-end">
+                                    <ReadButton
+                                        notification={item}
+                                        type={type}
+                                        onUpdated={() => void load()}
+                                    />
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                    {loading && (
+                        <p
+                            role="status"
+                            className="py-3 text-sm text-muted-foreground"
+                        >
+                            Loading activity…
+                        </p>
+                    )}
+                    {failed && (
+                        <div role="alert" className="py-3 text-sm">
+                            <p>Could not load activity.</p>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void load(cursor)}
+                            >
+                                Try again
+                            </Button>
+                        </div>
+                    )}
+                    {!loading && !failed && cursor && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void load(cursor)}
+                        >
+                            Show older activity
+                        </Button>
+                    )}
+                </div>
+            )}
+        </article>
+    );
+}
+
+function NotificationContent({ notification }: { notification: Notification }) {
     const now = useNow();
     const { actor } = notification;
-    const isUnread = notification.read_at === null;
-    const isModeration =
+    const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
     const Icon = {
         followed: UserPlus,
@@ -79,42 +371,29 @@ function NotificationItem({ notification }: { notification: Notification }) {
                           commit: notification.commit,
                       })
             }
-            className={cn(
-                'flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 sm:px-6',
-                { 'bg-primary-soft/50': isUnread },
-            )}
+            className="flex gap-3 rounded-md outline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ring"
         >
             <Icon
-                className={cn(
-                    'mt-2 size-5 shrink-0',
-                    isModeration ? 'text-muted-foreground' : 'text-(--lane)',
-                )}
-                style={
-                    isModeration
-                        ? undefined
-                        : ({ '--lane': laneColor(actor.lane) } as CSSProperties)
-                }
+                className="mt-1.5 size-5 shrink-0 text-muted-foreground"
                 aria-hidden
             />
-
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                    {isModeration ? (
+                    {moderation ? (
                         <span className="text-sm font-medium">
                             Moderation update
                         </span>
                     ) : (
                         <UserAvatar user={actor} className="size-8" />
                     )}
-                    {isUnread && (
+                    {notification.read_at === null && (
                         <span className="ml-auto size-2 shrink-0 rounded-full bg-primary">
-                            <span className="sr-only">Unread</span>
+                            <span className="sr-only">Unread notification</span>
                         </span>
                     )}
                 </div>
-
-                <p className="mt-2 text-[15px]">
-                    {isModeration ? (
+                <p className="mt-2 text-[15px] wrap-anywhere">
+                    {moderation ? (
                         `Your commit was ${notification.type}`
                     ) : (
                         <>
@@ -138,9 +417,8 @@ function NotificationItem({ notification }: { notification: Notification }) {
                         </time>
                     </span>
                 </p>
-
                 {notification.type !== 'followed' && (
-                    <p className="mt-1 truncate text-[15px]">
+                    <p className="mt-1 line-clamp-2 text-[15px] wrap-anywhere">
                         {notification.commit.body}
                     </p>
                 )}
