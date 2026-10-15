@@ -10,6 +10,8 @@ use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitStarController;
+use App\Http\Controllers\FeedTokenController;
+use App\Http\Controllers\FollowingFeedController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\ModerationController;
@@ -54,6 +56,11 @@ Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'
 Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');
+
+// Following Feed, for RSS readers signed in by the token in the link...
+Route::get('feeds/{user:feed_token}/following.xml', [FollowingFeedController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('following-feed.show');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -101,6 +108,9 @@ Route::middleware('auth')->group(function (): void {
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
+
+    // Feed Token...
+    Route::put('settings/feed-token', [FeedTokenController::class, 'update'])->name('feed-token.update');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\DeleteUser;
+use App\Actions\RegenerateFeedToken;
 use App\Http\Requests\DeleteUserRequest;
 use App\Models\User;
 use App\Queries\UserActivityQuery;
@@ -17,7 +18,7 @@ use Inertia\Response;
 
 final readonly class UserController
 {
-    public function show(#[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks): RedirectResponse|Response
+    public function show(#[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, RegenerateFeedToken $regenerateFeedToken): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
             return $this->preview($user);
@@ -28,6 +29,9 @@ final readonly class UserController
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => fn (): array => $streaks->get($user, $currentUser),
+            'feedUrl' => fn (): ?string => $currentUser->is($user)
+                ? route('following-feed.show', $currentUser->feed_token ?? $regenerateFeedToken->handle($currentUser))
+                : null,
             'commits' => Inertia::scroll(fn () => $user->commits()
                 ->visibleTo($currentUser)
                 ->topLevel()

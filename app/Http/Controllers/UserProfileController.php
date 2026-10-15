@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\RegenerateFeedToken;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
 use Inertia\Inertia;
@@ -11,11 +12,12 @@ use Inertia\Response;
 
 final readonly class UserProfileController
 {
-    public function edit(#[CurrentUser] User $user): Response
+    public function edit(#[CurrentUser] User $user, RegenerateFeedToken $regenerateFeedToken): Response
     {
         return Inertia::render('user-profile/edit', [
             'preferredLane' => $user->preferred_lane,
             'automaticLane' => $user->automaticLane(),
+            'feedUrl' => route('following-feed.show', $user->feed_token ?? $regenerateFeedToken->handle($user)),
         ]);
     }
 }

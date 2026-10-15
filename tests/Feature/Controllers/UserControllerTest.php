@@ -365,3 +365,48 @@ it('includes the link previews of the user commits', function (): void {
             ->missing('commits.data.0.link_preview.url_hash')
             ->missing('commits.data.0.link_preview.fetched_at'));
 });
+
+it('renders the rss feed link on the own profile', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    $response = $this->actingAs($user)
+        ->get('/@octocat');
+
+    $token = $user->refresh()->feed_token;
+
+    expect($token)->toHaveLength(48);
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('feedUrl', route('following-feed.show', $token))
+            ->missing('user.feed_token')
+            ->missing('auth.user.feed_token'));
+});
+
+it('keeps the existing rss feed link on the own profile', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'feed_token' => 'secret-feed-token']);
+
+    $response = $this->actingAs($user)
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('feedUrl', route('following-feed.show', 'secret-feed-token')));
+
+    expect($user->refresh()->feed_token)->toBe('secret-feed-token');
+});
+
+it('does not render the rss feed link on other profiles', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'feed_token' => 'secret-feed-token']);
+    $viewer = User::factory()->create();
+
+    $response = $this->actingAs($viewer)
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('feedUrl', null)
+            ->missing('user.feed_token'));
+
+    expect($viewer->refresh()->feed_token)->toBeNull();
+});
