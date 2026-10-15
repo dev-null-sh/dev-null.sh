@@ -29,9 +29,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read User $recipient
  * @property-read User $actor
  * @property-read Commit|null $commit
+ * @property-read string $group_id
+ * @property-read int $event_count
+ * @property-read int $unread_count
  */
 #[Hidden([
     'key',
+    'group_rank',
 ])]
 #[UseEloquentBuilder(NotificationBuilder::class)]
 final class Notification extends Model

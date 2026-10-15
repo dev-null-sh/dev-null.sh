@@ -53,7 +53,7 @@ it('hides notifications that no longer hold', function (): void {
     $response->assertInertia(fn ($page) => $page->has('notifications.data', 0));
 });
 
-it('shows notifications as unread, then marks them as read', function (): void {
+it('keeps notifications unread until explicitly marked read', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();
 
@@ -61,7 +61,7 @@ it('shows notifications as unread, then marks them as read', function (): void {
 
     $response->assertInertia(fn ($page) => $page->where('notifications.data.0.read_at', null));
 
-    expect($notification->refresh()->read_at)->not->toBeNull();
+    expect($notification->refresh()->read_at)->toBeNull();
 });
 
 it('requires authentication', function (): void {
