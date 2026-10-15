@@ -21,7 +21,9 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 ## Operating Context
 
 - Sign-in is GitHub OAuth only. Profile changes happen on GitHub ("Edit on GitHub"), then sync at next login.
-- Everything except the landing page requires login.
+- Everything except the landing page, the public read API, and profile feeds requires login.
+- Public read API: read-only JSON under `/api/v1`, no authentication, for public profiles (with counts), a user's commits or replies, and single commits. It returns exactly what a guest's link preview may show: approved, non-deleted commits only, approved reply counts, and a parent only while it is approved. Never emails or other hidden profile fields. 60 requests a minute per IP.
+- Profile feeds: every profile has an Atom feed of its latest 50 approved top-level commits at `/@{username}/feed.atom`, advertised with `<link rel="alternate">` on the profile's guest preview.
 - Profile links (`/@{username}`) and links to approved commits (`/@{username}/commits/{id}`) unfurl with a link preview (the author and their bio or counts, or the commit body and reply count) for guests and crawlers; a guest opening one sees the landing page, and the profile or commit itself stays behind login. Pending and rejected commits are a 404 for guests.
 - Two logs: **Following** (my commits plus people I follow) and **Everyone** (all commits), newest first, infinite scroll.
 - Profiles live at `/@{username}` with commit, following, and follower counts, a commit activity graph with longest and current streaks, and Commits and Replies tabs. Commits is the default and lists the user's top-level commits; `?tab=replies` lists their authored replies with visible parent context. Both feeds use infinite scroll.
@@ -35,7 +37,8 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 - Stars: anyone who can see a commit can star and unstar it. Starring is idempotent. The count sits on the commit. A star is the engagement action, named the way GitHub names it, and it is not a git ref.
 - Notifications: in-app only, for a new follower and for an approved reply to one of your commits (only the direct parent's author; never for replying to yourself). A notification points to the follow or reply, it never copies it: it disappears when the reply, its parent, or either user is deleted, and is hidden while the follow is undone or the reply is rejected. A follower notifies once, ever: unfollowing and following again never pings twice. Pending replies notify nobody until approved. No notification for moderation outcomes. Unread count in the nav; a page is marked as read once shown.
 - People search: find developers by name or GitHub username (⌘K). Commits are not searchable.
-- Deliberately excluded for now: likes/reactions, reposts, images/media, mentions, hashtags, searching commits, DMs, other OAuth providers, public API, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
+- Public read API and Atom feeds: read-only, so nothing can be created, starred, or followed through them, and there are no API tokens. Lists are cursor-paginated, 20 per page.
+- Deliberately excluded for now: likes/reactions, reposts, images/media, mentions, hashtags, searching commits, DMs, other OAuth providers, a write API or API tokens, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
 - Open: handling GitHub username renames that collide with a stale username.
 
 ## Brand Commitments
