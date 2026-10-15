@@ -41,6 +41,7 @@ final readonly class CreateExport
                 'company' => $user->company,
                 'has_sponsors_listing' => $user->has_sponsors_listing,
                 'preferred_lane' => $user->preferred_lane,
+                'timezone' => $user->timezone,
                 'pinned_commit_id' => $user->pinned_commit_id,
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),

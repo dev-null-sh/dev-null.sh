@@ -51,6 +51,7 @@ use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
+use App\Http\Controllers\UserTimezoneController;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
@@ -234,6 +235,9 @@ Route::middleware('auth')->group(function (): void {
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
+
+    // User Timezone...
+    Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');

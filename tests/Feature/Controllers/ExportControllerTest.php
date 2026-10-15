@@ -48,6 +48,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'company' => null,
         'has_sponsors_listing' => true,
         'preferred_lane' => 3,
+        'timezone' => 'Europe/Budapest',
         'remember_token' => 'never-export-this-token',
     ]);
     $original = $user->fresh()->getAttributes();
@@ -79,6 +80,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'company' => null,
             'has_sponsors_listing' => true,
             'preferred_lane' => 3,
+            'timezone' => 'Europe/Budapest',
             'pinned_commit_id' => null,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),

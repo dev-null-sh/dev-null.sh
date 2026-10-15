@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read bool $has_sponsors_listing
  * @property-read int|null $preferred_lane
  * @property-read string|null $pinned_commit_id
+ * @property-read string|null $timezone
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
@@ -97,6 +98,7 @@ final class User extends Authenticatable
             'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
             'pinned_commit_id' => 'string',
+            'timezone' => 'string',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',

@@ -11,6 +11,7 @@ export type User = {
     company: string | null;
     has_sponsors_listing: boolean;
     lane: number;
+    timezone: string | null;
     created_at: string;
     updated_at: string;
 };
