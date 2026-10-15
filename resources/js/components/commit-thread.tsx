@@ -10,18 +10,26 @@ import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BookmarkButton } from '@/components/bookmark-button';
+import {
+    ImagePickerButton,
+    ImagePickerPreviews,
+    imageErrorFrom,
+} from '@/components/commit-image-picker';
+import { CommitImages } from '@/components/commit-images';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
 import { LinkifiedText } from '@/components/linkified-text';
+import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
-import { emojify, emojifyInput } from '@/lib/emoji';
+import { emojify } from '@/lib/emoji';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
@@ -534,6 +542,7 @@ function CommitReply({
                     <p className="text-[15px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
                         <LinkifiedText text={emojify(reply.body)} />
                     </p>
+                    {reply.images && <CommitImages images={reply.images} />}
                     {reply.link_preview?.title && (
                         <LinkPreview preview={reply.link_preview} />
                     )}
@@ -582,6 +591,7 @@ function ReplyComposer({
         auth.user.id,
         `reply-${parent.id}`,
     );
+    const attachments = useImageAttachments();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
@@ -618,10 +628,16 @@ function ReplyComposer({
         <Form
             {...CommitController.store.form()}
             errorBag="reply"
+            transform={(data) =>
+                attachments.images.length > 0
+                    ? { ...data, images: attachments.images }
+                    : data
+            }
             options={{ preserveScroll: true, preserveState: true }}
             onSuccess={(page) => {
                 if (page.flash.committed) {
                     drop();
+                    attachments.clear();
                     returnFocusToCommit();
                     onReplied();
                 }
@@ -635,29 +651,18 @@ function ReplyComposer({
                     <label htmlFor={`reply-${parent.id}`} className="sr-only">
                         Reply to @{parent.user.username}
                     </label>
-                    <textarea
+                    <MentionTextarea
                         ref={textareaRef}
                         id={`reply-${parent.id}`}
                         name="body"
                         rows={1}
                         autoFocus
                         value={body}
-                        onChange={(event) => {
-                            const target = event.currentTarget;
-                            const { text, caret } = emojifyInput(
-                                target.value,
-                                target.selectionStart ?? target.value.length,
-                            );
-
-                            updateBody(text);
-
-                            if (text !== target.value) {
-                                requestAnimationFrame(() =>
-                                    target.setSelectionRange(caret, caret),
-                                );
-                            }
-                        }}
+                        onValueChange={updateBody}
                         onKeyDown={onKeyDown}
+                        onPaste={attachments.onPaste}
+                        onDragOver={attachments.onDragOver}
+                        onDrop={attachments.onDrop}
                         onFocus={isRestored ? moveCaretToEnd : undefined}
                         maxLength={maxBodyLength}
                         placeholder={`Reply to @${parent.user.username}`}
@@ -667,18 +672,36 @@ function ReplyComposer({
                         message={errors.body ?? errors.parent_id}
                         className="px-1"
                     />
+                    <ImagePickerPreviews
+                        images={attachments.images}
+                        onRemove={attachments.remove}
+                    />
+                    <InputError
+                        message={attachments.error ?? imageErrorFrom(errors)}
+                        className="mt-1 px-1"
+                    />
                     <div className="mt-1.5 flex items-center justify-end gap-2">
-                        {isRestored && (
-                            <StashLabel
-                                onDrop={() => {
-                                    drop();
-                                    document
-                                        .getElementById(`reply-${parent.id}`)
-                                        ?.focus();
-                                }}
-                                className="mr-auto px-1 text-xs"
+                        <div className="mr-auto flex items-center gap-2">
+                            <ImagePickerButton
+                                count={attachments.images.length}
+                                disabled={processing}
+                                onPick={attachments.attach}
+                                className="size-8"
                             />
-                        )}
+                            {isRestored && (
+                                <StashLabel
+                                    onDrop={() => {
+                                        drop();
+                                        document
+                                            .getElementById(
+                                                `reply-${parent.id}`,
+                                            )
+                                            ?.focus();
+                                    }}
+                                    className="px-1 text-xs"
+                                />
+                            )}
+                        </div>
                         <span
                             className={cn(
                                 'mr-1 font-mono text-xs text-muted-foreground',

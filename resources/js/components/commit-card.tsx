@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
+import { CommitImages } from '@/components/commit-images';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
@@ -254,6 +255,9 @@ export function CommitCard({
                                         text={emojify(commit.body)}
                                     />
                                 </p>
+                                {commit.images && (
+                                    <CommitImages images={commit.images} />
+                                )}
                                 {commit.quoted_commit_id !== null && (
                                     <QuotedCommit
                                         commit={commit.quoted_commit ?? null}
