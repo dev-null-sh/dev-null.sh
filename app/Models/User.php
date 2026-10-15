@@ -31,6 +31,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read Collection<int, Commit> $commits
  * @property-read Collection<int, User> $following
  * @property-read Collection<int, User> $followers
+ * @property-read int $commits_count
+ * @property-read int $following_count
+ * @property-read int $followers_count
  */
 #[Hidden([
     'github_id',
@@ -113,8 +116,53 @@ final class User extends Authenticatable
      */
     public function loadCounts(?self $viewer = null): self
     {
+        return $this->fillCounts($this->commits()->visibleTo($viewer ?? $this)->count());
+    }
+
+    /**
+     * Counts what anyone may see about the user, so only approved commits.
+     */
+    public function loadPublicCounts(): self
+    {
+        return $this->fillCounts($this->commits()->approved()->count());
+    }
+
+    /**
+     * Mirrors laneFor() in resources/js/lib/utils.ts so server-rendered images use the same author color.
+     */
+    public function lane(): int
+    {
+        $hash = 0;
+
+        foreach (mb_str_split($this->id) as $character) {
+            $hash = ($hash * 31 + mb_ord($character)) & 0xFFFFFFFF;
+        }
+
+        return $hash % 6;
+    }
+
+    /**
+     * Changes whenever anything drawn on the profile's link preview image may have changed.
+     */
+    public function openGraphImageVersion(): string
+    {
+        return hash('xxh3', implode(':', [
+            $this->updated_at->getTimestamp(),
+            $this->commits_count,
+            $this->following_count,
+            $this->followers_count,
+        ]));
+    }
+
+    public function isFollowing(self $user): bool
+    {
+        return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
+    }
+
+    private function fillCounts(int $commits): self
+    {
         $counts = [
-            'commits_count' => $this->commits()->visibleTo($viewer ?? $this)->count(),
+            'commits_count' => $commits,
             'followers_count' => $this->followers()->newPivotQuery()->count(),
             'following_count' => $this->following()->newPivotQuery()->count(),
         ];
@@ -122,10 +170,5 @@ final class User extends Authenticatable
         $this->forceFill($counts)->syncOriginalAttributes(array_keys($counts));
 
         return $this;
-    }
-
-    public function isFollowing(self $user): bool
-    {
-        return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
     }
 }
