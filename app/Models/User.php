@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Attributes\Appends;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -25,6 +26,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read string|null $location
  * @property-read string|null $website
  * @property-read string|null $company
+ * @property-read int|null $preferred_lane
  * @property-read string|null $remember_token
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -36,7 +38,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
     'github_id',
     'email',
     'remember_token',
+    'preferred_lane',
 ])]
+#[Appends(['lane'])]
 final class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -60,6 +64,7 @@ final class User extends Authenticatable
             'location' => 'string',
             'website' => 'string',
             'company' => 'string',
+            'preferred_lane' => 'integer',
             'remember_token' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -127,5 +132,29 @@ final class User extends Authenticatable
     public function isFollowing(self $user): bool
     {
         return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
+    }
+
+    public function lane(): int
+    {
+        return $this->preferred_lane ?? $this->automaticLane();
+    }
+
+    /**
+     * The same hash of the id the frontend used before lanes could be chosen, so nobody's color changes on its own.
+     */
+    public function automaticLane(): int
+    {
+        $hash = 0;
+
+        foreach (mb_str_split($this->id) as $character) {
+            $hash = ($hash * 31 + mb_ord($character)) & 0xFFFFFFFF;
+        }
+
+        return $hash % 6;
+    }
+
+    protected function getLaneAttribute(): int
+    {
+        return $this->lane();
     }
 }

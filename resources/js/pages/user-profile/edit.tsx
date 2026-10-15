@@ -2,13 +2,20 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowUpRight } from 'lucide-react';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
+import LanePicker from '@/components/lane-picker';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { show } from '@/routes/user';
 
-export default function Edit() {
+export default function Edit({
+    preferredLane,
+    automaticLane,
+}: {
+    preferredLane: number | null;
+    automaticLane: number;
+}) {
     const { auth } = usePage().props;
 
     const fields = [
@@ -80,6 +87,11 @@ export default function Edit() {
                     </Button>
                 </div>
             </section>
+
+            <LanePicker
+                preferredLane={preferredLane}
+                automaticLane={automaticLane}
+            />
 
             <DeleteUser />
         </>

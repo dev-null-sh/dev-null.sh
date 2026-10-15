@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard } from '@/components/commit-card';
 import AppLayout from '@/layouts/app-layout';
-import { laneFor, shortHash } from '@/lib/utils';
+import { laneColor, shortHash } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const titleLength = 60;
@@ -59,7 +59,7 @@ export default function Show({
                     commit={ancestor}
                     previousLane={
                         index > 0
-                            ? laneFor(ancestors[index - 1].user_id)
+                            ? laneColor(ancestors[index - 1].user.lane)
                             : undefined
                     }
                     canDelete={false}
@@ -70,7 +70,7 @@ export default function Show({
                 key={commit.id}
                 commit={commit}
                 previousLane={
-                    lastAncestor ? laneFor(lastAncestor.user_id) : undefined
+                    lastAncestor ? laneColor(lastAncestor.user.lane) : undefined
                 }
                 initialReplies={replies}
                 isFocused

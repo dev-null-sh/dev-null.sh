@@ -1,7 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
 import { UserAvatar } from '@/components/user-avatar';
-import { laneFor } from '@/lib/utils';
+import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 
 const rules = [
@@ -52,7 +52,9 @@ export function AppAside({
                             <span
                                 aria-hidden
                                 className="size-2 rounded-full"
-                                style={{ background: laneFor(auth.user.id) }}
+                                style={{
+                                    background: laneColor(auth.user.lane),
+                                }}
                             />
                             @{auth.user.username}
                         </span>

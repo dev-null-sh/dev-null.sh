@@ -4,7 +4,7 @@ import { Fragment, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { useNow } from '@/hooks/use-now';
-import { formatDayLabel, laneFor, localDayKey } from '@/lib/utils';
+import { formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 export function CommitFeed({
@@ -52,7 +52,7 @@ export function CommitFeed({
                 {commits.data.map((commit, index) => {
                     const previous = commits.data[index - 1];
                     const previousLane = previous
-                        ? laneFor(previous.user_id)
+                        ? laneColor(previous.user.lane)
                         : firstLane;
                     const startsDay =
                         !previous ||
@@ -100,8 +100,8 @@ export function CommitFeed({
             {commits.next_cursor === null && lastCommit && (
                 <div className="flex">
                     <GraphRail
-                        lane={laneFor(lastCommit.user_id)}
-                        previousLane={laneFor(lastCommit.user_id)}
+                        lane={laneColor(lastCommit.user.lane)}
+                        previousLane={laneColor(lastCommit.user.lane)}
                         variant="root"
                         hasTail={false}
                     />

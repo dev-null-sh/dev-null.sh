@@ -5,7 +5,7 @@ import { EmptyFeed } from '@/components/commit-feed';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
-import { laneFor } from '@/lib/utils';
+import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, User } from '@/types';
 
@@ -69,7 +69,9 @@ export default function Connections({
                                         className="size-10 ring-2 ring-(--lane) ring-offset-2 ring-offset-card"
                                         style={
                                             {
-                                                '--lane': laneFor(person.id),
+                                                '--lane': laneColor(
+                                                    person.lane,
+                                                ),
                                             } as CSSProperties
                                         }
                                     />

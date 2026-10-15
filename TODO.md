@@ -19,7 +19,7 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 
 ## Data model
 
-**users** — `id` (uuid), `github_id` (unique), `username` (unique), `name`, `email` (nullable, hidden), `avatar_url`, `bio`, `location`, `website`, `company`, `remember_token`, timestamps
+**users** — `id` (uuid), `github_id` (unique), `username` (unique), `name`, `email` (nullable, hidden), `avatar_url`, `bio`, `location`, `website`, `company`, `preferred_lane` (nullable, 0–5, hidden), `remember_token`, timestamps
 
 **commits** — `id` (uuid), `user_id` (cascade delete), `title` (72), `description` (nullable, 500), timestamps; indexes on (`user_id`, `created_at`) and `created_at`
 

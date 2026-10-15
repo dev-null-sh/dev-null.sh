@@ -191,7 +191,7 @@ A cool, nearly colorless shell with one working blue and six author lanes reserv
 - **Blue Wash** (`primary-soft`): fill behind the active nav item and the selected appearance option; also the text selection color.
 
 ### Secondary
-- **Author Lanes** (`lane-0` through `lane-5`, burnt orange, green, violet, teal, rose, ochre; each with a `-dark` lift): assigned by hashing the user id (`laneFor`). Used only for graph nodes, rail segments, the staged composer node, the 8px dot before a handle in profile contexts, and the 2px ring around a profile avatar. Never text, never fills behind text, never buttons.
+- **Author Lanes** (`lane-0` through `lane-5`, burnt orange, green, violet, teal, rose, ochre; each with a `-dark` lift): chosen by the user in Settings → Profile, otherwise assigned by hashing the user id (`User::automaticLane()`); every serialized user carries the effective `lane` (0–5) and the frontend paints it with `laneColor(user.lane)`. Used only for graph nodes, rail segments, the staged composer node, the 8px dot before a handle in profile contexts, and the 2px ring around a profile avatar. Never text, never fills behind text, never buttons.
 
 ### Tertiary
 - **Rm Red** (`destructive`): delete affordances (trash icon on hover, inline confirm wash at 8% opacity, destructive button), "Unfollow" on hover, the composer counter at 0.
@@ -273,6 +273,7 @@ Quiet, rectangular, decisive.
 - **Composer:** borderless, no visible field chrome: a 17px textarea ("What did you ship?", max 280) that grows with content. Its state is carried by the graph: the staged node is hollow until the body reaches 3 characters, then fills with the author's lane; the tail below it is a dashed Rail Gray line. A mono countdown sits left of the "Commit" button; ⌘/Ctrl+Enter commits.
 - **Stash:** unsent text in the composer and in each reply composer is kept in `localStorage` per signed-in user (cleared on commit, when emptied, and on log out). When a draft comes back after a reload or navigation, a quiet mono `stash@{0}` (title "Restored your unsent draft") sits at the left of the counter row with a muted `drop` text button that discards it. Merely typing never shows it. A thread with a stashed reply prints a muted 11px mono `stash@{0}` after its "Reply" action; Cancel and Escape close the reply composer but keep the stash. Neither element is blue.
 - **Read-only fields (settings):** a hairline-bordered 8px-radius list, mono keys in a 6.5rem column, values in sans; missing values print a mono `null`.
+- **Color picker (settings):** a live preview row (rail node, 48px avatar with the lane ring, lane-dotted handle) above a radio group of seven 28px swatches with sans captions: a dashed "Auto" swatch showing the hashed lane, then the six lanes. The checked swatch gets the 2px lane ring offset from the surface; focus shows the standard focus ring on the whole option. Saved with a primary "Save color" button, disabled until the choice changes. Only the six lanes are offered so light/dark lifts and contrast keep working.
 - **Theme switch:** a bordered segmented group (8px outer, 6px inner) whose selected option uses the active-nav treatment.
 
 ### Commit Row (signature)
@@ -318,7 +319,7 @@ A command palette opened by ⌘K / Ctrl+K or `/` anywhere, the "Search developer
 ## Do's and Don'ts
 
 ### Do:
-- **Do** put every list of commits on the graph rail, with node and lower segment in the author's `laneFor` color and the upper segment in the previous author's.
+- **Do** put every list of commits on the graph rail, with node and lower segment in the author's lane color and the upper segment in the previous author's.
 - **Do** set handles, hashes, times, counts, and `fatal:` lines in Geist Mono at 13px.
 - **Do** keep Commit Blue for the primary action, links, focus, and current location only.
 - **Do** separate rows with 1px hairlines that start to the right of the rail.

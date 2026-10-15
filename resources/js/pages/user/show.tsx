@@ -17,7 +17,7 @@ import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
-import { laneFor } from '@/lib/utils';
+import { laneColor } from '@/lib/utils';
 import type { ActivityDay, Commit, CursorPaginated, Profile } from '@/types';
 
 function pluralize(count: number, singular: string, plural: string) {
@@ -37,7 +37,7 @@ export default function Show({
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user.id === user.id;
-    const lane = laneFor(user.id);
+    const lane = laneColor(user.lane);
     const [highlightedDate, setHighlightedDate] = useState<string | null>(null);
 
     return (
