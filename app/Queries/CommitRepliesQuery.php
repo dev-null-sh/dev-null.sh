@@ -20,7 +20,7 @@ final readonly class CommitRepliesQuery
         return $commit->replies()
             ->visibleInThreadTo($user)
             ->withVisibleReplyCount($user)
-            ->with('user')
+            ->with(['user', 'linkPreview'])
             ->oldest()
             ->oldest('id')
             ->cursorPaginate(self::PER_PAGE);

@@ -6,21 +6,16 @@ namespace App\Actions;
 
 use App\Enums\CommitStatus;
 use App\Models\Commit;
-use Illuminate\Support\Facades\DB;
 
 final readonly class ApproveCommit
 {
-    public function __construct(private NotifyAboutReplies $notifyAboutReplies)
+    public function __construct(private ModerateCommits $moderateCommits)
     {
         //
     }
 
     public function handle(Commit $commit): void
     {
-        DB::transaction(function () use ($commit): void {
-            $commit->update(['status' => CommitStatus::Approved]);
-
-            $this->notifyAboutReplies->handle($commit);
-        });
+        $this->moderateCommits->handle([$commit->id], CommitStatus::Approved);
     }
 }

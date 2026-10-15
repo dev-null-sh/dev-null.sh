@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Models\LinkPreview;
 use App\Models\User;
 
 test('to array', function (): void {
@@ -19,6 +20,7 @@ test('to array', function (): void {
             'status',
             'parent_id',
             'deleted_at',
+            'link_preview_id',
         ]);
 });
 
@@ -101,4 +103,21 @@ it('serializes a deleted commit as a tombstone without its author or body', func
         'deleted_at' => $tombstone->deleted_at?->toJSON(),
         'replies_count' => 0,
     ]);
+});
+
+it('may belong to a link preview', function (): void {
+    $linkPreview = LinkPreview::factory()->create();
+    $commit = Commit::factory()->for($linkPreview)->create();
+
+    expect($commit->linkPreview->is($linkPreview))->toBeTrue()
+        ->and(Commit::factory()->create()->linkPreview)->toBeNull();
+});
+
+it('leaves the link preview out of a tombstone', function (): void {
+    $commit = Commit::factory()->for(LinkPreview::factory()->fetched())->create();
+    $commit->delete();
+
+    $tombstone = Commit::withTrashed()->with('linkPreview')->findOrFail($commit->id);
+
+    expect($tombstone->toArray())->not->toHaveKeys(['link_preview_id', 'link_preview']);
 });

@@ -11,6 +11,7 @@ import { useState } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { ActivityGraph } from '@/components/activity-graph';
+import { ActivityStreaks } from '@/components/activity-streaks';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
@@ -19,7 +20,13 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
-import type { Activity, Commit, CursorPaginated, Profile } from '@/types';
+import type {
+    Activity,
+    Commit,
+    CursorPaginated,
+    Profile,
+    Streaks,
+} from '@/types';
 
 function pluralize(count: number, singular: string, plural: string) {
     return count === 1 ? singular : plural;
@@ -29,12 +36,14 @@ export default function Show({
     user,
     isFollowing,
     activity,
+    streaks,
     commits,
     pinnedCommit,
 }: {
     user: Profile;
     isFollowing: boolean;
     activity: Activity;
+    streaks: Streaks;
     commits: CursorPaginated<Commit>;
     pinnedCommit: Commit | null;
 }) {
@@ -205,6 +214,8 @@ export default function Show({
                 lane={lane}
                 onPeriodHover={setHighlightedPeriod}
             />
+
+            <ActivityStreaks streaks={streaks} lane={lane} />
 
             <CommitFeed
                 commits={commits}

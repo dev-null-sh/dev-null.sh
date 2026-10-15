@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read NotificationType $type
  * @property-read string|null $commit_id
  * @property-read string $key
+ * @property-read string|null $reason
  * @property-read CarbonInterface|null $read_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -52,6 +53,7 @@ final class Notification extends Model
             'type' => NotificationType::class,
             'commit_id' => 'string',
             'key' => 'string',
+            'reason' => 'string',
             'read_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

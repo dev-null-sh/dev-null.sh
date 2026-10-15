@@ -9,6 +9,7 @@ use App\Http\Requests\DeleteUserRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\UserActivityQuery;
+use App\Queries\UserStreakQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -18,7 +19,7 @@ use Inertia\Response;
 
 final readonly class UserController
 {
-    public function show(#[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity): RedirectResponse|Response
+    public function show(#[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
             return $this->preview($user);
@@ -28,11 +29,12 @@ final readonly class UserController
             'user' => fn (): User => $user->loadCounts($currentUser),
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
             'activity' => fn (): array => $activity->get($user, $currentUser),
+            'streaks' => fn (): array => $streaks->get($user, $currentUser),
             'pinnedCommit' => fn (): ?Commit => $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
-                ->with('user')
+                ->with(['user', 'linkPreview'])
                 ->withStarsFor($currentUser)
                 ->find($user->pinned_commit_id),
             'commits' => Inertia::scroll(fn () => $user->commits()
@@ -40,7 +42,7 @@ final readonly class UserController
                 ->topLevel()
                 ->when($user->pinned_commit_id, fn (Builder $query, string $id): Builder => $query->whereKeyNot($id))
                 ->withVisibleReplyCount($currentUser)
-                ->with('user')
+                ->with(['user', 'linkPreview'])
                 ->withStarsFor($currentUser)
                 ->latest()
                 ->latest('id')

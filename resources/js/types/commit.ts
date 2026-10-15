@@ -2,6 +2,14 @@ import type { User } from '@/types/auth';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
+export type LinkPreview = {
+    url: string;
+    title: string | null;
+    description: string | null;
+    image_url: string | null;
+    site_name: string | null;
+};
+
 export type Commit = {
     id: string;
     user_id: string;
@@ -16,6 +24,7 @@ export type Commit = {
     user: User;
     replies_count?: number;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
+    link_preview?: LinkPreview | null;
 };
 
 export type DeletedCommit = {
