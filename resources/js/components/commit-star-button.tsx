@@ -1,0 +1,89 @@
+import { router, usePage } from '@inertiajs/react';
+import { Star } from 'lucide-react';
+import { useState } from 'react';
+import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
+import { cn } from '@/lib/utils';
+import type { Commit } from '@/types';
+
+function starLabel(starred: boolean, count: number): string {
+    const verb = starred ? 'Unstar' : 'Star';
+
+    if (count === 0) {
+        return `${verb} commit`;
+    }
+
+    const noun = count === 1 ? 'star' : 'stars';
+
+    return `${verb} commit, ${count} ${noun}`;
+}
+
+export function CommitStarButton({ commit }: { commit: Commit }) {
+    const { auth } = usePage().props;
+    const canStar =
+        commit.status === 'approved' || commit.user_id === auth.user.id;
+    const [starred, setStarred] = useState(commit.starred);
+    const [count, setCount] = useState(commit.stars_count);
+    const [pending, setPending] = useState(false);
+
+    if (!canStar) {
+        return null;
+    }
+
+    const toggle = () => {
+        if (pending) {
+            return;
+        }
+
+        const next = !starred;
+
+        setStarred(next);
+        setCount((current) => Math.max(0, current + (next ? 1 : -1)));
+        setPending(true);
+
+        const revert = () => {
+            setStarred(!next);
+            setCount((current) => Math.max(0, current + (next ? -1 : 1)));
+        };
+
+        router.visit(
+            next
+                ? CommitStarController.store(commit)
+                : CommitStarController.destroy(commit),
+            {
+                preserveScroll: true,
+                preserveState: true,
+                except: ['commits'],
+                showProgress: false,
+                onHttpException: () => {
+                    revert();
+
+                    return false;
+                },
+                onNetworkError: () => {
+                    revert();
+
+                    return false;
+                },
+                onFinish: () => setPending(false),
+            },
+        );
+    };
+
+    return (
+        <button
+            type="button"
+            onClick={toggle}
+            aria-pressed={starred}
+            aria-label={starLabel(starred, count)}
+            title={starred ? 'Unstar' : 'Star'}
+            className={cn(
+                'mt-1.5 -ml-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                starred && 'text-primary hover:text-primary',
+            )}
+            data-test="star-commit-button"
+        >
+            <Star className={cn('size-4', starred && 'fill-current')} />
+            {count > 0 && <span data-test="star-count">{count}</span>}
+        </button>
+    );
+}

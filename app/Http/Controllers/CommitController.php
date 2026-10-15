@@ -31,6 +31,7 @@ final readonly class CommitController
             ->visibleTo($currentUser)
             ->withVisibleReplyCount($currentUser)
             ->with('user')
+            ->withStarsFor($currentUser)
             ->findOrFail($commit->id);
 
         return Inertia::render('commit/show', [

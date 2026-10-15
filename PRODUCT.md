@@ -32,6 +32,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 - Commits (posts): plain text, 3–280 characters; create and delete only (no editing). Rate limited to 10 commits per minute per user.
 - Follow/unfollow, idempotent; self-follow rejected.
 - Replies: any visible commit can be replied to; a reply is itself a commit (same 280 limit, moderation, and rate limit). Threads expand inline under a commit; logs and profiles list top-level commits only. Every commit has its own page with its ancestors above it and its replies expanded; it is behind login like everything else. Deleting a commit removes it from logs, profiles, counts, and its own page, but never takes other people's replies with it: while it still has visible replies it stays in its thread as a `[deleted]` tombstone with no author or body, and it can no longer be replied to. Deleting an account erases that user's commits for good, along with the replies under them.
+- Stars: anyone who can see a commit can star and unstar it. Starring is idempotent. The count sits on the commit. A star is the engagement action, named the way GitHub names it, and it is not a git ref.
 - Notifications: in-app only, for a new follower and for an approved reply to one of your commits (only the direct parent's author; never for replying to yourself). A notification points to the follow or reply, it never copies it: it disappears when the reply, its parent, or either user is deleted, and is hidden while the follow is undone or the reply is rejected. A follower notifies once, ever: unfollowing and following again never pings twice. Pending replies notify nobody until approved. No notification for moderation outcomes. Unread count in the nav; a page is marked as read once shown.
 - People search: find developers by name or GitHub username (⌘K). Commits are not searchable.
 - Deliberately excluded for now: likes/reactions, reposts, images/media, mentions, hashtags, searching commits, DMs, other OAuth providers, public API, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
@@ -42,7 +43,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 - Name: **devnull** (lowercase), a nod to `/dev/null`.
 - Voice: dry, terminal-literate humor. Understated wit; copy may wink at Unix and `/dev/null`, but stays clear and never obscures what an action does.
 - Current tagline in use: "A social network for developers."
-- Vocabulary: a post is a **commit** and a timeline is a **log**, in the UI and in code (`Commit` model, `LogController`, `/log/{log}`). The git metaphor stops at those two nouns: no branches, forks, stars, pushes, diffs, or PRs.
+- Vocabulary: a post is a **commit** and a timeline is a **log**, in the UI and in code (`Commit` model, `LogController`, `/log/{log}`). The git metaphor stops at those two nouns: no branches, forks, pushes, diffs, or PRs. **Star** is the engagement verb, not a git ref.
 
 ## Evidence on Hand
 
@@ -52,6 +53,6 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 ## Product Principles
 
 1. **GitHub is the source of truth for identity.** Never add devnull-side profile editing or alternate sign-in.
-2. **Keep it stupidly simple.** Text posts, follows, timelines. Every addition must justify itself against the "not now" list.
+2. **Keep it stupidly simple.** Text posts, follows, stars, timelines. Every addition must justify itself against the "not now" list.
 3. **Words over mechanics.** The post body is the content; chrome and metadata stay subordinate to it.
 4. **Wit in the copy, clarity in the action.** Humor lives in tone, never in labels a user needs to understand.
