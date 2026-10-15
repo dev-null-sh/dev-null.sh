@@ -34,6 +34,7 @@ it('renders a user profile', function (): void {
             ->missing('user.email')
             ->missing('user.github_id')
             ->where('isFollowing', true)
+            ->where('followsYou', false)
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
@@ -58,6 +59,7 @@ it('does not count the user relations or activity when reloading only commits', 
             $page->reloadOnly('commits', fn ($reload) => $reload
                 ->missing('user')
                 ->missing('isFollowing')
+                ->missing('followsYou')
                 ->missing('tab')
                 ->missing('activity'));
         });
@@ -165,6 +167,21 @@ it('renders whether the viewer is not following the user', function (): void {
         ->assertInertia(fn ($page) => $page
             ->where('isFollowing', false)
             ->has('commits.data', 0));
+});
+
+it('renders whether the user follows the viewer', function (): void {
+    $user = User::factory()->create();
+    $viewer = User::factory()->create();
+
+    $user->following()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('isFollowing', false)
+            ->where('followsYou', true));
 });
 
 it('returns not found for unknown usernames', function (): void {

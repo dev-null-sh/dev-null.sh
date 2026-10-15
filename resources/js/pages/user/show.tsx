@@ -37,6 +37,7 @@ function pluralize(count: number, singular: string, plural: string) {
 export default function Show({
     user,
     isFollowing,
+    followsYou,
     activity,
     streaks,
     commits,
@@ -45,6 +46,7 @@ export default function Show({
 }: {
     user: Profile;
     isFollowing: boolean;
+    followsYou: boolean;
     activity: Activity;
     streaks: Streaks;
     commits: CursorPaginated<Commit>;
@@ -109,6 +111,11 @@ export default function Show({
                         style={{ background: lane }}
                     />
                     @{user.username}
+                    {followsYou && (
+                        <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                            Follows you
+                        </span>
+                    )}
                 </p>
 
                 {user.bio && (

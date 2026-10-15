@@ -30,6 +30,7 @@ final readonly class UserController
         return Inertia::render('user/show', [
             'user' => fn (): User => $user->loadCounts($currentUser),
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
+            'followsYou' => fn (): bool => $user->isFollowing($currentUser),
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => fn (): array => $streaks->get($user, $currentUser),
             'tab' => $request->tab(...),
