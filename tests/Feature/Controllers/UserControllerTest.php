@@ -36,6 +36,8 @@ it('renders a user profile', function (): void {
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
+            ->where('commits.data.0.stars_count', 0)
+            ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
 });
 
@@ -281,7 +283,7 @@ it('hides deleted commits from profiles', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('user.commits_count', 1)
-            ->where('activity.368.count', 1)
+            ->where('activity.buckets.23.count', 1)
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'Kept'));
 });

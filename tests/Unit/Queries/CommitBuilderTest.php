@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it('scopes commits to those visible to a user', function (): void {
     $user = User::factory()->create();
@@ -16,6 +17,26 @@ it('scopes commits to those visible to a user', function (): void {
 
     expect(Commit::query()->visibleTo($user)->pluck('id')->sort()->values()->all())
         ->toBe(collect([$approved->id, $ownPending->id, $ownRejected->id])->sort()->values()->all());
+});
+
+it('loads the star count and whether the viewer starred', function (): void {
+    $viewer = User::factory()->create();
+    $starred = Commit::factory()->create();
+    $plain = Commit::factory()->create();
+
+    $viewer->starredCommits()->attach($starred);
+    User::factory()->create()->starredCommits()->attach($starred);
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $commits = Commit::query()->withStarsFor($viewer)->with('user')->get()->keyBy('id');
+
+    expect(DB::getQueryLog())->toHaveCount(2)
+        ->and($commits[$starred->id]->stars_count)->toBe(2)
+        ->and($commits[$starred->id]->starred)->toBeTrue()
+        ->and($commits[$plain->id]->stars_count)->toBe(0)
+        ->and($commits[$plain->id]->starred)->toBeFalse();
 });
 
 it('scopes commits to pending ones', function (): void {

@@ -29,6 +29,8 @@ it('renders own commits and commits of followed users newest first', function ()
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Followed')
             ->where('commits.data.0.user.id', $followed->id)
+            ->where('commits.data.0.stars_count', 0)
+            ->where('commits.data.0.starred', false)
             ->missing('commits.data.0.user.email')
             ->where('commits.data.1.body', 'Mine'));
 });

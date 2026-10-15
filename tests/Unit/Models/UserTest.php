@@ -105,6 +105,22 @@ it('loads counts without joining users', function (): void {
         ->each->not->toContain('join');
 });
 
+it('knows which commits it has starred', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    expect($user->hasStarred($commit))->toBeFalse();
+
+    $user->starredCommits()->attach($commit);
+
+    expect($user->hasStarred($commit))->toBeTrue()
+        ->and($commit->stars->modelKeys())->toBe([$user->id]);
+
+    $user->delete();
+
+    expect($commit->stars()->count())->toBe(0);
+});
+
 it('knows if it is following a user', function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
