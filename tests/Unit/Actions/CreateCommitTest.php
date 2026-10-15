@@ -7,7 +7,6 @@ use App\Enums\CommitStatus;
 use App\Jobs\EvaluateCommitJob;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
-use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\ModerationRule;
 use App\Models\Notification;
@@ -199,7 +198,7 @@ it('attaches no link preview without a url', function (): void {
 });
 
 it('stores the images of a commit', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at this', images: [
         UploadedFile::fake()->image('photo.jpg', 10, 10),

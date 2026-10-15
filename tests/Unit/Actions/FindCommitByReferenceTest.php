@@ -5,7 +5,6 @@ declare(strict_types=1);
 use App\Actions\FindCommitByReference;
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Validation\ValidationException;
 
 function shortHash(Commit $commit): string
 {
@@ -17,7 +16,8 @@ it('finds a commit by its hash, id, or link', function (Closure $reference): voi
 
     $found = resolve(FindCommitByReference::class)->handle(User::factory()->create(), $reference($commit));
 
-    expect($found->is($commit))->toBeTrue();
+    expect($found)->toHaveCount(1)
+        ->and($found->sole()->is($commit))->toBeTrue();
 })->with([
     'hash' => shortHash(...),
     'uppercase hash' => fn (Commit $commit): string => mb_strtoupper(shortHash($commit)),
@@ -28,26 +28,22 @@ it('finds a commit by its hash, id, or link', function (Closure $reference): voi
 it('only finds commits the user can see', function (): void {
     $pending = Commit::factory()->pending()->create();
 
-    expect(fn (): Commit => resolve(FindCommitByReference::class)->handle(User::factory()->create(), shortHash($pending)))
-        ->toThrow(ValidationException::class, 'There is no commit '.shortHash($pending).' to reply to.');
-
-    expect(resolve(FindCommitByReference::class)->handle($pending->user, shortHash($pending))->is($pending))->toBeTrue();
+    expect(resolve(FindCommitByReference::class)->handle(User::factory()->create(), shortHash($pending)))->toBeEmpty()
+        ->and(resolve(FindCommitByReference::class)->handle($pending->user, shortHash($pending))->sole()->is($pending))->toBeTrue();
 });
 
-it('rejects unknown commits', function (): void {
-    expect(fn (): Commit => resolve(FindCommitByReference::class)->handle(User::factory()->create(), '0be0130'))
-        ->toThrow(ValidationException::class, 'There is no commit 0be0130 to reply to.');
+it('finds nothing for unknown commits', function (): void {
+    expect(resolve(FindCommitByReference::class)->handle(User::factory()->create(), '0be0130'))->toBeEmpty();
 });
 
-it('rejects ambiguous hashes', function (): void {
+it('finds at most two commits for ambiguous hashes', function (): void {
     Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
     Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52c0be0130']);
+    Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52d0be0130']);
 
-    expect(fn (): Commit => resolve(FindCommitByReference::class)->handle(User::factory()->create(), '0be0130'))
-        ->toThrow(ValidationException::class, '0be0130 matches several commits: use the link of the commit instead.');
+    expect(resolve(FindCommitByReference::class)->handle(User::factory()->create(), '0be0130'))->toHaveCount(2);
 });
 
-it('rejects references that are not hashes or links', function (string $reference): void {
-    expect(fn (): Commit => resolve(FindCommitByReference::class)->handle(User::factory()->create(), $reference))
-        ->toThrow(ValidationException::class, "{$reference} is not a commit hash or link.");
+it('returns null for references that are not hashes or links', function (string $reference): void {
+    expect(resolve(FindCommitByReference::class)->handle(User::factory()->create(), $reference))->toBeNull();
 })->with(['abc', 'not-a-hash', '%0130']);

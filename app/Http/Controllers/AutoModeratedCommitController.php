@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Enums\EvaluationDecision;
+use App\Http\Requests\ListAutoModeratedCommitsRequest;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -17,7 +18,7 @@ final readonly class AutoModeratedCommitController
     /**
      * Automatic decisions take commits out of the queue, so they are listed here to be checked and undone.
      */
-    public function index(#[CurrentUser] User $user): Response
+    public function index(ListAutoModeratedCommitsRequest $request, #[CurrentUser] User $user): Response
     {
         return Inertia::render('moderation/automated', [
             'commits' => Inertia::scroll(fn () => Commit::query()

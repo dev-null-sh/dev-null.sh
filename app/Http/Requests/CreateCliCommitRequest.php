@@ -1,0 +1,47 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests;
+
+use App\Actions\FindCommitByReference;
+use App\Models\Commit;
+use App\Models\User;
+use App\Rules\CommitReference;
+use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Foundation\Http\FormRequest;
+
+/**
+ * A commit signed by the `devnull commit` script, which replies by commit hash or link instead of by ID.
+ */
+final class CreateCliCommitRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<string, array<int, string|ValidationRule>>
+     */
+    public function rules(): array
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return [
+            'body' => ['required', 'string', 'min:3', 'max:280'],
+            'reply_to' => ['nullable', 'string', new CommitReference($user)],
+        ];
+    }
+
+    public function parent(): ?Commit
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return $this->filled('reply_to')
+            ? resolve(FindCommitByReference::class)->handle($user, $this->string('reply_to')->value())?->first()
+            : null;
+    }
+}

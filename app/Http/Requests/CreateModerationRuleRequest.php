@@ -8,6 +8,7 @@ use App\Enums\ModerationRuleAction;
 use App\Enums\ModerationRuleMode;
 use App\Enums\ModerationStrictness;
 use App\Models\ModerationRule;
+use App\Models\User;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -20,7 +21,10 @@ final class CreateModerationRuleRequest extends FormRequest
 
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return $user->isAdmin();
     }
 
     /**

@@ -11,6 +11,8 @@ use App\Actions\UpdateModerationRule;
 use App\Enums\ModerationRuleAction;
 use App\Enums\ModerationStrictness;
 use App\Http\Requests\CreateModerationRuleRequest;
+use App\Http\Requests\DeleteModerationRuleRequest;
+use App\Http\Requests\ListModerationRulesRequest;
 use App\Http\Requests\UpdateModerationRuleRequest;
 use App\Models\ModerationRule;
 use App\Queries\AutoModerationStatsQuery;
@@ -21,7 +23,7 @@ use Inertia\Response;
 
 final readonly class ModerationRuleController
 {
-    public function index(TypeSafe $typeSafe, AutoModerationStatsQuery $stats): Response
+    public function index(ListModerationRulesRequest $request, TypeSafe $typeSafe, AutoModerationStatsQuery $stats): Response
     {
         return Inertia::render('moderation/rules', [
             'rules' => ModerationRule::query()->ordered()->get(),
@@ -63,7 +65,7 @@ final readonly class ModerationRuleController
         return back();
     }
 
-    public function destroy(ModerationRule $rule, DeleteModerationRule $action): RedirectResponse
+    public function destroy(DeleteModerationRuleRequest $request, ModerationRule $rule, DeleteModerationRule $action): RedirectResponse
     {
         $action->handle($rule);
 

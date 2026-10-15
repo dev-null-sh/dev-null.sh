@@ -7,6 +7,7 @@ namespace App\Http\Requests;
 use App\Enums\ModerationRuleAction;
 use App\Enums\ModerationRuleMode;
 use App\Enums\ModerationStrictness;
+use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -15,7 +16,10 @@ final class UpdateModerationRuleRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return $user->isAdmin();
     }
 
     /**

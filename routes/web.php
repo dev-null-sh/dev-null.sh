@@ -102,34 +102,32 @@ Route::middleware('auth')->group(function (): void {
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
 
     // Moderation...
-    Route::middleware('can:moderate')->group(function (): void {
-        Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
-        Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
-            ->name('commit-approval.store');
-        Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
-            ->name('commit-rejection.store');
-        Route::post('moderation/approve', ApproveCommitsController::class)
-            ->name('moderation.approve');
-        Route::post('moderation/{commit}/evaluation', [CommitEvaluationController::class, 'store'])
-            ->name('commit-evaluation.store');
-        Route::post('moderation/{commit}/reopening', [CommitReopeningController::class, 'store'])
-            ->name('commit-reopening.store');
-        Route::get('moderation/automated', [AutoModeratedCommitController::class, 'index'])
-            ->name('auto-moderated-commit.index');
+    Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+    Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
+        ->name('commit-approval.store');
+    Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
+        ->name('commit-rejection.store');
+    Route::post('moderation/approve', ApproveCommitsController::class)
+        ->name('moderation.approve');
+    Route::post('moderation/{commit}/evaluation', [CommitEvaluationController::class, 'store'])
+        ->name('commit-evaluation.store');
+    Route::post('moderation/{commit}/reopening', [CommitReopeningController::class, 'store'])
+        ->name('commit-reopening.store');
+    Route::get('moderation/automated', [AutoModeratedCommitController::class, 'index'])
+        ->name('auto-moderated-commit.index');
 
-        // Moderation Rules...
-        Route::get('moderation/rules', [ModerationRuleController::class, 'index'])->name('moderation-rule.index');
-        Route::post('moderation/rules', [ModerationRuleController::class, 'store'])->name('moderation-rule.store');
-        Route::post('moderation/rules/starter', [StarterModerationRuleController::class, 'store'])
-            ->name('starter-moderation-rule.store');
-        Route::post('moderation/rules/preview', [ModerationRulePreviewController::class, 'store'])
-            ->middleware('throttle:30,1')
-            ->name('moderation-rule-preview.store');
-        Route::patch('moderation/rules/{rule}', [ModerationRuleController::class, 'update'])->name('moderation-rule.update');
-        Route::delete('moderation/rules/{rule}', [ModerationRuleController::class, 'destroy'])->name('moderation-rule.destroy');
-        Route::put('moderation/rules/{rule}/position', [ModerationRulePositionController::class, 'update'])
-            ->name('moderation-rule-position.update');
-    });
+    // Moderation Rules...
+    Route::get('moderation/rules', [ModerationRuleController::class, 'index'])->name('moderation-rule.index');
+    Route::post('moderation/rules', [ModerationRuleController::class, 'store'])->name('moderation-rule.store');
+    Route::post('moderation/rules/starter', [StarterModerationRuleController::class, 'store'])
+        ->name('starter-moderation-rule.store');
+    Route::post('moderation/rules/preview', [ModerationRulePreviewController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('moderation-rule-preview.store');
+    Route::patch('moderation/rules/{rule}', [ModerationRuleController::class, 'update'])->name('moderation-rule.update');
+    Route::delete('moderation/rules/{rule}', [ModerationRuleController::class, 'destroy'])->name('moderation-rule.destroy');
+    Route::put('moderation/rules/{rule}/position', [ModerationRulePositionController::class, 'update'])
+        ->name('moderation-rule-position.update');
 
     // User Search...
     Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
