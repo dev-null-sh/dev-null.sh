@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 beforeEach(function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 });
 
 it('stores images of a commit as webp in order', function (): void {
@@ -32,7 +32,7 @@ it('stores images of a commit as webp in order', function (): void {
 
     $images->each(function (CommitImage $image): void {
         expect($image->path)->toStartWith('commit-images/')->toEndWith('.webp')
-            ->and(getimagesizefromstring((string) Storage::disk(CommitImage::DISK)->get($image->path))['mime'] ?? null)->toBe('image/webp');
+            ->and(getimagesizefromstring((string) Storage::disk()->get($image->path))['mime'] ?? null)->toBe('image/webp');
     });
 });
 
@@ -44,7 +44,7 @@ it('drops anything smuggled alongside the pixels', function (): void {
 
     resolve(StoreCommitImages::class)->handle($commit, [$file]);
 
-    expect(Storage::disk(CommitImage::DISK)->get($commit->images()->sole()->path))->not->toContain('<?php');
+    expect(Storage::disk()->get($commit->images()->sole()->path))->not->toContain('<?php');
 });
 
 it('applies the exif orientation of photos and drops their metadata', function (int $orientation, int $width, int $height, string $topLeft): void {
@@ -66,7 +66,7 @@ it('applies the exif orientation of photos and drops their metadata', function (
     resolve(StoreCommitImages::class)->handle($commit, [$file]);
 
     $image = $commit->images()->sole();
-    $stored = (string) Storage::disk(CommitImage::DISK)->get($image->path);
+    $stored = (string) Storage::disk()->get($image->path);
     $color = imagecolorat(imagecreatefromstring($stored), 5, 5);
 
     expect($image->only(['width', 'height']))->toBe(['width' => $width, 'height' => $height])
@@ -114,7 +114,7 @@ it('stores a far smaller file than the upload', function (): void {
 
     resolve(StoreCommitImages::class)->handle($commit, [$upload]);
 
-    expect(Storage::disk(CommitImage::DISK)->size($commit->images()->sole()->path))->toBeLessThan(intdiv((int) $upload->getSize(), 4));
+    expect(Storage::disk()->size($commit->images()->sole()->path))->toBeLessThan(intdiv((int) $upload->getSize(), 4));
 });
 
 it('stores at most three images', function (): void {
@@ -160,5 +160,5 @@ it('leaves nothing behind when an image is refused', function (): void {
     }
 
     expect($commit->images()->count())->toBe(0)
-        ->and(Storage::disk(CommitImage::DISK)->allFiles())->toBe([]);
+        ->and(Storage::disk()->allFiles())->toBe([]);
 });

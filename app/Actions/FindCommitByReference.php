@@ -6,11 +6,11 @@ namespace App\Actions;
 
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
- * Finds a commit the user can see from its hash (as shown on devnull: the last 7 characters of its
- * ID), its ID, or its link.
+ * Finds the commits the user can see from a hash (as shown on devnull: the last 7 characters of its
+ * ID), an ID, or a link.
  */
 final readonly class FindCommitByReference
 {
@@ -18,7 +18,12 @@ final readonly class FindCommitByReference
 
     private const string Hash = '/^[0-9a-f]{7,12}$/i';
 
-    public function handle(User $user, string $reference): Commit
+    /**
+     * At most two commits are returned, enough to tell an ambiguous hash apart. Null means the reference is not a hash, an ID, or a link.
+     *
+     * @return Collection<int, Commit>|null
+     */
+    public function handle(User $user, string $reference): ?Collection
     {
         $commits = Commit::query()->visibleTo($user);
 
@@ -27,15 +32,9 @@ final readonly class FindCommitByReference
         } elseif (preg_match(self::Hash, $reference) === 1) {
             $commits->whereLike('id', '%'.mb_strtolower($reference));
         } else {
-            throw ValidationException::withMessages(['reply_to' => __(':reference is not a commit hash or link.', ['reference' => $reference])]);
+            return null;
         }
 
-        $matching = $commits->limit(2)->get();
-
-        if ($matching->count() > 1) {
-            throw ValidationException::withMessages(['reply_to' => __(':reference matches several commits: use the link of the commit instead.', ['reference' => $reference])]);
-        }
-
-        return $matching->first() ?? throw ValidationException::withMessages(['reply_to' => __('There is no commit :reference to reply to.', ['reference' => $reference])]);
+        return $commits->limit(2)->get();
     }
 }

@@ -100,17 +100,15 @@ Route::middleware('auth')->group(function (): void {
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
 
     // Moderation...
-    Route::middleware('can:moderate')->group(function (): void {
-        Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
-        Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
-        Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
-        Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
-            ->name('commit-approval.store');
-        Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
-            ->name('commit-rejection.store');
-        Route::post('moderation/approve', ApproveCommitsController::class)
-            ->name('moderation.approve');
-    });
+    Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+    Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
+    Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
+    Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
+        ->name('commit-approval.store');
+    Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
+        ->name('commit-rejection.store');
+    Route::post('moderation/approve', ApproveCommitsController::class)
+        ->name('moderation.approve');
 
     // User Search...
     Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');

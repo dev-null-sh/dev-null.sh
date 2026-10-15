@@ -36,11 +36,6 @@ final class CommitImage extends Model
     use HasUuids;
 
     /**
-     * Images only ever leave the private disk through the controller, which checks the commit is visible.
-     */
-    public const string DISK = 'local';
-
-    /**
      * @return array<string, string>
      */
     public function casts(): array
