@@ -90,6 +90,11 @@ it('stores a concise rejection reason privately and leaves repeated rejections u
             ->where('notifications.data.0.reason', $notice->reason)
             ->where('notifications.data.0.commit.id', $commit->id)
             ->where('notifications.data.0.read_at', null));
+    expect($notice->fresh()->read_at)->toBeNull();
+
+    $this->fromRoute('notification.index')
+        ->put(route('notification-read.update', $notice), ['read' => true, 'group' => false, 'type' => 'moderation'])
+        ->assertRedirectToRoute('notification.index');
     expect($notice->fresh()->read_at)->not->toBeNull();
 
     $this->get(route('commit.show', [$commit->user, $commit]))
