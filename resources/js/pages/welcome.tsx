@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import type { CSSProperties, ReactNode } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
+import AppWordmark from '@/components/app-wordmark';
 import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -97,7 +98,7 @@ export default function Welcome() {
                         >
                             <p className="flex items-center gap-[0.18em] text-[clamp(3.5rem,12vw,6rem)] leading-none font-semibold tracking-[-0.04em]">
                                 <AppLogoIcon className="size-[0.78em] fill-current" />
-                                /dev/null
+                                <AppWordmark />
                             </p>
                         </Commit>
 

@@ -23,6 +23,7 @@ export type Commit = {
     starred: boolean;
     user: User;
     replies_count?: number;
+    is_saved?: boolean;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
 };
