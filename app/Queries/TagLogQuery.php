@@ -24,6 +24,7 @@ final readonly class TagLogQuery
         return Commit::query()
             ->whereIn('id', $commits->newPivotQuery()->select($commits->getRelatedPivotKeyName()))
             ->visibleTo($user)
+            ->withSavedState($user)
             ->withVisibleReplyCount($user)
             ->with([
                 'user',

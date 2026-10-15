@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\Tag;
 use App\Models\User;
@@ -56,4 +57,18 @@ it('hides the parent of a reply when the user cannot see it', function (): void 
     $commit = resolve(TagLogQuery::class)->builder($user, $tag)->sole();
 
     expect($commit->parent)->toBeNull();
+});
+
+it('marks the commits the user saved', function (): void {
+    $user = User::factory()->create();
+    $tag = Tag::factory()->create();
+    $saved = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    $unsaved = Commit::factory()->create();
+    $tag->commits()->attach([$saved->id, $unsaved->id]);
+    Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $saved->id]);
+
+    $commits = resolve(TagLogQuery::class)->builder($user, $tag)->get()->keyBy('id');
+
+    expect($commits[$saved->id]->is_saved)->toBeTrue()
+        ->and($commits[$unsaved->id]->is_saved)->toBeFalse();
 });
