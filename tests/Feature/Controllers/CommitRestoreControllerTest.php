@@ -8,8 +8,10 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Models\Bookmark;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
 it('restores only the deletion state within thirty seconds', function (CommitStatus $status): void {
@@ -34,6 +36,23 @@ it('restores only the deletion state within thirty seconds', function (CommitSta
     expect($commit->refresh()->only(array_keys($original)))->toEqual($original);
     $this->assertNotSoftDeleted($commit);
 })->with(CommitStatus::cases());
+
+it('restores a commit with its images', function (): void {
+    Storage::fake(CommitImage::DISK);
+
+    $image = CommitImage::factory()->create();
+    Storage::disk(CommitImage::DISK)->put($image->path, 'image');
+    $commit = $image->commit;
+
+    $this->actingAs($commit->user)->delete(route('commit.destroy', $commit))->assertRedirect();
+    $this->get(route('commit-image.show', $image))->assertNotFound();
+
+    $this->post(route('commit-restore', $commit))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.images.0.id', $image->id);
+
+    $this->get(route('commit-image.show', $image))->assertOk();
+});
 
 it('flashes the server deadline from every deletion context', function (string $context): void {
     $commit = Commit::factory()->create();

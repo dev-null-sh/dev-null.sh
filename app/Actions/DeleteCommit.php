@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\NotificationType;
+use App\Jobs\EraseDeletedCommitImages;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Queries\NotificationBuilder;
@@ -14,6 +15,7 @@ final readonly class DeleteCommit
 {
     /**
      * Soft deleting keeps the row for its replies, so its notifications and reply notifications are removed here instead of by the foreign key.
+     * Its images are kept until the undo window closes, so undoing the deletion brings them back too.
      */
     public function handle(Commit $commit): Commit
     {
@@ -32,6 +34,10 @@ final readonly class DeleteCommit
                 ->delete();
 
             $commit->delete();
+
+            dispatch(new EraseDeletedCommitImages($commit))
+                ->delay(now()->addSeconds(RestoreCommit::RECOVERY_SECONDS))
+                ->afterCommit();
 
             return $commit->refresh();
         }, attempts: 3);

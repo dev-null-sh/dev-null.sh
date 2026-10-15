@@ -23,7 +23,7 @@ pest()->extend(TestCase::class)
 
         $this->freezeTime();
     })
-    ->in('Browser', 'Feature', 'Unit');
+    ->in('Feature', 'Unit');
 
 expect()->extend('toBeOne', fn () => $this->toBe(1));
 

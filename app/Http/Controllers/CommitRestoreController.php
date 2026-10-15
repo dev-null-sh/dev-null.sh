@@ -25,6 +25,7 @@ final readonly class CommitRestoreController
         ], 'id')->with([
             'user',
             'linkPreview',
+            'images',
             'parent' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->with('user'),
         ])->findOrFail($commit->id);
 

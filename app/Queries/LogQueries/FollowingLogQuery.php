@@ -26,7 +26,7 @@ final readonly class FollowingLogQuery implements LogQuery
             ->topLevel()
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
-            ->with(['user', 'linkPreview'])
+            ->with(['user', 'linkPreview', 'images'])
             ->withStarsFor($user)
             ->latest()
             ->latest('id');
