@@ -12,14 +12,14 @@ export function CommitFeed({
     empty,
     end,
     firstLane,
-    highlightedDate = null,
+    highlightedPeriod = null,
     actions,
 }: {
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
     end: string;
     firstLane?: string;
-    highlightedDate?: string | null;
+    highlightedPeriod?: string | null;
     actions?: (commit: Commit) => ReactNode;
 }) {
     const now = useNow();
@@ -80,10 +80,11 @@ export function CommitFeed({
                                         ? isDimmed(previous.user_id)
                                         : highlightedAuthor !== null
                                 }
-                                isDayHighlighted={
-                                    highlightedDate !== null &&
-                                    commit.created_at.slice(0, 10) ===
-                                        highlightedDate
+                                isHighlighted={
+                                    highlightedPeriod !== null &&
+                                    commit.created_at.startsWith(
+                                        highlightedPeriod,
+                                    )
                                 }
                                 actions={actions?.(commit)}
                                 onAuthorHover={(isHovering) =>

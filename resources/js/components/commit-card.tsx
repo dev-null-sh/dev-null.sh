@@ -25,7 +25,7 @@ export function CommitCard({
     previousLane,
     isDimmed = false,
     isPreviousDimmed = false,
-    isDayHighlighted = false,
+    isHighlighted = false,
     onAuthorHover,
     actions,
     isFocused = false,
@@ -36,7 +36,7 @@ export function CommitCard({
     previousLane?: string;
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
-    isDayHighlighted?: boolean;
+    isHighlighted?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
     actions?: ReactNode;
     isFocused?: boolean;
@@ -75,7 +75,7 @@ export function CommitCard({
         <article
             className={cn(
                 'group grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
-                { 'bg-primary-soft/60': isDayHighlighted },
+                { 'bg-primary-soft/60': isHighlighted },
                 deletion === 'deleting'
                     ? 'grid-rows-[0fr] opacity-0 delay-400'
                     : 'grid-rows-[1fr]',

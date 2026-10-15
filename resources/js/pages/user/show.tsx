@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import { laneFor } from '@/lib/utils';
-import type { ActivityDay, Commit, CursorPaginated, Profile } from '@/types';
+import type { Activity, Commit, CursorPaginated, Profile } from '@/types';
 
 function pluralize(count: number, singular: string, plural: string) {
     return count === 1 ? singular : plural;
@@ -32,13 +32,15 @@ export default function Show({
 }: {
     user: Profile;
     isFollowing: boolean;
-    activity: ActivityDay[];
+    activity: Activity;
     commits: CursorPaginated<Commit>;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user.id === user.id;
     const lane = laneFor(user.id);
-    const [highlightedDate, setHighlightedDate] = useState<string | null>(null);
+    const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
+        null,
+    );
 
     return (
         <>
@@ -227,12 +229,12 @@ export default function Show({
             <ActivityGraph
                 activity={activity}
                 lane={lane}
-                onDayHover={setHighlightedDate}
+                onPeriodHover={setHighlightedPeriod}
             />
 
             <CommitFeed
                 commits={commits}
-                highlightedDate={highlightedDate}
+                highlightedPeriod={highlightedPeriod}
                 end={
                     isCurrentUser
                         ? 'That was your first commit. Everyone starts somewhere.'
