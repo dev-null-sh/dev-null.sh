@@ -3,7 +3,13 @@ import { Quote } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import {
+    ImagePickerButton,
+    ImagePickerPreviews,
+    imageErrorFrom,
+} from '@/components/commit-image-picker';
 import InputError from '@/components/input-error';
+import { MentionTextarea } from '@/components/mention-textarea';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
@@ -14,6 +20,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
+import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -86,6 +93,7 @@ function QuoteComposer({
     const { auth } = usePage().props;
     const id = `quote-${commit.id}`;
     const { body, isRestored, updateBody, drop } = useStash(auth.user.id, id);
+    const attachments = useImageAttachments();
 
     const remaining = maxBodyLength - body.length;
     const isQuotable = body.trim().length >= minBodyLength;
@@ -103,6 +111,19 @@ function QuoteComposer({
 
     return (
         <DialogContent
+            onEscapeKeyDown={(event) => {
+                if (document.querySelector('[data-mention-suggestions]')) {
+                    event.preventDefault();
+                }
+            }}
+            onInteractOutside={(event) => {
+                if (
+                    event.target instanceof Element &&
+                    event.target.closest('[data-mention-suggestions]')
+                ) {
+                    event.preventDefault();
+                }
+            }}
             className="gap-3 p-4 sm:max-w-xl sm:p-5"
             data-test="quote-composer"
         >
@@ -116,10 +137,16 @@ function QuoteComposer({
             <Form
                 {...CommitController.store.form()}
                 errorBag="quote"
+                transform={(data) =>
+                    attachments.images.length > 0
+                        ? { ...data, images: attachments.images }
+                        : data
+                }
                 options={{ preserveScroll: true }}
                 onSuccess={(page) => {
                     if (page.flash.committed) {
                         drop();
+                        attachments.clear();
                         onClose();
                     }
                 }}
@@ -141,16 +168,17 @@ function QuoteComposer({
                             <label htmlFor={id} className="sr-only">
                                 Your commit
                             </label>
-                            <textarea
+                            <MentionTextarea
                                 id={id}
                                 name="body"
                                 rows={1}
                                 autoFocus
                                 value={body}
-                                onChange={(event) =>
-                                    updateBody(event.target.value)
-                                }
+                                onValueChange={updateBody}
                                 onKeyDown={submitOnModEnter}
+                                onPaste={attachments.onPaste}
+                                onDragOver={attachments.onDragOver}
+                                onDrop={attachments.onDrop}
                                 onFocus={
                                     isRestored ? moveCaretToEnd : undefined
                                 }
@@ -170,20 +198,39 @@ function QuoteComposer({
                                 message={errors.body ?? errors.quoted_commit_id}
                             />
 
+                            <ImagePickerPreviews
+                                images={attachments.images}
+                                onRemove={attachments.remove}
+                            />
+                            <InputError
+                                message={
+                                    attachments.error ?? imageErrorFrom(errors)
+                                }
+                                className="mt-1"
+                            />
+
                             <QuotedCommit commit={commit} isPreview />
 
                             <div className="mt-3 flex items-center justify-end gap-3">
-                                {isRestored && (
-                                    <StashLabel
-                                        onDrop={() => {
-                                            drop();
-                                            document
-                                                .getElementById(id)
-                                                ?.focus();
-                                        }}
-                                        className="mr-auto text-[13px]"
+                                <div className="mr-auto flex items-center gap-2">
+                                    <ImagePickerButton
+                                        count={attachments.images.length}
+                                        disabled={processing}
+                                        onPick={attachments.attach}
+                                        className="size-8"
                                     />
-                                )}
+                                    {isRestored && (
+                                        <StashLabel
+                                            onDrop={() => {
+                                                drop();
+                                                document
+                                                    .getElementById(id)
+                                                    ?.focus();
+                                            }}
+                                            className="text-[13px]"
+                                        />
+                                    )}
+                                </div>
                                 <span
                                     id={`${id}-count`}
                                     aria-label={`${remaining} characters left`}

@@ -767,6 +767,28 @@ it('may attach images to a commit', function (): void {
         ->and(Storage::disk(CommitImage::DISK)->allFiles('commit-images'))->toHaveCount(3);
 });
 
+it('may attach images to a quote', function (): void {
+    Storage::fake(CommitImage::DISK);
+
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Same bug, different stack',
+            'quoted_commit_id' => $quoted->id,
+            'images' => [UploadedFile::fake()->image('trace.png', 40, 30)],
+        ])
+        ->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->quoted_commit_id)->toBe($quoted->id)
+        ->and($commit->images)->toHaveCount(1);
+});
+
 it('may not attach more than three images to a commit', function (): void {
     Storage::fake(CommitImage::DISK);
 
