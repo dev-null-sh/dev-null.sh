@@ -173,6 +173,7 @@ export default function Show({
                                 'commit',
                                 'commits',
                             ),
+                            href: show(user),
                         },
                         {
                             count: user.following_count,
@@ -191,22 +192,23 @@ export default function Show({
                     ].map((stat) => (
                         <div
                             key={stat.label}
-                            className="flex flex-row-reverse gap-1.5"
+                            className="group flex flex-row-reverse gap-1.5"
                         >
                             <dt className="text-muted-foreground">
-                                {stat.href ? (
-                                    <Link
-                                        href={stat.href}
-                                        className="hover:underline"
-                                    >
-                                        {stat.label}
-                                    </Link>
-                                ) : (
-                                    stat.label
-                                )}
+                                <Link
+                                    href={stat.href}
+                                    className="group-hover:underline"
+                                >
+                                    {stat.label}
+                                </Link>
                             </dt>
                             <dd className="font-mono font-medium">
-                                {stat.count}
+                                <Link
+                                    href={stat.href}
+                                    className="group-hover:underline"
+                                >
+                                    {stat.count}
+                                </Link>
                             </dd>
                         </div>
                     ))}
