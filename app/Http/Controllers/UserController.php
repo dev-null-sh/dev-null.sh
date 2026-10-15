@@ -10,6 +10,7 @@ use App\Http\Requests\ShowUserRequest;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\UserActivityQuery;
+use App\Queries\UserStreakQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
@@ -19,7 +20,7 @@ use Inertia\Response;
 
 final readonly class UserController
 {
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity): RedirectResponse|Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
             return $this->preview($request, $user);
@@ -29,6 +30,7 @@ final readonly class UserController
             'user' => fn (): User => $user->loadCounts($currentUser),
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
             'activity' => fn (): array => $activity->get($user, $currentUser),
+            'streaks' => fn (): array => $streaks->get($user, $currentUser),
             'tab' => $request->tab(...),
             'commits' => Inertia::scroll(fn () => $user->commits()
                 ->visibleTo($currentUser)
@@ -42,7 +44,7 @@ final readonly class UserController
                     fn (CommitBuilder $query): CommitBuilder => $query->topLevel(),
                 )
                 ->withVisibleReplyCount($currentUser)
-                ->with('user')
+                ->with(['user', 'linkPreview'])
                 ->withStarsFor($currentUser)
                 ->latest()
                 ->latest('id')

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -271,3 +272,69 @@ it('only suggests top-level commits', function (): void {
             ->has('suggestions', 1)
             ->where('suggestions.0.body', 'Root commit'));
 });
+
+it('includes the link previews of commits', function (Log $log): void {
+    $user = User::factory()->create();
+
+    $linkPreview = LinkPreview::factory()->fetched()->create([
+        'url' => 'https://laravel.com',
+        'title' => 'Laravel',
+        'description' => 'The PHP framework for web artisans.',
+        'image_url' => 'https://laravel.com/og.png',
+        'site_name' => 'Laravel',
+    ]);
+
+    Commit::factory()->for($user)->for($linkPreview)->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($user)->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.link_preview', null)
+            ->where('commits.data.1.link_preview', [
+                'url' => 'https://laravel.com',
+                'title' => 'Laravel',
+                'description' => 'The PHP framework for web artisans.',
+                'image_url' => 'https://laravel.com/og.png',
+                'site_name' => 'Laravel',
+            ]));
+})->with(Log::cases());
+
+it('defers suggested users to follow', function (): void {
+    $user = User::factory()->create();
+    $suggested = User::factory()->has(Commit::factory())->create();
+
+    $response = $this->actingAs($user)
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('showsWhoToFollow', true)
+            ->missing('suggestedUsers')
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->has('suggestedUsers', 1)
+                ->where('suggestedUsers.0.id', $suggested->id)
+                ->where('suggestedUsers.0.followed_by_following_count', 0)
+                ->missing('suggestedUsers.0.email')));
+
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
+});
+
+it('does not suggest users to follow once they are hidden', function (): void {
+    $user = User::factory()->create();
+    User::factory()->has(Commit::factory())->create();
+
+    $response = $this->actingAs($user)
+        ->withUnencryptedCookie('who_to_follow', 'false')
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('showsWhoToFollow', false)
+            ->missing('suggestedUsers'));
+
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
+});
+

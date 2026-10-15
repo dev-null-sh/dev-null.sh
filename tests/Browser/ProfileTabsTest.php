@@ -15,15 +15,21 @@ it('switches profile feeds without mixing commits and replies', function (): voi
     $this->actingAs($user);
 
     visit(route('user.show', $user))
+        ->assertSee('longest streak 1 day')
+        ->assertSee('current 1')
         ->assertSee('A root commit on the profile.')
         ->assertDontSee('A reply in another conversation.')
         ->click('nav[aria-label="Profile feed"] a:has-text("Replies")')
         ->assertQueryStringHas('tab', 'replies')
+        ->assertSee('longest streak 1 day')
+        ->assertSee('current 1')
         ->assertSee('A reply in another conversation.')
         ->assertSee('replying to @hubot')
         ->assertDontSee('A root commit on the profile.')
         ->click('nav[aria-label="Profile feed"] a:has-text("Commits")')
         ->assertQueryStringMissing('tab')
+        ->assertSee('longest streak 1 day')
+        ->assertSee('current 1')
         ->assertSee('A root commit on the profile.')
         ->assertDontSee('A reply in another conversation.')
         ->assertNoJavaScriptErrors();

@@ -5,10 +5,12 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
 import type { Commit, CursorPaginated, Log } from '@/types';
@@ -105,6 +107,9 @@ export default function Show({
                 firstLane="var(--rail)"
                 firstSeenId={firstSeenId}
                 end="That's the root commit. There's nothing before it."
+                interlude={(lane, isDimmed) => (
+                    <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
+                )}
                 empty={
                     log === 'following' ? (
                         <EmptyFeed command="fatal: your log does not have any commits yet">
@@ -161,7 +166,7 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
-                                {commit.body}
+                                <LinkifiedText text={commit.body} />
                             </p>
                         </div>
                         <Button size="sm" asChild>

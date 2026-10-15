@@ -54,7 +54,7 @@ it('hides replies once rejected', function (): void {
 
     resolve(RejectCommit::class)->handle($notification->commit);
 
-    expect(Notification::query()->relevant()->exists())->toBeFalse();
+    expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
 });
 
 it('deletes replies along with the reply', function (): void {

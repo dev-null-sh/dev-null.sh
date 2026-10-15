@@ -15,7 +15,8 @@ it('includes commits of everyone newest first', function (): void {
     $commits = $query->builder(User::factory()->create())->get();
 
     expect($commits->modelKeys())->toBe([$newer->id, $older->id])
-        ->and($commits->first()->relationLoaded('user'))->toBeTrue();
+        ->and($commits->first()->relationLoaded('user'))->toBeTrue()
+        ->and($commits->first()->relationLoaded('linkPreview'))->toBeTrue();
 });
 
 it('only includes approved commits of others', function (): void {

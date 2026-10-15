@@ -6,6 +6,8 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
 import { GraphRail } from '@/components/graph-rail';
+import { LinkPreview } from '@/components/link-preview';
+import { LinkifiedText } from '@/components/linkified-text';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
@@ -242,8 +244,13 @@ export function CommitCard({
                                             : 'text-[15px]',
                                     )}
                                 >
-                                    {commit.body}
+                                    <LinkifiedText text={commit.body} />
                                 </p>
+                                {commit.link_preview?.title && (
+                                    <LinkPreview
+                                        preview={commit.link_preview}
+                                    />
+                                )}
                                 {isFocused && (
                                     <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                         <time dateTime={commit.created_at}>

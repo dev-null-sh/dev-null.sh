@@ -9,8 +9,13 @@ use App\Models\Commit;
 
 final readonly class RejectCommit
 {
-    public function handle(Commit $commit): void
+    public function __construct(private ModerateCommits $moderateCommits)
     {
-        $commit->update(['status' => CommitStatus::Rejected]);
+        //
+    }
+
+    public function handle(Commit $commit, ?string $reason = null): void
+    {
+        $this->moderateCommits->handle([$commit->id], CommitStatus::Rejected, $reason);
     }
 }

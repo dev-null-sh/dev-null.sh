@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 
@@ -148,4 +149,16 @@ it('requires authentication to list replies', function (): void {
     $response = $this->getJson(route('commit-reply.index', Commit::factory()->create()));
 
     $response->assertUnauthorized();
+});
+
+it('includes the link previews of replies', function (): void {
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->for(LinkPreview::factory()->fetched()->state(['title' => 'Reply link']))->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.link_preview.title', 'Reply link')
+        ->assertJsonMissingPath('data.0.link_preview.url_hash');
 });

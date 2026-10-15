@@ -1,12 +1,14 @@
 import { Head, router } from '@inertiajs/react';
 import { Check, X } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import ApproveCommitsController from '@/actions/App/Http/Controllers/ApproveCommitsController';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
@@ -39,46 +41,102 @@ function ModerationActions({
     isSelected: boolean;
     isDisabled: boolean;
     onSelectedChange: (isSelected: boolean) => void;
-    onModerate: (route: ModerationRoute) => void;
+    onModerate: (
+        route: ModerationRoute,
+        reason?: string,
+        onError?: (message: string) => void,
+    ) => void;
 }) {
+    const [showReason, setShowReason] = useState(false);
+    const [reason, setReason] = useState('');
+    const [error, setError] = useState('');
+    const reasonId = useId();
+
     return (
-        <div className="mt-3 flex items-center gap-2">
-            <Checkbox
-                checked={isSelected}
-                disabled={isDisabled}
-                onCheckedChange={(checked) =>
-                    onSelectedChange(checked === true)
-                }
-                aria-label="Select commit"
-                className="mr-1"
-                data-test="select-commit-checkbox"
-            />
-            <Button
-                size="sm"
-                disabled={isDisabled}
-                onClick={() => onModerate(CommitApprovalController.store)}
-                aria-keyshortcuts="a"
-                data-test="approve-commit-button"
-            >
-                <Check />
-                Approve
-                <Keycap
-                    label="a"
-                    className="border-primary-foreground/30 bg-primary-foreground/15"
+        <div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Checkbox
+                    checked={isSelected}
+                    disabled={isDisabled}
+                    onCheckedChange={(checked) =>
+                        onSelectedChange(checked === true)
+                    }
+                    aria-label="Select commit"
+                    className="mr-1"
+                    data-test="select-commit-checkbox"
                 />
-            </Button>
-            <Button
-                variant="outline"
-                size="sm"
-                disabled={isDisabled}
-                onClick={() => onModerate(CommitRejectionController.store)}
-                aria-keyshortcuts="x"
-                data-test="reject-commit-button"
-            >
-                <X />
-                Reject
-                <Keycap label="x" className="bg-muted" />
-            </Button>
+                <Button
+                    size="sm"
+                    disabled={isDisabled}
+                    onClick={() => onModerate(CommitApprovalController.store)}
+                    aria-keyshortcuts="a"
+                    data-test="approve-commit-button"
+                >
+                    <Check />
+                    Approve
+                    <Keycap
+                        label="a"
+                        className="border-primary-foreground/30 bg-primary-foreground/15"
+                    />
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isDisabled}
+                    onClick={() =>
+                        onModerate(
+                            CommitRejectionController.store,
+                            reason,
+                            setError,
+                        )
+                    }
+                    aria-keyshortcuts="x"
+                    data-test="reject-commit-button"
+                >
+                    <X />
+                    Reject
+                    <Keycap label="x" className="bg-muted" />
+                </Button>
+                {!showReason && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isDisabled}
+                        onClick={() => setShowReason(true)}
+                    >
+                        Add reason
+                    </Button>
+                )}
+            </div>
+            {showReason && (
+                <div className="mt-3 space-y-2">
+                    <Label htmlFor={reasonId}>Reason (optional)</Label>
+                    <textarea
+                        id={reasonId}
+                        value={reason}
+                        onChange={(event) => {
+                            setReason(event.target.value);
+                            setError('');
+                        }}
+                        maxLength={280}
+                        disabled={isDisabled}
+                        aria-invalid={Boolean(error)}
+                        aria-describedby={`${reasonId}-help${error ? ` ${reasonId}-error` : ''}`}
+                        autoFocus
+                        className="block min-h-20 w-full resize-y rounded-md border bg-transparent px-3 py-2 text-[15px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+                    />
+                    <div
+                        className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
+                        id={`${reasonId}-help`}
+                    >
+                        <span>Only the author will see this.</span>
+                        <span className="font-mono text-xs">
+                            {280 - reason.length}
+                        </span>
+                    </div>
+                    <InputError id={`${reasonId}-error`} message={error} />
+                </div>
+            )}
         </div>
     );
 }
@@ -90,13 +148,22 @@ export default function Show({
 }) {
     const [isModerating, setIsModerating] = useState(false);
 
-    const moderate = (commit: Commit, route: ModerationRoute) => {
+    const moderate = (
+        commit: Commit,
+        route: ModerationRoute,
+        reason?: string,
+        onError?: (message: string) => void,
+    ) => {
         const index = commits.data.findIndex(({ id }) => id === commit.id);
         const neighbour = commits.data[index + 1] ?? commits.data[index - 1];
 
         setIsModerating(true);
 
         router.visit(route(commit), {
+            data:
+                route === CommitRejectionController.store
+                    ? { reason: reason ?? '' }
+                    : {},
             preserveScroll: true,
             reset: ['commits'],
             onSuccess: () =>
@@ -112,6 +179,11 @@ export default function Show({
                     }
                 }),
             onFinish: () => setIsModerating(false),
+            onError: (errors) =>
+                onError?.(
+                    errors.reason ??
+                        'Could not moderate this commit. Try again.',
+                ),
         });
     };
 
@@ -222,7 +294,9 @@ export default function Show({
                         onSelectedChange={(isSelected) =>
                             toggle(commit.id, isSelected)
                         }
-                        onModerate={(route) => moderate(commit, route)}
+                        onModerate={(route, reason, onError) =>
+                            moderate(commit, route, reason, onError)
+                        }
                     />
                 )}
                 empty={

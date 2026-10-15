@@ -11,6 +11,8 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import InputError from '@/components/input-error';
+import { LinkPreview } from '@/components/link-preview';
+import { LinkifiedText } from '@/components/linkified-text';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -515,8 +517,11 @@ function CommitReply({
                     )}
 
                     <p className="text-[15px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
-                        {reply.body}
+                        <LinkifiedText text={reply.body} />
                     </p>
+                    {reply.link_preview?.title && (
+                        <LinkPreview preview={reply.link_preview} />
+                    )}
 
                     {isConfirming ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-destructive/8 px-3 py-1.5 text-sm">
