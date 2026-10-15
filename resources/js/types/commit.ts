@@ -1,4 +1,5 @@
 import type { User } from '@/types/auth';
+import type { CommitEvaluation } from '@/types/moderation';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
@@ -34,6 +35,7 @@ export type Commit = {
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
     images?: CommitImage[];
+    evaluation?: CommitEvaluation | null;
 };
 
 export type DeletedCommit = {

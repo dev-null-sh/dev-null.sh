@@ -3,23 +3,30 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\ApproveCommitsController;
+use App\Http\Controllers\AutoModeratedCommitController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\CommitEvaluationController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
+use App\Http\Controllers\CommitReopeningController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
+use App\Http\Controllers\ModerationRuleController;
+use App\Http\Controllers\ModerationRulePositionController;
+use App\Http\Controllers\ModerationRulePreviewController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PersonalDataExportController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\StarterModerationRuleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
@@ -103,6 +110,25 @@ Route::middleware('auth')->group(function (): void {
             ->name('commit-rejection.store');
         Route::post('moderation/approve', ApproveCommitsController::class)
             ->name('moderation.approve');
+        Route::post('moderation/{commit}/evaluation', [CommitEvaluationController::class, 'store'])
+            ->name('commit-evaluation.store');
+        Route::post('moderation/{commit}/reopening', [CommitReopeningController::class, 'store'])
+            ->name('commit-reopening.store');
+        Route::get('moderation/automated', [AutoModeratedCommitController::class, 'index'])
+            ->name('auto-moderated-commit.index');
+
+        // Moderation Rules...
+        Route::get('moderation/rules', [ModerationRuleController::class, 'index'])->name('moderation-rule.index');
+        Route::post('moderation/rules', [ModerationRuleController::class, 'store'])->name('moderation-rule.store');
+        Route::post('moderation/rules/starter', [StarterModerationRuleController::class, 'store'])
+            ->name('starter-moderation-rule.store');
+        Route::post('moderation/rules/preview', [ModerationRulePreviewController::class, 'store'])
+            ->middleware('throttle:30,1')
+            ->name('moderation-rule-preview.store');
+        Route::patch('moderation/rules/{rule}', [ModerationRuleController::class, 'update'])->name('moderation-rule.update');
+        Route::delete('moderation/rules/{rule}', [ModerationRuleController::class, 'destroy'])->name('moderation-rule.destroy');
+        Route::put('moderation/rules/{rule}/position', [ModerationRulePositionController::class, 'update'])
+            ->name('moderation-rule-position.update');
     });
 
     // User Search...

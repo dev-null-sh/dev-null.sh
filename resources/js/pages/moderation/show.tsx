@@ -5,7 +5,9 @@ import ApproveCommitsController from '@/actions/App/Http/Controllers/ApproveComm
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { EvaluationVerdict } from '@/components/evaluation-verdict';
 import InputError from '@/components/input-error';
+import { ModerationHeader } from '@/components/moderation-header';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -228,14 +230,7 @@ export default function Show({
         <>
             <Head title="Moderation" />
 
-            <div className="sticky top-0 z-10 bg-card">
-                <div className="flex h-14 items-center border-b px-4">
-                    <h1 className="font-semibold">Moderation</h1>
-                    <p className="ml-auto text-sm text-muted-foreground">
-                        Oldest first
-                    </p>
-                </div>
-
+            <ModerationHeader active="queue" aside="Oldest first">
                 {commits.data.length > 0 && (
                     <div className="flex h-12 items-center gap-3 border-b px-4">
                         <Checkbox
@@ -281,23 +276,26 @@ export default function Show({
                         </Button>
                     </div>
                 )}
-            </div>
+            </ModerationHeader>
 
             <CommitFeed
                 commits={commits}
                 firstLane="var(--rail)"
                 end="That's every pending commit."
                 actions={(commit) => (
-                    <ModerationActions
-                        isSelected={selected.has(commit.id)}
-                        isDisabled={isModerating || approving}
-                        onSelectedChange={(isSelected) =>
-                            toggle(commit.id, isSelected)
-                        }
-                        onModerate={(route, reason, onError) =>
-                            moderate(commit, route, reason, onError)
-                        }
-                    />
+                    <>
+                        <EvaluationVerdict commit={commit} />
+                        <ModerationActions
+                            isSelected={selected.has(commit.id)}
+                            isDisabled={isModerating || approving}
+                            onSelectedChange={(isSelected) =>
+                                toggle(commit.id, isSelected)
+                            }
+                            onModerate={(route, reason, onError) =>
+                                moderate(commit, route, reason, onError)
+                            }
+                        />
+                    </>
                 )}
                 empty={
                     <EmptyFeed command="nothing to commit, working tree clean">

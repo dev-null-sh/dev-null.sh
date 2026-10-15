@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Enums\EvaluationDecision;
 use App\Models\Commit;
+use App\Models\CommitEvaluation;
 use App\Models\LinkPreview;
 use App\Models\User;
 
@@ -87,4 +89,26 @@ it('includes the link previews of pending commits', function (): void {
         ->assertInertia(fn ($page) => $page
             ->has('commits.data', 1)
             ->where('commits.data.0.link_preview.title', 'Pending link'));
+});
+
+it('includes the latest evaluation of pending commits', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    $commit = Commit::factory()->pending()->create();
+
+    CommitEvaluation::factory()->for($commit)->failed()->create();
+
+    $this->travel(1)->minute();
+
+    CommitEvaluation::factory()->for($commit)->decided(EvaluationDecision::Review)->create([
+        'results' => [['rule_id' => 'abc', 'name' => 'Harassment', 'probability' => 0.69, 'outcome' => 'review']],
+    ]);
+
+    $response = $this->actingAs($admin)
+        ->get(route('moderation.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.evaluation.decision', 'review')
+            ->where('commits.data.0.evaluation.results.0.name', 'Harassment')
+            ->missing('commits.data.0.evaluation.request_id'));
 });
