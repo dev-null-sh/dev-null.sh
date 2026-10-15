@@ -1,7 +1,8 @@
 import { router, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
-import { useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
+import { CommitStarPollingContext } from '@/components/commit-star-polling';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -31,17 +32,50 @@ export function CommitStarButton({
     const [count, setCount] = useState(commit.stars_count);
     const [pending, setPending] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
+    const button = useRef<HTMLButtonElement>(null);
+    const mutation = useRef({ version: 0, pending: false });
+    const subscribe = useContext(CommitStarPollingContext);
+
+    useEffect(() => {
+        if (!subscribe || !canStar || !button.current) {
+            return;
+        }
+
+        const state = mutation.current;
+
+        return subscribe({
+            id: commit.id,
+            element: button.current,
+            prepare: () => {
+                if (state.pending) {
+                    return null;
+                }
+
+                const version = state.version;
+
+                return (stars) => {
+                    // A poll that started before a click must not undo it.
+                    if (state.version === version) {
+                        setStarred(stars.starred);
+                        setCount(stars.stars_count);
+                    }
+                };
+            },
+        });
+    }, [subscribe, canStar, commit.id]);
 
     if (!canStar) {
         return null;
     }
 
     const toggle = () => {
-        if (pending) {
+        if (mutation.current.pending) {
             return;
         }
 
         const next = !starred;
+        mutation.current.version++;
+        mutation.current.pending = true;
 
         setStarred(next);
         setCount((current) => Math.max(0, current + (next ? 1 : -1)));
@@ -74,14 +108,19 @@ export function CommitStarButton({
 
                     return false;
                 },
-                onFinish: () => setPending(false),
+                onFinish: () => {
+                    mutation.current.pending = false;
+                    setPending(false);
+                },
             },
         );
     };
 
     return (
         <button
+            ref={button}
             type="button"
+            aria-disabled={pending}
             onClick={toggle}
             aria-pressed={starred}
             aria-label={starLabel(starred, count)}
