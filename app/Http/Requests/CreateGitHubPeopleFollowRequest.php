@@ -10,30 +10,40 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\In;
+use Illuminate\Validation\Rules\ProhibitedIf;
 
 final class CreateGitHubPeopleFollowRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $user = $this->user();
-        assert($user instanceof User);
-
-        return (resolve(GitHubPeopleQuery::class)->snapshot($user)['status'] ?? null) === 'ready';
+        return true;
     }
 
     /**
-     * @return array<string, array<int, string|In>>
+     * @return array<string, array<int, string|In|ProhibitedIf>>
      */
     public function rules(): array
     {
         $user = $this->user();
         assert($user instanceof User);
 
-        $eligibleIds = resolve(GitHubPeopleQuery::class)->get($user)['users']->pluck('id')->all();
+        $discovery = resolve(GitHubPeopleQuery::class)->get($user);
+        $ready = $discovery['status'] === 'ready';
+        $eligibleIds = $ready ? $discovery['users']->pluck('id')->all() : [];
 
         return [
-            'user_ids' => ['required', 'array', 'list', 'min:1', 'max:100'],
+            'user_ids' => ['bail', 'required', 'array', 'list', 'min:1', 'max:100', Rule::prohibitedIf(! $ready)],
             'user_ids.*' => ['bail', 'required', 'uuid', 'distinct', Rule::in($eligibleIds)],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'user_ids.prohibited' => __('These discovery results are unavailable. Find your GitHub people again.'),
         ];
     }
 

@@ -66,10 +66,10 @@ Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show']
 Route::middleware('auth')->group(function (): void {
     Route::get('people/github', [GitHubPeopleController::class, 'index'])->name('github-people.index');
     Route::post('people/github', [GitHubPeopleController::class, 'store'])
-        ->middleware('throttle:6,1')
+        ->middleware('throttle:6,1,github-people-discovery')
         ->name('github-people.store');
     Route::post('people/github/follows', [GitHubPeopleFollowController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,github-people-follows')
         ->name('github-people-follow.store');
 
     // Session...

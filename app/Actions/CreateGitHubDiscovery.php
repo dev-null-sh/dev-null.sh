@@ -40,6 +40,9 @@ final readonly class CreateGitHubDiscovery
                 'scanned' => 0,
                 'fetched_at' => null,
                 'retry_at' => null,
+                'pages_requested' => 0,
+                'restart_count' => 0,
+                'truncated' => false,
             ], now()->addHour());
 
             try {

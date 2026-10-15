@@ -1,4 +1,12 @@
-import { Form, Head, Link, router, useForm, usePoll } from '@inertiajs/react';
+import {
+    Form,
+    Head,
+    Link,
+    router,
+    useForm,
+    usePage,
+    usePoll,
+} from '@inertiajs/react';
 import { ArrowLeft, RefreshCw, Users } from 'lucide-react';
 import { useEffect } from 'react';
 import type { FormEvent } from 'react';
@@ -21,17 +29,26 @@ import type { User } from '@/types';
 type Connection = User & { is_followed: boolean };
 
 type Discovery = {
-    status: 'idle' | 'loading' | 'ready' | 'unavailable' | 'rate_limited';
+    status:
+        | 'idle'
+        | 'loading'
+        | 'ready'
+        | 'unavailable'
+        | 'rate_limited'
+        | 'renamed';
     users: Connection[];
     scanned: number;
     fetched_at: string | null;
     retry_at: string | null;
+    truncated: boolean;
 };
 
 export default function Index({ discovery }: { discovery: Discovery }) {
+    const { errors } = usePage().props;
     const now = useNow();
     const isLoading = discovery.status === 'loading';
     const isRateLimited = discovery.status === 'rate_limited';
+    const isRenamed = discovery.status === 'renamed';
     const retryAt = discovery.retry_at ? new Date(discovery.retry_at) : null;
     const isWaiting = retryAt !== null && retryAt > now;
     const { start, stop } = usePoll(
@@ -78,9 +95,17 @@ export default function Index({ discovery }: { discovery: Discovery }) {
                 </h2>
                 <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
                     Find people you already follow on GitHub who are here on
-                    devnull. We check your public GitHub following list. You
-                    choose who to follow here.
+                    devnull. We check up to 500 people from your public GitHub
+                    following list. You choose who to follow here.
                 </p>
+                <InputError
+                    message={
+                        discovery.status !== 'ready'
+                            ? errors.user_ids
+                            : undefined
+                    }
+                    className="mt-2"
+                />
 
                 {!isLoading && discovery.status !== 'ready' && (
                     <Form
@@ -129,6 +154,16 @@ export default function Index({ discovery }: { discovery: Discovery }) {
                 )}
             </section>
 
+            {discovery.status === 'ready' && discovery.truncated && (
+                <p
+                    role="status"
+                    className="border-b px-4 py-4 text-sm text-muted-foreground sm:px-6"
+                >
+                    Checked {discovery.scanned} GitHub follows. Some matches may
+                    be missing.
+                </p>
+            )}
+
             {isLoading && (
                 <section
                     aria-label="Looking for your GitHub people"
@@ -164,12 +199,16 @@ export default function Index({ discovery }: { discovery: Discovery }) {
                 </section>
             )}
 
-            {(discovery.status === 'unavailable' || isRateLimited) && (
+            {(discovery.status === 'unavailable' ||
+                isRateLimited ||
+                isRenamed) && (
                 <div className="px-4 py-6 text-sm sm:px-6" role="status">
                     <h2 className="font-semibold">
-                        {isRateLimited
-                            ? 'GitHub needs a moment.'
-                            : 'Could not check GitHub right now.'}
+                        {isRenamed
+                            ? 'Your GitHub username changed during discovery. Please try again.'
+                            : isRateLimited
+                              ? 'GitHub needs a moment.'
+                              : 'Could not check GitHub right now.'}
                     </h2>
                     <p className="mt-2 text-muted-foreground">
                         {retryAt !== null ? (
@@ -204,14 +243,16 @@ export default function Index({ discovery }: { discovery: Discovery }) {
                         role="status"
                     >
                         <h2 className="font-semibold">
-                            No public GitHub connections found here yet.
+                            {discovery.truncated
+                                ? 'No matches found among the GitHub follows checked.'
+                                : 'No public GitHub connections found here yet.'}
                         </h2>
                         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                             People you follow on GitHub need to have joined
-                            devnull to appear here. If your GitHub profile is
-                            private, your following list may be hidden. You can
-                            check again later or explore Everyone to find
-                            someone new.
+                            devnull to appear here.{' '}
+                            {discovery.truncated
+                                ? 'Explore Everyone to find someone new.'
+                                : 'If your GitHub profile is private, your following list may be hidden. You can check again later or explore Everyone to find someone new.'}
                         </p>
                         <Button variant="outline" className="mt-5" asChild>
                             <Link href={LogController.show('everyone')}>

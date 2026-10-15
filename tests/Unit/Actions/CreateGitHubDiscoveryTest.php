@@ -25,6 +25,7 @@ it('starts one queued discovery without making github requests in the web action
     expect($state)->toMatchArray([
         'status' => 'loading', 'github_ids' => [], 'username' => null, 'page' => 0,
         'scanned' => 0, 'fetched_at' => null, 'retry_at' => null,
+        'pages_requested' => 0, 'restart_count' => 0, 'truncated' => false,
     ]);
 
     Queue::assertPushed(DiscoverGitHubPeople::class, 1);
@@ -81,7 +82,7 @@ it('restarts failed discoveries cleanly only after their retry time', function (
     expect($query->snapshot($user))->toMatchArray(['status' => 'loading', 'github_ids' => [], 'page' => 0, 'retry_at' => null]);
     expect($query->snapshot($user)['id'])->not->toBe($state['id']);
     Queue::assertPushed(DiscoverGitHubPeople::class, 2);
-})->with(['unavailable', 'rate_limited']);
+})->with(['unavailable', 'rate_limited', 'renamed']);
 
 it('does not start competing scans while another request owns the start lock', function (): void {
     $user = User::factory()->create();

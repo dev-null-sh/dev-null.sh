@@ -17,6 +17,7 @@ use Illuminate\Queue\Attributes\Timeout;
 use Illuminate\Queue\Attributes\Tries;
 use Illuminate\Queue\Attributes\UniqueFor;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 use Throwable;
 use UnexpectedValueException;
 
@@ -24,7 +25,7 @@ use UnexpectedValueException;
  * @phpstan-import-type DiscoveryState from GitHubPeopleQuery
  */
 #[Tries(1)]
-#[Timeout(45)]
+#[Timeout(60)]
 #[UniqueFor(3600)]
 #[DeleteWhenMissingModels]
 final class DiscoverGitHubPeople implements ShouldBeUnique, ShouldQueue
@@ -43,7 +44,7 @@ final class DiscoverGitHubPeople implements ShouldBeUnique, ShouldQueue
 
     public function handle(GitHubFollowing $following, GitHubPeopleQuery $people): void
     {
-        $nextPage = Cache::lock("github-people-scan:{$this->user->id}:{$this->id}", 60)->get(function () use ($following, $people): ?int {
+        $nextPage = Cache::lock("github-people-scan:{$this->user->id}:{$this->id}", 90)->get(function () use ($following, $people): ?self {
             $state = $people->snapshot($this->user);
 
             if ($state === null || ! $this->isCurrent($state)) {
@@ -51,42 +52,75 @@ final class DiscoverGitHubPeople implements ShouldBeUnique, ShouldQueue
             }
 
             try {
-                $result = $following->getPage($this->user, $this->page);
+                $state['username'] ??= $following->resolveUsername($this->user);
+                $afterOwnerLookup = $people->snapshot($this->user);
+
+                if (! $this->isCurrent($afterOwnerLookup)) {
+                    return null;
+                }
+
+                $requested = $state['pages_requested'] ?? $state['page'];
+
+                if ($requested >= 5) {
+                    return $this->complete($following, $people, $state, true);
+                }
+
+                $state['pages_requested'] = $requested + 1;
+                Cache::put('github-people:'.$this->user->id, $state, now()->addHour());
+
+                try {
+                    $result = $following->getPage($state['username'], $this->page);
+                } catch (RequestException $exception) {
+                    $status = $exception->response->status();
+
+                    throw_if($status !== 404 && ($status < 300 || $status >= 400), $exception);
+
+                    $username = $following->resolveUsername($this->user);
+                    $afterRenameLookup = $people->snapshot($this->user);
+
+                    if (! $this->isCurrent($afterRenameLookup)) {
+                        return null;
+                    }
+
+                    throw_if(strcasecmp($username, $state['username']) === 0, $exception);
+
+                    return $this->restart($state, $username);
+                }
+
+                $afterFollowingPage = $people->snapshot($this->user);
+
+                if (! $this->isCurrent($afterFollowingPage)) {
+                    return null;
+                }
+
+                $ids = array_values(array_unique([...$state['github_ids'], ...$result['github_ids']]));
+                $state = [
+                    ...$state,
+                    'github_ids' => $ids,
+                    'page' => $this->page,
+                    'scanned' => count($ids),
+                ];
+
+                if (! $result['has_more'] || $state['pages_requested'] >= 5) {
+                    return $this->complete($following, $people, $state, $result['has_more']);
+                }
+
+                Cache::put('github-people:'.$this->user->id, $state, now()->addHour());
+
+                return new self($this->user, $this->id, $this->page + 1);
             } catch (ConnectionException|RequestException|UnexpectedValueException $exception) {
-                $this->storeFailure($state, $exception);
+                $current = $people->snapshot($this->user);
+
+                if ($current !== null && $this->isCurrent($current)) {
+                    $this->storeFailure($current, $exception);
+                }
 
                 return null;
             }
-
-            $current = $people->snapshot($this->user);
-
-            if ($current === null || ! $this->isCurrent($current)) {
-                return null;
-            }
-
-            $ids = array_values(array_unique([...$state['github_ids'], ...$result['github_ids']]));
-
-            Cache::put('github-people:'.$this->user->id, [
-                ...$state,
-                'status' => $result['has_more'] ? 'loading' : 'ready',
-                'github_ids' => $ids,
-                'username' => $result['username'],
-                'page' => $this->page,
-                'scanned' => count($ids),
-                'fetched_at' => $result['has_more'] ? null : now()->toIso8601String(),
-            ], now()->addHour());
-
-            return $result['has_more'] ? $this->page + 1 : null;
         });
 
-        if (is_int($nextPage)) {
-            try {
-                dispatch(new self($this->user, $this->id, $nextPage));
-            } catch (Throwable $exception) {
-                $this->failed($exception);
-
-                throw $exception;
-            }
+        if ($nextPage instanceof self) {
+            $this->dispatchPage($nextPage);
         }
     }
 
@@ -95,18 +129,88 @@ final class DiscoverGitHubPeople implements ShouldBeUnique, ShouldQueue
         /** @var DiscoveryState|null $state */
         $state = Cache::get('github-people:'.$this->user->id);
 
-        if ($state !== null && $state['id'] === $this->id && $state['status'] === 'loading'
-            && in_array($state['page'], [$this->page - 1, $this->page], true)) {
+        if ($state !== null && $this->isCurrent($state)) {
             $this->storeFailure($state, $exception);
+        } elseif ($state !== null && $state['id'] === $this->id && $state['status'] === 'loading' && $state['page'] === $this->page) {
+            $this->dispatchPage(new self($this->user, $this->id, $this->page + 1), 90);
+        } elseif ($state !== null && $state['id'] !== $this->id && ($state['previous_id'] ?? null) === $this->id && $state['status'] === 'loading' && $state['page'] === 0) {
+            $this->dispatchPage(new self($this->user, $state['id']), 90);
         }
     }
 
     /**
      * @param  DiscoveryState  $state
      */
-    private function isCurrent(array $state): bool
+    private function complete(GitHubFollowing $following, GitHubPeopleQuery $people, array $state, bool $hasMore): ?self
     {
-        return $state['id'] === $this->id && $state['status'] === 'loading' && $this->page === $state['page'] + 1;
+        $username = $following->resolveUsername($this->user);
+        $current = $people->snapshot($this->user);
+
+        if (! $this->isCurrent($current)) {
+            return null;
+        }
+
+        if (strcasecmp($username, (string) $state['username']) !== 0) {
+            return $this->restart($state, $username);
+        }
+
+        Cache::put('github-people:'.$this->user->id, [
+            ...$state,
+            'status' => 'ready',
+            'truncated' => $hasMore,
+            'fetched_at' => now()->toIso8601String(),
+        ], now()->addHour());
+
+        return null;
+    }
+
+    /**
+     * @param  DiscoveryState  $state
+     */
+    private function restart(array $state, string $username): ?self
+    {
+        $canRestart = ($state['restart_count'] ?? 0) === 0 && ($state['pages_requested'] ?? $state['page']) < 5;
+        $state = [
+            ...$state,
+            'id' => $canRestart ? Str::uuid7()->toString() : $state['id'],
+            'status' => $canRestart ? 'loading' : 'renamed',
+            'username' => $username,
+            'github_ids' => [],
+            'page' => 0,
+            'scanned' => 0,
+            'fetched_at' => null,
+            'retry_at' => $canRestart ? null : now()->addMinute()->toIso8601String(),
+            'restart_count' => ($state['restart_count'] ?? 0) + 1,
+            'truncated' => false,
+            'previous_id' => $this->id,
+        ];
+        Cache::put('github-people:'.$this->user->id, $state, now()->addHour());
+
+        return $canRestart ? new self($this->user, $state['id']) : null;
+    }
+
+    private function dispatchPage(self $job, int $delay = 0): void
+    {
+        try {
+            dispatch($job)->delay($delay);
+        } catch (Throwable $throwable) {
+            /** @var DiscoveryState|null $state */
+            $state = Cache::get('github-people:'.$this->user->id);
+
+            if ($state !== null && $state['id'] === $job->id && $state['page'] === $job->page - 1) {
+                $this->storeFailure($state, $throwable);
+            }
+
+            throw $throwable;
+        }
+    }
+
+    /**
+     * @param  DiscoveryState|null  $state
+     */
+    private function isCurrent(?array $state): bool
+    {
+        return $state !== null && $state['id'] === $this->id && $state['status'] === 'loading' && $this->page === $state['page'] + 1;
     }
 
     /**

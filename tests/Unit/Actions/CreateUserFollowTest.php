@@ -26,9 +26,15 @@ it('is idempotent', function (): void {
     $action = resolve(CreateUserFollow::class);
 
     $action->handle($follower, $user);
+
+    $follow = $follower->following()->sole()->pivot->getAttributes();
+
+    $this->travel(1)->minute();
+
     $action->handle($follower, $user);
 
     expect($follower->following()->count())->toBeOne();
+    expect($follower->following()->sole()->pivot->getAttributes())->toBe($follow);
 });
 
 it('notifies the followed user', function (): void {
@@ -53,11 +59,15 @@ it('never notifies twice about the same follower', function (): void {
     $action = resolve(CreateUserFollow::class);
 
     $action->handle($follower, $user);
-    $user->notifications()->update(['read_at' => now()]);
+
+    $notification = $user->notifications()->sole();
+    $notification->update(['read_at' => now()]);
 
     resolve(DeleteUserFollow::class)->handle($follower, $user);
     $action->handle($follower, $user);
     $action->handle($follower, $user);
 
-    expect($user->notifications()->sole()->read_at)->not->toBeNull();
+    expect($follower->isFollowing($user))->toBeTrue();
+    expect($user->notifications()->sole()->id)->toBe($notification->id);
+    expect($notification->fresh()->read_at)->not->toBeNull();
 });

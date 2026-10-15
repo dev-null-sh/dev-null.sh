@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Jobs\DiscoverGitHubPeople;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 function completedGitHubPeople(User $user, User ...$people): void
@@ -30,13 +32,15 @@ it('requires authentication to follow discovered people', function (): void {
     expect($person->followers()->count())->toBe(0);
 });
 
-it('follows only the selected connections on behalf of the current user', function (): void {
+it('follows only the selected connections on behalf of the current user', function (bool $truncated): void {
     $user = User::factory()->create();
     $first = User::factory()->create();
     $second = User::factory()->create();
     $unselected = User::factory()->create();
     $other = User::factory()->create();
     completedGitHubPeople($user, $first, $second, $unselected);
+    $state = Cache::get("github-people:{$user->id}");
+    Cache::put("github-people:{$user->id}", [...$state, 'truncated' => $truncated], 3600);
 
     $response = $this->actingAs($user)->post(route('github-people-follow.store'), [
         'user_ids' => [$first->id, $second->id],
@@ -51,7 +55,7 @@ it('follows only the selected connections on behalf of the current user', functi
     expect($first->notifications()->sole()->actor_id)->toBe($user->id);
     expect($second->notifications()->sole()->actor_id)->toBe($user->id);
     Http::assertNothingSent();
-});
+})->with(['complete results' => false, 'capped results' => true]);
 
 it('rejects an incomplete or expired discovery before following', function (string $status): void {
     $user = User::factory()->create();
@@ -61,25 +65,35 @@ it('rejects an incomplete or expired discovery before following', function (stri
     $state['status'] = $status;
     Cache::put("github-people:{$user->id}", $state, 3600);
 
-    $response = $this->actingAs($user)->post(route('github-people-follow.store'), ['user_ids' => [$person->id]]);
+    $response = $this->actingAs($user)->fromRoute('github-people.index')
+        ->post(route('github-people-follow.store'), ['user_ids' => [$person->id]]);
 
-    $response->assertForbidden();
+    $response->assertRedirectToRoute('github-people.index')->assertSessionHasErrors('user_ids');
 
     expect($user->following()->count())->toBe(0);
     expect($person->notifications()->count())->toBe(0);
-})->with(['idle', 'loading', 'unavailable', 'rate_limited']);
+})->with(['idle', 'loading', 'unavailable', 'rate_limited', 'renamed']);
 
-it('rejects following when the cached results have expired', function (): void {
+it('returns to discovery when the cached results expire', function (): void {
     $user = User::factory()->create();
     $person = User::factory()->create();
     completedGitHubPeople($user, $person);
     $this->travel(61)->minutes();
 
-    $response = $this->actingAs($user)->post(route('github-people-follow.store'), ['user_ids' => [$person->id]]);
+    $response = $this->actingAs($user)->fromRoute('github-people.index')
+        ->post(route('github-people-follow.store'), ['user_ids' => [$person->id]]);
 
-    $response->assertForbidden();
+    $message = 'These discovery results are unavailable. Find your GitHub people again.';
+    $response->assertRedirectToRoute('github-people.index')->assertSessionHasErrors(['user_ids' => $message]);
 
     expect($user->following()->count())->toBe(0);
+    expect($person->notifications()->count())->toBe(0);
+
+    $this->withCookie(config('session.cookie'), session()->getId())
+        ->get(route('github-people.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->component('github-people/index')
+        ->where('discovery.status', 'idle')
+        ->where('errors.user_ids', $message));
 });
 
 it('rejects people outside the current account matches including self', function (string $selection): void {
@@ -141,3 +155,29 @@ it('handles a repeated follow submission without duplicate notifications', funct
     expect($user->following()->count())->toBe(1);
     expect($person->notifications()->count())->toBe(1);
 });
+
+it('keeps discovery and bulk follow rate limits independent', function (array $endpoints): void {
+    $user = User::factory()->create();
+    $person = User::factory()->create();
+    completedGitHubPeople($user, $person);
+    Queue::fake([DiscoverGitHubPeople::class]);
+
+    foreach ($endpoints as [$route, $limit]) {
+        foreach (range(1, $limit) as $attempt) {
+            $this->actingAs($user)->post(route($route), ['user_ids' => [$person->id]])
+                ->assertRedirectToRoute('github-people.index');
+        }
+    }
+
+    foreach ($endpoints as [$route]) {
+        $this->post(route($route), ['user_ids' => [$person->id]])->assertTooManyRequests();
+    }
+
+    expect($user->following()->count())->toBe(1);
+    expect($person->notifications()->count())->toBe(1);
+    Queue::assertNothingPushed();
+    Http::assertNothingSent();
+})->with([
+    'discovery first' => [[['github-people.store', 6], ['github-people-follow.store', 10]]],
+    'bulk follows first' => [[['github-people-follow.store', 10], ['github-people.store', 6]]],
+]);
