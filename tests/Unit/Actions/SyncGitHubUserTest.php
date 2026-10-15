@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\SyncGitHubUser;
+use App\Models\Post;
 use App\Models\User;
 use Laravel\Socialite\Two\User as GitHubUser;
 
@@ -52,6 +53,37 @@ it('updates an existing user from github', function (): void {
         ->and(User::query()->count())->toBeOne()
         ->and($existing->refresh()->username)->toBe('octocat')
         ->and($existing->bio)->toBe('New bio');
+});
+
+it('allows a reclaimed GitHub username without replacing the previous account', function (): void {
+    $previousOwner = User::factory()->create([
+        'github_id' => '111',
+        'username' => 'octocat',
+    ]);
+    $post = Post::factory()->for($previousOwner)->create();
+
+    $action = resolve(SyncGitHubUser::class);
+
+    $newOwner = $action->handle(GitHubUser::fake([
+        'id' => '222',
+        'nickname' => 'octocat',
+    ]));
+
+    expect($newOwner->is($previousOwner))->toBeFalse()
+        ->and($newOwner->github_id)->toBe('222')
+        ->and($newOwner->username)->toBe('octocat')
+        ->and($previousOwner->refresh()->username)->toBe('renamed-'.$previousOwner->id)
+        ->and($post->fresh()->user_id)->toBe($previousOwner->id)
+        ->and(User::query()->count())->toBe(2);
+
+    $updatedPreviousOwner = $action->handle(GitHubUser::fake([
+        'id' => '111',
+        'nickname' => 'octocat-renamed',
+    ]));
+
+    expect($updatedPreviousOwner->is($previousOwner))->toBeTrue()
+        ->and($previousOwner->refresh()->username)->toBe('octocat-renamed')
+        ->and(User::query()->count())->toBe(2);
 });
 
 it('falls back to the username when the name is blank', function (): void {

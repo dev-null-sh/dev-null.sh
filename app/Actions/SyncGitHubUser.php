@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Models\User;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Two\User as GitHubUser;
 
@@ -18,9 +19,9 @@ final readonly class SyncGitHubUser
 
         $username = (string) $githubUser->getNickname();
 
-        return User::query()->updateOrCreate([
-            'github_id' => (string) $githubUser->getId(),
-        ], [
+        $githubId = (string) $githubUser->getId();
+
+        $attributes = [
             'username' => $username,
             'name' => $this->nullIfBlank($githubUser->getName()) ?? $username,
             'email' => $this->nullIfBlank($githubUser->getEmail()),
@@ -29,7 +30,21 @@ final readonly class SyncGitHubUser
             'location' => $this->nullIfBlank(Arr::get($raw, 'location')),
             'website' => $this->website(Arr::get($raw, 'blog')),
             'company' => $this->nullIfBlank(Arr::get($raw, 'company')),
-        ]);
+        ];
+
+        return DB::transaction(function () use ($githubId, $username, $attributes): User {
+            $previousOwner = User::query()
+                ->where('username', $username)
+                ->where('github_id', '!=', $githubId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($previousOwner !== null) {
+                $previousOwner->update(['username' => 'renamed-'.$previousOwner->id]);
+            }
+
+            return User::query()->updateOrCreate(['github_id' => $githubId], $attributes);
+        });
     }
 
     private function website(mixed $value): ?string

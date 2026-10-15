@@ -69,6 +69,28 @@ it('updates an existing user on login', function (): void {
     $this->assertAuthenticatedAs($user);
 });
 
+it('signs in the new owner of a reclaimed GitHub username', function (): void {
+    $previousOwner = User::factory()->create([
+        'github_id' => '111',
+        'username' => 'octocat',
+    ]);
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '222',
+        'nickname' => 'octocat',
+    ]));
+
+    $response = $this->get(route('login.store'));
+
+    $response->assertRedirectToRoute('timeline.show', Timeline::Following);
+
+    $newOwner = User::query()->where('github_id', '222')->sole();
+
+    $this->assertAuthenticatedAs($newOwner);
+
+    expect($previousOwner->refresh()->username)->toBe('renamed-'.$previousOwner->id);
+});
+
 it('redirects to the intended url after login', function (): void {
     $user = User::factory()->create();
 
