@@ -23,6 +23,7 @@ final readonly class SavedCommitsQuery
             ->withStarsFor($user)
             ->with([
                 'user',
+                'linkPreview',
                 'parent' => function (BelongsTo $parent) use ($user): void {
                     $parent->getQuery()->withTrashed()->visibleTo($user)->with('user');
                 },

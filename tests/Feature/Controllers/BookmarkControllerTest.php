@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\CommitStatus;
 use App\Models\Bookmark;
 use App\Models\Commit;
+use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,23 @@ it('renders a private empty saved page', function (): void {
         ->component('bookmark/index')
         ->has('commits.data', 0)
         ->where('commits.next_cursor', null));
+});
+
+it('includes link previews on saved commits and replies', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for(LinkPreview::factory()->fetched()->state(['title' => 'Saved commit link']))->create();
+    $reply = Commit::factory()->for($commit, 'parent')
+        ->for(LinkPreview::factory()->fetched()->state(['title' => 'Saved reply link']))->create();
+
+    $this->actingAs($user)->putJson(route('bookmark.store', $commit))->assertOk();
+    $this->putJson(route('bookmark.store', $reply))->assertOk();
+
+    $this->get(route('bookmark.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits.data', 2)
+        ->where('commits.data.0.id', $reply->id)
+        ->where('commits.data.0.link_preview.title', 'Saved reply link')
+        ->where('commits.data.1.id', $commit->id)
+        ->where('commits.data.1.link_preview.title', 'Saved commit link'));
 });
 
 it('requires authentication for the saved page and mutations', function (): void {
@@ -191,12 +209,12 @@ it('returns only the viewers saved state across logs profiles commit pages and r
     $user = User::factory()->create();
     $other = User::factory()->create();
     $commit = Commit::factory()->for($other)->create();
-    $reply = Commit::factory()->for($commit, 'parent')->create();
+    $reply = Commit::factory()->for($other)->for($commit, 'parent')->create();
     Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $commit->id]);
     Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $reply->id]);
     $user->following()->attach($other);
 
-    foreach ([route('log.show', 'everyone'), route('log.show', 'following'), route('user.show', $other)] as $url) {
+    foreach ([route('log.show', 'everyone'), route('log.show', 'following'), route('user.show', $other), route('user.show', [$other, 'tab' => 'replies'])] as $url) {
         $this->actingAs($user)->get($url)->assertOk()->assertInertia(fn ($page) => $page
             ->where('commits.data.0.is_saved', true));
         $this->actingAs($other)->get($url)->assertOk()->assertInertia(fn ($page) => $page
