@@ -65,6 +65,9 @@ jobs:
       - name: Install Bun Dependencies
         run: bun install
 
+      - name: Check AI Tool Specs
+        run: node_modules/.bin/agnostic-ai validate && node_modules/.bin/agnostic-ai lint
+
       - name: Build Assets
         run: bun run build
 

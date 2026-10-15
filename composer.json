@@ -54,7 +54,12 @@
             "@php artisan key:generate",
             "@php artisan migrate --force",
             "bun install",
+            "bun run ai:sync",
             "bun run build"
+        ],
+        "ai:update": [
+            "@php artisan boost:update --no-discover",
+            "bun run ai:sync"
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",

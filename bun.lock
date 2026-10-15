@@ -42,6 +42,7 @@
         "@laravel/vite-plugin-wayfinder": "^0.1.10",
         "@rolldown/plugin-babel": "^0.2.4",
         "@types/node": "^26.6.5",
+        "agnostic-ai": "0.84.0",
         "npm-check-updates": "^23.1.1",
         "playwright": "^1.64.1",
         "tw-animate-css": "^1.4.0",
@@ -60,6 +61,18 @@
     "vite": "npm:@voidzero-dev/vite-plus-core@1.2.0",
   },
   "packages": {
+    "@agnostic-ai/darwin-arm64": ["@agnostic-ai/darwin-arm64@0.84.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-wRYGiXcRmdqqyH2wVfxV3TvqHcsqb1f+u0Zz8+oce5Z7PTJAuPbPfqbN7KtklvhNGEwtJ535ccZA3Uni0DrhOw=="],
+
+    "@agnostic-ai/darwin-x64": ["@agnostic-ai/darwin-x64@0.84.0", "", { "os": "darwin", "cpu": "x64" }, "sha512-6wwDHeIQJ2toqFhkPlL0B2Fzio/uBXzcMRi8O/Gqirqr7IkK0ABDc9yNnleB1axbGjuqcDhI1seLXZgciRXYYQ=="],
+
+    "@agnostic-ai/linux-arm64": ["@agnostic-ai/linux-arm64@0.84.0", "", { "os": "linux", "cpu": "arm64" }, "sha512-nQN0MFz57LVxB5ZzzlB8yoQzEkNIurlp9leFWLQXp7EszdZJNVFYxeVQ012DQkNKpMQgV8EgrJ8bIlu9yLsYuw=="],
+
+    "@agnostic-ai/linux-x64": ["@agnostic-ai/linux-x64@0.84.0", "", { "os": "linux", "cpu": "x64" }, "sha512-BDgUQDUyl4W2KBgzIlcW+bHMIQs6S2YnWR4JgH+JemfUACYo5mZ9dGDEB/dNFJkdYrD3IeOoLJfTKELrTmXZMA=="],
+
+    "@agnostic-ai/win32-arm64": ["@agnostic-ai/win32-arm64@0.84.0", "", { "os": "win32", "cpu": "arm64" }, "sha512-z0CD/DDtMHWiswLbUzfW2/HbFe7pDXRmeHkAEixbNmcet3CINN8L2RA1009XlAXAXTEx6YIg6qk+vBHNydSGaQ=="],
+
+    "@agnostic-ai/win32-x64": ["@agnostic-ai/win32-x64@0.84.0", "", { "os": "win32", "cpu": "x64" }, "sha512-MOlRhvlgwCfpiFqJT9l62UNY6zELFNKEwGkW2wrhNru+OxvwRpvrvcXoOIdu63GZQ8ekavf0f121PyOlKbE7Sw=="],
+
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.3.1", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-cUD0PT0YX+rImRhfn7BfMRduP/tX/Zqt/N0dHlAyn2RlcJssCb5KsCJkhln61eh9vuJDkH8wKn3L8zJzzWXPFg=="],
 
     "@babel/code-frame": ["@babel/code-frame@8.0.6", "", { "dependencies": { "@babel/helper-validator-identifier": "^8.0.6", "js-tokens": "^10.0.0" } }, "sha512-uMHhvmDmwFiLuiozaoRYTZHqMFuu3fem/X9JY78lohAuLoh8LSGGC8JqUzo2cVuBsBxkjMZNk56CE7ock8Xxkw=="],
@@ -507,6 +520,8 @@
     "@yuku-core/binding-win32-x64": ["@yuku-core/binding-win32-x64@0.19.0", "", { "os": "win32", "cpu": "x64" }, "sha512-o8iY/mXwlRkedp0LNTr4+TEfXTPQwoNZmv6k+1WIAd1ZXEn8xJJTBCtB0osaVvdZo/x/cNmV16UrWrrGpM5Mvw=="],
 
     "@yuku-toolchain/types": ["@yuku-toolchain/types@0.19.0", "", {}, "sha512-tFkNbsP4WXX9UMUC5syJGdK9dPMLK0PPaIuXCcCYH75sZ8MrebfBZ2XvCILRTw8AgLivSSCfDa4R67iYBDa4Kg=="],
+
+    "agnostic-ai": ["agnostic-ai@0.84.0", "", { "optionalDependencies": { "@agnostic-ai/darwin-arm64": "0.84.0", "@agnostic-ai/darwin-x64": "0.84.0", "@agnostic-ai/linux-arm64": "0.84.0", "@agnostic-ai/linux-x64": "0.84.0", "@agnostic-ai/win32-arm64": "0.84.0", "@agnostic-ai/win32-x64": "0.84.0" }, "bin": { "agnostic-ai": "bin/agnostic-ai.js" } }, "sha512-Yg+NOoO+ABogExNf1+Z8zl25yTPArytaJgztPigqcKoNc6hNtG6ETxhu+U3tt2vIEG0B8J/N9VRDwQCJLVqrRw=="],
 
     "ansi-escapes": ["ansi-escapes@7.3.0", "", { "dependencies": { "environment": "^1.0.0" } }, "sha512-BvU8nYgGQBxcmMuEeUEmNTvrMVjJNSH7RgW24vXexN4Ven6qCvy4TntnvlnwnMLTVlcRQQdbRY8NKnaIoeWDNg=="],
 

@@ -1,0 +1,31 @@
+# >>> agnostic-ai (managed) >>>
+# Generated paths. Edit specs, not this block. Run `agnostic-ai sync` to refresh.
+# Copied into each Claude Code worktree: the gitignored paths sync writes, and the local layer it reads.
+/.agents/skills/
+/.agnostic-ai/local/
+/.agnostic-ai/packs/
+/.aiignore
+/.amp/settings.json
+/.claude/agent-memory-local/
+/.claude/settings.local.json
+/.claude/skills/
+/.codex/config.toml
+/.cursor/mcp.json
+/.cursor/skills/
+/.gemini/settings.json
+/.gemini/skills/
+/.github/copilot-instructions.md
+/.github/mcp.json
+/.github/skills/
+/.junie/AGENTS.md
+/.junie/mcp/
+/.junie/skills/
+/.mcp.json
+/.opencode/skills/
+/.vscode/mcp.json
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+/agnostic-ai.local.yaml
+/opencode.json
+# <<< agnostic-ai (managed) <<<
