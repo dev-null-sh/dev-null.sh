@@ -8,11 +8,13 @@ use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
+use App\Http\Controllers\CommitReportController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
@@ -66,6 +68,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.destroy');
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->name('commit-star.store');
+    Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
+        ->middleware('throttle:commit-reports')
+        ->name('commit-report.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
         ->name('commit-star.destroy');
     Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
@@ -78,6 +83,8 @@ Route::middleware('auth')->group(function (): void {
     // Moderation...
     Route::middleware('can:moderate')->group(function (): void {
         Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+        Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
+        Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
         Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
             ->name('commit-approval.store');
         Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])

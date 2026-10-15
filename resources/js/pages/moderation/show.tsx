@@ -5,6 +5,7 @@ import ApproveCommitsController from '@/actions/App/Http/Controllers/ApproveComm
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
@@ -163,6 +164,8 @@ export default function Show({
                         Oldest first
                     </p>
                 </div>
+
+                <ModerationTabs active="pending" />
 
                 {commits.data.length > 0 && (
                     <div className="flex h-12 items-center gap-3 border-b px-4">

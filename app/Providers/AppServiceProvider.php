@@ -65,6 +65,8 @@ final class AppServiceProvider extends ServiceProvider
 
     private function bootRateLimitingDefaults(): void
     {
+        RateLimiter::for('commit-reports', fn (Request $request): Limit => Limit::perMinute(5)->by($request->user()?->id));
+
         RateLimiter::for('commits', function (Request $request): Limit {
             $user = $request->user();
             assert($user instanceof User);

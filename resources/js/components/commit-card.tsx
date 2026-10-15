@@ -3,6 +3,7 @@ import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { CommitReportButton } from '@/components/commit-report-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
 import { GraphRail } from '@/components/graph-rail';
@@ -264,10 +265,13 @@ export function CommitCard({
                         )}
 
                         {deletion !== 'deleting' && (
-                            <CommitStarButton
-                                key={`${commit.starred}-${commit.stars_count}`}
-                                commit={commit}
-                            />
+                            <div className="flex items-center gap-1">
+                                <CommitStarButton
+                                    key={`${commit.starred}-${commit.stars_count}`}
+                                    commit={commit}
+                                />
+                                <CommitReportButton commit={commit} />
+                            </div>
                         )}
                         {commit.replies_count !== undefined &&
                             deletion !== 'deleting' && (
