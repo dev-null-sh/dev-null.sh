@@ -24,6 +24,21 @@ final class CommitBuilder extends Builder
             ->orWhere('user_id', $user->id));
     }
 
+    public function topLevel(): self
+    {
+        return $this->whereNull('parent_id');
+    }
+
+    /**
+     * Counts only the replies the given user is allowed to see.
+     */
+    public function withVisibleReplyCount(User $user): self
+    {
+        return $this->withCount([
+            'replies' => fn (self $query): self => $query->visibleTo($user),
+        ]);
+    }
+
     public function pending(): self
     {
         return $this->where('status', CommitStatus::Pending);

@@ -30,8 +30,9 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 
 - Commits (posts): plain text, 3–280 characters; create and delete only (no editing). Rate limited to 10 commits per minute per user.
 - Follow/unfollow, idempotent; self-follow rejected.
+- Replies: any visible commit can be replied to; a reply is itself a commit (same 280 limit, moderation, and rate limit). Threads expand inline under a commit; logs and profiles list top-level commits only. Deleting a commit deletes its replies.
 - People search: find developers by name or GitHub username (⌘K). Commits are not searchable.
-- Deliberately excluded for now: comments, likes/reactions, reposts, images/media, mentions, hashtags, searching commits, notifications, DMs, other OAuth providers, public API, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
+- Deliberately excluded for now: likes/reactions, reposts, images/media, mentions, hashtags, searching commits, notifications, DMs, other OAuth providers, public API, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
 - Open: handling GitHub username renames that collide with a stale username.
 
 ## Brand Commitments

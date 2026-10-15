@@ -25,3 +25,10 @@ it('scopes commits to pending ones', function (): void {
 
     expect(Commit::query()->pending()->sole()->is($pending))->toBeTrue();
 });
+
+it('scopes commits to top-level ones', function (): void {
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->create();
+
+    expect(Commit::query()->topLevel()->pluck('id')->all())->toBe([$parent->id]);
+});

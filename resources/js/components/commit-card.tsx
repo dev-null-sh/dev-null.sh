@@ -1,8 +1,9 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Trash2 } from 'lucide-react';
+import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { CommitThread } from '@/components/commit-thread';
 import { GraphRail } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -193,10 +194,24 @@ export function CommitCard({
                                 rm {hash} → /dev/null
                             </p>
                         ) : (
-                            <p className="mt-0.5 text-[15px] leading-relaxed break-words whitespace-pre-wrap">
-                                {commit.body}
-                            </p>
+                            <>
+                                {commit.parent && (
+                                    <p className="mt-0.5 flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                                        <CornerDownRight className="size-3" />
+                                        replying to @
+                                        {commit.parent.user.username}
+                                    </p>
+                                )}
+                                <p className="mt-0.5 text-[15px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
+                                    {commit.body}
+                                </p>
+                            </>
                         )}
+
+                        {commit.replies_count !== undefined &&
+                            deletion !== 'deleting' && (
+                                <CommitThread commit={commit} />
+                            )}
 
                         {actions}
 

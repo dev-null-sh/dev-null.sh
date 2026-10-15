@@ -130,3 +130,16 @@ it('requires authentication', function (): void {
 
     $response->assertRedirectToRoute('home');
 });
+
+it('shows who a pending reply is replying to', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    $parent = Commit::factory()->for(User::factory()->create(['username' => 'octocat']))->create();
+    Commit::factory()->pending()->for($parent, 'parent')->create();
+
+    $response = $this->actingAs($admin)
+        ->get(route('moderation.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.parent.user.username', 'octocat'));
+});

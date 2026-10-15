@@ -15,7 +15,7 @@ final readonly class ModerationController
         return Inertia::render('moderation/show', [
             'commits' => Inertia::scroll(fn () => Commit::query()
                 ->pending()
-                ->with('user')
+                ->with(['user', 'parent.user'])
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)),

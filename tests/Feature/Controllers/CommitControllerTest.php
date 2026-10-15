@@ -184,3 +184,51 @@ it('publishes commits of admins right away', function (): void {
 
     expect($user->commits()->sole()->status)->toBe(CommitStatus::Approved);
 });
+
+it('may reply to a commit', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), [
+            'body' => 'Agreed, ship it.',
+            'parent_id' => $parent->id,
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Everyone);
+
+    expect($user->commits()->sole()->parent_id)->toBe($parent->id);
+});
+
+it('may reply to own pending commit', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->for($user)->pending()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Follow-up', 'parent_id' => $parent->id])
+        ->assertSessionHasNoErrors();
+
+    expect($parent->replies()->count())->toBe(1);
+});
+
+it('may not reply to a commit that is not visible', function (): void {
+    $parent = Commit::factory()->pending()->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
+
+    $response->assertSessionHasErrors('parent_id');
+
+    expect($parent->replies()->count())->toBe(0);
+});
+
+it('may not reply to a commit that does not exist', function (): void {
+    $response = $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => '01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3']);
+
+    $response->assertSessionHasErrors('parent_id');
+});

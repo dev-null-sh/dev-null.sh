@@ -17,6 +17,7 @@ final readonly class SuggestedCommitsQuery
     {
         return Commit::query()
             ->visibleTo($user)
+            ->topLevel()
             ->with('user')
             ->whereNot('user_id', $user->id)
             ->latest()

@@ -55,7 +55,10 @@ it('does not count the user relations or activity when reloading only commits', 
                 ->missing('activity'));
         });
 
-    expect(array_column(DB::getQueryLog(), 'query'))
+    expect(collect(DB::getQueryLog())
+        ->pluck('query')
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*'))
+        ->all())
         ->not->toBeEmpty()
         ->each(fn ($query) => $query->not->toContain('count(*)')->not->toContain('exists'));
 });
@@ -200,4 +203,19 @@ it('requires authentication to list follows', function (): void {
 
     $this->get(route('user-following.index', $user))->assertRedirectToRoute('home');
     $this->get(route('user-followers.index', $user))->assertRedirectToRoute('home');
+});
+
+it('only shows top-level commits on profiles', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $parent = Commit::factory()->for($user)->create(['body' => 'Root']);
+    Commit::factory()->for($user)->for($parent, 'parent')->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 1)
+            ->where('commits.data.0.body', 'Root')
+            ->where('commits.data.0.replies_count', 1));
 });

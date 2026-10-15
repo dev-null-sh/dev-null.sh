@@ -82,7 +82,10 @@ it('does not count the authenticated user relations when reloading only commits'
             $page->reloadOnly('commits', fn ($reload) => $reload->missing('auth'));
         });
 
-    expect(array_column(DB::getQueryLog(), 'query'))
+    expect(collect(DB::getQueryLog())
+        ->pluck('query')
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*'))
+        ->all())
         ->not->toBeEmpty()
         ->each->not->toContain('count(*)');
 });
@@ -196,6 +199,36 @@ it('only suggests approved commits', function (): void {
         ->assertInertia(fn ($page) => $page
             ->has('suggestions', 1)
             ->where('suggestions.0.body', 'Approved'));
+});
+
+it('only shows top-level commits with their reply counts', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create(['body' => 'Root']);
+    Commit::factory()->for($parent, 'parent')->count(2)->create();
+    Commit::factory()->for($parent, 'parent')->pending()->create();
+
+    $response = $this->actingAs($user)
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 1)
+            ->where('commits.data.0.body', 'Root')
+            ->where('commits.data.0.replies_count', 2));
+});
+
+it('only suggests top-level commits', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create(['body' => 'Root commit', 'created_at' => now()->subMinute()]);
+    Commit::factory()->for($parent, 'parent')->create(['body' => 'A reply']);
+
+    $response = $this->actingAs($user)
+        ->get('/log/following');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('suggestions', 1)
+            ->where('suggestions.0.body', 'Root commit'));
 });
 
 it('defers suggested users to follow', function (): void {
