@@ -7,6 +7,7 @@ import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { WhoToFollowCarousel } from '@/components/who-to-follow';
 import AppLayout from '@/layouts/app-layout';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
@@ -89,6 +90,9 @@ export default function Show({
                 commits={commits}
                 firstLane="var(--rail)"
                 end="That's the root commit. There's nothing before it."
+                interlude={(lane, isDimmed) => (
+                    <WhoToFollowCarousel lane={lane} isDimmed={isDimmed} />
+                )}
                 empty={
                     log === 'following' ? (
                         <EmptyFeed command="fatal: your log does not have any commits yet">
