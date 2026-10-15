@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\DeleteUser;
 use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
+use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\UserActivityQuery;
@@ -32,6 +33,14 @@ final readonly class UserController
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => fn (): array => $streaks->get($user, $currentUser),
             'tab' => $request->tab(...),
+            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
+                ->visibleTo($currentUser)
+                ->topLevel()
+                ->withVisibleReplyCount($currentUser)
+                ->withSavedState($currentUser)
+                ->with(['user', 'linkPreview'])
+                ->withStarsFor($currentUser)
+                ->find($user->pinned_commit_id),
             'commits' => Inertia::scroll(fn () => $user->commits()
                 ->visibleTo($currentUser)
                 ->when(
@@ -41,9 +50,11 @@ final readonly class UserController
                         ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
                             ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser))
                             ->with('user')]),
-                    fn (CommitBuilder $query): CommitBuilder => $query->topLevel(),
+                    fn (CommitBuilder $query): CommitBuilder => $query->topLevel()
+                        ->when($user->pinned_commit_id, fn (CommitBuilder $query, string $id): CommitBuilder => $query->whereKeyNot($id)),
                 )
                 ->withVisibleReplyCount($currentUser)
+                ->withSavedState($currentUser)
                 ->with(['user', 'linkPreview'])
                 ->withStarsFor($currentUser)
                 ->latest()

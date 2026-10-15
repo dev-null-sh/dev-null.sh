@@ -1,5 +1,6 @@
 import { Link, router } from '@inertiajs/react';
-import { LogOut, Settings, UserRound } from 'lucide-react';
+import { Bookmark, LogOut, Settings, UserRound } from 'lucide-react';
+import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -36,6 +37,16 @@ export function UserMenuContent({ user }: Props) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={BookmarkController.index()}
+                        onClick={cleanup}
+                    >
+                        <Bookmark className="mr-2" />
+                        Saved
+                    </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full cursor-pointer"

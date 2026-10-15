@@ -9,12 +9,14 @@ use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Services\EmojiShortcodes;
 use Illuminate\Support\Facades\DB;
 
 final readonly class CreateCommit
 {
     public function __construct(
         private NotifyAboutReplies $notifyAboutReplies,
+        private EmojiShortcodes $emojiShortcodes,
         private FindFirstUrl $findFirstUrl,
     ) {
         //
@@ -26,7 +28,7 @@ final readonly class CreateCommit
             $linkPreview = $this->linkPreviewFor($body);
 
             $commit = $user->commits()->create([
-                'body' => $body,
+                'body' => $this->emojiShortcodes->replace($body),
                 'parent_id' => $parent?->id,
                 'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,

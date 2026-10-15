@@ -7,6 +7,7 @@ import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
+import { emojifyInput } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
@@ -72,9 +73,25 @@ export function CommitComposer() {
                                 name="body"
                                 rows={1}
                                 value={body}
-                                onChange={(event) =>
-                                    updateBody(event.target.value)
-                                }
+                                onChange={(event) => {
+                                    const target = event.currentTarget;
+                                    const { text, caret } = emojifyInput(
+                                        target.value,
+                                        target.selectionStart ??
+                                            target.value.length,
+                                    );
+
+                                    updateBody(text);
+
+                                    if (text !== target.value) {
+                                        requestAnimationFrame(() =>
+                                            target.setSelectionRange(
+                                                caret,
+                                                caret,
+                                            ),
+                                        );
+                                    }
+                                }}
                                 onKeyDown={submitOnModEnter}
                                 onFocus={
                                     isRestored ? moveCaretToEnd : undefined
