@@ -179,6 +179,7 @@
     html {
         scrollbar-color: var(--input) transparent;
         scrollbar-width: thin;
+        scrollbar-gutter: stable;
     }
 
     :focus-visible {

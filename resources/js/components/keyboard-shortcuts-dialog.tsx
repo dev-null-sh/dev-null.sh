@@ -8,6 +8,7 @@ import {
 const shortcuts: { keys: string[]; label: string }[] = [
     { keys: ['j'], label: 'Next commit' },
     { keys: ['k'], label: 'Previous commit' },
+    { keys: ['↵'], label: 'Open the focused commit' },
     { keys: ['c'], label: 'Write a commit' },
     { keys: ['⌘', 'K'], label: 'Search developers' },
     { keys: ['/'], label: 'Search developers' },

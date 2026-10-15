@@ -10,10 +10,12 @@ import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import InputError from '@/components/input-error';
+import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
+import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit } from '@/types';
@@ -35,9 +37,11 @@ type Thread = {
     onReplied: () => void;
 };
 
-function useThread(commit: Commit): Thread {
-    const [replies, setReplies] = useState<Commit[] | null>(null);
-    const [isOpen, setIsOpen] = useState(false);
+function useThread(commit: Commit, initialReplies?: Commit[]): Thread {
+    const [replies, setReplies] = useState<Commit[] | null>(
+        initialReplies ?? null,
+    );
+    const [isOpen, setIsOpen] = useState(initialReplies !== undefined);
     const [isLoading, setIsLoading] = useState(false);
     const [isReplying, setIsReplying] = useState(false);
 
@@ -81,8 +85,14 @@ function useThread(commit: Commit): Thread {
     };
 }
 
-export function CommitThread({ commit }: { commit: Commit }) {
-    const thread = useThread(commit);
+export function CommitThread({
+    commit,
+    initialReplies,
+}: {
+    commit: Commit;
+    initialReplies?: Commit[];
+}) {
+    const thread = useThread(commit, initialReplies);
 
     return (
         <>
@@ -93,6 +103,9 @@ export function CommitThread({ commit }: { commit: Commit }) {
 }
 
 function ThreadActions({ thread }: { thread: Thread }) {
+    const { auth } = usePage().props;
+    const hasStash = useHasStash(auth.user.id, `reply-${thread.commit.id}`);
+
     return (
         <>
             <div className="mt-1 -ml-2 flex flex-wrap items-center gap-0.5 text-[13px]">
@@ -109,6 +122,15 @@ function ThreadActions({ thread }: { thread: Thread }) {
                 >
                     <MessageSquareReply className="size-4" />
                     Reply
+                    {hasStash && !thread.isReplying && (
+                        <span
+                            title="You have an unsent reply here"
+                            className="font-mono text-[11px] opacity-70"
+                            data-test="reply-stash-hint"
+                        >
+                            {'stash@{0}'}
+                        </span>
+                    )}
                 </button>
 
                 {thread.count > 0 && (
@@ -238,13 +260,22 @@ function ReplyItem({
                         <span aria-hidden className="text-muted-foreground">
                             ·
                         </span>
-                        <time
-                            dateTime={reply.created_at}
-                            title={new Date(reply.created_at).toLocaleString()}
-                            className="shrink-0 font-mono text-xs text-muted-foreground"
+                        <Link
+                            href={CommitController.show({
+                                user: reply.user,
+                                commit: reply,
+                            })}
+                            className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
                         >
-                            {formatRelativeTime(reply.created_at, now)}
-                        </time>
+                            <time
+                                dateTime={reply.created_at}
+                                title={new Date(
+                                    reply.created_at,
+                                ).toLocaleString()}
+                            >
+                                {formatRelativeTime(reply.created_at, now)}
+                            </time>
+                        </Link>
                         {reply.status !== 'approved' && (
                             <span
                                 className={cn(
@@ -322,7 +353,11 @@ function ReplyComposer({
     onCancel: () => void;
     onReplied: () => void;
 }) {
-    const [body, setBody] = useState('');
+    const { auth } = usePage().props;
+    const { body, isRestored, updateBody, drop } = useStash(
+        auth.user.id,
+        `reply-${parent.id}`,
+    );
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
 
@@ -348,7 +383,7 @@ function ReplyComposer({
             options={{ preserveScroll: true, preserveState: true }}
             onSuccess={(page) => {
                 if (page.flash.committed) {
-                    setBody('');
+                    drop();
                     onReplied();
                 }
             }}
@@ -367,8 +402,9 @@ function ReplyComposer({
                         rows={1}
                         autoFocus
                         value={body}
-                        onChange={(event) => setBody(event.target.value)}
+                        onChange={(event) => updateBody(event.target.value)}
                         onKeyDown={onKeyDown}
+                        onFocus={isRestored ? moveCaretToEnd : undefined}
                         maxLength={maxBodyLength}
                         placeholder={`Reply to @${parent.user.username}`}
                         className="block field-sizing-content min-h-9 w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
@@ -378,6 +414,17 @@ function ReplyComposer({
                         className="px-1"
                     />
                     <div className="mt-1.5 flex items-center justify-end gap-2">
+                        {isRestored && (
+                            <StashLabel
+                                onDrop={() => {
+                                    drop();
+                                    document
+                                        .getElementById(`reply-${parent.id}`)
+                                        ?.focus();
+                                }}
+                                className="mr-auto px-1 text-xs"
+                            />
+                        )}
                         <span
                             className={cn(
                                 'mr-1 font-mono text-xs text-muted-foreground',
