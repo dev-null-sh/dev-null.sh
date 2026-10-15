@@ -50,5 +50,5 @@ it('resolves followed users in a subquery instead of loading their ids', functio
     $builder = resolve(FollowingTimelineQuery::class)->builder($user);
 
     expect(DB::getQueryLog())->toBeEmpty()
-        ->and($builder->toSql())->toContain('select "followed_id" from "follows"');
+        ->and($builder->toSql())->toContain('in (select "users"."id" from "users" inner join "follows"');
 });

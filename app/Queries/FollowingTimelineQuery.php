@@ -15,12 +15,10 @@ final readonly class FollowingTimelineQuery implements TimelineQuery
      */
     public function builder(User $user): Builder
     {
-        $following = $user->following();
-
         return Post::query()
             ->where(fn (Builder $query): Builder => $query
-                ->whereIn('user_id', $following->newPivotQuery()->select($following->getRelatedPivotKeyName()))
-                ->orWhere('user_id', $user->id))
+                ->whereBelongsTo($user)
+                ->orWhereIn('user_id', $user->following()->select('users.id')))
             ->with('user')
             ->latest()
             ->latest('id');
