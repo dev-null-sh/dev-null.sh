@@ -1,6 +1,8 @@
+import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import { show } from '@/routes/user';
 
-// Keep these rules in sync with app/Actions/FindFirstUrl.php.
+// Keep these rules in sync with app/Actions/FindFirstUrl.php and app/Actions/FindMentions.php.
 
 // Top-level domains that a bare domain like "nativephp.com" may end with. It is an allowlist because most file
 // extensions are also real TLDs. Leave out any that read like code or files (sh, py, rs, md, pl, cc, in, mk, ml, so,
@@ -25,6 +27,10 @@ const urlPattern = new RegExp(
         String.raw`(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?`,
     'gu',
 );
+// A GitHub username after an "@" that doesn't follow a letter, digit, "_", ".", "/", "@" or "-", and doesn't run
+// into a path or a domain, so emails, "@inertiajs/react" and "@vue.js" are not mentions.
+const mentionPattern =
+    /(?<![\p{L}\p{N}_./@-])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})(?![A-Za-z0-9_@/-]|\.[A-Za-z0-9])/gu;
 const schemePattern = /^https?:\/\//i;
 const maxUrlLength = 2048;
 const brackets = [
@@ -54,6 +60,31 @@ function withoutTrailingPunctuation(candidate: string): string {
     return url;
 }
 
+function withMentions(text: string, offset: number): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let position = 0;
+
+    for (const match of text.matchAll(mentionPattern)) {
+        parts.push(
+            text.slice(position, match.index),
+            <Link
+                key={`mention-${offset + match.index}`}
+                href={show({ username: match[1] })}
+                className="font-medium text-primary hover:underline"
+                data-test="mention"
+            >
+                {match[0]}
+            </Link>,
+        );
+
+        position = match.index + match[0].length;
+    }
+
+    parts.push(text.slice(position));
+
+    return parts;
+}
+
 export function LinkifiedText({ text }: { text: string }) {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -69,7 +100,7 @@ export function LinkifiedText({ text }: { text: string }) {
         }
 
         parts.push(
-            text.slice(position, match.index),
+            ...withMentions(text.slice(position, match.index), position),
             <a
                 key={match.index}
                 href={href}
@@ -84,7 +115,7 @@ export function LinkifiedText({ text }: { text: string }) {
         position = match.index + linkText.length;
     }
 
-    parts.push(text.slice(position));
+    parts.push(...withMentions(text.slice(position), position));
 
     return <>{parts}</>;
 }

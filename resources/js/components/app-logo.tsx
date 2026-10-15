@@ -1,4 +1,5 @@
 import AppLogoIcon from '@/components/app-logo-icon';
+import AppWordmark from '@/components/app-wordmark';
 import { cn } from '@/lib/utils';
 
 export default function AppLogo({ className }: { className?: string }) {
@@ -10,7 +11,7 @@ export default function AppLogo({ className }: { className?: string }) {
             )}
         >
             <AppLogoIcon className="size-[1.1em] fill-current" />
-            /dev/null
+            <AppWordmark />
         </span>
     );
 }

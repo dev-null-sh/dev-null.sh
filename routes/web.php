@@ -7,13 +7,16 @@ use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
+use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitReportController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PersonalDataExportController;
@@ -57,6 +60,9 @@ Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'
 Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');
+Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
+    ->whereUuid('commitImage')
+    ->name('commit-image.show');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -77,6 +83,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
+    Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');
+    Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])->name('commit-pin.destroy');
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->name('commit-star.store');
     Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
@@ -106,6 +114,7 @@ Route::middleware('auth')->group(function (): void {
 
     // User Search...
     Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
+    Route::get('search/mentions', [MentionSuggestionController::class, 'index'])->name('mention-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));

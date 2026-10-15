@@ -5,9 +5,12 @@ declare(strict_types=1);
 use App\Actions\ReportCommit;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\LinkPreview;
 use App\Models\User;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
@@ -67,6 +70,21 @@ it('includes link previews in the moderator report context', function (): void {
         ->get(route('reported-commit.index'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('reports.data.0.commit.link_preview.url', $preview->url));
+});
+
+it('includes images in the moderator report context without querying per report', function (): void {
+    $reports = CommitReport::factory()->count(2)->create();
+    $images = $reports->map(fn (CommitReport $report): CommitImage => CommitImage::factory()->for($report->commit)->create());
+    $moderator = User::factory()->create(['username' => 'moderator-demo']);
+
+    DB::enableQueryLog();
+
+    $this->actingAs($moderator)
+        ->get(route('reported-commit.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('reports.data', fn (Collection $data): bool => $data->pluck('commit.images.0.url')->sort()->values()->all() === $images->map(fn (CommitImage $image): string => $image->url())->sort()->values()->all()));
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'commit_images')))->toHaveCount(1);
 });
 
 it('does not report hidden targets even for their authors or moderators', function (string $status, string $viewer): void {
