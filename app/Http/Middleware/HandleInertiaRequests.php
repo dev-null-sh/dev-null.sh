@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -32,13 +33,16 @@ final class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $isAdmin = $request->user()?->isAdmin() ?? false;
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
-                'isAdmin' => $request->user()?->isAdmin() ?? false,
+                'isAdmin' => $isAdmin,
             ],
+            'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }
