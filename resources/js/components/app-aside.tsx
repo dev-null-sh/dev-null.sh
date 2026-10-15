@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { UserAvatar } from '@/components/user-avatar';
+import { WhoToFollow } from '@/components/who-to-follow';
 import { laneFor } from '@/lib/utils';
 import { show } from '@/routes/user';
 
@@ -78,6 +79,8 @@ export function AppAside({ onShowShortcuts }: { onShowShortcuts: () => void }) {
                     </p>
                 )}
             </section>
+
+            <WhoToFollow />
 
             <section aria-labelledby="aside-rules" className="border-t pt-6">
                 <h2 id="aside-rules" className="mb-3 text-sm font-semibold">

@@ -1,4 +1,4 @@
-import type { Auth } from '@/types/auth';
+import type { Auth, SuggestedUser } from '@/types/auth';
 import type { CommittedFlash, FlashToast } from '@/types/ui';
 
 declare module '@inertiajs/core' {
@@ -11,6 +11,7 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            suggestedUsers?: SuggestedUser[];
             [key: string]: unknown;
         };
     }

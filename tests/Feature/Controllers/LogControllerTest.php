@@ -176,3 +176,20 @@ it('only suggests approved commits', function (): void {
             ->has('suggestions', 1)
             ->where('suggestions.0.title', 'Approved'));
 });
+
+it('defers suggested users to follow', function (): void {
+    $user = User::factory()->create();
+    $suggested = User::factory()->has(Commit::factory())->create();
+
+    $response = $this->actingAs($user)
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->missing('suggestedUsers')
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->has('suggestedUsers', 1)
+                ->where('suggestedUsers.0.id', $suggested->id)
+                ->where('suggestedUsers.0.followed_by_following_count', 0)
+                ->missing('suggestedUsers.0.email')));
+});

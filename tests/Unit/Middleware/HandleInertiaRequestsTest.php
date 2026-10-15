@@ -6,6 +6,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Inertia\DeferProp;
 
 it('shares app name from config', function (): void {
     $middleware = new HandleInertiaRequests();
@@ -131,4 +132,27 @@ it('shares guests as non admins', function (): void {
     $shared = $middleware->share(Request::create('/', 'GET'));
 
     expect($shared['auth']['isAdmin'])->toBeFalse();
+});
+
+it('defers suggested users for authenticated users', function (): void {
+    $user = User::factory()->create();
+    $suggested = User::factory()->has(Commit::factory())->create();
+
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    $shared = $middleware->share($request);
+
+    expect($shared['suggestedUsers'])->toBeInstanceOf(DeferProp::class)
+        ->and($shared['suggestedUsers']()->modelKeys())->toBe([$suggested->id]);
+});
+
+it('does not share suggested users with guests', function (): void {
+    $middleware = new HandleInertiaRequests();
+
+    $shared = $middleware->share(Request::create('/', 'GET'));
+
+    expect($shared)->not->toHaveKey('suggestedUsers');
 });

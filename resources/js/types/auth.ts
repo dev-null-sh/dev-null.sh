@@ -21,3 +21,8 @@ export type Auth = {
     user: Profile;
     isAdmin: boolean;
 };
+
+export type SuggestedUser = User & {
+    followed_by_following_count: number;
+    followers_count: number;
+};
