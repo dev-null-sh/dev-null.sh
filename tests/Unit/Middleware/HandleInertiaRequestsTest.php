@@ -7,6 +7,7 @@ use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 it('shares app name from config', function (): void {
     $middleware = new HandleInertiaRequests();
@@ -147,4 +148,26 @@ it('shares guests as non admins', function (): void {
     $shared = $middleware->share(Request::create('/', 'GET'));
 
     expect($shared['auth']['isAdmin'])->toBeFalse();
+});
+
+it('shares the unread notifications count', function (): void {
+    $user = User::factory()->create();
+    $user->notifications()->create([
+        'id' => (string) Str::uuid(),
+        'type' => 'test',
+        'data' => [],
+    ]);
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    $shared = new HandleInertiaRequests()->share($request);
+
+    expect($shared['auth']['unreadNotificationsCount']())->toBe(1);
+});
+
+it('shares zero unread notifications when guest', function (): void {
+    $shared = new HandleInertiaRequests()->share(Request::create('/', 'GET'));
+
+    expect($shared['auth']['unreadNotificationsCount']())->toBe(0);
 });

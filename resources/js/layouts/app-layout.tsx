@@ -3,7 +3,9 @@ import { useCallback, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import { AppNav, MobileHeader, MobileNav } from '@/components/app-nav';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
+import { PushPromptBanner } from '@/components/push-prompt-banner';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useLiveNotifications } from '@/hooks/use-live-notifications';
 import type { AppLayoutProps } from '@/types';
 
 export default function AppLayout({ children }: AppLayoutProps) {
@@ -12,6 +14,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const showShortcuts = useCallback(() => setIsShowingShortcuts(true), []);
 
     useKeyboardShortcuts(auth.user, showShortcuts);
+    useLiveNotifications();
 
     return (
         <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
@@ -19,6 +22,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
             <main className="min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0">
                 <MobileHeader />
+                <PushPromptBanner />
                 {children}
             </main>
 

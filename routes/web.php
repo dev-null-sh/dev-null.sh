@@ -8,6 +8,10 @@ use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\ModerationController;
+use App\Http\Controllers\NotificationClearController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationReadController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserCardController;
 use App\Http\Controllers\UserController;
@@ -44,6 +48,24 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
 
+    // Notifications...
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
+    Route::post('notifications/read', [NotificationReadController::class, 'store'])->name('notification-read.store');
+    Route::delete('notifications', [NotificationClearController::class, 'destroy'])->name('notification-clear.destroy');
+    Route::get('notifications/{notification}', [NotificationController::class, 'show'])
+        ->whereUuid('notification')
+        ->name('notification.show');
+    Route::delete('notifications/{notification}', [NotificationController::class, 'destroy'])
+        ->whereUuid('notification')
+        ->name('notification.destroy');
+
+    // Push Subscription...
+    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('push-subscription.store');
+    Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])
+        ->name('push-subscription.destroy');
+
     // Moderation...
     Route::middleware('can:moderate')->group(function (): void {
         Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
@@ -59,6 +81,9 @@ Route::middleware('auth')->group(function (): void {
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
+
+    // Notification Settings...
+    Route::get('settings/notifications', fn () => Inertia::render('notification-settings/edit'))->name('notification-settings.edit');
 
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');

@@ -1,13 +1,16 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    Bell,
     GitCommitVertical,
     Globe,
     Settings2,
     ShieldCheck,
     UserRound,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
+import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import {
@@ -39,6 +42,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             icon: Globe,
         },
         {
+            title: 'Notifications',
+            href: NotificationController.index(),
+            icon: Bell,
+            badge: auth.unreadNotificationsCount,
+        },
+        {
             title: 'Profile',
             href: show(auth.user),
             icon: UserRound,
@@ -66,6 +75,20 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                 ? isCurrentOrParentUrl('/settings')
                 : isCurrentUrl(item.href),
     }));
+}
+
+function NavIcon({ icon: Icon, badge }: { icon: LucideIcon; badge?: number }) {
+    return (
+        <span className="relative">
+            <Icon className="size-5" />
+            {badge ? (
+                <span className="absolute -top-1.5 -right-2 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-primary-foreground">
+                    {badge > 99 ? '99+' : badge}
+                    <span className="sr-only"> unread</span>
+                </span>
+            ) : null}
+        </span>
+    );
 }
 
 export function AppNav() {
@@ -101,7 +124,9 @@ export function AppNav() {
                             },
                         )}
                     >
-                        {item.icon && <item.icon className="size-5" />}
+                        {item.icon && (
+                            <NavIcon icon={item.icon} badge={item.badge} />
+                        )}
                         <span className="sr-only lg:not-sr-only">
                             {item.title}
                         </span>
@@ -178,7 +203,9 @@ export function MobileNav() {
                         { 'text-primary': item.isActive },
                     )}
                 >
-                    {item.icon && <item.icon className="size-5" />}
+                    {item.icon && (
+                        <NavIcon icon={item.icon} badge={item.badge} />
+                    )}
                     {item.title}
                 </Link>
             ))}

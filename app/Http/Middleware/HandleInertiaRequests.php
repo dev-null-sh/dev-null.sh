@@ -38,7 +38,9 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $request->user()?->isAdmin() ?? false,
+                'unreadNotificationsCount' => fn (): int => $request->user()?->unreadNotifications()->count() ?? 0,
             ],
+            'vapidPublicKey' => config('webpush.vapid.public_key'),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }

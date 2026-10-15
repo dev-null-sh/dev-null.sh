@@ -35,6 +35,17 @@ it('renders appearance settings page', function (): void {
             ->component('appearance/update'));
 });
 
+it('renders notification settings page', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('notification-settings.edit'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('notification-settings/edit'));
+});
+
 it('requires authentication', function (): void {
     $response = $this->get(route('user-profile.edit'));
 

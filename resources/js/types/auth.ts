@@ -20,4 +20,5 @@ export type Profile = User & {
 export type Auth = {
     user: Profile;
     isAdmin: boolean;
+    unreadNotificationsCount: number;
 };
