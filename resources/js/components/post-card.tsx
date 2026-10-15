@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Trash2 } from 'lucide-react';
 import PostController from '@/actions/App/Http/Controllers/PostController';
+import { PostBody } from '@/components/post-body';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { formatRelativeTime } from '@/lib/utils';
@@ -64,9 +65,7 @@ export function PostCard({ post }: { post: Post }) {
                     )}
                 </div>
 
-                <p className="mt-1 text-sm break-words whitespace-pre-wrap">
-                    {post.body}
-                </p>
+                <PostBody body={post.body} />
             </div>
         </article>
     );

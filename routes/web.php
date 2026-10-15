@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\TimelineController;
+use App\Http\Controllers\TopicController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserProfileController;
@@ -36,6 +37,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('post.store');
     Route::delete('posts/{post}', [PostController::class, 'destroy'])
         ->name('post.destroy');
+
+    // Topic...
+    Route::get('topics/{topic:name}', [TopicController::class, 'show'])->name('topic.show');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));

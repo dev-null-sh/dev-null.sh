@@ -6,10 +6,12 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\PostFactory;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
  * @property-read string $id
@@ -18,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read User $user
+ * @property-read Collection<int, Topic> $topics
  */
 final class Post extends Model
 {
@@ -46,5 +49,13 @@ final class Post extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsToMany<Topic, $this>
+     */
+    public function topics(): BelongsToMany
+    {
+        return $this->belongsToMany(Topic::class);
     }
 }
