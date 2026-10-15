@@ -57,6 +57,28 @@ it('hides replies once rejected', function (): void {
     expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
 });
 
+it('keeps approved mentions', function (): void {
+    $notification = Notification::factory()->mentioned()->create();
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+});
+
+it('hides mentions once rejected', function (): void {
+    $notification = Notification::factory()->mentioned()->create();
+
+    resolve(RejectCommit::class)->handle($notification->commit);
+
+    expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
+});
+
+it('deletes mentions along with the commit', function (): void {
+    $notification = Notification::factory()->mentioned()->create();
+
+    resolve(DeleteCommit::class)->handle($notification->commit);
+
+    expect(Notification::query()->exists())->toBeFalse();
+});
+
 it('deletes replies along with the reply', function (): void {
     $notification = Notification::factory()->replied()->create();
 

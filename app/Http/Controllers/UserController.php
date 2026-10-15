@@ -65,7 +65,7 @@ final readonly class UserController
                 )
                 ->withVisibleReplyCount($currentUser)
                 ->withSavedState($currentUser)
-                ->with(['user', 'linkPreview'])
+                ->with(['user', 'linkPreview', 'images'])
                 ->withStarsFor($currentUser)
                 ->latest()
                 ->latest('id')
