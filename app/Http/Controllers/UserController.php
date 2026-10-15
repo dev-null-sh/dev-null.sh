@@ -33,6 +33,7 @@ final readonly class UserController
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
                 ->with('user')
+                ->withStarsFor($currentUser)
                 ->find($user->pinned_commit_id),
             'commits' => Inertia::scroll(fn () => $user->commits()
                 ->visibleTo($currentUser)
@@ -40,6 +41,7 @@ final readonly class UserController
                 ->when($user->pinned_commit_id, fn (Builder $query, string $id): Builder => $query->whereKeyNot($id))
                 ->withVisibleReplyCount($currentUser)
                 ->with('user')
+                ->withStarsFor($currentUser)
                 ->latest()
                 ->latest('id')
                 ->cursorPaginate(20)),

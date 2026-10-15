@@ -9,6 +9,7 @@ use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
+use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\ModerationController;
@@ -66,6 +67,10 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.destroy');
     Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');
     Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])->name('commit-pin.destroy');
+    Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
+        ->name('commit-star.store');
+    Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
+        ->name('commit-star.destroy');
     Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
         ->withTrashed()
         ->name('commit-reply.index');

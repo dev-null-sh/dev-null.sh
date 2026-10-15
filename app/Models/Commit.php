@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -26,7 +27,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
+ * @property-read int $stars_count
+ * @property-read bool $starred
  * @property-read User $user
+ * @property-read Collection<int, User> $stars
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
@@ -77,6 +81,22 @@ final class Commit extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function stars(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'stars')->withTimestamps();
+    }
+
+    /**
+     * Approved commits are visible to everyone. Authors can also see their own.
+     */
+    public function isVisibleTo(User $user): bool
+    {
+        return $this->status === CommitStatus::Approved || $this->user_id === $user->id;
     }
 
     /**

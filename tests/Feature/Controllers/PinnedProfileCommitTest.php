@@ -18,12 +18,17 @@ it('shows a pinned commit once above the log with visible reply counts and uncha
     Commit::factory()->for($pinned, 'parent')->rejected()->create();
     $user->update(['pinned_commit_id' => $pinned->id]);
 
-    $this->actingAs(User::factory()->create())->get(route('user.show', $user))
+    $viewer = User::factory()->create();
+    $pinned->stars()->attach($viewer);
+
+    $this->actingAs($viewer)->get(route('user.show', $user))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('pinnedCommit.id', $pinned->id)
             ->where('pinnedCommit.user.lane', 4)
             ->where('pinnedCommit.replies_count', 1)
+            ->where('pinnedCommit.stars_count', 1)
+            ->where('pinnedCommit.starred', true)
             ->missing('pinnedCommit.user.pinned_commit_id')
             ->missing('user.pinned_commit_id')
             ->where('user.commits_count', 2)

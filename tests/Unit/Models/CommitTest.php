@@ -35,6 +35,31 @@ it('casts the status to an enum', function (): void {
     expect($commit->status)->toBe(CommitStatus::Pending);
 });
 
+it('is visible when approved or owned', function (): void {
+    $author = User::factory()->create();
+    $viewer = User::factory()->create();
+    $approved = Commit::factory()->for($author)->create();
+    $pending = Commit::factory()->for($author)->pending()->create();
+    $rejected = Commit::factory()->for($author)->rejected()->create();
+
+    expect($approved->isVisibleTo($viewer))->toBeTrue()
+        ->and($pending->isVisibleTo($author))->toBeTrue()
+        ->and($pending->isVisibleTo($viewer))->toBeFalse()
+        ->and($rejected->isVisibleTo($author))->toBeTrue()
+        ->and($rejected->isVisibleTo($viewer))->toBeFalse();
+});
+
+it('deletes stars with the commit', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    $user->starredCommits()->attach($commit);
+
+    $commit->delete();
+
+    expect($user->starredCommits()->count())->toBe(0);
+});
+
 it('may reply to another commit', function (): void {
     $parent = Commit::factory()->create();
     $reply = Commit::factory()->for($parent, 'parent')->create();

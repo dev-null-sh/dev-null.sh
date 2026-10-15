@@ -310,6 +310,25 @@ it('shows a commit with its ancestors and reply count', function (): void {
             ->missing('commit.user.email'));
 });
 
+it('shows the star count and whether the viewer starred the commit and its ancestors', function (): void {
+    $viewer = User::factory()->create();
+    $root = Commit::factory()->create();
+    $commit = Commit::factory()->for($root, 'parent')->create();
+
+    $viewer->starredCommits()->attach($root);
+    User::factory()->create()->starredCommits()->attach([$root->id, $commit->id]);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.stars_count', 1)
+            ->where('commit.starred', false)
+            ->where('ancestors.0.stars_count', 2)
+            ->where('ancestors.0.starred', true));
+});
+
 it('shows the first 50 replies of a commit with a cursor to the rest', function (): void {
     $viewer = User::factory()->create();
     $commit = Commit::factory()->create();

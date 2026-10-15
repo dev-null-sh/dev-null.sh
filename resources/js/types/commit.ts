@@ -11,6 +11,8 @@ export type Commit = {
     created_at: string;
     updated_at: string;
     deleted_at?: null;
+    stars_count: number;
+    starred: boolean;
     user: User;
     replies_count?: number;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
