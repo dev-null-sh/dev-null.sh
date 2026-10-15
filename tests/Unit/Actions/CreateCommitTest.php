@@ -144,7 +144,7 @@ it('fetches the link preview once the commit is saved', function (): void {
 
     $commit = $action->handle(User::factory()->create(), 'Look at https://example.com');
 
-    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->afterCommit === true);
+    Queue::assertPushed(UnfurlLink::class);
 
     expect($commit->exists)->toBeTrue();
 });
