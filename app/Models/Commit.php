@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $user_id
  * @property-read string|null $parent_id
  * @property-read string $body
+ * @property-read array<string, string>|null $mentions
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
  * @property-read CarbonInterface $created_at
@@ -59,6 +60,7 @@ final class Commit extends Model
             'user_id' => 'string',
             'parent_id' => 'string',
             'body' => 'string',
+            'mentions' => 'array',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
             'created_at' => 'datetime',

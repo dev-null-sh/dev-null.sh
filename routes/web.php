@@ -15,6 +15,7 @@ use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
@@ -47,6 +48,9 @@ Route::middleware('guest')->group(function (): void {
 
 // User, previewed for guests...
 Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
+Route::get('mentions/{user}', [MentionController::class, 'show'])
+    ->whereUuid('user')
+    ->name('mention.show');
 Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
 

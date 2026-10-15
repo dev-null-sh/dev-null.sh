@@ -242,6 +242,7 @@ export function CommitCard({
                                 )}
                                 <CommitBody
                                     segments={commit.body_segments}
+                                    mentions={commit.mentions}
                                     className={cn(
                                         'mt-0.5',
                                         isFocused

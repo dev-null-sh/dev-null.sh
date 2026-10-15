@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
-import { show } from '@/routes/user';
+import { show } from '@/routes/mention';
+import type { Commit } from '@/types';
 
 // Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
 
@@ -60,21 +61,35 @@ function withoutTrailingPunctuation(candidate: string): string {
     return url;
 }
 
-function withMentions(text: string, offset: number): ReactNode[] {
+function withMentions(
+    text: string,
+    offset: number,
+    mentions: Commit['mentions'],
+): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
 
     for (const match of text.matchAll(mentionPattern)) {
+        const username = match[1].toLowerCase();
+        const userId =
+            mentions && Object.hasOwn(mentions, username)
+                ? mentions[username]
+                : null;
+
         parts.push(
             text.slice(position, match.index),
-            <Link
-                key={`mention-${offset + match.index}`}
-                href={show({ username: match[1] })}
-                className="font-medium text-primary hover:underline"
-                data-test="mention"
-            >
-                {match[0]}
-            </Link>,
+            userId ? (
+                <Link
+                    key={`mention-${offset + match.index}`}
+                    href={show(userId)}
+                    className="font-medium text-primary hover:underline"
+                    data-test="mention"
+                >
+                    {match[0]}
+                </Link>
+            ) : (
+                match[0]
+            ),
         );
 
         position = match.index + match[0].length;
@@ -85,7 +100,13 @@ function withMentions(text: string, offset: number): ReactNode[] {
     return parts;
 }
 
-export function LinkifiedText({ text }: { text: string }) {
+export function LinkifiedText({
+    text,
+    mentions,
+}: {
+    text: string;
+    mentions: Commit['mentions'];
+}) {
     const parts: ReactNode[] = [];
     let position = 0;
 
@@ -100,7 +121,11 @@ export function LinkifiedText({ text }: { text: string }) {
         }
 
         parts.push(
-            ...withMentions(text.slice(position, match.index), position),
+            ...withMentions(
+                text.slice(position, match.index),
+                position,
+                mentions,
+            ),
             <a
                 key={match.index}
                 href={href}
@@ -115,7 +140,7 @@ export function LinkifiedText({ text }: { text: string }) {
         position = match.index + linkText.length;
     }
 
-    parts.push(...withMentions(text.slice(position), position));
+    parts.push(...withMentions(text.slice(position), position, mentions));
 
     return <>{parts}</>;
 }

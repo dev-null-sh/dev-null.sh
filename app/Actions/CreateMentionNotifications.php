@@ -9,17 +9,10 @@ use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
-use App\Services\Mentions;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final readonly class CreateMentionNotifications
 {
-    public function __construct(private Mentions $mentions)
-    {
-        //
-    }
-
     /**
      * Notifies everyone mentioned in each commit, but only once the commit is approved, so nobody hears about a
      * mention they cannot see yet. Never for mentioning yourself, and never the parent's author of a reply, who
@@ -33,24 +26,24 @@ final readonly class CreateMentionNotifications
             ->with('parent')
             ->get();
 
-        $usernamesByCommit = $commits->mapWithKeys(fn (Commit $commit): array => [
-            $commit->id => $this->mentions->usernames($commit->body),
+        $recipientsByCommit = $commits->mapWithKeys(fn (Commit $commit): array => [
+            $commit->id => array_values($commit->mentions ?? []),
         ])->filter();
 
-        if ($usernamesByCommit->isEmpty()) {
+        if ($recipientsByCommit->isEmpty()) {
             return;
         }
 
         $users = User::query()
-            ->whereIn(DB::raw('LOWER(username)'), $usernamesByCommit->flatten()->unique()->values()->all())
-            ->get(['id', 'username'])
-            ->keyBy(fn (User $user): string => Str::lower($user->username));
+            ->whereKey($recipientsByCommit->flatten()->unique()->values()->all())
+            ->get(['id'])
+            ->keyBy('id');
 
         $notifications = [];
 
         foreach ($commits as $commit) {
-            foreach ($usernamesByCommit->get($commit->id, []) as $username) {
-                $user = $users->get($username);
+            foreach ($recipientsByCommit->get($commit->id, []) as $id) {
+                $user = $users->get($id);
 
                 if (! $user instanceof User || $user->id === $commit->user_id || $user->id === $commit->parent?->user_id) {
                     continue;

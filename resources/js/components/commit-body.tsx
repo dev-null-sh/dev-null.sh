@@ -1,13 +1,15 @@
 import { LinkifiedText } from '@/components/linkified-text';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
-import type { BodySegment } from '@/types';
+import type { BodySegment, Commit } from '@/types';
 
 export function CommitBody({
     segments,
+    mentions,
     className,
 }: {
     segments: BodySegment[];
+    mentions: Commit['mentions'];
     className?: string;
 }) {
     return (
@@ -24,6 +26,7 @@ export function CommitBody({
                             <LinkifiedText
                                 key={index}
                                 text={emojify(segment.text)}
+                                mentions={mentions}
                             />
                         );
                     case 'code':

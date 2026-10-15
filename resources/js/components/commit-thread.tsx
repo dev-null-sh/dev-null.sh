@@ -546,6 +546,7 @@ function CommitReply({
 
                     <CommitBody
                         segments={reply.body_segments}
+                        mentions={reply.mentions}
                         className="text-[15px]"
                     />
                     {reply.images && <CommitImages images={reply.images} />}

@@ -27,6 +27,7 @@ export type Commit = {
     user_id: string;
     parent_id: string | null;
     body: string;
+    mentions: Record<string, string> | null;
     body_segments: BodySegment[];
     status: CommitStatus;
     created_at: string;
