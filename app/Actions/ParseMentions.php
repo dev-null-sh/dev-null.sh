@@ -47,9 +47,6 @@ final readonly class ParseMentions
     {
         preg_match_all(self::PATTERN, $body, $matches);
 
-        /** @var list<string> $handles */
-        $handles = $matches[1] ?? [];
-
-        return array_values(array_unique(array_map(mb_strtolower(...), $handles)));
+        return array_values(array_unique(array_map(mb_strtolower(...), $matches[1])));
     }
 }

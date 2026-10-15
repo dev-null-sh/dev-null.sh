@@ -75,7 +75,9 @@ export function MentionSuggestions({
                                             aria-hidden
                                             className="size-1.5 rounded-full"
                                             style={{
-                                                background: laneColor(user.lane),
+                                                background: laneColor(
+                                                    user.lane,
+                                                ),
                                             }}
                                         />
                                         @{user.username}

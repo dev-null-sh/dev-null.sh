@@ -1,6 +1,6 @@
+import { usePage } from '@inertiajs/react';
 import type { KeyboardEvent, RefObject } from 'react';
 import { useEffect, useState } from 'react';
-import { usePage } from '@inertiajs/react';
 import UserSearchController from '@/actions/App/Http/Controllers/UserSearchController';
 import {
     getActiveMention,
@@ -78,7 +78,11 @@ export function useMentionAutocomplete({
             return;
         }
 
-        const { value: next, caret } = insertMention(value, mention, user.username);
+        const { value: next, caret } = insertMention(
+            value,
+            mention,
+            user.username,
+        );
         onChange(next);
         close();
 

@@ -5,8 +5,7 @@ export const mentionPattern =
     /(?<![\p{L}\p{N}_])@([A-Za-z0-9](?:[A-Za-z0-9.-]{0,37}[A-Za-z0-9])?)(?![\p{L}\p{N}-])/gu;
 
 /** Active @token at the caret while typing (query may be empty or incomplete). */
-const activeMentionPattern =
-    /(?<![\p{L}\p{N}_])@([A-Za-z0-9.-]{0,39})$/u;
+const activeMentionPattern = /(?<![\p{L}\p{N}_])@([A-Za-z0-9.-]{0,39})$/u;
 
 export type ActiveMention = {
     start: number;
