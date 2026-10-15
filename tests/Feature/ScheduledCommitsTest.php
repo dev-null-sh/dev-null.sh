@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CancelScheduledCommit;
 use App\Actions\DeleteUser;
+use App\Actions\ScheduleCommit;
 use App\Actions\SubmitScheduledCommit;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
@@ -11,7 +12,9 @@ use App\Models\Notification;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\UserActivityQuery;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Validation\ValidationException;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
@@ -59,6 +62,15 @@ it('rejects invalid times and bodies', function (array $payload, string $field):
     'too short' => [['body' => 'ab'], 'body'],
     'whitespace' => [['body' => '    '], 'body'],
     'too long' => [['body' => str_repeat('a', 281)], 'body'],
+]);
+
+it('rejects times outside the window when scheduled outside a request', function (string $scheduledAt): void {
+    expect(fn () => resolve(ScheduleCommit::class)->handle(User::factory()->create(), 'Shipped a scheduling feature.', CarbonImmutable::parse($scheduledAt)))
+        ->toThrow(ValidationException::class);
+    expect(ScheduledCommit::query()->count())->toBe(0);
+})->with([
+    'now' => ['2026-10-15T12:00:00+00:00'],
+    'beyond thirty days' => ['2026-11-14T12:00:01+00:00'],
 ]);
 
 it('accepts the scheduling window boundary and unicode body', function (): void {
