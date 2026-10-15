@@ -8,6 +8,7 @@ use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitOpenGraphImageController;
+use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitRestoreController;
@@ -79,6 +80,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits/{commit}/restore', CommitRestoreController::class)
         ->withTrashed()
         ->name('commit-restore');
+    Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');
+    Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])->name('commit-pin.destroy');
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->name('commit-star.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])

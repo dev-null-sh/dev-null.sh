@@ -38,6 +38,7 @@ export function CommitCard({
     isFocused = false,
     canDelete = true,
     initialReplies,
+    threadActions,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -49,6 +50,7 @@ export function CommitCard({
     isFocused?: boolean;
     canDelete?: boolean;
     initialReplies?: CursorPaginated<ThreadCommit>;
+    threadActions?: ReactNode;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
@@ -287,11 +289,14 @@ export function CommitCard({
                                     commit={commit}
                                     initialReplies={initialReplies}
                                     actions={
-                                        <CommitStarButton
-                                            key={`${commit.starred}-${commit.stars_count}`}
-                                            commit={commit}
-                                            className="px-2 py-0.5"
-                                        />
+                                        <>
+                                            <CommitStarButton
+                                                key={`${commit.starred}-${commit.stars_count}`}
+                                                commit={commit}
+                                                className="px-2 py-0.5"
+                                            />
+                                            {threadActions}
+                                        </>
                                     }
                                 />
                             ))}

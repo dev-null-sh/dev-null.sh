@@ -97,3 +97,26 @@ it('does not insert an unsaved commit when undoing after navigating to saved', f
         ->assertSee('fatal: no saved commits yet')
         ->assertNoJavaScriptErrors();
 });
+
+it('hides a deleted profile pin and restores it once above the loaded feed', function (): void {
+    $user = User::factory()->create();
+    $pinned = Commit::factory()->for($user)->create(['body' => 'Keep this pinned.', 'created_at' => now()->subHour()]);
+    Commit::factory()->for($user)->create(['body' => 'Keep this loaded.']);
+    $user->update(['pinned_commit_id' => $pinned->id]);
+
+    $this->actingAs($user);
+
+    visit(route('user.show', $user))
+        ->assertSeeIn('[aria-label="Pinned commit"]', 'Keep this pinned.')
+        ->click('[aria-label="Pinned commit"] [data-test="delete-commit-button"]')
+        ->click('[aria-label="Pinned commit"] [data-test="confirm-delete-commit-button"]')
+        ->assertSee('Commit deleted.')
+        ->assertDontSee('Keep this pinned.')
+        ->assertSee('Keep this loaded.')
+        ->click('[data-test="commit-undo"] button')
+        ->assertSee('Commit restored.')
+        ->assertSeeIn('[aria-label="Pinned commit"]', 'Keep this pinned.')
+        ->assertSee('Keep this loaded.')
+        ->assertScript('document.querySelectorAll("[data-commit=\"'.$pinned->id.'\"]").length', 1)
+        ->assertNoJavaScriptErrors();
+});

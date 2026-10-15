@@ -17,6 +17,7 @@ import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import { PageTabs } from '@/components/page-tabs';
+import { PinCommitButton } from '@/components/pin-commit-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
@@ -40,6 +41,7 @@ export default function Show({
     streaks,
     commits,
     tab,
+    pinnedCommit,
 }: {
     user: Profile;
     isFollowing: boolean;
@@ -47,6 +49,7 @@ export default function Show({
     streaks: Streaks;
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies';
+    pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user.id === user.id;
@@ -238,6 +241,17 @@ export default function Show({
             <CommitFeed
                 key={`${user.id}:${tab}`}
                 commits={commits}
+                pinnedCommit={tab === 'commits' ? pinnedCommit : null}
+                threadActions={
+                    isCurrentUser && tab === 'commits'
+                        ? (commit) => (
+                              <PinCommitButton
+                                  commit={commit}
+                                  isPinned={commit.id === pinnedCommit?.id}
+                              />
+                          )
+                        : undefined
+                }
                 highlightedPeriod={highlightedPeriod}
                 end={
                     tab === 'replies'

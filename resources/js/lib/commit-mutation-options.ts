@@ -8,6 +8,7 @@ export const commitMutationOptions = {
         'activity',
         'streaks',
         'commit',
+        'pinnedCommit',
         'ancestors',
         'hasUnmoderatedCommits',
     ],

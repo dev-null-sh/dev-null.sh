@@ -10,6 +10,7 @@ use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
+use Inertia\Testing\AssertableInertia as Assert;
 
 it('restores only the deletion state within thirty seconds', function (CommitStatus $status): void {
     $parent = Commit::factory()->create();
@@ -161,3 +162,20 @@ it('keeps notification cleanup without sending notifications again', function ()
     $this->assertModelMissing($childNotification);
     expect(Notification::query()->pluck('id')->all())->toBe([$unrelated->id]);
 });
+
+it('flags a restored profile pin so the feed keeps it out of the list', function (bool $isPinned): void {
+    $commit = Commit::factory()->create();
+    $commit->user->update(['pinned_commit_id' => $isPinned ? $commit->id : Commit::factory()->for($commit->user)->create()->id]);
+
+    resolve(DeleteCommit::class)->handle($commit);
+
+    $this->actingAs($commit->user->refresh())->fromRoute('user.show', $commit->user)
+        ->post(route('commit-restore', $commit))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.is_pinned', $isPinned);
+
+    $this->get(route('user.show', $commit->user))
+        ->assertInertia(fn (Assert $page): Assert => $isPinned
+            ? $page->where('pinnedCommit.id', $commit->id)->has('commits.data', 0)
+            : $page->has('commits.data', 1)->where('commits.data.0.id', $commit->id));
+})->with([true, false]);
