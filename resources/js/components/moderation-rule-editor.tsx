@@ -235,7 +235,7 @@ function RuleForm({
                         value && form.setData('action', value)
                     }
                     aria-labelledby="rule-action-label"
-                    className="flex-wrap"
+                    className="w-fit flex-wrap"
                 >
                     {(['reject', 'review', 'approve'] as const).map(
                         (action) => (
@@ -265,6 +265,7 @@ function RuleForm({
                         value && form.setData('strictness', value)
                     }
                     aria-labelledby="rule-strictness-label"
+                    className="w-fit"
                 >
                     {(['strict', 'balanced', 'lenient'] as const).map(
                         (strictness) => (

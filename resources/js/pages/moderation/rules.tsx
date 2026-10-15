@@ -74,9 +74,9 @@ function StatusLine({ status }: { status: Status }) {
 
 function Stats({ stats }: { stats: AutoModerationStats }) {
     const tiles = [
-        { label: 'Auto-approved', value: stats.approved },
-        { label: 'Auto-rejected', value: stats.rejected },
-        { label: 'Sent to review', value: stats.review },
+        { label: 'Approved', value: stats.approved },
+        { label: 'Rejected', value: stats.rejected },
+        { label: 'To review', value: stats.review },
         { label: 'Failed', value: stats.failed },
         { label: 'Overturned', value: stats.overturned },
     ];
@@ -87,7 +87,7 @@ function Stats({ stats }: { stats: AutoModerationStats }) {
             aria-label="Last 7 days"
         >
             <p className="mb-3 font-mono text-xs text-muted-foreground">
-                last 7 days
+                jev decisions, last 7 days
             </p>
             <dl className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                 {tiles.map((tile) => (
@@ -208,6 +208,7 @@ function RuleCard({
                         mode && update({ mode })
                     }
                     aria-label={`${rule.name} mode`}
+                    className="w-fit"
                     data-test="rule-mode"
                 >
                     {(['off', 'test', 'live'] as const).map((mode) => (
@@ -232,6 +233,7 @@ function RuleCard({
                         strictness && update({ strictness })
                     }
                     aria-label={`${rule.name} strictness`}
+                    className="w-fit"
                 >
                     {(['strict', 'balanced', 'lenient'] as const).map(
                         (strictness) => (
@@ -379,7 +381,7 @@ export default function Rules({
                 )}
             </section>
 
-            <TryModerationRules />
+            {rules.length > 0 && <TryModerationRules />}
 
             <ModerationRuleEditor
                 rule={editing}

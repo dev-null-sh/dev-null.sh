@@ -89,8 +89,16 @@ function ResultChip({ result }: { result: RuleResult }) {
     );
 }
 
-function summary(evaluation: CommitEvaluation): string {
+function summary(evaluation: CommitEvaluation, commit: Commit): string {
     const rule = decidingRule(evaluation);
+
+    if (
+        (evaluation.decision === 'approved' ||
+            evaluation.decision === 'rejected') &&
+        commit.status === 'pending'
+    ) {
+        return `Reopened after Jev ${evaluation.decision} it (${rule?.name ?? 'the rules'})`;
+    }
 
     if (evaluation.decision === 'approved') {
         return `Auto-approved by ${rule?.name ?? 'the rules'}`;
@@ -156,7 +164,7 @@ export function EvaluationVerdict({ commit }: { commit: Commit }) {
         <div className="mt-3 space-y-2" data-test="evaluation-verdict">
             <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
                 <Sparkles aria-hidden className="size-3.5" />
-                <span>{summary(evaluation)}</span>
+                <span>{summary(evaluation, commit)}</span>
                 {testDecisionDiffers && (
                     <span>
                         · Test rules would have {evaluation.test_decision} it

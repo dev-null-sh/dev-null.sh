@@ -29,6 +29,17 @@ Run `composer dev` and visit `http://localhost:8000` (or your configured `APP_UR
 
 Leave `AUTO_LOGIN=false` to sign in using GitHub. Create a [GitHub OAuth app](https://github.com/settings/developers) with the callback URL `{APP_URL}/auth/github/callback`, then set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `.env`.
 
+### AI moderation (optional)
+
+Pending commits can be checked by TypeSafe's Jev against the rules admins manage under Moderation → Rules. It stays off unless both are set in `.env`:
+
+```dotenv
+TYPESAFE_API_KEY=your-key
+TYPESAFE_MODERATION_ENABLED=true
+```
+
+Evaluations run on the queue, so keep a worker running (`composer dev` starts one). `TYPESAFE_MODEL` pins the model (default `jev-1.13.0`). Set `TYPESAFE_MODERATION_ENABLED=false` to turn it off again: commits then wait for a moderator as before.
+
 ### Verify installation
 
 Run `composer test` to check linting, static analysis, type coverage, and tests. The code coverage check requires Xdebug or PCOV.
