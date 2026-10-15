@@ -10,6 +10,13 @@ export type LinkPreview = {
     site_name: string | null;
 };
 
+export type CommitImage = {
+    id: string;
+    url: string;
+    width: number;
+    height: number;
+};
+
 export type Commit = {
     id: string;
     user_id: string;
@@ -28,6 +35,7 @@ export type Commit = {
     link_preview?: LinkPreview | null;
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
+    images?: CommitImage[];
 };
 
 export type QuotedCommit = Pick<

@@ -1,5 +1,12 @@
 import { Head, InfiniteScroll, Link } from '@inertiajs/react';
-import { Check, MessageSquareReply, Quote, UserPlus, X } from 'lucide-react';
+import {
+    AtSign,
+    Check,
+    MessageSquareReply,
+    Quote,
+    UserPlus,
+    X,
+} from 'lucide-react';
 import type { CSSProperties } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -27,8 +34,9 @@ export default function Index({
             {notifications.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command="$ cat /dev/notifications">
-                        Nothing here yet. Follows, replies, quotes, and
-                        moderation updates for your commits will show up here.
+                        Nothing here yet. Follows, replies, quotes, mentions,
+                        and moderation updates for your commits will show up
+                        here.
                     </EmptyFeed>
                 </div>
             ) : (
@@ -65,6 +73,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
         followed: UserPlus,
         replied: MessageSquareReply,
         quoted: Quote,
+        mentioned: AtSign,
         approved: Check,
         rejected: X,
     }[notification.type];
@@ -123,7 +132,9 @@ function NotificationItem({ notification }: { notification: Notification }) {
                                 ? 'followed you'
                                 : notification.type === 'quoted'
                                   ? 'quoted your commit'
-                                  : 'replied to your commit'}
+                                  : notification.type === 'mentioned'
+                                    ? 'mentioned you'
+                                    : 'replied to your commit'}
                         </>
                     )}
                     <span className="text-muted-foreground">

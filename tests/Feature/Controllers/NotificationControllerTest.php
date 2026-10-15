@@ -43,6 +43,20 @@ it('lists quotes of the users commits', function (): void {
             ->where('notifications.data.0.commit.user_id', $quoted->actor_id));
 });
 
+it('lists mentions of the user', function (): void {
+    $user = User::factory()->create();
+    $mentioned = Notification::factory()->for($user, 'recipient')->mentioned()->create();
+
+    $response = $this->actingAs($user)->get(route('notification.index'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 1)
+            ->where('notifications.data.0.type', 'mentioned')
+            ->where('notifications.data.0.actor.id', $mentioned->actor_id)
+            ->where('notifications.data.0.commit.id', $mentioned->commit_id));
+});
+
 it('hides notifications that no longer hold', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();

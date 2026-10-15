@@ -81,6 +81,20 @@ it('shows a pinned commit once above the log with visible reply counts and uncha
             ->where('commits.data.0.id', $normal->id));
 });
 
+it('includes the quoted commit of a pinned quote', function (): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
+    $pinned = Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+    $user->update(['pinned_commit_id' => $pinned->id]);
+
+    $this->actingAs(User::factory()->create())->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('pinnedCommit.id', $pinned->id)
+            ->where('pinnedCommit.quoted_commit.body', 'The quoted commit')
+            ->where('pinnedCommit.quoted_commit.user.username', 'taylorotwell'));
+});
+
 it('keeps cursor ordering and excludes a pin on every page including tied timestamps', function (): void {
     $user = User::factory()->create();
     $pinned = Commit::factory()->for($user)->create(['created_at' => now()->subMonth()]);

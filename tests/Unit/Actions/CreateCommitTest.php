@@ -7,10 +7,13 @@ use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 
 it('may create a commit', function (): void {
     $user = User::factory()->create();
@@ -103,6 +106,28 @@ it('does not notify about pending quotes', function (): void {
     $action = resolve(CreateCommit::class);
 
     $action->handle(User::factory()->create(), 'Worth a read', quotedCommit: $quoted);
+
+    expect(Notification::query()->count())->toBe(0);
+});
+
+it('notifies mentioned users about commits of admins', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $mentioned = User::factory()->create(['username' => 'taylorotwell']);
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Shipped it with @taylorotwell');
+
+    expect($mentioned->notifications()->sole()->commit_id)->toBe($commit->id);
+});
+
+it('does not notify about pending mentions', function (): void {
+    User::factory()->create(['username' => 'taylorotwell']);
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(), 'Shipped it with @taylorotwell');
 
     expect(Notification::query()->count())->toBe(0);
 });
@@ -204,4 +229,15 @@ it('attaches no link preview without a url', function (): void {
         ->and(LinkPreview::query()->count())->toBe(0);
 
     Queue::assertNothingPushed();
+});
+
+it('stores the images of a commit', function (): void {
+    Storage::fake(CommitImage::DISK);
+
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at this', images: [
+        UploadedFile::fake()->image('photo.jpg', 10, 10),
+    ]);
+
+    expect($commit->images()->count())->toBe(1)
+        ->and($commit->status)->toBe(CommitStatus::Pending);
 });

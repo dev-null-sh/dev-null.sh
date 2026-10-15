@@ -28,6 +28,7 @@ final readonly class SavedCommitsQuery
                     $parent->getQuery()->withTrashed()->visibleTo($user)->with('user');
                 },
             ])
+            ->withQuotedCommitFor($user)
             ->orderByDesc('saved_order');
     }
 }

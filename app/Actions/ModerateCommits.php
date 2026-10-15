@@ -17,6 +17,7 @@ final readonly class ModerateCommits
     public function __construct(
         private NotifyAboutReplies $notifyAboutReplies,
         private NotifyAboutQuotes $notifyAboutQuotes,
+        private NotifyAboutMentions $notifyAboutMentions,
     ) {
         //
     }
@@ -63,6 +64,7 @@ final readonly class ModerateCommits
             if ($status === CommitStatus::Approved) {
                 $this->notifyAboutReplies->handle(...$commits);
                 $this->notifyAboutQuotes->handle(...$commits);
+                $this->notifyAboutMentions->handle(...$commits);
             }
         });
     }
