@@ -8,6 +8,7 @@ use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
+use App\Http\Controllers\CommitRestoreController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\ModerationController;
@@ -63,6 +64,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
+    Route::post('commits/{commit}/restore', CommitRestoreController::class)
+        ->withTrashed()
+        ->name('commit-restore');
     Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
         ->withTrashed()
         ->name('commit-reply.index');

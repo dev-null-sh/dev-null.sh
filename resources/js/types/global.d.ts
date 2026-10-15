@@ -1,11 +1,14 @@
 import type { Auth } from '@/types/auth';
-import type { CommittedFlash, FlashToast } from '@/types/ui';
+import type { Commit } from '@/types/commit';
+import type { CommittedFlash, DeletedFlash, FlashToast } from '@/types/ui';
 
 declare module '@inertiajs/core' {
     export interface InertiaConfig {
         flashDataType: {
             toast?: FlashToast;
             committed?: CommittedFlash;
+            deleted?: DeletedFlash;
+            restored?: Commit;
         };
         sharedPageProps: {
             name: string;

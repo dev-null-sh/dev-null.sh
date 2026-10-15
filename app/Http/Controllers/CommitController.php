@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
+use App\Actions\RestoreCommit;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
@@ -61,7 +62,13 @@ final readonly class CommitController
 
     public function destroy(DeleteCommitRequest $request, Commit $commit, DeleteCommit $action): RedirectResponse
     {
-        $action->handle($commit);
+        $commit = $action->handle($commit);
+
+        Inertia::flash('deleted', [
+            'id' => $commit->id,
+            'expires_at' => $commit->deleted_at?->addSeconds(RestoreCommit::RECOVERY_SECONDS)->toJSON(),
+            'server_time' => now()->toJSON(),
+        ]);
 
         if (url()->previous() === route('commit.show', [$commit->user, $commit])) {
             return to_route('user.show', $commit->user);

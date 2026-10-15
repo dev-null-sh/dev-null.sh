@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
+import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import {
     cn,
     formatFullDateTime,
@@ -65,7 +66,7 @@ export function CommitCard({
         window.setTimeout(
             () =>
                 router.visit(CommitController.destroy(commit), {
-                    preserveScroll: true,
+                    ...commitMutationOptions,
                     onError: () => setDeletion('idle'),
                 }),
             prefersReducedMotion ? 0 : 700,
@@ -284,7 +285,8 @@ export function CommitCard({
                                 className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
                             >
                                 <span className="mr-auto">
-                                    Delete this commit? There's no undo.
+                                    Delete this commit? You can undo for 30
+                                    seconds.
                                 </span>
                                 <Button
                                     variant="ghost"

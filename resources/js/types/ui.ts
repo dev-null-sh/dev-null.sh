@@ -13,3 +13,9 @@ export type CommittedFlash = {
     id: string;
     body: string;
 };
+
+export type DeletedFlash = {
+    id: string;
+    expires_at: string;
+    server_time: string;
+};

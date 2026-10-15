@@ -1,6 +1,6 @@
-import { InfiniteScroll } from '@inertiajs/react';
+import { InfiniteScroll, router, usePage } from '@inertiajs/react';
 import type { ReactNode } from 'react';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { useNow } from '@/hooks/use-now';
@@ -25,8 +25,49 @@ export function CommitFeed({
     actions?: (commit: Commit) => ReactNode;
 }) {
     const now = useNow();
+    const page = usePage();
+    const isModeration = page.component === 'moderation/show';
+    const profileUserId =
+        page.component === 'user/show'
+            ? (page.props.user as { id: string }).id
+            : null;
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
+    );
+
+    useEffect(
+        () =>
+            router.on('flash', (event) => {
+                const { deleted, restored } = event.detail.flash;
+                if (deleted) {
+                    router.replaceProp('commits.data', (rows: Commit[]) =>
+                        rows.filter((commit) => commit.id !== deleted.id),
+                    );
+                }
+                if (
+                    restored &&
+                    (isModeration
+                        ? restored.status === 'pending'
+                        : restored.parent_id === null) &&
+                    (profileUserId === null ||
+                        restored.user_id === profileUserId)
+                ) {
+                    router.replaceProp('commits.data', (rows: Commit[]) =>
+                        [
+                            ...rows.filter(
+                                (commit) => commit.id !== restored.id,
+                            ),
+                            restored,
+                        ].sort((a, b) => {
+                            const order =
+                                b.created_at.localeCompare(a.created_at) ||
+                                b.id.localeCompare(a.id);
+                            return isModeration ? -order : order;
+                        }),
+                    );
+                }
+            }),
+        [profileUserId, isModeration],
     );
 
     if (commits.data.length === 0) {
