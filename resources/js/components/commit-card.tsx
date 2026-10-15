@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
+import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
 import { GraphRail } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
@@ -263,6 +264,12 @@ export function CommitCard({
                             </>
                         )}
 
+                        {deletion !== 'deleting' && (
+                            <CommitStarButton
+                                key={`${commit.starred}-${commit.stars_count}`}
+                                commit={commit}
+                            />
+                        )}
                         {commit.replies_count !== undefined &&
                             deletion !== 'deleting' && (
                                 <CommitThread

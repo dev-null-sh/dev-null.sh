@@ -20,6 +20,7 @@ final readonly class SavedCommitsQuery
             ->visibleTo($user)
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
+            ->withStarsFor($user)
             ->with([
                 'user',
                 'parent' => function (BelongsTo $parent) use ($user): void {

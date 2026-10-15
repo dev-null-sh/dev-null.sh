@@ -29,6 +29,8 @@ it('renders own commits and commits of followed users newest first', function ()
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Followed')
             ->where('commits.data.0.user.id', $followed->id)
+            ->where('commits.data.0.stars_count', 0)
+            ->where('commits.data.0.starred', false)
             ->missing('commits.data.0.user.email')
             ->where('commits.data.1.body', 'Mine'));
 });
@@ -268,4 +270,40 @@ it('only suggests top-level commits', function (): void {
         ->assertInertia(fn ($page) => $page
             ->has('suggestions', 1)
             ->where('suggestions.0.body', 'Root commit'));
+});
+
+it('defers suggested users to follow', function (): void {
+    $user = User::factory()->create();
+    $suggested = User::factory()->has(Commit::factory())->create();
+
+    $response = $this->actingAs($user)
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('showsWhoToFollow', true)
+            ->missing('suggestedUsers')
+            ->loadDeferredProps(fn ($reload) => $reload
+                ->has('suggestedUsers', 1)
+                ->where('suggestedUsers.0.id', $suggested->id)
+                ->where('suggestedUsers.0.followed_by_following_count', 0)
+                ->missing('suggestedUsers.0.email')));
+
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
+});
+
+it('does not suggest users to follow once they are hidden', function (): void {
+    $user = User::factory()->create();
+    User::factory()->has(Commit::factory())->create();
+
+    $response = $this->actingAs($user)
+        ->withUnencryptedCookie('who_to_follow', 'false')
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('showsWhoToFollow', false)
+            ->missing('suggestedUsers'));
+
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
 });

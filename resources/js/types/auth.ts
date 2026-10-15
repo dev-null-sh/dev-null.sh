@@ -23,3 +23,8 @@ export type Auth = {
     isAdmin: boolean;
     unreadNotificationsCount: number;
 };
+
+export type SuggestedUser = User & {
+    followed_by_following_count: number;
+    followers_count: number;
+};

@@ -36,6 +36,8 @@ it('renders a user profile', function (): void {
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
+            ->where('commits.data.0.stars_count', 0)
+            ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
 });
 
@@ -104,6 +106,48 @@ it('renders the hourly commit activity of a user who only committed today', func
             ->has('activity.buckets', 24)
             ->where('activity.buckets.20', ['date' => '2026-10-15T09:00:00Z', 'count' => 1])
             ->where('activity.buckets.23', ['date' => '2026-10-15T12:00:00Z', 'count' => 2]));
+});
+
+it('renders the user commit streaks alongside starred commits', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $viewer = User::factory()->create();
+
+    $commit = Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->create(['created_at' => now()->subDays(3)]);
+    Commit::factory()->for($user)->create(['created_at' => now()->subDays(4)]);
+    Commit::factory()->for($user)->pending()->create(['created_at' => now()->subDay()]);
+
+    $viewer->starredCommits()->attach($commit);
+
+    $response = $this->actingAs($viewer)
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('streaks', ['longest' => 2, 'current' => 1])
+            ->where('commits.data.0.id', $commit->id)
+            ->where('commits.data.0.stars_count', 1)
+            ->where('commits.data.0.starred', true));
+});
+
+it('does not compute the streaks when reloading only commits', function (): void {
+    User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(function ($page): void {
+            $page->where('streaks.longest', 1);
+
+            DB::enableQueryLog();
+
+            $page->reloadOnly('commits', fn ($reload) => $reload->missing('streaks'));
+        });
+
+    expect(collect(DB::getQueryLog())->pluck('query')->all())
+        ->not->toBeEmpty()
+        ->each->not->toContain('distinct');
 });
 
 it('renders whether the viewer is not following the user', function (): void {
@@ -281,7 +325,9 @@ it('hides deleted commits from profiles', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('user.commits_count', 1)
-            ->where('activity.368.count', 1)
+            ->where('activity.scale', 'day')
+            ->where('activity.buckets.23.count', 1)
+            ->where('streaks', ['longest' => 1, 'current' => 1])
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'Kept'));
 });

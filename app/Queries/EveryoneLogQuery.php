@@ -21,6 +21,7 @@ final readonly class EveryoneLogQuery implements LogQuery
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
             ->with('user')
+            ->withStarsFor($user)
             ->latest()
             ->latest('id');
     }

@@ -19,6 +19,7 @@ final readonly class ModerationController
                 ->pending()
                 ->withSavedState($user)
                 ->with(['user', 'parent.user'])
+                ->withStarsFor($user)
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)),

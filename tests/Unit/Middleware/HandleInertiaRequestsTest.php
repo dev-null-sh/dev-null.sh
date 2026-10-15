@@ -220,3 +220,27 @@ it('shares no unread notifications for guests', function (): void {
 
     expect($shared['auth']['unreadNotificationsCount']())->toBe(0);
 });
+
+it('does not share suggested users with guests', function (): void {
+    $middleware = new HandleInertiaRequests();
+
+    $shared = $middleware->share(Request::create('/', 'GET'));
+
+    expect($shared)->not->toHaveKey('suggestedUsers');
+});
+
+it('shows who to follow by default', function (string $cookie): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => User::factory()->create());
+
+    if ($cookie !== '') {
+        $request->cookies->set('who_to_follow', $cookie);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['showsWhoToFollow'])->toBeTrue()
+        ->and($shared)->toHaveKey('suggestedUsers');
+})->with(['', 'true']);

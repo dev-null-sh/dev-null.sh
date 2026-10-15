@@ -62,12 +62,15 @@ it('ignores supplied ownership and removes only the viewers save idempotently', 
 it('saves and lists own commits in every moderation state', function (CommitStatus $status): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create(['status' => $status]);
+    $commit->stars()->attach($user);
 
     $this->actingAs($user)->putJson(route('bookmark.store', $commit))->assertOk();
     $this->get(route('bookmark.index'))->assertOk()->assertInertia(fn ($page) => $page
         ->has('commits.data', 1)
         ->where('commits.data.0.id', $commit->id)
         ->where('commits.data.0.status', $status->value)
+        ->where('commits.data.0.stars_count', 1)
+        ->where('commits.data.0.starred', true)
         ->where('commits.data.0.is_saved', true));
     $this->deleteJson(route('bookmark.destroy', $commit))->assertOk();
 })->with(CommitStatus::cases());
