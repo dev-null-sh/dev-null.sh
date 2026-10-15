@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommit;
 use App\Enums\CommitStatus;
+use App\Jobs\EvaluateCommitJob;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\ModerationRule;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -204,4 +207,65 @@ it('stores the images of a commit', function (): void {
 
     expect($commit->images()->count())->toBe(1)
         ->and($commit->status)->toBe(CommitStatus::Pending);
+});
+
+it('evaluates pending commits against the moderation rules', function (): void {
+    Queue::fake();
+    config(['services.typesafe.key' => 'test-key', 'services.typesafe.enabled' => true]);
+    ModerationRule::factory()->testing()->create();
+
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Shipped it');
+
+    Queue::assertPushed(EvaluateCommitJob::class, fn (EvaluateCommitJob $job): bool => $job->commit->is($commit));
+    Queue::assertNotPushed(UnfurlLink::class);
+});
+
+it('evaluates a commit with a link once its preview is fetched', function (): void {
+    Queue::fake();
+    config(['services.typesafe.key' => 'test-key', 'services.typesafe.enabled' => true]);
+    ModerationRule::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at https://example.com');
+
+    Queue::assertPushedWithChain(UnfurlLink::class, [EvaluateCommitJob::class]);
+});
+
+it('evaluates a commit whose link was fetched before right away', function (): void {
+    Queue::fake();
+    config(['services.typesafe.key' => 'test-key', 'services.typesafe.enabled' => true]);
+    ModerationRule::factory()->create();
+    LinkPreview::factory()->fetched()->create(['url' => 'https://example.com']);
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at https://example.com');
+
+    Queue::assertPushed(EvaluateCommitJob::class);
+    Queue::assertNotPushed(UnfurlLink::class);
+});
+
+it('does not evaluate commits when automatic moderation does not apply', function (Closure $setUp, bool $isAdmin): void {
+    Queue::fake();
+    config(['services.typesafe.key' => 'test-key', 'services.typesafe.enabled' => true, 'app.admins' => ['admin']]);
+    $setUp();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => $isAdmin ? 'admin' : 'octocat']), 'Shipped it');
+
+    Queue::assertNotPushed(EvaluateCommitJob::class);
+})->with([
+    'disabled' => [function (): void {
+        config(['services.typesafe.enabled' => false]);
+        ModerationRule::factory()->create();
+    }, false],
+    'without rules' => [fn (): ModerationRule => ModerationRule::factory()->off()->create(), false],
+    'for admins' => [fn (): ModerationRule => ModerationRule::factory()->create(), true],
+]);
+
+it('rejects spam as soon as it is committed', function (): void {
+    config(['services.typesafe.key' => 'test-key', 'services.typesafe.enabled' => true]);
+    $spam = ModerationRule::factory()->create();
+
+    Http::fake(['api.typesafe.ai/*' => Http::response(jevAnswers(["rule_{$spam->id}" => 0.99]))]);
+
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Buy 1,000 GitHub stars for $5');
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Rejected);
 });

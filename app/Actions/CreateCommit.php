@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\CommitStatus;
+use App\Jobs\EvaluateCommitJob;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\ModerationRule;
 use App\Models\User;
 use App\Services\EmojiShortcodes;
+use App\Services\TypeSafe;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 
 final readonly class CreateCommit
@@ -21,6 +25,7 @@ final readonly class CreateCommit
         private StoreCommitImages $storeCommitImages,
         private EmojiShortcodes $emojiShortcodes,
         private FindFirstUrl $findFirstUrl,
+        private TypeSafe $typeSafe,
     ) {
         //
     }
@@ -45,12 +50,28 @@ final readonly class CreateCommit
             $this->notifyAboutReplies->handle($commit);
             $this->notifyAboutMentions->handle($commit);
 
-            if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
-                dispatch(new UnfurlLink($linkPreview));
+            $unfurlLink = $linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null
+                ? new UnfurlLink($linkPreview)
+                : null;
+
+            if ($this->shouldEvaluate($commit)) {
+                DB::afterCommit(fn () => Bus::chain(array_values(array_filter([$unfurlLink, new EvaluateCommitJob($commit)])))->dispatch());
+            } elseif ($unfurlLink instanceof UnfurlLink) {
+                dispatch($unfurlLink);
             }
 
             return $commit;
         });
+    }
+
+    /**
+     * Pending commits go past the moderation rules, after their link preview is fetched so the rules can read it.
+     */
+    private function shouldEvaluate(Commit $commit): bool
+    {
+        return $commit->status === CommitStatus::Pending
+            && $this->typeSafe->isEnabled()
+            && ModerationRule::query()->active()->exists();
     }
 
     /**

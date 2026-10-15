@@ -69,9 +69,7 @@ final readonly class TypeSafe
         foreach (array_keys($questions) as $key) {
             $noul = $response->json("answers.{$key}.noul");
 
-            if ((! is_float($noul) && ! is_int($noul)) || $noul < 0 || $noul > 1) {
-                throw new UnexpectedValueException("Jev did not answer [{$key}].");
-            }
+            throw_if((! is_float($noul) && ! is_int($noul)) || $noul < 0 || $noul > 1, UnexpectedValueException::class, "Jev did not answer [{$key}].");
 
             $nouls[$key] = (float) $noul;
         }
@@ -93,9 +91,9 @@ final readonly class TypeSafe
             || ($exception instanceof RequestException && in_array($exception->response->status(), self::RETRYABLE_STATUSES, true));
     }
 
-    private function retryDelay(int $attempt, Throwable $exception): int
+    private function retryDelay(int $attempt, mixed $exception): int
     {
-        $delay = 500 * 2 ** ($attempt - 1);
+        $delay = 500 * $attempt;
 
         if ($exception instanceof RequestException) {
             $retryAfterMs = $exception->response->header('retry-after-ms');
