@@ -35,6 +35,8 @@ export function CommitFeed({
         page.component === 'user/show'
             ? (page.props.user as { id: string }).id
             : null;
+    const isProfileReplies =
+        profileUserId !== null && page.props.tab === 'replies';
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
@@ -52,7 +54,9 @@ export function CommitFeed({
                     restored &&
                     (isModeration
                         ? restored.status === 'pending'
-                        : restored.parent_id === null) &&
+                        : isProfileReplies
+                          ? restored.parent_id !== null
+                          : restored.parent_id === null) &&
                     (profileUserId === null ||
                         restored.user_id === profileUserId)
                 ) {
@@ -71,7 +75,7 @@ export function CommitFeed({
                     );
                 }
             }),
-        [profileUserId, isModeration],
+        [profileUserId, isModeration, isProfileReplies],
     );
 
     if (commits.data.length === 0) {
