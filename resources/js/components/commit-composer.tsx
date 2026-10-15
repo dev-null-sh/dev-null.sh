@@ -1,5 +1,5 @@
 import { Form, Link, usePage } from '@inertiajs/react';
-import { ChartBar, Clock3, Plus, X } from 'lucide-react';
+import { CalendarPlus, ChartBar, Clock3, Plus, X } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { createRef, useMemo, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -11,6 +11,8 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
+import { EventEditor } from '@/components/event-editor';
+import { EventSheet } from '@/components/event-sheet';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -21,8 +23,10 @@ import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useEventDraft } from '@/hooks/use-event-draft';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCards } from '@/hooks/use-link-card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -79,6 +83,10 @@ export function CommitComposer() {
         useSeriesStash(user.id, 'commit');
     const attachments = useImageAttachments();
     const [poll, setPoll] = useState<PollDraft | null>(null);
+    const events = useEventDraft();
+    const isMobile = useIsMobile();
+    const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const hasEvent = events.draft !== null;
     const hasImages = attachments.images.length > 0;
     const linkCards = useLinkCards(bodies);
     const textareas = useMemo(
@@ -95,7 +103,7 @@ export function CommitComposer() {
 
     const isSeries = bodies.length > 1;
     const canAddPart =
-        !isScheduling && bodies.length < maxParts && poll === null;
+        !isScheduling && bodies.length < maxParts && poll === null && !hasEvent;
     const isCommittable =
         bodies.every((body) => characterCount(body.trim()) >= minBodyLength) &&
         (poll === null ||
@@ -105,7 +113,7 @@ export function CommitComposer() {
     const isSubmittable =
         isCommittable &&
         !isSchedulingImages &&
-        (!isScheduling || poll === null);
+        (!isScheduling || (poll === null && !hasEvent));
 
     const addPartAfter = (index: number) => {
         if (!canAddPart) {
@@ -169,22 +177,29 @@ export function CommitComposer() {
                   ? CommitSeriesController.store.form()
                   : CommitController.store.form())}
             onBefore={secrets.beforeSubmit}
-            transform={(data) =>
-                isScheduling
-                    ? {
-                          ...data,
-                          scheduled_at: new Date(scheduledAt)
-                              .toISOString()
-                              .replace(/\.\d{3}Z$/, '+00:00'),
-                      }
-                    : hasImages
-                      ? {
-                            ...data,
-                            images: attachments.images,
-                            image_descriptions: attachments.descriptions,
-                        }
-                      : data
-            }
+            transform={(data) => {
+                if (isScheduling) {
+                    return {
+                        ...data,
+                        scheduled_at: new Date(scheduledAt)
+                            .toISOString()
+                            .replace(/\.\d{3}Z$/, '+00:00'),
+                    };
+                }
+
+                const event = isSeries ? null : events.payload();
+
+                return {
+                    ...data,
+                    ...(hasImages
+                        ? {
+                              images: attachments.images,
+                              image_descriptions: attachments.descriptions,
+                          }
+                        : {}),
+                    ...(event ? { event } : {}),
+                };
+            }}
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
                 if (!page.flash.committed && !page.flash.scheduled) {
@@ -196,8 +211,17 @@ export function CommitComposer() {
                 setIsScheduling(false);
                 attachments.clear();
                 setPoll(null);
+                events.clear();
                 linkCards.reset();
                 focusPart(0);
+            }}
+            onError={(errors) => {
+                if (
+                    isMobile &&
+                    Object.keys(errors).some((key) => key.startsWith('event'))
+                ) {
+                    setIsSheetOpen(true);
+                }
             }}
             className="flex flex-col"
             data-test="commit-composer"
@@ -374,6 +398,54 @@ export function CommitComposer() {
                                             />
                                         )}
 
+                                        {events.draft &&
+                                            index === 0 &&
+                                            !isMobile && (
+                                                <EventEditor
+                                                    draft={events.draft}
+                                                    onChange={events.setDraft}
+                                                    onRemove={events.clear}
+                                                    errors={errors}
+                                                />
+                                            )}
+                                        {events.draft &&
+                                            index === 0 &&
+                                            isMobile && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setIsSheetOpen(true)
+                                                    }
+                                                    className="mt-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm"
+                                                >
+                                                    <CalendarPlus className="size-4 shrink-0 text-muted-foreground" />
+                                                    <span className="truncate font-medium">
+                                                        {events.draft.title ||
+                                                            'Untitled event'}
+                                                    </span>
+                                                    <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">
+                                                        {
+                                                            events.draft
+                                                                .startsDate
+                                                        }{' '}
+                                                        {
+                                                            events.draft
+                                                                .startsTime
+                                                        }
+                                                    </span>
+                                                </button>
+                                            )}
+                                        {events.draft && index === 0 && (
+                                            <EventSheet
+                                                open={isMobile && isSheetOpen}
+                                                onOpenChange={setIsSheetOpen}
+                                                draft={events.draft}
+                                                onChange={events.setDraft}
+                                                onRemove={events.clear}
+                                                errors={errors}
+                                            />
+                                        )}
+
                                         {isScheduling && (
                                             <div
                                                 id="commit-schedule"
@@ -507,7 +579,8 @@ export function CommitComposer() {
                                                                 disabled={
                                                                     processing ||
                                                                     poll !==
-                                                                        null
+                                                                        null ||
+                                                                    hasEvent
                                                                 }
                                                                 onPick={
                                                                     attachments.attach
@@ -523,6 +596,7 @@ export function CommitComposer() {
                                                                 processing ||
                                                                 poll !== null ||
                                                                 hasImages ||
+                                                                hasEvent ||
                                                                 isSeries ||
                                                                 isScheduling
                                                             }
@@ -554,6 +628,52 @@ export function CommitComposer() {
                                                         >
                                                             <ChartBar className="size-5" />
                                                         </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            disabled={
+                                                                processing ||
+                                                                poll !== null ||
+                                                                hasImages ||
+                                                                isSeries ||
+                                                                isScheduling
+                                                            }
+                                                            onClick={() => {
+                                                                if (!hasEvent) {
+                                                                    events.start();
+                                                                }
+
+                                                                if (isMobile) {
+                                                                    setIsSheetOpen(
+                                                                        true,
+                                                                    );
+                                                                }
+                                                            }}
+                                                            aria-label="Add event"
+                                                            aria-pressed={
+                                                                hasEvent
+                                                            }
+                                                            title={
+                                                                isScheduling
+                                                                    ? 'Events cannot be scheduled yet'
+                                                                    : hasImages ||
+                                                                        poll !==
+                                                                            null
+                                                                      ? 'A commit can have images, a poll, or an event, not more than one'
+                                                                      : isSeries
+                                                                        ? 'Events are available on single commits'
+                                                                        : 'Add event'
+                                                            }
+                                                            className={cn(
+                                                                'text-muted-foreground',
+                                                                hasEvent &&
+                                                                    'bg-primary-soft text-primary',
+                                                            )}
+                                                            data-test="add-event-button"
+                                                        >
+                                                            <CalendarPlus className="size-5" />
+                                                        </Button>
                                                         {!isScheduling &&
                                                             !isSeries && (
                                                                 <LinkCardPicker
@@ -583,9 +703,11 @@ export function CommitComposer() {
                                                                     : poll !==
                                                                         null
                                                                       ? 'Remove the poll to start a series'
-                                                                      : canAddPart
-                                                                        ? 'Add another commit (⌘/Ctrl + Shift + Enter)'
-                                                                        : `A series has at most ${maxParts} commits`
+                                                                      : hasEvent
+                                                                        ? 'Remove the event to start a series'
+                                                                        : canAddPart
+                                                                          ? 'Add another commit (⌘/Ctrl + Shift + Enter)'
+                                                                          : `A series has at most ${maxParts} commits`
                                                             }
                                                             className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                                                             data-test="add-commit-part-button"
@@ -619,20 +741,25 @@ export function CommitComposer() {
                                                             (!isScheduling &&
                                                                 (hasImages ||
                                                                     isSeries ||
+                                                                    hasEvent ||
                                                                     poll !==
                                                                         null))
                                                         }
                                                         title={
                                                             !isScheduling &&
-                                                            poll !== null
-                                                                ? 'Polls cannot be scheduled yet'
+                                                            hasEvent
+                                                                ? 'Events cannot be scheduled yet'
                                                                 : !isScheduling &&
-                                                                    isSeries
-                                                                  ? 'Series cannot be scheduled yet'
+                                                                    poll !==
+                                                                        null
+                                                                  ? 'Polls cannot be scheduled yet'
                                                                   : !isScheduling &&
-                                                                      hasImages
-                                                                    ? "Images can't be scheduled yet"
-                                                                    : undefined
+                                                                      isSeries
+                                                                    ? 'Series cannot be scheduled yet'
+                                                                    : !isScheduling &&
+                                                                        hasImages
+                                                                      ? "Images can't be scheduled yet"
+                                                                      : undefined
                                                         }
                                                         onClick={() => {
                                                             setTimezone(

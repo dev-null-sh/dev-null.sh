@@ -3,6 +3,8 @@ import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
 import {
     ArrowUp,
     AtSign,
+    CalendarClock,
+    CalendarX,
     Check,
     ChevronDown,
     MessageSquareReply,
@@ -717,6 +719,8 @@ function NotificationContent({
         mentioned: AtSign,
         approved: Check,
         rejected: X,
+        event_changed: CalendarClock,
+        event_cancelled: CalendarX,
     }[notification.type];
     const icon = (
         <Icon
@@ -752,9 +756,15 @@ function NotificationContent({
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
+        event_changed: "changed the time or place of an event you're going to",
+        event_cancelled: "cancelled an event you're going to",
     }[notification.type];
     const excerpt =
-        notification.type === 'followed' ? null : isOwnCommit ? (
+        notification.type === 'followed' ? null : notification.commit.event ? (
+            <p className="mt-1 truncate text-[15px]">
+                {notification.commit.event.title}
+            </p>
+        ) : isOwnCommit ? (
             <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
                 <CommitBodyExcerpt
                     segments={notification.commit.body_segments}

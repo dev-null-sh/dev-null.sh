@@ -3,8 +3,11 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommit;
+use App\Dto\EventDetails;
+use App\Dto\NewEvent;
 use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
+use App\Enums\EventFormat;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
 use App\Jobs\ModerateCommit;
@@ -14,6 +17,7 @@ use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\TheAlgorithm;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -403,3 +407,22 @@ it('keeps a poll on a quote while only approved quotes lift its thread', functio
             1e-9,
         );
 })->with([false, true]);
+
+it('creates an event with the commit and expands emoji shortcodes in it', function (): void {
+    $user = User::factory()->create();
+    $details = new EventDetails(
+        startsAt: CarbonImmutable::parse('+3 days'),
+        endsAt: CarbonImmutable::parse('+3 days 2 hours'),
+        timezone: 'UTC',
+        format: EventFormat::Onsite,
+        venue: 'Hall :rocket',
+        address: 'Lviv',
+        platform: null,
+        joinUrl: null,
+    );
+
+    $commit = resolve(CreateCommit::class)->handle($user, 'Meetup!', event: new NewEvent('Night :rocket', $details, null));
+
+    expect($commit->event?->title)->toBe('Night 🚀')
+        ->and($commit->event?->venue)->toBe('Hall 🚀');
+});

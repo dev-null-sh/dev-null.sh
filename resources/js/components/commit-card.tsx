@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitBody } from '@/components/commit-body';
+import { CommitEvent, CommitEventActions } from '@/components/commit-event';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
@@ -24,6 +25,7 @@ import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
+import { useEventGoing } from '@/hooks/use-event-going';
 import { useNow } from '@/hooks/use-now';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import {
@@ -62,6 +64,7 @@ export function CommitCard({
     endsWithDot = false,
     railNodePosition = 'top',
     hasRailTail = true,
+    isReviewing = false,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -81,12 +84,16 @@ export function CommitCard({
     endsWithDot?: boolean;
     railNodePosition?: 'top' | 'center' | 'bottom' | 'author';
     hasRailTail?: boolean;
+    isReviewing?: boolean;
 }) {
     const {
         props: { auth },
         component,
     } = usePage();
     const now = useNow();
+    // Moderators see every detail of an event under review without a click.
+    const [isEventExpanded, setIsEventExpanded] = useState(isReviewing);
+    const going = useEventGoing(commit);
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const thread = useThread(commit, initialReplies, loadsReplies);
     const [deletion, setDeletion] = useState<
@@ -104,6 +111,9 @@ export function CommitCard({
         commit.series_parts === undefined
             ? commit.series_size - commit.series_position
             : 0;
+    const event = commit.event;
+    const canGo = commit.status === 'approved' && !isOwn;
+    const isEventOpen = event?.state === 'upcoming' || event?.state === 'live';
 
     const deleteCommit = () => {
         setDeletion('deleting');
@@ -316,6 +326,18 @@ export function CommitCard({
                                 )}
                             />
                             {showImages && <CommitImages commit={commit} />}
+                            {event && (
+                                <CommitEvent
+                                    commit={commit}
+                                    event={event}
+                                    link={permalink.url}
+                                    going={canGo ? going : undefined}
+                                    isOwn={isOwn}
+                                    isFocused={isFocused}
+                                    expanded={isEventExpanded}
+                                    onExpandedChange={setIsEventExpanded}
+                                />
+                            )}
                             {commit.poll && (
                                 <CommitPoll
                                     key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}
@@ -359,20 +381,36 @@ export function CommitCard({
                             )}
 
                             {commit.replies_count === undefined ? (
-                                <div className="mt-1.5 -ml-1.5 flex items-center gap-0.5">
-                                    <CommitStarButton commit={commit} />
-                                    <CommitQuoteButton
-                                        commit={commit}
-                                        keyShortcut="q"
-                                        className="px-1.5 py-1"
-                                    />
-                                </div>
+                                !isReviewing && (
+                                    <div className="mt-1.5 -ml-1.5 flex items-center gap-0.5">
+                                        <CommitStarButton commit={commit} />
+                                        <CommitQuoteButton
+                                            commit={commit}
+                                            keyShortcut="q"
+                                            className="px-1.5 py-1"
+                                        />
+                                    </div>
+                                )
                             ) : (
                                 <ThreadActions
                                     thread={thread}
                                     hasKeyboardShortcuts
                                     actions={
                                         <>
+                                            {event &&
+                                                !isFocused &&
+                                                !isEventExpanded &&
+                                                commit.status === 'approved' &&
+                                                isEventOpen && (
+                                                    <CommitEventActions
+                                                        event={event}
+                                                        going={
+                                                            canGo
+                                                                ? going
+                                                                : undefined
+                                                        }
+                                                    />
+                                                )}
                                             <CommitStarButton
                                                 commit={commit}
                                                 className="px-2 py-0.5"
@@ -389,7 +427,8 @@ export function CommitCard({
 
                             {actions}
 
-                            {commit.replies_count === undefined &&
+                            {!isReviewing &&
+                                commit.replies_count === undefined &&
                                 commit.is_saved !== undefined && (
                                     <div className="mt-1 -ml-1.5">
                                         <BookmarkButton commit={commit} />

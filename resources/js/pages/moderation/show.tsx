@@ -361,6 +361,7 @@ export default function Show({
                 commits={commits}
                 firstLane="var(--rail)"
                 end="That's every pending commit."
+                isReviewing
                 actions={(commit) => (
                     <>
                         <AiDecision commit={commit} />

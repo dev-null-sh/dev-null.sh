@@ -6,6 +6,7 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Event;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
@@ -160,4 +161,15 @@ it('lowers the threads the deleted user quoted', function (): void {
 
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+});
+
+it("erases the cover files of the user's events", function (): void {
+    Storage::fake();
+    $user = User::factory()->create();
+    $event = Event::factory()->withCover()->for(Commit::factory()->for($user))->create();
+    Storage::disk()->put((string) $event->cover_path, 'webp');
+
+    resolve(DeleteUser::class)->handle($user);
+
+    Storage::disk()->assertMissing((string) $event->cover_path);
 });

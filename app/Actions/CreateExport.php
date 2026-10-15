@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\NotificationType;
 use App\Models\Bookmark;
 use App\Models\CommitImage;
+use App\Models\Event;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\User;
@@ -22,7 +23,7 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, events: Generator<int, array<string, string|null>>, event_attendances: Generator<int, array{event_id: string, title: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
@@ -48,6 +49,8 @@ final readonly class CreateExport
             'commits' => $this->commits($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
+            'events' => $this->events($user),
+            'event_attendances' => $this->eventAttendances($user),
             'stars' => $this->stars($user),
             'bookmarks' => $this->bookmarks($user),
             'following' => $this->usernames($user->following()),
@@ -168,6 +171,57 @@ final readonly class CreateExport
                 'reason' => $notification->reason,
                 'read_at' => $notification->read_at?->toIso8601String(),
                 'created_at' => $notification->created_at->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * Events on the user's live commits, never who else is going.
+     *
+     * @return Generator<int, array<string, string|null>>
+     */
+    private function events(User $user): Generator
+    {
+        $events = Event::query()
+            ->whereIn('commit_id', $user->commits()->select('id'))
+            ->lazyById(500);
+
+        foreach ($events as $event) {
+            yield [
+                'id' => $event->id,
+                'commit_id' => $event->commit_id,
+                'title' => $event->title,
+                'starts_at' => $event->starts_at->toIso8601String(),
+                'ends_at' => $event->ends_at->toIso8601String(),
+                'timezone' => $event->timezone,
+                'format' => $event->format->value,
+                'venue' => $event->venue,
+                'address' => $event->address,
+                'platform' => $event->platform?->value,
+                'join_url' => $event->join_url,
+                'cancelled_at' => $event->cancelled_at?->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * @return Generator<int, array{event_id: string, title: string, created_at: string}>
+     */
+    private function eventAttendances(User $user): Generator
+    {
+        $events = Event::query()
+            ->join('event_attendees', 'event_attendees.event_id', '=', 'events.id')
+            ->where('event_attendees.user_id', $user->id)
+            ->select(['events.id', 'events.title', 'event_attendees.created_at as attended_at'])
+            ->lazyById(500, 'events.id', 'id');
+
+        foreach ($events as $event) {
+            $attendedAt = $event->getAttribute('attended_at');
+
+            yield [
+                'event_id' => $event->id,
+                'title' => $event->title,
+                'created_at' => is_string($attendedAt) ? $attendedAt : '',
             ];
         }
     }

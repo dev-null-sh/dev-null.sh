@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateExport;
 use App\Actions\DeleteUser;
 use App\Enums\NotificationType;
 use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Event;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\PollVote;
@@ -84,6 +86,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'commits' => [],
         'polls' => [],
         'poll_votes' => [],
+        'events' => [],
+        'event_attendances' => [],
         'stars' => [],
         'bookmarks' => [],
         'following' => [],
@@ -388,4 +392,21 @@ it('limits exports to five a minute per user', function (): void {
     }
 
     $this->actingAs($user)->get(route('export'))->assertTooManyRequests();
+});
+
+it("exports hosted events and attendances, never other people's", function (): void {
+    $user = User::factory()->create();
+    $hosted = Event::factory()->for(Commit::factory()->for($user))->create(['title' => 'Mine']);
+    $other = Event::factory()->create(['title' => 'Theirs']);
+    $other->attendees()->attach($user);
+    $hosted->attendees()->attach(User::factory()->create());
+
+    $export = resolve(CreateExport::class)->handle($user);
+
+    $events = iterator_to_array($export['events'], false);
+    $attendances = iterator_to_array($export['event_attendances'], false);
+
+    expect(array_column($events, 'title'))->toBe(['Mine'])
+        ->and($events[0])->not->toHaveKey('cover_path')
+        ->and(array_column($attendances, 'title'))->toBe(['Theirs']);
 });

@@ -7,7 +7,10 @@ use App\Actions\UpdateCommitHotScores;
 use App\Jobs\EraseDeletedCommitImages;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Event;
+use App\Models\User;
 use App\Services\TheAlgorithm;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -90,4 +93,18 @@ it('lowers the quoted thread when a quote is deleted', function (): void {
 
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+});
+
+it('keeps the event of a deleted commit until the undo window closes', function (): void {
+    Queue::fake();
+    Storage::fake();
+    $event = Event::factory()->withCover()->create();
+    Storage::disk()->put((string) $event->cover_path, 'webp');
+    $event->attendees()->attach(User::factory()->create());
+
+    resolve(DeleteCommit::class)->handle($event->commit);
+
+    $this->assertModelExists($event);
+    expect(DB::table('event_attendees')->count())->toBe(1);
+    Storage::disk()->assertExists((string) $event->cover_path);
 });

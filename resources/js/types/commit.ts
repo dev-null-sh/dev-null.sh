@@ -1,4 +1,5 @@
 import type { User } from '@/types/auth';
+import type { CommitEvent } from '@/types/event';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
@@ -70,6 +71,7 @@ export type Commit = {
     series_parts?: Commit[];
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
+    event?: CommitEvent | null;
 };
 
 export type QuotedCommit = Pick<

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Commit;
+use App\Models\Event;
 use App\Models\User;
 use App\Services\OpenGraphCanvas;
 use App\Services\Urls;
@@ -32,8 +33,10 @@ final readonly class CreateCommitOpenGraphImage
      */
     private const array BODY_SIZES = [[56, 72], [48, 64], [40, 56], [34, 48], [32, 44]];
 
-    public function __construct(private Urls $urls)
-    {
+    public function __construct(
+        private Urls $urls,
+        private CreateEventOpenGraphImage $createEventOpenGraphImage,
+    ) {
         //
     }
 
@@ -50,6 +53,10 @@ final readonly class CreateCommitOpenGraphImage
 
     private function render(User $user, Commit $commit): string
     {
+        if ($commit->parent_id === null && $commit->event instanceof Event) {
+            return $this->createEventOpenGraphImage->handle($user, $commit);
+        }
+
         $canvas = new OpenGraphCanvas;
         $lane = $canvas->lane($user);
         $replyingTo = $commit->isSeriesContinuation() ? null : $commit->parent?->user?->username;

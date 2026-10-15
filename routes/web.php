@@ -18,6 +18,11 @@ use App\Http\Controllers\CommitRestorationController;
 use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
+use App\Http\Controllers\EventAttendanceController;
+use App\Http\Controllers\EventCalendarController;
+use App\Http\Controllers\EventCancellationController;
+use App\Http\Controllers\EventController;
+use App\Http\Controllers\EventCoverController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
@@ -113,6 +118,9 @@ Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageCont
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('event-covers/{event}', [EventCoverController::class, 'show'])
+    ->whereUuid('event')
+    ->name('event-cover.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');
@@ -161,6 +169,22 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-star.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
         ->name('commit-star.destroy');
+    Route::post('commits/{commit}/event/attendance', [EventAttendanceController::class, 'store'])
+        ->middleware('throttle:60,1')
+        ->name('event-attendance.store');
+    Route::delete('commits/{commit}/event/attendance', [EventAttendanceController::class, 'destroy'])
+        ->middleware('throttle:60,1')
+        ->name('event-attendance.destroy');
+    Route::patch('commits/{commit}/event', [EventController::class, 'update'])
+        ->middleware('throttle:10,1')
+        ->name('event.update');
+    Route::post('commits/{commit}/event/cancellation', [EventCancellationController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('event-cancellation.store');
+    Route::get('commits/{commit}/event.ics', [EventCalendarController::class, 'show'])
+        ->whereUuid('commit')
+        ->middleware('throttle:60,1')
+        ->name('event-calendar.show');
     Route::post('commits/{commit}/replies', [CommitReplyController::class, 'store'])
         ->middleware(ThrottleCommits::class)
         ->name('commit-reply.store');

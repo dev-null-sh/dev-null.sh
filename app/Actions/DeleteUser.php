@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Event;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +22,7 @@ final readonly class DeleteUser
     /**
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author, so the replies under them keep their thread.
-     * The database cascades the image rows of erased commits, but the image files are erased here.
+     * The database cascades the image and event rows of erased commits, but the image and cover files are erased here.
      */
     public function handle(User $user): void
     {
@@ -105,10 +106,16 @@ final readonly class DeleteUser
      */
     private function imagePaths(array $commitIds): array
     {
-        return CommitImage::query()
+        $coverPaths = Event::query()
             ->whereIn('commit_id', $commitIds)
-            ->get(['path'])
-            ->map(fn (CommitImage $image): string => $image->path)
+            ->whereNotNull('cover_path')
+            ->get(['cover_path'])
+            ->map(fn (Event $event): string => (string) $event->cover_path)
             ->all();
+
+        return [
+            ...CommitImage::query()->whereIn('commit_id', $commitIds)->get(['path'])->map(fn (CommitImage $image): string => $image->path)->all(),
+            ...$coverPaths,
+        ];
     }
 }

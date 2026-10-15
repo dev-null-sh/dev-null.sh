@@ -37,6 +37,7 @@ final readonly class ModerationController
                         ->with(['user', 'linkPreview', 'images', 'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with('user')->withPollFor($user)])
                         ->oldest('series_position'),
                 ])
+                ->withEventFor($user)
                 ->withStarsFor($user)
                 ->withPollFor($user)
                 ->oldest()

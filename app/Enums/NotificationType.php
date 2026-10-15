@@ -13,4 +13,6 @@ enum NotificationType: string
     case Rejected = 'rejected';
     case Quoted = 'quoted';
     case Starred = 'starred';
+    case EventChanged = 'event_changed';
+    case EventCancelled = 'event_cancelled';
 }
