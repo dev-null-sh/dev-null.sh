@@ -112,14 +112,14 @@ it('lists deleted replies that still have replies as tombstones', function (): v
         ->getJson(route('commit-reply.index', $parent));
 
     $response->assertOk()
-        ->assertJsonCount(2, 'replies')
-        ->assertJsonPath('replies.0.id', $tombstone->id)
-        ->assertJsonPath('replies.0.deleted_at', fn (string $deletedAt): bool => $deletedAt !== '')
-        ->assertJsonPath('replies.0.replies_count', 1)
-        ->assertJsonMissingPath('replies.0.body')
-        ->assertJsonMissingPath('replies.0.user')
-        ->assertJsonMissingPath('replies.0.user_id')
-        ->assertJsonPath('replies.1.body', 'Kept');
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.id', $tombstone->id)
+        ->assertJsonPath('data.0.deleted_at', fn (string $deletedAt): bool => $deletedAt !== '')
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.body')
+        ->assertJsonMissingPath('data.0.user')
+        ->assertJsonMissingPath('data.0.user_id')
+        ->assertJsonPath('data.1.body', 'Kept');
 });
 
 it('lists the replies of a deleted commit', function (): void {
@@ -131,8 +131,8 @@ it('lists the replies of a deleted commit', function (): void {
         ->getJson(route('commit-reply.index', $parent));
 
     $response->assertOk()
-        ->assertJsonCount(1, 'replies')
-        ->assertJsonPath('replies.0.body', 'Still here');
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.body', 'Still here');
 });
 
 it('does not list replies of a commit that is not visible', function (): void {

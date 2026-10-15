@@ -385,10 +385,10 @@ it('shows deleted ancestors and replies as tombstones', function (): void {
             ->where('ancestors.1.id', $deletedAncestor->id)
             ->missing('ancestors.1.body')
             ->missing('ancestors.1.user')
-            ->has('replies', 1)
-            ->where('replies.0.id', $deletedReply->id)
-            ->where('replies.0.replies_count', 1)
-            ->missing('replies.0.body'));
+            ->has('replies.data', 1)
+            ->where('replies.data.0.id', $deletedReply->id)
+            ->where('replies.data.0.replies_count', 1)
+            ->missing('replies.data.0.body'));
 });
 
 it('does not show a commit under another username', function (): void {
