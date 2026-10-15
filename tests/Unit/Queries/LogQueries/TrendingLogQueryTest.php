@@ -102,6 +102,7 @@ it('loads what the log shows for each commit', function (): void {
 
     expect($loaded->relationLoaded('user'))->toBeTrue()
         ->and($loaded->relationLoaded('linkPreview'))->toBeTrue()
+        ->and($loaded->relationLoaded('images'))->toBeTrue()
         ->and($loaded->stars_count)->toBe(2)
         ->and($loaded->starred)->toBeTrue()
         ->and($loaded->replies_count)->toBe(3)

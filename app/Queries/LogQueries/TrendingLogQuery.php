@@ -43,7 +43,7 @@ final readonly class TrendingLogQuery implements LogQuery
             ->selectRaw("cast(strftime('%s', commits.created_at) as integer) + ".self::BOOST.' as trending_at')
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
-            ->with(['user', 'linkPreview'])
+            ->with(['user', 'linkPreview', 'images'])
             ->withStarsFor($user)
             ->orderByDesc('trending_at')
             ->orderByDesc('id');
