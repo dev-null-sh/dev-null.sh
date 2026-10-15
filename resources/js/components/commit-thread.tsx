@@ -10,6 +10,7 @@ import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BookmarkButton } from '@/components/bookmark-button';
+import { CommitBody } from '@/components/commit-body';
 import {
     ImagePickerButton,
     ImagePickerPreviews,
@@ -19,7 +20,6 @@ import { CommitImages } from '@/components/commit-images';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
-import { LinkifiedText } from '@/components/linkified-text';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,6 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
-import { emojify } from '@/lib/emoji';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
@@ -545,9 +544,10 @@ function CommitReply({
                         </p>
                     )}
 
-                    <p className="text-[15px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
-                        <LinkifiedText text={emojify(reply.body)} />
-                    </p>
+                    <CommitBody
+                        segments={reply.body_segments}
+                        className="text-[15px]"
+                    />
                     {reply.images && <CommitImages images={reply.images} />}
                     {reply.link_preview?.title && (
                         <LinkPreview preview={reply.link_preview} />
