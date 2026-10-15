@@ -116,6 +116,9 @@ Route::middleware('auth')->group(function (): void {
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
 
+    // Terminal...
+    Route::get('settings/terminal', fn () => Inertia::render('terminal/show', ['url' => url('/')]))->name('terminal.show');
+
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
     Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])->name('user-preview.show');
