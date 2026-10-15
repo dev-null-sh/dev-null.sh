@@ -46,7 +46,7 @@ function errorCopy(
                 command: 'error: RPC failed; HTTP 429 Too Many Requests',
                 headline: 'Slow down.',
                 description:
-                    "You've sent too many requests in a short time. Wait a minute, then try again.",
+                    "You've sent too many requests in a short time. Wait a little while, then try again.",
             };
         case 500:
             return {

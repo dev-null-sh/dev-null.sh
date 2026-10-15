@@ -13,6 +13,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
 import { useWhoToFollow } from '@/hooks/use-who-to-follow';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { edit } from '@/routes/appearance';
 import { show } from '@/routes/user';
@@ -65,6 +66,7 @@ function FollowButton({
                     setIsFollowing(!isFollowing);
                     router.flushAll();
                 }}
+                onHttpException={(response) => !toastWhenThrottled(response)}
                 aria-label={
                     isFollowing
                         ? `Unfollow @${user.username}`

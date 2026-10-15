@@ -71,8 +71,12 @@ Route::middleware('auth')->group(function (): void {
 
     // Private saved commits...
     Route::get('saved', [BookmarkController::class, 'index'])->name('bookmark.index');
-    Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])->name('bookmark.store');
-    Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])->name('bookmark.destroy');
+    Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])
+        ->middleware('throttle:bookmarks')
+        ->name('bookmark.store');
+    Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])
+        ->middleware('throttle:bookmarks')
+        ->name('bookmark.destroy');
 
     // Commit...
     Route::post('commits', [CommitController::class, 'store'])
@@ -80,11 +84,17 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
-    Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');
-    Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])->name('commit-pin.destroy');
+    Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])
+        ->middleware('throttle:pins')
+        ->name('commit-pin.update');
+    Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])
+        ->middleware('throttle:pins')
+        ->name('commit-pin.destroy');
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
+        ->middleware('throttle:stars')
         ->name('commit-star.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
+        ->middleware('throttle:stars')
         ->name('commit-star.destroy');
     Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
         ->withTrashed()
@@ -102,13 +112,19 @@ Route::middleware('auth')->group(function (): void {
     Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
 
     // User Search...
-    Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
-    Route::get('search/mentions', [MentionSuggestionController::class, 'index'])->name('mention-suggestion.index');
+    Route::get('search/users', [UserSearchController::class, 'index'])
+        ->middleware('throttle:people')
+        ->name('user-search.index');
+    Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
+        ->middleware('throttle:people')
+        ->name('mention-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
-    Route::get('settings/export', ExportController::class)->name('export');
+    Route::get('settings/export', ExportController::class)
+        ->middleware('throttle:exports')
+        ->name('export');
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
@@ -118,7 +134,9 @@ Route::middleware('auth')->group(function (): void {
 
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
-    Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])->name('user-preview.show');
+    Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])
+        ->middleware('throttle:people')
+        ->name('user-preview.show');
 
     Route::get('@{user:username}/following', [UserFollowingController::class, 'index'])
         ->name('user-following.index');
@@ -127,8 +145,10 @@ Route::middleware('auth')->group(function (): void {
 
     // User Follow...
     Route::post('@{user:username}/follow', [UserFollowController::class, 'store'])
+        ->middleware('throttle:follows')
         ->name('user-follow.store');
     Route::delete('@{user:username}/follow', [UserFollowController::class, 'destroy'])
+        ->middleware('throttle:follows')
         ->name('user-follow.destroy');
 });
 

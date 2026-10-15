@@ -83,5 +83,27 @@ final class AppServiceProvider extends ServiceProvider
                 return back();
             });
         });
+
+        // Commit actions: rapid j/k with a star or bookmark on most commits stays well under these...
+        RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
+        RateLimiter::for('bookmarks', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
+        RateLimiter::for('pins', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
+
+        // Social graph...
+        RateLimiter::for('follows', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));
+
+        // People search, mention suggestions, and hover cards share one bucket...
+        RateLimiter::for('people', fn (Request $request): Limit => Limit::perMinute(120)->by($this->userId($request)));
+
+        // Exports stream every commit a user ever made...
+        RateLimiter::for('exports', fn (Request $request): Limit => Limit::perHour(3)->by($this->userId($request)));
+    }
+
+    private function userId(Request $request): string
+    {
+        $user = $request->user();
+        assert($user instanceof User);
+
+        return $user->id;
     }
 }

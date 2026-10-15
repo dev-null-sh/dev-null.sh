@@ -8,6 +8,7 @@ import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowin
 import UserPreviewController from '@/actions/App/Http/Controllers/UserPreviewController';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Profile, User } from '@/types';
@@ -37,6 +38,8 @@ async function fetchPreview(user: User): Promise<PreviewData> {
     });
 
     if (!response.ok) {
+        toastWhenThrottled(response);
+
         throw new Error(`Unable to load @${user.username}`);
     }
 
@@ -208,6 +211,11 @@ function UserPreviewContent({
                 preserveScroll: true,
                 preserveState: true,
                 onError: () => onChange(previous),
+                onHttpException: (response) => {
+                    onChange(previous);
+
+                    return !toastWhenThrottled(response);
+                },
             },
         );
     };

@@ -2,6 +2,7 @@ import { router, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
 import { useState } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -64,8 +65,9 @@ export function CommitStarButton({
                 preserveState: true,
                 except: ['commits'],
                 showProgress: false,
-                onHttpException: () => {
+                onHttpException: (response) => {
                     revert();
+                    toastWhenThrottled(response);
 
                     return false;
                 },
