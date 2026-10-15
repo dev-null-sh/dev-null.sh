@@ -26,14 +26,20 @@ function reasonFor(user: SuggestedUser): string | null {
 /**
  * Only the counts reload after a follow, so the suggestion stays where it is and flips to "Following".
  */
-function FollowButton({ user }: { user: SuggestedUser }) {
+function FollowButton({
+    user,
+    className,
+}: {
+    user: SuggestedUser;
+    className?: string;
+}) {
     const [isFollowing, setIsFollowing] = useState(false);
 
     return (
         <Button
             size="sm"
             variant={isFollowing ? 'outline' : 'default'}
-            className="group/follow min-w-24 shrink-0"
+            className={cn('group/follow min-w-24 shrink-0', className)}
             asChild
         >
             <Link
@@ -77,9 +83,11 @@ function FollowButton({ user }: { user: SuggestedUser }) {
 function SuggestedUserRow({
     user,
     className,
+    buttonClassName,
 }: {
     user: SuggestedUser;
     className?: string;
+    buttonClassName?: string;
 }) {
     const reason = reasonFor(user);
 
@@ -109,7 +117,7 @@ function SuggestedUserRow({
                     )}
                 </span>
             </Link>
-            <FollowButton user={user} />
+            <FollowButton user={user} className={buttonClassName} />
         </li>
     );
 }
@@ -199,6 +207,7 @@ export function WhoToFollowInLog({
                                 key={user.id}
                                 user={user}
                                 className="p-3"
+                                buttonClassName="min-w-[90px] px-2"
                             />
                         ))}
                     </Deferred>
