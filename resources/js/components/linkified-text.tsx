@@ -1,4 +1,6 @@
+import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import TagController from '@/actions/App/Http/Controllers/TagController';
 
 // Keep these rules in sync with app/Actions/FindFirstUrl.php.
 
@@ -54,6 +56,34 @@ function withoutTrailingPunctuation(candidate: string): string {
     return url;
 }
 
+// Keep these rules in sync with app/Actions/FindTags.php.
+const tagPattern =
+    /(?<![^\s(["'{])#([A-Za-z](?:[A-Za-z0-9_-]{0,48}[A-Za-z0-9])?)(?![A-Za-z0-9_-]*[A-Za-z0-9])/gu;
+
+function withTags(text: string, offset: number): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let position = 0;
+
+    for (const match of text.matchAll(tagPattern)) {
+        parts.push(
+            text.slice(position, match.index),
+            <Link
+                key={`tag-${offset + match.index}`}
+                href={TagController.show(match[1].toLowerCase())}
+                className="text-primary hover:underline"
+            >
+                {match[0]}
+            </Link>,
+        );
+
+        position = match.index + match[0].length;
+    }
+
+    parts.push(text.slice(position));
+
+    return parts;
+}
+
 export function LinkifiedText({ text }: { text: string }) {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -69,7 +99,7 @@ export function LinkifiedText({ text }: { text: string }) {
         }
 
         parts.push(
-            text.slice(position, match.index),
+            ...withTags(text.slice(position, match.index), position),
             <a
                 key={match.index}
                 href={href}
@@ -84,7 +114,7 @@ export function LinkifiedText({ text }: { text: string }) {
         position = match.index + linkText.length;
     }
 
-    parts.push(text.slice(position));
+    parts.push(...withTags(text.slice(position), position));
 
     return <>{parts}</>;
 }

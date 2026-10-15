@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\SshKey;
+use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -140,6 +141,18 @@ it('knows if it is following a user', function (): void {
 
     expect($user->isFollowing($other))->toBeTrue()
         ->and($other->isFollowing($user))->toBeFalse();
+});
+
+it('knows if it is following a tag', function (): void {
+    $user = User::factory()->create();
+    $tag = Tag::factory()->create();
+
+    expect($user->isFollowingTag($tag))->toBeFalse();
+
+    $user->followedTags()->attach($tag);
+
+    expect($user->isFollowingTag($tag))->toBeTrue()
+        ->and(User::factory()->create()->isFollowingTag($tag))->toBeFalse();
 });
 
 it('has no password', function (): void {

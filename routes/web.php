@@ -16,6 +16,8 @@ use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PersonalDataExportController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\TagController;
+use App\Http\Controllers\TagFollowController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
@@ -76,6 +78,15 @@ Route::middleware('auth')->group(function (): void {
     Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
         ->withTrashed()
         ->name('commit-reply.index');
+
+    // Tag...
+    Route::get('tags/{tag:name}', [TagController::class, 'show'])->name('tag.show');
+
+    // Tag Follow...
+    Route::post('tags/{tag:name}/follow', [TagFollowController::class, 'store'])
+        ->name('tag-follow.store');
+    Route::delete('tags/{tag:name}/follow', [TagFollowController::class, 'destroy'])
+        ->name('tag-follow.destroy');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');

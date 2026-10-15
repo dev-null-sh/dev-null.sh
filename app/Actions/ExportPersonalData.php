@@ -10,7 +10,7 @@ use Generator;
 final readonly class ExportPersonalData
 {
     /**
-     * @return array{schema_version: int, exported_at: string, profile: array<string, int|string|null>, commits: Generator<int, array<string, string|null>>, following: Generator<int, array{username: string}>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, int|string|null>, commits: Generator<int, array<string, string|null>>, following: Generator<int, array{username: string}>, followed_tags: Generator<int, array{name: string}>}
      */
     public function handle(User $user): array
     {
@@ -32,6 +32,7 @@ final readonly class ExportPersonalData
             ],
             'commits' => $this->commits($user),
             'following' => $this->following($user),
+            'followed_tags' => $this->followedTags($user),
         ];
     }
 
@@ -59,6 +60,16 @@ final readonly class ExportPersonalData
     {
         foreach ($user->following()->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id') as $followed) {
             yield ['username' => $followed->username];
+        }
+    }
+
+    /**
+     * @return Generator<int, array{name: string}>
+     */
+    private function followedTags(User $user): Generator
+    {
+        foreach ($user->followedTags()->select(['tags.id', 'tags.name'])->lazyById(500, 'tags.id', 'id') as $tag) {
+            yield ['name' => $tag->name];
         }
     }
 }

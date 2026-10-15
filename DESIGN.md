@@ -321,6 +321,9 @@ A deleted commit that still has visible replies keeps its place so the conversat
 ### Commit Page
 Every commit has a page at `/@username/commits/{id}`, reached from its relative time or short hash (both links), the "↳ replying to @handle" label, or Enter on a focused commit. A sticky header reads "Commit" with the mono short hash and a copy-link icon on the right. Visible ancestors (up to 20) stack above as regular commit rows on one continuous rail, without delete, with deleted ones as tombstones; the focused commit sits last with a 17px body, a mono "time · date · commit hash" line, and its replies already expanded. A deleted commit's own page is a 404.
 
+### Tags
+A `#tag` in a commit or reply body is a Commit Blue link, like a URL in the body, keeping the author's casing; it never links inside a URL. Its page at `/tags/{name}` mirrors the profile: a sticky header with `#name` and the mono commit count, then a header with the name in Title (a Muted Ink `#` before it), Follow / Following (Unfollow on hover) top right, one muted sentence saying what following does, and mono counts paired with sans labels ("12 commits", "3 followers"). The feed lists commits and replies (with "↳ replying to @handle") on the regular rail.
+
 ### People Search
 A command palette opened by ⌘K / Ctrl+K or `/` anywhere, the "Search developers ⌘K" pill at the top of the right column, a Search nav item where that column is hidden, or the search icon in the mobile header. Popover surface, 576px max, 12vh from the top: a borderless 17px input with a search icon and an `esc` cap, results as rows (36px avatar, name in 600, mono handle with lane dot, truncated bio) with the active row on Accent and a `↵` hint, and a footer of key hints (hidden on phones). Combobox semantics: arrow keys move, Enter opens the profile, Escape closes. Empty: "Type a name or @handle."; pending: "Searching…"; no match: mono `fatal: no developers match '…'`.
 

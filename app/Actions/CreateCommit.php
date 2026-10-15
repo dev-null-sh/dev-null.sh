@@ -8,7 +8,9 @@ use App\Enums\CommitStatus;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Tag;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 final readonly class CreateCommit
@@ -16,6 +18,7 @@ final readonly class CreateCommit
     public function __construct(
         private NotifyAboutReplies $notifyAboutReplies,
         private FindFirstUrl $findFirstUrl,
+        private FindTags $findTags,
     ) {
         //
     }
@@ -31,6 +34,8 @@ final readonly class CreateCommit
                 'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
             ]);
+
+            $commit->tags()->attach($this->tagsFor($body));
 
             $this->notifyAboutReplies->handle($commit);
 
@@ -57,5 +62,23 @@ final readonly class CreateCommit
             ['url_hash' => hash('sha256', $url)],
             ['url' => $url],
         );
+    }
+
+    /**
+     * Creates the tags that were never used before in one query, then loads them all in another.
+     *
+     * @return Collection<int, Tag>
+     */
+    private function tagsFor(string $body): Collection
+    {
+        $names = $this->findTags->handle($body);
+
+        if ($names === []) {
+            return new Collection();
+        }
+
+        Tag::query()->upsert(array_map(fn (string $name): array => ['name' => $name], $names), ['name']);
+
+        return Tag::query()->whereIn('name', $names)->get();
     }
 }

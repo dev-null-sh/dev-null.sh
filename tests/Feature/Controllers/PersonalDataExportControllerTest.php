@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Tag;
 use App\Models\User;
 
 it('requires authentication to download personal data', function (): void {
@@ -50,6 +51,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         ],
         'commits' => [],
         'following' => [],
+        'followed_tags' => [],
     ]);
     expect($user->fresh()->getAttributes())->toBe($original);
 });
@@ -106,6 +108,20 @@ it('exports following usernames without private identity fields or followers', f
 
     expect($data['following'])->toBe([['username' => 'demo-developer']])
         ->and($response->streamedContent())->not->toContain($followed->email, $followed->github_id, $followed->id, $followed->remember_token, $follower->username);
+});
+
+it('exports the names of followed tags', function (): void {
+    $user = User::factory()->create();
+    $user->followedTags()->attach([
+        Tag::factory()->create(['name' => 'laravel'])->id,
+        Tag::factory()->create(['name' => 'rust'])->id,
+    ]);
+    User::factory()->create()->followedTags()->attach(Tag::factory()->create(['name' => 'php']));
+
+    $response = $this->actingAs($user)->get(route('personal-data-export.show'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect(collect($data['followed_tags'])->sortBy('name')->values()->all())->toBe([['name' => 'laravel'], ['name' => 'rust']]);
 });
 
 it('exports all records across chunk boundaries without omissions or duplicates', function (): void {

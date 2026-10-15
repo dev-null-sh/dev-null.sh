@@ -33,6 +33,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read Collection<int, Commit> $starredCommits
  * @property-read Collection<int, User> $following
  * @property-read Collection<int, User> $followers
+ * @property-read Collection<int, Tag> $followedTags
  * @property-read Collection<int, Notification> $notifications
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read int $commits_count
@@ -121,6 +122,14 @@ final class User extends Authenticatable
     }
 
     /**
+     * @return BelongsToMany<Tag, $this>
+     */
+    public function followedTags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'tag_follows')->withTimestamps();
+    }
+
+    /**
      * @return HasMany<Notification, $this>
      */
     public function notifications(): HasMany
@@ -186,6 +195,11 @@ final class User extends Authenticatable
     public function isFollowing(self $user): bool
     {
         return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
+    }
+
+    public function isFollowingTag(Tag $tag): bool
+    {
+        return $this->followedTags()->newPivotQuery()->where('tag_id', $tag->id)->exists();
     }
 
     public function lane(): int

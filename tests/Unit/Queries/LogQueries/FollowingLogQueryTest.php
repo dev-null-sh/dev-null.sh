@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Tag;
 use App\Models\User;
 use App\Queries\LogQueries\FollowingLogQuery;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +52,53 @@ it('resolves followed users in a subquery instead of loading their ids', functio
 
     expect(DB::getQueryLog())->toBeEmpty()
         ->and($builder->toSql())->toContain('select "followed_id" from "follows"');
+});
+
+it('includes top-level commits tagged with followed tags once', function (): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $tag = Tag::factory()->create();
+    $other = Tag::factory()->create();
+
+    $user->following()->attach($followed);
+    $user->followedTags()->attach([$tag->id, $other->id]);
+
+    $tagged = Commit::factory()->create(['created_at' => now()->subMinutes(2)]);
+    $taggedByFollowed = Commit::factory()->for($followed)->create(['created_at' => now()->subMinute()]);
+    $taggedTwice = Commit::factory()->create();
+    $reply = Commit::factory()->for($tagged, 'parent')->create();
+    $pending = Commit::factory()->pending()->create();
+
+    $tag->commits()->attach([$tagged->id, $taggedByFollowed->id, $taggedTwice->id, $reply->id, $pending->id]);
+    $other->commits()->attach($taggedTwice);
+
+    $commits = resolve(FollowingLogQuery::class)->builder($user)->get();
+
+    expect($commits->modelKeys())->toBe([$taggedTwice->id, $taggedByFollowed->id, $tagged->id]);
+});
+
+it('excludes commits of tags that are not followed', function (): void {
+    $user = User::factory()->create();
+    $tag = Tag::factory()->create();
+    $tag->commits()->attach(Commit::factory()->create());
+    User::factory()->create()->followedTags()->attach($tag);
+
+    $commits = resolve(FollowingLogQuery::class)->builder($user)->get();
+
+    expect($commits)->toBeEmpty();
+});
+
+it('resolves followed tags in a subquery instead of loading their ids', function (): void {
+    $user = User::factory()->create();
+
+    $user->followedTags()->attach(Tag::factory()->count(3)->create());
+
+    DB::enableQueryLog();
+
+    $builder = resolve(FollowingLogQuery::class)->builder($user);
+
+    expect(DB::getQueryLog())->toBeEmpty()
+        ->and($builder->toSql())->toContain('select "tag_id" from "tag_follows"');
 });
 
 it('only includes approved commits of followed users', function (): void {

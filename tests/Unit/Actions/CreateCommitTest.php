@@ -8,6 +8,7 @@ use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Notification;
+use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 
@@ -160,4 +161,47 @@ it('attaches no link preview without a url', function (): void {
         ->and(LinkPreview::query()->count())->toBe(0);
 
     Queue::assertNothingPushed();
+});
+
+it('tags the commit with the tags in its body', function (): void {
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Shipping #Laravel 13 with #php, more #laravel tomorrow. Fixes #123');
+
+    expect($commit->tags()->pluck('name')->sort()->values()->all())->toBe(['laravel', 'php'])
+        ->and(Tag::query()->count())->toBe(2);
+});
+
+it('reuses tags that were used before', function (): void {
+    $tag = Tag::factory()->create(['name' => 'rust']);
+
+    $action = resolve(CreateCommit::class);
+
+    $first = $action->handle(User::factory()->create(), 'Learning #rust');
+    $second = $action->handle(User::factory()->create(), 'Still learning #Rust');
+
+    expect(Tag::query()->count())->toBe(1)
+        ->and($first->tags->modelKeys())->toBe([$tag->id])
+        ->and($second->tags->modelKeys())->toBe([$tag->id]);
+});
+
+it('tags replies', function (): void {
+    $parent = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $reply = $action->handle(User::factory()->create(), 'Same here #til', $parent);
+
+    expect($reply->tags()->pluck('name')->all())->toBe(['til']);
+});
+
+it('creates no tags without tags in the body', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Read https://example.com/#docs, issue #42 and C# notes');
+
+    expect($commit->tags)->toBeEmpty()
+        ->and(Tag::query()->count())->toBe(0);
 });

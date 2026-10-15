@@ -5,4 +5,5 @@ export type * from './log';
 export type * from './navigation';
 export type * from './notification';
 export type * from './streak';
+export type * from './tag';
 export type * from './ui';
