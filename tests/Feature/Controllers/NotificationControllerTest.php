@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Actions\StarCommit;
-use App\Actions\UnfollowUser;
+use App\Actions\CreateCommitStar;
+use App\Actions\DeleteUserFollow;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
@@ -48,7 +48,7 @@ it('hides notifications that no longer hold', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();
 
-    resolve(UnfollowUser::class)->handle($notification->actor, $user);
+    resolve(DeleteUserFollow::class)->handle($notification->actor, $user);
 
     $response = $this->actingAs($user)->get(route('notification.index'));
 
@@ -72,7 +72,7 @@ it('groups stars per commit, newest stargazer first', function (): void {
     $stargazers = User::factory()->count(4)->create();
 
     foreach ($stargazers as $index => $stargazer) {
-        $this->travelTo(now()->subMinutes(4 - $index), fn () => resolve(StarCommit::class)->handle($stargazer, $commit));
+        $this->travelTo(now()->subMinutes(4 - $index), fn () => resolve(CreateCommitStar::class)->handle($stargazer, $commit));
     }
 
     $response = $this->actingAs($user)->get(route('notification.index'));

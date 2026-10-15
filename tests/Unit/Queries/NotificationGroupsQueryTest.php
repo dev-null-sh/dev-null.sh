@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitStar;
+use App\Actions\CreateReplyNotifications;
+use App\Actions\CreateUserFollow;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
-use App\Actions\FollowUser;
-use App\Actions\NotifyAboutReplies;
-use App\Actions\StarCommit;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 
 function starAt(User $user, Commit $commit, int $minutesAgo): void
 {
-    test()->travelTo(now()->subMinutes($minutesAgo), fn () => resolve(StarCommit::class)->handle($user, $commit));
+    test()->travelTo(now()->subMinutes($minutesAgo), fn () => resolve(CreateCommitStar::class)->handle($user, $commit));
 }
 
 function replyAt(User $user, Commit $commit, int $minutesAgo): Commit
@@ -24,7 +24,7 @@ function replyAt(User $user, Commit $commit, int $minutesAgo): Commit
     return test()->travelTo(now()->subMinutes($minutesAgo), function () use ($user, $commit): Commit {
         $reply = Commit::factory()->for($user)->for($commit, 'parent')->create();
 
-        resolve(NotifyAboutReplies::class)->handle($reply);
+        resolve(CreateReplyNotifications::class)->handle($reply);
 
         return $reply;
     });
@@ -32,7 +32,7 @@ function replyAt(User $user, Commit $commit, int $minutesAgo): Commit
 
 function followAt(User $follower, User $user, int $minutesAgo): void
 {
-    test()->travelTo(now()->subMinutes($minutesAgo), fn () => resolve(FollowUser::class)->handle($follower, $user));
+    test()->travelTo(now()->subMinutes($minutesAgo), fn () => resolve(CreateUserFollow::class)->handle($follower, $user));
 }
 
 it('groups stars per commit, newest stargazer first', function (): void {
@@ -160,7 +160,7 @@ it('paginates groups', function (): void {
     Commit::factory()->for($user)->count(NotificationGroupsQuery::PER_PAGE + 1)->create()
         ->each(function (Commit $commit) use ($stargazers): void {
             foreach ($stargazers as $stargazer) {
-                resolve(StarCommit::class)->handle($stargazer, $commit);
+                resolve(CreateCommitStar::class)->handle($stargazer, $commit);
             }
         });
 
@@ -175,8 +175,8 @@ it('loads any number of groups with the same number of queries', function (int $
 
     Commit::factory()->for($user)->count($commits)->create()
         ->each(fn (Commit $commit) => User::factory()->count(2)->create()
-            ->each(fn (User $stargazer) => resolve(StarCommit::class)->handle($stargazer, $commit)));
-    resolve(FollowUser::class)->handle(User::factory()->create(), $user);
+            ->each(fn (User $stargazer) => resolve(CreateCommitStar::class)->handle($stargazer, $commit)));
+    resolve(CreateUserFollow::class)->handle(User::factory()->create(), $user);
 
     DB::flushQueryLog();
     DB::enableQueryLog();
@@ -188,7 +188,7 @@ it('loads any number of groups with the same number of queries', function (int $
 
 it('skips loading stacked actors when nothing is grouped', function (): void {
     $user = User::factory()->create();
-    resolve(FollowUser::class)->handle(User::factory()->create(), $user);
+    resolve(CreateUserFollow::class)->handle(User::factory()->create(), $user);
 
     DB::flushQueryLog();
     DB::enableQueryLog();
@@ -205,7 +205,7 @@ it('counts the unread groups', function (): void {
 
     starAt(User::factory()->create(), $commit, 2);
     starAt(User::factory()->create(), $commit, 1);
-    resolve(FollowUser::class)->handle(User::factory()->create(), $user);
+    resolve(CreateUserFollow::class)->handle(User::factory()->create(), $user);
     Notification::factory()->for($user, 'recipient')->read()->create();
 
     expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(2);
