@@ -231,7 +231,9 @@ function ThreadActions({
                                     ? 'r'
                                     : undefined
                             }
-                            title={hasKeyboardShortcuts ? 'Reply (r)' : undefined}
+                            title={
+                                hasKeyboardShortcuts ? 'Reply (r)' : undefined
+                            }
                             className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                             data-test="reply-button"
                         >
