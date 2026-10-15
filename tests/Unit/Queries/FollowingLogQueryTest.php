@@ -22,7 +22,8 @@ it('includes own commits and commits of followed users newest first', function (
     $commits = $query->builder($user)->get();
 
     expect($commits->modelKeys())->toBe([$followedCommit->id, $own->id])
-        ->and($commits->first()->relationLoaded('user'))->toBeTrue();
+        ->and($commits->first()->relationLoaded('user'))->toBeTrue()
+        ->and($commits->first()->relationLoaded('linkPreview'))->toBeTrue();
 });
 
 it('orders commits by creation date rather than insertion order', function (): void {

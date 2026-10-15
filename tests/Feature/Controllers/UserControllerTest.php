@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -345,4 +346,22 @@ it('only shows top-level commits on profiles', function (): void {
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'Root')
             ->where('commits.data.0.replies_count', 1));
+});
+
+it('includes the link previews of the user commits', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    $linkPreview = LinkPreview::factory()->fetched()->create(['title' => 'Octocat links']);
+
+    Commit::factory()->for($user)->for($linkPreview)->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 1)
+            ->where('commits.data.0.link_preview.title', 'Octocat links')
+            ->missing('commits.data.0.link_preview.url_hash')
+            ->missing('commits.data.0.link_preview.fetched_at'));
 });

@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\SyncGitHubUser;
 use App\Enums\Log;
+use App\Jobs\SyncGitHubSshKeysJob;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -37,6 +38,8 @@ final readonly class SessionController
         assert($githubUser instanceof GitHubUser);
 
         $user = $action->handle($githubUser);
+
+        dispatch(new SyncGitHubSshKeysJob($user));
 
         Auth::login($user, remember: true);
 

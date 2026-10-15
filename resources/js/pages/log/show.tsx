@@ -5,6 +5,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -165,7 +166,7 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
-                                {commit.body}
+                                <LinkifiedText text={commit.body} />
                             </p>
                         </div>
                         <Button size="sm" asChild>
