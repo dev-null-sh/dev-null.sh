@@ -19,8 +19,13 @@ const prefixFor = (userId: string): string => `stash:${userId}:`;
 const keyFor = (userId: string, name: string): string =>
     `${prefixFor(userId)}${name}`;
 
-const read = (key: string): string =>
-    pending.has(key) ? (pending.get(key) ?? '') : readStorage(key);
+const isBlank = (body: string): boolean => body.trim() === '';
+
+const read = (key: string): string => {
+    const body = pending.has(key) ? (pending.get(key) ?? '') : readStorage(key);
+
+    return isBlank(body) ? '' : body;
+};
 
 const subscribe = (callback: () => void) => {
     listeners.add(callback);
@@ -96,7 +101,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
     const updateBody = (next: string): void => {
         setBody(next);
 
-        if (next === '') {
+        if (isBlank(next)) {
             setIsRestored(false);
             discard(key);
 
