@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     Bell,
+    Bookmark,
     GitCommitVertical,
     Globe,
     Search,
@@ -8,6 +9,7 @@ import {
     ShieldCheck,
     UserRound,
 } from 'lucide-react';
+import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
@@ -52,6 +54,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Profile',
             href: show(auth.user),
             icon: UserRound,
+        },
+        {
+            title: 'Saved',
+            href: BookmarkController.index(),
+            icon: Bookmark,
+            prefetch: false,
         },
         ...(auth.isAdmin
             ? [
@@ -233,7 +241,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
 }
 
 export function MobileNav() {
-    const items = useNavItems();
+    const items = useNavItems().filter((item) => item.title !== 'Saved');
 
     return (
         <nav

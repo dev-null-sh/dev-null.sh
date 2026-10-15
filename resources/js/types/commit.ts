@@ -13,6 +13,7 @@ export type Commit = {
     deleted_at?: null;
     user: User;
     replies_count?: number;
+    is_saved?: boolean;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
 };
 

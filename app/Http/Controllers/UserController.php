@@ -30,6 +30,7 @@ final readonly class UserController
                 ->visibleTo($currentUser)
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
+                ->withSavedState($currentUser)
                 ->with('user')
                 ->latest()
                 ->latest('id')
