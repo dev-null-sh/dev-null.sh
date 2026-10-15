@@ -18,6 +18,8 @@ use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\RepoPetController;
+use App\Http\Controllers\RepoPetRepositoryController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
@@ -112,6 +114,13 @@ Route::middleware('auth')->group(function (): void {
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
+
+    // Repo Pet...
+    Route::get('settings/repo-pet/repository', [RepoPetRepositoryController::class, 'show'])
+        ->middleware('throttle:10,1')->name('repo-pet-repository.show');
+    Route::put('settings/repo-pet', [RepoPetController::class, 'update'])
+        ->middleware('throttle:10,1')->name('repo-pet.update');
+    Route::delete('settings/repo-pet', [RepoPetController::class, 'destroy'])->name('repo-pet.destroy');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');

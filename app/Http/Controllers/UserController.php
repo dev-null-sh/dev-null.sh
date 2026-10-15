@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
+use App\Services\RepoPetStatus;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
@@ -21,7 +22,7 @@ use Inertia\Response;
 
 final readonly class UserController
 {
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks): RedirectResponse|Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, RepoPetStatus $pet): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
             return $this->preview($request, $user);
@@ -32,6 +33,7 @@ final readonly class UserController
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => fn (): array => $streaks->get($user, $currentUser),
+            'repoPet' => fn (): ?array => $pet->get($user->repo_pet),
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)

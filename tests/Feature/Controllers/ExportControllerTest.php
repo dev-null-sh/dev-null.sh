@@ -48,6 +48,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
+        'repo_pet' => null,
         'commits' => [],
         'following' => [],
     ]);
@@ -106,6 +107,18 @@ it('exports following usernames without private identity fields or followers', f
 
     expect($data['following'])->toBe([['username' => 'demo-developer']])
         ->and($response->streamedContent())->not->toContain($followed->email, $followed->github_id, $followed->id, $followed->remember_token, $follower->username);
+});
+
+it('includes only the signed-in users repo pet preference in their export', function (): void {
+    $configuration = ['repository' => 'acme/widget', 'repository_id' => 42, 'workflow_id' => 7, 'workflow' => 'Tests'];
+    $user = User::factory()->create(['repo_pet' => $configuration]);
+    $other = User::factory()->create(['repo_pet' => [...$configuration, 'repository' => 'other/project']]);
+
+    $response = $this->actingAs($user)->get(route('export', ['user_id' => $other->id]));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['repo_pet'])->toBe($configuration);
+    expect($response->streamedContent())->not->toContain('other/project');
 });
 
 it('exports all records across chunk boundaries without omissions or duplicates', function (): void {

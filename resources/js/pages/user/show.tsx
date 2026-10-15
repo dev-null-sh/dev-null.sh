@@ -18,6 +18,8 @@ import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
+import { RepoPet } from '@/components/repo-pet';
+import type { RepoPetData } from '@/components/repo-pet';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
@@ -42,6 +44,7 @@ export default function Show({
     commits,
     tab,
     pinnedCommit,
+    repoPet,
 }: {
     user: Profile;
     isFollowing: boolean;
@@ -50,6 +53,7 @@ export default function Show({
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies';
     pinnedCommit: Commit | null;
+    repoPet: RepoPetData | null;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user.id === user.id;
@@ -212,6 +216,12 @@ export default function Show({
                     ))}
                 </dl>
             </header>
+
+            {repoPet && (
+                <div className="border-b px-4 py-4 sm:px-6">
+                    <RepoPet pet={repoPet} />
+                </div>
+            )}
 
             <ActivityGraph
                 activity={activity}

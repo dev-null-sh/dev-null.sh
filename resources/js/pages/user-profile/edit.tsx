@@ -4,6 +4,8 @@ import ExportController from '@/actions/App/Http/Controllers/ExportController';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
+import type { RepoPetConfiguration, RepoPetData } from '@/components/repo-pet';
+import RepoPetSettings from '@/components/repo-pet-settings';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
@@ -13,9 +15,13 @@ import { show } from '@/routes/user';
 export default function Edit({
     preferredLane,
     automaticLane,
+    repoPetConfiguration,
+    repoPet,
 }: {
     preferredLane: number | null;
     automaticLane: number;
+    repoPetConfiguration: RepoPetConfiguration | null;
+    repoPet: RepoPetData | null;
 }) {
     const { auth } = usePage().props;
 
@@ -94,10 +100,20 @@ export default function Edit({
                 automaticLane={automaticLane}
             />
 
+            <RepoPetSettings
+                key={
+                    repoPetConfiguration
+                        ? `${repoPetConfiguration.repository_id}:${repoPetConfiguration.workflow_id}`
+                        : 'none'
+                }
+                configuration={repoPetConfiguration}
+                pet={repoPet}
+            />
+
             <section className="px-4 py-6 sm:px-6">
                 <Heading
                     title="Export your data"
-                    description="Download your GitHub profile as stored here, your color preference, all your live commits and replies with their moderation status, and the usernames you follow. Includes pending and rejected commits."
+                    description="Download your GitHub profile as stored here, your color preference, repo pet setting, all your live commits and replies with their moderation status, and the usernames you follow. Includes pending and rejected commits."
                 />
                 <p className="mb-5 text-sm text-muted-foreground">
                     Deleted commits and other people's replies are excluded.

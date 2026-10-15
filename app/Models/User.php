@@ -26,6 +26,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read string|null $website
  * @property-read string|null $company
  * @property-read int|null $preferred_lane
+ * @property-read array{repository: string, repository_id: int, workflow_id: int, workflow: string}|null $repo_pet
  * @property-read string|null $pinned_commit_id
  * @property-read string|null $remember_token
  * @property-read CarbonInterface $created_at
@@ -45,6 +46,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
     'email',
     'remember_token',
     'preferred_lane',
+    'repo_pet',
     'pinned_commit_id',
 ])]
 final class User extends Authenticatable
@@ -53,6 +55,9 @@ final class User extends Authenticatable
     use HasFactory;
 
     use HasUuids;
+
+    /** @var array<string, mixed> */
+    protected $attributes = ['repo_pet' => null];
 
     /**
      * @return array<string, string>
@@ -71,6 +76,7 @@ final class User extends Authenticatable
             'website' => 'string',
             'company' => 'string',
             'preferred_lane' => 'integer',
+            'repo_pet' => 'array',
             'pinned_commit_id' => 'string',
             'remember_token' => 'string',
             'created_at' => 'datetime',

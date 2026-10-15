@@ -229,6 +229,109 @@
     }
 }
 
+.repo-pet-creature {
+    --pet-shell: #cdd8e6;
+    --pet-ink: #405675;
+}
+
+.repo-pet-creature[data-mood='happy'] {
+    --pet-shell: #b7e4c7;
+    --pet-ink: #214f39;
+}
+
+.repo-pet-creature[data-mood='busy'] {
+    --pet-shell: #f9d98c;
+    --pet-ink: #684516;
+}
+
+.repo-pet-creature[data-mood='grumpy'] {
+    --pet-shell: #f6b7b0;
+    --pet-ink: #6e2828;
+}
+
+.repo-pet-body,
+.repo-pet-foot {
+    transform-box: fill-box;
+    transform-origin: center bottom;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .repo-pet-creature[data-mood='happy'] .repo-pet-body {
+        animation: repo-pet-hop 1.35s ease-in-out 3;
+    }
+
+    .repo-pet-creature[data-mood='busy'] .repo-pet-body {
+        animation: repo-pet-hurry 300ms ease-in-out 12;
+    }
+
+    .repo-pet-creature[data-mood='grumpy'] .repo-pet-foot {
+        animation: repo-pet-tap 900ms ease-in-out 4;
+    }
+
+    .repo-pet-creature[data-mood='sleeping'] .repo-pet-body {
+        animation: repo-pet-breathe 2s ease-in-out 2;
+    }
+
+    .repo-pet-signal {
+        animation: repo-pet-signal 1.3s ease-in-out 3;
+    }
+}
+
+@keyframes repo-pet-hop {
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    40% {
+        transform: translateY(-5px) rotate(-3deg);
+    }
+    70% {
+        transform: translateY(-2px) rotate(3deg);
+    }
+}
+
+@keyframes repo-pet-hurry {
+    0%,
+    100% {
+        transform: translateX(-1px) rotate(-2deg);
+    }
+    50% {
+        transform: translateX(1px) rotate(2deg);
+    }
+}
+
+@keyframes repo-pet-tap {
+    0%,
+    40%,
+    100% {
+        transform: rotate(0deg);
+    }
+    65% {
+        transform: rotate(-18deg);
+    }
+}
+
+@keyframes repo-pet-breathe {
+    0%,
+    100% {
+        transform: scaleY(1);
+    }
+    50% {
+        transform: scaleY(0.96);
+    }
+}
+
+@keyframes repo-pet-signal {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.35;
+        transform: translateY(-3px);
+    }
+}
+
 /* Syntax highlighting for the classes tempest/highlight emits, built from the app's own colours. */
 @layer components {
     .hl-keyword {
