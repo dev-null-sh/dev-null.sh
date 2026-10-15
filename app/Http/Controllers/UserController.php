@@ -8,6 +8,7 @@ use App\Actions\DeleteUser;
 use App\Http\Requests\DeleteUserRequest;
 use App\Models\User;
 use App\Queries\UserActivityQuery;
+use App\Queries\UserStreakQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -16,12 +17,13 @@ use Inertia\Response;
 
 final readonly class UserController
 {
-    public function show(#[CurrentUser] User $currentUser, User $user, UserActivityQuery $activity): Response
+    public function show(#[CurrentUser] User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks): Response
     {
         return Inertia::render('user/show', [
             'user' => fn (): User => $user->loadCounts($currentUser),
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
             'activity' => fn (): array => $activity->get($user, $currentUser),
+            'streaks' => fn (): array => $streaks->get($user, $currentUser),
             'commits' => Inertia::scroll(fn () => $user->commits()
                 ->visibleTo($currentUser)
                 ->topLevel()

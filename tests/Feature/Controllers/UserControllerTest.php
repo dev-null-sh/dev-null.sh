@@ -84,6 +84,42 @@ it('renders the user commit activity for the last year', function (): void {
             ->where('activity.368', ['date' => '2026-10-15', 'count' => 2]));
 });
 
+it('renders the user commit streaks', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->create(['created_at' => now()->subDays(3)]);
+    Commit::factory()->for($user)->create(['created_at' => now()->subDays(4)]);
+    Commit::factory()->for($user)->pending()->create(['created_at' => now()->subDay()]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('streaks', ['longest' => 2, 'current' => 1]));
+});
+
+it('does not compute the streaks when reloading only commits', function (): void {
+    User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(function ($page): void {
+            $page->where('streaks.longest', 1);
+
+            DB::enableQueryLog();
+
+            $page->reloadOnly('commits', fn ($reload) => $reload->missing('streaks'));
+        });
+
+    expect(collect(DB::getQueryLog())->pluck('query')->all())
+        ->not->toBeEmpty()
+        ->each->not->toContain('distinct');
+});
+
 it('renders whether the viewer is not following the user', function (): void {
     $user = User::factory()->create();
 
