@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionSuggestionController';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { emojifyInput } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 import type { User } from '@/types';
 
@@ -170,7 +171,8 @@ function Highlighted({ text, query }: { text: string; query: string }) {
 }
 
 /**
- * A textarea that suggests developers to mention as soon as "@" is typed, right under the "@".
+ * A textarea that suggests developers to mention as soon as "@" is typed, right under the "@", and turns emoji
+ * shortcodes into emoji as they are typed.
  */
 export function MentionTextarea({
     ref,
@@ -383,8 +385,24 @@ export function MentionTextarea({
                 value={value}
                 maxLength={maxLength}
                 onChange={(event) => {
-                    onValueChange(event.target.value);
-                    track(event.target);
+                    const target = event.currentTarget;
+                    const { text, caret } = emojifyInput(
+                        target.value,
+                        target.selectionStart ?? target.value.length,
+                    );
+
+                    onValueChange(text);
+
+                    if (text === target.value) {
+                        track(target);
+
+                        return;
+                    }
+
+                    close();
+                    requestAnimationFrame(() =>
+                        target.setSelectionRange(caret, caret),
+                    );
                 }}
                 onSelect={(event: SyntheticEvent<HTMLTextAreaElement>) => {
                     track(event.currentTarget);
