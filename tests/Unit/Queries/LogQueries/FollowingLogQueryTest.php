@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\User;
-use App\Queries\FollowingLogQuery;
+use App\Queries\LogQueries\FollowingLogQuery;
 use Illuminate\Support\Facades\DB;
 
 it('includes own commits and commits of followed users newest first', function (): void {

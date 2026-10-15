@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\User;
-use App\Queries\EveryoneLogQuery;
+use App\Queries\LogQueries\EveryoneLogQuery;
 
 it('includes commits of everyone newest first', function (): void {
     $older = Commit::factory()->create(['created_at' => now()->subMinute()]);

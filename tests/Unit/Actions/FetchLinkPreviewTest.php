@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 use App\Actions\FetchLinkPreview;
+use App\Contracts\Services\DnsResolver;
 use App\Models\LinkPreview;
-use App\Services\DnsResolver;
-use App\Services\SystemDnsResolver;
+use App\Services\DnsResolvers\SystemDnsResolver;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;

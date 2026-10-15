@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
+import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { ActivityGraph } from '@/components/activity-graph';
@@ -15,6 +16,7 @@ import { ActivityStreaks } from '@/components/activity-streaks';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
+import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -38,6 +40,7 @@ export default function Show({
     activity,
     streaks,
     commits,
+    tab,
     pinnedCommit,
 }: {
     user: Profile;
@@ -45,6 +48,7 @@ export default function Show({
     activity: Activity;
     streaks: Streaks;
     commits: CursorPaginated<Commit>;
+    tab: 'commits' | 'replies';
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
@@ -217,11 +221,29 @@ export default function Show({
 
             <ActivityStreaks streaks={streaks} lane={lane} />
 
+            <PageTabs
+                label="Profile feed"
+                preserveScroll
+                tabs={[
+                    {
+                        title: 'Commits',
+                        href: show(user),
+                        isActive: tab === 'commits',
+                    },
+                    {
+                        title: 'Replies',
+                        href: show(user, { query: { tab: 'replies' } }),
+                        isActive: tab === 'replies',
+                    },
+                ]}
+            />
+
             <CommitFeed
+                key={`${user.id}:${tab}`}
                 commits={commits}
-                pinnedCommit={pinnedCommit}
+                pinnedCommit={tab === 'commits' ? pinnedCommit : null}
                 threadActions={
-                    isCurrentUser
+                    isCurrentUser && tab === 'commits'
                         ? (commit) => (
                               <PinCommitButton
                                   commit={commit}
@@ -232,12 +254,22 @@ export default function Show({
                 }
                 highlightedPeriod={highlightedPeriod}
                 end={
-                    isCurrentUser
-                        ? 'That was your first commit. Everyone starts somewhere.'
-                        : `That's @${user.username}'s root commit.`
+                    tab === 'replies'
+                        ? isCurrentUser
+                            ? 'That was your first reply.'
+                            : `That's @${user.username}'s first reply.`
+                        : isCurrentUser
+                          ? 'That was your first commit. Everyone starts somewhere.'
+                          : `That's @${user.username}'s root commit.`
                 }
                 empty={
-                    isCurrentUser ? (
+                    tab === 'replies' ? (
+                        <EmptyFeed command="fatal: no replies yet">
+                            {isCurrentUser
+                                ? 'Your replies show up here. Join a conversation from your log.'
+                                : `@${user.username} hasn't replied to anything yet.`}
+                        </EmptyFeed>
+                    ) : isCurrentUser ? (
                         <EmptyFeed command="fatal: you do not have any commits yet">
                             Your commits show up here. Make your first one from
                             your log.

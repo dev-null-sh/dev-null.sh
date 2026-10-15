@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Queries;
+namespace App\Contracts\Queries;
 
 use App\Models\Commit;
 use App\Models\User;

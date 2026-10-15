@@ -9,6 +9,46 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
+it('keeps pins on the commits tab through pin replacement and unpinning', function (): void {
+    $user = User::factory()->create();
+    $first = Commit::factory()->for($user)->create(['created_at' => now()->subHour()]);
+    $replacement = Commit::factory()->for($user)->create();
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($parent, 'parent')->create();
+    $reader = User::factory()->create();
+
+    foreach ([$first, $replacement, null] as $pin) {
+        $this->actingAs($user);
+
+        if ($pin instanceof Commit) {
+            $this->put(route('commit-pin.update', $pin))->assertRedirect();
+        } else {
+            $this->delete(route('commit-pin.destroy', $replacement))->assertRedirect();
+        }
+
+        foreach ([$user, $reader] as $viewer) {
+            $this->actingAs($viewer)->get(route('user.show', $user))
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->where('tab', 'commits')
+                    ->where($pin instanceof Commit ? 'pinnedCommit.id' : 'pinnedCommit', $pin?->id)
+                    ->where('user.commits_count', 3)
+                    ->where('commits.data', fn ($commits): bool => collect($commits)->pluck('id')->sort()->values()->all()
+                        === collect([$first->id, $replacement->id])->reject(fn (string $id): bool => $id === $pin?->id)->sort()->values()->all()));
+
+            $this->get(route('user.show', ['user' => $user, 'tab' => 'replies']))
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->where('tab', 'replies')
+                    ->where('pinnedCommit', null)
+                    ->where('user.commits_count', 3)
+                    ->has('commits.data', 1)
+                    ->where('commits.data.0.id', $reply->id)
+                    ->where('commits.data.0.parent.id', $parent->id));
+        }
+    }
+});
+
 it('shows a pinned commit once above the log with visible reply counts and unchanged activity', function (): void {
     $user = User::factory()->create(['preferred_lane' => 4]);
     $pinned = Commit::factory()->for($user)->create(['created_at' => now()->subHour()]);

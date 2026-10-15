@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Services;
+namespace App\Services\DnsResolvers;
 
+use App\Contracts\Services\DnsResolver;
 use Closure;
 
 final readonly class SystemDnsResolver implements DnsResolver

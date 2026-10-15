@@ -180,8 +180,8 @@ export function CommitThread({
         <>
             <ThreadActions
                 thread={thread}
-                hasKeyboardShortcuts
                 actions={actions}
+                hasKeyboardShortcuts
             />
             <ThreadReplies thread={thread} depth={0} />
         </>
@@ -190,12 +190,12 @@ export function CommitThread({
 
 function ThreadActions({
     thread,
-    hasKeyboardShortcuts = false,
     actions,
+    hasKeyboardShortcuts = false,
 }: {
     thread: Thread;
-    hasKeyboardShortcuts?: boolean;
     actions?: ReactNode;
+    hasKeyboardShortcuts?: boolean;
 }) {
     const { auth } = usePage().props;
     const { commit } = thread;
@@ -236,6 +236,8 @@ function ThreadActions({
                     </button>
                 )}
 
+                {actions}
+
                 {thread.count > 0 && (
                     <button
                         type="button"
@@ -269,7 +271,6 @@ function ThreadActions({
                         keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                     />
                 )}
-                {actions}
             </div>
 
             {thread.isReplying && !isDeleted(commit) && (
