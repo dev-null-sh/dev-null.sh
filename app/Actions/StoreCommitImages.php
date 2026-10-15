@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Commit;
-use App\Models\CommitImage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Image\Image as ProcessedImage;
 use Illuminate\Image\ImageException;
@@ -41,7 +40,7 @@ final readonly class StoreCommitImages
         $optimized = array_map($this->optimize(...), array_slice($images, 0, self::MAX_IMAGES));
 
         foreach ($optimized as $position => $image) {
-            $path = $image->storeAs('commit-images', Str::uuid7()->toString().'.webp', CommitImage::DISK);
+            $path = $image->storeAs('commit-images', Str::uuid7()->toString().'.webp');
 
             $commit->images()->create([
                 'path' => $path,

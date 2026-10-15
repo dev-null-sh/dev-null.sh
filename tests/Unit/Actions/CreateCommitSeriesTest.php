@@ -55,10 +55,3 @@ it('stores emoji shortcodes and attaches a link preview for each part', function
 
     Queue::assertPushed(UnfurlLink::class, 1);
 });
-
-it('refuses a series that is too short or too long', function (array $bodies): void {
-    resolve(CreateCommitSeries::class)->handle(User::factory()->create(), $bodies);
-})->with([
-    'one part' => [['Only part']],
-    'eleven parts' => [array_fill(0, 11, 'Some part')],
-])->throws(InvalidArgumentException::class, 'A series has between 2 and 10 parts.');

@@ -213,77 +213,83 @@ function ThreadActions({
 
     return (
         <>
-            <div className="mt-1 -ml-2 flex flex-wrap items-center gap-0.5 text-[13px]">
-                {!isDeleted(commit) && (
-                    <button
-                        type="button"
-                        onClick={
-                            thread.isReplying
-                                ? thread.cancelReply
-                                : thread.startReply
-                        }
-                        aria-expanded={thread.isReplying}
-                        aria-keyshortcuts={
-                            hasKeyboardShortcuts && !thread.isReplying
-                                ? 'r'
-                                : undefined
-                        }
-                        title={hasKeyboardShortcuts ? 'Reply (r)' : undefined}
-                        className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                        data-test="reply-button"
-                    >
-                        <MessageSquareReply className="size-4" />
-                        Reply
-                        {hasStash && !thread.isReplying && (
-                            <span
-                                title="You have an unsent reply here"
-                                className="font-mono text-[11px] opacity-70"
-                                data-test="reply-stash-hint"
-                            >
-                                {'stash@{0}'}
-                            </span>
-                        )}
-                    </button>
-                )}
+            <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px]">
+                <div className="flex flex-wrap items-center gap-0.5">
+                    {actions}
 
-                {actions}
+                    {!isDeleted(commit) && (
+                        <button
+                            type="button"
+                            onClick={
+                                thread.isReplying
+                                    ? thread.cancelReply
+                                    : thread.startReply
+                            }
+                            aria-expanded={thread.isReplying}
+                            aria-keyshortcuts={
+                                hasKeyboardShortcuts && !thread.isReplying
+                                    ? 'r'
+                                    : undefined
+                            }
+                            title={
+                                hasKeyboardShortcuts ? 'Reply (r)' : undefined
+                            }
+                            className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                            data-test="reply-button"
+                        >
+                            <MessageSquareReply className="size-4" />
+                            Reply
+                            {hasStash && !thread.isReplying && (
+                                <span
+                                    title="You have an unsent reply here"
+                                    className="font-mono text-[11px] opacity-70"
+                                    data-test="reply-stash-hint"
+                                >
+                                    {'stash@{0}'}
+                                </span>
+                            )}
+                        </button>
+                    )}
 
-                {thread.count > 0 && (
-                    <button
-                        type="button"
-                        onClick={thread.toggle}
-                        aria-expanded={thread.isOpen}
-                        aria-keyshortcuts={
-                            hasKeyboardShortcuts ? 'o' : undefined
-                        }
-                        title={
-                            hasKeyboardShortcuts
-                                ? `${thread.isOpen ? 'Hide' : 'Show'} replies (o)`
-                                : undefined
-                        }
-                        className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
-                        data-test="toggle-replies-button"
-                    >
-                        <ChevronDown
-                            className={cn('size-4 transition-transform', {
-                                '-rotate-90': !thread.isOpen,
-                            })}
+                    {thread.count > 0 && (
+                        <button
+                            type="button"
+                            onClick={thread.toggle}
+                            aria-expanded={thread.isOpen}
+                            aria-keyshortcuts={
+                                hasKeyboardShortcuts ? 'o' : undefined
+                            }
+                            title={
+                                hasKeyboardShortcuts
+                                    ? `${thread.isOpen ? 'Hide' : 'Show'} replies (o)`
+                                    : undefined
+                            }
+                            className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
+                            data-test="toggle-replies-button"
+                        >
+                            <ChevronDown
+                                className={cn('size-4 transition-transform', {
+                                    '-rotate-90': !thread.isOpen,
+                                })}
+                            />
+                            {thread.isOpen
+                                ? 'Hide replies'
+                                : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
+                        </button>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-0.5">
+                    {!isDeleted(commit) && commit.is_saved !== undefined && (
+                        <BookmarkButton commit={commit} />
+                    )}
+                    {!isDeleted(commit) && (
+                        <CopyLinkButton
+                            commit={commit}
+                            keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                         />
-                        {thread.isOpen
-                            ? 'Hide replies'
-                            : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
-                    </button>
-                )}
-
-                {!isDeleted(commit) && (
-                    <CopyLinkButton
-                        commit={commit}
-                        keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
-                    />
-                )}
-                {!isDeleted(commit) && commit.is_saved !== undefined && (
-                    <BookmarkButton commit={commit} />
-                )}
+                    )}
+                </div>
             </div>
 
             {thread.isReplying && !isDeleted(commit) && (

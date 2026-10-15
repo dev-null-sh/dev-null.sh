@@ -6,7 +6,6 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Models\Commit;
-use App\Models\CommitImage;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -149,7 +148,7 @@ it('spends one of the 10 commits a minute on each part', function (): void {
 });
 
 it('attaches images to the first part of the series', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $user = User::factory()->create();
 
@@ -168,7 +167,7 @@ it('attaches images to the first part of the series', function (): void {
 });
 
 it('validates the images of a series like those of a commit', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $response = $this->actingAs(User::factory()->create())
         ->fromRoute('log.show', Log::Following)

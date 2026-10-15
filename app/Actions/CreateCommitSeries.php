@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use InvalidArgumentException;
 
 final readonly class CreateCommitSeries
 {
@@ -32,8 +31,6 @@ final readonly class CreateCommitSeries
     public function handle(User $user, array $bodies, array $images = []): Collection
     {
         $size = count($bodies);
-
-        throw_if($size < 2 || $size > self::MAX_PARTS, InvalidArgumentException::class, 'A series has between 2 and '.self::MAX_PARTS.' parts.');
 
         return DB::transaction(function () use ($user, $bodies, $images, $size): Collection {
             $seriesId = Str::uuid7()->toString();

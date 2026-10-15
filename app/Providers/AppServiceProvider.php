@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Contracts\Services\DnsResolver;
-use App\Models\User;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
@@ -22,13 +20,7 @@ final class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        $this->bootAuthorizationDefaults();
         $this->bootExceptionHandling();
-    }
-
-    private function bootAuthorizationDefaults(): void
-    {
-        Gate::define('moderate', fn (User $user): bool => $user->isAdmin());
     }
 
     private function bootExceptionHandling(): void
