@@ -31,6 +31,7 @@ final readonly class UserController
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
                 ->with('user')
+                ->withStarsFor($currentUser)
                 ->latest()
                 ->latest('id')
                 ->cursorPaginate(20)),

@@ -7,6 +7,8 @@ import { useNow } from '@/hooks/use-now';
 import { formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
+const interludeAfter = 5;
+
 export function CommitFeed({
     commits,
     empty,
@@ -15,6 +17,7 @@ export function CommitFeed({
     highlightedPeriod = null,
     firstSeenId = null,
     actions,
+    interlude,
 }: {
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
@@ -23,6 +26,7 @@ export function CommitFeed({
     highlightedPeriod?: string | null;
     firstSeenId?: string | null;
     actions?: (commit: Commit) => ReactNode;
+    interlude?: (lane: string, isDimmed: boolean) => ReactNode;
 }) {
     const now = useNow();
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
@@ -37,6 +41,7 @@ export function CommitFeed({
         highlightedAuthor !== null && userId !== highlightedAuthor;
 
     const lastCommit = commits.data.at(-1);
+    const interludeIndex = Math.min(interludeAfter, commits.data.length) - 1;
 
     return (
         <>
@@ -101,6 +106,11 @@ export function CommitFeed({
                                     )
                                 }
                             />
+                            {index === interludeIndex &&
+                                interlude?.(
+                                    laneColor(commit.user.lane),
+                                    isDimmed(commit.user_id),
+                                )}
                         </Fragment>
                     );
                 })}
