@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { emojify } from '@/lib/emoji';
 import { shortHash } from '@/lib/utils';
 
 export function useFlashToast(): void {
@@ -11,7 +12,8 @@ export function useFlashToast(): void {
             if (committed) {
                 toast(
                     <span className="font-mono text-[13px]">
-                        [log {shortHash(committed.id)}] {committed.body}
+                        [log {shortHash(committed.id)}]{' '}
+                        {emojify(committed.body)}
                     </span>,
                 );
             }

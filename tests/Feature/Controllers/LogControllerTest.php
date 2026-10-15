@@ -337,4 +337,3 @@ it('does not suggest users to follow once they are hidden', function (): void {
 
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
 });
-

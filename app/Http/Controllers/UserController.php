@@ -7,10 +7,14 @@ namespace App\Http\Controllers;
 use App\Actions\DeleteUser;
 use App\Actions\RegenerateFeedToken;
 use App\Http\Requests\DeleteUserRequest;
+use App\Http\Requests\ShowUserRequest;
+use App\Models\Commit;
 use App\Models\User;
+use App\Queries\CommitBuilder;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -18,10 +22,10 @@ use Inertia\Response;
 
 final readonly class UserController
 {
-    public function show(#[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, RegenerateFeedToken $regenerateFeedToken): RedirectResponse|Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, RegenerateFeedToken $regenerateFeedToken): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
-            return $this->preview($user);
+            return $this->preview($request, $user);
         }
 
         return Inertia::render('user/show', [
@@ -32,15 +36,35 @@ final readonly class UserController
             'feedUrl' => fn (): ?string => $currentUser->is($user)
                 ? route('following-feed.show', $currentUser->feed_token ?? $regenerateFeedToken->handle($currentUser))
                 : null,
-            'commits' => Inertia::scroll(fn () => $user->commits()
+            'tab' => $request->tab(...),
+            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
+                ->withSavedState($currentUser)
+                ->with(['user', 'linkPreview'])
+                ->withStarsFor($currentUser)
+                ->find($user->pinned_commit_id),
+            'commits' => Inertia::scroll(fn () => $user->commits()
+                ->visibleTo($currentUser)
+                ->when(
+                    $request->tab() === 'replies',
+                    fn (CommitBuilder $query): CommitBuilder => $query
+                        ->whereNotNull('parent_id')
+                        ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
+                            ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser))
+                            ->with('user')]),
+                    fn (CommitBuilder $query): CommitBuilder => $query->topLevel()
+                        ->when($user->pinned_commit_id, fn (CommitBuilder $query, string $id): CommitBuilder => $query->whereKeyNot($id)),
+                )
+                ->withVisibleReplyCount($currentUser)
+                ->withSavedState($currentUser)
                 ->with(['user', 'linkPreview'])
                 ->withStarsFor($currentUser)
                 ->latest()
                 ->latest('id')
-                ->cursorPaginate(20)),
+                ->cursorPaginate(20)
+                ->appends(['tab' => $request->tab()])),
         ]);
     }
 
@@ -59,9 +83,12 @@ final readonly class UserController
     /**
      * Guests only get the landing page, with the profile's link preview for crawlers.
      */
-    private function preview(User $user): RedirectResponse|Response
+    private function preview(ShowUserRequest $request, User $user): RedirectResponse|Response
     {
-        redirect()->setIntendedUrl(route('user.show', $user));
+        redirect()->setIntendedUrl(route('user.show', [
+            'user' => $user,
+            ...($request->tab() === 'replies' ? ['tab' => 'replies'] : []),
+        ]));
 
         if (app()->isLocal() && config('app.auto_login')) {
             return to_route('home');

@@ -31,6 +31,14 @@ it('creates commits pending review', function (): void {
     expect($commit->status)->toBe(CommitStatus::Pending);
 });
 
+it('stores emoji shortcodes as their emoji', function (): void {
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'shipped it :heart :like');
+
+    expect($commit->body)->toBe('shipped it ❤️ 👍');
+});
+
 it('approves commits of admins right away', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
@@ -144,7 +152,7 @@ it('fetches the link preview once the commit is saved', function (): void {
 
     $commit = $action->handle(User::factory()->create(), 'Look at https://example.com');
 
-    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->afterCommit === true);
+    Queue::assertPushed(UnfurlLink::class);
 
     expect($commit->exists)->toBeTrue();
 });

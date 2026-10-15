@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use App\Services\DnsResolver;
-use App\Services\SystemDnsResolver;
+use App\Contracts\Services\DnsResolver;
+use App\Services\DnsResolvers\SystemDnsResolver;
 
 it('is the default dns resolver', function (): void {
     expect(resolve(DnsResolver::class))->toBeInstanceOf(SystemDnsResolver::class);

@@ -42,21 +42,23 @@ it('renders a user profile', function (): void {
             ->where('commits.data.1.body', 'Older'));
 });
 
-it('does not count the user relations or activity when reloading only commits', function (): void {
+it('does not count the user relations or activity when reloading only commits', function (string $tab): void {
     $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+    Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->get('/@octocat');
+        ->get(route('user.show', ['user' => $user, 'tab' => $tab]));
 
     $response->assertOk()
         ->assertInertia(function ($page): void {
-            $page->where('user.commits_count', 1);
+            $page->where('user.commits_count', 2);
 
             DB::enableQueryLog();
 
             $page->reloadOnly('commits', fn ($reload) => $reload
                 ->missing('user')
                 ->missing('isFollowing')
+                ->missing('tab')
                 ->missing('activity'));
         });
 
@@ -66,7 +68,7 @@ it('does not count the user relations or activity when reloading only commits', 
         ->all())
         ->not->toBeEmpty()
         ->each(fn ($query) => $query->not->toContain('count(*)')->not->toContain('exists'));
-});
+})->with(['commits', 'replies']);
 
 it('renders the user commit activity for the last year', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
@@ -131,15 +133,17 @@ it('renders the user commit streaks alongside starred commits', function (): voi
             ->where('commits.data.0.starred', true));
 });
 
-it('does not compute the streaks when reloading only commits', function (): void {
-    User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+it('does not compute the streaks when reloading only commits', function (string $tab): void {
+    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+    Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->get('/@octocat');
+        ->get(route('user.show', ['user' => $user, 'tab' => $tab]));
 
     $response->assertOk()
-        ->assertInertia(function ($page): void {
-            $page->where('streaks.longest', 1);
+        ->assertInertia(function ($page) use ($tab): void {
+            $page->where('tab', $tab)
+                ->where('streaks', ['longest' => 1, 'current' => 1]);
 
             DB::enableQueryLog();
 
@@ -149,7 +153,7 @@ it('does not compute the streaks when reloading only commits', function (): void
     expect(collect(DB::getQueryLog())->pluck('query')->all())
         ->not->toBeEmpty()
         ->each->not->toContain('distinct');
-});
+})->with(['commits', 'replies']);
 
 it('renders whether the viewer is not following the user', function (): void {
     $user = User::factory()->create();

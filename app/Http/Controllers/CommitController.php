@@ -30,6 +30,7 @@ final readonly class CommitController
         $commit = Commit::query()
             ->visibleTo($currentUser)
             ->withVisibleReplyCount($currentUser)
+            ->withSavedState($currentUser)
             ->with(['user', 'linkPreview'])
             ->withStarsFor($currentUser)
             ->findOrFail($commit->id);

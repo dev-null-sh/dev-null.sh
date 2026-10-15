@@ -26,6 +26,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read string|null $website
  * @property-read string|null $company
  * @property-read int|null $preferred_lane
+ * @property-read string|null $pinned_commit_id
  * @property-read string|null $feed_token
  * @property-read string|null $remember_token
  * @property-read CarbonInterface $created_at
@@ -45,6 +46,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
     'email',
     'remember_token',
     'preferred_lane',
+    'pinned_commit_id',
     'feed_token',
 ])]
 final class User extends Authenticatable
@@ -71,6 +73,7 @@ final class User extends Authenticatable
             'website' => 'string',
             'company' => 'string',
             'preferred_lane' => 'integer',
+            'pinned_commit_id' => 'string',
             'feed_token' => 'string',
             'remember_token' => 'string',
             'created_at' => 'datetime',

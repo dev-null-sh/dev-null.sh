@@ -5,8 +5,10 @@ import { cn } from '@/lib/utils';
 export function PageTabs({
     label,
     tabs,
+    preserveScroll = false,
 }: {
     label: string;
+    preserveScroll?: boolean;
     tabs: {
         title: string;
         href: NonNullable<InertiaLinkProps['href']>;
@@ -21,6 +23,7 @@ export function PageTabs({
                     href={tab.href}
                     prefetch
                     viewTransition
+                    preserveScroll={preserveScroll}
                     aria-current={tab.isActive ? 'page' : undefined}
                     className={cn(
                         'flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
