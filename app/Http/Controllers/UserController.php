@@ -44,6 +44,7 @@ final readonly class UserController
                     fn (CommitBuilder $query): CommitBuilder => $query->topLevel(),
                 )
                 ->withVisibleReplyCount($currentUser)
+                ->withSavedState($currentUser)
                 ->with(['user', 'linkPreview'])
                 ->withStarsFor($currentUser)
                 ->latest()

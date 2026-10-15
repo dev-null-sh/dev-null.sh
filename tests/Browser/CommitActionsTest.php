@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitReport;
 use App\Models\User;
@@ -43,21 +44,28 @@ it('reports a published commit alongside the inline star actions', function (boo
 
                 return row.querySelectorAll('[data-test="star-commit-button"]').length === 1
                     && row.querySelectorAll('[aria-label="Report commit"]').length === 1
+                    && row.querySelectorAll('[data-test="bookmark-button"]').length === 1
                     && row.querySelectorAll('[data-test="copy-link-button"]').length === 1;
             })()
             JS)
         ->click('[data-test="star-commit-button"]')
         ->assertSeeIn('[data-test="star-count"]', '1')
+        ->click('[data-test="bookmark-button"]')
+        ->assertVisible('[aria-label="Unsave commit"]')
         ->click('[aria-label="Report commit"]')
         ->click('input[value="spam"]')
         ->click('Send report')
         ->assertNotPresent('[role="dialog"]')
         ->assertSee($commit->body)
         ->assertSeeIn('[data-test="star-count"]', '1')
+        ->assertVisible('[aria-label="Unsave commit"]')
         ->assertNoJavaScriptErrors();
 
     expect(CommitReport::query()->sole())
         ->commit_id->toBe($commit->id)
         ->reporter_id->toBe($viewer->id)
         ->and($viewer->hasStarred($commit))->toBeTrue();
+    expect(Bookmark::query()->sole())
+        ->commit_id->toBe($commit->id)
+        ->user_id->toBe($viewer->id);
 })->with([false, true]);

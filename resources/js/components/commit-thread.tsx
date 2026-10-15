@@ -9,6 +9,7 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
+import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitReportButton } from '@/components/commit-report-button';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import InputError from '@/components/input-error';
@@ -271,6 +272,9 @@ function ThreadActions({
                         commit={commit}
                         keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                     />
+                )}
+                {!isDeleted(commit) && commit.is_saved !== undefined && (
+                    <BookmarkButton commit={commit} />
                 )}
                 {!isDeleted(commit) && <CommitReportButton commit={commit} />}
             </div>
