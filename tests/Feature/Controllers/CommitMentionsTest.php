@@ -117,3 +117,17 @@ it('includes mentions and previews in the profile replies tab', function (): voi
         ->where('commits.data.0.link_preview.url', $preview->url)
         ->where('commits.data.0.parent.id', $parent->id));
 });
+
+it('includes mentions on a pinned profile commit', function (): void {
+    $viewer = User::factory()->create();
+    $author = User::factory()->create();
+    User::factory()->create(['username' => 'dev-one']);
+    $pinned = Commit::factory()->for($author)->create(['body' => 'Pinned thanks to @dev-one']);
+    $author->update(['pinned_commit_id' => $pinned->id]);
+
+    $this->actingAs($viewer)->get(route('user.show', $author))
+        ->assertOk()->assertInertia(fn (Assert $page): Assert => $page
+        ->where('pinnedCommit.id', $pinned->id)
+        ->where('pinnedCommit.body', $pinned->body)
+        ->where('pinnedCommit.mentions', ['dev-one']));
+});

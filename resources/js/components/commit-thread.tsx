@@ -22,6 +22,7 @@ import { UserPreview } from '@/components/user-preview';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
+import { emojify } from '@/lib/emoji';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
@@ -533,7 +534,7 @@ function CommitReply({
 
                     <p className="text-[15px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
                         <LinkifiedText
-                            text={reply.body}
+                            text={emojify(reply.body)}
                             mentions={reply.mentions}
                         />
                     </p>

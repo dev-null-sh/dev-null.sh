@@ -31,6 +31,14 @@ it('creates commits pending review', function (): void {
     expect($commit->status)->toBe(CommitStatus::Pending);
 });
 
+it('stores emoji shortcodes as their emoji', function (): void {
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'shipped it :heart :like');
+
+    expect($commit->body)->toBe('shipped it ❤️ 👍');
+});
+
 it('approves commits of admins right away', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 

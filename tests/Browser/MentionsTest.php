@@ -125,3 +125,43 @@ it('dismisses the popup when its textarea scrolls out of view', function (): voi
     $page->script('window.scrollTo(0, 900);');
     $page->assertMissing('[data-test="mention-popup"]')->assertNoJavaScriptErrors();
 });
+
+it('replaces emoji shortcodes while completing mentions in the main and reply editors', function (): void {
+    $page = visit(route('log.show', Log::Everyone))
+        ->type('#body', ':fire thanks @dev')
+        ->assertValue('#body', '🔥 thanks @dev')
+        ->assertSee('Developer Alpha')
+        ->keys('#body', 'Enter')
+        ->assertValue('#body', '🔥 thanks @dev-a ')
+        ->fill('#body', ':party @dev')
+        ->assertValue('#body', '🎉 @dev')
+        ->assertSee('Developer Alpha')
+        ->keys('#body', 'Tab')
+        ->assertValue('#body', '🎉 @dev-a ')
+        ->keys('#body', 'Control+Enter')
+        ->assertValue('#body', '')
+        ->assertNoJavaScriptErrors();
+
+    $commit = Commit::query()->sole();
+    expect($commit->body)->toBe('🎉 @dev-a');
+
+    $page->navigate(route('commit.show', [$commit->user, $commit]))
+        ->click('[data-test="reply-button"]')
+        ->type('textarea[name="body"]', '@dev :clap')
+        ->assertValue('textarea[name="body"]', '@dev 👏')
+        ->assertMissing('[data-test="mention-popup"]')
+        ->assertNoJavaScriptErrors();
+});
+
+it('waits for IME composition to finish before replacing emoji shortcodes', function (): void {
+    $page = visit(route('log.show', Log::Everyone));
+    $page->script('document.querySelector("#body").dispatchEvent(new CompositionEvent("compositionstart", {bubbles: true}));');
+    $page->fill('#body', 'Hi :heart @dev')
+        ->assertValue('#body', 'Hi :heart @dev')
+        ->assertMissing('[data-test="mention-popup"]');
+
+    $page->script('document.querySelector("#body").dispatchEvent(new CompositionEvent("compositionend", {bubbles: true}));');
+    $page->assertValue('#body', 'Hi ❤️ @dev')
+        ->assertSee('Developer Alpha')
+        ->assertNoJavaScriptErrors();
+});

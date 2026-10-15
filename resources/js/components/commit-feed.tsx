@@ -1,4 +1,5 @@
 import { InfiniteScroll } from '@inertiajs/react';
+import { Pin } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Fragment, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
@@ -17,6 +18,8 @@ export function CommitFeed({
     highlightedPeriod = null,
     firstSeenId = null,
     actions,
+    threadActions,
+    pinnedCommit = null,
     interlude,
 }: {
     commits: CursorPaginated<Commit>;
@@ -26,6 +29,8 @@ export function CommitFeed({
     highlightedPeriod?: string | null;
     firstSeenId?: string | null;
     actions?: (commit: Commit) => ReactNode;
+    threadActions?: (commit: Commit) => ReactNode;
+    pinnedCommit?: Commit | null;
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
 }) {
     const now = useNow();
@@ -33,18 +38,42 @@ export function CommitFeed({
         null,
     );
 
-    if (commits.data.length === 0) {
+    if (commits.data.length === 0 && pinnedCommit === null) {
         return <div className="px-6 py-16 text-center sm:px-12">{empty}</div>;
     }
 
     const isDimmed = (userId: string | undefined) =>
         highlightedAuthor !== null && userId !== highlightedAuthor;
 
-    const lastCommit = commits.data.at(-1);
+    const lastCommit = commits.data.at(-1) ?? pinnedCommit;
+    const pinnedLane = pinnedCommit
+        ? laneColor(pinnedCommit.user.lane)
+        : firstLane;
     const interludeIndex = Math.min(interludeAfter, commits.data.length) - 1;
 
     return (
         <>
+            {pinnedCommit && (
+                <section aria-label="Pinned commit">
+                    <div className="flex">
+                        <RailSegment />
+                        <p className="flex items-center gap-1.5 pt-3 pb-1 font-mono text-xs text-muted-foreground">
+                            <Pin aria-hidden className="size-3" />
+                            Pinned
+                        </p>
+                    </div>
+                    <CommitCard
+                        commit={pinnedCommit}
+                        isHighlighted={
+                            highlightedPeriod !== null &&
+                            pinnedCommit.created_at.startsWith(
+                                highlightedPeriod,
+                            )
+                        }
+                        threadActions={threadActions?.(pinnedCommit)}
+                    />
+                </section>
+            )}
             <InfiniteScroll
                 data="commits"
                 onlyNext
@@ -60,7 +89,7 @@ export function CommitFeed({
                     const previous = commits.data[index - 1];
                     const previousLane = previous
                         ? laneColor(previous.user.lane)
-                        : firstLane;
+                        : pinnedLane;
                     const startsDay =
                         !previous ||
                         localDayKey(previous.created_at) !==
@@ -100,6 +129,7 @@ export function CommitFeed({
                                     )
                                 }
                                 actions={actions?.(commit)}
+                                threadActions={threadActions?.(commit)}
                                 onAuthorHover={(isHovering) =>
                                     setHighlightedAuthor(
                                         isHovering ? commit.user_id : null,

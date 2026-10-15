@@ -10,6 +10,7 @@ import {
 import { createPortal } from 'react-dom';
 import UserSearchController from '@/actions/App/Http/Controllers/UserSearchController';
 import { UserAvatar } from '@/components/user-avatar';
+import { emojifyInput } from '@/lib/emoji';
 import { activeMention, caretRect, insertMention } from '@/lib/mentions';
 import type { MentionFragment } from '@/lib/mentions';
 import { cn } from '@/lib/utils';
@@ -64,7 +65,12 @@ export function MentionTextarea({
     const failed =
         query !== null && response?.query === query && response.error;
 
-    const inspect = (element: HTMLTextAreaElement) => {
+    const inspect = (
+        element: Pick<
+            HTMLTextAreaElement,
+            'value' | 'selectionStart' | 'selectionEnd'
+        >,
+    ) => {
         if (composing.current) return;
         const next = activeMention(
             element.value,
@@ -207,6 +213,24 @@ export function MentionTextarea({
         });
     };
 
+    const change = (element: HTMLTextAreaElement) => {
+        if (composing.current) {
+            onValueChange(element.value);
+            return;
+        }
+        const { text, caret } = emojifyInput(
+            element.value,
+            element.selectionStart,
+        );
+        onValueChange(text);
+        if (text === element.value) {
+            inspect(element);
+            return;
+        }
+        inspect({ value: text, selectionStart: caret, selectionEnd: caret });
+        requestAnimationFrame(() => element.setSelectionRange(caret, caret));
+    };
+
     const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (
             composing.current ||
@@ -283,10 +307,7 @@ export function MentionTextarea({
                         ? `${listId}-${activeIndex}`
                         : undefined
                 }
-                onChange={(event) => {
-                    onValueChange(event.target.value);
-                    inspect(event.currentTarget);
-                }}
+                onChange={(event) => change(event.currentTarget)}
                 onSelect={(event) => {
                     onSelect?.(event);
                     inspect(event.currentTarget);
@@ -306,7 +327,7 @@ export function MentionTextarea({
                 }}
                 onCompositionEnd={(event) => {
                     composing.current = false;
-                    inspect(event.currentTarget);
+                    change(event.currentTarget);
                 }}
                 onKeyDown={keyDown}
             />

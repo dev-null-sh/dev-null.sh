@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
+import { emojify } from '@/lib/emoji';
 import {
     cn,
     formatFullDateTime,
@@ -36,6 +37,7 @@ export function CommitCard({
     isFocused = false,
     canDelete = true,
     initialReplies,
+    threadActions,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -47,6 +49,7 @@ export function CommitCard({
     isFocused?: boolean;
     canDelete?: boolean;
     initialReplies?: CursorPaginated<ThreadCommit>;
+    threadActions?: ReactNode;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
@@ -246,7 +249,7 @@ export function CommitCard({
                                     )}
                                 >
                                     <LinkifiedText
-                                        text={commit.body}
+                                        text={emojify(commit.body)}
                                         mentions={commit.mentions}
                                     />
                                 </p>
@@ -286,11 +289,14 @@ export function CommitCard({
                                     commit={commit}
                                     initialReplies={initialReplies}
                                     actions={
-                                        <CommitStarButton
-                                            key={`${commit.starred}-${commit.stars_count}`}
-                                            commit={commit}
-                                            className="px-2 py-0.5"
-                                        />
+                                        <>
+                                            <CommitStarButton
+                                                key={`${commit.starred}-${commit.stars_count}`}
+                                                commit={commit}
+                                                className="px-2 py-0.5"
+                                            />
+                                            {threadActions}
+                                        </>
                                     }
                                 />
                             ))}
