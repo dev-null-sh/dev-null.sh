@@ -3,15 +3,19 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\ApproveCommitsController;
+use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
+use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PersonalDataExportController;
@@ -55,6 +59,9 @@ Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'
 Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');
+Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
+    ->whereUuid('commitImage')
+    ->name('commit-image.show');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -63,6 +70,11 @@ Route::middleware('auth')->group(function (): void {
 
     // Log...
     Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
+
+    // Private saved commits...
+    Route::get('saved', [BookmarkController::class, 'index'])->name('bookmark.index');
+    Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])->name('bookmark.store');
+    Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])->name('bookmark.destroy');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
@@ -75,6 +87,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
+    Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');
+    Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])->name('commit-pin.destroy');
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->name('commit-star.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
@@ -99,6 +113,7 @@ Route::middleware('auth')->group(function (): void {
 
     // User Search...
     Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
+    Route::get('search/mentions', [MentionSuggestionController::class, 'index'])->name('mention-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));

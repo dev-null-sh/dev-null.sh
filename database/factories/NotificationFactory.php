@@ -58,6 +58,20 @@ final class NotificationFactory extends Factory
         ]);
     }
 
+    /**
+     * An approved commit of the actor that mentions the recipient.
+     */
+    public function mentioned(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'type' => NotificationType::Mentioned,
+            'commit_id' => fn (array $attributes): string => Commit::factory()
+                ->for(User::query()->whereKey($attributes['actor_id'])->sole())
+                ->create(['body' => 'Thanks @'.User::query()->whereKey($attributes['recipient_id'])->sole()->username])
+                ->id,
+        ]);
+    }
+
     public function read(): self
     {
         return $this->state(fn (array $attributes): array => [

@@ -159,20 +159,15 @@ final readonly class OpenGraphCanvas
 
         $size = 32;
         $left = $x - 8 - $size;
-        $center = self::FOOTER_BASELINE - 11;
-        $unit = $size / 24;
+        $top = self::FOOTER_BASELINE - 11 - $size / 2;
 
-        $this->circle($left + 12 * $unit, $center, 10 * $unit, self::INK);
-        $this->circle($left + 12 * $unit, $center, 7.5 * $unit, self::SHELL);
-
-        $points = [];
-
-        foreach ([[-8, -1.3], [8, -1.3], [8, 1.3], [-8, 1.3]] as [$along, $across]) {
-            $points[] = (int) round(($left + 12 * $unit + ($along + $across) * $unit * M_SQRT1_2) * self::SCALE);
-            $points[] = (int) round(($center + (-$along + $across) * $unit * M_SQRT1_2) * self::SCALE);
+        foreach ([
+            [[[2, 42], [12, 42], [26, 6], [16, 6]], self::INK],
+            [[[17.81, 43.5], [31.03, 43.5], [46.19, 4.5], [32.97, 4.5]], self::LANES[0]],
+            [[[22.19, 40.5], [35.03, 7.5], [41.81, 7.5], [28.97, 40.5]], self::SHELL],
+        ] as [$corners, $color]) {
+            $this->polygon($corners, $left, $top, $size, $color);
         }
-
-        imagefilledpolygon($this->image, $points, self::INK);
     }
 
     /**
@@ -366,6 +361,24 @@ final readonly class OpenGraphCanvas
         $diameter = (int) round($radius * 2 * self::SCALE);
 
         imagefilledellipse($this->image, (int) round($x * self::SCALE), (int) round($y * self::SCALE), $diameter, $diameter, $color);
+    }
+
+    /**
+     * Fills a polygon given in the logo's 48 unit grid, cropped to the 45 unit square around the mark like favicon.svg.
+     *
+     * @param  list<array{float|int, float|int}>  $corners
+     */
+    private function polygon(array $corners, float $left, float $top, int $size, int $color): void
+    {
+        $unit = $size / 45;
+        $points = [];
+
+        foreach ($corners as [$x, $y]) {
+            $points[] = (int) round(($left + ($x - 1.6) * $unit) * self::SCALE);
+            $points[] = (int) round(($top + ($y - 1.5) * $unit) * self::SCALE);
+        }
+
+        imagefilledpolygon($this->image, $points, $color);
     }
 
     private function rect(int $x1, int $y1, int $x2, int $y2, int $color): void
