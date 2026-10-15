@@ -9,6 +9,8 @@ use App\Enums\RepliesPerPage;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Omarchy\OmarchyTheme;
+use App\Omarchy\ResolveOmarchyTheme;
 use App\Queries\ConversationsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
@@ -65,6 +67,7 @@ final class HandleInertiaRequests extends Middleware
         $isAdmin = $request->user()?->isAdmin() ?? false;
         $user = $request->user();
         $showsWhoToFollow = $user instanceof User && $request->cookie('who_to_follow') !== 'false';
+        $theme = resolve(ResolveOmarchyTheme::class)->handle();
 
         return [
             ...parent::share($request),
@@ -96,6 +99,10 @@ final class HandleInertiaRequests extends Middleware
                 : collect(),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
+            'omarchy' => $theme instanceof OmarchyTheme ? [
+                'name' => $theme->name,
+                'mode' => $theme->mode,
+            ] : null,
             // Onboarding has no sidebar to show them in, and the people followed during it change who is suggested.
             ...$user instanceof User && $showsWhoToFollow && ! $request->routeIs('onboarding.show') ? [
                 'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(

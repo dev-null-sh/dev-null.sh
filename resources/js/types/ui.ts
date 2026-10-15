@@ -25,3 +25,8 @@ export type DeletedFlash = DeletedCommit & {
     expires_at: string;
     server_time: string;
 };
+
+export type OmarchyTheme = {
+    name: string;
+    mode: 'light' | 'dark';
+};

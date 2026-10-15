@@ -32,10 +32,18 @@ pest()->extend(TestCase::class)
         Sleep::fake();
 
         $this->freezeTime();
+
+        // The suite must not pick up the desktop theme of the machine running it...
+        config(['omarchy.enabled' => false]);
     })
     ->in('Feature', 'Unit');
 
 expect()->extend('toBeOne', fn () => $this->toBe(1));
+
+function fixturePath(string $path): string
+{
+    return __DIR__.'/Fixtures/'.$path;
+}
 
 function something(): void
 {

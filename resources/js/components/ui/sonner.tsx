@@ -15,7 +15,7 @@ const aboveChatDock = {
 }
 
 function Toaster({ ...props }: ToasterProps) {
-  const { appearance } = useAppearance()
+  const { resolvedAppearance } = useAppearance()
   const isMobile = useIsMobile()
 
   useFlashToast()
@@ -23,7 +23,7 @@ function Toaster({ ...props }: ToasterProps) {
 
   return (
     <Sonner
-      theme={appearance}
+      theme={resolvedAppearance}
       className="toaster group transition-[bottom] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
       position="bottom-right"
       offset={isMobile ? aboveMobileNav : aboveChatDock}

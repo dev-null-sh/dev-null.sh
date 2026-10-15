@@ -4,6 +4,7 @@ import type {
     CommittedFlash,
     DeletedFlash,
     FlashToast,
+    OmarchyTheme,
     TimeoutFlash,
 } from '@/types/ui';
 
@@ -31,6 +32,7 @@ declare module '@inertiajs/core' {
             repliesPerPage: number;
             suggestedUsers?: SuggestedUser[];
             liveFollowing?: User[];
+            omarchy: OmarchyTheme | null;
             [key: string]: unknown;
         };
     }

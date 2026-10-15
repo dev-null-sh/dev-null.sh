@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import AppearanceTabs from '@/components/appearance-tabs';
 import Heading from '@/components/heading';
 import LaneDimmingTabs from '@/components/lane-dimming-tabs';
@@ -9,6 +9,8 @@ import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 
 export default function Update() {
+    const { omarchy } = usePage().props;
+
     return (
         <>
             <Head title="Appearance settings" />
@@ -16,7 +18,11 @@ export default function Update() {
             <section className="px-4 py-6 sm:px-6">
                 <Heading
                     title="Theme"
-                    description="System follows your operating system, light by day and dark by night if that's how you have it set."
+                    description={
+                        omarchy
+                            ? `System follows your operating system. Omarchy adopts your current ${omarchy.name} desktop theme.`
+                            : "System follows your operating system, light by day and dark by night if that's how you have it set."
+                    }
                 />
                 <AppearanceTabs />
             </section>
