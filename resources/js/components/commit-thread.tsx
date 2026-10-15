@@ -22,6 +22,7 @@ import { UserPreview } from '@/components/user-preview';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
+import { emojify, emojifyInput } from '@/lib/emoji';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
@@ -533,7 +534,7 @@ function CommitReply({
                     )}
 
                     <p className="text-[15px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
-                        <LinkifiedText text={reply.body} />
+                        <LinkifiedText text={emojify(reply.body)} />
                     </p>
                     {reply.link_preview?.title && (
                         <LinkPreview preview={reply.link_preview} />
@@ -643,7 +644,21 @@ function ReplyComposer({
                         rows={1}
                         autoFocus
                         value={body}
-                        onChange={(event) => updateBody(event.target.value)}
+                        onChange={(event) => {
+                            const target = event.currentTarget;
+                            const { text, caret } = emojifyInput(
+                                target.value,
+                                target.selectionStart ?? target.value.length,
+                            );
+
+                            updateBody(text);
+
+                            if (text !== target.value) {
+                                requestAnimationFrame(() =>
+                                    target.setSelectionRange(caret, caret),
+                                );
+                            }
+                        }}
                         onKeyDown={onKeyDown}
                         onFocus={isRestored ? moveCaretToEnd : undefined}
                         maxLength={maxBodyLength}

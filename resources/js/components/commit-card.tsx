@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
+import { emojify } from '@/lib/emoji';
 import {
     cn,
     formatFullDateTime,
@@ -246,7 +247,9 @@ export function CommitCard({
                                             : 'text-[15px]',
                                     )}
                                 >
-                                    <LinkifiedText text={commit.body} />
+                                    <LinkifiedText
+                                        text={emojify(commit.body)}
+                                    />
                                 </p>
                                 {commit.link_preview?.title && (
                                     <LinkPreview
