@@ -20,6 +20,7 @@ final readonly class SavedCommitsQuery
             ->visibleTo($user)
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
+            ->withMentions()
             ->withStarsFor($user)
             ->with([
                 'user',

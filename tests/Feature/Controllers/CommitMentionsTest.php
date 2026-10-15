@@ -67,3 +67,53 @@ it('resolves ancestor mentions on a reply page', function (): void {
     $this->actingAs($viewer)->get(route('commit.show', [$reply->user, $reply]))
         ->assertInertia(fn (Assert $page): Assert => $page->where('ancestors.0.mentions', ['dev-one']));
 });
+
+it('preserves mentions previews and engagement state on saved commits and replies', function (): void {
+    $viewer = User::factory()->create();
+    User::factory()->create(['username' => 'dev-one']);
+    $preview = LinkPreview::factory()->fetched()->create();
+    $commit = Commit::factory()->for($preview)->create(['body' => 'Read @dev-one https://example.com']);
+    $reply = Commit::factory()->for($commit, 'parent')->for($preview)->create(['body' => 'Thanks @dev-one https://example.com']);
+    $reply->stars()->attach($viewer);
+
+    $this->actingAs($viewer)->putJson(route('bookmark.store', $commit))->assertOk();
+    $this->putJson(route('bookmark.store', $reply))->assertOk();
+
+    $this->get(route('bookmark.index'))->assertOk()->assertInertia(fn (Assert $page): Assert => $page
+        ->has('commits.data', 2)
+        ->where('commits.data.0.id', $reply->id)
+        ->where('commits.data.0.body', $reply->body)
+        ->where('commits.data.0.mentions', ['dev-one'])
+        ->where('commits.data.0.link_preview.url', $preview->url)
+        ->where('commits.data.0.parent.id', $commit->id)
+        ->where('commits.data.0.starred', true)
+        ->where('commits.data.0.stars_count', 1)
+        ->where('commits.data.0.is_saved', true)
+        ->where('commits.data.1.id', $commit->id)
+        ->where('commits.data.1.body', $commit->body)
+        ->where('commits.data.1.mentions', ['dev-one'])
+        ->where('commits.data.1.link_preview.url', $preview->url)
+        ->where('commits.data.1.is_saved', true));
+});
+
+it('includes mentions and previews in the profile replies tab', function (): void {
+    $viewer = User::factory()->create();
+    $author = User::factory()->create();
+    User::factory()->create(['username' => 'dev-one']);
+    $preview = LinkPreview::factory()->fetched()->create();
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($author)->for($parent, 'parent')->for($preview)
+        ->create(['body' => 'Reply to @dev-one https://example.com']);
+    Commit::factory()->for($author)->create(['body' => 'Top level @dev-one']);
+    Commit::factory()->for($author)->for($parent, 'parent')->pending()->create(['body' => 'Hidden @dev-one']);
+
+    $this->actingAs($viewer)->get(route('user.show', ['user' => $author, 'tab' => 'replies']))
+        ->assertOk()->assertInertia(fn (Assert $page): Assert => $page
+        ->where('tab', 'replies')
+        ->has('commits.data', 1)
+        ->where('commits.data.0.id', $reply->id)
+        ->where('commits.data.0.body', $reply->body)
+        ->where('commits.data.0.mentions', ['dev-one'])
+        ->where('commits.data.0.link_preview.url', $preview->url)
+        ->where('commits.data.0.parent.id', $parent->id));
+});

@@ -12,8 +12,6 @@ use Illuminate\Support\Collection;
 final readonly class LoadCommitMentions
 {
     /**
-     * Resolve a page at once, without storing identity metadata in the commit body.
-     *
      * @param  iterable<Commit>  $commits
      */
     public function handle(iterable $commits): void
