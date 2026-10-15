@@ -9,6 +9,7 @@ use App\Http\Requests\RestoreCommitRequest;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -19,7 +20,9 @@ final readonly class CommitRestoreController
     {
         $commit = $action->handle($user, $commit);
 
-        Inertia::flash('restored', Commit::query()->withVisibleReplyCount($user)->withStarsFor($user)->with([
+        Inertia::flash('restored', Commit::query()->withVisibleReplyCount($user)->withStarsFor($user)->withSavedState($user)->withMax([
+            'bookmarks as saved_order' => fn (Builder $query): Builder => $query->where('user_id', $user->id),
+        ], 'id')->with([
             'user',
             'linkPreview',
             'parent' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->with('user'),

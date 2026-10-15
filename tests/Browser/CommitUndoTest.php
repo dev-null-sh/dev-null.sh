@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\User;
 
@@ -56,3 +57,43 @@ it('keeps an undone commit out of the other profile tab after navigation', funct
 
     $this->assertNotSoftDeleted($commit);
 })->with([false, true]);
+
+it('restores saved replies in saved order with their saved state', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->for($user)->create(['body' => 'Saved last, shown first.']);
+    $reply = Commit::factory()->for($user)->for($root, 'parent')->create(['body' => 'Saved first, shown last.']);
+    Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $reply->id]);
+    Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $root->id]);
+
+    $this->actingAs($user);
+
+    visit(route('bookmark.index'))
+        ->click('[data-commit="'.$reply->id.'"] [data-test="delete-commit-button"]')
+        ->click('[data-test="confirm-delete-commit-button"]')
+        ->assertSee('Commit deleted.')
+        ->click('[data-test="commit-undo"] button')
+        ->assertSee('Commit restored.')
+        ->assertSee('Saved first, shown last.')
+        ->assertAttribute('[data-commit="'.$reply->id.'"] [data-test="bookmark-button"]', 'aria-pressed', 'true')
+        ->assertScript('Array.from(document.querySelectorAll("[data-commit]")).map(card => card.dataset.commit)', [$root->id, $reply->id])
+        ->assertNoJavaScriptErrors();
+});
+
+it('does not insert an unsaved commit when undoing after navigating to saved', function (): void {
+    $user = User::factory()->create();
+    Commit::factory()->for($user)->create(['body' => 'Keep this out of saved.']);
+
+    $this->actingAs($user);
+
+    visit(route('user.show', $user))
+        ->click('[data-test="delete-commit-button"]')
+        ->click('[data-test="confirm-delete-commit-button"]')
+        ->assertSee('Commit deleted.')
+        ->click('nav[aria-label="Main"] a:has-text("Saved")')
+        ->assertSee('fatal: no saved commits yet')
+        ->click('[data-test="commit-undo"] button')
+        ->assertSee('Commit restored.')
+        ->assertDontSee('Keep this out of saved.')
+        ->assertSee('fatal: no saved commits yet')
+        ->assertNoJavaScriptErrors();
+});

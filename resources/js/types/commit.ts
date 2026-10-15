@@ -24,6 +24,7 @@ export type Commit = {
     user: User;
     replies_count?: number;
     is_saved?: boolean;
+    saved_order?: number | null;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
 };

@@ -31,6 +31,7 @@ export function CommitFeed({
     const now = useNow();
     const page = usePage();
     const isModeration = page.component === 'moderation/show';
+    const isSaved = page.component === 'bookmark/index';
     const profileUserId =
         page.component === 'user/show'
             ? (page.props.user as { id: string }).id
@@ -54,9 +55,11 @@ export function CommitFeed({
                     restored &&
                     (isModeration
                         ? restored.status === 'pending'
-                        : isProfileReplies
-                          ? restored.parent_id !== null
-                          : restored.parent_id === null) &&
+                        : isSaved
+                          ? restored.is_saved === true
+                          : isProfileReplies
+                            ? restored.parent_id !== null
+                            : restored.parent_id === null) &&
                     (profileUserId === null ||
                         restored.user_id === profileUserId)
                 ) {
@@ -67,6 +70,11 @@ export function CommitFeed({
                             ),
                             restored,
                         ].sort((a, b) => {
+                            if (isSaved) {
+                                return (
+                                    (b.saved_order ?? 0) - (a.saved_order ?? 0)
+                                );
+                            }
                             const order =
                                 b.created_at.localeCompare(a.created_at) ||
                                 b.id.localeCompare(a.id);
@@ -75,7 +83,7 @@ export function CommitFeed({
                     );
                 }
             }),
-        [profileUserId, isModeration, isProfileReplies],
+        [profileUserId, isModeration, isProfileReplies, isSaved],
     );
 
     if (commits.data.length === 0) {
