@@ -7,6 +7,7 @@ use App\Actions\DeleteUser;
 use App\Actions\FollowUser;
 use App\Actions\RejectCommit;
 use App\Actions\UnfollowUser;
+use App\Enums\NotificationType;
 use App\Models\Notification;
 
 it('scopes notifications to unread ones', function (): void {
@@ -73,6 +74,28 @@ it('deletes replies along with the replied commit', function (): void {
     expect($notification->fresh())->toBeNull();
 });
 
+it('keeps stars on approved commits', function (): void {
+    $notification = Notification::factory()->starred()->create();
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+});
+
+it('hides stars once the commit is rejected', function (): void {
+    $notification = Notification::factory()->starred()->create();
+
+    resolve(RejectCommit::class)->handle($notification->commit);
+
+    expect(Notification::query()->where('type', NotificationType::Starred)->relevant()->exists())->toBeFalse();
+});
+
+it('deletes stars along with the starred commit', function (): void {
+    $notification = Notification::factory()->starred()->create();
+
+    resolve(DeleteCommit::class)->handle($notification->commit);
+
+    expect($notification->fresh())->toBeNull();
+});
+
 it('deletes notifications along with the actor', function (Notification $notification): void {
     resolve(DeleteUser::class)->handle($notification->actor);
 
@@ -80,6 +103,7 @@ it('deletes notifications along with the actor', function (Notification $notific
 })->with([
     'followed' => fn (): Notification => Notification::factory()->create(),
     'replied' => fn (): Notification => Notification::factory()->replied()->create(),
+    'starred' => fn (): Notification => Notification::factory()->starred()->create(),
 ]);
 
 it('deletes notifications along with the recipient', function (): void {

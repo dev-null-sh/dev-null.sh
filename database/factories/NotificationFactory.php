@@ -34,27 +34,49 @@ final class NotificationFactory extends Factory
     {
         return $this
             ->afterMaking(fn (Notification $notification): Notification => $notification->forceFill([
-                'key' => $notification->type->value.':'.($notification->commit_id ?? $notification->actor_id),
+                'key' => $notification->type === NotificationType::Starred
+                    ? 'starred:'.$notification->commit_id.':'.$notification->actor_id
+                    : $notification->type->value.':'.($notification->commit_id ?? $notification->actor_id),
             ]))
             ->afterCreating(function (Notification $notification): void {
                 if ($notification->type === NotificationType::Followed) {
                     $notification->actor()->firstOrFail()->following()->syncWithoutDetaching([$notification->recipient_id]);
                 }
+
+                if ($notification->type === NotificationType::Starred) {
+                    $notification->actor()->firstOrFail()->starredCommits()->syncWithoutDetaching([$notification->commit_id]);
+                }
             });
     }
 
     /**
-     * An approved reply from the actor to one of the recipient's commits.
+     * An approved reply from the actor to one of the recipient's commits, or to the given one.
      */
-    public function replied(): self
+    public function replied(?Commit $parent = null): self
     {
         return $this->state(fn (array $attributes): array => [
             'type' => NotificationType::Replied,
             'commit_id' => fn (array $attributes): string => Commit::factory()
                 ->for(User::query()->whereKey($attributes['actor_id'])->sole())
-                ->for(Commit::factory()->for(User::query()->whereKey($attributes['recipient_id'])->sole()), 'parent')
+                ->for($parent ?? Commit::factory()->for(User::query()->whereKey($attributes['recipient_id'])->sole()), 'parent')
                 ->create()
                 ->id,
+            'subject_id' => fn (array $attributes): ?string => Commit::query()->whereKey($attributes['commit_id'])->sole()->parent_id,
+        ]);
+    }
+
+    /**
+     * A star from the actor on one of the recipient's approved commits, or on the given one.
+     */
+    public function starred(?Commit $commit = null): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'type' => NotificationType::Starred,
+            'commit_id' => fn (array $attributes): string => $commit->id ?? Commit::factory()
+                ->for(User::query()->whereKey($attributes['recipient_id'])->sole())
+                ->create()
+                ->id,
+            'subject_id' => fn (array $attributes): string => Commit::query()->whereKey($attributes['commit_id'])->sole()->id,
         ]);
     }
 

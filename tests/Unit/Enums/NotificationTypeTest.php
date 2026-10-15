@@ -10,5 +10,6 @@ it('has the types of a notification', function (): void {
         'Replied' => 'replied',
         'Approved' => 'approved',
         'Rejected' => 'rejected',
+        'Starred' => 'starred',
     ]);
 });
