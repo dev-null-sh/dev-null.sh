@@ -2,11 +2,17 @@ import type { SVGAttributes } from 'react';
 
 export default function AppLogoIcon(props: SVGAttributes<SVGElement>) {
     return (
-        <svg {...props} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <svg
+            {...props}
+            viewBox="1.6 1.5 45 45"
+            xmlns="http://www.w3.org/2000/svg"
+        >
+            <path d="M2 42h10L26 6H16Z" />
             <path
+                className="fill-(--lane-0)"
                 fillRule="evenodd"
                 clipRule="evenodd"
-                d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2.5c1.6 0 3.08.5 4.3 1.37L5.87 16.3A7.5 7.5 0 0 1 12 4.5Zm0 15a7.47 7.47 0 0 1-4.3-1.37L18.13 7.7A7.5 7.5 0 0 1 12 19.5Z"
+                d="M17.81 43.5h13.22L46.19 4.5H32.97ZM22.19 40.5l12.84-33h6.78l-12.84 33Z"
             />
         </svg>
     );
