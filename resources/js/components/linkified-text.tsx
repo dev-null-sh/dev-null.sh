@@ -61,7 +61,7 @@ function withoutTrailingPunctuation(candidate: string): string {
     return url;
 }
 
-// Keep these rules in sync with app/Actions/FindTags.php.
+// Keep these rules in sync with app/Services/Tags.php.
 const tagPattern =
     /(?<![^\s(["'{])#([A-Za-z](?:[A-Za-z0-9_-]{0,48}[A-Za-z0-9])?)(?![A-Za-z0-9_-]*[A-Za-z0-9])/gu;
 

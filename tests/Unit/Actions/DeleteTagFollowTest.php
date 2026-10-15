@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Actions\UnfollowTag;
+use App\Actions\DeleteTagFollow;
 use App\Models\Tag;
 use App\Models\User;
 
@@ -12,7 +12,7 @@ it('may unfollow a tag', function (): void {
 
     $user->followedTags()->attach($tag);
 
-    $action = resolve(UnfollowTag::class);
+    $action = resolve(DeleteTagFollow::class);
 
     $action->handle($user, $tag);
 
@@ -23,7 +23,7 @@ it('does nothing when not following', function (): void {
     $user = User::factory()->create();
     $tag = Tag::factory()->create();
 
-    $action = resolve(UnfollowTag::class);
+    $action = resolve(DeleteTagFollow::class);
 
     $action->handle($user, $tag);
 

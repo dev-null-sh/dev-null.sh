@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Actions\FollowTag;
+use App\Actions\CreateTagFollow;
 use App\Models\Tag;
 use App\Models\User;
 
@@ -10,7 +10,7 @@ it('may follow a tag', function (): void {
     $user = User::factory()->create();
     $tag = Tag::factory()->create();
 
-    $action = resolve(FollowTag::class);
+    $action = resolve(CreateTagFollow::class);
 
     $action->handle($user, $tag);
 
@@ -21,7 +21,7 @@ it('is idempotent', function (): void {
     $user = User::factory()->create();
     $tag = Tag::factory()->create();
 
-    $action = resolve(FollowTag::class);
+    $action = resolve(CreateTagFollow::class);
 
     $action->handle($user, $tag);
     $action->handle($user, $tag);

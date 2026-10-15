@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Actions;
+namespace App\Services;
 
-final readonly class FindTags
+final readonly class Tags
 {
     /**
      * A "#" at the start, after whitespace or after an opening bracket or quote (so neither "C#", a URL fragment nor an
@@ -19,7 +19,7 @@ final readonly class FindTags
      *
      * @return list<string>
      */
-    public function handle(string $text): array
+    public function names(string $text): array
     {
         preg_match_all(self::PATTERN, $text, $matches);
 

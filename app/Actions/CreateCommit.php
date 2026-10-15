@@ -11,6 +11,7 @@ use App\Models\LinkPreview;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\EmojiShortcodes;
+use App\Services\Tags;
 use App\Services\Urls;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
@@ -24,7 +25,7 @@ final readonly class CreateCommit
         private CreateCommitImages $createCommitImages,
         private EmojiShortcodes $emojiShortcodes,
         private Urls $urls,
-        private FindTags $findTags,
+        private Tags $tags,
     ) {
         //
     }
@@ -83,7 +84,7 @@ final readonly class CreateCommit
      */
     private function tagsFor(string $body): Collection
     {
-        $names = $this->findTags->handle($body);
+        $names = $this->tags->names($body);
 
         if ($names === []) {
             return new Collection();

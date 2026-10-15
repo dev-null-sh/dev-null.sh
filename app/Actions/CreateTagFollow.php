@@ -7,7 +7,7 @@ namespace App\Actions;
 use App\Models\Tag;
 use App\Models\User;
 
-final readonly class FollowTag
+final readonly class CreateTagFollow
 {
     public function handle(User $user, Tag $tag): void
     {

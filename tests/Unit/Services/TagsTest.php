@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use App\Actions\FindTags;
+use App\Services\Tags;
 
 it('finds no tags in plain text', function (string $text): void {
-    $action = resolve(FindTags::class);
+    $tags = resolve(Tags::class);
 
-    expect($action->handle($text))->toBe([]);
+    expect($tags->names($text))->toBe([]);
 })->with([
     'empty' => '',
     'words' => 'Shipped the new log today',
@@ -23,10 +23,10 @@ it('finds no tags in plain text', function (string $text): void {
     'too long' => '#'.str_repeat('a', 51),
 ]);
 
-it('finds tags', function (string $text, array $tags): void {
-    $action = resolve(FindTags::class);
+it('finds tags', function (string $text, array $names): void {
+    $tags = resolve(Tags::class);
 
-    expect($action->handle($text))->toBe($tags);
+    expect($tags->names($text))->toBe($names);
 })->with([
     'single' => ['Shipping #laravel today', ['laravel']],
     'at the start' => ['#til queues can be batched', ['til']],
