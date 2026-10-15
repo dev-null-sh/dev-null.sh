@@ -58,7 +58,7 @@ it('exports only the signed-in users live commits including replies and all mode
     $user = User::factory()->create();
     $other = User::factory()->create();
     $parent = Commit::factory()->for($other)->rejected()->create(['body' => 'Another developer private parent body']);
-    $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs."]);
+    $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs.", 'content_warning' => 'spoilers: the changelog']);
     $pending = Commit::factory()->for($user)->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
     $reply = Commit::factory()->for($user)->create(['parent_id' => $parent->id]);
@@ -82,6 +82,7 @@ it('exports only the signed-in users live commits including replies and all mode
         'id' => $approved->id,
         'parent_id' => null,
         'body' => $approved->body,
+        'content_warning' => 'spoilers: the changelog',
         'status' => 'approved',
         'created_at' => $approved->created_at->toIso8601String(),
         'updated_at' => $approved->updated_at->toIso8601String(),

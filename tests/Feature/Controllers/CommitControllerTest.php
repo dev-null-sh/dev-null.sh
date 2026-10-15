@@ -229,6 +229,68 @@ it('publishes commits of admins right away', function (): void {
     expect($user->commits()->sole()->status)->toBe(CommitStatus::Approved);
 });
 
+it('may create a commit behind a content warning', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Mark is still on the testing floor.',
+            'content_warning' => '  spoilers: severance s3  ',
+        ])
+        ->assertRedirectToRoute('log.show', Log::Following);
+
+    expect($user->commits()->sole()->content_warning)->toBe('spoilers: severance s3');
+});
+
+it('may reply behind a content warning', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), [
+            'body' => 'The root cause was a missing index.',
+            'content_warning' => 'incident postmortem',
+            'parent_id' => $parent->id,
+        ])
+        ->assertRedirectToRoute('log.show', Log::Everyone);
+
+    expect($user->commits()->sole())
+        ->parent_id->toBe($parent->id)
+        ->content_warning->toBe('incident postmortem');
+});
+
+it('stores no content warning when it is left blank', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Nothing to warn about.',
+            'content_warning' => '   ',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->content_warning)->toBeNull();
+});
+
+it('requires the content warning to be at most 80 characters', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Hello, devnull!',
+            'content_warning' => str_repeat('a', 81),
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasErrors('content_warning');
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
 it('may reply to a commit', function (): void {
     $user = User::factory()->create();
     $parent = Commit::factory()->create();
@@ -474,6 +536,29 @@ it('shows guests the landing page with a link preview of the commit', function (
     $this->assertGuest();
 
     expect(session('url.intended'))->toBe(route('commit.show', [$user, $commit]));
+});
+
+it('shows guests the content warning instead of the commit in the link preview', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $commit = Commit::factory()->for($user)->create([
+        'body' => 'Mark is still on the testing floor.',
+        'content_warning' => 'spoilers: severance s3',
+    ]);
+
+    $this->get(route('commit.show', [$user, $commit]))
+        ->assertOk()
+        ->assertSee('<meta property="og:description" content="CW: spoilers: severance s3">', false)
+        ->assertSee('<meta name="description" content="CW: spoilers: severance s3">', false)
+        ->assertDontSee('testing floor');
+});
+
+it('hides spoilers from guests in the link preview', function (): void {
+    $commit = Commit::factory()->create(['body' => 'Finished the book. ||The butler did it.|| Wow.']);
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('<meta property="og:description" content="Finished the book. [spoiler] Wow.">', false)
+        ->assertDontSee('butler');
 });
 
 it('trims long commits in the link preview description', function (): void {

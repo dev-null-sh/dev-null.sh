@@ -14,6 +14,7 @@ import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
+import { commitExcerpt } from '@/lib/spoilers';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
@@ -167,7 +168,9 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
-                                <LinkifiedText text={emojify(commit.body)} />
+                                <LinkifiedText
+                                    text={emojify(commitExcerpt(commit))}
+                                />
                             </p>
                         </div>
                         <Button size="sm" asChild>

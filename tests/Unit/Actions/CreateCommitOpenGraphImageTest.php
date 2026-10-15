@@ -55,3 +55,30 @@ it('draws the number of approved replies', function (): void {
 
     expect($action->handle($commit->fresh()))->not->toBe($withoutReplies);
 });
+
+it('draws the content warning instead of the body', function (): void {
+    $commit = Commit::factory()->for(User::factory()->withoutProfile())->create([
+        'body' => 'Mark is still on the testing floor.',
+        'content_warning' => 'spoilers: severance s3',
+    ]);
+    $action = resolve(CreateCommitOpenGraphImage::class);
+
+    $behindWarning = $action->handle($commit);
+
+    Cache::flush();
+    $commit->update(['body' => 'Something else entirely.']);
+
+    expect($action->handle($commit->fresh()))->toBe($behindWarning);
+});
+
+it('draws spoilers hidden', function (): void {
+    $commit = Commit::factory()->for(User::factory()->withoutProfile())->create(['body' => 'The ending: ||the butler did it||']);
+    $action = resolve(CreateCommitOpenGraphImage::class);
+
+    $hidden = $action->handle($commit);
+
+    Cache::flush();
+    $commit->update(['body' => 'The ending: ||it was a dream all along||']);
+
+    expect($action->handle($commit->fresh()))->toBe($hidden);
+});

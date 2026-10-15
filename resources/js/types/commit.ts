@@ -19,6 +19,7 @@ export type CommitImage = {
 
 export type BodySegment =
     | { type: 'text'; text: string }
+    | { type: 'spoiler'; text: string }
     | { type: 'code'; code: string }
     | { type: 'block'; language: string | null; html: string };
 
@@ -28,6 +29,7 @@ export type Commit = {
     parent_id: string | null;
     body: string;
     body_segments: BodySegment[];
+    content_warning: string | null;
     status: CommitStatus;
     created_at: string;
     updated_at: string;

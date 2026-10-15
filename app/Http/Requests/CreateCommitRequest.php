@@ -34,6 +34,7 @@ final class CreateCommitRequest extends FormRequest
 
         return [
             'body' => ['required', 'string', 'min:3', 'max:280'],
+            'content_warning' => ['nullable', 'string', 'max:80'],
             'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
@@ -55,6 +56,11 @@ final class CreateCommitRequest extends FormRequest
         $images = $this->file('images');
 
         return is_array($images) ? array_values($images) : [];
+    }
+
+    public function contentWarning(): ?string
+    {
+        return $this->filled('content_warning') ? $this->string('content_warning')->value() : null;
     }
 
     public function parent(): ?Commit

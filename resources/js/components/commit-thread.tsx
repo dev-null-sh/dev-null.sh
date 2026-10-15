@@ -17,6 +17,11 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
+import {
+    ContentWarning,
+    ContentWarningField,
+    ContentWarningToggle,
+} from '@/components/content-warning';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
@@ -544,14 +549,21 @@ function CommitReply({
                         </p>
                     )}
 
-                    <CommitBody
-                        segments={reply.body_segments}
-                        className="text-[15px]"
-                    />
-                    {reply.images && <CommitImages images={reply.images} />}
-                    {reply.link_preview?.title && (
-                        <LinkPreview preview={reply.link_preview} />
-                    )}
+                    <ContentWarning
+                        warning={reply.content_warning}
+                        className="mt-1"
+                    >
+                        <CommitBody
+                            segments={reply.body_segments}
+                            className={cn('text-[15px]', {
+                                'mt-1.5': reply.content_warning !== null,
+                            })}
+                        />
+                        {reply.images && <CommitImages images={reply.images} />}
+                        {reply.link_preview?.title && (
+                            <LinkPreview preview={reply.link_preview} />
+                        )}
+                    </ContentWarning>
 
                     {isConfirming ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-destructive/8 px-3 py-1.5 text-sm">
@@ -598,6 +610,7 @@ function ReplyComposer({
         `reply-${parent.id}`,
     );
     const attachments = useImageAttachments();
+    const [contentWarning, setContentWarning] = useState<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
@@ -644,6 +657,7 @@ function ReplyComposer({
                 if (page.flash.committed) {
                     drop();
                     attachments.clear();
+                    setContentWarning(null);
                     returnFocusToCommit();
                     onReplied();
                 }
@@ -654,6 +668,14 @@ function ReplyComposer({
             {({ processing, errors }) => (
                 <>
                     <input type="hidden" name="parent_id" value={parent.id} />
+                    <ContentWarningField
+                        id={`reply-${parent.id}-content-warning`}
+                        value={contentWarning}
+                        error={errors.content_warning}
+                        onChange={setContentWarning}
+                        onDone={() => textareaRef.current?.focus()}
+                        className="mb-1.5 px-1"
+                    />
                     <label htmlFor={`reply-${parent.id}`} className="sr-only">
                         Reply to @{parent.user.username}
                     </label>
@@ -692,6 +714,17 @@ function ReplyComposer({
                                 count={attachments.images.length}
                                 disabled={processing}
                                 onPick={attachments.attach}
+                                className="size-8"
+                            />
+                            <ContentWarningToggle
+                                value={contentWarning}
+                                onChange={(value) => {
+                                    setContentWarning(value);
+
+                                    if (value === null) {
+                                        textareaRef.current?.focus();
+                                    }
+                                }}
                                 className="size-8"
                             />
                             {isRestored && (

@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Models\Commit;
 use App\Services\OpenGraphCanvas;
+use App\Services\Spoilers;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
@@ -30,6 +31,11 @@ final readonly class CreateCommitOpenGraphImage
      */
     private const array BODY_SIZES = [[56, 72], [48, 64], [40, 56], [34, 48], [32, 44]];
 
+    public function __construct(private Spoilers $spoilers)
+    {
+        //
+    }
+
     public function handle(Commit $commit): string
     {
         $commit->loadPublicPreview();
@@ -49,7 +55,7 @@ final readonly class CreateCommitOpenGraphImage
         $replyingTo = $commit->parent?->user->username;
 
         $headerHeight = self::AVATAR_SIZE + ($replyingTo === null ? 0 : self::REPLYING_TO_HEIGHT) + self::BODY_GAP;
-        [$size, $lineHeight, $body] = $this->fit($canvas, $commit->body, OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);
+        [$size, $lineHeight, $body] = $this->fit($canvas, $this->publicBody($commit), OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);
 
         $top = max(self::MIN_TOP, intdiv(OpenGraphCanvas::FOOTER_RULE_Y - $headerHeight - count($body) * $lineHeight, 2));
 
@@ -76,6 +82,14 @@ final readonly class CreateCommitOpenGraphImage
         $this->meta($canvas, $commit);
 
         return $canvas->png();
+    }
+
+    /**
+     * Never draws what the commit hides: a content warning stands in for its body, and its spoilers stay hidden.
+     */
+    private function publicBody(Commit $commit): string
+    {
+        return $commit->content_warning === null ? $this->spoilers->mask($commit->body) : "CW: {$commit->content_warning}";
     }
 
     /**

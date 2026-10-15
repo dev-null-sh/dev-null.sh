@@ -10,6 +10,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Services\EmojiShortcodes;
+use App\Services\Spoilers;
 use App\Services\Urls;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ final readonly class CreateCommit
         private CreateMentionNotifications $createMentionNotifications,
         private CreateCommitImages $createCommitImages,
         private EmojiShortcodes $emojiShortcodes,
+        private Spoilers $spoilers,
         private Urls $urls,
     ) {
         //
@@ -29,13 +31,14 @@ final readonly class CreateCommit
     /**
      * @param  list<UploadedFile>  $images
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, array $images = []): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], ?string $contentWarning = null): Commit
     {
-        return DB::transaction(function () use ($user, $body, $parent, $images): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $images, $contentWarning): Commit {
             $linkPreview = $this->linkPreviewFor($body);
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
+                'content_warning' => $contentWarning,
                 'parent_id' => $parent?->id,
                 'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
@@ -55,11 +58,12 @@ final readonly class CreateCommit
     }
 
     /**
-     * Commits that link to the same URL share one preview, so a page is fetched once however often it is linked.
+     * Commits that link to the same URL share one preview, so a page is fetched once however often it is linked. A link
+     * hidden behind a spoiler gets no preview, since the preview would give it away.
      */
     private function linkPreviewFor(string $body): ?LinkPreview
     {
-        $url = $this->urls->first($body);
+        $url = $this->urls->first($this->spoilers->mask($body));
 
         if ($url === null) {
             return null;

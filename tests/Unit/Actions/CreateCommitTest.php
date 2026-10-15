@@ -110,6 +110,22 @@ it('attaches a link preview for the first url in the body', function (): void {
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
 });
 
+it('stores the content warning of a commit', function (): void {
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'The root cause was a missing index.', contentWarning: 'incident postmortem');
+
+    expect($commit->refresh()->content_warning)->toBe('incident postmortem');
+});
+
+it('attaches no link preview for a url hidden behind a spoiler', function (): void {
+    Queue::fake();
+
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'The ending: ||https://example.com/ending||');
+
+    expect($commit->refresh()->link_preview_id)->toBeNull();
+
+    Queue::assertNothingPushed();
+});
+
 it('attaches a link preview for a bare domain', function (): void {
     Queue::fake();
 

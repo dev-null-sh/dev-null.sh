@@ -14,6 +14,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitRepliesQuery;
+use App\Services\Spoilers;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
@@ -44,7 +45,7 @@ final readonly class CommitController
 
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): RedirectResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->images());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->images(), $request->contentWarning());
 
         Inertia::flash('committed', [
             'id' => $commit->id,
@@ -73,7 +74,8 @@ final readonly class CommitController
     }
 
     /**
-     * Guests only get the landing page, with the commit's link preview for crawlers.
+     * Guests only get the landing page, with the commit's link preview for crawlers. The preview never gives away what
+     * the commit hides: a content warning stands in for its body, and its spoilers stay hidden.
      */
     private function preview(User $user, Commit $commit): RedirectResponse|Response
     {
@@ -92,7 +94,7 @@ final readonly class CommitController
         return Inertia::render('welcome')->withViewData(['preview' => [
             'type' => 'article',
             'title' => $title,
-            'description' => Str::limit(Str::squish($commit->body), 200, '…', preserveWords: true),
+            'description' => Str::limit(Str::squish($commit->content_warning === null ? resolve(Spoilers::class)->mask($commit->body) : "CW: {$commit->content_warning}"), 200, '…', preserveWords: true),
             'url' => route('commit.show', [$user, $commit]),
             'image' => route('commit-open-graph-image.show', ['user' => $user, 'commit' => $commit, 'v' => $commit->openGraphImageVersion()]),
         ]]);

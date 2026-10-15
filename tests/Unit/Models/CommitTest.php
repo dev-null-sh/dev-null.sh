@@ -22,6 +22,7 @@ test('to array', function (): void {
             'parent_id',
             'deleted_at',
             'link_preview_id',
+            'content_warning',
             'body_segments',
         ]);
 });
@@ -32,6 +33,15 @@ it('splits its body into segments', function (): void {
     expect($commit->toArray()['body_segments'])->toBe([
         ['type' => 'text', 'text' => 'run '],
         ['type' => 'code', 'code' => 'make'],
+    ]);
+});
+
+it('splits spoilers out of its body', function (): void {
+    $commit = Commit::factory()->create(['body' => 'Dale ||is the killer||']);
+
+    expect($commit->toArray()['body_segments'])->toBe([
+        ['type' => 'text', 'text' => 'Dale '],
+        ['type' => 'spoiler', 'text' => 'is the killer'],
     ]);
 });
 

@@ -8,6 +8,7 @@ import { CommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
+import { ContentWarning } from '@/components/content-warning';
 import { GraphRail } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { Button } from '@/components/ui/button';
@@ -240,23 +241,31 @@ export function CommitCard({
                                         {commit.parent.user.username}
                                     </Link>
                                 )}
-                                <CommitBody
-                                    segments={commit.body_segments}
-                                    className={cn(
-                                        'mt-0.5',
-                                        isFocused
-                                            ? 'text-[17px]'
-                                            : 'text-[15px]',
-                                    )}
-                                />
-                                {commit.images && (
-                                    <CommitImages images={commit.images} />
-                                )}
-                                {commit.link_preview?.title && (
-                                    <LinkPreview
-                                        preview={commit.link_preview}
+                                <ContentWarning
+                                    warning={commit.content_warning}
+                                    keyShortcut="w"
+                                    className="mt-1.5"
+                                >
+                                    <CommitBody
+                                        segments={commit.body_segments}
+                                        className={cn(
+                                            commit.content_warning === null
+                                                ? 'mt-0.5'
+                                                : 'mt-2',
+                                            isFocused
+                                                ? 'text-[17px]'
+                                                : 'text-[15px]',
+                                        )}
                                     />
-                                )}
+                                    {commit.images && (
+                                        <CommitImages images={commit.images} />
+                                    )}
+                                    {commit.link_preview?.title && (
+                                        <LinkPreview
+                                            preview={commit.link_preview}
+                                        />
+                                    )}
+                                </ContentWarning>
                                 {isFocused && (
                                     <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                         <time dateTime={commit.created_at}>

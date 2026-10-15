@@ -1,3 +1,4 @@
+import { Spoiler } from '@/components/content-warning';
 import { LinkifiedText } from '@/components/linkified-text';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,8 @@ export function CommitBody({
                                 text={emojify(segment.text)}
                             />
                         );
+                    case 'spoiler':
+                        return <Spoiler key={index} text={segment.text} />;
                     case 'code':
                         return (
                             <code

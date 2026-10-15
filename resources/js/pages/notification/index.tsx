@@ -7,6 +7,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
+import { commitExcerpt } from '@/lib/spoilers';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, Notification } from '@/types';
@@ -141,7 +142,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
 
                 {notification.type !== 'followed' && (
                     <p className="mt-1 truncate text-[15px]">
-                        {notification.commit.body}
+                        {commitExcerpt(notification.commit)}
                     </p>
                 )}
                 {notification.type === 'rejected' && (

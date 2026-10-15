@@ -4,6 +4,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import AppLayout from '@/layouts/app-layout';
+import { commitExcerpt } from '@/lib/spoilers';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
@@ -18,10 +19,11 @@ export default function Show({
     ancestors: ThreadCommit[];
     replies: CursorPaginated<ThreadCommit>;
 }) {
+    const text = commitExcerpt(commit);
     const excerpt =
-        commit.body.length > titleLength
-            ? `${commit.body.slice(0, titleLength).trimEnd()}…`
-            : commit.body;
+        text.length > titleLength
+            ? `${text.slice(0, titleLength).trimEnd()}…`
+            : text;
 
     const goBack = () => {
         if (window.history.length > 1) {

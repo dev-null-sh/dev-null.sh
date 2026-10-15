@@ -6,7 +6,7 @@ namespace App\Models;
 
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
-use App\Services\CodeSpans;
+use App\Services\Spoilers;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $user_id
  * @property-read string|null $parent_id
  * @property-read string $body
+ * @property-read string|null $content_warning
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
  * @property-read CarbonInterface $created_at
@@ -59,6 +60,7 @@ final class Commit extends Model
             'user_id' => 'string',
             'parent_id' => 'string',
             'body' => 'string',
+            'content_warning' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
             'created_at' => 'datetime',
@@ -69,7 +71,7 @@ final class Commit extends Model
 
     /**
      * A deleted commit only ever leaves a tombstone behind: never its author or body. Otherwise, the body also comes
-     * split into prose, inline code and highlighted code blocks, for rendering.
+     * split into prose, spoilers, inline code and highlighted code blocks, for rendering.
      *
      * @return array<mixed>
      */
@@ -79,7 +81,7 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip(['id', 'parent_id', 'deleted_at', 'replies_count']));
         }
 
-        return [...parent::toArray(), 'body_segments' => resolve(CodeSpans::class)->highlight($this->body)];
+        return [...parent::toArray(), 'body_segments' => resolve(Spoilers::class)->segments($this->body)];
     }
 
     /**

@@ -1,11 +1,16 @@
 import { Form, usePage } from '@inertiajs/react';
 import type { KeyboardEvent } from 'react';
+import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import {
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import {
+    ContentWarningField,
+    ContentWarningToggle,
+} from '@/components/content-warning';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
@@ -26,6 +31,8 @@ export function CommitComposer() {
         'commit',
     );
     const attachments = useImageAttachments();
+    const [contentWarning, setContentWarning] = useState<string | null>(null);
+    const focusBody = () => document.getElementById('body')?.focus();
 
     const remaining = maxBodyLength - body.length;
     const isCommittable = body.trim().length >= minBodyLength;
@@ -57,9 +64,8 @@ export function CommitComposer() {
 
                 drop();
                 attachments.clear();
-                requestAnimationFrame(() =>
-                    document.getElementById('body')?.focus(),
-                );
+                setContentWarning(null);
+                requestAnimationFrame(focusBody);
             }}
             className="flex"
         >
@@ -78,6 +84,14 @@ export function CommitComposer() {
                         />
 
                         <div className="min-w-0 flex-1">
+                            <ContentWarningField
+                                id="content-warning"
+                                value={contentWarning}
+                                error={errors.content_warning}
+                                onChange={setContentWarning}
+                                onDone={focusBody}
+                                className="mt-1 mb-1"
+                            />
                             <label htmlFor="body" className="sr-only">
                                 Body
                             </label>
@@ -122,6 +136,17 @@ export function CommitComposer() {
                                         disabled={processing}
                                         onPick={attachments.attach}
                                         className="-ml-2"
+                                    />
+                                    <ContentWarningToggle
+                                        value={contentWarning}
+                                        onChange={(value) => {
+                                            setContentWarning(value);
+
+                                            if (value === null) {
+                                                focusBody();
+                                            }
+                                        }}
+                                        className="-ml-3"
                                     />
                                     {isRestored && (
                                         <StashLabel
