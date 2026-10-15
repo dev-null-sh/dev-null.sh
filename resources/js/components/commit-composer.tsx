@@ -35,12 +35,15 @@ export function CommitComposer() {
 
     const remaining = maxBodyLength - body.length;
     const isCommittable = body.trim().length >= minBodyLength;
+    const hasImages = attachments.images.length > 0;
+    const isSchedulingImages = isScheduling && hasImages;
+    const isSubmittable = isCommittable && !isSchedulingImages;
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (
             event.key === 'Enter' &&
             (event.metaKey || event.ctrlKey) &&
-            isCommittable
+            isSubmittable
         ) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
@@ -60,7 +63,7 @@ export function CommitComposer() {
                               .toISOString()
                               .replace(/\.\d{3}Z$/, '+00:00'),
                       }
-                    : attachments.images.length > 0
+                    : hasImages
                       ? { ...data, images: attachments.images }
                       : data
             }
@@ -127,7 +130,10 @@ export function CommitComposer() {
                             />
                             <InputError
                                 message={
-                                    attachments.error ?? imageErrorFrom(errors)
+                                    attachments.error ??
+                                    (isSchedulingImages
+                                        ? "Images can't be scheduled yet. Remove them to schedule this commit."
+                                        : imageErrorFrom(errors))
                                 }
                                 className="mt-1"
                             />
@@ -200,12 +206,14 @@ export function CommitComposer() {
 
                             <div className="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
                                 <div className="mr-auto flex items-center gap-4">
-                                    <ImagePickerButton
-                                        count={attachments.images.length}
-                                        disabled={processing}
-                                        onPick={attachments.attach}
-                                        className="-ml-2"
-                                    />
+                                    {!isScheduling && (
+                                        <ImagePickerButton
+                                            count={attachments.images.length}
+                                            disabled={processing}
+                                            onPick={attachments.attach}
+                                            className="-ml-2"
+                                        />
+                                    )}
                                     {isRestored && (
                                         <StashLabel
                                             onDrop={() => {
@@ -224,7 +232,15 @@ export function CommitComposer() {
                                     size="sm"
                                     aria-expanded={isScheduling}
                                     aria-controls="commit-schedule"
-                                    disabled={processing}
+                                    disabled={
+                                        processing ||
+                                        (!isScheduling && hasImages)
+                                    }
+                                    title={
+                                        !isScheduling && hasImages
+                                            ? "Images can't be scheduled yet"
+                                            : undefined
+                                    }
                                     onClick={() => {
                                         setTimezone(
                                             Intl.DateTimeFormat().resolvedOptions()
@@ -256,7 +272,7 @@ export function CommitComposer() {
                                 </span>
                                 <Button
                                     type="submit"
-                                    disabled={processing || !isCommittable}
+                                    disabled={processing || !isSubmittable}
                                     title={
                                         isScheduling
                                             ? 'Schedule commit (⌘/Ctrl + Enter)'
