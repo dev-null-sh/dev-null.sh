@@ -21,7 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(PreventFraming::class);
 
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
+        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow']);
 
         $middleware->redirectGuestsTo(fn (): string => route('home'));
         $middleware->redirectUsersTo(fn (): string => route('log.show', Log::Following));

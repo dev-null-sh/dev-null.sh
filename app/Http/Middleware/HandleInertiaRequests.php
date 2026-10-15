@@ -6,7 +6,10 @@ namespace App\Http\Middleware;
 
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 final class HandleInertiaRequests extends Middleware
@@ -34,6 +37,8 @@ final class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $isAdmin = $request->user()?->isAdmin() ?? false;
+        $user = $request->user();
+        $showsWhoToFollow = $request->cookie('who_to_follow') !== 'false';
 
         return [
             ...parent::share($request),
@@ -45,6 +50,10 @@ final class HandleInertiaRequests extends Middleware
             ],
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'showsWhoToFollow' => $showsWhoToFollow,
+            ...$user instanceof User && $showsWhoToFollow ? [
+                'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get($user)),
+            ] : [],
         ];
     }
 }
