@@ -36,12 +36,6 @@ it('is idempotent', function (): void {
     expect($user->blocking()->count())->toBeOne();
 });
 
-it('may not block themselves', function (): void {
-    $user = User::factory()->create();
-
-    resolve(BlockUser::class)->handle($user, $user);
-})->throws(InvalidArgumentException::class, 'Users cannot block themselves.');
-
 it('may unblock a user without restoring follows', function (): void {
     $user = User::factory()->create();
     $blocked = User::factory()->create();

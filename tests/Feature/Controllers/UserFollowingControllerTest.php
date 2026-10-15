@@ -42,7 +42,7 @@ it('marks the users the viewer follows', function (): void {
             ->where('users.data.1.is_followed', false));
 });
 
-it('sends people across a block to the unavailable profile instead', function (bool $viewerBlocks): void {
+it('looks missing to people across a block', function (bool $viewerBlocks): void {
     $viewer = User::factory()->create();
     $user = User::factory()->create();
     $user->following()->attach(User::factory()->create());
@@ -52,7 +52,7 @@ it('sends people across a block to the unavailable profile instead', function (b
     $response = $this->actingAs($viewer)
         ->get(route('user-following.index', $user));
 
-    $response->assertRedirectToRoute('user.show', $user);
+    $response->assertNotFound();
 })->with([true, false]);
 
 it('requires authentication', function (): void {

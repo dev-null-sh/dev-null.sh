@@ -6,7 +6,6 @@ namespace App\Actions;
 
 use App\Enums\NotificationType;
 use App\Models\Commit;
-use App\Models\CommitImage;
 use App\Models\Notification;
 use App\Queries\NotificationBuilder;
 use Illuminate\Support\Facades\DB;
@@ -41,6 +40,6 @@ final readonly class DeleteCommit
             return $imagePaths;
         });
 
-        Storage::disk(CommitImage::DISK)->delete($imagePaths);
+        Storage::disk()->delete($imagePaths);
     }
 }

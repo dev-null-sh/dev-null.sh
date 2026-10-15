@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\User;
-use InvalidArgumentException;
 
 final readonly class MuteUser
 {
@@ -14,8 +13,6 @@ final readonly class MuteUser
      */
     public function handle(User $user, User $muted): void
     {
-        throw_if($user->is($muted), InvalidArgumentException::class, 'Users cannot mute themselves.');
-
         $user->muting()->syncWithoutDetaching([$muted->id]);
     }
 }

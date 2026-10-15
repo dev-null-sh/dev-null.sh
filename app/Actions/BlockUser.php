@@ -6,7 +6,6 @@ namespace App\Actions;
 
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 
 final readonly class BlockUser
 {
@@ -15,8 +14,6 @@ final readonly class BlockUser
      */
     public function handle(User $user, User $blocked): void
     {
-        throw_if($user->is($blocked), InvalidArgumentException::class, 'Users cannot block themselves.');
-
         DB::transaction(function () use ($user, $blocked): void {
             $user->blocking()->syncWithoutDetaching([$blocked->id]);
 

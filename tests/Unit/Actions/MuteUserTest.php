@@ -34,12 +34,6 @@ it('is idempotent', function (): void {
     expect($user->muting()->count())->toBeOne();
 });
 
-it('may not mute themselves', function (): void {
-    $user = User::factory()->create();
-
-    resolve(MuteUser::class)->handle($user, $user);
-})->throws(InvalidArgumentException::class, 'Users cannot mute themselves.');
-
 it('may unmute a user', function (): void {
     $user = User::factory()->create();
     $muted = User::factory()->create();
