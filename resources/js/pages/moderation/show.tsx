@@ -4,17 +4,17 @@ import { useId, useState } from 'react';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
+import { CommitBody } from '@/components/commit-body';
 import { SeriesPosition } from '@/components/commit-card';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { CommitImages } from '@/components/commit-images';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
-import { LinkifiedText } from '@/components/linkified-text';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import AppLayout from '@/layouts/app-layout';
-import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -57,9 +57,11 @@ function SeriesParts({ commit }: { commit: Commit }) {
                                     size={part.series_size}
                                 />
                             )}
-                        <p className="mt-1 text-[15px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
-                            <LinkifiedText text={emojify(part.body)} />
-                        </p>
+                        <CommitBody
+                            segments={part.body_segments}
+                            className="mt-1 text-[15px]"
+                        />
+                        {part.images && <CommitImages images={part.images} />}
                         {part.link_preview?.title && (
                             <LinkPreview preview={part.link_preview} />
                         )}

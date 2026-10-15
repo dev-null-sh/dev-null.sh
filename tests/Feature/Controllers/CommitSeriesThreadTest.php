@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitSeries;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Models\Commit;
@@ -175,4 +176,17 @@ it('loads a series with the same number of queries however long it is', function
     $long = commitSeries(size: 10);
 
     expect($queriesFor($long[5]))->toBe($queriesFor($short[1]));
+});
+
+it('splits the code of every part of a series like that of a single commit', function (): void {
+    $parts = resolve(CreateCommitSeries::class)->handle(User::factory()->create(), ['Run `make` first', "Then this:\n```\nphp artisan migrate\n```"]);
+    Commit::query()->whereKey($parts->modelKeys())->update(['status' => CommitStatus::Approved]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$parts[0]->user, $parts[0]]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.body_segments.1', ['type' => 'code', 'code' => 'make'])
+            ->where('series.0.body_segments.1.type', 'block'));
 });

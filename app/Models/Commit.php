@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
+use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
@@ -74,7 +75,8 @@ final class Commit extends Model
     }
 
     /**
-     * A deleted commit only ever leaves a tombstone behind: never its author or body. A deleted part of a series keeps its place in it.
+     * A deleted commit only ever leaves a tombstone behind: never its author or body, though a deleted part of a series
+     * keeps its place in it. Otherwise, the body also comes split into prose, inline code and highlighted code blocks, for rendering.
      *
      * @return array<mixed>
      */
@@ -86,7 +88,7 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return parent::toArray();
+        return [...parent::toArray(), 'body_segments' => resolve(CodeSpans::class)->highlight($this->body)];
     }
 
     /**

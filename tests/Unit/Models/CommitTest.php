@@ -25,7 +25,17 @@ test('to array', function (): void {
             'series_id',
             'series_position',
             'series_size',
+            'body_segments',
         ]);
+});
+
+it('splits its body into segments', function (): void {
+    $commit = Commit::factory()->create(['body' => 'run `make`']);
+
+    expect($commit->toArray()['body_segments'])->toBe([
+        ['type' => 'text', 'text' => 'run '],
+        ['type' => 'code', 'code' => 'make'],
+    ]);
 });
 
 it('belongs to a user', function (): void {

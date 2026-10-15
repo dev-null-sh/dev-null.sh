@@ -30,6 +30,7 @@ it('lists a pending series once in the queue with the rest of its parts in order
             ->where('commits.data.0.series_parts.1.id', $parts[1]->id)
             ->where('commits.data.0.series_parts.2.id', $parts[2]->id)
             ->has('commits.data.0.series_parts.2.user')
+            ->has('commits.data.0.series_parts.2.body_segments')
             ->where('commits.data.1.id', $single->id)
             ->has('commits.data.1.series_parts', 0));
 });
