@@ -8,6 +8,7 @@ use App\Models\Commit;
 use App\Models\CommitReport;
 use App\Models\LinkPreview;
 use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 
 beforeEach(function (): void {
@@ -141,6 +142,13 @@ it('restricts the reports queue and resolution to moderators including the repor
     }
 
     expect($report->refresh()->dismissed_at)->toBeNull();
+});
+
+it('denies dismissal to non-moderators when authorized outside a request', function (): void {
+    $report = CommitReport::factory()->create();
+
+    expect(Gate::forUser(User::query()->findOrFail($report->reporter_id))->denies('dismiss', $report))->toBeTrue()
+        ->and(Gate::forUser($report->commit->user)->denies('dismiss', $report))->toBeTrue();
 });
 
 it('lists only unresolved reports on live published content oldest first without reporter identity', function (): void {
