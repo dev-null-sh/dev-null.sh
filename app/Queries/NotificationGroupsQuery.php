@@ -6,19 +6,24 @@ namespace App\Queries;
 
 use App\Models\Notification;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Support\Facades\DB;
 
 final readonly class NotificationGroupsQuery
 {
     /** @return CursorPaginator<int, Notification> */
-    public function get(User $user, string $type = 'all'): CursorPaginator
+    public function get(User $user, string $type = 'all', ?CarbonImmutable $through = null): CursorPaginator
     {
-        return $this->events($user, $type)
+        $query = $this->events($user, $type)
             ->where('group_rank', 1)
             ->with(['actor', 'commit'])
-            ->latest()->latest('id')
-            ->cursorPaginate(20)->withQueryString();
+            ->latest()->latest('id');
+        $perPage = $through instanceof CarbonImmutable
+            ? max(20, (clone $query)->where('created_at', '>=', $through)->count())
+            : 20;
+
+        return $query->cursorPaginate($perPage)->appends(request()->except('through'));
     }
 
     public function members(User $user, Notification $notification, string $type = 'all'): NotificationBuilder

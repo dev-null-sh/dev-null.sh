@@ -4,10 +4,103 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
+
+it('polls only the unread count outside the inbox without acknowledging activity', function (): void {
+    $user = User::factory()->create();
+    $notice = Notification::factory()->for($user, 'recipient')->create();
+    $hidden = Notification::factory()->for($user, 'recipient')->replied()->create();
+    $hidden->commit->update(['status' => CommitStatus::Pending]);
+    Notification::factory()->create();
+
+    $this->actingAs($user)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount',
+    ])->get(route('log.show', 'everyone'))->assertOk()
+        ->assertJsonPath('props.auth.unreadNotificationsCount', 1)
+        ->assertJsonMissingPath('props.auth.user')->assertJsonMissingPath('props.commits');
+
+    expect($notice->refresh()->read_at)->toBeNull();
+});
+
+it('refreshes the entire loaded inbox window without losing older pages', function (): void {
+    $user = User::factory()->create();
+    $notices = collect();
+    for ($index = 1; $index <= 62; $index++) {
+        $notices->push(Notification::factory()->for($user, 'recipient')->replied()->create([
+            'created_at' => now()->subMinutes($index),
+        ]));
+    }
+
+    $new = Notification::factory()->for($user, 'recipient')->create();
+    $through = $notices[39]->created_at->toJSON();
+    $response = $this->actingAs($user)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'notification/index',
+        'X-Inertia-Partial-Data' => 'notifications,auth.unreadNotificationsCount',
+        'X-Inertia-Reset' => 'notifications',
+    ])->get(route('notification.index', ['through' => $through]))->assertOk()
+        ->assertJsonCount(41, 'props.notifications.data')
+        ->assertJsonPath('props.notifications.data.0.id', $new->id)
+        ->assertJsonPath('props.notifications.data.40.id', $notices[39]->id)
+        ->assertJsonPath('props.auth.unreadNotificationsCount', 0)
+        ->assertJsonMissingPath('props.auth.user');
+
+    expect($new->refresh()->read_at)->not->toBeNull();
+    $this->get($response->json('props.notifications.next_page_url'))
+        ->assertJsonCount(20, 'props.notifications.data')
+        ->assertJsonPath('props.notifications.data.0.id', $notices[40]->id);
+});
+
+it('rejects an invalid inbox refresh boundary without reading notifications', function (): void {
+    $user = User::factory()->create();
+    $notice = Notification::factory()->for($user, 'recipient')->create();
+
+    $this->actingAs($user)->getJson(route('notification.index', ['through' => 'invalid']))
+        ->assertUnprocessable()->assertJsonValidationErrors('through');
+    expect($notice->refresh()->read_at)->toBeNull();
+});
+
+it('polls fresh filtered groups and excludes activity that is no longer relevant', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->for($user)->create();
+    $oldReply = Commit::factory()->for($root, 'parent')->create();
+    $old = Notification::factory()->for($user, 'recipient')->for($oldReply, 'commit')->create([
+        'type' => NotificationType::Replied, 'created_at' => now()->subMinutes(40),
+    ]);
+    $otherGroup = Notification::factory()->for($user, 'recipient')->replied()->create(['created_at' => now()->subMinutes(10)]);
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'replies']))->assertOk();
+
+    $latestReply = Commit::factory()->for($root, 'parent')->create();
+    $latest = Notification::factory()->for($user, 'recipient')->for($latestReply, 'commit')->create(['type' => NotificationType::Replied]);
+    $follow = Notification::factory()->for($user, 'recipient')->create();
+    $otherGroup->commit->update(['status' => CommitStatus::Pending]);
+    $other = Notification::factory()->create();
+
+    $this->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'notification/index',
+        'X-Inertia-Partial-Data' => 'notifications,auth.unreadNotificationsCount',
+        'X-Inertia-Reset' => 'notifications',
+    ])->get(route('notification.index', ['type' => 'replies', 'through' => $old->created_at->toJSON()]))
+        ->assertOk()->assertJsonCount(1, 'props.notifications.data')
+        ->assertJsonPath('props.notifications.data.0.id', $latest->id)
+        ->assertJsonPath('props.notifications.data.0.group_id', $old->id)
+        ->assertJsonPath('props.notifications.data.0.event_count', 2)
+        ->assertJsonPath('props.auth.unreadNotificationsCount', 0);
+
+    expect($latest->refresh()->read_at)->not->toBeNull()
+        ->and($follow->refresh()->read_at)->not->toBeNull()
+        ->and($other->refresh()->read_at)->toBeNull();
+});
 
 it('groups nested replies and mentions and bumps an old conversation using its latest event', function (): void {
     $user = User::factory()->create();

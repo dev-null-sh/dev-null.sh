@@ -1,10 +1,9 @@
-import { Head, InfiniteScroll, Link, router } from '@inertiajs/react';
+import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
 import {
     AtSign,
     Check,
     ChevronDown,
     MessageSquareReply,
-    RefreshCw,
     UserPlus,
     X,
 } from 'lucide-react';
@@ -33,7 +32,20 @@ export default function Index({
     notifications: CursorPaginated<NotificationGroup>;
     filters: Filters;
 }) {
-    const [refreshing, setRefreshing] = useState(false);
+    usePoll(
+        30_000,
+        () => ({
+            only: ['notifications', 'auth.unreadNotificationsCount'],
+            reset: ['notifications'],
+            data: {
+                cursor: '',
+                through: notifications.data.at(-1)?.created_at,
+            },
+            preserveUrl: true,
+            preserveErrors: true,
+        }),
+        { mode: 'rest', background: 'pause' },
+    );
     const changeFilters = (next: Filters) =>
         router.visit(index({ query: { type: next.type } }), {
             only: ['notifications', 'filters', 'auth'],
@@ -47,27 +59,6 @@ export default function Index({
             <div className="sticky top-0 z-10 border-b bg-card">
                 <div className="flex h-14 items-center justify-between px-4 sm:px-6">
                     <h1 className="font-semibold">Notifications</h1>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={refreshing}
-                        onClick={() => {
-                            setRefreshing(true);
-                            router.reload({
-                                only: ['notifications', 'auth'],
-                                reset: ['notifications'],
-                                onFinish: () => setRefreshing(false),
-                            });
-                        }}
-                    >
-                        <RefreshCw
-                            className={cn('size-4', {
-                                'animate-spin motion-reduce:animate-none':
-                                    refreshing,
-                            })}
-                        />
-                        Refresh
-                    </Button>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 sm:px-6">
                     <label className="relative text-sm">

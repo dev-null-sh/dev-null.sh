@@ -20,7 +20,7 @@ final readonly class NotificationController
         $action->handle($user);
 
         return Inertia::render('notification/index', [
-            'notifications' => Inertia::scroll(fn (): CursorPaginator => $query->get($user, $request->type()))->matchOn('data.group_id'),
+            'notifications' => Inertia::scroll(fn (): CursorPaginator => $query->get($user, $request->type(), $request->through()))->matchOn('data.group_id'),
             'filters' => ['type' => $request->type()],
         ]);
     }
