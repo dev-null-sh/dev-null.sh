@@ -30,6 +30,7 @@ export function CommitStarButton({
     const [starred, setStarred] = useState(commit.starred);
     const [count, setCount] = useState(commit.stars_count);
     const [pending, setPending] = useState(false);
+    const [isAnimating, setIsAnimating] = useState(false);
 
     if (!canStar) {
         return null;
@@ -44,6 +45,9 @@ export function CommitStarButton({
 
         setStarred(next);
         setCount((current) => Math.max(0, current + (next ? 1 : -1)));
+        if (next) {
+            setIsAnimating(true);
+        }
         setPending(true);
 
         const revert = () => {
@@ -83,13 +87,20 @@ export function CommitStarButton({
             aria-label={starLabel(starred, count)}
             title={starred ? 'Unstar' : 'Star'}
             className={cn(
-                'inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                'group inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                 starred && 'text-primary hover:text-primary',
                 className,
             )}
             data-test="star-commit-button"
         >
-            <Star className={cn('size-4', starred && 'fill-current')} />
+            <Star
+                onAnimationEnd={() => setIsAnimating(false)}
+                className={cn(
+                    'size-4 transition-transform group-hover:scale-110 active:scale-95',
+                    starred && 'fill-current',
+                    isAnimating && 'motion-safe:animate-star-pop',
+                )}
+            />
             {count > 0 && <span data-test="star-count">{count}</span>}
         </button>
     );

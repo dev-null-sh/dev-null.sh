@@ -35,6 +35,19 @@ export function pickImages(
     return { images, error: null };
 }
 
+/**
+ * The first validation error the server gave for the images, whichever image it was about.
+ */
+export function imageErrorFrom(
+    errors: Record<string, string | undefined>,
+): string | undefined {
+    const key = Object.keys(errors).find(
+        (name) => name === 'images' || name.startsWith('images.'),
+    );
+
+    return key ? errors[key] : undefined;
+}
+
 export function ImagePickerButton({
     count,
     disabled,

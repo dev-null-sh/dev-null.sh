@@ -11,7 +11,6 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
@@ -27,13 +26,7 @@ final class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->bootRateLimitingDefaults();
-        $this->bootAuthorizationDefaults();
         $this->bootExceptionHandling();
-    }
-
-    private function bootAuthorizationDefaults(): void
-    {
-        Gate::define('moderate', fn (User $user): bool => $user->isAdmin());
     }
 
     private function bootExceptionHandling(): void
