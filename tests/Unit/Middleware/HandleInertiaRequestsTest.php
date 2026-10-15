@@ -130,9 +130,9 @@ it('includes parent shared data', function (): void {
 });
 
 it('shares whether the authenticated user is an admin', function (bool $isAdmin): void {
-    config(['app.admins' => $isAdmin ? ['octocat'] : []]);
+    config(['app.admins' => $isAdmin ? ['583231'] : []]);
 
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['github_id' => '583231']);
 
     $middleware = new HandleInertiaRequests();
 
@@ -153,9 +153,9 @@ it('shares guests as non admins', function (): void {
 });
 
 it('shares whether there are unmoderated commits for admins', function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
 
     $middleware = new HandleInertiaRequests();
 
@@ -172,9 +172,9 @@ it('shares whether there are unmoderated commits for admins', function (): void 
 });
 
 it('does not count deleted pending commits as unmoderated', function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     Commit::factory()->pending()->create()->delete();
 
     $request = Request::create('/', 'GET');

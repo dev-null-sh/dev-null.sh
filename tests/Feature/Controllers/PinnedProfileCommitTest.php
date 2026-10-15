@@ -150,8 +150,8 @@ it('only shows a pending or rejected pin to its owner', function (string $status
             ->where('user.commits_count', 1)
             ->has('commits.data', 0));
 
-    $viewer = User::factory()->create(['username' => 'admin']);
-    config(['app.admins' => ['admin']]);
+    $viewer = User::factory()->create(['github_id' => '583231']);
+    config(['app.admins' => ['583231']]);
 
     $this->actingAs($viewer)->get(route('user.show', $user))
         ->assertOk()

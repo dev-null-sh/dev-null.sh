@@ -63,11 +63,11 @@ it('serves images of pending commits to their author', function (): void {
 });
 
 it('serves images of pending commits to moderators', function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 
     $image = storedCommitImage(Commit::factory()->pending()->create());
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['github_id' => '583231']))
         ->get(route('commit-image.show', $image))
         ->assertOk();
 });

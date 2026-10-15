@@ -37,9 +37,10 @@ return [
     | Application Admins
     |--------------------------------------------------------------------------
     |
-    | The GitHub usernames listed here are admins of the application, which
+    | The GitHub user IDs listed here are admins of the application, which
     | allows them to moderate commits. Set them as a comma separated list
-    | in your ".env" file, for example: "ADMINS=nunomaduro,taylorotwell".
+    | in your ".env" file, for example: "ADMINS=5457236,463230". IDs never
+    | change, unlike usernames: find one with "gh api users/<name> -q .id".
     |
     */
 

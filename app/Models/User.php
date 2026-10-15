@@ -218,7 +218,7 @@ final class User extends Authenticatable
         /** @var list<string> $admins */
         $admins = config('app.admins');
 
-        return in_array(mb_strtolower($this->username), array_map(mb_strtolower(...), $admins), true);
+        return in_array($this->github_id, $admins, true);
     }
 
     /**

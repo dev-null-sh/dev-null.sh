@@ -47,23 +47,23 @@ it('stores emoji shortcodes as their emoji', function (): void {
 });
 
 it('approves commits of admins right away', function (): void {
-    config(['app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['5457236']]);
 
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Initial commit');
+    $commit = $action->handle(User::factory()->create(['github_id' => '5457236', 'username' => 'nunomaduro']), 'Initial commit');
 
     expect($commit->status)->toBe(CommitStatus::Approved);
 });
 
 it('notifies the parent author about replies of admins', function (): void {
-    config(['app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['5457236']]);
 
     $parent = Commit::factory()->create();
 
     $action = resolve(CreateCommit::class);
 
-    $reply = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $parent);
+    $reply = $action->handle(User::factory()->create(['github_id' => '5457236', 'username' => 'nunomaduro']), 'Nice one', $parent);
 
     expect($parent->user->notifications()->sole()->commit_id)->toBe($reply->id);
 });
@@ -114,13 +114,13 @@ it('does not notify about pending quotes', function (): void {
 });
 
 it('notifies mentioned users about commits of admins', function (): void {
-    config(['app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['5457236']]);
 
     $mentioned = User::factory()->create(['username' => 'taylorotwell']);
 
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Shipped it with @taylorotwell');
+    $commit = $action->handle(User::factory()->create(['github_id' => '5457236', 'username' => 'nunomaduro']), 'Shipped it with @taylorotwell');
 
     expect($mentioned->notifications()->sole()->commit_id)->toBe($commit->id);
 });

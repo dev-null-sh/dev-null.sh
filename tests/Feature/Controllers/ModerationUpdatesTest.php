@@ -14,7 +14,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 });
 
 it('does not notify an author when approving a pending commit', function (): void {
@@ -64,7 +64,7 @@ it('notifies mentioned users once a commit is approved', function (): void {
 });
 
 it('stores a concise rejection reason privately and leaves repeated rejections unchanged', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     $commit = Commit::factory()->pending()->create();
 
     $this->actingAs($admin)->fromRoute('moderation.show')
@@ -109,7 +109,7 @@ it('stores a concise rejection reason privately and leaves repeated rejections u
 });
 
 it('validates rejection reasons before changing status', function (mixed $reason): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     $commit = Commit::factory()->pending()->create();
 
     $this->actingAs($admin)->post(route('commit-rejection.store', $commit), ['reason' => $reason])
@@ -121,7 +121,7 @@ it('validates rejection reasons before changing status', function (mixed $reason
 
 it('accepts an optional rejection reason', function (?string $reason): void {
     $commit = Commit::factory()->pending()->create();
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
 
     $this->actingAs($admin)->post(route('commit-rejection.store', $commit), ['reason' => $reason])->assertRedirect();
 
@@ -153,7 +153,7 @@ it('does not moderate deleted commits even with stale models', function (): void
 });
 
 it('does not send moderation notices for initial autoapproval or unchanged approved status', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     $commit = resolve(CreateCommit::class)->handle($admin, 'Shipped a smaller query planner.');
 
     resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);

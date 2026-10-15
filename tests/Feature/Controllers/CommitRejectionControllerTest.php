@@ -7,11 +7,11 @@ use App\Models\Commit;
 use App\Models\User;
 
 beforeEach(function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 });
 
 it('may reject a commit', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     $commit = Commit::factory()->pending()->create();
 
     $response = $this->actingAs($admin)

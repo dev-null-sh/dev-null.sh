@@ -49,7 +49,7 @@ it('creates a commit signed with an ssh key', function (): void {
 });
 
 it('links to the commit when it is published right away', function (): void {
-    config(['app.admins' => [$this->user->username]]);
+    config(['app.admins' => [$this->user->github_id]]);
 
     $response = postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'));
 

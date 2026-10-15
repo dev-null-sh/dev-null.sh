@@ -332,11 +332,11 @@ it('has images in order', function (): void {
 });
 
 it('shows images when approved, to the author, or to moderators', function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 
     $author = User::factory()->create();
     $viewer = User::factory()->create();
-    $moderator = User::factory()->create(['username' => 'admin']);
+    $moderator = User::factory()->create(['github_id' => '583231']);
     $approved = Commit::factory()->for($author)->create();
     $pending = Commit::factory()->for($author)->pending()->create();
     $rejected = Commit::factory()->for($author)->rejected()->create();

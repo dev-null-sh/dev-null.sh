@@ -50,7 +50,7 @@ it('keeps json responses for requests that expect json', function (): void {
 });
 
 it('renders the forbidden page for non moderators', function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 
     $response = $this->actingAs(User::factory()->create())->get(route('moderation.show'));
 

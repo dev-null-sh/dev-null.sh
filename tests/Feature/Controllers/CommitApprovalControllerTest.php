@@ -7,11 +7,11 @@ use App\Models\Commit;
 use App\Models\User;
 
 beforeEach(function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 });
 
 it('may approve a commit', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     $commit = Commit::factory()->pending()->create();
 
     $response = $this->actingAs($admin)
@@ -24,7 +24,7 @@ it('may approve a commit', function (): void {
 });
 
 it('may not approve a deleted commit', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     $commit = Commit::factory()->pending()->create();
     $commit->delete();
 

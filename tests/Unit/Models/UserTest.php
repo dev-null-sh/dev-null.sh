@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateOrCreateUser;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Laravel\Socialite\Two\User as GitHubUser;
 
 test('to array', function (): void {
     $user = User::factory()->create()->refresh();
@@ -154,11 +156,18 @@ it('has no password', function (): void {
     expect($user->getAuthPassword())->toBe('');
 });
 
-it('knows if it is an admin', function (): void {
-    config(['app.admins' => ['NunoMaduro']]);
+it('knows admins by their github id, not their username', function (): void {
+    config(['app.admins' => ['583231']]);
 
-    expect(User::factory()->create(['username' => 'nunomaduro'])->isAdmin())->toBeTrue()
-        ->and(User::factory()->create(['username' => 'octocat'])->isAdmin())->toBeFalse();
+    $admin = User::factory()->create(['github_id' => '583231', 'username' => 'octocat']);
+
+    $renamed = resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat-renamed']));
+    $impostor = resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake(['id' => 1, 'nickname' => 'octocat']));
+
+    expect($renamed->is($admin))->toBeTrue()
+        ->and($renamed->isAdmin())->toBeTrue()
+        ->and($impostor->isAdmin())->toBeFalse()
+        ->and(User::factory()->create(['github_id' => '2', 'username' => '583231'])->isAdmin())->toBeFalse();
 });
 
 it('has the same lane as the frontend', function (string $id, int $lane): void {

@@ -125,7 +125,7 @@ it('saves and lists own commits in every moderation state', function (CommitStat
 
 it('never exposes or mutates another authors unavailable commit even to admins', function (CommitStatus $status): void {
     $user = User::factory()->create();
-    config()->set('app.admins', [$user->username]);
+    config()->set('app.admins', [$user->github_id]);
     $commit = Commit::factory()->create();
     $bookmark = Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $commit->id]);
     $commit->update(['status' => $status]);

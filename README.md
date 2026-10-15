@@ -29,6 +29,16 @@ Run `composer dev` and visit `http://localhost:8000` (or your configured `APP_UR
 
 Leave `AUTO_LOGIN=false` to sign in using GitHub. Create a [GitHub OAuth app](https://github.com/settings/developers) with the callback URL `{APP_URL}/auth/github/callback`, then set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `.env`.
 
+### Admins
+
+Admins can moderate commits. List their GitHub user IDs, not usernames, in `.env`, since usernames can change and be claimed by someone else:
+
+```dotenv
+ADMINS=5457236,463230
+```
+
+Find an ID with `gh api users/<name> -q .id`. The local auto-login user has the ID `local`.
+
 ### Verify installation
 
 Run `composer test` to check linting, static analysis, type coverage, and tests. The code coverage check requires Xdebug or PCOV.
