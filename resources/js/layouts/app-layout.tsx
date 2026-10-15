@@ -2,6 +2,7 @@ import { usePage } from '@inertiajs/react';
 import { useCallback, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import { AppNav, MobileHeader, MobileNav } from '@/components/app-nav';
+import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { UserSearchDialog } from '@/components/user-search-dialog';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
@@ -22,7 +23,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
             <main className="min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0">
                 <MobileHeader onSearch={openSearch} />
-                {children}
+                <CommitImageViewer>{children}</CommitImageViewer>
             </main>
 
             <AppAside onShowShortcuts={showShortcuts} onSearch={openSearch} />

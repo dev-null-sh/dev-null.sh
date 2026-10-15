@@ -5,7 +5,7 @@ import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
 import type { User } from '@/types';
 
-function isTyping(target: EventTarget | null): boolean {
+export function isTyping(target: EventTarget | null): boolean {
     return (
         target instanceof HTMLElement &&
         (target.isContentEditable ||

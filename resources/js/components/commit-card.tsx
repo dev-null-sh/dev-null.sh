@@ -38,6 +38,7 @@ export function CommitCard({
     canDelete = true,
     initialReplies,
     threadActions,
+    showImages = true,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -50,6 +51,7 @@ export function CommitCard({
     canDelete?: boolean;
     initialReplies?: CursorPaginated<ThreadCommit>;
     threadActions?: ReactNode;
+    showImages?: boolean;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
@@ -249,9 +251,7 @@ export function CommitCard({
                                             : 'text-[15px]',
                                     )}
                                 />
-                                {commit.images && (
-                                    <CommitImages images={commit.images} />
-                                )}
+                                {showImages && <CommitImages commit={commit} />}
                                 {commit.link_preview?.title && (
                                     <LinkPreview
                                         preview={commit.link_preview}

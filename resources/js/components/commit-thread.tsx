@@ -52,7 +52,7 @@ type Thread = {
     onDeleted: () => void;
 };
 
-async function fetchReplies(
+export async function fetchReplies(
     commit: ThreadCommit,
     cursor: string | null,
 ): Promise<CursorPaginated<ThreadCommit>> {
@@ -548,7 +548,7 @@ function CommitReply({
                         segments={reply.body_segments}
                         className="text-[15px]"
                     />
-                    {reply.images && <CommitImages images={reply.images} />}
+                    <CommitImages commit={reply} />
                     {reply.link_preview?.title && (
                         <LinkPreview preview={reply.link_preview} />
                     )}
