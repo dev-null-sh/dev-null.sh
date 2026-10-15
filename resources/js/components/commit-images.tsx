@@ -1,7 +1,10 @@
 import { cn } from '@/lib/utils';
 import type { CommitImage } from '@/types';
 
-export function CommitImages({ images }: { images: CommitImage[] }) {
+type ShownImage = Pick<CommitImage, 'id' | 'url'> &
+    Partial<Pick<CommitImage, 'width' | 'height'>>;
+
+export function CommitImages({ images }: { images: ShownImage[] }) {
     if (images.length === 0) {
         return null;
     }

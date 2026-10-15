@@ -18,6 +18,7 @@ const shortcuts: Shortcut[] = [
     { keys: ['⌘', 'K'], label: 'Search developers' },
     { keys: ['/'], label: 'Search developers' },
     { keys: ['⌘', '↵'], label: 'Commit (in the composer)' },
+    { keys: ['⌘', '⇧', 'P'], label: 'Preview (in the composer)' },
     { keys: ['g', 'l'], label: 'Go to your log' },
     { keys: ['g', 'e'], label: 'Go to everyone' },
     { keys: ['g', 'p'], label: 'Go to your profile' },

@@ -1,5 +1,5 @@
 import { ImagePlus, X } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -46,6 +46,30 @@ export function imageErrorFrom(
     );
 
     return key ? errors[key] : undefined;
+}
+
+const objectUrls = new WeakMap<File, string>();
+
+/**
+ * The object URL to show a picked image with, made once per image and kept until the image is let go.
+ */
+export function objectUrlFor(image: File): string {
+    const url = objectUrls.get(image) ?? URL.createObjectURL(image);
+
+    objectUrls.set(image, url);
+
+    return url;
+}
+
+export function revokeObjectUrls(images: File[]): void {
+    images.forEach((image) => {
+        const url = objectUrls.get(image);
+
+        if (url !== undefined) {
+            URL.revokeObjectURL(url);
+            objectUrls.delete(image);
+        }
+    });
 }
 
 export function ImagePickerButton({
@@ -99,15 +123,7 @@ export function ImagePickerPreviews({
     images: File[];
     onRemove: (index: number) => void;
 }) {
-    const urls = useMemo(
-        () => images.map((image) => URL.createObjectURL(image)),
-        [images],
-    );
-
-    useEffect(
-        () => () => urls.forEach((url) => URL.revokeObjectURL(url)),
-        [urls],
-    );
+    const urls = images.map(objectUrlFor);
 
     if (images.length === 0) {
         return null;

@@ -17,6 +17,11 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
+import {
+    ComposerPreviewBody,
+    PreviewToggle,
+    useComposerPreview,
+} from '@/components/composer-preview';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
@@ -601,6 +606,11 @@ function ReplyComposer({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
+    const preview = useComposerPreview({
+        body,
+        textareaRef,
+        isSubmittable: isReplyable,
+    });
 
     const returnFocusToCommit = () => {
         const commit =
@@ -615,6 +625,10 @@ function ReplyComposer({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (preview.handleShortcut(event)) {
+            return;
+        }
+
         if (event.key === 'Escape') {
             returnFocusToCommit();
             onCancel();
@@ -657,31 +671,45 @@ function ReplyComposer({
                     <label htmlFor={`reply-${parent.id}`} className="sr-only">
                         Reply to @{parent.user.username}
                     </label>
-                    <MentionTextarea
-                        ref={textareaRef}
-                        id={`reply-${parent.id}`}
-                        name="body"
-                        rows={1}
-                        autoFocus
-                        value={body}
-                        onValueChange={updateBody}
-                        onKeyDown={onKeyDown}
-                        onPaste={attachments.onPaste}
-                        onDragOver={attachments.onDragOver}
-                        onDrop={attachments.onDrop}
-                        onFocus={isRestored ? moveCaretToEnd : undefined}
-                        maxLength={maxBodyLength}
-                        placeholder={`Reply to @${parent.user.username}`}
-                        className="block field-sizing-content min-h-9 w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
-                    />
+                    <div className="grid">
+                        <MentionTextarea
+                            ref={textareaRef}
+                            id={`reply-${parent.id}`}
+                            name="body"
+                            rows={1}
+                            autoFocus
+                            value={body}
+                            onValueChange={updateBody}
+                            onKeyDown={onKeyDown}
+                            onPaste={attachments.onPaste}
+                            onDragOver={attachments.onDragOver}
+                            onDrop={attachments.onDrop}
+                            onFocus={isRestored ? moveCaretToEnd : undefined}
+                            maxLength={maxBodyLength}
+                            placeholder={`Reply to @${parent.user.username}`}
+                            className={cn(
+                                'col-start-1 row-start-1 block field-sizing-content min-h-9 w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
+                                { invisible: preview.isPreviewing },
+                            )}
+                        />
+                        {preview.isPreviewing && (
+                            <ComposerPreviewBody
+                                preview={preview}
+                                images={attachments.images}
+                                className="col-start-1 row-start-1 px-1"
+                            />
+                        )}
+                    </div>
                     <InputError
                         message={errors.body ?? errors.parent_id}
                         className="px-1"
                     />
-                    <ImagePickerPreviews
-                        images={attachments.images}
-                        onRemove={attachments.remove}
-                    />
+                    {!preview.isPreviewing && (
+                        <ImagePickerPreviews
+                            images={attachments.images}
+                            onRemove={attachments.remove}
+                        />
+                    )}
                     <InputError
                         message={attachments.error ?? imageErrorFrom(errors)}
                         className="mt-1 px-1"
@@ -693,6 +721,10 @@ function ReplyComposer({
                                 disabled={processing}
                                 onPick={attachments.attach}
                                 className="size-8"
+                            />
+                            <PreviewToggle
+                                preview={preview}
+                                className="-ml-2 size-8"
                             />
                             {isRestored && (
                                 <StashLabel

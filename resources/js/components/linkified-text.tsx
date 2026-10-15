@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import { withoutCode } from '@/lib/code';
 import { show } from '@/routes/user';
 
 // Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
@@ -60,6 +61,31 @@ function withoutTrailingPunctuation(candidate: string): string {
     return url;
 }
 
+function hrefFor(linkText: string): string | null {
+    const href = schemePattern.test(linkText)
+        ? linkText
+        : `https://${linkText}`;
+
+    return href.endsWith('://') || Array.from(href).length > maxUrlLength
+        ? null
+        : href;
+}
+
+/**
+ * The URL that gets the link card, like the server's Urls::first(): the first link outside code.
+ */
+export function firstUrl(text: string): string | null {
+    for (const match of withoutCode(text).matchAll(urlPattern)) {
+        const href = hrefFor(withoutTrailingPunctuation(match[0]));
+
+        if (href !== null) {
+            return href;
+        }
+    }
+
+    return null;
+}
+
 function withMentions(text: string, offset: number): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -91,11 +117,9 @@ export function LinkifiedText({ text }: { text: string }) {
 
     for (const match of text.matchAll(urlPattern)) {
         const linkText = withoutTrailingPunctuation(match[0]);
-        const href = schemePattern.test(linkText)
-            ? linkText
-            : `https://${linkText}`;
+        const href = hrefFor(linkText);
 
-        if (href.endsWith('://') || Array.from(href).length > maxUrlLength) {
+        if (href === null) {
             continue;
         }
 
