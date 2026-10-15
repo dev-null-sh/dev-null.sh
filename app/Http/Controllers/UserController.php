@@ -40,6 +40,7 @@ final readonly class UserController
                 ->withSavedState($currentUser)
                 ->with(['user', 'linkPreview'])
                 ->withStarsFor($currentUser)
+                ->withPollFor($currentUser)
                 ->find($user->pinned_commit_id),
             'commits' => Inertia::scroll(fn () => $user->commits()
                 ->visibleTo($currentUser)
@@ -57,6 +58,7 @@ final readonly class UserController
                 ->withSavedState($currentUser)
                 ->with(['user', 'linkPreview'])
                 ->withStarsFor($currentUser)
+                ->withPollFor($currentUser)
                 ->latest()
                 ->latest('id')
                 ->cursorPaginate(20)

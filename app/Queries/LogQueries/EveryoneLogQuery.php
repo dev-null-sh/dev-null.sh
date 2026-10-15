@@ -23,6 +23,7 @@ final readonly class EveryoneLogQuery implements LogQuery
             ->withSavedState($user)
             ->with(['user', 'linkPreview'])
             ->withStarsFor($user)
+            ->withPollFor($user)
             ->latest()
             ->latest('id');
     }

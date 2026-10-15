@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Poll;
+use App\Models\PollVote;
 use App\Models\User;
 
 it('requires authentication to download personal data', function (): void {
@@ -49,6 +51,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
         'commits' => [],
+        'polls' => [],
+        'poll_votes' => [],
         'following' => [],
     ]);
     expect($user->fresh()->getAttributes())->toBe($original);
@@ -91,6 +95,33 @@ it('exports only the signed-in users live commits including replies and all mode
         ->and($commits[$reply->id]['parent_id'])->toBe($parent->id)
         ->and($commits[$survivingReply->id]['parent_id'])->toBe($deleted->id)
         ->and($response->streamedContent())->not->toContain($deleted->body, $deletedReply->body, $parent->body);
+});
+
+it('exports the polls of live commits and votes without other voters', function (): void {
+    $user = User::factory()->create();
+    $poll = Poll::factory()->for(Commit::factory()->for($user))->withOptions('Tabs', 'Spaces')->create();
+    $deleted = Poll::factory()->for(Commit::factory()->for($user)->state(['deleted_at' => now()]))->withOptions('Never', 'Exported')->create();
+    $other = Poll::factory()->withOptions('Vim', 'Emacs')->create();
+    $vote = PollVote::factory()->for($other->options[1], 'option')->for($user)->create();
+    $voter = User::factory()->create();
+    PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
+
+    $response = $this->actingAs($user)->get(route('personal-data-export.show'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['polls'])->toBe([[
+        'commit_id' => $poll->commit_id,
+        'duration_minutes' => 1440,
+        'opened_at' => $poll->opened_at?->toIso8601String(),
+        'options' => ['Tabs', 'Spaces'],
+        'created_at' => $poll->created_at->toIso8601String(),
+    ]])
+        ->and($data['poll_votes'])->toBe([[
+            'commit_id' => $other->commit_id,
+            'option' => 'Emacs',
+            'created_at' => $vote->created_at->toIso8601String(),
+        ]])
+        ->and($response->streamedContent())->not->toContain($voter->id, $voter->username, $deleted->options[0]->label);
 });
 
 it('exports following usernames without private identity fields or followers', function (): void {

@@ -28,6 +28,7 @@ final readonly class FollowingLogQuery implements LogQuery
             ->withSavedState($user)
             ->with(['user', 'linkPreview'])
             ->withStarsFor($user)
+            ->withPollFor($user)
             ->latest()
             ->latest('id');
     }

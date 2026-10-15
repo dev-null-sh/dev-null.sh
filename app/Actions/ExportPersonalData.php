@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Models\Poll;
+use App\Models\PollOption;
 use App\Models\User;
+use App\Queries\CommitBuilder;
 use Generator;
 
 final readonly class ExportPersonalData
 {
     /**
-     * @return array{schema_version: int, exported_at: string, profile: array<string, int|string|null>, commits: Generator<int, array<string, string|null>>, following: Generator<int, array{username: string}>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, int|string|null>, commits: Generator<int, array<string, string|null>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, following: Generator<int, array{username: string}>}
      */
     public function handle(User $user): array
     {
@@ -31,6 +34,8 @@ final readonly class ExportPersonalData
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
             'commits' => $this->commits($user),
+            'polls' => $this->polls($user),
+            'poll_votes' => $this->pollVotes($user),
             'following' => $this->following($user),
         ];
     }
@@ -48,6 +53,43 @@ final readonly class ExportPersonalData
                 'status' => $commit->status->value,
                 'created_at' => $commit->created_at->toIso8601String(),
                 'updated_at' => $commit->updated_at->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * @return Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>
+     */
+    private function polls(User $user): Generator
+    {
+        $polls = Poll::query()
+            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id))
+            ->with('options')
+            ->lazyById(500);
+
+        foreach ($polls as $poll) {
+            yield [
+                'commit_id' => $poll->commit_id,
+                'duration_minutes' => $poll->duration->value,
+                'opened_at' => $poll->opened_at?->toIso8601String(),
+                'options' => array_values($poll->options->map(fn (PollOption $option): string => $option->label)->all()),
+                'created_at' => $poll->created_at->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * Only the user's own choices: never who else voted.
+     *
+     * @return Generator<int, array{commit_id: string, option: string, created_at: string}>
+     */
+    private function pollVotes(User $user): Generator
+    {
+        foreach ($user->pollVotes()->with(['poll', 'option'])->lazyById(500) as $vote) {
+            yield [
+                'commit_id' => $vote->poll->commit_id,
+                'option' => $vote->option->label,
+                'created_at' => $vote->created_at->toIso8601String(),
             ];
         }
     }

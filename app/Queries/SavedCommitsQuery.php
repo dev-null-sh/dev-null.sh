@@ -21,6 +21,7 @@ final readonly class SavedCommitsQuery
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
             ->withStarsFor($user)
+            ->withPollFor($user)
             ->with([
                 'user',
                 'linkPreview',

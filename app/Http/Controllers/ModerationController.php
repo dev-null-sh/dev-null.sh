@@ -20,6 +20,7 @@ final readonly class ModerationController
                 ->withSavedState($user)
                 ->with(['user', 'parent.user', 'linkPreview'])
                 ->withStarsFor($user)
+                ->withPollFor($user)
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)),

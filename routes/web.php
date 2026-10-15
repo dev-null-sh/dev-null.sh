@@ -9,6 +9,7 @@ use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPinController;
+use App\Http\Controllers\CommitPollVoteController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitStarController;
@@ -82,6 +83,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-star.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
         ->name('commit-star.destroy');
+    Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
+        ->name('commit-poll-vote.store');
     Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
         ->withTrashed()
         ->name('commit-reply.index');

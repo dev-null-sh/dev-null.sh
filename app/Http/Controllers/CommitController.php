@@ -33,6 +33,7 @@ final readonly class CommitController
             ->withSavedState($currentUser)
             ->with(['user', 'linkPreview'])
             ->withStarsFor($currentUser)
+            ->withPollFor($currentUser)
             ->findOrFail($commit->id);
 
         return Inertia::render('commit/show', [
@@ -44,7 +45,7 @@ final readonly class CommitController
 
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): RedirectResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->poll());
 
         Inertia::flash('committed', [
             'id' => $commit->id,

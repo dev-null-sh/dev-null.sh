@@ -8,6 +8,8 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @extends Builder<Commit>
@@ -75,5 +77,21 @@ final class CommitBuilder extends Builder
             ->withExists([
                 'stars as starred' => fn (Builder $query): Builder => $query->whereKey($viewer->id),
             ]);
+    }
+
+    /**
+     * Loads the poll with each option's vote count and whether the viewer chose it, in two queries for any number of commits.
+     */
+    public function withPollFor(User $viewer): self
+    {
+        return $this
+            ->with(['poll.options' => fn (HasMany $options): HasMany => $options
+                ->withCount('votes')
+                ->withExists(['votes as voted' => fn (Builder $query): Builder => $query->where('user_id', $viewer->id)])])
+            ->afterQuery(function (Collection $commits) use ($viewer): void {
+                foreach ($commits->whereInstanceOf(Commit::class) as $commit) {
+                    $commit->poll?->forceFill(['is_own' => $commit->user_id === $viewer->id]);
+                }
+            });
     }
 }
