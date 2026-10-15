@@ -6,6 +6,7 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
 
 it('may create a commit', function (): void {
@@ -262,12 +263,38 @@ it('shows a commit with its ancestors and reply count', function (): void {
             ->where('commit.body', 'Focused')
             ->where('commit.user.username', $commit->user->username)
             ->where('commit.replies_count', 2)
-            ->has('replies', 2)
-            ->where('replies.0.user.username', fn (string $username): bool => $username !== '')
+            ->has('replies.data', 2)
+            ->where('replies.data.0.user.username', fn (string $username): bool => $username !== '')
+            ->where('replies.next_cursor', null)
             ->has('ancestors', 1)
             ->where('ancestors.0.id', $root->id)
             ->where('ancestors.0.user.username', $root->user->username)
             ->missing('commit.user.email'));
+});
+
+it('shows the first 50 replies of a commit with a cursor to the rest', function (): void {
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    Commit::factory()->for($commit, 'parent')->count(51)
+        ->state(new Sequence(fn (Sequence $sequence): array => [
+            'body' => "Reply {$sequence->index}",
+            'created_at' => now()->subMinutes(100 - $sequence->index),
+        ]))
+        ->create();
+    Commit::factory()->for($commit, 'parent')->pending()->create(['created_at' => now()->subMinutes(99)]);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.replies_count', 51)
+            ->has('replies.data', 50)
+            ->where('replies.data.0.body', 'Reply 0')
+            ->where('replies.data.1.body', 'Reply 1')
+            ->where('replies.data.49.body', 'Reply 49')
+            ->where('replies.next_cursor', fn (string $cursor): bool => $cursor !== ''));
 });
 
 it('shows own pending commit', function (): void {

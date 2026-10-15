@@ -23,5 +23,13 @@ final class DatabaseSeeder extends Seeder
                 $users->except([$user->id])->random(fake()->numberBetween(1, 5))->modelKeys(),
             );
         });
+
+        $localDeveloper = User::query()->firstOrCreate(
+            ['github_id' => 'local'],
+            ['username' => 'local_dev', 'name' => 'Local Developer'],
+        );
+
+        $localDeveloper->following()->syncWithoutDetaching($users->random(3)->modelKeys());
+        $localDeveloper->followers()->syncWithoutDetaching($users->random(5)->modelKeys());
     }
 }

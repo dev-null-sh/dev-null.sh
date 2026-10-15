@@ -6,14 +6,16 @@ namespace App\Queries;
 
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Support\Collection;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 
 final readonly class CommitRepliesQuery
 {
+    public const int PER_PAGE = 50;
+
     /**
-     * @return Collection<int, Commit>
+     * @return CursorPaginator<int, Commit>
      */
-    public function get(Commit $commit, User $user): Collection
+    public function paginate(Commit $commit, User $user): CursorPaginator
     {
         return $commit->replies()
             ->visibleTo($user)
@@ -21,8 +23,6 @@ final readonly class CommitRepliesQuery
             ->with('user')
             ->oldest()
             ->oldest('id')
-            ->limit(100)
-            ->get()
-            ->toBase();
+            ->cursorPaginate(self::PER_PAGE);
     }
 }

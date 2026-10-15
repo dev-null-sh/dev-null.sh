@@ -10,6 +10,7 @@ use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\ModerationController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
@@ -54,6 +55,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.destroy');
     Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
         ->name('commit-reply.index');
+
+    // Notifications...
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
 
     // Moderation...
     Route::middleware('can:moderate')->group(function (): void {

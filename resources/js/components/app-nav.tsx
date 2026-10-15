@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    Bell,
     GitCommitVertical,
     Globe,
     Search,
@@ -9,6 +10,7 @@ import {
 } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
+import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import {
@@ -38,6 +40,13 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Everyone',
             href: LogController.show('everyone'),
             icon: Globe,
+        },
+        {
+            title: 'Notifications',
+            href: NotificationController.index(),
+            icon: Bell,
+            badge: auth.unreadNotificationsCount,
+            prefetch: false,
         },
         {
             title: 'Profile',
@@ -70,6 +79,41 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     }));
 }
 
+function NavIcon({
+    item,
+    indicatorClassName,
+}: {
+    item: NavItem & { isActive: boolean };
+    indicatorClassName?: string;
+}) {
+    if (!item.icon) {
+        return null;
+    }
+
+    const count = item.isActive ? 0 : (item.badge ?? 0);
+
+    return (
+        <span className="relative">
+            <item.icon className="size-5" />
+            {item.hasIndicator && (
+                <span
+                    className={cn(
+                        'absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary',
+                        indicatorClassName,
+                    )}
+                    data-test="notification-indicator"
+                />
+            )}
+            {count > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-primary-foreground tabular-nums">
+                    {count > 99 ? '99+' : count}
+                    <span className="sr-only"> unread</span>
+                </span>
+            )}
+        </span>
+    );
+}
+
 export function AppNav({ onSearch }: { onSearch: () => void }) {
     const { auth } = usePage().props;
     const items = useNavItems();
@@ -93,7 +137,7 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                     <Link
                         key={item.title}
                         href={item.href}
-                        prefetch
+                        prefetch={item.prefetch ?? true}
                         aria-current={item.isActive ? 'page' : undefined}
                         className={cn(
                             'flex items-center gap-3 rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
@@ -103,15 +147,7 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                             },
                         )}
                     >
-                        <span className="relative">
-                            {item.icon && <item.icon className="size-5" />}
-                            {item.hasIndicator && (
-                                <span
-                                    className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary lg:hidden"
-                                    data-test="notification-indicator"
-                                />
-                            )}
-                        </span>
+                        <NavIcon item={item} indicatorClassName="lg:hidden" />
                         <span className="sr-only lg:not-sr-only">
                             {item.title}
                         </span>
@@ -208,22 +244,14 @@ export function MobileNav() {
                 <Link
                     key={item.title}
                     href={item.href}
-                    prefetch
+                    prefetch={item.prefetch ?? true}
                     aria-current={item.isActive ? 'page' : undefined}
                     className={cn(
                         'flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-medium text-muted-foreground',
                         { 'text-primary': item.isActive },
                     )}
                 >
-                    <span className="relative">
-                        {item.icon && <item.icon className="size-5" />}
-                        {item.hasIndicator && (
-                            <span
-                                className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary"
-                                data-test="notification-indicator"
-                            />
-                        )}
-                    </span>
+                    <NavIcon item={item} />
                     {item.title}
                 </Link>
             ))}
