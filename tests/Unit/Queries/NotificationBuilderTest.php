@@ -49,6 +49,12 @@ it('keeps approved replies', function (): void {
     expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
 });
 
+it('keeps mentions on approved commits', function (): void {
+    $notification = Notification::factory()->mentioned()->create();
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+});
+
 it('hides replies once rejected', function (): void {
     $notification = Notification::factory()->replied()->create();
 
@@ -87,6 +93,14 @@ it('deletes replies along with the reply', function (): void {
     expect($notification->fresh())->toBeNull();
 });
 
+it('deletes mentions along with the commit', function (): void {
+    $notification = Notification::factory()->mentioned()->create();
+
+    resolve(DeleteCommit::class)->handle($notification->commit);
+
+    expect($notification->fresh())->toBeNull();
+});
+
 it('deletes replies along with the replied commit', function (): void {
     $notification = Notification::factory()->replied()->create();
 
@@ -102,6 +116,7 @@ it('deletes notifications along with the actor', function (Notification $notific
 })->with([
     'followed' => fn (): Notification => Notification::factory()->create(),
     'replied' => fn (): Notification => Notification::factory()->replied()->create(),
+    'mentioned' => fn (): Notification => Notification::factory()->mentioned()->create(),
 ]);
 
 it('deletes notifications along with the recipient', function (): void {

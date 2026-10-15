@@ -20,6 +20,7 @@ final readonly class CreateCommit
         private NotifyAboutMentions $notifyAboutMentions,
         private StoreCommitImages $storeCommitImages,
         private EmojiShortcodes $emojiShortcodes,
+        private NotifyAboutMentions $notifyAboutMentions,
         private FindFirstUrl $findFirstUrl,
     ) {
         //

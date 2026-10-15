@@ -34,7 +34,10 @@ final class NotificationFactory extends Factory
     {
         return $this
             ->afterMaking(fn (Notification $notification): Notification => $notification->forceFill([
-                'key' => $notification->type->value.':'.($notification->commit_id ?? $notification->actor_id),
+                'key' => match ($notification->type) {
+                    NotificationType::Mentioned => 'mentioned:'.$notification->commit_id.':'.$notification->recipient_id,
+                    default => $notification->type->value.':'.($notification->commit_id ?? $notification->actor_id),
+                },
             ]))
             ->afterCreating(function (Notification $notification): void {
                 if ($notification->type === NotificationType::Followed) {

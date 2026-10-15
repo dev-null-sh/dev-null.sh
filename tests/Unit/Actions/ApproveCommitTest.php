@@ -6,6 +6,7 @@ use App\Actions\ApproveCommit;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\User;
 
 it('may approve a commit', function (): void {
     $commit = Commit::factory()->pending()->create();
@@ -31,4 +32,18 @@ it('notifies the parent author once a reply is approved', function (): void {
     expect($notification->type)->toBe(NotificationType::Replied)
         ->and($notification->actor_id)->toBe($reply->user_id)
         ->and($notification->commit_id)->toBe($reply->id);
+});
+
+it('notifies mentioned users once a commit is approved', function (): void {
+    $mentioned = User::factory()->create(['username' => 'jdoe']);
+    $commit = Commit::factory()->pending()->create(['body' => 'Hey @jdoe']);
+
+    $action = resolve(ApproveCommit::class);
+
+    $action->handle($commit);
+    $action->handle($commit);
+
+    expect($mentioned->notifications()->sole())
+        ->type->toBe(NotificationType::Mentioned)
+        ->commit_id->toBe($commit->id);
 });
