@@ -67,3 +67,21 @@ it('leaves shortcode prefixes inside longer words untouched', function (): void 
         ->assertDontSee('👍')
         ->assertNoJavaScriptErrors();
 });
+
+it('renders emoji shortcodes with closing colons as emoji without trailing colons', function (): void {
+    $viewer = User::factory()->create();
+
+    $commit = Commit::factory()->create([
+        'body' => 'This commit body is intentionally long enough to clear the sixty character title cut-off before :heart: :like: :rocket:',
+    ]);
+
+    $this->actingAs($viewer);
+
+    visit(route('commit.show', [$commit->user, $commit]))
+        ->assertSee('❤️')
+        ->assertSee('👍')
+        ->assertSee('🚀')
+        ->assertDontSee(':heart:')
+        ->assertDontSee('❤️:')
+        ->assertNoJavaScriptErrors();
+});
