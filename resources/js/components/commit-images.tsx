@@ -1,6 +1,20 @@
 import { commitPhotoUrl, openCommitPhoto } from '@/lib/commit-photo';
 import { cn } from '@/lib/utils';
-import type { Commit } from '@/types';
+import type { Commit, CommitImage } from '@/types';
+
+export function commitImageAlt(
+    image: CommitImage,
+    index: number,
+    count: number,
+): string {
+    if (image.description) {
+        return image.description;
+    }
+
+    return count > 1
+        ? `Attached image ${index + 1} of ${count}`
+        : 'Attached image';
+}
 
 export function CommitImages({ commit }: { commit: Commit }) {
     const images = commit.images ?? [];
@@ -46,11 +60,7 @@ export function CommitImages({ commit }: { commit: Commit }) {
                 >
                     <img
                         src={image.url}
-                        alt={
-                            hasMultipleImages
-                                ? `Attached image ${index + 1} of ${images.length}`
-                                : 'Attached image'
-                        }
+                        alt={commitImageAlt(image, index, images.length)}
                         width={image.width}
                         height={image.height}
                         loading="lazy"

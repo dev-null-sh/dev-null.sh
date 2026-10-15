@@ -4,8 +4,10 @@ import { pickImages } from '@/components/commit-image-picker';
 
 export type UseImageAttachmentsReturn = {
     readonly images: File[];
+    readonly descriptions: string[];
     readonly error: string | null;
     readonly attach: (files: File[]) => void;
+    readonly describe: (index: number, description: string) => void;
     readonly remove: (index: number) => void;
     readonly clear: () => void;
     readonly onPaste: (event: ClipboardEvent<HTMLElement>) => void;
@@ -17,10 +19,11 @@ const hasFiles = (dataTransfer: DataTransfer): boolean =>
     Array.from(dataTransfer.types).includes('Files');
 
 /**
- * Keeps the images attached to a commit being written, picked, pasted, or dropped.
+ * Keeps the images attached to a commit being written, picked, pasted, or dropped, and the description written for each.
  */
 export function useImageAttachments(): UseImageAttachmentsReturn {
     const [images, setImages] = useState<File[]>([]);
+    const [descriptions, setDescriptions] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
 
     const attach = (files: File[]) => {
@@ -31,19 +34,34 @@ export function useImageAttachments(): UseImageAttachmentsReturn {
         const picked = pickImages(images, files);
 
         setImages(picked.images);
+        setDescriptions(
+            picked.images.map((_, index) => descriptions[index] ?? ''),
+        );
         setError(picked.error);
     };
 
     return {
         images,
+        descriptions,
         error,
         attach,
+        describe: (index, description) => {
+            setDescriptions(
+                descriptions.map((current, position) =>
+                    position === index ? description : current,
+                ),
+            );
+        },
         remove: (index) => {
             setImages(images.filter((_, position) => position !== index));
+            setDescriptions(
+                descriptions.filter((_, position) => position !== index),
+            );
             setError(null);
         },
         clear: () => {
             setImages([]);
+            setDescriptions([]);
             setError(null);
         },
         onPaste: (event) => {

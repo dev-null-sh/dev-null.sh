@@ -669,6 +669,44 @@ it('may attach images to a commit', function (): void {
         ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
 });
 
+it('may describe the images attached to a commit', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Offsite photo dump',
+        'images' => [
+            UploadedFile::fake()->image('cabin.jpg', 40, 30),
+            UploadedFile::fake()->image('hike.jpg', 40, 30),
+        ],
+        'image_descriptions' => ['The cabin at sunrise, fog over the lake.', ''],
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->images->pluck('description')->all())->toBe([
+        'The cabin at sunrise, fog over the lake.',
+        null,
+    ]);
+});
+
+it('may not describe an image in more than a thousand characters', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Too long a description',
+        'images' => [UploadedFile::fake()->image('photo.jpg', 10, 10)],
+        'image_descriptions' => [str_repeat('a', 1001)],
+    ]);
+
+    $response->assertSessionHasErrors('image_descriptions.0');
+
+    expect($user->commits()->count())->toBe(0);
+});
+
 it('may not attach more than three images to a commit', function (): void {
     Storage::fake();
 
