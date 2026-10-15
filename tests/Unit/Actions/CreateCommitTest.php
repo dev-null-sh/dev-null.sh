@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommit;
 use App\Enums\CommitStatus;
+use App\Enums\NotificationType;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
@@ -59,6 +60,41 @@ it('does not notify about pending replies', function (): void {
     $action = resolve(CreateCommit::class);
 
     $action->handle(User::factory()->create(), 'Nice one', $parent);
+
+    expect(Notification::query()->count())->toBe(0);
+});
+
+it('may quote a commit', function (): void {
+    $quoted = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $quote = $action->handle(User::factory()->create(), 'Worth a read', quotedCommit: $quoted);
+
+    expect($quote->quotedCommit->is($quoted))->toBeTrue()
+        ->and($quote->parent_id)->toBeNull();
+});
+
+it('notifies the quoted author about quotes of admins', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $quoted = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $quote = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $quoted);
+
+    expect($quoted->user->notifications()->sole())
+        ->type->toBe(NotificationType::Quoted)
+        ->commit_id->toBe($quote->id);
+});
+
+it('does not notify about pending quotes', function (): void {
+    $quoted = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(), 'Worth a read', quotedCommit: $quoted);
 
     expect(Notification::query()->count())->toBe(0);
 });

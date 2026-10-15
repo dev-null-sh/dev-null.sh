@@ -14,8 +14,10 @@ use Illuminate\Support\Str;
 
 final readonly class ModerateCommits
 {
-    public function __construct(private NotifyAboutReplies $notifyAboutReplies)
-    {
+    public function __construct(
+        private NotifyAboutReplies $notifyAboutReplies,
+        private NotifyAboutQuotes $notifyAboutQuotes,
+    ) {
         //
     }
 
@@ -60,6 +62,7 @@ final readonly class ModerateCommits
 
             if ($status === CommitStatus::Approved) {
                 $this->notifyAboutReplies->handle(...$commits);
+                $this->notifyAboutQuotes->handle(...$commits);
             }
         });
     }

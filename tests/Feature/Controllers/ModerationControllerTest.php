@@ -73,6 +73,20 @@ it('shows who a pending reply is replying to', function (): void {
             ->where('commits.data.0.parent.user.username', 'octocat'));
 });
 
+it('shows what a pending quote is quoting', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    $quoted = Commit::factory()->for(User::factory()->create(['username' => 'octocat']))->pending()->create(['body' => 'Quoted while pending']);
+    Commit::factory()->pending()->for($quoted, 'quotedCommit')->create(['created_at' => now()->addMinute()]);
+
+    $response = $this->actingAs($admin)
+        ->get(route('moderation.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.1.quoted_commit.body', 'Quoted while pending')
+            ->where('commits.data.1.quoted_commit.user.username', 'octocat'));
+});
+
 it('includes the link previews of pending commits', function (): void {
     $admin = User::factory()->create(['username' => 'admin']);
 

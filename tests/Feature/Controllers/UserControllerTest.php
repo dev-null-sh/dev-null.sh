@@ -352,6 +352,21 @@ it('only shows top-level commits on profiles', function (): void {
             ->where('commits.data.0.replies_count', 1));
 });
 
+it('includes the quoted commits of the user commits', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 1)
+            ->where('commits.data.0.quoted_commit.body', 'The quoted commit')
+            ->where('commits.data.0.quoted_commit.user.username', 'taylorotwell'));
+});
+
 it('includes the link previews of the user commits', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 

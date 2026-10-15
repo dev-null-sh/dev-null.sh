@@ -27,3 +27,14 @@ it('erases the commits of a deleted user along with the replies under them', fun
 
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
 });
+
+it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {
+    $user = User::factory()->create();
+    $quote = Commit::factory()->for(Commit::factory()->for($user), 'quotedCommit')->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $this->assertNotSoftDeleted($quote);
+
+    expect($quote->refresh()->quoted_commit_id)->toBeNull();
+});

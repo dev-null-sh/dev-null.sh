@@ -8,6 +8,7 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @extends Builder<Commit>
@@ -48,6 +49,19 @@ final class CommitBuilder extends Builder
     {
         return $this->withCount([
             'replies' => fn (self $query): self => $query->visibleInThreadTo($user),
+        ]);
+    }
+
+    /**
+     * Loads the quoted commit only when the given user may see it, and as a tombstone once deleted.
+     */
+    public function withQuotedCommitFor(User $viewer): self
+    {
+        return $this->with([
+            'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
+                ->withTrashed()
+                ->where(fn (self $query): self => $query->visibleTo($viewer))
+                ->with('user'),
         ]);
     }
 

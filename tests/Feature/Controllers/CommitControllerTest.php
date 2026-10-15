@@ -287,6 +287,137 @@ it('may not reply to a commit that does not exist', function (): void {
     $response->assertSessionHasErrors('parent_id');
 });
 
+it('may quote a commit', function (): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), [
+            'body' => 'Required reading.',
+            'quoted_commit_id' => $quoted->id,
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Everyone)
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole())
+        ->quoted_commit_id->toBe($quoted->id)
+        ->parent_id->toBeNull();
+});
+
+it('may quote own pending commit', function (): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->for($user)->pending()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Follow-up', 'quoted_commit_id' => $quoted->id])
+        ->assertSessionHasNoErrors();
+
+    expect(Commit::query()->where('quoted_commit_id', $quoted->id)->count())->toBe(1);
+});
+
+it('may not quote a commit that is not available', function (Closure $factory): void {
+    $quoted = $factory();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), ['body' => 'Required reading.', 'quoted_commit_id' => $quoted->id]);
+
+    $response->assertSessionHasErrors(['quoted_commit_id' => 'That commit is no longer available to quote.']);
+
+    expect(Commit::query()->whereNotNull('quoted_commit_id')->count())->toBe(0);
+})->with([
+    'pending' => [fn (): Commit => Commit::factory()->pending()->create()],
+    'rejected' => [fn (): Commit => Commit::factory()->rejected()->create()],
+    'deleted' => [function (): Commit {
+        $commit = Commit::factory()->create();
+        $commit->delete();
+
+        return $commit;
+    }],
+]);
+
+it('may not quote a commit that does not exist', function (): void {
+    $response = $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), ['body' => 'Hello', 'quoted_commit_id' => '01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3']);
+
+    $response->assertSessionHasErrors('quoted_commit_id');
+});
+
+it('may not quote a commit in a reply', function (): void {
+    $commit = Commit::factory()->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $commit->id, 'quoted_commit_id' => $commit->id]);
+
+    $response->assertSessionHasErrors('quoted_commit_id');
+
+    expect(Commit::query()->count())->toBe(1);
+});
+
+it('shows the quoted commits of a commit and its ancestors with their authors', function (): void {
+    $viewer = User::factory()->create();
+    $root = Commit::factory()->for(Commit::factory()->state(['body' => 'Quoted by the root']), 'quotedCommit')->create();
+    $commit = Commit::factory()->for($root, 'parent')->create();
+    $focused = Commit::factory()->for(Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->state(['body' => 'Quoted by the focused commit']), 'quotedCommit')->create();
+
+    $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit', null)
+            ->where('ancestors.0.quoted_commit.body', 'Quoted by the root')
+            ->where('ancestors.0.quoted_commit.user.username', $root->quotedCommit->user->username));
+
+    $this->actingAs($viewer)
+        ->get(route('commit.show', [$focused->user, $focused]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit_id', $focused->quoted_commit_id)
+            ->where('commit.quoted_commit.body', 'Quoted by the focused commit')
+            ->where('commit.quoted_commit.user.username', 'octocat')
+            ->missing('commit.quoted_commit.user.email'));
+});
+
+it('shows a deleted quoted commit as a tombstone', function (): void {
+    $quoted = Commit::factory()->create(['body' => 'Deleted words']);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    $quoted->delete();
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$quote->user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit.id', $quoted->id)
+            ->where('commit.quoted_commit.deleted_at', fn (string $deletedAt): bool => $deletedAt !== '')
+            ->missing('commit.quoted_commit.body')
+            ->missing('commit.quoted_commit.user'))
+        ->assertDontSee('Deleted words');
+});
+
+it('never shows a quoted commit that is no longer visible to the viewer', function (CommitStatus $status): void {
+    $quoted = Commit::factory()->create(['body' => 'Words under review']);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    $quoted->update(['status' => $status]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$quote->user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit_id', $quoted->id)
+            ->where('commit.quoted_commit', null))
+        ->assertDontSee('Words under review');
+
+    $this->actingAs($quoted->user)
+        ->get(route('commit.show', [$quote->user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.quoted_commit.body', 'Words under review'));
+})->with([CommitStatus::Pending, CommitStatus::Rejected]);
+
 it('shows a commit with its ancestors and reply count', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();

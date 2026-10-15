@@ -45,6 +45,7 @@ final readonly class UserController
                 )
                 ->withVisibleReplyCount($currentUser)
                 ->with(['user', 'linkPreview'])
+                ->withQuotedCommitFor($currentUser)
                 ->withStarsFor($currentUser)
                 ->latest()
                 ->latest('id')

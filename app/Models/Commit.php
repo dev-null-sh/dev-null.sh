@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $body
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
+ * @property-read string|null $quoted_commit_id
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -36,6 +37,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
  * @property-read LinkPreview|null $linkPreview
+ * @property-read Commit|null $quotedCommit
+ * @property-read Collection<int, Commit> $quotes
  */
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -58,6 +61,7 @@ final class Commit extends Model
             'body' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
+            'quoted_commit_id' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -124,6 +128,22 @@ final class Commit extends Model
     public function linkPreview(): BelongsTo
     {
         return $this->belongsTo(LinkPreview::class);
+    }
+
+    /**
+     * @return BelongsTo<Commit, $this>
+     */
+    public function quotedCommit(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'quoted_commit_id');
+    }
+
+    /**
+     * @return HasMany<Commit, $this>
+     */
+    public function quotes(): HasMany
+    {
+        return $this->hasMany(self::class, 'quoted_commit_id');
     }
 
     /**

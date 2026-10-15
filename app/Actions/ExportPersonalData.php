@@ -40,10 +40,11 @@ final readonly class ExportPersonalData
      */
     private function commits(User $user): Generator
     {
-        foreach ($user->commits()->select(['id', 'parent_id', 'body', 'status', 'created_at', 'updated_at'])->lazyById(500) as $commit) {
+        foreach ($user->commits()->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'created_at', 'updated_at'])->lazyById(500) as $commit) {
             yield [
                 'id' => $commit->id,
                 'parent_id' => $commit->parent_id,
+                'quoted_commit_id' => $commit->quoted_commit_id,
                 'body' => $commit->body,
                 'status' => $commit->status->value,
                 'created_at' => $commit->created_at->toIso8601String(),

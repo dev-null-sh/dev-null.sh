@@ -3,11 +3,13 @@ import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { CommitQuoteButton } from '@/components/commit-quote-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitThread } from '@/components/commit-thread';
 import { GraphRail } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { LinkifiedText } from '@/components/linkified-text';
+import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
@@ -246,6 +248,11 @@ export function CommitCard({
                                 >
                                     <LinkifiedText text={commit.body} />
                                 </p>
+                                {commit.quoted_commit_id !== null && (
+                                    <QuotedCommit
+                                        commit={commit.quoted_commit ?? null}
+                                    />
+                                )}
                                 {commit.link_preview?.title && (
                                     <LinkPreview
                                         preview={commit.link_preview}
@@ -272,21 +279,33 @@ export function CommitCard({
 
                         {deletion !== 'deleting' &&
                             (commit.replies_count === undefined ? (
-                                <CommitStarButton
-                                    key={`${commit.starred}-${commit.stars_count}`}
-                                    commit={commit}
-                                    className="mt-1.5 -ml-1.5"
-                                />
+                                <div className="mt-1.5 -ml-1.5 flex items-center gap-0.5">
+                                    <CommitStarButton
+                                        key={`${commit.starred}-${commit.stars_count}`}
+                                        commit={commit}
+                                    />
+                                    <CommitQuoteButton
+                                        commit={commit}
+                                        keyShortcut="q"
+                                        className="px-1.5 py-1"
+                                    />
+                                </div>
                             ) : (
                                 <CommitThread
                                     commit={commit}
                                     initialReplies={initialReplies}
                                     actions={
-                                        <CommitStarButton
-                                            key={`${commit.starred}-${commit.stars_count}`}
-                                            commit={commit}
-                                            className="px-2 py-0.5"
-                                        />
+                                        <>
+                                            <CommitStarButton
+                                                key={`${commit.starred}-${commit.stars_count}`}
+                                                commit={commit}
+                                                className="px-2 py-0.5"
+                                            />
+                                            <CommitQuoteButton
+                                                commit={commit}
+                                                keyShortcut="q"
+                                            />
+                                        </>
                                     }
                                 />
                             ))}

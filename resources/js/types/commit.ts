@@ -25,7 +25,14 @@ export type Commit = {
     replies_count?: number;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
+    quoted_commit_id: string | null;
+    quoted_commit?: QuotedCommit | DeletedCommit | null;
 };
+
+export type QuotedCommit = Pick<
+    Commit,
+    'id' | 'user_id' | 'body' | 'status' | 'created_at' | 'deleted_at' | 'user'
+>;
 
 export type DeletedCommit = {
     id: string;

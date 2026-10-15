@@ -15,14 +15,15 @@ final readonly class CreateCommit
 {
     public function __construct(
         private NotifyAboutReplies $notifyAboutReplies,
+        private NotifyAboutQuotes $notifyAboutQuotes,
         private FindFirstUrl $findFirstUrl,
     ) {
         //
     }
 
-    public function handle(User $user, string $body, ?Commit $parent = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null): Commit
     {
-        return DB::transaction(function () use ($user, $body, $parent): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit): Commit {
             $linkPreview = $this->linkPreviewFor($body);
 
             $commit = $user->commits()->create([
@@ -30,9 +31,11 @@ final readonly class CreateCommit
                 'parent_id' => $parent?->id,
                 'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
+                'quoted_commit_id' => $quotedCommit?->id,
             ]);
 
             $this->notifyAboutReplies->handle($commit);
+            $this->notifyAboutQuotes->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));

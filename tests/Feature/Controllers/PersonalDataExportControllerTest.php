@@ -62,6 +62,7 @@ it('exports only the signed-in users live commits including replies and all mode
     $pending = Commit::factory()->for($user)->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
     $reply = Commit::factory()->for($user)->create(['parent_id' => $parent->id]);
+    $quote = Commit::factory()->for($user)->create(['quoted_commit_id' => $parent->id]);
     $deleted = Commit::factory()->for($user)->create(['body' => 'Deleted content must never be exported']);
     $deletedReply = Commit::factory()->for($user)->create(['parent_id' => $approved->id]);
     $survivingReply = Commit::factory()->for($user)->pending()->create(['parent_id' => $deleted->id]);
@@ -76,11 +77,12 @@ it('exports only the signed-in users live commits including replies and all mode
     $commits = collect($data['commits'])->keyBy('id');
 
     expect($commits->keys()->sort()->values()->all())->toBe(collect([
-        $approved->id, $pending->id, $rejected->id, $reply->id, $survivingReply->id,
+        $approved->id, $pending->id, $rejected->id, $reply->id, $quote->id, $survivingReply->id,
     ])->sort()->values()->all());
     expect($commits[$approved->id])->toBe([
         'id' => $approved->id,
         'parent_id' => null,
+        'quoted_commit_id' => null,
         'body' => $approved->body,
         'status' => 'approved',
         'created_at' => $approved->created_at->toIso8601String(),
@@ -89,6 +91,7 @@ it('exports only the signed-in users live commits including replies and all mode
         ->and($commits[$pending->id]['status'])->toBe('pending')
         ->and($commits[$rejected->id]['status'])->toBe('rejected')
         ->and($commits[$reply->id]['parent_id'])->toBe($parent->id)
+        ->and($commits[$quote->id]['quoted_commit_id'])->toBe($parent->id)
         ->and($commits[$survivingReply->id]['parent_id'])->toBe($deleted->id)
         ->and($response->streamedContent())->not->toContain($deleted->body, $deletedReply->body, $parent->body);
 });

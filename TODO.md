@@ -25,7 +25,7 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 
 **follows** — (`follower_id`, `followed_id`) primary key, both cascade delete, timestamps; index on `followed_id`
 
-**notifications** — `id` (uuid), `recipient_id` / `actor_id` (users, cascade delete), `type` (`NotificationType`), `commit_id` (nullable, cascade delete), `key` (unique per recipient: `followed:{actor}`, `replied:{commit}`), `read_at` (nullable), timestamps
+**notifications** — `id` (uuid), `recipient_id` / `actor_id` (users, cascade delete), `type` (`NotificationType`), `commit_id` (nullable, cascade delete), `key` (unique per recipient: `followed:{actor}`, `replied:{commit}`, `quoted:{commit}`), `read_at` (nullable), timestamps
 
 ---
 
@@ -92,4 +92,4 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 
 ## Not now
 
-Comments, reposts (forks), editing (amend), images/media, mentions, hashtags, search, DMs, other OAuth providers, public API, admin/moderation tools, blocking/muting, header/banner images, importing real GitHub commits, email/push notifications. Stars are in: anyone who can see a commit can star and unstar it, and the count sits on the commit.
+Comments, reposts without a comment (quotes are in), editing (amend), images/media, mentions, hashtags, search, DMs, other OAuth providers, public API, admin/moderation tools, blocking/muting, header/banner images, importing real GitHub commits, email/push notifications. Stars are in: anyone who can see a commit can star and unstar it, and the count sits on the commit.
