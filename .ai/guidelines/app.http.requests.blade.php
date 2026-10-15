@@ -1,9 +1,10 @@
 # App/Http/Requests guidelines
 
 - Never use policies or gates: no `app/Policies`, no `Gate::define()`, no `can:` middleware, no `$user->can()`, no `$this->authorize()`.
-- Every authorization, validation, or business rule check for an HTTP endpoint lives in a form request, in its `authorize()` or `rules()` method. This includes `index` and `show` endpoints.
+- Authorization and validation only ever happen in form requests: authorization in `authorize()`, validation in `rules()`. Never in controllers, actions, or models. This includes `index` and `show` endpoints.
 - Controllers and actions never check anything themselves: no `abort()`, `abort_if()`, `abort_unless()`, `throw_if()`, `throw_unless()`, `Validator::make()`, `$request->validate()`, or `ValidationException`.
-- Create a dedicated form request for each endpoint that checks anything, named after what it does: `ShowCommitRequest`, `CreateBookmarkRequest`, `DeleteCommitRequest`.
+- Create a dedicated form request for each endpoint that checks anything, and never share one between endpoints. If the endpoint has none yet, create one.
+- Name it after the controller method it serves, CRUD by design: `index` → `List…Request`, `show` → `Show…Request`, `store` → `Create…Request`, `update` → `Update…Request`, `destroy` → `Delete…Request`. For example `CommitPinController@update` → `UpdateCommitPinRequest`, `CommitPinController@destroy` → `DeleteCommitPinRequest`, `CommitApprovalController@store` → `CreateCommitApprovalRequest`.
 - When hiding something should look like it does not exist, return `Response::denyAsNotFound()` from `authorize()` instead of `false`.
 - Put input interpretation in form request methods (`$request->tab()`, `$request->parent()`), and complex checks in `App\Rules` validation rules.
 - `tests/Unit/ArchTest.php` enforces this.

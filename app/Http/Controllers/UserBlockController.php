@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\BlockUser;
-use App\Actions\UnblockUser;
+use App\Actions\CreateUserBlock;
+use App\Actions\DeleteUserBlock;
 use App\Http\Requests\CreateUserBlockRequest;
 use App\Http\Requests\DeleteUserBlockRequest;
 use App\Models\User;
@@ -15,7 +15,7 @@ use Inertia\Inertia;
 
 final readonly class UserBlockController
 {
-    public function store(CreateUserBlockRequest $request, #[CurrentUser] User $currentUser, User $user, BlockUser $action): RedirectResponse
+    public function store(CreateUserBlockRequest $request, #[CurrentUser] User $currentUser, User $user, CreateUserBlock $action): RedirectResponse
     {
         $action->handle($currentUser, $user);
 
@@ -27,7 +27,7 @@ final readonly class UserBlockController
         return back();
     }
 
-    public function destroy(DeleteUserBlockRequest $request, #[CurrentUser] User $currentUser, User $user, UnblockUser $action): RedirectResponse
+    public function destroy(DeleteUserBlockRequest $request, #[CurrentUser] User $currentUser, User $user, DeleteUserBlock $action): RedirectResponse
     {
         $action->handle($currentUser, $user);
 

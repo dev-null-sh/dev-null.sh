@@ -1,5 +1,6 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { ArrowUpRight, Download } from 'lucide-react';
+import ExportController from '@/actions/App/Http/Controllers/ExportController';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
@@ -7,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import { show as exportPersonalData } from '@/routes/personal-data-export';
 import { show } from '@/routes/user';
 
 export default function Edit({
@@ -105,7 +105,7 @@ export default function Edit({
                     GitHub.
                 </p>
                 <Button variant="outline" asChild>
-                    <a href={exportPersonalData.url()} download>
+                    <a href={ExportController.url()} download>
                         <Download />
                         Download JSON
                     </a>
