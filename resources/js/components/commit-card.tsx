@@ -39,6 +39,7 @@ export function CommitCard({
     initialReplies,
     threadActions,
     showImages = true,
+    loadsReplies = false,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -52,6 +53,7 @@ export function CommitCard({
     initialReplies?: CursorPaginated<ThreadCommit>;
     threadActions?: ReactNode;
     showImages?: boolean;
+    loadsReplies?: boolean;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
@@ -286,6 +288,7 @@ export function CommitCard({
                                 <CommitThread
                                     commit={commit}
                                     initialReplies={initialReplies}
+                                    loadsReplies={loadsReplies}
                                     actions={
                                         <>
                                             <CommitStarButton

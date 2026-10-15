@@ -201,6 +201,19 @@ it('may delete own commit from its page', function (): void {
     $this->assertSoftDeleted($commit);
 });
 
+it('may delete own commit while viewing one of its photos', function (): void {
+    $commit = Commit::factory()->create();
+    CommitImage::factory()->for($commit)->create();
+
+    $response = $this->actingAs($commit->user)
+        ->from(route('commit-photo.show', [$commit->user, $commit, 1]))
+        ->delete(route('commit.destroy', $commit));
+
+    $response->assertRedirectToRoute('user.show', $commit->user);
+
+    $this->assertSoftDeleted($commit);
+});
+
 it('tells users their commit is pending review', function (): void {
     $user = User::factory()->create();
 

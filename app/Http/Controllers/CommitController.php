@@ -65,7 +65,9 @@ final readonly class CommitController
     {
         $action->handle($commit);
 
-        if (url()->previous() === route('commit.show', [$commit->user, $commit])) {
+        $commitUrl = route('commit.show', [$commit->user, $commit]);
+
+        if (Str::is([$commitUrl, "{$commitUrl}/photos/*"], url()->previous())) {
             return to_route('user.show', $commit->user);
         }
 

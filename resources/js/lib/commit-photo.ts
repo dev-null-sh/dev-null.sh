@@ -1,19 +1,13 @@
 import { router } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitPhotoController from '@/actions/App/Http/Controllers/CommitPhotoController';
-import { fetchReplies } from '@/lib/replies';
-import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+import type { Commit } from '@/types';
 
 export type CommitPhoto = {
     commit: Commit;
     index: number;
 };
 
-export type CommitPhotoReplies = Promise<
-    CursorPaginated<ThreadCommit> | undefined
->;
-
-const replies = new Map<string, CommitPhotoReplies>();
 let isOpenedInApp = false;
 
 export const commitPhotoUrl = (commit: Commit, index: number): string =>
@@ -25,7 +19,6 @@ export const commitPhotoUrl = (commit: Commit, index: number): string =>
 
 export function openCommitPhoto(commit: Commit, index: number): void {
     isOpenedInApp = true;
-    replies.clear();
 
     router.push({
         url: commitPhotoUrl(commit, index),
@@ -61,20 +54,4 @@ export function closeCommitPhoto(photo: CommitPhoto): void {
         preserveScroll: true,
         preserveState: true,
     });
-}
-
-export function repliesFor(commit: Commit): CommitPhotoReplies {
-    const cached = replies.get(commit.id);
-
-    if (cached) {
-        return cached;
-    }
-
-    const loaded = commit.replies_count
-        ? fetchReplies(commit, null).catch(() => undefined)
-        : Promise.resolve(undefined);
-
-    replies.set(commit.id, loaded);
-
-    return loaded;
 }

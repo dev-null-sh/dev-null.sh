@@ -6,8 +6,9 @@ import {
     Trash2,
 } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitBody } from '@/components/commit-body';
 import {
@@ -29,7 +30,7 @@ import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
-import { fetchReplies } from '@/lib/replies';
+import { commitStateKey } from '@/lib/commit-state';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
@@ -53,6 +54,27 @@ type Thread = {
     onDeleted: () => void;
 };
 
+async function fetchReplies(
+    commit: Pick<ThreadCommit, 'id'>,
+    cursor: string | null,
+): Promise<CursorPaginated<ThreadCommit>> {
+    const response = await fetch(
+        CommitReplyController.index(commit, { query: { cursor } }).url,
+        {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error('Unable to load replies');
+    }
+
+    return (await response.json()) as CursorPaginated<ThreadCommit>;
+}
+
 async function fetchRepliesUntil(
     commit: ThreadCommit,
     minimum: number,
@@ -73,6 +95,7 @@ async function fetchRepliesUntil(
 function useThread(
     commit: ThreadCommit,
     initialReplies?: CursorPaginated<ThreadCommit>,
+    loadsReplies = false,
 ): Thread {
     const [replies, setReplies] = useState<ThreadCommit[] | null>(
         initialReplies?.data ?? null,
@@ -81,10 +104,13 @@ function useThread(
         initialReplies?.next_cursor ?? null,
     );
     const [count, setCount] = useSharedState(
-        `replies:${commit.id}`,
+        commitStateKey('replies_count', commit.id),
         commit.replies_count ?? 0,
     );
-    const [isOpen, setIsOpen] = useState(initialReplies !== undefined);
+    const [shouldLoadReplies] = useState(loadsReplies && count > 0);
+    const [isOpen, setIsOpen] = useState(
+        initialReplies !== undefined || shouldLoadReplies,
+    );
     const [isLoading, setIsLoading] = useState(false);
     const [isReplying, setIsReplying] = useState(false);
 
@@ -112,6 +138,29 @@ function useThread(
             .catch(() => undefined)
             .finally(() => setIsLoading(false));
     };
+
+    const commitId = commit.id;
+
+    useEffect(() => {
+        if (!shouldLoadReplies) {
+            return;
+        }
+
+        let isCurrent = true;
+
+        fetchReplies({ id: commitId }, null)
+            .then((page) => {
+                if (isCurrent) {
+                    setReplies(page.data);
+                    setNextCursor(page.next_cursor);
+                }
+            })
+            .catch(() => undefined);
+
+        return () => {
+            isCurrent = false;
+        };
+    }, [commitId, shouldLoadReplies]);
 
     return {
         commit,
@@ -160,13 +209,15 @@ function useThread(
 export function CommitThread({
     commit,
     initialReplies,
+    loadsReplies = false,
     actions,
 }: {
     commit: Commit;
     initialReplies?: CursorPaginated<ThreadCommit>;
+    loadsReplies?: boolean;
     actions?: ReactNode;
 }) {
-    const thread = useThread(commit, initialReplies);
+    const thread = useThread(commit, initialReplies, loadsReplies);
 
     return (
         <>

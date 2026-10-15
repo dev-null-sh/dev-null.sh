@@ -5,7 +5,7 @@ import {
     PanelRightClose,
     PanelRightOpen,
 } from 'lucide-react';
-import { Suspense, use, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Lightbox from 'yet-another-react-lightbox';
 import Counter from 'yet-another-react-lightbox/plugins/counter';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
@@ -13,14 +13,9 @@ import 'yet-another-react-lightbox/plugins/counter.css';
 import 'yet-another-react-lightbox/styles.css';
 import { CommitCard } from '@/components/commit-card';
 import { isTyping } from '@/hooks/use-keyboard-shortcuts';
-import {
-    closeCommitPhoto,
-    repliesFor,
-    showCommitPhoto,
-} from '@/lib/commit-photo';
-import type { CommitPhoto, CommitPhotoReplies } from '@/lib/commit-photo';
+import { closeCommitPhoto, showCommitPhoto } from '@/lib/commit-photo';
+import type { CommitPhoto } from '@/lib/commit-photo';
 import { cn } from '@/lib/utils';
-import type { Commit } from '@/types';
 
 export function CommitImageViewer() {
     const { photo } = usePage<{ photo?: CommitPhoto }>().props;
@@ -125,41 +120,16 @@ export function CommitImageViewer() {
                                 }
                             }}
                         >
-                            <Suspense
+                            <CommitCard
                                 key={photo.commit.id}
-                                fallback={
-                                    <CommitCard
-                                        commit={photo.commit}
-                                        isFocused
-                                        showImages={false}
-                                    />
-                                }
-                            >
-                                <ViewedCommit
-                                    commit={photo.commit}
-                                    replies={repliesFor(photo.commit)}
-                                />
-                            </Suspense>
+                                commit={photo.commit}
+                                isFocused
+                                showImages={false}
+                                loadsReplies
+                            />
                         </aside>
                     ),
             }}
-        />
-    );
-}
-
-function ViewedCommit({
-    commit,
-    replies,
-}: {
-    commit: Commit;
-    replies: CommitPhotoReplies;
-}) {
-    return (
-        <CommitCard
-            commit={commit}
-            isFocused
-            showImages={false}
-            initialReplies={use(replies)}
         />
     );
 }
