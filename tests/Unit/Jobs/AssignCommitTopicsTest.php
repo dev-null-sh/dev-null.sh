@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Ai\Agents\TopicExtractor;
 use App\Jobs\AssignCommitTopics;
 use App\Models\Commit;
 use App\Models\Topic;
 
 it('assigns the extracted topics to the commit, reusing existing ones', function (): void {
-    $requests = fakeClaude(['topics' => ['laravel', 'rust']]);
+    TopicExtractor::fake([['topics' => ['laravel', 'rust']]]);
     $existing = Topic::factory()->create(['name' => 'laravel']);
     $commit = Commit::factory()->create(['title' => 'Laravel queues', 'description' => 'Rust driver']);
 
@@ -15,6 +16,7 @@ it('assigns the extracted topics to the commit, reusing existing ones', function
 
     expect($commit->topics()->pluck('name')->sort()->values()->all())->toBe(['laravel', 'rust'])
         ->and($commit->topics()->where('name', 'laravel')->sole()->is($existing))->toBeTrue()
-        ->and(Topic::query()->count())->toBe(2)
-        ->and(json_decode((string) $requests[0]->getBody(), true)['messages'][0]['content'])->toBe("Laravel queues\n\nRust driver");
+        ->and(Topic::query()->count())->toBe(2);
+
+    TopicExtractor::assertPrompted("Laravel queues\n\nRust driver");
 });

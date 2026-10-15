@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Ai\Agents\TopicExtractor;
 use App\Models\Commit;
 use App\Models\Topic;
 use App\Models\User;
 
 it('files a new commit under the topics Claude picks', function (): void {
-    fakeClaude(['topics' => ['laravel']]);
+    TopicExtractor::fake(fn (): array => ['topics' => ['laravel']]);
     Topic::factory()->hasAttached(Commit::factory()->count(Topic::MIN_COMMITS - 1))->create(['name' => 'laravel']);
 
     $this->actingAs(User::factory()->create());
