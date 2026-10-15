@@ -55,3 +55,12 @@ it('scopes thread commits to visible ones and deleted ones that still have visib
 
     expect($ids)->toBe(collect([$commit->id, $tombstone->id, $deletedChain->id])->sort()->values()->all());
 });
+
+it('scopes commits to approved ones', function (): void {
+    $user = User::factory()->create();
+    $approved = Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->pending()->create();
+    Commit::factory()->for($user)->rejected()->create();
+
+    expect(Commit::query()->approved()->sole()->is($approved))->toBeTrue();
+});
