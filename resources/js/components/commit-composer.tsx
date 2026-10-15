@@ -1,5 +1,6 @@
 import { Form, usePage } from '@inertiajs/react';
 import type { KeyboardEvent } from 'react';
+import { useRef } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import {
     ImagePickerButton,
@@ -9,10 +10,12 @@ import {
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
+import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import { cn, laneColor } from '@/lib/utils';
 
@@ -26,6 +29,8 @@ export function CommitComposer() {
         'commit',
     );
     const attachments = useImageAttachments();
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const secrets = useSecretWarning(body);
 
     const remaining = maxBodyLength - body.length;
     const isCommittable = body.trim().length >= minBodyLength;
@@ -44,6 +49,7 @@ export function CommitComposer() {
     return (
         <Form
             {...CommitController.store.form()}
+            onBefore={secrets.beforeSubmit}
             transform={(data) =>
                 attachments.images.length > 0
                     ? { ...data, images: attachments.images }
@@ -82,6 +88,7 @@ export function CommitComposer() {
                                 Body
                             </label>
                             <MentionTextarea
+                                ref={textareaRef}
                                 id="body"
                                 name="body"
                                 rows={1}
@@ -103,6 +110,15 @@ export function CommitComposer() {
                             />
 
                             <InputError message={errors.body} />
+                            <SecretWarning
+                                body={body}
+                                findings={secrets.findings}
+                                textarea={textareaRef}
+                                onChange={updateBody}
+                                confirming={secrets.confirming}
+                                onConfirmingChange={secrets.setConfirming}
+                                onApprove={secrets.approve}
+                            />
 
                             <ImagePickerPreviews
                                 images={attachments.images}
