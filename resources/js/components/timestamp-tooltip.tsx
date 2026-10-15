@@ -4,7 +4,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     browserTimeZone,
-    formatZonedDay,
+    formatZonedDate,
     formatZonedTime,
     laneColor,
     timeZoneCity,
@@ -76,9 +76,7 @@ function ZonedTimes({ date, author }: { date: string; author: User }) {
                         <span className="text-[13px] font-semibold text-popover-foreground tabular-nums">
                             {formatZonedTime(date, column.timeZone)}
                         </span>{' '}
-                        {formatZonedDay(date, column.timeZone, {
-                            brief: columns.length > 1,
-                        })}
+                        {formatZonedDate(date, column.timeZone)}
                     </p>
                 </div>
             ))}
