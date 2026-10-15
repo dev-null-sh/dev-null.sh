@@ -35,9 +35,14 @@ final class AppServiceProvider extends ServiceProvider
         $this->bootPassport();
     }
 
+    /**
+     * Every visit to the consent page issues a new auth token, so the page must not reload itself (as it would for
+     * deferred shared props): the form would then hold a token the session no longer knows.
+     */
     private function bootPassport(): void
     {
         Passport::authorizationView(fn (array $parameters): InertiaResponse => Inertia::render('oauth/authorize', [
+            'suggestedUsers' => null,
             'client' => $parameters['client']->name,
             'scopes' => array_map(fn (Scope $scope): string => $scope->description, $parameters['scopes']),
             'authToken' => $parameters['authToken'],

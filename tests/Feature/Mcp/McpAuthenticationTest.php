@@ -89,6 +89,40 @@ it('asks signed in users for consent before authorizing a client', function (): 
             ->where('scopes', ['Use MCP server']));
 });
 
+it('lets signed in users approve a client with the token on the consent page', function (): void {
+    $user = User::factory()->create();
+    $client = resolve(ClientRepository::class)->createAuthorizationCodeGrantClient(
+        'Some Agent',
+        ['http://localhost:5555/callback'],
+        confidential: false,
+    );
+
+    $page = $this->actingAs($user)->get(route('passport.authorizations.authorize', [
+        'client_id' => $client->getKey(),
+        'redirect_uri' => 'http://localhost:5555/callback',
+        'response_type' => 'code',
+        'scope' => 'mcp:use',
+        'state' => 'abc',
+        'code_challenge' => str_repeat('a', 43),
+        'code_challenge_method' => 'S256',
+    ]));
+
+    $payload = $page->viewData('page');
+
+    expect($payload)->not->toHaveKey('deferredProps');
+
+    $props = $payload['props'];
+
+    $response = $this->post(route('passport.authorizations.approve'), [
+        'auth_token' => $props['authToken'],
+        'client_id' => $props['clientId'],
+        'state' => 'abc',
+    ]);
+
+    $response->assertRedirectContains('http://localhost:5555/callback?code=');
+    expect($response->headers->get('Location'))->toContain('state=abc');
+});
+
 it('sends guests to sign in first', function (): void {
     $client = resolve(ClientRepository::class)->createAuthorizationCodeGrantClient(
         'Some Agent',
