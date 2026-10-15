@@ -11,6 +11,7 @@ use App\Models\LinkPreview;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\EmojiShortcodes;
+use App\Services\Urls;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -18,11 +19,11 @@ use Illuminate\Support\Facades\DB;
 final readonly class CreateCommit
 {
     public function __construct(
-        private NotifyAboutReplies $notifyAboutReplies,
-        private NotifyAboutMentions $notifyAboutMentions,
-        private StoreCommitImages $storeCommitImages,
+        private CreateReplyNotifications $createReplyNotifications,
+        private CreateMentionNotifications $createMentionNotifications,
+        private CreateCommitImages $createCommitImages,
         private EmojiShortcodes $emojiShortcodes,
-        private FindFirstUrl $findFirstUrl,
+        private Urls $urls,
         private FindTags $findTags,
     ) {
         //
@@ -45,10 +46,10 @@ final readonly class CreateCommit
 
             $commit->tags()->attach($this->tagsFor($body));
 
-            $this->storeCommitImages->handle($commit, $images);
+            $this->createCommitImages->handle($commit, $images);
 
-            $this->notifyAboutReplies->handle($commit);
-            $this->notifyAboutMentions->handle($commit);
+            $this->createReplyNotifications->handle($commit);
+            $this->createMentionNotifications->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));
@@ -63,7 +64,7 @@ final readonly class CreateCommit
      */
     private function linkPreviewFor(string $body): ?LinkPreview
     {
-        $url = $this->findFirstUrl->handle($body);
+        $url = $this->urls->first($body);
 
         if ($url === null) {
             return null;
