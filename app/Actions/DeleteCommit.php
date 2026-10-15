@@ -9,19 +9,20 @@ use App\Models\Commit;
 use App\Models\Notification;
 use App\Queries\NotificationBuilder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteCommit
 {
     /**
-     * Soft deleting keeps the row for its replies, so its notifications and reply notifications are removed here instead of by the foreign key.
+     * Soft deleting keeps the row for its replies, so its notifications, reply notifications, and images are removed here instead of by the foreign key.
      */
     public function handle(Commit $commit): void
     {
-        DB::transaction(function () use ($commit): void {
+        $imagePaths = DB::transaction(function () use ($commit): array {
             $commit = Commit::query()->whereKey($commit->id)->lockForUpdate()->first();
 
             if (! $commit instanceof Commit) {
-                return;
+                return [];
             }
 
             Notification::query()
@@ -31,7 +32,14 @@ final readonly class DeleteCommit
                     ->whereIn('commit_id', $commit->replies()->select('id')))
                 ->delete();
 
+            $imagePaths = $commit->images()->pluck('path')->all();
+
+            $commit->images()->delete();
             $commit->delete();
+
+            return $imagePaths;
         });
+
+        Storage::disk()->delete($imagePaths);
     }
 }

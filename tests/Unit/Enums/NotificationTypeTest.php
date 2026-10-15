@@ -8,6 +8,7 @@ it('has the types of a notification', function (): void {
     expect(array_column(NotificationType::cases(), 'value', 'name'))->toBe([
         'Followed' => 'followed',
         'Replied' => 'replied',
+        'Mentioned' => 'mentioned',
         'Approved' => 'approved',
         'Rejected' => 'rejected',
     ]);

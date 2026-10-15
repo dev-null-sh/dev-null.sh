@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Actions\VerifySignedCommit;
+use App\Services\SignedCommits;
 
 it('serves the script', function (): void {
     $response = $this->get(route('cli-script.show'));
@@ -19,5 +19,5 @@ it('serves the script', function (): void {
 
 it('signs with the namespace the server verifies', function (): void {
     expect($this->get(route('cli-script.show'))->getContent())
-        ->toContain('NAMESPACE="'.VerifySignedCommit::Namespace.'"');
+        ->toContain('NAMESPACE="'.SignedCommits::Namespace.'"');
 });

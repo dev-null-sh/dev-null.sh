@@ -9,6 +9,7 @@ use App\Actions\DeleteCommit;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
+use App\Http\Requests\ShowCommitRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
@@ -21,17 +22,16 @@ use Inertia\Response;
 
 final readonly class CommitController
 {
-    public function show(#[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies): RedirectResponse|Response
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
             return $this->preview($user, $commit);
         }
 
         $commit = Commit::query()
-            ->visibleTo($currentUser)
             ->withVisibleReplyCount($currentUser)
             ->withSavedState($currentUser)
-            ->with(['user', 'linkPreview'])
+            ->with(['user', 'linkPreview', 'images'])
             ->withStarsFor($currentUser)
             ->findOrFail($commit->id);
 
@@ -44,7 +44,7 @@ final readonly class CommitController
 
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): RedirectResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->images());
 
         Inertia::flash('committed', [
             'id' => $commit->id,
@@ -77,8 +77,6 @@ final readonly class CommitController
      */
     private function preview(User $user, Commit $commit): RedirectResponse|Response
     {
-        abort_unless($commit->status === CommitStatus::Approved, 404);
-
         redirect()->setIntendedUrl(route('commit.show', [$user, $commit]));
 
         if (app()->isLocal() && config('app.auto_login')) {

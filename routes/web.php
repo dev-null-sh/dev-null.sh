@@ -2,21 +2,22 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\ApproveCommitsController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitStarController;
+use App\Http\Controllers\ExportController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\PersonalDataExportController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
@@ -56,6 +57,9 @@ Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'
 Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');
+Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
+    ->whereUuid('commitImage')
+    ->name('commit-image.show');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -90,23 +94,21 @@ Route::middleware('auth')->group(function (): void {
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
 
     // Moderation...
-    Route::middleware('can:moderate')->group(function (): void {
-        Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
-        Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
-            ->name('commit-approval.store');
-        Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
-            ->name('commit-rejection.store');
-        Route::post('moderation/approve', ApproveCommitsController::class)
-            ->name('moderation.approve');
-    });
+    Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+    Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
+        ->name('commit-approval.store');
+    Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
+        ->name('commit-rejection.store');
+    Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
 
     // User Search...
     Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
+    Route::get('search/mentions', [MentionSuggestionController::class, 'index'])->name('mention-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
-    Route::get('settings/export', [PersonalDataExportController::class, 'show'])->name('personal-data-export.show');
+    Route::get('settings/export', ExportController::class)->name('export');
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');

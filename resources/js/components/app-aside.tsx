@@ -1,5 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
+import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
+import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
 import { laneColor } from '@/lib/utils';
@@ -26,7 +28,7 @@ export function AppAside({
             <button
                 type="button"
                 onClick={onSearch}
-                className="-mb-2 flex h-11 items-center gap-2.5 rounded-full border bg-card px-4 text-[15px] text-muted-foreground transition-colors hover:border-input hover:text-foreground"
+                className="-mb-2 flex h-11 items-center gap-2.5 rounded-full border bg-card px-4 py-2.5 text-[15px] text-muted-foreground transition-colors hover:border-input hover:text-foreground"
                 data-test="search-button"
             >
                 <Search className="size-4" />
@@ -69,10 +71,12 @@ export function AppAside({
                                 auth.user.commits_count === 1
                                     ? 'commit'
                                     : 'commits',
+                            href: show(auth.user),
                         },
                         {
                             count: auth.user.following_count,
                             label: 'following',
+                            href: UserFollowingController.index(auth.user),
                         },
                         {
                             count: auth.user.followers_count,
@@ -80,6 +84,7 @@ export function AppAside({
                                 auth.user.followers_count === 1
                                     ? 'follower'
                                     : 'followers',
+                            href: UserFollowersController.index(auth.user),
                         },
                     ].map((stat) => (
                         <div
@@ -87,7 +92,12 @@ export function AppAside({
                             className="flex flex-row-reverse gap-1.5"
                         >
                             <dt className="text-muted-foreground">
-                                {stat.label}
+                                <Link
+                                    href={stat.href}
+                                    className="hover:underline"
+                                >
+                                    {stat.label}
+                                </Link>
                             </dt>
                             <dd className="font-mono font-medium">
                                 {stat.count}
