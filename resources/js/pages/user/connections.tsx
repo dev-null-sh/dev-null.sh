@@ -2,8 +2,11 @@ import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
+import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
+import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
+import { PageTabs } from '@/components/page-tabs';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
@@ -48,18 +51,37 @@ export default function Connections({
         <>
             <Head title={`${title} · @${user.username}`} />
 
-            <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4">
-                <Link
-                    href={show(user)}
-                    aria-label={`Back to @${user.username}`}
-                    className="text-muted-foreground hover:text-foreground"
-                >
-                    <ArrowLeft className="size-4" />
-                </Link>
-                <p className="min-w-0 truncate font-semibold">{user.name}</p>
-                <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
-                    {title.toLowerCase()}
-                </p>
+            <div className="sticky top-0 z-10 bg-card">
+                <div className="flex h-14 items-center gap-3 border-b px-4">
+                    <Link
+                        href={show(user)}
+                        aria-label={`Back to @${user.username}`}
+                        className="text-muted-foreground hover:text-foreground"
+                    >
+                        <ArrowLeft className="size-4" />
+                    </Link>
+                    <h1 className="min-w-0 truncate font-semibold">
+                        {user.name}
+                    </h1>
+                    <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
+                        @{user.username}
+                    </p>
+                </div>
+                <PageTabs
+                    label="Connections"
+                    tabs={[
+                        {
+                            title: 'Followers',
+                            href: UserFollowersController.index(user),
+                            isActive: type === 'followers',
+                        },
+                        {
+                            title: 'Following',
+                            href: UserFollowingController.index(user),
+                            isActive: type === 'following',
+                        },
+                    ]}
+                />
             </div>
 
             {users.data.length === 0 ? (

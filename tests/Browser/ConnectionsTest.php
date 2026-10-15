@@ -27,3 +27,23 @@ it('may follow and unfollow people from a followers list', function (): void {
 
     expect($viewer->isFollowing($follower))->toBeFalse();
 });
+
+it('may switch between followers and following', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $user->followers()->attach(User::factory()->create(['username' => 'hubot']));
+    $user->following()->attach(User::factory()->create(['username' => 'mona']));
+
+    $this->actingAs($user);
+
+    visit(route('user-followers.index', $user))
+        ->assertSee('@hubot')
+        ->assertDontSee('@mona')
+        ->click('Following')
+        ->assertPathIs('/@octocat/following')
+        ->assertSee('@mona')
+        ->assertDontSee('@hubot')
+        ->click('Followers')
+        ->assertPathIs('/@octocat/followers')
+        ->assertSee('@hubot')
+        ->assertNoJavaScriptErrors();
+});
