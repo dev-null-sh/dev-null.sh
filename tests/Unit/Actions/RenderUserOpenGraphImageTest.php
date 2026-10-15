@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-use App\Actions\RenderOpenGraphImage;
+use App\Actions\RenderUserOpenGraphImage;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 
 it('falls back to the username when the name has nothing Geist can draw', function (): void {
     $user = User::factory()->create(['username' => 'octocat', 'name' => 'octocat', 'avatar_url' => null, 'bio' => null]);
-    $action = resolve(RenderOpenGraphImage::class);
+    $action = resolve(RenderUserOpenGraphImage::class);
 
     $withUsername = $action->handle($user);
 
@@ -21,7 +21,7 @@ it('falls back to the username when the name has nothing Geist can draw', functi
 it('fits bios that would overflow the card', function (string $bio): void {
     $user = User::factory()->create(['avatar_url' => null, 'bio' => $bio]);
 
-    $image = resolve(RenderOpenGraphImage::class)->handle($user);
+    $image = resolve(RenderUserOpenGraphImage::class)->handle($user);
 
     expect(array_slice((array) getimagesizefromstring($image), 0, 2))->toBe([1200, 630]);
 })->with([

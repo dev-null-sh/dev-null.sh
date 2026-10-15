@@ -15,7 +15,7 @@ import {
     formatRelativeTime,
     isDeleted,
     isWithinSeconds,
-    laneFor,
+    laneColor,
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -88,7 +88,7 @@ export function CommitCard({
         >
             <div className="flex min-h-0 overflow-hidden">
                 <GraphRail
-                    lane={laneFor(commit.user_id)}
+                    lane={laneColor(commit.user.lane)}
                     previousLane={previousLane}
                     isFresh={isOwn && isWithinSeconds(commit.created_at, 15)}
                     isDimmed={isDimmed}

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\ApproveCommitsController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\HomeController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
+use App\Http\Controllers\UserLaneController;
 use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
@@ -38,6 +40,14 @@ Route::middleware('guest')->group(function (): void {
 Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
 Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
+
+// Commit, previewed for guests...
+Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
+    ->scopeBindings()
+    ->name('commit.show');
+Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
+    ->scopeBindings()
+    ->name('commit-open-graph-image.show');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -78,14 +88,14 @@ Route::middleware('auth')->group(function (): void {
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
 
+    // User Lane...
+    Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
+
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
 
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
-    Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
-        ->scopeBindings()
-        ->name('commit.show');
     Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])->name('user-preview.show');
 
     Route::get('@{user:username}/following', [UserFollowingController::class, 'index'])

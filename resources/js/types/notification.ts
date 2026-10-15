@@ -20,7 +20,5 @@ export type Notification =
     | (BaseNotification & {
           type: 'replied';
           commit_id: string;
-          commit: Omit<Commit, 'user'> & {
-              parent: Omit<Commit, 'user' | 'parent'>;
-          };
+          commit: Omit<Commit, 'user'>;
       });

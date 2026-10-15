@@ -30,6 +30,7 @@ final class UserFactory extends Factory
             'location' => fake()->city(),
             'website' => fake()->url(),
             'company' => fake()->company(),
+            'preferred_lane' => null,
             'remember_token' => Str::random(10),
         ];
     }

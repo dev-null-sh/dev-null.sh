@@ -122,6 +122,7 @@ it('shows guests the landing page with a link preview of the profile', function 
             ->missing('commits')
             ->missing('activity'))
         ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<meta property="og:type" content="profile">', false)
         ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
         ->assertSee('<meta property="og:description" content="I am the Octocat.">', false)
         ->assertSee('<meta property="og:url" content="'.route('user.show', $user).'">', false)

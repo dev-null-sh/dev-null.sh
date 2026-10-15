@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
-import { cn, formatRelativeTime, laneFor } from '@/lib/utils';
+import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, Notification } from '@/types';
 
@@ -79,7 +79,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
         >
             <Icon
                 className="mt-2 size-5 shrink-0 text-(--lane)"
-                style={{ '--lane': laneFor(actor.id) } as CSSProperties}
+                style={{ '--lane': laneColor(actor.lane) } as CSSProperties}
                 aria-hidden
             />
 
@@ -112,15 +112,9 @@ function NotificationItem({ notification }: { notification: Notification }) {
                 </p>
 
                 {notification.type === 'replied' && (
-                    <>
-                        <p className="mt-1 text-[15px] break-words whitespace-pre-line">
-                            {notification.commit.body}
-                        </p>
-                        <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
-                            <span aria-hidden>↳ </span>
-                            {notification.commit.parent.body}
-                        </p>
-                    </>
+                    <p className="mt-1 truncate text-[15px]">
+                        {notification.commit.body}
+                    </p>
                 )}
             </div>
         </Link>

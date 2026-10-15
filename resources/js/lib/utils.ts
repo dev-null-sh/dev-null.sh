@@ -56,16 +56,8 @@ export function formatFullDateTime(date: string): string {
     })}`;
 }
 
-const laneCount = 6;
-
-export function laneFor(id: string): string {
-    let hash = 0;
-
-    for (const character of id) {
-        hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-    }
-
-    return `var(--lane-${hash % laneCount})`;
+export function laneColor(lane: number): string {
+    return `var(--lane-${lane})`;
 }
 
 export function isDeleted(commit: {
@@ -75,7 +67,7 @@ export function isDeleted(commit: {
 }
 
 export function laneOf(commit: ThreadCommit): string {
-    return isDeleted(commit) ? 'var(--rail)' : laneFor(commit.user_id);
+    return isDeleted(commit) ? 'var(--rail)' : laneColor(commit.user.lane);
 }
 
 export function shortHash(id: string): string {

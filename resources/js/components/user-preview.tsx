@@ -8,7 +8,7 @@ import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowin
 import UserPreviewController from '@/actions/App/Http/Controllers/UserPreviewController';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
-import { cn, laneFor } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Profile, User } from '@/types';
 
@@ -180,7 +180,7 @@ function UserPreviewContent({
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user.id === user.id;
-    const lane = laneFor(user.id);
+    const lane = laneColor(user.lane);
 
     const toggleFollow = () => {
         if (!data) {

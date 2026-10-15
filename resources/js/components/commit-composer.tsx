@@ -7,7 +7,7 @@ import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
-import { cn, laneFor } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
 const maxBodyLength = 280;
@@ -52,7 +52,7 @@ export function CommitComposer() {
             {({ processing, errors }) => (
                 <>
                     <GraphRail
-                        lane={laneFor(auth.user.id)}
+                        lane={laneColor(auth.user.lane)}
                         variant="staged"
                         isFilled={isCommittable}
                     />
