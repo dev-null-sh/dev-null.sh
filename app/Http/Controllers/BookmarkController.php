@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\SaveCommit;
-use App\Actions\UnsaveCommit;
+use App\Actions\CreateBookmark;
+use App\Actions\DeleteBookmark;
 use App\Http\Requests\CreateBookmarkRequest;
 use App\Http\Requests\DeleteBookmarkRequest;
 use App\Models\Commit;
@@ -25,14 +25,14 @@ final readonly class BookmarkController
         ]);
     }
 
-    public function store(CreateBookmarkRequest $request, #[CurrentUser] User $user, Commit $commit, SaveCommit $action): JsonResponse
+    public function store(CreateBookmarkRequest $request, #[CurrentUser] User $user, Commit $commit, CreateBookmark $action): JsonResponse
     {
         $action->handle($user, $commit);
 
         return response()->json(['is_saved' => true]);
     }
 
-    public function destroy(DeleteBookmarkRequest $request, #[CurrentUser] User $user, Commit $commit, UnsaveCommit $action): JsonResponse
+    public function destroy(DeleteBookmarkRequest $request, #[CurrentUser] User $user, Commit $commit, DeleteBookmark $action): JsonResponse
     {
         $action->handle($user, $commit);
 
