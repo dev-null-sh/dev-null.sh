@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Actions\CreateCommitImages;
 use App\Actions\CreateCommitSeries;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\File;
 
@@ -18,7 +20,7 @@ final class CreateCommitSeriesRequest extends FormRequest
     }
 
     /**
-     * Images go with the first part of the series.
+     * Images go with the first part of the series, checked like those of a single commit: by their contents, not their extension, and never SVG.
      *
      * @return array<string, array<int, string|File|Dimensions>>
      */
@@ -27,7 +29,15 @@ final class CreateCommitSeriesRequest extends FormRequest
         return [
             'bodies' => ['required', 'list', 'min:2', 'max:'.CreateCommitSeries::MAX_PARTS],
             'bodies.*' => ['required', 'string', 'min:3', 'max:280'],
-            ...CreateCommitRequest::imageRules(),
+            'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
+            'images.*' => [
+                'required',
+                'image',
+                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
+                Rule::dimensions()
+                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
+                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
+            ],
         ];
     }
 

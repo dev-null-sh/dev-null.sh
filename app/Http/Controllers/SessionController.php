@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\SyncGitHubUser;
+use App\Actions\UpdateOrCreateUser;
 use App\Enums\Log;
 use App\Jobs\SyncGitHubSshKeysJob;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +23,7 @@ final readonly class SessionController
         return Socialite::driver('github')->redirect();
     }
 
-    public function store(Request $request, SyncGitHubUser $action): RedirectResponse
+    public function store(Request $request, UpdateOrCreateUser $action): RedirectResponse
     {
         if ($request->has('error')) {
             return $this->failed();

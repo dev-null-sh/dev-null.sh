@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Rules;
 
-use App\Actions\FindCommitByReference;
 use App\Models\User;
+use App\Queries\CommitByReferenceQuery;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
@@ -20,7 +20,7 @@ final readonly class CommitReference implements ValidationRule
     {
         $reference = is_string($value) ? $value : '';
 
-        $commits = resolve(FindCommitByReference::class)->handle($this->user, $reference);
+        $commits = resolve(CommitByReferenceQuery::class)->get($this->user, $reference);
 
         if ($commits === null) {
             $fail(__(':reference is not a commit hash or link.', ['reference' => $reference]));

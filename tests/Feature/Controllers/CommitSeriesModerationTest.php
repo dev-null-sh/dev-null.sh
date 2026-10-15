@@ -115,7 +115,7 @@ it('approves the whole series when approving the selected commits', function ():
 
     $this->actingAs($this->admin)
         ->fromRoute('moderation.show')
-        ->post(route('moderation.approve'), ['commits' => [$parts[0]->id, $other->id]])
+        ->put(route('moderation.update'), ['commits' => [$parts[0]->id, $other->id]])
         ->assertRedirectToRoute('moderation.show');
 
     expect(Commit::query()->pending()->count())->toBe(0)

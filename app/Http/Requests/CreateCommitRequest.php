@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Actions\StoreCommitImages;
+use App\Actions\CreateCommitImages;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
@@ -17,32 +17,14 @@ use Illuminate\Validation\Rules\File;
 
 final class CreateCommitRequest extends FormRequest
 {
-    /**
-     * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
-     *
-     * @return array<string, array<int, string|File|Dimensions>>
-     */
-    public static function imageRules(): array
-    {
-        return [
-            'images' => ['nullable', 'list', 'max:'.StoreCommitImages::MAX_IMAGES],
-            'images.*' => [
-                'required',
-                'image',
-                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(StoreCommitImages::MAX_UPLOAD_SIZE),
-                Rule::dimensions()
-                    ->maxWidth(StoreCommitImages::MAX_SOURCE_DIMENSION)
-                    ->maxHeight(StoreCommitImages::MAX_SOURCE_DIMENSION),
-            ],
-        ];
-    }
-
     public function authorize(): bool
     {
         return true;
     }
 
     /**
+     * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
+     *
      * @return array<string, array<int, string|ValidationRule|File|Dimensions>>
      */
     public function rules(): array
@@ -53,7 +35,15 @@ final class CreateCommitRequest extends FormRequest
         return [
             'body' => ['required', 'string', 'min:3', 'max:280'],
             'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
-            ...self::imageRules(),
+            'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
+            'images.*' => [
+                'required',
+                'image',
+                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
+                Rule::dimensions()
+                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
+                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
+            ],
         ];
     }
 
