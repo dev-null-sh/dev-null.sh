@@ -55,10 +55,15 @@ it('looks missing to people across a block', function (bool $viewerBlocks): void
     $response->assertNotFound();
 })->with([true, false]);
 
-it('requires authentication', function (): void {
+it('lists them to guests, without anyone marked as followed', function (): void {
     $user = User::factory()->create();
+    $user->following()->attach(User::factory()->create());
 
     $response = $this->get(route('user-following.index', $user));
 
-    $response->assertRedirectToRoute('home');
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/connections')
+            ->has('users.data', 1)
+            ->where('users.data.0.is_followed', false));
 });

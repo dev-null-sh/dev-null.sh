@@ -69,10 +69,13 @@ it('rejects overly long queries', function (): void {
     $response->assertUnprocessable();
 });
 
-it('requires authentication to search', function (): void {
+it('lets guests search', function (): void {
+    User::factory()->create(['username' => 'nunomaduro']);
+
     $response = $this->getJson('/search/users?q=nuno');
 
-    $response->assertUnauthorized();
+    $response->assertOk()
+        ->assertJsonPath('users.0.username', 'nunomaduro');
 });
 
 it('leaves out muted people and people across a block', function (): void {

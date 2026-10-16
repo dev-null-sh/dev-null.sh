@@ -111,10 +111,18 @@ it('returns not found for unknown usernames', function (): void {
     $response->assertNotFound();
 });
 
-it('requires authentication to view a user preview', function (): void {
-    User::factory()->create(['username' => 'octocat']);
+it('returns guests a summary of the user with only approved commits counted', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->pending()->create();
 
     $response = $this->getJson('/@octocat/preview');
 
-    $response->assertUnauthorized();
+    $response->assertOk()
+        ->assertJsonPath('user.commits_count', 1)
+        ->assertJsonPath('isFollowing', false)
+        ->assertJsonPath('followsYou', false)
+        ->assertJsonPath('isMuting', false)
+        ->assertJsonPath('isBlocking', false)
+        ->assertJsonPath('isUnavailable', false);
 });

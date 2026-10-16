@@ -39,6 +39,7 @@ function pluralize(count: number, singular: string, plural: string) {
 export default function Show({
     user,
     isFollowing,
+    followsYou,
     isMuting,
     activity,
     streaks,
@@ -48,6 +49,7 @@ export default function Show({
 }: {
     user: Profile;
     isFollowing: boolean;
+    followsYou: boolean;
     isMuting: boolean;
     activity: Activity;
     streaks: Streaks;
@@ -56,7 +58,7 @@ export default function Show({
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
-    const isCurrentUser = auth.user.id === user.id;
+    const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
@@ -95,11 +97,13 @@ export default function Show({
                         </Button>
                     ) : (
                         <div className="flex gap-2">
-                            <UserSafetyMenu
-                                user={user}
-                                isMuting={isMuting}
-                                isBlocking={false}
-                            />
+                            {auth.user && (
+                                <UserSafetyMenu
+                                    user={user}
+                                    isMuting={isMuting}
+                                    isBlocking={false}
+                                />
+                            )}
                             <FollowButton
                                 user={user}
                                 isFollowing={isFollowing}
@@ -120,6 +124,11 @@ export default function Show({
                         style={{ background: lane }}
                     />
                     @{user.username}
+                    {followsYou && (
+                        <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                            Follows you
+                        </span>
+                    )}
                     {isMuting && (
                         <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
                             Muted

@@ -10,8 +10,19 @@ use Illuminate\Http\JsonResponse;
 
 final readonly class UserPreviewController
 {
-    public function show(#[CurrentUser] User $currentUser, User $user): JsonResponse
+    public function show(#[CurrentUser] ?User $currentUser, User $user): JsonResponse
     {
+        if (! $currentUser instanceof User) {
+            return response()->json([
+                'user' => $user->loadPublicCounts(),
+                'isFollowing' => false,
+                'followsYou' => false,
+                'isMuting' => false,
+                'isBlocking' => false,
+                'isUnavailable' => false,
+            ]);
+        }
+
         $blockerId = $currentUser->blockerIdWith($user);
 
         return response()->json([
