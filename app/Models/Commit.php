@@ -49,6 +49,8 @@ final class Commit extends Model
     use HasUuids;
     use SoftDeletes;
 
+    public const int RESTORABLE_SECONDS = 30;
+
     /**
      * @return array<string, string>
      */
@@ -104,6 +106,11 @@ final class Commit extends Model
     public function isVisibleTo(User $user): bool
     {
         return $this->status === CommitStatus::Approved || $this->user_id === $user->id;
+    }
+
+    public function isRestorable(): bool
+    {
+        return $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
     }
 
     /**

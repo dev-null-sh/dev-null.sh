@@ -2,7 +2,7 @@ import { router } from '@inertiajs/react';
 import { Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import CommitRestoreController from '@/actions/App/Http/Controllers/CommitRestoreController';
+import CommitRestorationController from '@/actions/App/Http/Controllers/CommitRestorationController';
 import { Button } from '@/components/ui/button';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import { shortHash } from '@/lib/utils';
@@ -50,7 +50,7 @@ export function CommitUndoToast({
         submitting.current = true;
         setProcessing(true);
 
-        router.visit(CommitRestoreController(deleted.id), {
+        router.visit(CommitRestorationController.store(deleted.id), {
             ...commitMutationOptions,
             onSuccess: (page) => {
                 toast.dismiss(toastId);

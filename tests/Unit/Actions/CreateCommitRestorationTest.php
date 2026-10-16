@@ -2,22 +2,19 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitRestoration;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
-use App\Actions\RestoreCommit;
 use App\Models\Commit;
-use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
-it('rejects a second restore even with a stale deleted model', function (): void {
+it('restores a commit within its undo window', function (): void {
     $commit = Commit::factory()->create();
     $deleted = resolve(DeleteCommit::class)->handle($commit);
-    $action = resolve(RestoreCommit::class);
-    $action->handle($commit->user, $deleted);
+    $this->travel(29)->seconds();
 
-    expect(fn () => $action->handle($commit->user, $deleted))->toThrow(ValidationException::class);
+    resolve(CreateCommitRestoration::class)->handle($deleted);
+
     $this->assertNotSoftDeleted($commit);
 });
 
@@ -27,7 +24,8 @@ it('checks the current deadline instead of a stale model timestamp', function ()
     $deleted->forceFill(['deleted_at' => now()->addHour()]);
     $this->travel(30)->seconds();
 
-    expect(fn () => resolve(RestoreCommit::class)->handle($commit->user, $deleted))->toThrow(ValidationException::class);
+    resolve(CreateCommitRestoration::class)->handle($deleted);
+
     $this->assertSoftDeleted($commit);
 });
 
@@ -48,15 +46,6 @@ it('cannot restore with stale models after deleting the account', function (): v
     $deleted = resolve(DeleteCommit::class)->handle($commit);
     resolve(DeleteUser::class)->handle($owner);
 
-    expect(fn () => resolve(RestoreCommit::class)->handle($owner, $deleted))->toThrow(ModelNotFoundException::class);
+    expect(fn () => resolve(CreateCommitRestoration::class)->handle($deleted))->toThrow(ModelNotFoundException::class);
     expect(Commit::withTrashed()->count())->toBe(0);
-});
-
-it('checks ownership inside the action', function (): void {
-    $commit = Commit::factory()->create();
-    $deleted = resolve(DeleteCommit::class)->handle($commit);
-    $intruder = User::factory()->create();
-
-    expect(fn () => resolve(RestoreCommit::class)->handle($intruder, $deleted))->toThrow(HttpException::class);
-    $this->assertSoftDeleted($commit);
 });

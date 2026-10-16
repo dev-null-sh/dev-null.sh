@@ -8,7 +8,7 @@ use App\Models\Commit;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
-final readonly class EraseCommitImages
+final readonly class DeleteCommitImages
 {
     /**
      * Only a commit whose undo window has closed loses its images, so one restored in time, or deleted again since, keeps them.
@@ -18,9 +18,7 @@ final readonly class EraseCommitImages
         $imagePaths = DB::transaction(function () use ($commit): array {
             $commit = Commit::withTrashed()->lockForUpdate()->find($commit->id);
 
-            if (! $commit instanceof Commit
-                || $commit->deleted_at === null
-                || now()->lessThan($commit->deleted_at->copy()->addSeconds(RestoreCommit::RECOVERY_SECONDS))) {
+            if (! $commit instanceof Commit || ! $commit->trashed() || $commit->isRestorable()) {
                 return [];
             }
 

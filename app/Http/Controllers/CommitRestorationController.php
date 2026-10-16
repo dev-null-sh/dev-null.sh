@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\RestoreCommit;
-use App\Http\Requests\RestoreCommitRequest;
+use App\Actions\CreateCommitRestoration;
+use App\Http\Requests\CreateCommitRestorationRequest;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -14,11 +14,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
-final readonly class CommitRestoreController
+final readonly class CommitRestorationController
 {
-    public function __invoke(RestoreCommitRequest $request, #[CurrentUser] User $user, Commit $commit, RestoreCommit $action): RedirectResponse
+    public function store(CreateCommitRestorationRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitRestoration $action): RedirectResponse
     {
-        $commit = $action->handle($user, $commit);
+        $commit = $action->handle($commit);
 
         $restored = Commit::query()->withVisibleReplyCount($user)->withStarsFor($user)->withSavedState($user)->withMax([
             'bookmarks as saved_order' => fn (Builder $query): Builder => $query->where('user_id', $user->id),

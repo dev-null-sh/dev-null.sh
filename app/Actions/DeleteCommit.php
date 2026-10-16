@@ -36,7 +36,7 @@ final readonly class DeleteCommit
             $commit->delete();
 
             dispatch(new EraseDeletedCommitImages($commit))
-                ->delay(now()->addSeconds(RestoreCommit::RECOVERY_SECONDS))
+                ->delay(now()->addSeconds(Commit::RESTORABLE_SECONDS))
                 ->afterCommit();
 
             return $commit->refresh();

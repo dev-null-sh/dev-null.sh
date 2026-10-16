@@ -6,7 +6,6 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
-use App\Actions\RestoreCommit;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
@@ -68,7 +67,7 @@ final readonly class CommitController
 
         Inertia::flash('deleted', [
             'id' => $commit->id,
-            'expires_at' => $commit->deleted_at?->addSeconds(RestoreCommit::RECOVERY_SECONDS)->toJSON(),
+            'expires_at' => $commit->deleted_at?->addSeconds(Commit::RESTORABLE_SECONDS)->toJSON(),
             'server_time' => now()->toJSON(),
         ]);
 
