@@ -4,33 +4,43 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\File;
+
 final readonly class EmojiShortcodes
 {
     /**
      * @var array<string, string>
      */
-    private const array MAP = [
-        'heart' => '❤️',
-        'like' => '👍',
-        'dislike' => '👎',
-        'laugh' => '😂',
-        'smile' => '😄',
-        'sad' => '😢',
-        'angry' => '😠',
-        'fire' => '🔥',
-        'rocket' => '🚀',
-        'clap' => '👏',
-        'eyes' => '👀',
-        'party' => '🎉',
-    ];
+    private array $map;
+
+    public function __construct(private CodeSpans $codeSpans)
+    {
+        $this->map = $this->load();
+    }
 
     /**
      * Replaces :heart, :like, and the rest with their emoji, leaving a shortcode inside a
-     * longer word (like :heartbeat) untouched. Mirrors the frontend's inline replacement.
+     * longer word (like :hearted) or in code untouched. Mirrors the frontend's inline replacement.
      */
     public function replace(string $text): string
     {
-        return (string) preg_replace_callback($this->pattern(), $this->replaceMatch(...), $text);
+        $pattern = $this->pattern();
+
+        return $this->codeSpans->mapProse(
+            $text,
+            fn (string $prose): string => (string) preg_replace_callback($pattern, $this->replaceMatch(...), $prose),
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function load(): array
+    {
+        /** @var array<string, string> $map */
+        $map = File::json(resource_path('js/lib/emoji-shortcodes.json'));
+
+        return $map;
     }
 
     /**
@@ -38,11 +48,13 @@ final readonly class EmojiShortcodes
      */
     private function pattern(): string
     {
-        $names = array_keys(self::MAP);
+        $names = array_keys($this->map);
 
         usort($names, static fn (string $left, string $right): int => mb_strlen($right) <=> mb_strlen($left));
 
-        return '/:('.implode('|', $names).')(?![A-Za-z0-9_])/';
+        $names = array_map(static fn (string $name): string => preg_quote($name, '/'), $names);
+
+        return '/:('.implode('|', $names).'):?(?![A-Za-z0-9_])/';
     }
 
     /**
@@ -50,6 +62,6 @@ final readonly class EmojiShortcodes
      */
     private function replaceMatch(array $matches): string
     {
-        return self::MAP[$matches[1]];
+        return $this->map[$matches[1]];
     }
 }

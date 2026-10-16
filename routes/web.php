@@ -11,6 +11,7 @@ use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
+use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\HomeController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
@@ -29,6 +31,7 @@ use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
+use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -50,6 +53,9 @@ Route::middleware('guest')->group(function (): void {
 Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
 Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
+Route::get('@{user:username}/feed.atom', [UserFeedController::class, 'show'])
+    ->middleware('cache.headers:public;max_age=300;etag')
+    ->name('user-feed.show');
 
 // User activity graph, embedded in READMEs...
 Route::get('@{user:username}/graph.svg', [UserActivityGraphController::class, 'show'])
@@ -82,8 +88,11 @@ Route::middleware('auth')->group(function (): void {
 
     // Commit...
     Route::post('commits', [CommitController::class, 'store'])
-        ->middleware('throttle:commits')
+        ->middleware(ThrottleCommits::class)
         ->name('commit.store');
+    Route::post('commits/series', [CommitSeriesController::class, 'store'])
+        ->middleware(ThrottleCommits::class)
+        ->name('commit-series.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');

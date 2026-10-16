@@ -47,6 +47,7 @@ final readonly class UserController
                     $request->tab() === 'replies',
                     fn (CommitBuilder $query): CommitBuilder => $query
                         ->whereNotNull('parent_id')
+                        ->exceptSeriesContinuations()
                         ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
                             ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser))
                             ->with('user')]),
@@ -98,6 +99,7 @@ final readonly class UserController
             'description' => $user->bio ?? __("Sign in with GitHub to read @:username's commits on /dev/null.", ['username' => $user->username]),
             'url' => route('user.show', $user),
             'image' => route('user-open-graph-image.show', ['user' => $user, 'v' => $user->openGraphImageVersion()]),
+            'feed' => route('user-feed.show', $user),
         ]]);
     }
 }
