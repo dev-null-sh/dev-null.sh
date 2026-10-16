@@ -6,6 +6,7 @@ use App\Actions\DeleteScheduledCommit;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Enums\CommitStatus;
+use App\Jobs\SyncGitHubProfileJob;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -18,6 +19,9 @@ use Illuminate\Support\Facades\Queue;
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
     config(['app.admins' => ['admin']]);
+
+    // Travelling to a due date leaves the signed-in users' GitHub profiles stale...
+    Queue::fake([SyncGitHubProfileJob::class]);
 });
 
 it('stores an offset timestamp as UTC without creating a commit', function (): void {

@@ -11,7 +11,10 @@ final readonly class GitHub
 {
     private const int PerPage = 100;
 
-    public function request(): PendingRequest
+    /**
+     * Authenticates with the given token, or else as the OAuth app.
+     */
+    public function request(?string $token = null): PendingRequest
     {
         $request = Http::baseUrl('https://api.github.com')
             ->accept('application/vnd.github+json')
@@ -22,8 +25,10 @@ final readonly class GitHub
         $clientId = config('services.github.client_id');
         $clientSecret = config('services.github.client_secret');
 
-        // Authenticating as the OAuth app raises the rate limit from 60 to 5,000 requests per hour.
-        if (is_string($clientId) && is_string($clientSecret)) {
+        if ($token !== null) {
+            $request->withToken($token);
+        } elseif (is_string($clientId) && is_string($clientSecret)) {
+            // Authenticating as the OAuth app raises the rate limit from 60 to 5,000 requests per hour.
             $request->withBasicAuth($clientId, $clientSecret);
         }
 
@@ -46,6 +51,26 @@ final readonly class GitHub
         assert(is_string($login));
 
         return $login;
+    }
+
+    /**
+     * The public profile of the account, looked up by its immutable ID. It uses the server's own token when there is one,
+     * so refreshing profiles every day has its own rate limit and never starves sign-in. Null when the account no longer exists.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function account(string $githubId): ?array
+    {
+        $token = config('services.github.token');
+
+        $response = $this->request(is_string($token) && $token !== '' ? $token : null)->get("user/{$githubId}");
+
+        if ($response->notFound()) {
+            return null;
+        }
+
+        /** @var array<string, mixed> */
+        return $response->throw()->json();
     }
 
     /**
