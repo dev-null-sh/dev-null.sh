@@ -4,8 +4,12 @@ import { useId, useState } from 'react';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
+import { CommitBody } from '@/components/commit-body';
+import { SeriesPosition } from '@/components/commit-card';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { CommitImages } from '@/components/commit-images';
 import InputError from '@/components/input-error';
+import { LinkPreview } from '@/components/link-preview';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -29,6 +33,45 @@ function Keycap({ label, className }: { label: string; className?: string }) {
         >
             {label}
         </kbd>
+    );
+}
+
+function SeriesParts({ commit }: { commit: Commit }) {
+    const parts = (commit.series_parts ?? []).filter(
+        (part) => (part.series_position ?? 0) > (commit.series_position ?? 0),
+    );
+
+    if (parts.length === 0) {
+        return null;
+    }
+
+    return (
+        <section aria-label="Rest of the series" className="mt-3">
+            <ol className="space-y-3 border-l-2 border-dashed border-rail pl-3">
+                {parts.map((part) => (
+                    <li key={part.id} data-test="moderation-series-part">
+                        {part.series_position !== null &&
+                            part.series_size !== null && (
+                                <SeriesPosition
+                                    position={part.series_position}
+                                    size={part.series_size}
+                                />
+                            )}
+                        <CommitBody
+                            segments={part.body_segments}
+                            className="mt-1 text-[15px]"
+                        />
+                        {part.images && <CommitImages images={part.images} />}
+                        {part.link_preview?.title && (
+                            <LinkPreview preview={part.link_preview} />
+                        )}
+                    </li>
+                ))}
+            </ol>
+            <p className="mt-2 text-[13px] text-muted-foreground">
+                Approving or rejecting applies to every part of this series.
+            </p>
+        </section>
     );
 }
 
@@ -288,16 +331,19 @@ export default function Show({
                 firstLane="var(--rail)"
                 end="That's every pending commit."
                 actions={(commit) => (
-                    <ModerationActions
-                        isSelected={selected.has(commit.id)}
-                        isDisabled={isModerating || approving}
-                        onSelectedChange={(isSelected) =>
-                            toggle(commit.id, isSelected)
-                        }
-                        onModerate={(route, reason, onError) =>
-                            moderate(commit, route, reason, onError)
-                        }
-                    />
+                    <>
+                        <SeriesParts commit={commit} />
+                        <ModerationActions
+                            isSelected={selected.has(commit.id)}
+                            isDisabled={isModerating || approving}
+                            onSelectedChange={(isSelected) =>
+                                toggle(commit.id, isSelected)
+                            }
+                            onModerate={(route, reason, onError) =>
+                                moderate(commit, route, reason, onError)
+                            }
+                        />
+                    </>
                 )}
                 empty={
                     <EmptyFeed command="nothing to commit, working tree clean">

@@ -107,6 +107,38 @@ it('shares the existing commit rate limit', function (): void {
     expect(ScheduledCommit::query()->count())->toBe(0);
 });
 
+it('counts series parts against the scheduled submission budget', function (): void {
+    $user = User::factory()->create();
+    $this->actingAs($user)->post(route('commit-series.store'), [
+        'bodies' => array_fill(0, 9, 'A series part.'),
+    ])->assertSessionHasNoErrors();
+
+    $payload = ['body' => 'A scheduled commit.', 'scheduled_at' => now()->addDay()->toIso8601String()];
+    $this->post(route('scheduled-commit.store'), $payload)->assertSessionHasNoErrors();
+    $this->post(route('scheduled-commit.store'), $payload)->assertRedirect();
+
+    expect(Commit::query()->count())->toBe(9)
+        ->and(ScheduledCommit::query()->count())->toBe(1);
+});
+
+it('counts scheduled submissions against the series budget without partially posting', function (): void {
+    $user = User::factory()->create();
+    $this->actingAs($user)->post(route('scheduled-commit.store'), [
+        'body' => 'A scheduled commit.', 'scheduled_at' => now()->addDay()->toIso8601String(),
+    ])->assertSessionHasNoErrors();
+
+    $this->post(route('commit-series.store'), [
+        'bodies' => array_fill(0, 10, 'A series part.'),
+    ])->assertRedirect();
+    expect(Commit::query()->count())->toBe(0);
+
+    $this->post(route('commit-series.store'), [
+        'bodies' => array_fill(0, 9, 'A series part.'),
+    ])->assertSessionHasNoErrors();
+    expect(Commit::query()->count())->toBe(9)
+        ->and(ScheduledCommit::query()->count())->toBe(1);
+});
+
 it('keeps schedules out of logs profiles activity previews and moderation until due', function (): void {
     $user = User::factory()->create();
     $admin = User::factory()->create(['username' => 'admin']);
