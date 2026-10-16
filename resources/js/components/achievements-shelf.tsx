@@ -21,6 +21,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { confettiOrigin, dropConfetti } from '@/lib/confetti';
 import { cn } from '@/lib/utils';
 import type { Achievements } from '@/types';
 
@@ -118,7 +119,15 @@ export function AchievementsShelf({
                                 <TooltipTrigger asChild>
                                     <button
                                         type="button"
-                                        onClick={onInspect}
+                                        onClick={(event) => {
+                                            if (badge.unlocked) {
+                                                dropConfetti(
+                                                    confettiOrigin(event),
+                                                );
+                                            }
+
+                                            onInspect();
+                                        }}
                                         className={cn(
                                             'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors select-none',
                                             badge.unlocked

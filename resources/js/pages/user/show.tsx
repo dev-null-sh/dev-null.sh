@@ -8,7 +8,7 @@ import {
     MapPin,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
@@ -25,6 +25,11 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import AppLayout from '@/layouts/app-layout';
+import {
+    completedAchievementIds,
+    newlyCompletedAchievementIds,
+} from '@/lib/achievement-unlocks';
+import { dropConfetti } from '@/lib/confetti';
 import { laneColor } from '@/lib/utils';
 import type {
     Achievements,
@@ -69,6 +74,26 @@ export default function Show({
         null,
     );
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+    const seenAchievements = useRef<string[] | null>(null);
+
+    useEffect(() => {
+        if (!isCurrentUser) {
+            seenAchievements.current = null;
+
+            return;
+        }
+
+        const completed = completedAchievementIds(achievements);
+        const previous = seenAchievements.current;
+        seenAchievements.current = completed;
+
+        if (
+            previous !== null &&
+            newlyCompletedAchievementIds(previous, completed).length > 0
+        ) {
+            dropConfetti({ edge: 'top' });
+        }
+    }, [achievements, isCurrentUser]);
 
     return (
         <>
