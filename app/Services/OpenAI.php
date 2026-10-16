@@ -6,12 +6,25 @@ namespace App\Services;
 
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use UnexpectedValueException;
 
 final readonly class OpenAI
 {
+    /**
+     * The width of text-embedding-3-small's vectors, and so of the commits.embedding column.
+     */
+    public const int EMBEDDING_DIMENSIONS = 1536;
+
     private const string MODERATION_MODEL = 'omni-moderation-latest';
 
     private const string REVIEW_MODEL = 'gpt-6-astra';
+
+    /**
+     * The efficient model, for the relevance verdict on every candidate of every search.
+     */
+    private const string DECISION_MODEL = 'gpt-6-luna';
+
+    private const string EMBEDDING_MODEL = 'text-embedding-3-small';
 
     /**
      * Far stricter than OpenAI's own cut-off: any category scoring this much is flagged.
@@ -25,19 +38,31 @@ final readonly class OpenAI
         'sexual/minors' => 0.01,
     ];
 
+    /**
+     * A candidate the decision model puts at worse than even odds of being about the query is left out.
+     */
+    private const float RELEVANCE_THRESHOLD = 0.5;
+
     private const string MINORS_INSTRUCTIONS = <<<'TEXT'
-        You review images uploaded to devnull, a social network for developers, before they are published.
+        You review images uploaded to /dev/null, a social network for developers, before they are published.
         Answer whether any person in the images is, or could plausibly be, under 18 years old. That includes babies,
         children and teenagers, whether in photos, drawings, renders or any other depiction. When unsure, answer true.
         TEXT;
 
     private const string HARMFUL_INSTRUCTIONS = <<<'TEXT'
-        You review posts on devnull, a social network for developers, before they are published.
+        You review posts on /dev/null, a social network for developers, before they are published.
         Answer whether the post is harmful: a threat, including claims of having a bomb, weapon or explosive, or of
         planning an attack, even as a joke; violence, incitement or glorification of it; hate speech or harassment of a
         person or group; sexual content; encouragement of self-harm; or illegal activity. Developer jargon such as
         "kill the process", "nuke the database" or "this release is the bomb" is not harmful. Disliking a technology
         is not harmful either. When unsure, answer true.
+        TEXT;
+
+    private const string RELEVANCE_INSTRUCTIONS = <<<'TEXT'
+        You review search results for devnull, a social network for developers.
+        You are given a query and a numbered list of posts. For each post, answer whether it is actually about what the
+        query asks for. A post that merely shares a word with the query, or is about something else, is not relevant.
+        Answer with one boolean per post, in the same order.
         TEXT;
 
     public function request(): PendingRequest
@@ -47,6 +72,83 @@ final readonly class OpenAI
             ->acceptJson()
             ->connectTimeout(3)
             ->timeout(15);
+    }
+
+    /**
+     * The vector for a single text, for the one-off embeds a commit gets when it is created or searched for.
+     *
+     * @return list<float>
+     */
+    public function embed(string $text): array
+    {
+        $embeddings = $this->embedMany([$text]);
+
+        throw_if($embeddings === [], UnexpectedValueException::class, 'OpenAI returned no embedding.');
+
+        return $embeddings[0];
+    }
+
+    /**
+     * The vectors for several texts in one request, in the order they were given, for backfills. The API caps a
+     * request at 2048 inputs, so callers send them in batches well under that.
+     *
+     * @param  list<string>  $texts
+     * @return list<list<float>>
+     */
+    public function embedMany(array $texts): array
+    {
+        if ($texts === []) {
+            return [];
+        }
+
+        /** @var list<array{index: int, embedding: list<float>}> $data */
+        $data = $this->request()
+            ->timeout(30)
+            ->post('embeddings', ['model' => self::EMBEDDING_MODEL, 'input' => $texts])
+            ->throw()
+            ->json('data');
+
+        usort($data, fn (array $result, array $other): int => $result['index'] <=> $other['index']);
+
+        return array_map(fn (array $result): array => array_map(floatval(...), $result['embedding']), $data);
+    }
+
+    /**
+     * Whether each body is actually about the query, in the order they were given. The vector search returns the
+     * nearest by meaning, which can include posts that merely share a word; the decision model is asked, for each post,
+     * whether it is more likely relevant than not. Anything but a clear answer, such as a refusal, a post the model
+     * skipped, or a probability that can't be read, counts as relevant, so a flaky model never hides a post.
+     *
+     * @param  list<string>  $bodies
+     * @return list<bool>
+     */
+    public function decideRelevance(string $query, array $bodies): array
+    {
+        if ($bodies === []) {
+            return [];
+        }
+
+        $questions = [];
+
+        foreach (array_keys($bodies) as $index) {
+            $questions[] = [
+                'name' => 'post_'.($index + 1),
+                'type' => 'predicate',
+                'instructions' => 'Is post '.($index + 1).' actually about what the query asks for?',
+            ];
+        }
+
+        $response = $this->request()
+            ->timeout(60)
+            ->post('decisions', [
+                'model' => self::DECISION_MODEL,
+                'input' => self::RELEVANCE_INSTRUCTIONS."\n\n".$this->relevancePrompt($query, $bodies),
+                'questions' => $questions,
+            ])
+            ->throw()
+            ->json();
+
+        return $this->relevanceVerdicts($response, count($bodies));
     }
 
     /**
@@ -160,5 +262,74 @@ final readonly class OpenAI
         }
 
         return true;
+    }
+
+    /**
+     * @param  list<string>  $bodies
+     */
+    private function relevancePrompt(string $query, array $bodies): string
+    {
+        $posts = [];
+
+        foreach ($bodies as $index => $body) {
+            $posts[] = ($index + 1).'. '.$body;
+        }
+
+        return "Query: {$query}\n\nPosts:\n".implode("\n", $posts);
+    }
+
+    /**
+     * One verdict per post, in the order they were given: kept unless the model put it at worse than even odds. A post
+     * the answer skips, and one whose probability can't be read, is kept.
+     *
+     * @return list<bool>
+     */
+    private function relevanceVerdicts(mixed $response, int $count): array
+    {
+        $answers = is_array($response) ? ($response['answers'] ?? null) : null;
+
+        $probabilities = [];
+
+        if (is_array($answers)) {
+            foreach ($answers as $answer) {
+                $predicate = $this->predicateAnswer($answer);
+
+                if ($predicate !== null) {
+                    $probabilities[$predicate['name']] = $predicate['probability'];
+                }
+            }
+        }
+
+        $verdicts = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $probability = $probabilities['post_'.($index + 1)] ?? null;
+
+            $verdicts[] = $probability === null || $probability >= self::RELEVANCE_THRESHOLD;
+        }
+
+        return $verdicts;
+    }
+
+    /**
+     * The name and probability of a predicate answer, or null for anything else: a refusal, an answer to another
+     * question, or a probability that can't be read as a number.
+     *
+     * @return array{name: string, probability: float}|null
+     */
+    private function predicateAnswer(mixed $answer): ?array
+    {
+        if (! is_array($answer) || ($answer['type'] ?? null) !== 'predicate') {
+            return null;
+        }
+
+        $name = $answer['name'] ?? null;
+        $probability = $answer['probability'] ?? null;
+
+        if (! is_string($name) || ! is_numeric($probability)) {
+            return null;
+        }
+
+        return ['name' => $name, 'probability' => (float) $probability];
     }
 }

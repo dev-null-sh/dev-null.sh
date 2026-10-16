@@ -7,6 +7,7 @@ use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
+use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
@@ -160,7 +161,7 @@ it('does not ask the ai about commits of admins', function (): void {
 it('queues ai review for a quote while preserving its images and chosen link card', function (): void {
     config(['services.openai.key' => 'sk-test']);
     Storage::fake();
-    Queue::fake([ModerateCommit::class, UnfurlLink::class]);
+    Queue::fake([ModerateCommit::class, UnfurlLink::class, EmbedCommit::class]);
 
     $quoted = Commit::factory()->create();
 

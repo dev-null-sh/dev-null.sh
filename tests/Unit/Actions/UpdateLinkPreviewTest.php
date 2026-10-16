@@ -82,7 +82,7 @@ it('stores the open graph metadata of a page', function (): void {
 });
 
 it('sends a pinned and bounded request that identifies itself and asks for english', function (): void {
-    config(['app.url' => 'https://devnull.com']);
+    config(['app.url' => 'https://dev-null.sh']);
 
     $options = [];
 
@@ -96,7 +96,7 @@ it('sends a pinned and bounded request that identifies itself and asks for engli
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://example.com/post'
         && $request->method() === 'GET'
-        && $request->header('User-Agent') === ['Mozilla/5.0 (compatible; devnull-linkpreview/1.0; +https://devnull.com)']
+        && $request->header('User-Agent') === ['Mozilla/5.0 (compatible; devnull-linkpreview/1.0; +https://dev-null.sh)']
         && $request->header('Accept') === ['text/html']
         && $request->header('Accept-Language') === ['en-US,en;q=0.9']);
 

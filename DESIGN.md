@@ -1,5 +1,5 @@
 ---
-name: devnull
+name: /dev/null
 description: A social network for developers, drawn as a git log.
 colors:
   shell: "#f6f7f8"
@@ -162,7 +162,7 @@ components:
     size: "40px"
 ---
 
-# Design System: devnull
+# Design System: /dev/null
 
 ## Overview
 
@@ -232,7 +232,7 @@ A cool, nearly colorless shell with one working blue and six author lanes reserv
 ### Named Rules
 **The Machine Speaks Mono Rule.** If git or a shell would print it (a hash, a handle, a count, a timestamp, an error line, `null`), it is set in Geist Mono at 13px with tabular figures. Human sentences never are.
 
-**The Lowercase Wordmark Rule.** "devnull" is always lowercase, set in the sans beside the null-sign mark, bold with tight negative tracking.
+**The Lowercase Wordmark Rule.** "/dev/null" is always lowercase and keeps both slashes, set in the sans beside the null-sign mark, bold with tight negative tracking. In the wordmark, the second slash is drawn as an outline in `--lane-0`.
 
 ## Layout
 

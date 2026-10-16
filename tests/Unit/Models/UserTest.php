@@ -24,6 +24,7 @@ test('to array', function (): void {
             'updated_at',
             'has_sponsors_listing',
             'lane',
+            'has_github_account',
         ]);
 });
 

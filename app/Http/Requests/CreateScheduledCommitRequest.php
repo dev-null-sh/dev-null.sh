@@ -29,4 +29,9 @@ final class CreateScheduledCommitRequest extends FormRequest
             'poll' => ['prohibited'],
         ];
     }
+
+    public function prepareForValidation(): void
+    {
+        CreateCommitRequest::normalizeBody($this);
+    }
 }

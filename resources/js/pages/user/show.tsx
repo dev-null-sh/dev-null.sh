@@ -191,17 +191,19 @@ export default function Show({
                             </a>
                         </li>
                     )}
-                    <li className="flex items-center gap-1.5">
-                        <GitHubIcon className="size-4" />
-                        <a
-                            href={`https://github.com/${user.username}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline"
-                        >
-                            github.com/{user.username}
-                        </a>
-                    </li>
+                    {user.has_github_account && (
+                        <li className="flex items-center gap-1.5">
+                            <GitHubIcon className="size-4" />
+                            <a
+                                href={`https://github.com/${user.username}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
+                            >
+                                github.com/{user.username}
+                            </a>
+                        </li>
+                    )}
                     {user.has_sponsors_listing && (
                         <li className="flex items-center gap-1.5">
                             <Heart className="size-4" />

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Actions\BefriendTom;
 use App\Enums\Log;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
@@ -340,7 +341,16 @@ final class User extends Authenticatable
         return [
             ...parent::toArray(),
             'lane' => $this->lane(),
+            'has_github_account' => $this->hasGitHubAccount(),
         ];
+    }
+
+    /**
+     * Everyone signs in with GitHub except Tom, who was made up and has no GitHub profile to link to.
+     */
+    public function hasGitHubAccount(): bool
+    {
+        return $this->github_id !== BefriendTom::GITHUB_ID;
     }
 
     private function fillCounts(int $commits): self

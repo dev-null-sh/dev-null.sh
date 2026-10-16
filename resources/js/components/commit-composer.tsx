@@ -1,10 +1,10 @@
 import { Form, Link, usePage } from '@inertiajs/react';
-import { ChartBar, Clock3, Plus, X } from 'lucide-react';
+import { ChartBar, Clock3 } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
-import CommitSeriesController from '@/actions/App/Http/Controllers/CommitSeriesController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
+import { BodyCounter } from '@/components/body-counter';
 import {
     ImagePickerButton,
     ImagePickerPreviews,
@@ -27,55 +27,24 @@ import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
-import { useLinkCards } from '@/hooks/use-link-card';
+import { useLinkCard } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
-import type { UseSeriesStashReturn } from '@/hooks/use-stash';
-import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
+import type { UseStashReturn } from '@/hooks/use-stash';
+import {
+    discardSeriesStash,
+    moveCaretToEnd,
+    useStash,
+} from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
+import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn, laneColor } from '@/lib/utils';
 import type { User } from '@/types';
 
-const minBodyLength = 3;
-const maxBodyLength = 280;
-const maxParts = 10;
-
-const partId = (index: number): string =>
-    index === 0 ? 'body' : `body-${index + 1}`;
-
-function focusPart(index: number, atEnd = false): void {
-    requestAnimationFrame(() => {
-        const part = document.getElementById(partId(index));
-
-        if (!(part instanceof HTMLTextAreaElement)) {
-            return;
-        }
-
-        part.focus();
-
-        if (atEnd) {
-            part.setSelectionRange(part.value.length, part.value.length);
-        }
-    });
-}
-
-function RemainingCount({ id, body }: { id: string; body: string }) {
-    const remaining = maxBodyLength - characterCount(body);
-
-    return (
-        <span
-            id={id}
-            aria-label={`${remaining} characters left`}
-            className={cn('font-mono text-[13px] text-muted-foreground', {
-                'text-amber-700 dark:text-amber-400': remaining <= 20,
-                'text-destructive': remaining === 0,
-            })}
-        >
-            {remaining}
-        </span>
-    );
+function focusBody(): void {
+    requestAnimationFrame(() => document.getElementById('body')?.focus());
 }
 
 function useCommitSchedule() {
@@ -93,7 +62,7 @@ function useCommitSchedule() {
     };
 }
 
-function CommitComposerPart({
+function CommitComposerBody({
     user,
     stash,
     attachments,
@@ -102,42 +71,28 @@ function CommitComposerPart({
     poll,
     setPoll,
     secrets,
-    firstSecretPart,
-    canAddPart,
-    index,
     isSubmittable,
     processing,
     errors,
     onKeyDown,
-    addPartAfter,
-    removePartAt,
     drop,
 }: {
     user: User;
-    stash: UseSeriesStashReturn;
+    stash: UseStashReturn;
     attachments: ReturnType<typeof useImageAttachments>;
     linkCard: UseLinkCardReturn;
     schedule: ReturnType<typeof useCommitSchedule>;
     poll: PollDraft | null;
     setPoll: (poll: PollDraft | null) => void;
     secrets: ReturnType<typeof useSecretWarning>;
-    firstSecretPart: number;
-    canAddPart: boolean;
-    index: number;
     isSubmittable: boolean;
     processing: boolean;
     errors: Record<string, string>;
     onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
-    addPartAfter: () => void;
-    removePartAt: () => void;
     drop: () => void;
 }) {
     const keys = useKeyLabels();
-    const { bodies, isRestored, updateBody } = stash;
-    const body = bodies[index];
-    const id = partId(index);
-    const isSeries = bodies.length > 1;
-    const isLast = index === bodies.length - 1;
+    const { body, isRestored, updateBody } = stash;
     const { auth } = usePage().props;
     const {
         isScheduling,
@@ -149,72 +104,44 @@ function CommitComposerPart({
     } = schedule;
     const hasImages = attachments.images.length > 0;
     const isSchedulingImages = isScheduling && hasImages;
+    const isFilled = characterCount(body.trim()) >= minBodyLength;
     const suggestion = suggestEmoji(body);
-    const error =
-        errors[`bodies.${index}`] ??
-        (index === 0 ? errors.body : undefined) ??
-        errors[`link_preview_urls.${index}`] ??
-        (index === 0 ? errors.link_preview_url : undefined);
+    const error = errors.body ?? errors.link_preview_url;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const preview = useComposerPreview({
-        body,
-        textareaRef,
-        isSubmittable: isSubmittable,
-        onAddPart: canAddPart ? addPartAfter : undefined,
-    });
+    const preview = useComposerPreview({ body, textareaRef, isSubmittable });
 
     return (
-        <div className="flex" data-test="commit-composer-part">
+        <div className="flex">
             <GraphRail
                 lane={laneColor(user.lane)}
-                previousLane={index > 0 ? 'var(--rail)' : undefined}
                 variant="staged"
-                isFilled={characterCount(body.trim()) >= minBodyLength}
-                node={
-                    index === 0 ? (
-                        <RailAvatar
-                            user={user}
-                            isStaged={
-                                characterCount(body.trim()) < minBodyLength
-                            }
-                        />
-                    ) : undefined
-                }
+                isFilled={isFilled}
+                node={<RailAvatar user={user} isStaged={!isFilled} />}
             />
 
-            <div
-                className={cn('flex min-w-0 flex-1 pt-3 pr-4', {
-                    'border-b pb-3': isLast,
-                })}
-            >
+            <div className="flex min-w-0 flex-1 border-b pt-3 pr-4 pb-3">
                 <div className="min-w-0 flex-1">
-                    <label htmlFor={id} className="sr-only">
-                        {isSeries
-                            ? `Commit ${index + 1} of ${bodies.length}`
-                            : 'Body'}
+                    <label htmlFor="body" className="sr-only">
+                        Body
                     </label>
                     <div className="grid">
                         <MentionTextarea
                             ref={textareaRef}
-                            id={id}
-                            name={isSeries ? 'bodies[]' : 'body'}
+                            id="body"
+                            name="body"
                             rows={1}
                             value={body}
-                            onValueChange={(text) => updateBody(index, text)}
+                            onValueChange={updateBody}
                             onPaste={
-                                index === 0 && poll === null
-                                    ? attachments.onPaste
-                                    : undefined
+                                poll === null ? attachments.onPaste : undefined
                             }
                             onDragOver={
-                                index === 0 && poll === null
+                                poll === null
                                     ? attachments.onDragOver
                                     : undefined
                             }
                             onDrop={
-                                index === 0 && poll === null
-                                    ? attachments.onDrop
-                                    : undefined
+                                poll === null ? attachments.onDrop : undefined
                             }
                             onKeyDown={(event) =>
                                 preview.handleShortcut(event) ||
@@ -223,17 +150,13 @@ function CommitComposerPart({
                             onFocus={isRestored ? moveCaretToEnd : undefined}
                             maxLength={maxBodyLength}
                             placeholder={
-                                poll
-                                    ? 'Ask a question'
-                                    : index === 0
-                                      ? 'What did you ship?'
-                                      : 'And then?'
+                                poll ? 'Ask a question' : 'What did you ship?'
                             }
                             autoComplete="off"
                             aria-invalid={error ? true : undefined}
-                            aria-describedby={`${id}-count`}
+                            aria-describedby="body-count"
                             className={cn(
-                                'col-start-1 row-start-1 block field-sizing-content min-h-10 w-full resize-none overflow-x-hidden bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
+                                'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                 { invisible: preview.isPreviewing },
                             )}
                         />
@@ -245,10 +168,8 @@ function CommitComposerPart({
                                         ? (linkCard.links[0] ?? null)
                                         : linkCard.link
                                 }
-                                images={index === 0 ? attachments.images : []}
-                                descriptions={
-                                    index === 0 ? attachments.descriptions : []
-                                }
+                                images={attachments.images}
+                                descriptions={attachments.descriptions}
                                 className="col-start-1 row-start-1 py-1.5"
                             />
                         )}
@@ -263,48 +184,42 @@ function CommitComposerPart({
 
                     <SecretWarning
                         body={body}
-                        findings={secrets.findingsByPart[index]}
+                        findings={secrets.findings}
                         textarea={textareaRef}
-                        onChange={(text) => updateBody(index, text)}
-                        confirming={
-                            secrets.confirming && index === firstSecretPart
-                        }
+                        onChange={updateBody}
+                        confirming={secrets.confirming}
                         onConfirmingChange={secrets.setConfirming}
                         onApprove={secrets.approve}
                         onEdit={preview.close}
                     />
                     <InputError message={error} />
 
-                    {index === 0 && (
-                        <>
-                            {!preview.isPreviewing && (
-                                <ImagePickerPreviews
-                                    images={attachments.images}
-                                    descriptions={attachments.descriptions}
-                                    onDescribe={attachments.describe}
-                                    onRemove={attachments.remove}
-                                />
-                            )}
-                            <InputError
-                                message={
-                                    attachments.error ??
-                                    (isSchedulingImages
-                                        ? "Images can't be scheduled yet. Remove them to schedule this commit."
-                                        : imageErrorFrom(errors))
-                                }
-                                className="mt-1"
-                            />
-                        </>
+                    {!preview.isPreviewing && (
+                        <ImagePickerPreviews
+                            images={attachments.images}
+                            descriptions={attachments.descriptions}
+                            onDescribe={attachments.describe}
+                            onRemove={attachments.remove}
+                        />
                     )}
+                    <InputError
+                        message={
+                            attachments.error ??
+                            (isSchedulingImages
+                                ? "Images can't be scheduled yet. Remove them to schedule this commit."
+                                : imageErrorFrom(errors))
+                        }
+                        className="mt-1"
+                    />
 
-                    {poll && index === 0 && (
+                    {poll && (
                         <PollEditor
                             poll={poll}
                             errors={errors}
                             onChange={setPoll}
                             onRemove={() => {
                                 setPoll(null);
-                                focusPart(0);
+                                focusBody();
                             }}
                         />
                     )}
@@ -370,203 +285,122 @@ function CommitComposerPart({
                         </div>
                     )}
 
-                    {isSeries && (
-                        <div className="mt-1 flex items-center gap-3">
-                            <span
-                                className="font-mono text-[13px] text-muted-foreground"
-                                data-test="commit-composer-position"
+                    <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+                        <div className="mr-auto flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+                            {!isScheduling && (
+                                <ImagePickerButton
+                                    count={attachments.images.length}
+                                    disabled={processing || poll !== null}
+                                    onPick={attachments.attach}
+                                    className="-ml-2"
+                                />
+                            )}
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                disabled={
+                                    processing ||
+                                    poll !== null ||
+                                    hasImages ||
+                                    isScheduling
+                                }
+                                onClick={() => {
+                                    setPoll(emptyPollDraft);
+                                    requestAnimationFrame(() =>
+                                        document
+                                            .getElementById('poll-option-0')
+                                            ?.focus(),
+                                    );
+                                }}
+                                aria-label="Add poll"
+                                title={
+                                    isScheduling
+                                        ? 'Polls cannot be scheduled yet'
+                                        : hasImages
+                                          ? 'A commit can have images or a poll, not both'
+                                          : 'Add poll'
+                                }
+                                className="text-muted-foreground"
+                                data-test="add-poll-button"
                             >
-                                {index + 1}/{bodies.length}
-                            </span>
-                            <LinkCardPicker
-                                linkCard={linkCard}
-                                name={`link_preview_urls[${index}]`}
-                                disabled={processing}
-                            />
+                                <ChartBar className="size-5" />
+                            </Button>
+                            {!isScheduling && (
+                                <LinkCardPicker
+                                    linkCard={linkCard}
+                                    disabled={processing}
+                                    className="-ml-3"
+                                />
+                            )}
                             <PreviewToggle
                                 preview={preview}
-                                className="ml-auto"
+                                className="-ml-3"
                             />
-                            <span>
-                                <RemainingCount
-                                    id={`${id}-count`}
-                                    body={body}
-                                />
-                            </span>
-                            <button
-                                type="button"
-                                onClick={removePartAt}
-                                aria-label={`Remove commit ${index + 1}`}
-                                title="Remove this commit"
-                                className="-mr-1.5 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                                data-test="remove-commit-part-button"
-                            >
-                                <X className="size-4" />
-                            </button>
-                        </div>
-                    )}
-
-                    {isLast && (
-                        <>
-                            <InputError message={errors.bodies} />
-
-                            <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-                                <div className="mr-auto flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-                                    {!isScheduling && (
-                                        <ImagePickerButton
-                                            count={attachments.images.length}
-                                            disabled={
-                                                processing || poll !== null
-                                            }
-                                            onPick={attachments.attach}
-                                            className="-ml-2"
-                                        />
-                                    )}
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        disabled={
-                                            processing ||
-                                            poll !== null ||
-                                            hasImages ||
-                                            isSeries ||
-                                            isScheduling
-                                        }
-                                        onClick={() => {
-                                            setPoll(emptyPollDraft);
-                                            requestAnimationFrame(() =>
-                                                document
-                                                    .getElementById(
-                                                        'poll-option-0',
-                                                    )
-                                                    ?.focus(),
-                                            );
-                                        }}
-                                        aria-label="Add poll"
-                                        title={
-                                            isScheduling
-                                                ? 'Polls cannot be scheduled yet'
-                                                : hasImages
-                                                  ? 'A commit can have images or a poll, not both'
-                                                  : isSeries
-                                                    ? 'Polls are available on single commits'
-                                                    : 'Add poll'
-                                        }
-                                        className="text-muted-foreground"
-                                        data-test="add-poll-button"
-                                    >
-                                        <ChartBar className="size-5" />
-                                    </Button>
-                                    {!isScheduling && !isSeries && (
-                                        <LinkCardPicker
-                                            linkCard={linkCard}
-                                            disabled={processing}
-                                            className="-ml-3"
-                                        />
-                                    )}
-                                    {!isSeries && (
-                                        <PreviewToggle
-                                            preview={preview}
-                                            className="-ml-3"
-                                        />
-                                    )}
-                                    <button
-                                        type="button"
-                                        onClick={addPartAfter}
-                                        disabled={!canAddPart}
-                                        title={
-                                            isScheduling
-                                                ? 'Series cannot be scheduled yet'
-                                                : poll !== null
-                                                  ? 'Remove the poll to start a series'
-                                                  : canAddPart
-                                                    ? `Add another commit (${keys.combo(keys.mod, keys.shift, keys.enter)})`
-                                                    : `A series has at most ${maxParts} commits`
-                                        }
-                                        className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                                        data-test="add-commit-part-button"
-                                    >
-                                        <Plus className="size-4" />
-                                        Add commit
-                                    </button>
-                                    {isRestored && (
-                                        <StashLabel
-                                            onDrop={() => {
-                                                drop();
-                                                focusPart(0);
-                                            }}
-                                            className="text-[13px]"
-                                        />
-                                    )}
-                                </div>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    aria-expanded={isScheduling}
-                                    aria-controls="commit-schedule"
-                                    disabled={
-                                        processing ||
-                                        (!isScheduling &&
-                                            (hasImages ||
-                                                isSeries ||
-                                                poll !== null))
-                                    }
-                                    title={
-                                        !isScheduling && poll !== null
-                                            ? 'Polls cannot be scheduled yet'
-                                            : !isScheduling && isSeries
-                                              ? 'Series cannot be scheduled yet'
-                                              : !isScheduling && hasImages
-                                                ? "Images can't be scheduled yet"
-                                                : undefined
-                                    }
-                                    onClick={() => {
-                                        setTimezone(
-                                            Intl.DateTimeFormat().resolvedOptions()
-                                                .timeZone,
-                                        );
-                                        setIsScheduling(!isScheduling);
+                            {isRestored && (
+                                <StashLabel
+                                    onDrop={() => {
+                                        drop();
+                                        focusBody();
                                     }}
-                                    className="gap-1.5 px-2 text-muted-foreground"
-                                >
-                                    <Clock3
-                                        className="size-3.5"
-                                        aria-hidden="true"
-                                    />
-                                    Schedule
-                                </Button>
-                                {!isSeries && (
-                                    <RemainingCount
-                                        id="body-count"
-                                        body={body}
-                                    />
-                                )}
-                                <Button
-                                    type="submit"
-                                    disabled={processing || !isSubmittable}
-                                    title={
-                                        isScheduling
-                                            ? `Schedule commit (${keys.combo(keys.mod, keys.enter)})`
-                                            : `Commit (${keys.combo(keys.mod, keys.enter)})`
-                                    }
-                                    className="min-w-[7.5rem]"
-                                    data-test="create-commit-button"
-                                >
-                                    {isScheduling
-                                        ? processing
-                                            ? 'Scheduling…'
-                                            : 'Schedule commit'
-                                        : processing
-                                          ? 'Committing…'
-                                          : isSeries
-                                            ? `Commit ${bodies.length}`
-                                            : 'Commit'}
-                                </Button>
-                            </div>
-                        </>
-                    )}
+                                    className="text-[13px]"
+                                />
+                            )}
+                        </div>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-expanded={isScheduling}
+                            aria-controls="commit-schedule"
+                            disabled={
+                                processing ||
+                                (!isScheduling && (hasImages || poll !== null))
+                            }
+                            title={
+                                !isScheduling && poll !== null
+                                    ? 'Polls cannot be scheduled yet'
+                                    : !isScheduling && hasImages
+                                      ? "Images can't be scheduled yet"
+                                      : undefined
+                            }
+                            onClick={() => {
+                                setTimezone(
+                                    Intl.DateTimeFormat().resolvedOptions()
+                                        .timeZone,
+                                );
+                                setIsScheduling(!isScheduling);
+                            }}
+                            className="gap-1.5 px-2 text-muted-foreground"
+                        >
+                            <Clock3 className="size-3.5" aria-hidden="true" />
+                            Schedule
+                        </Button>
+                        <BodyCounter
+                            id="body-count"
+                            body={body}
+                            className="text-[13px]"
+                        />
+                        <Button
+                            type="submit"
+                            disabled={processing || !isSubmittable}
+                            title={
+                                isScheduling
+                                    ? `Schedule commit (${keys.combo(keys.mod, keys.enter)})`
+                                    : `Commit (${keys.combo(keys.mod, keys.enter)})`
+                            }
+                            className="min-w-[7.5rem]"
+                            data-test="create-commit-button"
+                        >
+                            {isScheduling
+                                ? processing
+                                    ? 'Scheduling…'
+                                    : 'Schedule commit'
+                                : processing
+                                  ? 'Committing…'
+                                  : 'Commit'}
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -578,13 +412,13 @@ export function CommitComposer() {
     const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
         schedule;
     const { user } = useUser();
-    const stash = useSeriesStash(user.id, 'commit');
-    const { bodies, updateBody, insertPart, removePart } = stash;
-    const linkCards = useLinkCards(bodies);
+    const stash = useStash(user.id, 'commit');
+    const { body, updateBody } = stash;
+    const linkCard = useLinkCard(body);
     const [draftVersion, setDraftVersion] = useState(0);
     const drop = () => {
         stash.drop();
-        linkCards.reset();
+        linkCard.reset();
         setDraftVersion((version) => version + 1);
     };
     const attachments = useImageAttachments(
@@ -593,16 +427,10 @@ export function CommitComposer() {
         stash.updateImages,
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
-    const secrets = useSecretWarning(bodies);
-    const firstSecretPart = secrets.findingsByPart.findIndex(
-        (findings) => findings.length > 0,
-    );
+    const secrets = useSecretWarning(body);
 
-    const isSeries = bodies.length > 1;
-    const canAddPart =
-        !isScheduling && bodies.length < maxParts && poll === null;
     const isCommittable =
-        bodies.every((body) => characterCount(body.trim()) >= minBodyLength) &&
+        characterCount(body.trim()) >= minBodyLength &&
         (poll === null ||
             poll.options.every((option) => option.trim().length > 0));
     const hasImages = attachments.images.length > 0;
@@ -611,58 +439,23 @@ export function CommitComposer() {
         !(isScheduling && hasImages) &&
         (!isScheduling || poll === null);
 
-    const addPartAfter = (index: number) => {
-        if (!canAddPart) {
-            return;
-        }
+    useEffect(() => discardSeriesStash(user.id), [user.id]);
 
-        insertPart(index + 1);
-        linkCards.insertPart(index + 1);
-        setDraftVersion((version) => version + 1);
-        focusPart(index + 1);
-    };
-
-    const removePartAt = (index: number) => {
-        removePart(index);
-        linkCards.removePart(index);
-        setDraftVersion((version) => version + 1);
-        focusPart(Math.max(index - 1, 0), true);
-    };
-
-    const onKeyDown = (
-        index: number,
-        event: KeyboardEvent<HTMLTextAreaElement>,
-    ) => {
-        if (event.key === 'Tab' && suggestEmoji(bodies[index]) !== null) {
-            const completed = completeEmoji(bodies[index]);
+    const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key === 'Tab' && suggestEmoji(body) !== null) {
+            const completed = completeEmoji(body);
 
             if (completed !== null) {
                 event.preventDefault();
-                updateBody(index, completed);
+                updateBody(completed);
             }
 
             return;
         }
 
-        const isModEnter = event.key === 'Enter' && hasModKey(event);
-
-        if (isModEnter && event.shiftKey) {
-            event.preventDefault();
-            addPartAfter(index);
-
-            return;
-        }
-
-        if (isModEnter && isSubmittable) {
+        if (event.key === 'Enter' && hasModKey(event) && isSubmittable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
-
-            return;
-        }
-
-        if (event.key === 'Backspace' && isSeries && bodies[index] === '') {
-            event.preventDefault();
-            removePartAt(index);
         }
     };
 
@@ -670,9 +463,7 @@ export function CommitComposer() {
         <Form
             {...(isScheduling
                 ? ScheduledCommitController.store.form()
-                : isSeries
-                  ? CommitSeriesController.store.form()
-                  : CommitController.store.form())}
+                : CommitController.store.form())}
             onBefore={secrets.beforeSubmit}
             transform={(data) =>
                 isScheduling
@@ -701,37 +492,27 @@ export function CommitComposer() {
                 setIsScheduling(false);
                 attachments.clear();
                 setPoll(null);
-                focusPart(0);
+                focusBody();
             }}
-            className="flex flex-col"
             data-test="commit-composer"
         >
             {({ processing, errors }) => (
-                <>
-                    {bodies.map((_, index) => (
-                        <CommitComposerPart
-                            key={`${draftVersion}-${index}`}
-                            user={user}
-                            stash={stash}
-                            attachments={attachments}
-                            linkCard={linkCards.cards[index]}
-                            index={index}
-                            isSubmittable={isSubmittable}
-                            schedule={schedule}
-                            poll={poll}
-                            setPoll={setPoll}
-                            secrets={secrets}
-                            firstSecretPart={firstSecretPart}
-                            canAddPart={canAddPart}
-                            processing={processing}
-                            errors={errors}
-                            onKeyDown={(event) => onKeyDown(index, event)}
-                            addPartAfter={() => addPartAfter(index)}
-                            removePartAt={() => removePartAt(index)}
-                            drop={drop}
-                        />
-                    ))}
-                </>
+                <CommitComposerBody
+                    key={draftVersion}
+                    user={user}
+                    stash={stash}
+                    attachments={attachments}
+                    linkCard={linkCard}
+                    schedule={schedule}
+                    poll={poll}
+                    setPoll={setPoll}
+                    secrets={secrets}
+                    isSubmittable={isSubmittable}
+                    processing={processing}
+                    errors={errors}
+                    onKeyDown={onKeyDown}
+                    drop={drop}
+                />
             )}
         </Form>
     );

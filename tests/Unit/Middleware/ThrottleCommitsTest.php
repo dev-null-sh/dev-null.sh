@@ -12,9 +12,9 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Support\SessionKey;
 
-function throttledCommit(User $user, string $route = 'commit.store', array $input = []): Symfony\Component\HttpFoundation\Response
+function throttledCommit(User $user, string $route = 'commit.store'): Symfony\Component\HttpFoundation\Response
 {
-    $request = Request::create('/commits', 'POST', $input);
+    $request = Request::create('/commits', 'POST');
     $request->setUserResolver(fn (): User => $user);
     $request->setRouteResolver(fn (): Route => resolve(Router::class)->getRoutes()->getByName($route));
 
@@ -38,18 +38,6 @@ it('lets each user commit 10 times a minute', function (): void {
             ],
         ])
         ->and(throttledCommit(User::factory()->create())->getContent())->toBe('Committed');
-});
-
-it('counts every part of a series and refuses a series that does not fit', function (): void {
-    $user = User::factory()->create();
-
-    throttledCommit($user, 'commit-series.store', ['bodies' => ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven']]);
-
-    expect(RateLimiter::attempts("commits:{$user->id}"))->toBe(7)
-        ->and(throttledCommit($user, 'commit-series.store', ['bodies' => ['One', 'Two', 'Three', 'Four']]))->toBeInstanceOf(RedirectResponse::class)
-        ->and(RateLimiter::attempts("commits:{$user->id}"))->toBe(7)
-        ->and(throttledCommit($user, 'commit-series.store', ['bodies' => ['One', 'Two', 'Three']])->getContent())->toBe('Committed')
-        ->and(RateLimiter::attempts("commits:{$user->id}"))->toBe(10);
 });
 
 it('tells the commit script to slow down in plain text', function (): void {

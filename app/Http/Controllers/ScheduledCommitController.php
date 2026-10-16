@@ -10,6 +10,7 @@ use App\Http\Requests\CreateScheduledCommitRequest;
 use App\Http\Requests\DeleteScheduledCommitRequest;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use App\Services\CommitBodies;
 use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
@@ -18,7 +19,7 @@ use Inertia\Response;
 
 final readonly class ScheduledCommitController
 {
-    public function index(#[CurrentUser] User $user): Response
+    public function index(#[CurrentUser] User $user, CommitBodies $bodies): Response
     {
         return Inertia::render('scheduled-commits/index', [
             'scheduledCommits' => ScheduledCommit::query()->where('user_id', $user->id)
@@ -26,7 +27,9 @@ final readonly class ScheduledCommitController
                 ->orderByRaw('submitted_at IS NOT NULL')->orderBy('scheduled_at')->orderBy('id')
                 ->paginate(20)->through(fn (ScheduledCommit $scheduled): array => [
                     'id' => $scheduled->id,
-                    'body' => $scheduled->submitted_at === null ? $scheduled->body : null,
+                    ...($scheduled->submitted_at === null && $scheduled->body !== null
+                        ? ['body' => $scheduled->body, ...$bodies->segments($scheduled->body)]
+                        : ['body' => null, 'body_segments' => [], 'preview_segments' => null]),
                     'scheduled_at' => $scheduled->scheduled_at->toIso8601String(),
                     'submitted_at' => $scheduled->submitted_at?->toIso8601String(),
                     'status' => $scheduled->submitted_at === null ? 'scheduled' : ($scheduled->commit === null || $scheduled->commit->trashed() ? 'deleted' : $scheduled->commit->status->value),

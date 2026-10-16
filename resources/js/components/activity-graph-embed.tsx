@@ -33,7 +33,7 @@ export default function ActivityGraphEmbed({
     const [isCopied, setIsCopied] = useState(false);
 
     const imageUrl = themedUrl(activityGraphUrl, theme);
-    const snippet = `[![devnull activity](${imageUrl})](${profileUrl})`;
+    const snippet = `[![/dev/null activity](${imageUrl})](${profileUrl})`;
     const previewUrl = `${imageUrl}${theme === 'light' ? '?' : '&'}lane=${user.lane}`;
 
     useEffect(() => {

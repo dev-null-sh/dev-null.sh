@@ -294,7 +294,7 @@ it('may not reply to a commit that does not exist', function (): void {
     expect(Commit::query()->count())->toBe(0);
 });
 
-it('requires a reply body of 3 to 280 characters', function (string $body): void {
+it('requires a reply body of 3 to 4,000 characters', function (string $body): void {
     $parent = Commit::factory()->create();
 
     $this->actingAs(User::factory()->create())
@@ -306,7 +306,7 @@ it('requires a reply body of 3 to 280 characters', function (string $body): void
 })->with([
     'blank' => '   ',
     'too short' => '  ab  ',
-    'too long' => str_repeat('a', 281),
+    'too long' => str_repeat('a', 4001),
 ]);
 
 it('may attach images to a reply', function (): void {

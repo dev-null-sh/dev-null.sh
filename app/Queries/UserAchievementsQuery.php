@@ -63,7 +63,7 @@ final readonly class UserAchievementsQuery
         $has280CharCommit = (bool) ($commitStats->has_max_payload ?? 0);
         $hasSyntaxCommit = (bool) ($commitStats->has_syntax ?? 0);
 
-        // Replies must be to other developers (excluding self-replies / series continuations)
+        // Replies must be to other developers (excluding self-replies)
         $repliesCount = (int) (clone $visibleCommitsQuery)
             ->whereNotNull('parent_id')
             ->whereIn('parent_id', Commit::query()->withTrashed()->where('user_id', '!=', $user->id)->select('id'))

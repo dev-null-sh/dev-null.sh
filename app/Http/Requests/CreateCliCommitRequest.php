@@ -30,7 +30,7 @@ final class CreateCliCommitRequest extends FormRequest
         assert($user instanceof User);
 
         return [
-            'body' => ['required', 'string', 'min:3', 'max:280'],
+            'body' => CreateCommitRequest::BODY_RULES,
             'reply_to' => ['nullable', 'string', new CommitReference($user)],
         ];
     }
@@ -43,5 +43,10 @@ final class CreateCliCommitRequest extends FormRequest
         return $this->filled('reply_to')
             ? resolve(CommitByReferenceQuery::class)->get($user, $this->string('reply_to')->value())?->first()
             : null;
+    }
+
+    public function prepareForValidation(): void
+    {
+        CreateCommitRequest::normalizeBody($this);
     }
 }

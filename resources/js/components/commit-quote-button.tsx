@@ -3,6 +3,7 @@ import { Quote } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { BodyCounter } from '@/components/body-counter';
 import {
     ImagePickerButton,
     ImagePickerPreviews,
@@ -26,12 +27,10 @@ import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
+import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn } from '@/lib/utils';
 import type { Commit } from '@/types';
-
-const minBodyLength = 3;
-const maxBodyLength = 280;
 
 export function CommitQuoteButton({
     commit,
@@ -119,7 +118,6 @@ function QuoteComposer({
     const secrets = useSecretWarning(body);
     const keys = useKeyLabels();
 
-    const remaining = maxBodyLength - characterCount(body);
     const isQuotable = characterCount(body.trim()) >= minBodyLength;
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -217,7 +215,7 @@ function QuoteComposer({
                                         : undefined
                                 }
                                 aria-describedby={`${id}-count`}
-                                className="block field-sizing-content min-h-10 w-full resize-none bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                                className="block field-sizing-content max-h-[40dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
                             />
 
                             <InputError
@@ -249,7 +247,7 @@ function QuoteComposer({
 
                             <QuotedCommit commit={commit} isPreview />
 
-                            <div className="mt-3 flex items-center justify-end gap-3">
+                            <div className="sticky bottom-0 -mb-4 flex items-center justify-end gap-3 bg-background pt-3 pb-4 sm:-mb-5 sm:pb-5">
                                 <div className="mr-auto flex items-center gap-2">
                                     <ImagePickerButton
                                         count={images.length}
@@ -270,20 +268,11 @@ function QuoteComposer({
                                         />
                                     )}
                                 </div>
-                                <span
+                                <BodyCounter
                                     id={`${id}-count`}
-                                    aria-label={`${remaining} characters left`}
-                                    className={cn(
-                                        'font-mono text-[13px] text-muted-foreground',
-                                        {
-                                            'text-amber-700 dark:text-amber-400':
-                                                remaining <= 20,
-                                            'text-destructive': remaining === 0,
-                                        },
-                                    )}
-                                >
-                                    {remaining}
-                                </span>
+                                    body={body}
+                                    className="text-[13px]"
+                                />
                                 <Button
                                     type="button"
                                     variant="ghost"

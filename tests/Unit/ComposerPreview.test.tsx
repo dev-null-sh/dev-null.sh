@@ -15,7 +15,6 @@ import {
 function previewFor(options: {
     body?: string;
     isSubmittable: boolean;
-    onAddPart?: () => void;
 }): ComposerPreview {
     const previews: ComposerPreview[] = [];
 
@@ -40,14 +39,10 @@ function previewFor(options: {
 
 for (const modifier of ['ctrlKey', 'metaKey'] as const) {
     for (const shiftKey of [false, true]) {
-        void test(`${modifier} + ${shiftKey ? 'Shift + ' : ''}Enter ${shiftKey ? 'adds a series part' : 'publishes'} from preview`, () => {
-            let added = 0;
+        void test(`${modifier} + ${shiftKey ? 'Shift + ' : ''}Enter publishes from preview`, () => {
             let submitted = 0;
             let prevented = 0;
-            const preview = previewFor({
-                isSubmittable: true,
-                onAddPart: () => added++,
-            });
+            const preview = previewFor({ isSubmittable: true });
 
             preview.onPreviewKeyDown({
                 key: 'Enter',
@@ -59,14 +54,13 @@ for (const modifier of ['ctrlKey', 'metaKey'] as const) {
                 },
             } as unknown as KeyboardEvent<HTMLDivElement>);
 
-            assert.equal(added, shiftKey ? 1 : 0);
-            assert.equal(submitted, shiftKey ? 0 : 1);
+            assert.equal(submitted, 1);
             assert.equal(prevented, 1);
         });
     }
 }
 
-void test('does not publish an incomplete series from preview', () => {
+void test('does not publish an incomplete draft from preview', () => {
     previewFor({ isSubmittable: false }).onPreviewKeyDown({
         key: 'Enter',
         ctrlKey: true,
@@ -75,24 +69,12 @@ void test('does not publish an incomplete series from preview', () => {
     } as unknown as KeyboardEvent<HTMLDivElement>);
 });
 
-void test('does not publish a reply with the add-part shortcut', () => {
-    previewFor({ isSubmittable: true }).onPreviewKeyDown({
-        key: 'Enter',
-        ctrlKey: true,
-        shiftKey: true,
-        preventDefault: () => assert.fail('must not submit'),
-    } as unknown as KeyboardEvent<HTMLDivElement>);
-});
-
-function renderComposer(bodies: string[]): string {
+function renderComposer(body: string): string {
     const windowDescriptor = Object.getOwnPropertyDescriptor(
         globalThis,
         'window',
     );
-    const draft = new Map([
-        ['stash:preview-user:commit', bodies[0]],
-        ['stash:preview-user:commit:later', JSON.stringify(bodies.slice(1))],
-    ]);
+    const draft = new Map([['stash:preview-user:commit', body]]);
 
     function ComposerPage() {
         Object.defineProperty(globalThis, 'window', {
@@ -142,32 +124,22 @@ function renderComposer(bodies: string[]): string {
     }
 }
 
-for (const count of [1, 2, 3, 280]) {
+for (const count of [1, 2, 3, 3850]) {
     void test(`counts ${count} emoji as Unicode characters in the preview composer`, () => {
-        const markup = renderComposer(['🚀'.repeat(count)]);
+        const markup = renderComposer('🚀'.repeat(count));
         const submit = markup.match(
             /<button[^>]*data-test="create-commit-button"[^>]*>/,
         )?.[0];
 
         assert.ok(submit);
         assert.equal(/\sdisabled(?:=|\s|>)/.test(submit), count < 3);
-        assert.ok(
-            markup.includes(`aria-label="${280 - count} characters left"`),
+        assert.equal(
+            markup.includes(`aria-label="${4000 - count} characters left"`),
+            count === 3850,
         );
         assert.ok(markup.includes('Preview'));
     });
 }
-
-void test('requires every preview series part to contain three Unicode characters', () => {
-    const markup = renderComposer(['🚀🚀🚀', '🚀🚀']);
-    const submit = markup.match(
-        /<button[^>]*data-test="create-commit-button"[^>]*>/,
-    )?.[0];
-
-    assert.ok(submit && /\sdisabled(?:=|\s|>)/.test(submit));
-    assert.ok(markup.includes('aria-label="277 characters left"'));
-    assert.ok(markup.includes('aria-label="278 characters left"'));
-});
 
 void test('previews the chosen link card instead of the first link in the body', () => {
     const preview = previewFor({
@@ -201,60 +173,36 @@ void test('omits the preview card when the author chooses no card', () => {
     assert.ok(!markup.includes('data-test="link-card-preview"'));
 });
 
-void test('retains the link card picker beside preview for a draft and every series part', () => {
-    for (const bodies of [
-        ['https://first.example.com https://second.example.com'],
-        ['https://first.example.com', 'https://second.example.com'],
-    ]) {
-        const markup = renderComposer(bodies);
+void test('retains the link card picker and scheduling beside preview', () => {
+    const markup = renderComposer(
+        'https://first.example.com https://second.example.com',
+    );
+    const schedule = markup.match(
+        /<button[^>]*aria-controls="commit-schedule"[^>]*>/,
+    )?.[0];
 
-        assert.equal(
-            (markup.match(/data-test="link-card-button"/g) ?? []).length,
-            bodies.length,
-        );
-        assert.equal(
-            (markup.match(/data-test="preview-toggle"/g) ?? []).length,
-            bodies.length,
-        );
-    }
+    assert.equal((markup.match(/data-test="link-card-button"/g) ?? []).length, 1);
+    assert.equal((markup.match(/data-test="preview-toggle"/g) ?? []).length, 1);
+    assert.ok(schedule);
+    assert.ok(!/\sdisabled(?:=|\s|>)/.test(schedule));
 });
-
-for (const bodies of [['Draft commit'], ['First part', 'Second part']]) {
-    void test(`keeps scheduling ${bodies.length === 1 ? 'available for a draft' : 'disabled for a series'} beside preview`, () => {
-        const markup = renderComposer(bodies);
-        const schedule = markup.match(
-            /<button[^>]*aria-controls="commit-schedule"[^>]*>/,
-        )?.[0];
-
-        assert.ok(schedule);
-        assert.equal(/\sdisabled(?:=|\s|>)/.test(schedule), bodies.length > 1);
-        assert.equal(
-            (markup.match(/data-test="preview-toggle"/g) ?? []).length,
-            bodies.length,
-        );
-    });
-}
 
 const secret = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
 
-void test('keeps sensitive text warnings beside preview for every affected series part', () => {
-    for (const bodies of [[secret], ['First part', secret], [secret, secret]]) {
-        const markup = renderComposer(bodies);
-        assert.equal(
-            (markup.match(/aria-label="Sensitive text warning"/g) ?? []).length,
-            bodies.filter((body) => body === secret).length,
-        );
-        assert.equal(
-            (markup.match(/data-test="preview-toggle"/g) ?? []).length,
-            bodies.length,
-        );
-        assert.ok(markup.includes('Remove detected secrets'));
-        assert.ok(!markup.includes('Publish possible secrets?'));
-    }
+void test('keeps the sensitive text warning beside preview', () => {
+    const markup = renderComposer(secret);
+
+    assert.equal(
+        (markup.match(/aria-label="Sensitive text warning"/g) ?? []).length,
+        1,
+    );
+    assert.equal((markup.match(/data-test="preview-toggle"/g) ?? []).length, 1);
+    assert.ok(markup.includes('Remove detected secrets'));
+    assert.ok(!markup.includes('Publish possible secrets?'));
 });
 
 void test('ordinary drafts retain preview without a sensitive text warning', () => {
-    const markup = renderComposer(['Shipped a small fix']);
+    const markup = renderComposer('Shipped a small fix');
     assert.ok(markup.includes('data-test="preview-toggle"'));
     assert.ok(!markup.includes('aria-label="Sensitive text warning"'));
 });

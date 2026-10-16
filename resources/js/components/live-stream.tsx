@@ -22,7 +22,7 @@ export function LiveStreamBanner() {
         >
             <LiveDot />
             <span>
-                Watch us build devnull right now,{' '}
+                Watch us build /dev/null right now,{' '}
                 <span className="underline-offset-4 group-hover:underline">
                     live on YouTube
                 </span>
@@ -42,7 +42,7 @@ export function LiveStreamPlayer({ className }: { className?: string }) {
             <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted">
                 <iframe
                     src={`https://www.youtube-nocookie.com/embed/${videoId}`}
-                    title="Watch us build devnull live on YouTube"
+                    title="Watch us build /dev/null live on YouTube"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     referrerPolicy="strict-origin-when-cross-origin"
                     allowFullScreen

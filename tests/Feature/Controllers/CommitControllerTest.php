@@ -96,19 +96,40 @@ it('requires the body to be at least 3 characters', function (): void {
     expect(Commit::query()->count())->toBe(0);
 });
 
-it('requires the body to be at most 280 characters', function (): void {
+it('requires the body to be at most 4,000 characters', function (): void {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
         ->post(route('commit.store'), [
-            'body' => str_repeat('a', 281),
+            'body' => str_repeat('a', 4001),
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following)
         ->assertSessionHasErrors('body');
 
     expect(Commit::query()->count())->toBe(0);
+});
+
+it('accepts a body of 4,000 characters, counting multibyte characters as one', function (): void {
+    $body = str_repeat('é', 3998).'🚀🚀';
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('commit.store'), ['body' => $body])
+        ->assertSessionHasNoErrors();
+
+    expect(Commit::query()->sole()->body)->toBe($body);
+});
+
+it('collapses runs of blank lines in the prose before measuring the body, leaving code alone', function (): void {
+    $code = "```python\ndef a():\n    pass\n\n\ndef b():\n    pass\n```";
+    $body = "First\n\n\n\n\nSecond \n \n\nThird\n{$code}\n\n\n".str_repeat('a', 3900);
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('commit.store'), ['body' => $body])
+        ->assertSessionHasNoErrors();
+
+    expect(Commit::query()->sole()->body)->toBe("First\n\nSecond\n\nThird\n{$code}\n\n".str_repeat('a', 3900));
 });
 
 it('rate limits commit creation', function (): void {
@@ -717,17 +738,6 @@ it('shows guests the commit with its approved replies and a link preview', funct
     $this->assertGuest();
 
     expect(session('url.intended'))->toBe(route('commit.show', [$user, $commit]));
-});
-
-it('does not show a later part of a series as a reply in the link preview', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
-    $parts = commitSeries($user);
-
-    $response = $this->get(route('commit.show', [$user, $parts[1]]));
-
-    $response->assertOk()
-        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null: “', false)
-        ->assertDontSee('(@octocat) replying to', false);
 });
 
 it('trims long commits in the link preview description', function (): void {

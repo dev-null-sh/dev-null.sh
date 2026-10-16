@@ -10,6 +10,7 @@ export type User = {
     website: string | null;
     company: string | null;
     has_sponsors_listing: boolean;
+    has_github_account: boolean;
     lane: number;
     created_at: string;
     updated_at: string;

@@ -8,6 +8,7 @@ use App\Contracts\Services\DnsResolver;
 use App\Models\User;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -96,6 +97,15 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('people', fn (Request $request): Limit => Limit::perMinute(120)->by(
             $request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip(),
         ));
+
+        // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
+        RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
+            ->by($request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip())
+            ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
+                ['message' => 'Slow down: too many searches. Give it a few seconds.'],
+                429,
+                $headers,
+            )));
 
         // Exports stream every commit a user ever made...
         RateLimiter::for('exports', fn (Request $request): Limit => Limit::perHour(3)->by($this->userId($request)));
