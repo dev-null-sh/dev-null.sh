@@ -10,7 +10,7 @@ use App\Models\User;
 final readonly class RecentVolumeQuery
 {
     /**
-     * Everything created in the last 24 hours and 7 days, whatever its status since, deleted commits included.
+     * Top-level commits and ordinary replies created in the last 24 hours and 7 days, whatever their status since, deleted commits included.
      *
      * @return array{signups: array{day: int, week: int}, commits: array{day: int, week: int}, replies: array{day: int, week: int}}
      */
@@ -28,6 +28,7 @@ final readonly class RecentVolumeQuery
 
         /** @var object{commits_day: int, commits_week: int, replies_day: int, replies_week: int} $commits */
         $commits = Commit::withTrashed()
+            ->exceptSeriesContinuations()
             ->where('created_at', '>=', $week)
             ->toBase()
             ->selectRaw(

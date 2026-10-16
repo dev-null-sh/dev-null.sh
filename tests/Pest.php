@@ -2,10 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitSeries;
 use App\Dto\SshPublicKey;
+use App\Enums\CommitStatus;
 use App\Jobs\UnfurlLink;
+use App\Models\Commit;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -55,6 +59,15 @@ function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []
         "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
         "api.github.com/users/{$user->username}/keys*" => Http::response($toResponse($keys)),
         "api.github.com/users/{$user->username}/ssh_signing_keys*" => Http::response($toResponse($signingKeys)),
+    ]);
+}
+
+function fakeGitHubSponsorsListing(?bool $isPublic = null): void
+{
+    Http::fake([
+        'api.github.com/graphql' => Http::response(['data' => ['viewer' => [
+            'sponsorsListing' => $isPublic === null ? null : ['isPublic' => $isPublic],
+        ]]]),
     ]);
 }
 
@@ -112,4 +125,19 @@ function queuedJob(string $queue, CarbonInterface $createdAt): void
         'available_at' => $createdAt->getTimestamp(),
         'created_at' => $createdAt->getTimestamp(),
     ]);
+}
+
+/**
+ * @return Collection<int, Commit>
+ */
+function commitSeries(?User $user = null, int $size = 3, CommitStatus $status = CommitStatus::Approved): Collection
+{
+    $parts = resolve(CreateCommitSeries::class)->handle(
+        $user ?? User::factory()->create(),
+        array_map(fn (int $position): string => "Part {$position} of the series", range(1, $size)),
+    );
+
+    Commit::query()->whereKey($parts->modelKeys())->update(['status' => $status]);
+
+    return $parts->fresh();
 }

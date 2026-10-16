@@ -15,6 +15,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'bio' => "Building tools.\nKeeping them small.",
         'email' => 'zoe@example.test',
         'company' => null,
+        'has_sponsors_listing' => true,
         'preferred_lane' => 3,
         'remember_token' => 'never-export-this-token',
     ]);
@@ -44,6 +45,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'location' => $user->location,
             'website' => $user->website,
             'company' => null,
+            'has_sponsors_listing' => true,
             'preferred_lane' => 3,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
@@ -81,6 +83,9 @@ it('exports only the signed-in users live commits including replies and all mode
     expect($commits[$approved->id])->toBe([
         'id' => $approved->id,
         'parent_id' => null,
+        'series_id' => null,
+        'series_position' => null,
+        'series_size' => null,
         'body' => $approved->body,
         'status' => 'approved',
         'created_at' => $approved->created_at->toIso8601String(),
@@ -91,6 +96,20 @@ it('exports only the signed-in users live commits including replies and all mode
         ->and($commits[$reply->id]['parent_id'])->toBe($parent->id)
         ->and($commits[$survivingReply->id]['parent_id'])->toBe($deleted->id)
         ->and($response->streamedContent())->not->toContain($deleted->body, $deletedReply->body, $parent->body);
+});
+
+it('exports where each commit sits in its series', function (): void {
+    $user = User::factory()->create();
+    $parts = commitSeries($user, size: 2);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $commits = collect(json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR)['commits'])->keyBy('id');
+
+    expect($commits[$parts[1]->id])
+        ->parent_id->toBe($parts[0]->id)
+        ->series_id->toBe($parts[0]->series_id)
+        ->series_position->toBe(2)
+        ->series_size->toBe(2);
 });
 
 it('exports following usernames without private identity fields or followers', function (): void {
