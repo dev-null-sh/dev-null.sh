@@ -42,6 +42,11 @@ export default function Show({
         { autoStart: newestId !== undefined },
     );
 
+    // Showing a log remembers it, so pages prefetched before it still carry the previous log in their shared props.
+    useEffect(() => {
+        router.flushAll();
+    }, [log]);
+
     useEffect(
         () =>
             router.on('location', (event) => {

@@ -43,7 +43,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 - People search: find developers by name or GitHub username (⌘K). Commits are not searchable.
 - Public read API and Atom feeds: read-only, so nothing can be created, starred, or followed through them, and there are no API tokens. Lists are cursor-paginated, 20 per page.
 - Deliberately excluded for now: likes/reactions, reposts, images/media, hashtags, searching commits, DMs, other OAuth providers, a write API or API tokens, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
-- Open: handling GitHub username renames that collide with a stale username.
+- GitHub username renames: signing in takes the current GitHub username. If a stale account still holds it because its owner renamed on GitHub, that account moves to a `_renamed-<github id>` placeholder until its owner signs in again. Accounts are never merged.
 
 ## Brand Commitments
 
