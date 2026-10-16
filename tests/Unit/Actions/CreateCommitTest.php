@@ -113,6 +113,31 @@ it('attaches a link preview for the first url in the body', function (): void {
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
 });
 
+it('attaches a link preview for the chosen url in the body', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Shipped https://example.com/first and https://example.com/second', linkPreview: 'https://example.com/second');
+
+    expect($commit->refresh()->linkPreview->url)->toBe('https://example.com/second');
+
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+});
+
+it('attaches no link preview when the author chose none', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Shipped https://example.com/first', linkPreview: false);
+
+    expect($commit->refresh()->link_preview_id)->toBeNull()
+        ->and(LinkPreview::query()->count())->toBe(0);
+
+    Queue::assertNothingPushed();
+});
+
 it('attaches a link preview for a bare domain', function (): void {
     Queue::fake();
 
@@ -267,4 +292,17 @@ it('rejects spam as soon as it is committed', function (): void {
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Buy 1,000 GitHub stars for $5');
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Rejected);
+});
+
+it('evaluates a commit even when its author omits the link card', function (): void {
+    Queue::fake();
+    config(['services.typesafe.key' => 'test-key', 'services.typesafe.enabled' => true]);
+    ModerationRule::factory()->create();
+
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at https://example.com', linkPreview: false);
+
+    expect($commit->link_preview_id)->toBeNull();
+
+    Queue::assertPushed(EvaluateCommitJob::class, fn (EvaluateCommitJob $job): bool => $job->commit->is($commit));
+    Queue::assertNotPushed(UnfurlLink::class);
 });

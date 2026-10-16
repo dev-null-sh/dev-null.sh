@@ -119,3 +119,26 @@ it('does not evaluate a series when automatic moderation does not apply', functi
     'without a key' => [['services.typesafe.key' => ''], 'octocat'],
     'for admins' => [[], 'admin'],
 ]);
+
+it('evaluates a series after fetching only the link cards its author chose', function (): void {
+    Queue::fake();
+    config(['services.typesafe.key' => 'test-key', 'services.typesafe.enabled' => true]);
+    ModerationRule::factory()->create();
+
+    $parts = resolve(CreateCommitSeries::class)->handle(User::factory()->create(), [
+        'First part at https://example.com/first and https://example.com/chosen',
+        'Second part at https://example.com/omitted',
+        'Third part at https://example.com/third',
+    ], linkPreviews: [0 => 'https://example.com/chosen', 1 => false]);
+
+    expect($parts[0]->linkPreview?->url)->toBe('https://example.com/chosen')
+        ->and($parts[1]->link_preview_id)->toBeNull()
+        ->and($parts[2]->linkPreview?->url)->toBe('https://example.com/third');
+
+    Queue::assertPushedWithChain(UnfurlLink::class, [
+        new UnfurlLink($parts[2]->linkPreview),
+        new EvaluateCommitJob($parts[0]),
+    ], fn (UnfurlLink $job): bool => $job->linkPreview->is($parts[0]->linkPreview));
+    Queue::assertPushed(UnfurlLink::class, 1);
+    Queue::assertNotPushed(EvaluateCommitJob::class);
+});
