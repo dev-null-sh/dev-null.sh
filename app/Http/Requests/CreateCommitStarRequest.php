@@ -6,11 +6,15 @@ namespace App\Http\Requests;
 
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class CreateCommitStarRequest extends FormRequest
 {
-    public function authorize(): bool
+    /**
+     * Stars tell authors that others liked their commit, so authors may not star their own.
+     */
+    public function authorize(): Response
     {
         $user = $this->user();
         assert($user instanceof User);
@@ -18,7 +22,11 @@ final class CreateCommitStarRequest extends FormRequest
         $commit = $this->route('commit');
         assert($commit instanceof Commit);
 
-        return $commit->isVisibleTo($user);
+        return match (true) {
+            $commit->user_id === $user->id => Response::deny(__('You cannot star your own commit.')),
+            $commit->isVisibleTo($user) => Response::allow(),
+            default => Response::deny(),
+        };
     }
 
     /**

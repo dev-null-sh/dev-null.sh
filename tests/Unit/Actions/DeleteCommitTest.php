@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Actions\DeleteCommit;
+use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\Storage;
 
 it('may delete a commit', function (): void {
@@ -60,4 +62,15 @@ it('removes the reports on a deleted commit and keeps the reports on its replies
 
     expect(CommitReport::query()->pluck('id')->sort()->values()->all())
         ->toBe(collect([$replyReport->id, $quoteReport->id])->sort()->values()->all());
+});
+
+it('lowers the thread when a reply is deleted', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
+
+    resolve(DeleteCommit::class)->handle($reply);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
 });

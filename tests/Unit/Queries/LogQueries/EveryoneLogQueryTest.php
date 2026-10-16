@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LogQueries\EveryoneLogQuery;
@@ -72,4 +73,15 @@ it('leaves out commits by muted people and across blocks', function (): void {
     $commits = resolve(EveryoneLogQuery::class)->builder($user)->get();
 
     expect($commits->modelKeys())->toBe([$visible->id]);
+});
+
+it('ranks commits that draw stars and replies above newer ones', function (): void {
+    $starred = Commit::factory()->create(['created_at' => now()->subHours(3)]);
+    $starred->stars()->attach(User::factory()->create());
+    $newer = Commit::factory()->create();
+    resolve(UpdateCommitHotScores::class)->handle([$starred->id]);
+
+    $commits = resolve(EveryoneLogQuery::class)->builder(User::factory()->create())->get();
+
+    expect($commits->modelKeys())->toBe([$starred->id, $newer->id]);
 });
