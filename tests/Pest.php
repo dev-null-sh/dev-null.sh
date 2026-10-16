@@ -55,6 +55,15 @@ function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []
     ]);
 }
 
+function fakeGitHubSponsorsListing(?bool $isPublic = null): void
+{
+    Http::fake([
+        'api.github.com/graphql' => Http::response(['data' => ['viewer' => [
+            'sponsorsListing' => $isPublic === null ? null : ['isPublic' => $isPublic],
+        ]]]),
+    ]);
+}
+
 /**
  * @return array{payload: string, signature: string}
  */

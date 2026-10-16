@@ -31,6 +31,7 @@ it('renders a user profile', function (): void {
             ->where('user.commits_count', 2)
             ->where('user.followers_count', 1)
             ->where('user.following_count', 2)
+            ->where('user.has_sponsors_listing', false)
             ->missing('user.email')
             ->missing('user.github_id')
             ->where('isFollowing', true)
@@ -40,6 +41,17 @@ it('renders a user profile', function (): void {
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('renders whether the user can be sponsored on github', function (): void {
+    $user = User::factory()->create(['has_sponsors_listing' => true]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('user.has_sponsors_listing', true));
 });
 
 it('does not count the user relations or activity when reloading only commits', function (string $tab): void {
