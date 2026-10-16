@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\ThrottleCommits;
 use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Support\SessionKey;
 
@@ -16,18 +18,13 @@ it('limits each user to 10 commits a minute', function (): void {
     $request = Request::create('/commits', 'POST');
     $request->setUserResolver(fn (): User => $user);
 
-    $limiter = RateLimiter::limiter('commits');
+    $middleware = new ThrottleCommits;
 
-    assert($limiter instanceof Closure);
+    for ($attempt = 0; $attempt < 10; $attempt++) {
+        expect($middleware->handle($request, fn (): Response => response('Committed'))->getContent())->toBe('Committed');
+    }
 
-    $limit = $limiter($request);
-
-    expect($limit)->toBeInstanceOf(Limit::class)
-        ->and($limit->key)->toBe($user->id)
-        ->and($limit->maxAttempts)->toBe(10)
-        ->and($limit->decaySeconds)->toBe(60);
-
-    $response = ($limit->responseCallback)($request, ['Retry-After' => 60]);
+    $response = $middleware->handle($request, fn (): Response => response('Committed'));
 
     expect($response)->toBeInstanceOf(RedirectResponse::class)
         ->and(session(SessionKey::FLASH_DATA))->toBe([
@@ -44,11 +41,9 @@ it('tells json requests to slow down without flashing', function (): void {
     $request = Request::create('/commits/01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3/replies', 'POST', server: ['HTTP_ACCEPT' => 'application/json']);
     $request->setUserResolver(fn (): User => $user);
 
-    $limiter = RateLimiter::limiter('commits');
+    RateLimiter::increment("commits:{$user->id}", 60, 10);
 
-    assert($limiter instanceof Closure);
-
-    $response = ($limiter($request)->responseCallback)($request, ['Retry-After' => 60]);
+    $response = new ThrottleCommits()->handle($request, fn (): Response => response('Committed'));
 
     expect($response)->toBeInstanceOf(JsonResponse::class)
         ->and($response->getStatusCode())->toBe(429)

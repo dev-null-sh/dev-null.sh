@@ -30,6 +30,9 @@ export type Commit = {
     body: string;
     body_segments: BodySegment[];
     status: CommitStatus;
+    series_id: string | null;
+    series_position: number | null;
+    series_size: number | null;
     created_at: string;
     updated_at: string;
     deleted_at?: null;
@@ -41,6 +44,7 @@ export type Commit = {
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
     images?: CommitImage[];
+    series_parts?: Commit[];
 };
 
 export type DeletedCommit = {
@@ -48,6 +52,8 @@ export type DeletedCommit = {
     parent_id: string | null;
     deleted_at: string;
     replies_count?: number;
+    series_position?: number;
+    series_size?: number;
 };
 
 export type ThreadCommit = Commit | DeletedCommit;

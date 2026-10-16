@@ -22,6 +22,9 @@ test('to array', function (): void {
             'parent_id',
             'deleted_at',
             'link_preview_id',
+            'series_id',
+            'series_position',
+            'series_size',
             'body_segments',
         ]);
 });
