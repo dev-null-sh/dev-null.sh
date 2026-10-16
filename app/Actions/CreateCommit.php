@@ -24,6 +24,7 @@ final readonly class CreateCommit
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
         private CreateCommitImages $createCommitImages,
+        private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TheAlgorithm $theAlgorithm,
         private EmojiShortcodes $emojiShortcodes,
@@ -77,6 +78,7 @@ final readonly class CreateCommit
                 dispatch(new UnfurlLink($linkPreview));
             }
 
+            $this->createWorldReply->handle($commit);
             if ($commit->status === CommitStatus::Pending && filled(config('services.openai.key'))) {
                 dispatch(new ModerateCommit($commit))->afterCommit();
             }

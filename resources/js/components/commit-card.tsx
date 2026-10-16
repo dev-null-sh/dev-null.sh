@@ -19,6 +19,7 @@ import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
+import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import {
     cn,
     formatFullDateTime,
@@ -65,7 +66,10 @@ export function CommitCard({
     threadActions?: ReactNode;
     isSeriesExpanded?: boolean;
 }) {
-    const { auth } = usePage().props;
+    const {
+        props: { auth },
+        component,
+    } = usePage();
     const now = useNow();
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const thread = useThread(commit, initialReplies);
@@ -94,7 +98,7 @@ export function CommitCard({
         window.setTimeout(
             () =>
                 router.visit(CommitController.destroy(commit), {
-                    preserveScroll: true,
+                    ...commitMutationOptions(component),
                     onError: () => setDeletion('idle'),
                 }),
             prefersReducedMotion ? 0 : 700,
@@ -382,7 +386,8 @@ export function CommitCard({
                                     className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
                                 >
                                     <span className="mr-auto">
-                                        Delete this commit? There's no undo.
+                                        Delete this commit? You can undo for 30
+                                        seconds.
                                     </span>
                                     <Button
                                         variant="ghost"
