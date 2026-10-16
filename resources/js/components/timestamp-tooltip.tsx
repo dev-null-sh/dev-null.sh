@@ -42,10 +42,10 @@ function ZonedTimes({ date, author }: { date: string; author: User }) {
     const columns = [
         {
             who: 'You',
-            lane: auth.user.lane,
-            timeZone: auth.user.timezone ?? browserTimeZone(),
+            lane: auth.user?.lane,
+            timeZone: auth.user?.timezone ?? browserTimeZone(),
         },
-        ...(author.timezone !== null && author.id !== auth.user.id
+        ...(author.timezone !== null && author.id !== auth.user?.id
             ? [
                   {
                       who: author.name.split(' ')[0],
@@ -66,7 +66,12 @@ function ZonedTimes({ date, author }: { date: string; author: User }) {
                     key={column.who}
                     className="border-t-2 border-t-(--lane) px-2.5 py-1.5 whitespace-nowrap"
                     style={
-                        { '--lane': laneColor(column.lane) } as CSSProperties
+                        {
+                            '--lane':
+                                column.lane === undefined
+                                    ? 'var(--rail)'
+                                    : laneColor(column.lane),
+                        } as CSSProperties
                     }
                 >
                     <p className="text-[11px] text-muted-foreground">

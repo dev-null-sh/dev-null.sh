@@ -5,7 +5,7 @@ import {
     ComboboxOption,
     ComboboxOptions,
 } from '@headlessui/react';
-import { Form, usePage } from '@inertiajs/react';
+import { Form } from '@inertiajs/react';
 import type { TimeZone } from '@vvo/tzdb';
 import { getTimeZones } from '@vvo/tzdb';
 import { Check, ChevronsUpDown } from 'lucide-react';
@@ -14,6 +14,7 @@ import UserTimezoneController from '@/actions/App/Http/Controllers/UserTimezoneC
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { useUser } from '@/hooks/use-user';
 import { browserTimeZone } from '@/lib/utils';
 
 const timeZones = getTimeZones();
@@ -46,8 +47,8 @@ function matches(timeZone: TimeZone, query: string): boolean {
 }
 
 export default function TimezonePicker() {
-    const { auth } = usePage().props;
-    const [selected, setSelected] = useState<string | null>(auth.user.timezone);
+    const { user } = useUser();
+    const [selected, setSelected] = useState<string | null>(user.timezone);
     const [query, setQuery] = useState('');
     const detected = useSyncExternalStore(
         subscribe,
@@ -179,9 +180,7 @@ export default function TimezonePicker() {
                         <Button
                             type="submit"
                             className="mt-5"
-                            disabled={
-                                processing || selected === auth.user.timezone
-                            }
+                            disabled={processing || selected === user.timezone}
                             data-test="save-timezone-button"
                         >
                             Save timezone
