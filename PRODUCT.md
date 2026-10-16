@@ -44,7 +44,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 - Moderation queue (admins only): admins approve or reject pending commits, oldest first. Rejection reasons are shared templates every admin can create, edit, and delete; picking one (click, or `1`–`9` on the focused commit) prefills the editable reason. Focusing or acting on a commit claims it for 5 minutes, one claim per admin; other admins see who holds it and cannot approve or reject it until it expires or they take it over explicitly. Every approval and rejection is logged with the admin and time, listed newest first under Decisions and shown on the commit's page to admins.
 - Public read API and Atom feeds: read-only, so nothing can be created, starred, or followed through them, and there are no API tokens. Lists are cursor-paginated, 20 per page.
 - Deliberately excluded for now: likes/reactions, reposts, images/media, hashtags, searching commits, DMs, other OAuth providers, a write API or API tokens, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
-- Open: handling GitHub username renames that collide with a stale username.
+- GitHub username renames: signing in takes the current GitHub username. If a stale account still holds it because its owner renamed on GitHub, that account moves to a `_renamed-<github id>` placeholder until its owner signs in again. Accounts are never merged.
 
 ## Brand Commitments
 
