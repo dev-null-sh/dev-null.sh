@@ -137,7 +137,9 @@ test('restores series images, preserves them through part edits, and drops the c
         const reply = useStash('author', 'reply-parent');
         assert.deepEqual(reply.images, [image]);
         assert.equal(reply.isRestored, true);
+        assert.equal(useHasStash('author', 'reply-parent'), true);
         assert.equal(useHasStash('another', 'commit'), true);
+        assert.equal(useHasStash(null, 'reply-parent'), false);
 
         clearStashes('author');
         assert.equal(useHasStash('author', 'reply-parent'), false);

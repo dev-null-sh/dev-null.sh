@@ -19,6 +19,7 @@ test('to array', function (): void {
             'created_at',
             'updated_at',
             'reason',
+            'subject_id',
         ]);
 });
 
@@ -36,4 +37,12 @@ it('may point to a reply', function (): void {
     expect($notification->type)->toBe(NotificationType::Replied)
         ->and($notification->commit->user_id)->toBe($notification->actor_id)
         ->and($notification->commit->parent->user_id)->toBe($notification->recipient_id);
+});
+
+it('may point to a starred commit', function (): void {
+    $notification = Notification::factory()->starred()->create();
+
+    expect($notification->type)->toBe(NotificationType::Starred)
+        ->and($notification->commit->user_id)->toBe($notification->recipient_id)
+        ->and($notification->actor->hasStarred($notification->commit))->toBeTrue();
 });

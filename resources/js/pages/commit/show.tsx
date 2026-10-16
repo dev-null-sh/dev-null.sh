@@ -1,10 +1,11 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import AppLayout from '@/layouts/app-layout';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
+import { home } from '@/routes';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 const titleLength = 60;
@@ -20,6 +21,7 @@ export default function Show({
     series: ThreadCommit[];
     replies: CursorPaginated<ThreadCommit> | null;
 }) {
+    const { auth } = usePage().props;
     const excerpt =
         commit.body.length > titleLength
             ? `${commit.body.slice(0, titleLength).trimEnd()}…`
@@ -32,7 +34,7 @@ export default function Show({
             return;
         }
 
-        router.visit(LogController.show('following'));
+        router.visit(auth.log === null ? home() : LogController.show(auth.log));
     };
 
     const lastAncestor = ancestors.at(-1);
@@ -59,8 +61,8 @@ export default function Show({
             </div>
 
             {ancestors.map((ancestor, index) => {
-                const previousLane =
-                    index > 0 ? laneOf(ancestors[index - 1]) : undefined;
+                const previous = ancestors[index - 1];
+                const previousLane = previous ? laneOf(previous) : undefined;
 
                 return isDeleted(ancestor) ? (
                     <CommitTombstone
@@ -73,6 +75,7 @@ export default function Show({
                         key={ancestor.id}
                         commit={ancestor}
                         previousLane={previousLane}
+                        isGroupedWithPrevious={isSameAuthor(previous, ancestor)}
                         canDelete={isSeries}
                         isSeriesExpanded
                     />
@@ -83,13 +86,15 @@ export default function Show({
                 key={commit.id}
                 commit={commit}
                 previousLane={lastAncestor ? laneOf(lastAncestor) : undefined}
+                isGroupedWithPrevious={isSameAuthor(lastAncestor, commit)}
                 initialReplies={replies ?? undefined}
                 isFocused
                 isSeriesExpanded
             />
 
             {series.map((part, index) => {
-                const previousLane = laneOf(series[index - 1] ?? commit);
+                const previous = series[index - 1] ?? commit;
+                const previousLane = laneOf(previous);
 
                 return isDeleted(part) ? (
                     <CommitTombstone
@@ -102,11 +107,23 @@ export default function Show({
                         key={part.id}
                         commit={part}
                         previousLane={previousLane}
+                        isGroupedWithPrevious={isSameAuthor(previous, part)}
                         isSeriesExpanded
                     />
                 );
             })}
         </>
+    );
+}
+
+function isSameAuthor(
+    previous: ThreadCommit | undefined,
+    commit: Commit,
+): boolean {
+    return (
+        previous !== undefined &&
+        !isDeleted(previous) &&
+        previous.user_id === commit.user_id
     );
 }
 

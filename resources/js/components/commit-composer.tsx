@@ -1,4 +1,4 @@
-import { Form, usePage } from '@inertiajs/react';
+import { Form } from '@inertiajs/react';
 import { Plus, X } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -9,14 +9,14 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
-import { GraphRail } from '@/components/graph-rail';
+import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/user-avatar';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
+import { useUser } from '@/hooks/use-user';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
@@ -61,7 +61,7 @@ function RemainingCount({ id, body }: { id: string; body: string }) {
 }
 
 export function CommitComposer() {
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const {
         bodies,
         images,
@@ -71,7 +71,7 @@ export function CommitComposer() {
         insertPart,
         removePart,
         drop,
-    } = useSeriesStash(auth.user.id, 'commit');
+    } = useSeriesStash(user.id, 'commit');
     const attachments = useImageAttachments(images, updateImages);
 
     const isSeries = bodies.length > 1;
@@ -158,6 +158,7 @@ export function CommitComposer() {
                     {bodies.map((body, index) => {
                         const id = partId(index);
                         const isLast = index === bodies.length - 1;
+                        const isFilled = body.trim().length >= minBodyLength;
                         const suggestion = suggestEmoji(body);
                         const error =
                             errors[`bodies.${index}`] ??
@@ -170,34 +171,28 @@ export function CommitComposer() {
                                 data-test="commit-composer-part"
                             >
                                 <GraphRail
-                                    lane={laneColor(auth.user.lane)}
+                                    lane={laneColor(user.lane)}
                                     previousLane={
                                         index > 0 ? 'var(--rail)' : undefined
                                     }
                                     variant="staged"
-                                    isFilled={
-                                        body.trim().length >= minBodyLength
+                                    isFilled={isFilled}
+                                    node={
+                                        index === 0 ? (
+                                            <RailAvatar
+                                                user={user}
+                                                isStaged={!isFilled}
+                                            />
+                                        ) : undefined
                                     }
                                 />
 
                                 <div
                                     className={cn(
-                                        'flex min-w-0 flex-1 gap-3 pt-3 pr-4',
+                                        'flex min-w-0 flex-1 pt-3 pr-4',
                                         { 'border-b pb-3': isLast },
                                     )}
                                 >
-                                    {index === 0 ? (
-                                        <UserAvatar
-                                            user={auth.user}
-                                            className="hidden size-10 sm:flex"
-                                        />
-                                    ) : (
-                                        <span
-                                            aria-hidden
-                                            className="hidden size-10 shrink-0 sm:block"
-                                        />
-                                    )}
-
                                     <div className="min-w-0 flex-1">
                                         <label htmlFor={id} className="sr-only">
                                             {isSeries
