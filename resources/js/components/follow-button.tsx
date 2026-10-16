@@ -1,16 +1,56 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
 import type { ComponentProps } from 'react';
+import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { User } from '@/types';
+
+/**
+ * The pointer is still on the button right after a follow, so it keeps saying "Following" until the pointer leaves instead of flipping to a red "Unfollow".
+ */
+export function useFollowHover() {
+    const [isJustToggled, setIsJustToggled] = useState(false);
+
+    return {
+        isJustToggled,
+        markToggled: () => setIsJustToggled(true),
+        onMouseLeave: () => setIsJustToggled(false),
+    };
+}
+
+export function FollowLabel({
+    isFollowing,
+    isJustToggled,
+}: {
+    isFollowing: boolean;
+    isJustToggled: boolean;
+}) {
+    if (!isFollowing) {
+        return 'Follow';
+    }
+
+    if (isJustToggled) {
+        return 'Following';
+    }
+
+    return (
+        <>
+            <span className="group-hover/follow:hidden">Following</span>
+            <span className="hidden text-destructive group-hover/follow:inline">
+                Unfollow
+            </span>
+        </>
+    );
+}
 
 export function FollowButton({
     user,
     isFollowing,
     size,
     className,
+    onClick,
     ...props
 }: {
     user: Pick<User, 'username'>;
@@ -18,6 +58,8 @@ export function FollowButton({
     size?: ComponentProps<typeof Button>['size'];
     className?: string;
 } & Omit<InertiaLinkProps, 'href' | 'as' | 'method' | 'size' | 'className'>) {
+    const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
+
     return (
         <Button
             variant={isFollowing ? 'outline' : 'default'}
@@ -39,20 +81,17 @@ export function FollowButton({
                         : `Follow @${user.username}`
                 }
                 data-test="follow-button"
+                onClick={(event) => {
+                    markToggled();
+                    onClick?.(event);
+                }}
+                onMouseLeave={onMouseLeave}
                 {...props}
             >
-                {isFollowing ? (
-                    <>
-                        <span className="group-hover/follow:hidden">
-                            Following
-                        </span>
-                        <span className="hidden text-destructive group-hover/follow:inline">
-                            Unfollow
-                        </span>
-                    </>
-                ) : (
-                    'Follow'
-                )}
+                <FollowLabel
+                    isFollowing={isFollowing}
+                    isJustToggled={isJustToggled}
+                />
             </Link>
         </Button>
     );

@@ -4,6 +4,7 @@ import { AppAside } from '@/components/app-aside';
 import { AppNav, MobileHeader, MobileNav } from '@/components/app-nav';
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
+import { LiveStreamBanner } from '@/components/live-stream';
 import { UserSearchDialog } from '@/components/user-search-dialog';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import type { AppLayoutProps } from '@/types';
@@ -18,30 +19,37 @@ export default function AppLayout({ children }: AppLayoutProps) {
     useKeyboardShortcuts(auth.user, showShortcuts, openSearch);
 
     return (
-        <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
-            <AppNav onSearch={openSearch} />
+        <>
+            <LiveStreamBanner />
 
-            <main className="min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0">
-                <MobileHeader onSearch={openSearch} />
-                {children}
-            </main>
+            <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
+                <AppNav onSearch={openSearch} />
 
-            <AppAside onShowShortcuts={showShortcuts} onSearch={openSearch} />
+                <main className="min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0">
+                    <MobileHeader onSearch={openSearch} />
+                    {children}
+                </main>
 
-            <MobileNav />
+                <AppAside
+                    onShowShortcuts={showShortcuts}
+                    onSearch={openSearch}
+                />
 
-            <CommitImageViewer />
+                <MobileNav />
 
-            <UserSearchDialog
-                open={isSearching}
-                onOpenChange={setIsSearching}
-            />
+                <CommitImageViewer />
 
-            <KeyboardShortcutsDialog
-                open={isShowingShortcuts}
-                onOpenChange={setIsShowingShortcuts}
-                canModerate={auth.isAdmin}
-            />
-        </div>
+                <UserSearchDialog
+                    open={isSearching}
+                    onOpenChange={setIsSearching}
+                />
+
+                <KeyboardShortcutsDialog
+                    open={isShowingShortcuts}
+                    onOpenChange={setIsShowingShortcuts}
+                    canModerate={auth.isAdmin}
+                />
+            </div>
+        </>
     );
 }
