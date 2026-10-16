@@ -25,15 +25,18 @@ final readonly class Jev
      * usernames and timestamps are left out because irrelevant fields move the answers.
      *
      * @param  Collection<int, ModerationRule>  $rules
+     * @param  list<array{body: string, linkPreview: LinkPreview|null}>  $seriesParts
      *
      * @throws ConnectionException|RequestException|UnexpectedValueException
      */
-    public function run(Collection $rules, string $body, ?string $parentBody = null, ?LinkPreview $linkPreview = null): ModerationRun
+    public function run(Collection $rules, string $body, ?string $parentBody = null, ?LinkPreview $linkPreview = null, array $seriesParts = []): ModerationRun
     {
         $startedAt = hrtime(true);
 
         $answers = $this->typeSafe->ask(
-            $this->state($body, $parentBody, $linkPreview),
+            $seriesParts === [] ? $this->state($body, $parentBody, $linkPreview) : ['commit' => [
+                'parts' => array_map(fn (array $part): array => $this->state($part['body'], null, $part['linkPreview'])['commit'], $seriesParts),
+            ]],
             $rules->mapWithKeys(fn (ModerationRule $rule): array => [$this->key($rule) => $this->question($rule)])->all(),
         );
 

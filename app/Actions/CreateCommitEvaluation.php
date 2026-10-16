@@ -39,6 +39,20 @@ final readonly class CreateCommitEvaluation
             return null;
         }
 
+        $seriesParts = [];
+
+        if ($commit->series_id !== null) {
+            $parts = $commit->seriesParts()->with('linkPreview')->oldest('series_position')->get();
+            $first = $parts->first();
+
+            if (! $first instanceof Commit || $first->status !== CommitStatus::Pending) {
+                return null;
+            }
+
+            $commit = $first;
+            $seriesParts = array_values($parts->map(fn (Commit $part): array => ['body' => $part->body, 'linkPreview' => $part->linkPreview])->all());
+        }
+
         $rules = ModerationRule::query()->active()->ordered()->get();
 
         if ($rules->isEmpty()) {
@@ -46,7 +60,7 @@ final readonly class CreateCommitEvaluation
         }
 
         try {
-            $run = $this->jev->run($rules, $commit->body, $commit->parent?->body, $commit->linkPreview);
+            $run = $this->jev->run($rules, $commit->body, $commit->parent?->body, $commit->linkPreview, $seriesParts);
         } catch (ConnectionException|RequestException|UnexpectedValueException $exception) {
             report($exception);
 

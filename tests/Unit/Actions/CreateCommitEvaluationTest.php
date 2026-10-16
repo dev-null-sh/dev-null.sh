@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitEvaluation;
+use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Enums\EvaluationDecision;
 use App\Enums\NotificationType;
@@ -227,4 +228,79 @@ it('judges a reply to a deleted commit on its own', function (): void {
     resolve(CreateCommitEvaluation::class)->handle($reply->refresh());
 
     Http::assertSent(fn (Request $request): bool => $request['state'] === ['commit' => ['body' => 'Nobody asked.']]);
+});
+
+it('judges every part of a series together and records the decision under its first part', function (float $probability, CommitStatus $status): void {
+    $parts = commitSeries(status: CommitStatus::Pending);
+    $preview = LinkPreview::factory()->fetched()->create(['url' => 'https://example.com', 'title' => 'Example', 'description' => null, 'site_name' => null]);
+    $parts[2]->update(['link_preview_id' => $preview->id]);
+    $friendly = ModerationRule::factory()->approving()->create();
+
+    fakeJev(["rule_{$friendly->id}" => $probability]);
+
+    $evaluation = resolve(CreateCommitEvaluation::class)->handle($parts[1]);
+
+    expect($evaluation->commit_id)->toBe($parts[0]->id)
+        ->and(Commit::query()->whereKey($parts->modelKeys())->pluck('status')->unique()->all())->toBe([$status])
+        ->and(CommitEvaluation::query()->count())->toBe(1)
+        ->and(Notification::query()->count())->toBe($status === CommitStatus::Approved ? 1 : 0);
+
+    Http::assertSent(fn (Request $request): bool => $request['state'] === ['commit' => ['parts' => [
+        ['body' => $parts[0]->body],
+        ['body' => $parts[1]->body],
+        ['body' => $parts[2]->body, 'link' => ['url' => 'https://example.com', 'title' => 'Example']],
+    ]]]);
+})->with([
+    'approved' => [0.99, CommitStatus::Approved],
+    'uncertain' => [0.1, CommitStatus::Pending],
+]);
+
+it('rejects the whole series when a later part matches a live reject rule', function (): void {
+    $parts = commitSeries(status: CommitStatus::Pending);
+    $parts[2]->update(['body' => 'Buy 1,000 GitHub stars for $5']);
+    $spam = ModerationRule::factory()->create();
+
+    Http::fake(function (Request $request) use ($spam) {
+        $body = $request['state']['commit']['parts'][2]['body'] ?? '';
+
+        return Http::response(jevAnswers(["rule_{$spam->id}" => str_contains($body, 'Buy 1,000') ? 0.99 : 0.01]));
+    });
+
+    resolve(CreateCommitEvaluation::class)->handle($parts[0]);
+
+    expect(Commit::query()->whereKey($parts->modelKeys())->pluck('status')->unique()->all())->toBe([CommitStatus::Rejected])
+        ->and(Notification::query()->sole())
+        ->commit_id->toBe($parts[0]->id)
+        ->reason->toBe('This looks like spam or self-promotion.');
+});
+
+it('leaves a series pending when jev cannot answer', function (): void {
+    Exceptions::fake();
+    $parts = commitSeries(status: CommitStatus::Pending);
+    ModerationRule::factory()->create();
+    Http::fake(['api.typesafe.ai/*' => Http::response(jevAnswers([]))]);
+
+    $evaluation = resolve(CreateCommitEvaluation::class)->handle($parts[0]);
+
+    expect($evaluation->decision)->toBe(EvaluationDecision::Failed)
+        ->and($parts->fresh()->pluck('status')->unique()->all())->toBe([CommitStatus::Pending])
+        ->and(Notification::query()->count())->toBe(0);
+});
+
+it('preserves a moderator decision on a series while jev is thinking', function (): void {
+    $parts = commitSeries(status: CommitStatus::Pending);
+    $spam = ModerationRule::factory()->create();
+
+    Http::fake(function () use ($parts, $spam) {
+        resolve(UpdateCommitStatuses::class)->handle([$parts[2]->id], CommitStatus::Approved);
+
+        return Http::response(jevAnswers(["rule_{$spam->id}" => 0.99]));
+    });
+
+    $evaluation = resolve(CreateCommitEvaluation::class)->handle($parts[0]);
+
+    expect($evaluation)->toBeNull()
+        ->and($parts->fresh()->pluck('status')->unique()->all())->toBe([CommitStatus::Approved])
+        ->and(CommitEvaluation::query()->count())->toBe(0)
+        ->and(Notification::query()->sole()->type)->toBe(NotificationType::Approved);
 });

@@ -6,9 +6,10 @@ import UserFollowController from '@/actions/App/Http/Controllers/UserFollowContr
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import UserPreviewController from '@/actions/App/Http/Controllers/UserPreviewController';
+import { FollowLabel, useFollowHover } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
-import { cn, laneColor } from '@/lib/utils';
+import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Profile, User } from '@/types';
 
@@ -182,6 +183,8 @@ function UserPreviewContent({
     const isCurrentUser = auth.user.id === user.id;
     const lane = laneColor(user.lane);
 
+    const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
+
     const toggleFollow = () => {
         if (!data) {
             return;
@@ -228,7 +231,11 @@ function UserPreviewContent({
                             size="sm"
                             variant={data.isFollowing ? 'outline' : 'default'}
                             className="group/follow min-w-24"
-                            onClick={toggleFollow}
+                            onClick={() => {
+                                markToggled();
+                                toggleFollow();
+                            }}
+                            onMouseLeave={onMouseLeave}
                             aria-label={
                                 data.isFollowing
                                     ? `Unfollow @${user.username}`
@@ -236,21 +243,13 @@ function UserPreviewContent({
                             }
                             data-test="user-preview-follow-button"
                         >
-                            {data.isFollowing ? (
-                                <>
-                                    <span className="group-hover/follow:hidden">
-                                        Following
-                                    </span>
-                                    <span className="hidden text-destructive group-hover/follow:inline">
-                                        Unfollow
-                                    </span>
-                                </>
-                            ) : (
-                                'Follow'
-                            )}
+                            <FollowLabel
+                                isFollowing={data.isFollowing}
+                                isJustToggled={isJustToggled}
+                            />
                         </Button>
                     ) : (
-                        <span className="h-8 w-24 rounded-md bg-muted motion-safe:animate-pulse" />
+                        <span className="h-8 w-24 rounded-md bg-muted-foreground/15 motion-safe:animate-pulse" />
                     ))}
             </div>
 
@@ -318,11 +317,7 @@ function UserPreviewContent({
                         </Link>
                     </>
                 ) : (
-                    <span
-                        className={cn(
-                            'h-4 w-48 rounded bg-muted motion-safe:animate-pulse',
-                        )}
-                    />
+                    <span className="my-0.5 h-4 w-48 rounded bg-muted-foreground/15 motion-safe:animate-pulse" />
                 )}
             </div>
         </div>

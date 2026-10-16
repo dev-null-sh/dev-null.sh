@@ -40,3 +40,17 @@ it('may not reopen commits as a non admin', function (): void {
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Rejected);
 });
+
+it('reopens every part of a series and removes its moderation notification', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    $parts = commitSeries(status: CommitStatus::Rejected);
+    Notification::factory()->create(['type' => NotificationType::Rejected, 'commit_id' => $parts[0]->id]);
+
+    $this->actingAs($admin)
+        ->fromRoute('auto-moderated-commit.index')
+        ->post(route('commit-reopening.store', $parts[2]))
+        ->assertRedirectToRoute('auto-moderated-commit.index');
+
+    expect($parts->fresh()->pluck('status')->unique()->all())->toBe([CommitStatus::Pending])
+        ->and(Notification::query()->count())->toBe(0);
+});

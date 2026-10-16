@@ -190,3 +190,47 @@ it('skips urls in code', function (): void {
         ->toBe('https://laravel.com')
         ->and($urls->first('only `https://example.com` here'))->toBeNull();
 });
+
+it('shortens urls for display', function (string $url, string $shortened): void {
+    $urls = resolve(Urls::class);
+
+    expect($urls->shorten($url))->toBe($shortened);
+})->with([
+    'long query' => ['https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr+state%3Aopen+author%3AxHeaven', 'github.com/nunomaduro/dev-nul…'],
+    'long path' => ['https://laravel.com/docs/13.x/eloquent-relationships#one-to-many-polymorphic-relations', 'laravel.com/docs/13.x/eloquent…'],
+    'www' => ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG', 'youtube.com/watch?v=dQw4w9WgXc…'],
+    'port' => ['http://localhost:8000/telescope/requests/9d1f3c2a-1b2c-4d5e-8f90', 'localhost:8000/telescope/requests…'],
+    'unicode host' => ['https://münchen.de/rathaus/öffnungszeiten-und-adressen/stadtverwaltung', 'münchen.de/rathaus/öffnungsze…'],
+    'unicode path' => ['https://ja.wikipedia.org/wiki/東京都の観光地一覧と歴史的建造物', 'ja.wikipedia.org/wiki/東京都の観光地一覧と歴史的…'],
+    'cut before a percent sign' => ['https://example.com/abcdefghijklmnopq%3Atail', 'example.com/abcdefghijklmnopq…'],
+    'cut inside a percent sequence' => ['https://example.com/search?q=laravel%2Boctane%2Bfrankenphp', 'example.com/search?q=laravel…'],
+    'brackets' => ['https://en.wikipedia.org/wiki/Laravel_(web_application_framework)', 'en.wikipedia.org/wiki/Laravel_(web_…'],
+    '20 characters after the host' => ['https://example.com/blog/hello-world-20', 'example.com/blog/hello-world-20'],
+    '21 characters after the host' => ['https://example.com/blog/hello-world-021', 'example.com/blog/hello-world-0…'],
+    'host only' => ['https://laravel.com', 'laravel.com'],
+    'short path' => ['https://nativephp.com/docs', 'nativephp.com/docs'],
+    'long host' => ['https://my-service.staging.eu-west-1.elb.amazonaws.com/health', 'my-service.staging.eu-west-1.elb.amazonaws.com/health'],
+    'uppercase' => ['HTTPS://WWW.EXAMPLE.COM/Path/To/Some/Deeply/Nested/Page', 'EXAMPLE.COM/Path/To/Some/Deepl…'],
+    'bare domain' => ['example.com', 'example.com'],
+    'bare domain with a path' => ['nunomaduro.com/talks', 'nunomaduro.com/talks'],
+    'bare www domain' => ['www.php.net/manual/en/function.array-map.php', 'php.net/manual/en/function…'],
+    'www as the domain' => ['https://www.com/about', 'www.com/about'],
+]);
+
+it('shortens the urls in prose', function (): void {
+    $urls = resolve(Urls::class);
+
+    expect($urls->withShortenedUrls('A lot came! https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc. See https://laravel.com'))
+        ->toBe('A lot came! github.com/nunomaduro/dev-nul…. See laravel.com');
+});
+
+it('does not shorten what it would not link', function (string $text): void {
+    $urls = resolve(Urls::class);
+
+    expect($urls->withShortenedUrls($text))->toBe($text);
+})->with([
+    'inline code' => ['run `curl https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc`'],
+    'code block' => ["```\nhttps://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc\n```"],
+    'scheme only' => ['see https:// for details'],
+    'longer than 2048 characters' => ['https://example.com/'.str_repeat('a', 2029)],
+]);
