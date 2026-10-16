@@ -20,6 +20,7 @@ use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
@@ -49,6 +50,9 @@ Route::middleware('guest')->group(function (): void {
 Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
 Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
+Route::get('@{user:username}/feed.atom', [UserFeedController::class, 'show'])
+    ->middleware('cache.headers:public;max_age=300;etag')
+    ->name('user-feed.show');
 
 // Commit, previewed for guests...
 Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
