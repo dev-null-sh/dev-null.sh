@@ -7,6 +7,8 @@ import UserSearchController from '@/actions/App/Http/Controllers/UserSearchContr
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { useKeyLabels } from '@/lib/keyboard';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { User } from '@/types';
@@ -20,10 +22,12 @@ export function UserSearchDialog({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
+    const keys = useKeyLabels();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<User[]>([]);
     const [searched, setSearched] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [failed, setFailed] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
 
     const term = query.trim().replace(/^@/u, '');
@@ -44,10 +48,20 @@ export function UserSearchDialog({
                 },
                 signal: controller.signal,
             })
-                .then((response) => response.json())
+                .then((response) => {
+                    if (!response.ok) {
+                        toastWhenThrottled(response);
+                        setFailed(term);
+
+                        throw new Error('Unable to search users');
+                    }
+
+                    return response.json();
+                })
                 .then((data: { users: User[] }) => {
                     setResults(data.users);
                     setSearched(term);
+                    setFailed('');
                     setActiveIndex(0);
                 })
                 .catch(() => undefined)
@@ -67,6 +81,7 @@ export function UserSearchDialog({
         setQuery('');
         setResults([]);
         setSearched('');
+        setFailed('');
     };
 
     const openProfile = (user: User) => {
@@ -229,6 +244,10 @@ export function UserSearchDialog({
                                 <span className="font-mono text-[13px]">
                                     fatal: no developers match '{term}'
                                 </span>
+                            ) : failed === term && !isLoading ? (
+                                <span className="font-mono text-[13px]">
+                                    error: search failed, try again in a minute
+                                </span>
                             ) : (
                                 'Searching…'
                             )}
@@ -243,7 +262,10 @@ export function UserSearchDialog({
                             <kbd className="font-mono">↵</kbd> to open
                         </span>
                         <span className="ml-auto flex items-center gap-1.5">
-                            <kbd className="font-mono">⌘K</kbd> anywhere
+                            <kbd className="font-mono">
+                                {keys.combo(keys.mod, 'K')}
+                            </kbd>{' '}
+                            anywhere
                         </span>
                     </div>
                 </DialogPrimitive.Content>

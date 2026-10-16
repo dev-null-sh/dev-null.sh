@@ -22,6 +22,8 @@ const draft = {
 vi.doMock('react', () => ({
     ...React,
     useMemo: (factory: () => unknown) => factory(),
+    useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
+        snapshot(),
     useRef: (initial: unknown) => ({ current: initial }),
     useState: (initial: unknown) => [
         initial === false ? true : initial,

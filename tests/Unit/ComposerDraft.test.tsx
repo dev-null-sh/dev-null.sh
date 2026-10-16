@@ -26,6 +26,9 @@ const user = { id: 'viewer', username: 'viewer', lane: 1 };
 vi.doMock('react', () => ({
     ...React,
     useMemo: (factory: () => unknown) => factory(),
+    useId: () => `preview-${cursor++}`,
+    useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
+        snapshot(),
     useRef: (initial: unknown) => {
         const index = cursor++;
         if (!(index in state)) {
@@ -50,6 +53,7 @@ vi.doMock('react', () => ({
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
     usePage: () => ({ props: { auth: { user, isAdmin: false } } }),
+    useHttp: () => ({ processing: false, transform: vi.fn(), submit: vi.fn() }),
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
     useUser: () => ({ user }),
@@ -63,6 +67,8 @@ const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
 const { ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
+const { ComposerPreviewBody, PreviewToggle } =
+    await import('../../resources/js/components/composer-preview');
 const { MentionTextarea } =
     await import('../../resources/js/components/mention-textarea');
 const { LinkCardPicker } =
@@ -77,6 +83,12 @@ function elements(node: ReactNode): Element[] {
         return [];
     }
     const element = node as Element;
+    if (typeof element.type === 'function' && element.props.stash === draft) {
+        const renderPart = element.type as (
+            props: typeof element.props,
+        ) => ReactNode;
+        return elements(renderPart(element.props));
+    }
     return [
         element,
         ...React.Children.toArray(element.props.children as ReactNode).flatMap(
@@ -334,6 +346,40 @@ test('retains restored images while sensitive series text requires explicit appr
     assert.equal(form.props.onBefore(), false);
     assert.deepEqual(form.props.transform({ bodies: draft.bodies }), {
         bodies: draft.bodies,
+        images: [image],
+        image_descriptions: ['A restored screenshot'],
+    });
+});
+
+test('previews restored images and descriptions while keeping them attached when returning to edit', () => {
+    draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
+    let view = render();
+    const toggle = view.fields.find(
+        (element) => element.type === PreviewToggle,
+    )!;
+    (toggle.props.preview as { toggle: () => void }).toggle();
+    view = render();
+    const preview = view.fields.find(
+        (element) => element.type === ComposerPreviewBody,
+    )!;
+    assert.deepEqual(preview.props.images, [image]);
+    assert.deepEqual(preview.props.descriptions, ['A restored screenshot']);
+    assert.equal(
+        view.fields.some((element) => element.type === ImagePickerPreviews),
+        false,
+    );
+    assert.equal(draft.updateImages.mock.calls.length, 0);
+    const edit = view.fields.find((element) => element.type === PreviewToggle)!;
+    (edit.props.preview as { toggle: () => void }).toggle();
+    view = render();
+    assert.deepEqual(
+        view.fields.find((element) => element.type === ImagePickerPreviews)!
+            .props.images,
+        [image],
+    );
+    assert.deepEqual(view.form.props.transform({ body: draft.bodies[0] }), {
+        body: draft.bodies[0],
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });

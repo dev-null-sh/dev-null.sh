@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { pickImages } from '@/components/commit-image-picker';
 
 export type UseImageAttachmentsReturn = {
+    readonly images: File[];
+    readonly descriptions: string[];
     readonly error: string | null;
     readonly attach: (files: File[]) => void;
     readonly describe: (index: number, description: string) => void;
@@ -41,6 +43,8 @@ export function useImageAttachments(
     };
 
     return {
+        images,
+        descriptions,
         error,
         attach,
         describe: (index, description) => {

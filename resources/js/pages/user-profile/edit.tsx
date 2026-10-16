@@ -1,29 +1,58 @@
-import { Head, Link } from '@inertiajs/react';
-import { ArrowUpRight, Download } from 'lucide-react';
+import { Form, Head, Link } from '@inertiajs/react';
+import { ArrowUpRight, Download, RefreshCw } from 'lucide-react';
 import ExportController from '@/actions/App/Http/Controllers/ExportController';
+import UserProfileController from '@/actions/App/Http/Controllers/UserProfileController';
 import ActivityGraphEmbed from '@/components/activity-graph-embed';
 import DeleteUser from '@/components/delete-user';
 import { GitHubProfile } from '@/components/github-profile';
 import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import { formatFullDateTime } from '@/lib/utils';
 import { show } from '@/routes/user';
+
+function formatSyncedAgo(date: string, now: Date): string {
+    const seconds = Math.round(
+        (now.getTime() - new Date(date).getTime()) / 1000,
+    );
+
+    if (seconds < 60) {
+        return 'just now';
+    }
+
+    const [value, unit]: [number, Intl.RelativeTimeFormatUnit] =
+        seconds < 3600
+            ? [Math.floor(seconds / 60), 'minute']
+            : seconds < 86400
+              ? [Math.floor(seconds / 3600), 'hour']
+              : [Math.floor(seconds / 86400), 'day'];
+
+    return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
+        -value,
+        unit,
+    );
+}
 
 export default function Edit({
     preferredLane,
     automaticLane,
+    githubSyncedAt,
     activityGraphUrl,
     profileUrl,
 }: {
     preferredLane: number | null;
     automaticLane: number;
+    githubSyncedAt: string | null;
     activityGraphUrl: string;
     profileUrl: string;
 }) {
     const { user } = useUser();
+    const now = useNow();
 
     return (
         <>
@@ -32,7 +61,7 @@ export default function Edit({
             <section className="px-4 py-6 sm:px-6">
                 <Heading
                     title="Profile information"
-                    description="Mirrored from GitHub every time you sign in. To change any of it, change it on GitHub, then sign in again."
+                    description="Mirrored from GitHub when you sign in. To change any of it, change it on GitHub, then sync it here."
                 />
 
                 <GitHubProfile />
@@ -48,10 +77,46 @@ export default function Edit({
                             <ArrowUpRight />
                         </a>
                     </Button>
+                    <Form
+                        {...UserProfileController.update.form()}
+                        options={{ preserveScroll: true }}
+                    >
+                        {({ processing }) => (
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                disabled={processing}
+                                aria-busy={processing}
+                                data-test="sync-profile-button"
+                            >
+                                {processing ? <Spinner /> : <RefreshCw />}
+                                Sync from GitHub
+                            </Button>
+                        )}
+                    </Form>
                     <Button variant="outline" asChild>
                         <Link href={show(user)}>View profile</Link>
                     </Button>
                 </div>
+
+                <p
+                    className="mt-3 text-sm text-muted-foreground"
+                    aria-live="polite"
+                >
+                    {githubSyncedAt ? (
+                        <>
+                            Last synced{' '}
+                            <time
+                                dateTime={githubSyncedAt}
+                                title={formatFullDateTime(githubSyncedAt)}
+                            >
+                                {formatSyncedAgo(githubSyncedAt, now)}
+                            </time>
+                        </>
+                    ) : (
+                        'Last synced when you signed in'
+                    )}
+                </p>
             </section>
 
             <LanePicker
@@ -74,7 +139,7 @@ export default function Edit({
                     file. Your profile is still managed on GitHub.
                 </p>
                 <Button variant="outline" asChild>
-                    <a href={ExportController.url()} download>
+                    <a href={ExportController.url()}>
                         <Download />
                         Download JSON
                     </a>

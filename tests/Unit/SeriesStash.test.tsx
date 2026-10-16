@@ -322,3 +322,51 @@ test.each(['single', 'series'])(
         }
     },
 );
+
+test.each(['single', 'series'])(
+    '%s drafts release image URLs on replacement, drop and logout while keeping retained images usable',
+    async (kind) => {
+        vi.resetModules();
+        const hooks = await import('../../resources/js/hooks/use-stash');
+        const { objectUrlFor } =
+            await import('../../resources/js/components/commit-image-picker');
+        const first = new File(['first'], 'first.png', { type: 'image/png' });
+        const second = new File(['second'], 'second.png', {
+            type: 'image/png',
+        });
+        const revoke = vi.spyOn(URL, 'revokeObjectURL');
+        state = [];
+        const render = () => {
+            cursor = 0;
+            return kind === 'series'
+                ? hooks.useSeriesStash('url-owner', 'commit')
+                : hooks.useStash('url-owner', 'commit');
+        };
+        try {
+            let draft = render();
+            draft.updateImages([first, first]);
+            const firstUrl = objectUrlFor(first);
+            draft = render();
+            draft.updateImages([first]);
+            assert.equal(revoke.mock.calls.length, 0);
+            assert.equal(objectUrlFor(first), firstUrl);
+            draft = render();
+            draft.updateImages([second]);
+            assert.deepEqual(revoke.mock.calls, [[firstUrl]]);
+            const secondUrl = objectUrlFor(second);
+            draft = render();
+            draft.drop();
+            assert.deepEqual(revoke.mock.calls, [[firstUrl], [secondUrl]]);
+            draft = render();
+            draft.updateImages([first]);
+            const restoredUrl = objectUrlFor(first);
+            assert.notEqual(restoredUrl, firstUrl);
+            hooks.clearStashes('url-owner');
+            assert.deepEqual(revoke.mock.lastCall, [restoredUrl]);
+            assert.equal(hooks.useHasStash('url-owner', 'commit'), false);
+        } finally {
+            hooks.clearStashes('url-owner');
+            revoke.mockRestore();
+        }
+    },
+);

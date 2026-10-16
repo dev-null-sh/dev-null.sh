@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitStatus;
 use App\Enums\CommitStatus;
@@ -110,7 +111,8 @@ it('keeps polls and link card choices on quotes through approval without exposin
             ->where('commit.poll.options.0.label', 'First')
             ->where('commit.poll.total_votes', null)
             ->where('commit.quoted_commit.id', $quoted->commit_id)
-            ->missing('commit.quoted_commit.poll'))
+            ->where('commit.quoted_commit.poll.options.0.label', 'Private A')
+            ->where('commit.quoted_commit.poll.total_votes', null))
         ->assertDontSee('private-voter')
         ->assertDontSee($voter->id);
 })->with(['chosen' => 'https://example.com/second', 'removed' => null]);
@@ -224,6 +226,47 @@ it('shows the poll of a commit and of its ancestor', function (): void {
         ->assertInertia(fn ($page) => $page
             ->where('commit.poll', null)
             ->where('ancestors.0.poll.options.1.voted', true));
+});
+
+it('shows the poll of a quoted commit with the same results as the commit itself', function (): void {
+    $voter = User::factory()->create();
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+    $quote = Commit::factory()->for($poll->commit, 'quotedCommit')->create();
+    PollVote::factory()->for($poll->options[1], 'option')->for($voter)->create();
+
+    $this->actingAs($voter)
+        ->get(route('commit.show', [$quote->user, $quote]))
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit.poll.total_votes', 1)
+            ->where('commit.quoted_commit.poll.options.1.voted', true));
+
+    $this->actingAs($poll->commit->user)
+        ->get(route('commit.show', [$quote->user, $quote]))
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit.poll.has_voted', false)
+            ->where('commit.quoted_commit.poll.total_votes', 1));
+
+    $this->actingAs($quote->user)
+        ->get(route('commit.show', [$quote->user, $quote]))
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit.poll.options.1.label', 'Spaces')
+            ->where('commit.quoted_commit.poll.total_votes', null));
+});
+
+it('shows the poll of a quoted commit in moderation and after undoing a deletion', function (): void {
+    config(['app.admins' => ['admin']]);
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+    $quote = Commit::factory()->pending()->for($poll->commit, 'quotedCommit')->create();
+
+    $this->actingAs(User::factory()->create(['username' => 'admin']))
+        ->get(route('moderation.show'))
+        ->assertInertia(fn ($page) => $page->where('commits.data.0.quoted_commit.poll.options.0.label', 'Tabs'));
+
+    resolve(DeleteCommit::class)->handle($quote);
+
+    $this->actingAs($quote->user)
+        ->post(route('commit-restoration.store', $quote))
+        ->assertInertiaFlash('restored.quoted_commit.poll.options.0.label', 'Tabs');
 });
 
 it('shows polls on profiles and saved commits', function (): void {

@@ -818,3 +818,17 @@ it('returns an undo deadline for a json deletion and restores its thread count',
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $reply->id);
 })->with(['reply' => 'parent', 'quote' => 'quotedCommit']);
+
+it('lists the newest reply with a cursor to older replies when requested', function (): void {
+    $parent = Commit::factory()->create();
+    $replies = Commit::factory()->for($parent, 'parent')->count(4)->create(['created_at' => now()->subMinute()]);
+    $expected = $replies->pluck('id')->sortDesc()->values()->all();
+
+    $first = $this->getJson(route('commit-reply.index', [$parent, 'newest' => 1, 'limit' => 1]));
+    $first->assertOk()->assertJsonCount(1, 'data');
+    expect($first->json('data.*.id'))->toBe(array_slice($expected, 0, 1));
+
+    $second = $this->getJson(route('commit-reply.index', [$parent, 'newest' => 1, 'cursor' => $first->json('next_cursor')]));
+    $second->assertOk()->assertJsonCount(3, 'data')->assertJsonPath('next_cursor', null);
+    expect($second->json('data.*.id'))->toBe(array_slice($expected, 1));
+});

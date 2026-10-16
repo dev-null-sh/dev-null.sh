@@ -1,6 +1,10 @@
 import type { FocusEvent } from 'react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { maxImages, pickImages } from '@/components/commit-image-picker';
+import {
+    maxImages,
+    pickImages,
+    revokeObjectUrls,
+} from '@/components/commit-image-picker';
 import type { StoredImages } from '@/lib/image-storage';
 import {
     deleteStoredImages,
@@ -146,6 +150,10 @@ const storeImages = (
         return;
     }
 
+    revokeObjectUrls(
+        imagesFor(key).images.filter((image) => !next.includes(image)),
+    );
+
     const nextDescriptions = next.map((_, index) => descriptions[index] ?? '');
     images.set(key, { images: next, descriptions: nextDescriptions });
     writeStoredImages(key, next, nextDescriptions);
@@ -176,6 +184,7 @@ export function clearStashes(userId: string): void {
     [...images.keys()]
         .filter((key) => key.startsWith(prefix))
         .forEach((key) => {
+            revokeObjectUrls(imagesFor(key).images);
             images.delete(key);
             restoredImageKeys.delete(key);
         });
