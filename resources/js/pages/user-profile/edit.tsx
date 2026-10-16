@@ -57,7 +57,7 @@ export default function Edit({
             <section className="px-4 py-6 sm:px-6">
                 <Heading
                     title="Export your data"
-                    description="Download your GitHub profile as stored here, your color preference, all your live commits and replies with their moderation status, and the usernames you follow. Includes pending and rejected commits."
+                    description="Download your GitHub profile as stored here, your color preference, all your live commits and replies with their moderation status, and the usernames you follow, mute, and block. Includes pending and rejected commits."
                 />
                 <p className="mb-5 text-sm text-muted-foreground">
                     Deleted commits and other people's replies are excluded.

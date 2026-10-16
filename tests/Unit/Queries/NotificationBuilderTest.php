@@ -136,3 +136,28 @@ it('deletes notifications along with the recipient', function (): void {
 
     expect($notification->fresh())->toBeNull();
 });
+
+it('hides notifications from muted actors until they are unmuted', function (Notification $notification): void {
+    $notification->recipient->muting()->attach($notification->actor_id);
+
+    expect(Notification::query()->relevant()->exists())->toBeFalse();
+
+    $notification->recipient->muting()->detach($notification->actor_id);
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+})->with([
+    'followed' => fn (): Notification => Notification::factory()->create(),
+    'replied' => fn (): Notification => Notification::factory()->replied()->create(),
+    'mentioned' => fn (): Notification => Notification::factory()->mentioned()->create(),
+    'starred' => fn (): Notification => Notification::factory()->starred()->create(),
+]);
+
+it('hides replies, mentions and stars across a block in either direction', function (string $state, bool $recipientBlocks): void {
+    $notification = Notification::factory()->{$state}()->create();
+
+    $recipientBlocks
+        ? $notification->recipient->blocking()->attach($notification->actor_id)
+        : $notification->actor->blocking()->attach($notification->recipient_id);
+
+    expect(Notification::query()->relevant()->exists())->toBeFalse();
+})->with(['replied', 'mentioned', 'starred'])->with([true, false]);

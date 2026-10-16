@@ -189,3 +189,36 @@ it('serializes the effective lane', function (?int $preferredLane, int $lane): v
     'automatic' => [null, 3],
     'chosen' => [0, 0],
 ]);
+
+it('knows who it mutes and who mutes it', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+
+    expect($user->isMuting($other))->toBeFalse();
+
+    $user->muting()->attach($other);
+
+    expect($user->isMuting($other))->toBeTrue()
+        ->and($other->isMuting($user))->toBeFalse()
+        ->and($user->muting->modelKeys())->toBe([$other->id])
+        ->and($other->mutedBy->modelKeys())->toBe([$user->id]);
+});
+
+it('knows who it blocks and who blocks it', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $stranger = User::factory()->create();
+
+    expect($user->isBlocking($other))->toBeFalse()
+        ->and($user->hasBlockWith($other))->toBeFalse();
+
+    $user->blocking()->attach($other);
+
+    expect($user->isBlocking($other))->toBeTrue()
+        ->and($other->isBlocking($user))->toBeFalse()
+        ->and($user->hasBlockWith($other))->toBeTrue()
+        ->and($other->hasBlockWith($user))->toBeTrue()
+        ->and($user->hasBlockWith($stranger))->toBeFalse()
+        ->and($user->blocking->modelKeys())->toBe([$other->id])
+        ->and($other->blockers->modelKeys())->toBe([$user->id]);
+});

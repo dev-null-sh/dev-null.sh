@@ -36,14 +36,38 @@ it('lets an administrator grant and revoke trust with a decision history', funct
     $revoke = UserTrustChange::query()->latest('id')->firstOrFail();
     expect($revoke)->actor_id->toBe($moderator->id)->is_trusted->toBeFalse();
 
+    $moderator->muting()->attach($author);
+
     $this->get(route('user.show', $author))->assertOk()
         ->assertInertia(fn ($page) => $page
+            ->where('isMuting', true)
             ->where('moderation.isTrusted', false)
             ->where('moderation.isAdmin', false)
             ->where('moderation.history.0.id', $revoke->id)
             ->where('moderation.history.0.actor.username', $moderator->username)
             ->where('moderation.history.1.id', $grant->id));
 });
+
+it('keeps trust history out of blocked profiles even for administrators', function (bool $viewerBlocks): void {
+    $moderator = User::factory()->create();
+    $author = User::factory()->trusted()->create();
+    config(['app.admins' => [$moderator->username]]);
+    UserTrustChange::factory()->for($author)->for($moderator, 'actor')->create();
+
+    if ($viewerBlocks) {
+        $moderator->blocking()->attach($author);
+    } else {
+        $author->blocking()->attach($moderator);
+    }
+
+    $this->actingAs($moderator)->get(route('user.show', $author))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/unavailable')
+            ->where('blockedUser', fn ($blockedUser): bool => $viewerBlocks ? $blockedUser['id'] === $author->id : $blockedUser === null)
+            ->missing('moderation')
+            ->missing('user')
+            ->missing('commits'));
+})->with(['administrator blocks author' => true, 'author blocks administrator' => false]);
 
 it('requires authentication to change trust', function (): void {
     $author = User::factory()->create();

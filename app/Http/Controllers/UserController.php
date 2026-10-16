@@ -28,6 +28,15 @@ final readonly class UserController
      */
     public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, PageMetadata $metadata): Response
     {
+        $blockerId = $currentUser?->blockerIdWith($user);
+
+        if ($blockerId !== null) {
+            return Inertia::render('user/unavailable', [
+                'username' => $user->username,
+                'blockedUser' => $blockerId === $currentUser->id ? $user : null,
+            ]);
+        }
+
         return Inertia::render('user/show', [
             'user' => fn (): User => $currentUser instanceof User ? $user->loadCounts($currentUser) : $user->loadPublicCounts(),
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
@@ -43,6 +52,7 @@ final readonly class UserController
                         'actor' => $change->actor === null ? null : ['username' => $change->actor->username],
                     ]),
             ] : null,
+            'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => fn (): array => $streaks->get($user, $currentUser),
             'tab' => $request->tab(...),

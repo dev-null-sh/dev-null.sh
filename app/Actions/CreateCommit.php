@@ -28,14 +28,22 @@ final readonly class CreateCommit
     }
 
     /**
+     * The link preview is of the first URL in the body when true, of the given URL when a string, or none when false.
+     *
      * @param  list<UploadedFile>  $images
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], ?SeriesPosition $series = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], bool|string $linkPreview = true, ?SeriesPosition $series = null): Commit
     {
-        return DB::transaction(function () use ($user, $body, $parent, $images, $series): Commit {
+        $url = match ($linkPreview) {
+            true => $this->urls->first($body),
+            false => null,
+            default => $linkPreview,
+        };
+
+        return DB::transaction(function () use ($user, $body, $parent, $images, $url, $series): Commit {
             // Serialize publishing with trust changes and use the current persisted permission.
             $user = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
-            $linkPreview = $this->linkPreviewFor($body);
+            $linkPreview = $this->linkPreviewFor($url);
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
@@ -63,10 +71,8 @@ final readonly class CreateCommit
     /**
      * Commits that link to the same URL share one preview, so a page is fetched once however often it is linked.
      */
-    private function linkPreviewFor(string $body): ?LinkPreview
+    private function linkPreviewFor(?string $url): ?LinkPreview
     {
-        $url = $this->urls->first($body);
-
         if ($url === null) {
             return null;
         }

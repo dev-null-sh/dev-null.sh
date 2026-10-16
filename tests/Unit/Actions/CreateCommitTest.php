@@ -52,21 +52,28 @@ it('approves commits of admins right away', function (): void {
     expect($commit->status)->toBe(CommitStatus::Approved);
 });
 
-it('uses current trust when publishing even with a stale user instance', function (): void {
+it('uses current trust and the selected link card even with a stale user instance', function (bool|string $linkPreview, ?string $expectedUrl): void {
+    Queue::fake([UnfurlLink::class]);
     $moderator = User::factory()->create();
     $author = User::factory()->create();
     $trust = resolve(UpdateUserTrust::class);
     $create = resolve(CreateCommit::class);
 
     $trust->handle($author, $moderator, true);
-    $published = $create->handle($author, 'Published after trust was granted');
-    expect($published->status)->toBe(CommitStatus::Approved);
+    $published = $create->handle($author, 'Published https://example.com/first and https://example.com/second', linkPreview: $linkPreview);
+    expect($published->status)->toBe(CommitStatus::Approved)
+        ->and($published->linkPreview?->url)->toBe($expectedUrl);
 
     $previouslyTrusted = $author->fresh();
     $trust->handle($author, $moderator, false);
-    $pending = $create->handle($previouslyTrusted, 'Pending after trust was revoked');
-    expect($pending->status)->toBe(CommitStatus::Pending);
-});
+    $pending = $create->handle($previouslyTrusted, 'Pending https://example.com/first and https://example.com/second', linkPreview: $linkPreview);
+    expect($pending->status)->toBe(CommitStatus::Pending)
+        ->and($pending->linkPreview?->url)->toBe($expectedUrl);
+})->with([
+    'first link' => [true, 'https://example.com/first'],
+    'chosen link' => ['https://example.com/second', 'https://example.com/second'],
+    'no link card' => [false, null],
+]);
 
 it('notifies the parent author about replies of admins', function (): void {
     config(['app.admins' => ['nunomaduro']]);
@@ -125,6 +132,31 @@ it('attaches a link preview for the first url in the body', function (): void {
         ->fetched_at->toBeNull();
 
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+});
+
+it('attaches a link preview for the chosen url in the body', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Shipped https://example.com/first and https://example.com/second', linkPreview: 'https://example.com/second');
+
+    expect($commit->refresh()->linkPreview->url)->toBe('https://example.com/second');
+
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+});
+
+it('attaches no link preview when the author chose none', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Shipped https://example.com/first', linkPreview: false);
+
+    expect($commit->refresh()->link_preview_id)->toBeNull()
+        ->and(LinkPreview::query()->count())->toBe(0);
+
+    Queue::assertNothingPushed();
 });
 
 it('attaches a link preview for a bare domain', function (): void {
