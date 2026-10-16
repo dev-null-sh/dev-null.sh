@@ -80,6 +80,7 @@ it('attaches a link preview for the first link', function (): void {
     postSignedCommit(signedCommit($this->keyPair, 'Shipped https://example.com/first and https://example.com/second'))->assertCreated();
 
     $commit = $this->user->commits()->sole();
+
     expect($commit->linkPreview->url)->toBe('https://example.com/first');
 
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));

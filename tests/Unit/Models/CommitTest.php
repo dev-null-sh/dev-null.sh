@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -75,6 +76,22 @@ it('deletes stars with the commit', function (): void {
 
     expect($user->starredCommits()->count())->toBe(0);
 });
+
+it('checks account deletion tombstone visibility without an author', function (CommitStatus $status, bool $authenticated): void {
+    $author = User::factory()->create();
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($author)->for($root, 'parent')->create(['status' => $status]);
+    Commit::factory()->for($parent, 'parent')->create();
+    resolve(DeleteUser::class)->handle($author);
+    $tombstone = Commit::withTrashed()->findOrFail($parent->id);
+
+    expect($tombstone->isVisibleTo($authenticated ? User::factory()->create() : null))
+        ->toBe($status === CommitStatus::Approved);
+})->with([
+    'approved' => [CommitStatus::Approved],
+    'pending' => [CommitStatus::Pending],
+    'rejected' => [CommitStatus::Rejected],
+])->with([true, false]);
 
 it('may reply to another commit', function (): void {
     $parent = Commit::factory()->create();

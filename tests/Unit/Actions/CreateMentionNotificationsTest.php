@@ -47,6 +47,15 @@ it('ignores usernames nobody has', function (): void {
     expect(Notification::query()->count())->toBe(0);
 });
 
+it('does not send mentions without an author identity', function (): void {
+    User::factory()->create(['username' => 'nunomaduro']);
+    $commit = Commit::factory()->create(['user_id' => null, 'body' => 'Hi @nunomaduro']);
+
+    resolve(CreateMentionNotifications::class)->handle($commit);
+
+    expect(Notification::query()->count())->toBe(0);
+});
+
 it('does not notify authors mentioning themselves', function (): void {
     $user = User::factory()->create(['username' => 'nunomaduro']);
 
