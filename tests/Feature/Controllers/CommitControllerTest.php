@@ -488,6 +488,14 @@ it('trims long commits in the link preview description', function (): void {
         ->and($description)->not->toContain('The end');
 });
 
+it('shortens long urls in the link preview description', function (): void {
+    $commit = Commit::factory()->create(['body' => 'A lot came! https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr']);
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('<meta property="og:description" content="A lot came! github.com/nunomaduro/dev-nul…">', false);
+});
+
 it('escapes the commit in the link preview', function (): void {
     $user = User::factory()->create(['username' => 'octocat', 'name' => '"><script>alert(1)</script>']);
     $commit = Commit::factory()->for($user)->create(['body' => '<img src=x onerror=alert(1)>']);
