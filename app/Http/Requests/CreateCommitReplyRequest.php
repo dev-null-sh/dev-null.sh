@@ -7,15 +7,12 @@ namespace App\Http\Requests;
 use App\Actions\CreateCommitImages;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\Images;
 use App\Services\Urls;
 use Illuminate\Auth\Access\Response;
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Dimensions;
-use Illuminate\Validation\Rules\File;
-use Illuminate\Validation\Rules\In;
 
 final class CreateCommitReplyRequest extends FormRequest
 {
@@ -33,7 +30,7 @@ final class CreateCommitReplyRequest extends FormRequest
     /**
      * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
      *
-     * @return array<string, array<int, string|ValidationRule|File|Dimensions|In>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
@@ -41,14 +38,7 @@ final class CreateCommitReplyRequest extends FormRequest
             'body' => ['required', 'string', 'min:3', 'max:280'],
             'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
-            'images.*' => [
-                'required',
-                'image',
-                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
-                Rule::dimensions()
-                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
-                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
-            ],
+            'images.*' => ['required', ...Images::uploadRules()],
             'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
         ];

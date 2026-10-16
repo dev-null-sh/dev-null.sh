@@ -27,6 +27,7 @@ export function CommitFeed({
     latestCommits = [],
     isRanked = false,
     interlude,
+    isReviewing = false,
 }: {
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
@@ -40,6 +41,7 @@ export function CommitFeed({
     latestCommits?: Commit[];
     isRanked?: boolean;
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
+    isReviewing?: boolean;
 }) {
     const now = useNow();
     const page = usePage();
@@ -186,6 +188,7 @@ export function CommitFeed({
                 commit.created_at.startsWith(highlightedPeriod)
             }
             actions={actions?.(commit)}
+            isReviewing={isReviewing}
             threadActions={threadActions?.(commit)}
             onAuthorHover={(isHovering) =>
                 setHighlightedAuthor(isHovering ? commit.user_id : null)

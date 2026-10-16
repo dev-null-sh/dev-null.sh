@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Pagination\Cursor;
 
@@ -224,7 +225,31 @@ final class CommitBuilder extends Builder
             ->withQuotedCommitFor($viewer)
             ->withSavedState($viewer)
             ->withStarsFor($viewer)
-            ->withPollFor($viewer);
+            ->withPollFor($viewer)
+            ->withEventFor($viewer);
+    }
+
+    /**
+     * Loads each commit's event with its attendee count and whether the viewer is going: two queries for any page size.
+     * Guests get the event without its join link and calendar links, which are for signed-in developers only.
+     */
+    public function withEventFor(?User $viewer): self
+    {
+        if (! $viewer instanceof User) {
+            return $this
+                ->with(['event' => fn (HasOne $query): HasOne => $query->withCount('attendees')])
+                ->afterQuery(function (Collection $commits): void {
+                    foreach ($commits->whereInstanceOf(Commit::class) as $commit) {
+                        if ($commit->relationLoaded('event')) {
+                            $commit->event?->forceFill(['is_for_guest' => true]);
+                        }
+                    }
+                });
+        }
+
+        return $this->with(['event' => fn (HasOne $query): HasOne => $query
+            ->withCount('attendees')
+            ->withExists(['attendees as is_going' => fn (Builder $attendees): Builder => $attendees->whereKey($viewer->id)])]);
     }
 
     /**
@@ -260,7 +285,7 @@ final class CommitBuilder extends Builder
                 ->values();
             $last = $replies->last();
             $cursor = $last instanceof Commit && $commit->replies_count > $replies->count()
-                ? (new Cursor(['created_at' => $last->getRawOriginal('created_at'), 'id' => $last->id]))->encode()
+                ? new Cursor(['created_at' => $last->getRawOriginal('created_at'), 'id' => $last->id])->encode()
                 : null;
 
             $commit->setAttribute('reply_preview', [

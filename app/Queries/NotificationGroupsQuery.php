@@ -11,6 +11,7 @@ use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 
 final readonly class NotificationGroupsQuery
@@ -27,7 +28,8 @@ final readonly class NotificationGroupsQuery
             ->with([
                 'actor' => fn (BelongsTo $query): BelongsTo => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
-                'commit',
+                'commit.user',
+                'commit.event' => fn (HasOne $query): HasOne => $query->withCount('attendees'),
             ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable

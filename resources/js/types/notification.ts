@@ -34,7 +34,13 @@ export type Notification =
           commit: Omit<Commit, 'user'>;
       })
     | (BaseNotification & {
-          type: 'quoted' | 'mentioned' | 'approved' | 'rejected';
+          type:
+              | 'quoted'
+              | 'mentioned'
+              | 'approved'
+              | 'rejected'
+              | 'event_changed'
+              | 'event_cancelled';
           commit_id: string;
           subject_id: null;
           commit: Omit<Commit, 'user'>;

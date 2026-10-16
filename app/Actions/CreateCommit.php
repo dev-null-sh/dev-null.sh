@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Dto\NewEvent;
 use App\Dto\NewPoll;
 use App\Dto\SeriesPosition;
 use App\Enums\CommitStatus;
@@ -30,6 +31,7 @@ final readonly class CreateCommit
         private TheAlgorithm $theAlgorithm,
         private EmojiShortcodes $emojiShortcodes,
         private Urls $urls,
+        private UpdateEventCover $updateEventCover,
     ) {
         //
     }
@@ -40,7 +42,7 @@ final readonly class CreateCommit
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?SeriesPosition $series = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?SeriesPosition $series = null, ?NewEvent $event = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -48,7 +50,7 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $series): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $series, $event): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
 
@@ -70,6 +72,10 @@ final readonly class CreateCommit
 
             if ($poll instanceof NewPoll) {
                 $this->createPoll($commit, $poll);
+            }
+
+            if ($event instanceof NewEvent) {
+                $this->attachEvent($commit, $event);
             }
 
             if (($parent instanceof Commit || $quotedCommit instanceof Commit) && $commit->status === CommitStatus::Approved) {
@@ -108,6 +114,19 @@ final readonly class CreateCommit
             $newPoll->options,
             array_keys($newPoll->options),
         ));
+    }
+
+    private function attachEvent(Commit $commit, NewEvent $new): void
+    {
+        $event = $commit->event()->create([
+            ...$new->details->toAttributes(),
+            'title' => $this->emojiShortcodes->replace($new->title),
+            'venue' => $new->details->venue === null ? null : $this->emojiShortcodes->replace($new->details->venue),
+        ]);
+
+        if ($new->cover instanceof UploadedFile) {
+            $this->updateEventCover->handle($event, $new->cover);
+        }
     }
 
     /**

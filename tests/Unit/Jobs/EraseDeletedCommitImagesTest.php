@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\DeleteCommit;
 use App\Jobs\EraseDeletedCommitImages;
 use App\Models\CommitImage;
+use App\Models\Event;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -21,6 +22,20 @@ it('erases the images of its deleted commit once the undo window has closed', fu
 
     $this->assertModelMissing($image);
     Storage::disk()->assertMissing($image->path);
+});
+
+it('erases the event and cover of its deleted commit once the undo window has closed', function (): void {
+    Storage::fake();
+
+    $event = Event::factory()->withCover()->create();
+    Storage::disk()->put((string) $event->cover_path, 'webp');
+    $job = serialize(new EraseDeletedCommitImages(resolve(DeleteCommit::class)->handle($event->commit)));
+    $this->travel(30)->seconds();
+
+    dispatch_sync(unserialize($job));
+
+    $this->assertModelMissing($event);
+    Storage::disk()->assertMissing((string) $event->cover_path);
 });
 
 it('is dropped when its commit is gone', function (): void {

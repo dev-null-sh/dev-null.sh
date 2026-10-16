@@ -5,20 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
+use App\Dto\EventDetails;
+use App\Dto\NewEvent;
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
+use App\Services\Images;
 use App\Services\Urls;
-use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Dimensions;
-use Illuminate\Validation\Rules\Enum;
-use Illuminate\Validation\Rules\File;
-use Illuminate\Validation\Rules\In;
 
 final class CreateCommitRequest extends FormRequest
 {
@@ -30,9 +28,7 @@ final class CreateCommitRequest extends FormRequest
     }
 
     /**
-     * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
-     *
-     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
@@ -48,17 +44,29 @@ final class CreateCommitRequest extends FormRequest
             'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
             'poll.duration' => ['required_with:poll', Rule::enum(PollDuration::class)],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
-            'images.*' => [
-                'required',
-                'image',
-                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
-                Rule::dimensions()
-                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
-                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
-            ],
+            'images.*' => ['required', ...Images::uploadRules()],
             'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
+            'event' => ['nullable', 'array:title,starts_at,ends_at,timezone,format,venue,address,platform,join_url,cover', 'prohibits:parent_id,images,poll'],
+            'event.title' => ['required_with:event', 'string', 'max:120'],
+            ...EventDetails::rules(),
+            'event.cover' => ['nullable', ...Images::uploadRules()],
         ];
+    }
+
+    public function event(): ?NewEvent
+    {
+        if (blank($this->input('event'))) {
+            return null;
+        }
+
+        $cover = $this->file('event.cover');
+
+        return new NewEvent(
+            title: $this->string('event.title')->trim()->value(),
+            details: EventDetails::fromInput((array) $this->validated('event')),
+            cover: $cover instanceof UploadedFile ? $cover : null,
+        );
     }
 
     /**

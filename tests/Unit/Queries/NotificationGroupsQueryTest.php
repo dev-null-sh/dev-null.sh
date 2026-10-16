@@ -186,7 +186,7 @@ it('loads any number of groups with the same number of queries', function (int $
 
     resolve(NotificationGroupsQuery::class)->paginate($user);
 
-    expect(DB::getQueryLog())->toHaveCount(5);
+    expect(DB::getQueryLog())->toHaveCount(7);
 })->with([1, 5]);
 
 it('skips loading stacked actors when nothing is grouped', function (): void {

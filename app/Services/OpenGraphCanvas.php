@@ -34,6 +34,8 @@ final readonly class OpenGraphCanvas
 
     public const int FOOTER_BASELINE = 524;
 
+    public const int WHITE = 0xFFFFFF;
+
     private const int SCALE = 2;
 
     private const int SHELL = 0xF6F7F8;
@@ -41,8 +43,6 @@ final readonly class OpenGraphCanvas
     private const int HAIRLINE = 0xE1E4E8;
 
     private const int RAIL = 0xD3D7DD;
-
-    private const int WHITE = 0xFFFFFF;
 
     private const array LANES = [0xD9480F, 0x2F9E44, 0x9C36B5, 0x0C8599, 0xC2255C, 0xB7791F];
 
@@ -261,6 +261,11 @@ final readonly class OpenGraphCanvas
         return (string) ob_get_clean();
     }
 
+    public function rect(int $x1, int $y1, int $x2, int $y2, int $color): void
+    {
+        imagefilledrectangle($this->image, $x1 * self::SCALE, $y1 * self::SCALE, $x2 * self::SCALE - 1, $y2 * self::SCALE - 1, $color);
+    }
+
     /**
      * @return list<string>
      */
@@ -379,11 +384,6 @@ final readonly class OpenGraphCanvas
         }
 
         imagefilledpolygon($this->image, $points, $color);
-    }
-
-    private function rect(int $x1, int $y1, int $x2, int $y2, int $color): void
-    {
-        imagefilledrectangle($this->image, $x1 * self::SCALE, $y1 * self::SCALE, $x2 * self::SCALE - 1, $y2 * self::SCALE - 1, $color);
     }
 
     /**

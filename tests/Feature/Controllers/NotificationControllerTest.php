@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitStar;
 use App\Actions\DeleteUserFollow;
+use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\Event;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it('lists the notifications of the user, newest first', function (): void {
     $user = User::factory()->create();
@@ -181,4 +184,36 @@ it('requires authentication', function (): void {
     $response = $this->get(route('notification.index'));
 
     $response->assertRedirectToRoute('home');
+});
+
+it('lists event notifications without a query per notification', function (): void {
+    $user = User::factory()->create();
+    $notify = function () use ($user): void {
+        $event = Event::factory()->create();
+        $event->attendees()->attach($user);
+
+        Notification::factory()->create([
+            'recipient_id' => $user->id,
+            'actor_id' => $event->commit->user_id,
+            'type' => NotificationType::EventChanged,
+            'commit_id' => $event->commit_id,
+            'key' => 'event_changed:'.$event->id.':1',
+        ]);
+    };
+    $count = function () use ($user): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->actingAs($user)->get(route('notification.index'))->assertOk();
+
+        return count(DB::getQueryLog());
+    };
+
+    $notify();
+    $one = $count();
+
+    foreach (range(1, 4) as $ignored) {
+        $notify();
+    }
+
+    expect($count())->toBe($one);
 });

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\CommitStatus;
+use App\Models\Event as CommitEvent;
 use App\Queries\CommitBuilder;
 use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
@@ -54,6 +55,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
  * @property-read Collection<int, Commit> $seriesParts
+ * @property-read CommitEvent|null $event
  */
 #[Hidden([
     'ai_decision',
@@ -238,6 +240,24 @@ final class Commit extends Model
     }
 
     /**
+     * Chaperoned, so a loaded event already knows its commit, and serializing it needs no further queries.
+     *
+     * @return HasOne<CommitEvent, $this>
+     */
+    public function event(): HasOne
+    {
+        return $this->hasOne(CommitEvent::class)->chaperone();
+    }
+
+    /**
+     * The seven characters git would print for the commit.
+     */
+    public function shortHash(): string
+    {
+        return mb_substr(str_replace('-', '', $this->id), -7);
+    }
+
+    /**
      * Images follow the commit's visibility, and moderators see them to review the commit.
      */
     public function imagesAreVisibleTo(?User $user): bool
@@ -263,7 +283,13 @@ final class Commit extends Model
                 ->whereKey($this->getAttributeFromArray($this->getKeyName()))->first()->replies_count ?? 0,
         ])->syncOriginalAttribute('replies_count');
 
-        return $this->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
+        return $this->load([
+            'user',
+            'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user'),
+            ...$this->getAttributeFromArray($this->getKeyName()) === null ? [] : [
+                'event' => fn (HasOne $query): HasOne => $query->withCount('attendees'),
+            ],
+        ]);
     }
 
     /**
@@ -276,6 +302,9 @@ final class Commit extends Model
             $this->replies_count,
             $this->user?->updated_at->getTimestamp(),
             $this->parent?->user?->username,
+            $this->event?->sequence,
+            $this->event?->cancelled_at?->getTimestamp(),
+            $this->event?->attendeesCount(),
         ]));
     }
 }
