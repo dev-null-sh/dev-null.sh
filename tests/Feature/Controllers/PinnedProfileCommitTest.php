@@ -282,7 +282,7 @@ it('does not resolve pins or activity during a commits-only partial reload', fun
 
     $queries = collect(DB::getQueryLog())->pluck('query');
     expect($queries->filter(fn (string $query): bool => str_starts_with($query, 'select "commits"."id", "commits"."user_id"')))->toHaveCount(1)
-        ->and($queries->reject(fn (string $query): bool => str_starts_with($query, 'select "commits"."id", "commits"."user_id"') || str_starts_with($query, 'select * from (select "commits"."id", "commits"."user_id"'))->all())
+        ->and($queries->reject(fn (string $query): bool => str_starts_with($query, 'select "commits"."id", "commits"."user_id"') || str_starts_with($query, 'select * from (select "commits"."id"'))->all())
         ->each(fn ($query) => $query->not->toContain('count(*)')->not->toContain('exists'));
 });
 

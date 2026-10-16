@@ -146,12 +146,16 @@ final class CommitBuilder extends Builder
         return $this->addSelect([$this->qualifyColumn('*')])->selectSub($replies, 'replies_count');
     }
 
+    /**
+     * The newest reply or quote of each commit is picked first, and only the picked ones are then loaded as cards, so
+     * a commit with thousands of replies does not have every one of them counted and checked for the viewer.
+     */
     public function withReplyPreviews(?User $user): self
     {
-        $preview = fn (HasMany $relation): HasMany => $this->configureReplyPreview($relation, $user);
+        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user);
 
-        return $this->with(['replies' => $preview, 'quotes' => $preview])
-            ->afterQuery($this->attachReplyPreviews(...));
+        return $this->with(['replies' => $newest, 'quotes' => $newest])
+            ->afterQuery(fn (Collection $commits): Collection => $this->attachReplyPreviews($commits, $user));
     }
 
     /**
@@ -310,14 +314,12 @@ final class CommitBuilder extends Builder
      * @param  HasMany<Commit, Commit>  $relation
      * @return HasMany<Commit, Commit>
      */
-    private function configureReplyPreview(HasMany $relation, ?User $user): HasMany
+    private function newestVisibleOf(HasMany $relation, ?User $user): HasMany
     {
         return $relation
             ->visibleInThreadTo($user)
             ->exceptSeriesContinuations()
-            ->withVisibleReplyCount($user)
-            ->withCardDataFor($user)
-            ->without('quotedCommit')
+            ->select($relation->getRelated()->qualifyColumns(['id', 'parent_id', 'quoted_commit_id', 'created_at']))
             ->newestFirst()
             ->limit(1);
     }
@@ -326,24 +328,30 @@ final class CommitBuilder extends Builder
      * @param  Collection<int, Commit>  $commits
      * @return Collection<int, Commit>
      */
-    private function attachReplyPreviews(Collection $commits): Collection
+    private function attachReplyPreviews(Collection $commits, ?User $user): Collection
     {
-        foreach ($commits as $commit) {
-            if (! $commit->relationLoaded('replies') || ! $commit->relationLoaded('quotes')) {
-                continue;
-            }
+        $previewed = $commits->filter(fn (Commit $commit): bool => $commit->relationLoaded('replies') && $commit->relationLoaded('quotes'));
+        $newest = $previewed->mapWithKeys(fn (Commit $commit): array => [$commit->id => $commit->replies->merge($commit->quotes)
+            ->sortByDesc(fn (Commit $reply): string => $reply->created_at->format('Y-m-d H:i:s.u').$reply->id)
+            ->first()]);
+        $ids = $newest->filter()->map(fn (Commit $reply): string => $reply->id)->values()->all();
+        $cards = $ids === [] ? new Collection() : Commit::query()
+            ->withTrashed()
+            ->whereKey($ids)
+            ->withVisibleReplyCount($user)
+            ->withCardDataFor($user)
+            ->without('quotedCommit')
+            ->get()
+            ->keyBy('id');
 
-            $replies = $commit->replies->merge($commit->quotes)
-                ->sortByDesc(fn (Commit $reply): string => $reply->created_at->format('Y-m-d H:i:s.u').$reply->id)
-                ->take(1)
-                ->values();
-            $last = $replies->last();
-            $cursor = $last instanceof Commit && $commit->replies_count > $replies->count()
-                ? new Cursor(['created_at' => $last->getRawOriginal('created_at'), 'id' => $last->id])->encode()
+        foreach ($previewed as $commit) {
+            $reply = $cards->get($newest[$commit->id]->id ?? '');
+            $cursor = $reply instanceof Commit && $commit->replies_count > 1
+                ? new Cursor(['created_at' => $reply->getRawOriginal('created_at'), 'id' => $reply->id])->encode()
                 : null;
 
             $commit->setAttribute('reply_preview', [
-                'data' => $replies->map(fn (Commit $reply): array => $reply->toArray())->all(),
+                'data' => $reply instanceof Commit ? [$reply->toArray()] : [],
                 'next_cursor' => $cursor,
                 'prev_cursor' => null,
             ]);
