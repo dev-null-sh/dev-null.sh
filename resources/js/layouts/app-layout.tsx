@@ -2,6 +2,7 @@ import { usePage, usePoll } from '@inertiajs/react';
 import { useCallback, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import { AppNav, MobileHeader, MobileNav } from '@/components/app-nav';
+import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LiveStreamBanner } from '@/components/live-stream';
 import { UserSearchDialog } from '@/components/user-search-dialog';
@@ -36,6 +37,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <AppAside onShowShortcuts={showShortcuts} onSearch={openSearch} />
 
             <MobileNav />
+
+            <CommitImageViewer />
 
             <UserSearchDialog
                 open={isSearching}

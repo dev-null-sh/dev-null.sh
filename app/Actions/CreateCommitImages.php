@@ -16,6 +16,8 @@ final readonly class CreateCommitImages
 {
     public const int MAX_IMAGES = 3;
 
+    public const int MAX_DESCRIPTION_LENGTH = 1000;
+
     public const string MAX_UPLOAD_SIZE = '10mb';
 
     /**
@@ -34,8 +36,9 @@ final readonly class CreateCommitImages
      * All of them are encoded before any is stored, so a bad one leaves nothing behind.
      *
      * @param  list<UploadedFile>  $images
+     * @param  array<int, string|null>  $descriptions
      */
-    public function handle(Commit $commit, array $images): void
+    public function handle(Commit $commit, array $images, array $descriptions = []): void
     {
         $optimized = array_map($this->optimize(...), array_slice($images, 0, self::MAX_IMAGES));
 
@@ -46,6 +49,7 @@ final readonly class CreateCommitImages
                 'path' => $path,
                 'width' => $image->width(),
                 'height' => $image->height(),
+                'description' => $descriptions[$position] ?? null,
                 'position' => $position,
             ]);
         }

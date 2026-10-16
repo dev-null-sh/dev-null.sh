@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
+import { CommitPoll } from '@/components/commit-poll';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
@@ -70,6 +71,9 @@ export function QuotedCommit({
                 segments={commit.body_segments}
                 className="mt-1 max-h-60"
             />
+            {commit.poll && (
+                <CommitPoll commit={commit} poll={commit.poll} isStatic />
+            )}
         </>
     );
 

@@ -36,6 +36,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read CarbonInterface|null $github_follows_imported_at
  * @property-read string|null $feed_token
  * @property-read string|null $remember_token
+ * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -59,6 +60,7 @@ use Illuminate\Support\Facades\DB;
     'remember_token',
     'preferred_lane',
     'pinned_commit_id',
+    'github_synced_at',
     'log',
     'onboarded_at',
     'github_follows_imported_at',
@@ -102,6 +104,7 @@ final class User extends Authenticatable
             'github_follows_imported_at' => 'datetime',
             'feed_token' => 'string',
             'remember_token' => 'string',
+            'github_synced_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
