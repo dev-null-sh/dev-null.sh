@@ -12,6 +12,7 @@ use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitReportController;
+use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\HomeController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
+use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -82,8 +84,11 @@ Route::middleware('auth')->group(function (): void {
 
     // Commit...
     Route::post('commits', [CommitController::class, 'store'])
-        ->middleware('throttle:commits')
+        ->middleware(ThrottleCommits::class)
         ->name('commit.store');
+    Route::post('commits/series', [CommitSeriesController::class, 'store'])
+        ->middleware(ThrottleCommits::class)
+        ->name('commit-series.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');

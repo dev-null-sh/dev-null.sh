@@ -14,8 +14,8 @@ it('replaces every shortcode with its emoji', function (): void {
 it('leaves a shortcode inside a longer word untouched', function (): void {
     $emoji = resolve(EmojiShortcodes::class);
 
-    expect($emoji->replace(':heartbeat and :likewise stay put'))
-        ->toBe(':heartbeat and :likewise stay put');
+    expect($emoji->replace(':hearted and :likewise stay put'))
+        ->toBe(':hearted and :likewise stay put');
 });
 
 it('replaces shortcodes next to punctuation and the end of the text', function (): void {
