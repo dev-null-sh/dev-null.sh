@@ -278,7 +278,7 @@ function ThreadActions({
                     )}
                 </div>
 
-                <div className="flex items-center gap-0.5">
+                <div className="ml-auto flex items-center gap-0.5">
                     {!isDeleted(commit) && commit.is_saved !== undefined && (
                         <BookmarkButton commit={commit} />
                     )}
@@ -316,9 +316,7 @@ function ThreadReplies({ thread, depth }: { thread: Thread; depth: number }) {
             data-test="replies"
         >
             {thread.replies === null ? (
-                <p className="py-2 text-sm text-muted-foreground" role="status">
-                    Loading replies…
-                </p>
+                <ReplySkeleton />
             ) : (
                 <>
                     {thread.replies.map((reply) => (
@@ -338,6 +336,23 @@ function ThreadReplies({ thread, depth }: { thread: Thread; depth: number }) {
                     )}
                 </>
             )}
+        </div>
+    );
+}
+
+function ReplySkeleton() {
+    return (
+        <div
+            role="status"
+            aria-label="Loading replies"
+            className="flex gap-2 pt-2.5 motion-safe:animate-pulse sm:gap-2.5"
+        >
+            <span className="size-6 shrink-0 rounded-full bg-muted sm:size-7" />
+            <span className="flex-1">
+                <span className="my-1 block h-3 w-1/3 rounded bg-muted" />
+                <span className="my-1.5 block h-3 w-3/4 rounded bg-muted" />
+                <span className="mt-2.5 block h-3 w-24 rounded bg-muted" />
+            </span>
         </div>
     );
 }
@@ -396,7 +411,7 @@ function ReplyItem({
 
     if (isDeleted(reply)) {
         return (
-            <article className="pt-2.5" data-test="reply-tombstone">
+            <article className="pt-2.5" data-reply data-test="reply-tombstone">
                 <div className="flex gap-2 sm:gap-2.5">
                     <span
                         aria-hidden
@@ -455,7 +470,7 @@ function CommitReply({
         });
 
     return (
-        <article className="group/reply pt-2.5" data-test="reply">
+        <article className="pt-2.5" data-reply data-test="reply">
             <div className="flex gap-2 sm:gap-2.5">
                 <UserPreview user={reply.user} className="shrink-0">
                     <Link
@@ -526,7 +541,7 @@ function CommitReply({
                                 onClick={() => setIsConfirming(true)}
                                 aria-label="Delete reply"
                                 title="Delete reply"
-                                className="-my-1 ml-auto shrink-0 self-center rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:group-hover/reply:opacity-100 [@media(hover:none)]:opacity-100"
+                                className="-my-1 ml-auto shrink-0 self-center rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:reply-hover:opacity-100 [@media(hover:none)]:opacity-100"
                             >
                                 <Trash2 className="size-3.5" />
                             </button>
@@ -648,7 +663,7 @@ function ReplyComposer({
                     onReplied();
                 }
             }}
-            className="mt-2 rounded-lg border bg-background p-2.5"
+            className="mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
             data-test="reply-composer"
         >
             {({ processing, errors }) => (
@@ -672,7 +687,7 @@ function ReplyComposer({
                         onFocus={isRestored ? moveCaretToEnd : undefined}
                         maxLength={maxBodyLength}
                         placeholder={`Reply to @${parent.user.username}`}
-                        className="block field-sizing-content min-h-9 w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                        className="block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]"
                     />
                     <InputError
                         message={errors.body ?? errors.parent_id}
@@ -686,8 +701,8 @@ function ReplyComposer({
                         message={attachments.error ?? imageErrorFrom(errors)}
                         className="mt-1 px-1"
                     />
-                    <div className="mt-1.5 flex items-center justify-end gap-2">
-                        <div className="mr-auto flex items-center gap-2">
+                    <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+                        <div className="mr-auto flex min-w-0 items-center gap-2">
                             <ImagePickerButton
                                 count={attachments.images.length}
                                 disabled={processing}
@@ -731,6 +746,7 @@ function ReplyComposer({
                             type="submit"
                             size="sm"
                             disabled={processing || !isReplyable}
+                            className="min-w-[4.75rem]"
                             data-test="submit-reply-button"
                         >
                             {processing ? 'Replying…' : 'Reply'}

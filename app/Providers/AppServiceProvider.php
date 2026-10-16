@@ -84,6 +84,8 @@ final class AppServiceProvider extends ServiceProvider
             });
         });
 
+        RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
+
         // Commit actions: rapid j/k with a star or bookmark on most commits stays well under these...
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('bookmarks', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
