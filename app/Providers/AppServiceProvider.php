@@ -7,6 +7,7 @@ namespace App\Providers;
 use App\Contracts\Services\DnsResolver;
 use App\Models\User;
 use App\Services\DnsResolvers\SystemDnsResolver;
+use App\Services\Highlighting\SemaLanguage;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,12 +15,17 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
+use Tempest\Highlight\Highlighter;
 
 final class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
+
+        // Languages tempest/highlight doesn't ship, for code blocks like ```sema...
+        $this->app->extend(Highlighter::class, fn (Highlighter $highlighter): Highlighter => $highlighter
+            ->addLanguage(new SemaLanguage));
     }
 
     public function boot(): void
