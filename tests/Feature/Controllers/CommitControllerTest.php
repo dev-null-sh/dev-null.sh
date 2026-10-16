@@ -706,6 +706,64 @@ it('queues a link preview for a commit with a link', function (): void {
     Queue::assertPushed(UnfurlLink::class);
 });
 
+it('queues a link preview for the link the author chose', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Shipped https://example.com/first, docs at laravel.com',
+            'link_preview_url' => 'https://laravel.com',
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following);
+
+    expect($user->commits()->sole()->linkPreview->url)->toBe('https://laravel.com');
+
+    Queue::assertPushed(UnfurlLink::class);
+});
+
+it('attaches no link preview when the author chose none', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Shipped https://example.com/first',
+            'link_preview_url' => '',
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following);
+
+    expect($user->commits()->sole()->link_preview_id)->toBeNull();
+
+    Queue::assertNothingPushed();
+});
+
+it('may not choose a link preview for a url that is not in the body', function (string $url): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Shipped https://example.com/first and `https://example.com/code`',
+            'link_preview_url' => $url,
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasErrors(['link_preview_url' => 'The link card must be one of the links in the body.']);
+
+    expect(Commit::query()->count())->toBe(0);
+})->with([
+    'another url' => 'https://evil.example.com',
+    'a url in code' => 'https://example.com/code',
+    'part of a url' => 'https://example.com',
+]);
+
 it('includes the link previews of a commit, its ancestors and its replies', function (): void {
     $root = Commit::factory()->for(LinkPreview::factory()->fetched()->state(['title' => 'Root link']))->create();
     $commit = Commit::factory()->for($root, 'parent')->for(LinkPreview::factory()->fetched()->state(['title' => 'Focused link']))->create();

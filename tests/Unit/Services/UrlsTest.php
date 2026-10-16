@@ -38,6 +38,19 @@ it('finds the first of several urls', function (): void {
         ->toBe('https://first.example.com');
 });
 
+it('finds every url once, in order', function (): void {
+    $urls = resolve(Urls::class);
+
+    expect($urls->all('Compare https://first.example.com, nativephp.com and `https://code.example.com` with https://first.example.com'))
+        ->toBe(['https://first.example.com', 'https://nativephp.com']);
+});
+
+it('finds no urls in plain text', function (): void {
+    $urls = resolve(Urls::class);
+
+    expect($urls->all('Shipped the new log today'))->toBe([]);
+});
+
 it('strips trailing punctuation', function (string $text, string $url): void {
     $urls = resolve(Urls::class);
 

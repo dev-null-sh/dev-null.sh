@@ -18,3 +18,10 @@ export function mapTypedProse(
         .map((part, index) => (index % 2 === 0 ? callback(part) : part))
         .join('');
 }
+
+/**
+ * The prose being typed, without the code.
+ */
+export function typedProse(text: string): string[] {
+    return text.split(codePattern).filter((_, index) => index % 2 === 0);
+}
