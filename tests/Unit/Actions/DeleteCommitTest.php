@@ -27,6 +27,15 @@ it('keeps the replies of a deleted commit', function (): void {
     $this->assertNotSoftDeleted($reply);
 });
 
+it('keeps the quotes of a deleted commit', function (): void {
+    $commit = Commit::factory()->create();
+    $quote = Commit::factory()->for($commit, 'quotedCommit')->create();
+
+    resolve(DeleteCommit::class)->handle($commit);
+
+    $this->assertNotSoftDeleted($quote);
+});
+
 it('erases the images of a deleted commit', function (): void {
     Storage::fake();
 
@@ -41,12 +50,14 @@ it('erases the images of a deleted commit', function (): void {
     Storage::disk()->assertMissing($image->path);
 });
 
-it('removes the reports on a deleted commit and keeps the reports on its replies', function (): void {
+it('removes the reports on a deleted commit and keeps the reports on its replies and quotes', function (): void {
     $commit = Commit::factory()->create();
     CommitReport::factory()->for($commit)->create();
     $replyReport = CommitReport::factory()->for(Commit::factory()->for($commit, 'parent'))->create();
+    $quoteReport = CommitReport::factory()->for(Commit::factory()->for($commit, 'quotedCommit'))->create();
 
     resolve(DeleteCommit::class)->handle($commit);
 
-    expect(CommitReport::query()->sole()->is($replyReport))->toBeTrue();
+    expect(CommitReport::query()->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$replyReport->id, $quoteReport->id])->sort()->values()->all());
 });

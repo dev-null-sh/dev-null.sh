@@ -427,9 +427,10 @@ export function MentionTextarea({
             {isOpen &&
                 createPortal(
                     <div
-                        className="fixed z-50 w-72 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
+                        className="pointer-events-auto fixed z-50 w-72 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
                         style={position}
                         onMouseDown={(event) => event.preventDefault()}
+                        data-mention-suggestions
                         data-test="mention-suggestions"
                     >
                         {suggestions.length > 0 ? (

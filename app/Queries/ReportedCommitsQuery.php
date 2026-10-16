@@ -25,6 +25,7 @@ final readonly class ReportedCommitsQuery
                     ->where('status', CommitStatus::Approved)
                     ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
                     ->with('user')])
+                ->withQuotedCommitFor($viewer)
                 ->withCount('stars')
                 ->withExists(['stars as starred' => fn (Builder $stars): Builder => $stars->whereKey($viewer->id)])])
             ->oldest()->oldest('id')

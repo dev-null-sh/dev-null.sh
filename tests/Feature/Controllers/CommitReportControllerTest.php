@@ -90,6 +90,53 @@ it('includes images in the moderator report context without querying per report'
     expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'commit_images')))->toHaveCount(1);
 });
 
+it('includes visible quoted context in reports without exposing ai advice or deleted content', function (bool $deleted): void {
+    $quoted = Commit::factory()->create(['ai_decision' => CommitStatus::Rejected, 'ai_categories' => ['private-quoted-category']]);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create(['ai_decision' => CommitStatus::Approved, 'ai_categories' => []]);
+    CommitReport::factory()->for($quote)->create();
+
+    if ($deleted) {
+        $quoted->delete();
+    }
+
+    $this->actingAs(User::factory()->create(['username' => 'moderator-demo']))
+        ->get(route('reported-commit.index'))->assertOk()
+        ->assertInertia(function ($page) use ($quoted, $deleted): void {
+            $page->where('reports.data.0.commit.quoted_commit.id', $quoted->id)
+                ->missing('reports.data.0.reporter_id')
+                ->missing('reports.data.0.commit.ai_decision')
+                ->missing('reports.data.0.commit.ai_categories')
+                ->missing('reports.data.0.commit.quoted_commit.ai_decision')
+                ->missing('reports.data.0.commit.quoted_commit.ai_categories');
+
+            if ($deleted) {
+                $page->missing('reports.data.0.commit.quoted_commit.body')
+                    ->missing('reports.data.0.commit.quoted_commit.user')
+                    ->missing('reports.data.0.commit.quoted_commit.user_id');
+            } else {
+                $page->where('reports.data.0.commit.quoted_commit.body', $quoted->body)
+                    ->where('reports.data.0.commit.quoted_commit.user.id', $quoted->user_id);
+            }
+        });
+})->with([false, true]);
+
+it('hides quoted context the report reviewer cannot see', function (string $state): void {
+    $moderator = User::factory()->create(['username' => 'moderator-demo']);
+    $quoted = Commit::factory()->create(['status' => in_array($state, ['pending', 'rejected'], true) ? $state : CommitStatus::Approved]);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    CommitReport::factory()->for($quote)->create();
+
+    if ($state === 'blocking') {
+        $moderator->blocking()->attach($quoted->user);
+    } elseif ($state === 'blocked') {
+        $quoted->user->blocking()->attach($moderator);
+    }
+
+    $this->actingAs($moderator)->get(route('reported-commit.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page->where('reports.data.0.commit.id', $quote->id)
+            ->where('reports.data.0.commit.quoted_commit', null));
+})->with(['pending', 'rejected', 'blocking', 'blocked']);
+
 it('does not report hidden targets even for their authors or moderators', function (string $status, string $viewer): void {
     $commit = Commit::factory()->create(['status' => $status]);
     $user = match ($viewer) {
