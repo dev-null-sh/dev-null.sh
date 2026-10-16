@@ -15,7 +15,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const showShortcuts = useCallback(() => setIsShowingShortcuts(true), []);
     const openSearch = useCallback(() => setIsSearching(true), []);
 
-    useKeyboardShortcuts(auth.user, showShortcuts, openSearch);
+    useKeyboardShortcuts(auth.user, auth.log, showShortcuts, openSearch);
 
     return (
         <>
