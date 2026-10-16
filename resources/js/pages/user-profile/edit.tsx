@@ -1,12 +1,14 @@
 import { Form, Head, Link } from '@inertiajs/react';
-import { ArrowUpRight, Download, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, Download, RefreshCw, RotateCcw } from 'lucide-react';
 import ExportController from '@/actions/App/Http/Controllers/ExportController';
+import UserFeedTokenController from '@/actions/App/Http/Controllers/UserFeedTokenController';
 import UserProfileController from '@/actions/App/Http/Controllers/UserProfileController';
 import ActivityGraphEmbed from '@/components/activity-graph-embed';
 import DeleteUser from '@/components/delete-user';
 import { GitHubProfile } from '@/components/github-profile';
 import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
+import { RssFeedButton } from '@/components/rss-feed-button';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { useNow } from '@/hooks/use-now';
@@ -44,12 +46,14 @@ export default function Edit({
     githubSyncedAt,
     activityGraphUrl,
     profileUrl,
+    feedUrl,
 }: {
     preferredLane: number | null;
     automaticLane: number;
     githubSyncedAt: string | null;
     activityGraphUrl: string;
     profileUrl: string;
+    feedUrl: string;
 }) {
     const { user } = useUser();
     const now = useNow();
@@ -128,6 +132,43 @@ export default function Edit({
                 activityGraphUrl={activityGraphUrl}
                 profileUrl={profileUrl}
             />
+
+            <section className="px-4 py-6 sm:px-6">
+                <Heading
+                    title="RSS feed"
+                    description="Read the latest commits from everyone you follow in your feed reader. Replies, pending, and rejected commits are left out."
+                />
+                <p className="mb-5 text-sm text-muted-foreground">
+                    Your RSS link signs your feed reader in as you, so keep it
+                    private. If it leaks, reset it: the old link stops working
+                    right away.
+                </p>
+                <p
+                    className="mb-5 rounded-lg border px-4 py-2.5 font-mono text-[13px] break-all text-muted-foreground"
+                    data-test="rss-feed-url"
+                >
+                    {feedUrl}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                    <RssFeedButton feedUrl={feedUrl} />
+                    <Form
+                        {...UserFeedTokenController.update.form()}
+                        options={{ preserveScroll: true }}
+                    >
+                        {({ processing }) => (
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                disabled={processing}
+                                data-test="reset-rss-feed-button"
+                            >
+                                <RotateCcw />
+                                Reset link
+                            </Button>
+                        )}
+                    </Form>
+                </div>
+            </section>
 
             <section className="px-4 py-6 sm:px-6">
                 <Heading

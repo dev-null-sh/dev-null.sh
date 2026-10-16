@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\UpdateUserFeedToken;
 use App\Actions\UpdateUserProfile;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -13,7 +14,7 @@ use Inertia\Response;
 
 final readonly class UserProfileController
 {
-    public function edit(#[CurrentUser] User $user): Response
+    public function edit(#[CurrentUser] User $user, UpdateUserFeedToken $updateUserFeedToken): Response
     {
         return Inertia::render('user-profile/edit', [
             'preferredLane' => $user->preferred_lane,
@@ -21,6 +22,7 @@ final readonly class UserProfileController
             'githubSyncedAt' => $user->github_synced_at?->toIso8601String(),
             'activityGraphUrl' => route('user-activity-graph.show', $user),
             'profileUrl' => route('user.show', $user),
+            'feedUrl' => route('following-feed.show', $user->feed_token ?? $updateUserFeedToken->handle($user)),
         ]);
     }
 

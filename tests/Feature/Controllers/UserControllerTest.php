@@ -580,3 +580,61 @@ it('preloads only replies visible to the profile visitor', function (): void {
         ->where('commits.data.0.reply_preview.next_cursor', fn (string $cursor): bool => $cursor !== '')
         ->missing('commits.data.0.reply_preview.data.0.user.email'));
 });
+
+it('renders the rss feed link on the own profile', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    $response = $this->actingAs($user)
+        ->get('/@octocat');
+
+    $token = $user->refresh()->feed_token;
+
+    expect($token)->toHaveLength(48);
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('feedUrl', route('following-feed.show', $token))
+            ->missing('user.feed_token')
+            ->missing('auth.user.feed_token'));
+});
+
+it('keeps the existing rss feed link on the own profile', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'feed_token' => 'secret-feed-token']);
+
+    $response = $this->actingAs($user)
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('feedUrl', route('following-feed.show', 'secret-feed-token')));
+
+    expect($user->refresh()->feed_token)->toBe('secret-feed-token');
+});
+
+it('does not render the rss feed link on other profiles', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'feed_token' => 'secret-feed-token']);
+    $viewer = User::factory()->create();
+
+    $response = $this->actingAs($viewer)
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('feedUrl', null)
+            ->missing('user.feed_token'));
+
+    expect($viewer->refresh()->feed_token)->toBeNull();
+});
+
+it('does not render the rss feed link to guests', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'feed_token' => 'secret-feed-token']);
+
+    $response = $this->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('feedUrl', null)
+            ->missing('user.feed_token'));
+
+    expect($user->refresh()->feed_token)->toBe('secret-feed-token');
+});

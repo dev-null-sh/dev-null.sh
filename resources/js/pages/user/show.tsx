@@ -21,6 +21,7 @@ import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
+import { RssFeedButton } from '@/components/rss-feed-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -47,6 +48,7 @@ export default function Show({
     activity,
     streaks,
     achievements,
+    feedUrl,
     commits,
     tab,
     pinnedCommit,
@@ -58,6 +60,7 @@ export default function Show({
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
+    feedUrl: string | null;
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies';
     pinnedCommit: Commit | null;
@@ -72,7 +75,16 @@ export default function Show({
 
     return (
         <>
-            <Head title={`${user.name} (@${user.username})`} />
+            <Head title={`${user.name} (@${user.username})`}>
+                {feedUrl && (
+                    <link
+                        rel="alternate"
+                        type="application/rss+xml"
+                        title="Commits from everyone you follow"
+                        href={feedUrl}
+                    />
+                )}
+            </Head>
 
             <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6">
                 <p className="min-w-0 truncate font-semibold">{user.name}</p>
@@ -91,16 +103,19 @@ export default function Show({
                     />
 
                     {isCurrentUser ? (
-                        <Button variant="outline" asChild>
-                            <a
-                                href="https://github.com/settings/profile"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                Edit on GitHub
-                                <ArrowUpRight />
-                            </a>
-                        </Button>
+                        <div className="flex flex-wrap justify-end gap-2">
+                            {feedUrl && <RssFeedButton feedUrl={feedUrl} />}
+                            <Button variant="outline" asChild>
+                                <a
+                                    href="https://github.com/settings/profile"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    Edit on GitHub
+                                    <ArrowUpRight />
+                                </a>
+                            </Button>
+                        </div>
                     ) : (
                         <div className="flex gap-2">
                             {auth.user && (

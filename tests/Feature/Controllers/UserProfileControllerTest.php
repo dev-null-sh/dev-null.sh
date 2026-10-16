@@ -41,6 +41,35 @@ it('renders the links to embed the activity graph', function (): void {
             ->where('profileUrl', url('/@octocat')));
 });
 
+it('renders the rss feed link', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('user-profile.edit'));
+
+    $token = $user->refresh()->feed_token;
+
+    expect($token)->toHaveLength(48);
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('feedUrl', route('following-feed.show', $token))
+            ->missing('auth.user.feed_token'));
+});
+
+it('keeps the existing rss feed link', function (): void {
+    $user = User::factory()->create(['feed_token' => 'secret-feed-token']);
+
+    $response = $this->actingAs($user)
+        ->get(route('user-profile.edit'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('feedUrl', route('following-feed.show', 'secret-feed-token')));
+
+    expect($user->refresh()->feed_token)->toBe('secret-feed-token');
+});
+
 it('redirects settings to profile settings', function (): void {
     $user = User::factory()->create();
 

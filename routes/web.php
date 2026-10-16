@@ -24,6 +24,7 @@ use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
+use App\Http\Controllers\FollowingFeedController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
@@ -41,6 +42,7 @@ use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
+use App\Http\Controllers\UserFeedTokenController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
@@ -127,6 +129,11 @@ Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
 Route::get('search/users', [UserSearchController::class, 'index'])
     ->middleware('throttle:people')
     ->name('user-search.index');
+
+// Following Feed, for RSS readers signed in by the token in the link...
+Route::get('feeds/{user:feed_token}/following.xml', [FollowingFeedController::class, 'show'])
+    ->middleware('throttle:60,1')
+    ->name('following-feed.show');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -234,6 +241,9 @@ Route::middleware('auth')->group(function (): void {
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
+
+    // Feed Token...
+    Route::put('settings/feed-token', [UserFeedTokenController::class, 'update'])->name('user-feed-token.update');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
