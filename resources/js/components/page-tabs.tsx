@@ -6,9 +6,11 @@ export function PageTabs({
     label,
     tabs,
     preserveScroll = false,
+    prefetch = true,
 }: {
     label: string;
     preserveScroll?: boolean;
+    prefetch?: boolean;
     tabs: {
         title: string;
         href: NonNullable<InertiaLinkProps['href']>;
@@ -21,7 +23,7 @@ export function PageTabs({
                 <Link
                     key={tab.title}
                     href={tab.href}
-                    prefetch
+                    prefetch={prefetch}
                     viewTransition
                     preserveScroll={preserveScroll}
                     aria-current={tab.isActive ? 'page' : undefined}

@@ -1,6 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode, RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
@@ -27,6 +27,9 @@ const openDelay = 450;
 const closeDelay = 200;
 const previewWidth = 304;
 const previewHeight = 260;
+const viewportMargin = 8;
+// Where the centre of the preview's avatar sits: border, padding and half of the size-14 avatar.
+const avatarCentre = 45;
 const cache = new Map<string, PreviewData>();
 
 async function fetchPreview(user: User): Promise<PreviewData> {
@@ -60,18 +63,35 @@ function positionFor(trigger: HTMLElement): Position {
         : { left, top: rect.bottom + 8 };
 }
 
+function positionAround(anchor: HTMLElement): Position {
+    const rect = anchor.getBoundingClientRect();
+    const left = rect.left + rect.width / 2 - avatarCentre;
+    const top = rect.top + rect.height / 2 - avatarCentre;
+
+    return {
+        left: Math.min(
+            Math.max(left, viewportMargin),
+            window.innerWidth - previewWidth - viewportMargin,
+        ),
+        top: Math.max(top, viewportMargin),
+    };
+}
+
 export function UserPreview({
     user,
     children,
     className,
+    anchor,
     onHoverChange,
 }: {
     user: User;
     children: ReactNode;
     className?: string;
+    anchor?: RefObject<HTMLElement | null>;
     onHoverChange?: (isHovering: boolean) => void;
 }) {
     const triggerRef = useRef<HTMLSpanElement>(null);
+    const previewRef = useRef<HTMLDivElement>(null);
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const [position, setPosition] = useState<Position | null>(null);
     const [data, setData] = useState<PreviewData | null>(
@@ -92,7 +112,11 @@ export function UserPreview({
                 return;
             }
 
-            setPosition(positionFor(triggerRef.current));
+            setPosition(
+                anchor?.current
+                    ? positionAround(anchor.current)
+                    : positionFor(triggerRef.current),
+            );
             setData(cache.get(user.username) ?? null);
             fetchPreview(user).then(setData, () => undefined);
         }, openDelay);
@@ -125,6 +149,21 @@ export function UserPreview({
         };
     }, [position]);
 
+    useLayoutEffect(() => {
+        if (!previewRef.current || position?.top === undefined) {
+            return;
+        }
+
+        const overflow =
+            previewRef.current.getBoundingClientRect().bottom -
+            (window.innerHeight - viewportMargin);
+        const top = Math.max(position.top - overflow, viewportMargin);
+
+        if (overflow > 0 && top !== position.top) {
+            setPosition({ left: position.left, top });
+        }
+    }, [position, data]);
+
     useEffect(() => () => clearTimeout(timer.current), []);
 
     return (
@@ -147,12 +186,24 @@ export function UserPreview({
             {position &&
                 createPortal(
                     <div
+                        ref={previewRef}
                         role="dialog"
                         aria-label={`About @${user.username}`}
-                        onMouseEnter={keepOpen}
-                        onMouseLeave={scheduleClose}
+                        onMouseEnter={() => {
+                            onHoverChange?.(true);
+                            keepOpen();
+                        }}
+                        onMouseLeave={() => {
+                            onHoverChange?.(false);
+                            scheduleClose();
+                        }}
                         className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
-                        style={position}
+                        style={{
+                            ...position,
+                            transformOrigin: anchor
+                                ? `${avatarCentre}px ${avatarCentre}px`
+                                : undefined,
+                        }}
                         data-test="user-preview"
                     >
                         <UserPreviewContent
@@ -180,7 +231,7 @@ function UserPreviewContent({
     onChange: (data: PreviewData) => void;
 }) {
     const { auth } = usePage().props;
-    const isCurrentUser = auth.user.id === user.id;
+    const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
