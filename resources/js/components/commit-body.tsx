@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { CodeBlock } from '@/components/code-block';
 import { LinkifiedText } from '@/components/linkified-text';
 import { emojify } from '@/lib/emoji';
@@ -51,6 +52,45 @@ export function CommitBody({
                         );
                 }
             })}
+        </div>
+    );
+}
+
+export function CommitBodyExcerpt({
+    segments,
+    className,
+}: {
+    segments: BodySegment[];
+    className?: string;
+}) {
+    const bodyRef = useRef<HTMLDivElement>(null);
+    const [isClamped, setIsClamped] = useState(false);
+
+    useEffect(() => {
+        const body = bodyRef.current;
+
+        if (!body) {
+            return;
+        }
+
+        const observer = new ResizeObserver(() =>
+            setIsClamped(body.scrollHeight > body.clientHeight),
+        );
+        observer.observe(body);
+
+        return () => observer.disconnect();
+    }, []);
+
+    return (
+        <div
+            ref={bodyRef}
+            className={cn(
+                'overflow-hidden',
+                className,
+                isClamped && 'mask-b-from-60%',
+            )}
+        >
+            <CommitBody segments={segments} className="text-[15px]" isStatic />
         </div>
     );
 }

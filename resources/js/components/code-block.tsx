@@ -51,6 +51,7 @@ export function CodeBlock({
             {/* The server escapes the code while highlighting it. */}
             <pre
                 ref={codeRef}
+                tabIndex={isCopyable ? undefined : -1}
                 className="overflow-x-auto px-3 py-2.5 font-mono text-[13px] leading-normal wrap-normal whitespace-pre"
                 dangerouslySetInnerHTML={{ __html: html }}
             />

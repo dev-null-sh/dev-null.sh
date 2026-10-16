@@ -26,6 +26,7 @@ export type Commit = {
     id: string;
     user_id: string;
     parent_id: string | null;
+    hot_score: number;
     body: string;
     body_segments: BodySegment[];
     status: CommitStatus;
@@ -40,6 +41,8 @@ export type Commit = {
     user: User;
     replies_count?: number;
     is_saved?: boolean;
+    saved_order?: number | null;
+    is_pinned?: boolean;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
     quoted_commit_id: string | null;
@@ -60,6 +63,7 @@ export type QuotedCommit = Pick<
     | 'created_at'
     | 'deleted_at'
     | 'user'
+    | 'replies_count'
 >;
 
 export type DeletedCommit = {

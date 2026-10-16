@@ -12,6 +12,7 @@ use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
+use App\Http\Controllers\CommitRestorationController;
 use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
@@ -152,6 +153,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-series.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
+    Route::post('commits/{commit}/restoration', [CommitRestorationController::class, 'store'])
+        ->withTrashed()
+        ->name('commit-restoration.store');
     Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])
         ->middleware('throttle:pins')
         ->name('commit-pin.update');
