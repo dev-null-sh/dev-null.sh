@@ -6,6 +6,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
+import { CommitQuoteButton } from '@/components/commit-quote-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ThreadActions,
@@ -14,6 +15,7 @@ import {
 } from '@/components/commit-thread';
 import { GraphRail, RailAvatar, RailDot } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
+import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
@@ -282,6 +284,11 @@ export function CommitCard({
                             {commit.images && (
                                 <CommitImages images={commit.images} />
                             )}
+                            {commit.quoted_commit_id !== null && (
+                                <QuotedCommit
+                                    commit={commit.quoted_commit ?? null}
+                                />
+                            )}
                             {commit.link_preview?.title && (
                                 <LinkPreview preview={commit.link_preview} />
                             )}
@@ -313,11 +320,17 @@ export function CommitCard({
                             )}
 
                             {commit.replies_count === undefined ? (
-                                <CommitStarButton
-                                    key={`${commit.starred}-${commit.stars_count}`}
-                                    commit={commit}
-                                    className="mt-1.5 -ml-1.5"
-                                />
+                                <div className="mt-1.5 -ml-1.5 flex items-center gap-0.5">
+                                    <CommitStarButton
+                                        key={`${commit.starred}-${commit.stars_count}`}
+                                        commit={commit}
+                                    />
+                                    <CommitQuoteButton
+                                        commit={commit}
+                                        keyShortcut="q"
+                                        className="px-1.5 py-1"
+                                    />
+                                </div>
                             ) : (
                                 <ThreadActions
                                     thread={thread}
@@ -328,6 +341,10 @@ export function CommitCard({
                                                 key={`${commit.starred}-${commit.stars_count}`}
                                                 commit={commit}
                                                 className="px-2 py-0.5"
+                                            />
+                                            <CommitQuoteButton
+                                                commit={commit}
+                                                keyShortcut="q"
                                             />
                                             {threadActions}
                                         </>

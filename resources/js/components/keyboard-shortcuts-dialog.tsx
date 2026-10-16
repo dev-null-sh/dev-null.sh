@@ -13,6 +13,7 @@ const shortcuts: Shortcut[] = [
     { keys: ['y'], label: 'Copy link to the focused commit' },
     { keys: ['↵'], label: 'Open the focused commit' },
     { keys: ['r'], label: 'Reply to commit' },
+    { keys: ['q'], label: 'Quote commit' },
     { keys: ['o'], label: 'Show or hide replies' },
     { keys: ['c'], label: 'Write a commit' },
     { keys: ['⌘', 'K'], label: 'Search developers' },
