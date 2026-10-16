@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Two\User as GitHubUser;
 
@@ -20,7 +22,9 @@ final readonly class UpdateOrCreateUser
         $githubId = (string) $githubUser->getId();
         $username = (string) $githubUser->getNickname();
 
-        return DB::transaction(function () use ($githubUser, $raw, $githubId, $username): User {
+        $hasSponsorsListing = $this->hasSponsorsListing($githubUser->token);
+
+        return DB::transaction(function () use ($githubUser, $raw, $githubId, $username, $hasSponsorsListing): User {
             $this->freeUsername($username, $githubId);
 
             return User::query()->updateOrCreate([
@@ -34,6 +38,7 @@ final readonly class UpdateOrCreateUser
                 'location' => $this->nullIfBlank(Arr::get($raw, 'location')),
                 'website' => $this->website(Arr::get($raw, 'blog')),
                 'company' => $this->nullIfBlank(Arr::get($raw, 'company')),
+                ...($hasSponsorsListing === null ? [] : ['has_sponsors_listing' => $hasSponsorsListing]),
             ]);
         });
     }
@@ -50,6 +55,30 @@ final readonly class UpdateOrCreateUser
             ->each(function (User $user): void {
                 $user->update(['username' => '_renamed-'.$user->github_id]);
             });
+    }
+
+    /**
+     * Only a public listing has a sponsors page to link to. The REST API doesn't say, so this asks
+     * GraphQL with the user's own token. Null when GitHub can't answer, which keeps the last known value.
+     */
+    private function hasSponsorsListing(string $token): ?bool
+    {
+        try {
+            $response = Http::withToken($token)
+                ->connectTimeout(2)
+                ->timeout(3)
+                ->post('https://api.github.com/graphql', [
+                    'query' => 'query { viewer { sponsorsListing { isPublic } } }',
+                ]);
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        if ($response->failed() || $response->json('errors') !== null) {
+            return null;
+        }
+
+        return $response->json('data.viewer.sponsorsListing.isPublic') === true;
     }
 
     private function website(mixed $value): ?string
