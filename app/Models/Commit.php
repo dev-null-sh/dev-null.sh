@@ -242,7 +242,9 @@ final class Commit extends Model
      */
     public function loadPublicPreview(): self
     {
-        $this->replies_count = self::query()->withVisibleReplyCount(null)->findOrFail($this->id)->replies_count;
+        $this->forceFill([
+            'replies_count' => self::query()->withTrashed()->withVisibleReplyCount(null)->find($this->id)->replies_count ?? 0,
+        ])->syncOriginalAttribute('replies_count');
 
         return $this
             ->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
