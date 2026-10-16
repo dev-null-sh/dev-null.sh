@@ -17,7 +17,7 @@ final readonly class UpdateScheduledCommitSubmittedAt
     public function handle(string $id): bool
     {
         return DB::transaction(function () use ($id): bool {
-            // Claim with a conditional write before reading, including on SQLite.
+            // Claim with a conditional write before reading.
             // Creation and the claim roll back together if either operation fails.
             $claimed = ScheduledCommit::query()->whereKey($id)
                 ->whereNull('submitted_at')->whereNull('canceled_at')

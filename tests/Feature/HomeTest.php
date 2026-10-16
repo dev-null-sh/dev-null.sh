@@ -21,10 +21,10 @@ it('redirects authenticated users to the log', function (): void {
 });
 
 it('redirects authenticated users to the log they visited last', function (): void {
-    $response = $this->actingAs(User::factory()->create(['log' => Log::Everyone]))
+    $response = $this->actingAs(User::factory()->create(['log' => Log::Trending]))
         ->get(route('home'));
 
-    $response->assertRedirectToRoute('log.show', Log::Everyone);
+    $response->assertRedirectToRoute('log.show', Log::Trending);
 });
 
 it('automatically signs in a local developer without GitHub', function (): void {

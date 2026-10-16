@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
 import { ArrowUpRight, Download } from 'lucide-react';
 import ExportController from '@/actions/App/Http/Controllers/ExportController';
+import ActivityGraphEmbed from '@/components/activity-graph-embed';
 import DeleteUser from '@/components/delete-user';
 import { GitHubProfile } from '@/components/github-profile';
 import Heading from '@/components/heading';
@@ -14,9 +15,13 @@ import { show } from '@/routes/user';
 export default function Edit({
     preferredLane,
     automaticLane,
+    activityGraphUrl,
+    profileUrl,
 }: {
     preferredLane: number | null;
     automaticLane: number;
+    activityGraphUrl: string;
+    profileUrl: string;
 }) {
     const { user } = useUser();
 
@@ -52,6 +57,11 @@ export default function Edit({
             <LanePicker
                 preferredLane={preferredLane}
                 automaticLane={automaticLane}
+            />
+
+            <ActivityGraphEmbed
+                activityGraphUrl={activityGraphUrl}
+                profileUrl={profileUrl}
             />
 
             <section className="px-4 py-6 sm:px-6">
