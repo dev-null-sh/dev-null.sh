@@ -72,10 +72,10 @@ export default function Index({
                             Save a commit to find it here. Your saved commits
                             are private.
                             <Link
-                                href={LogController.show('everyone')}
+                                href={LogController.show('trending')}
                                 className="mt-3 block text-primary hover:underline"
                             >
-                                Explore Everyone
+                                Explore Trending
                             </Link>
                         </EmptyFeed>
                     }

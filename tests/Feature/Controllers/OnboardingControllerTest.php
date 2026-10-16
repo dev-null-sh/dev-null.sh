@@ -63,12 +63,12 @@ it('completes the onboarding and lands on the log', function (): void {
 });
 
 it('lands on the log the user visited last', function (): void {
-    $user = User::factory()->notOnboarded()->create(['log' => Log::Everyone]);
+    $user = User::factory()->notOnboarded()->create(['log' => Log::Trending]);
 
     $response = $this->actingAs($user)
         ->put(route('onboarding.update'));
 
-    $response->assertRedirectToRoute('log.show', Log::Everyone);
+    $response->assertRedirectToRoute('log.show', Log::Trending);
 });
 
 it('lands on the page the user was headed to before signing in', function (): void {

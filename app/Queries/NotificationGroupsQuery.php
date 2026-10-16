@@ -7,7 +7,9 @@ namespace App\Queries;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final readonly class NotificationGroupsQuery
 {
@@ -17,6 +19,7 @@ final readonly class NotificationGroupsQuery
 
     /**
      * Each group is represented by its newest notification, carrying how many actors and unread notifications it holds.
+     * Its actor says whether the user follows them, so a new follower can be followed back from the list.
      *
      * @return CursorPaginator<int, Notification>
      */
@@ -24,7 +27,11 @@ final readonly class NotificationGroupsQuery
     {
         $groups = $this->ranked($user)
             ->where('group_position', 1)
-            ->with(['actor', 'commit'])
+            ->with([
+                'actor' => fn (BelongsTo $query): BelongsTo => $query
+                    ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
+                'commit',
+            ])
             ->latest()
             ->latest('id')
             ->cursorPaginate(self::PER_PAGE);

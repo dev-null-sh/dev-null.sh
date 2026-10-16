@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { CommitBody } from '../../resources/js/components/commit-body';
 import { LinkifiedText } from '../../resources/js/components/linkified-text';
 
 void test('keeps stable mention links alongside shortened URLs and their full copyable text', () => {
@@ -28,4 +29,32 @@ void test('leaves mentions without captured identities as plain text', () => {
     );
 
     assert.equal(html, 'Thanks @original!');
+});
+
+void test('keeps captured mention identities in regular bodies alongside highlighted code', () => {
+    const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
+    const html = renderToStaticMarkup(
+        <CommitBody
+            segments={[
+                { type: 'text', text: 'Thanks @ORIGINAL and @unknown! ' },
+                { type: 'code', code: '@ORIGINAL' },
+                {
+                    type: 'block',
+                    language: 'php',
+                    html: '<span class="hl-comment">// @ORIGINAL</span>',
+                },
+            ]}
+            mentions={{ original: id }}
+        />,
+    );
+
+    assert.ok(html.includes(`href="/mentions/${id}"`));
+    assert.ok(html.includes('>@ORIGINAL</a>'));
+    assert.equal(html.match(/data-test="mention"/g)?.length, 1);
+    assert.ok(html.includes('and @unknown!'));
+    assert.match(html, /<code[^>]*>@ORIGINAL<\/code>/);
+    assert.match(
+        html,
+        /<pre[^>]*><span class="hl-comment">\/\/ @ORIGINAL<\/span>/,
+    );
 });
