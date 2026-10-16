@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
 import type { DeletedCommit, ThreadCommit } from '@/types';
+import type { FlashToast } from '@/types/ui';
 
 export function characterCount(value: string): number {
     return Array.from(value).length;
@@ -73,6 +74,15 @@ export function isDeleted(commit: {
     deleted_at?: string | null;
 }): commit is DeletedCommit {
     return typeof commit.deleted_at === 'string';
+}
+
+/**
+ * Whether a commit submission came back without a commit. The `committed` and `scheduled` flashes can't tell:
+ * they live in the session, so a poll or another tab landing before the redirect takes them. The rejections
+ * that still redirect back (rate limited, page expired) always flash an error toast instead.
+ */
+export function isRejectedSubmission(flash: { toast?: FlashToast }): boolean {
+    return flash.toast?.type === 'error';
 }
 
 export function laneOf(commit: ThreadCommit): string {
