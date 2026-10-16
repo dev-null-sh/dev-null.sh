@@ -250,12 +250,12 @@ it('does not create replies', function (): void {
     $parent = Commit::factory()->create();
 
     $this->actingAs($user)
-        ->fromRoute('log.show', Log::Everyone)
+        ->fromRoute('log.show', Log::Trending)
         ->post(route('commit.store'), [
             'body' => 'Agreed, ship it.',
             'parent_id' => $parent->id,
         ])
-        ->assertRedirectToRoute('log.show', Log::Everyone);
+        ->assertRedirectToRoute('log.show', Log::Trending);
 
     expect($user->commits()->sole()->parent_id)->toBeNull()
         ->and($parent->replies()->count())->toBe(0);
@@ -266,13 +266,13 @@ it('may quote a commit', function (): void {
     $quoted = Commit::factory()->create();
 
     $response = $this->actingAs($user)
-        ->fromRoute('log.show', Log::Everyone)
+        ->fromRoute('log.show', Log::Trending)
         ->post(route('commit.store'), [
             'body' => 'Required reading.',
             'quoted_commit_id' => $quoted->id,
         ]);
 
-    $response->assertRedirectToRoute('log.show', Log::Everyone)
+    $response->assertRedirectToRoute('log.show', Log::Trending)
         ->assertSessionHasNoErrors();
 
     expect($user->commits()->sole())
@@ -296,7 +296,7 @@ it('may not quote a commit that is not available', function (Closure $factory): 
     $quoted = $factory();
 
     $response = $this->actingAs(User::factory()->create())
-        ->fromRoute('log.show', Log::Everyone)
+        ->fromRoute('log.show', Log::Trending)
         ->post(route('commit.store'), ['body' => 'Required reading.', 'quoted_commit_id' => $quoted->id]);
 
     $response->assertSessionHasErrors(['quoted_commit_id' => 'That commit is no longer available to quote.']);
@@ -315,7 +315,7 @@ it('may not quote a commit that is not available', function (Closure $factory): 
 
 it('may not quote a commit that does not exist', function (): void {
     $response = $this->actingAs(User::factory()->create())
-        ->fromRoute('log.show', Log::Everyone)
+        ->fromRoute('log.show', Log::Trending)
         ->post(route('commit.store'), ['body' => 'Hello', 'quoted_commit_id' => '01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3']);
 
     $response->assertSessionHasErrors('quoted_commit_id');
@@ -325,7 +325,7 @@ it('may not quote a commit in a reply', function (): void {
     $commit = Commit::factory()->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->fromRoute('log.show', Log::Everyone)
+        ->fromRoute('log.show', Log::Trending)
         ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $commit->id, 'quoted_commit_id' => $commit->id]);
 
     $response->assertSessionHasErrors('quoted_commit_id');
@@ -448,7 +448,7 @@ it('may not quote across a block in either direction', function (bool $quoterBlo
     $quoterBlocks ? $quoter->blocking()->attach($quoted->user) : $quoted->user->blocking()->attach($quoter);
 
     $this->actingAs($quoter)
-        ->fromRoute('log.show', Log::Everyone)
+        ->fromRoute('log.show', Log::Trending)
         ->post(route('commit.store'), ['body' => 'Hello', 'quoted_commit_id' => $quoted->id])
         ->assertSessionHasErrors(['quoted_commit_id' => 'That commit is no longer available to quote.']);
 

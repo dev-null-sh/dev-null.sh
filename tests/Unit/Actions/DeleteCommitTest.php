@@ -61,3 +61,14 @@ it('lowers the thread when a reply is deleted', function (): void {
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
 });
+
+it('lowers the quoted thread when a quote is deleted', function (): void {
+    $commit = Commit::factory()->create();
+    $quote = Commit::factory()->for($commit, 'quotedCommit')->create();
+    resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
+
+    resolve(DeleteCommit::class)->handle($quote);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+});

@@ -102,7 +102,7 @@ export function useKeyboardShortcuts(
                 ? { l: signIn, e: signIn, p: signIn, s: signIn }
                 : {
                       l: () => router.visit(LogController.show(log)),
-                      e: () => router.visit(LogController.show('everyone')),
+                      e: () => router.visit(LogController.show('trending')),
                       p: () => router.visit(show(user)),
                       s: () => router.visit(edit()),
                   };

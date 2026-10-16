@@ -109,7 +109,7 @@ it('shows the star count and whether the viewer starred the commit', function ()
     $user->starredCommits()->attach($starred);
     User::factory()->create()->starredCommits()->attach($starred);
 
-    $response = $this->actingAs($user)->get(route('log.show', Log::Everyone));
+    $response = $this->actingAs($user)->get(route('log.show', Log::Trending));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page

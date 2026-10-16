@@ -46,7 +46,7 @@ final readonly class DeleteCommit
             $commit->images()->delete();
             $commit->delete();
 
-            $this->updateCommitHotScores->handle([$commit->threadRootId()]);
+            $this->updateCommitHotScores->handle([$commit->id]);
 
             return $imagePaths;
         });

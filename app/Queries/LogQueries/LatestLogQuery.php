@@ -9,11 +9,8 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 
-final readonly class EveryoneLogQuery implements LogQuery
+final readonly class LatestLogQuery implements LogQuery
 {
-    /**
-     * Ranked by hot score, so commits that draw stars and replies rise and then give way to newer ones.
-     */
     public function builder(User $user): CommitBuilder
     {
         return Commit::query()
@@ -25,7 +22,7 @@ final readonly class EveryoneLogQuery implements LogQuery
             ->with(['user', 'linkPreview', 'images'])
             ->withQuotedCommitFor($user)
             ->withStarsFor($user)
-            ->orderByDesc('hot_score')
-            ->orderByDesc('id');
+            ->latest()
+            ->latest('id');
     }
 }

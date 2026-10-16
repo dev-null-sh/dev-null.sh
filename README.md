@@ -4,7 +4,7 @@ A social network for developers. Sign in with GitHub, follow developers, and sha
 
 ## Getting Started
 
-Requires PHP 8.5+, Composer, Bun, and SQLite (the default database) or another configured database.
+Requires PHP 8.5+, Composer, Bun, and PostgreSQL 17+ with the [pgvector](https://github.com/pgvector/pgvector) and `pg_trgm` extensions available. [Laravel Herd](https://herd.laravel.com)'s PostgreSQL service ships with both. Create a `devnull` database for the app and a `testing` database for the test suite.
 
 ```bash
 git clone https://github.com/nunomaduro/devnull.com.git

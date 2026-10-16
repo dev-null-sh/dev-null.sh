@@ -6,7 +6,11 @@ import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editProfile } from '@/routes/user-profile';
 
 const tabGroups = [
-    [LogController.show('following').url, LogController.show('everyone').url],
+    [
+        LogController.show('following').url,
+        LogController.show('latest').url,
+        LogController.show('trending').url,
+    ],
     [editProfile().url, editAppearance().url],
 ];
 
