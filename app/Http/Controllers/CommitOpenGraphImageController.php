@@ -14,7 +14,7 @@ final readonly class CommitOpenGraphImageController
 {
     public function show(ShowCommitOpenGraphImageRequest $request, User $user, Commit $commit, CreateCommitOpenGraphImage $action): Response
     {
-        return response($action->handle($commit), headers: [
+        return response($action->handle($user, $commit), headers: [
             'Content-Type' => 'image/png',
             'Cache-Control' => 'public, max-age=3600',
         ]);
