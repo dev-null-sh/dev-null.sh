@@ -31,10 +31,10 @@ final readonly class ModerationController
                     'parent.user',
                     'linkPreview',
                     'images',
-                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with('user')->withPollFor($user),
+                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['user', 'linkPreview', 'images'])->withPollFor($user),
                     'seriesParts' => fn (HasMany $query): HasMany => $query
                         ->where('status', CommitStatus::Pending)
-                        ->with(['user', 'linkPreview', 'images', 'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with('user')->withPollFor($user)])
+                        ->with(['user', 'linkPreview', 'images', 'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['user', 'linkPreview', 'images'])->withPollFor($user)])
                         ->oldest('series_position'),
                 ])
                 ->withStarsFor($user)

@@ -6,6 +6,7 @@ import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import { QuotedCommit } from '../../resources/js/components/quoted-commit';
 import type {
+    LinkPreview,
     Poll,
     QuotedCommit as QuotedCommitData,
 } from '../../resources/js/types';
@@ -81,6 +82,52 @@ void test('keeps the quote a single link', async () => {
 
     assert.equal(body.match(/<a\b/g)?.length, 1);
     assert.doesNotMatch(body, /<button\b/);
+});
+
+void test('shows the images, link card and embed of a quoted commit inside the single quote link', async () => {
+    const image = {
+        id: 'image',
+        url: '/storage/commit-images/sunset.webp',
+        width: 1600,
+        height: 900,
+        description: 'A sunset over Porto',
+    };
+    const card = {
+        url: 'https://laravel.com',
+        title: 'Laravel',
+        description: 'The PHP framework for web artisans.',
+        image_url: 'https://laravel.com/og.png',
+        site_name: 'Laravel',
+        embed: null,
+    };
+    const spotify = {
+        ...card,
+        url: 'https://open.spotify.com/track/1',
+        title: 'Never Gonna Give You Up',
+        site_name: 'Spotify',
+        image_url: 'https://i.scdn.co/image/cover.jpg',
+        embed: {
+            provider: 'Spotify',
+            kind: 'audio',
+            src: 'https://open.spotify.com/embed/track/1',
+            aspect_ratio: null,
+            height: 152,
+        },
+    } satisfies LinkPreview;
+
+    const cases: [QuotedCommitData, RegExp][] = [
+        [{ ...commit, images: [image] }, /alt="A sunset over Porto"/],
+        [{ ...commit, link_preview: card }, />Laravel</],
+        [{ ...commit, link_preview: spotify }, />Never Gonna Give You Up</],
+    ];
+
+    for (const [quoted, shown] of cases) {
+        const body = await render(false, quoted);
+
+        assert.match(body, shown);
+        assert.equal(body.match(/<a\b/g)?.length, 1);
+        assert.doesNotMatch(body, /<(button|iframe)\b/);
+    }
 });
 
 void test('shows the options of a quoted poll without letting anyone vote inside the quote', async () => {

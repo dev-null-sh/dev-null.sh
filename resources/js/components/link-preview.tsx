@@ -3,27 +3,32 @@ import { LinkEmbed } from '@/components/link-embed';
 import { hostname } from '@/lib/urls';
 import type { LinkPreview as LinkPreviewData } from '@/types';
 
-export function LinkPreview({ preview }: { preview: LinkPreviewData }) {
+export function LinkPreview({
+    preview,
+    isStatic = false,
+}: {
+    preview: LinkPreviewData;
+    isStatic?: boolean;
+}) {
     const [isImageBroken, setIsImageBroken] = useState(false);
     const imageUrl = isImageBroken ? null : preview.image_url;
 
     if (preview.embed) {
-        return <LinkEmbed preview={preview} embed={preview.embed} />;
+        return (
+            <LinkEmbed
+                preview={preview}
+                embed={preview.embed}
+                isStatic={isStatic}
+            />
+        );
     }
 
     if (!preview.title) {
         return null;
     }
 
-    return (
-        <a
-            href={preview.url}
-            target="_blank"
-            rel="noopener noreferrer nofollow ugc"
-            onClick={(event) => event.stopPropagation()}
-            className="mt-3 flex items-center overflow-hidden rounded-lg border transition-colors hover:bg-accent focus-visible:bg-accent"
-            data-test="link-preview"
-        >
+    const content = (
+        <>
             {imageUrl && (
                 <img
                     src={imageUrl}
@@ -48,6 +53,30 @@ export function LinkPreview({ preview }: { preview: LinkPreviewData }) {
                     </span>
                 )}
             </div>
+        </>
+    );
+
+    if (isStatic) {
+        return (
+            <div
+                className="mt-3 flex items-center overflow-hidden rounded-lg border"
+                data-test="link-preview"
+            >
+                {content}
+            </div>
+        );
+    }
+
+    return (
+        <a
+            href={preview.url}
+            target="_blank"
+            rel="noopener noreferrer nofollow ugc"
+            onClick={(event) => event.stopPropagation()}
+            className="mt-3 flex items-center overflow-hidden rounded-lg border transition-colors hover:bg-accent focus-visible:bg-accent"
+            data-test="link-preview"
+        >
+            {content}
         </a>
     );
 }

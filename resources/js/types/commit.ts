@@ -95,6 +95,8 @@ export type QuotedCommit = Pick<
     | 'user'
     | 'replies_count'
     | 'poll'
+    | 'link_preview'
+    | 'images'
 >;
 
 export type DeletedCommit = {
