@@ -23,6 +23,7 @@ import {
     useComposerPreview,
 } from '@/components/composer-preview';
 import { CopyLinkButton } from '@/components/copy-link-button';
+import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
@@ -34,6 +35,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
+import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
@@ -621,6 +623,7 @@ function ReplyComposer({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
+    const suggestion = suggestEmoji(body);
     const preview = useComposerPreview({
         body,
         textareaRef,
@@ -641,6 +644,17 @@ function ReplyComposer({
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (preview.handleShortcut(event)) {
+            return;
+        }
+
+        if (event.key === 'Tab' && suggestion !== null) {
+            const completed = completeEmoji(body);
+
+            if (completed !== null) {
+                event.preventDefault();
+                updateBody(completed);
+            }
+
             return;
         }
 
@@ -715,6 +729,12 @@ function ReplyComposer({
                             />
                         )}
                     </div>
+                    {!preview.isPreviewing && (
+                        <EmojiSuggestionHint
+                            suggestion={suggestion}
+                            className="mt-1 px-1"
+                        />
+                    )}
                     <InputError
                         message={errors.body ?? errors.parent_id}
                         className="px-1"

@@ -12,6 +12,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
@@ -20,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
+import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
@@ -36,6 +38,7 @@ export function CommitComposer() {
 
     const remaining = maxBodyLength - body.length;
     const isCommittable = body.trim().length >= minBodyLength;
+    const suggestion = suggestEmoji(body);
     const preview = useComposerPreview({
         body,
         textareaRef,
@@ -44,6 +47,17 @@ export function CommitComposer() {
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (preview.handleShortcut(event)) {
+            return;
+        }
+
+        if (event.key === 'Tab' && suggestion !== null) {
+            const completed = completeEmoji(body);
+
+            if (completed !== null) {
+                event.preventDefault();
+                updateBody(completed);
+            }
+
             return;
         }
 
@@ -133,6 +147,13 @@ export function CommitComposer() {
                                     />
                                 )}
                             </div>
+
+                            {!preview.isPreviewing && (
+                                <EmojiSuggestionHint
+                                    suggestion={suggestion}
+                                    className="mt-1.5"
+                                />
+                            )}
 
                             <InputError message={errors.body} />
 
