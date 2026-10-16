@@ -3,11 +3,13 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\SshKeyPair;
@@ -73,9 +75,15 @@ it('replies to a commit', function (): void {
 });
 
 it('attaches a link preview for the first link', function (): void {
+    Queue::fake([UnfurlLink::class]);
+
     postSignedCommit(signedCommit($this->keyPair, 'Shipped https://example.com/first and https://example.com/second'))->assertCreated();
 
-    expect($this->user->commits()->sole()->linkPreview->url)->toBe('https://example.com/first');
+    $commit = $this->user->commits()->sole();
+
+    expect($commit->linkPreview->url)->toBe('https://example.com/first');
+
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
 });
 
 it('fails to reply to an unknown commit', function (): void {

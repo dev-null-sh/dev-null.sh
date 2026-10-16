@@ -405,6 +405,54 @@ it('may delete user account', function (): void {
     $this->assertGuest();
 });
 
+it('keeps the replies other people left under the replies of a deleted account', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($root, 'parent')->create();
+    $otherReply = Commit::factory()->for($reply, 'parent')->create();
+
+    $this->actingAs($user)->delete(route('user.destroy'));
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$otherReply->user, $otherReply]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('ancestors', 2)
+            ->where('ancestors.0.id', $root->id)
+            ->where('ancestors.1.id', $reply->id)
+            ->missing('ancestors.1.body')
+            ->missing('ancestors.1.user'));
+
+    $this->actingAs($root->user)
+        ->getJson(route('commit-reply.index', $root))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.user');
+
+    $this->getJson(route('api-commit.show', $reply))->assertNotFound();
+
+    $this->getJson(route('api-commit.show', $otherReply))
+        ->assertOk()
+        ->assertJsonPath('data.id', $otherReply->id)
+        ->assertJsonPath('data.parent_id', null)
+        ->assertJsonPath('data.author.id', $otherReply->user_id);
+
+    $this->getJson(route('api-user-commit.index', $otherReply->user).'?replies=1')
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$otherReply->id]);
+
+    $this->get(route('user-feed.show', $root->user))
+        ->assertOk()
+        ->assertSee("urn:uuid:{$root->id}")
+        ->assertDontSee("urn:uuid:{$reply->id}");
+
+    $this->getJson(route('api-user.show', $user))->assertNotFound();
+    $this->get(route('user-feed.show', $user))->assertNotFound();
+});
+
 it('hides pending and rejected commits from other users', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 

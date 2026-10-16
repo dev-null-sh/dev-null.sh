@@ -355,3 +355,33 @@ it('cascades reports when the commit or either account is hard deleted', functio
     };
     expect(CommitReport::query()->count())->toBe(0);
 })->with(['commit', 'author', 'reporter']);
+
+it('removes reports on account deletion tombstones while keeping reports on surviving replies', function (bool $alreadyDeleted): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($root, 'parent')->create();
+    $survivingReply = Commit::factory()->for($reply, 'parent')->create();
+    $removedReport = CommitReport::factory()->for($reply)->create();
+    $keptReport = CommitReport::factory()->for($survivingReply)->create();
+
+    if ($alreadyDeleted) {
+        $reply->delete();
+    }
+
+    $this->actingAs($user)->delete(route('user.destroy'))->assertRedirectToRoute('home');
+
+    $tombstone = Commit::withTrashed()->findOrFail($reply->id);
+
+    expect($tombstone->trashed())->toBeTrue()
+        ->and($tombstone->user_id)->toBeNull()
+        ->and($removedReport->fresh())->toBeNull()
+        ->and(CommitReport::query()->sole()->id)->toBe($keptReport->id)
+        ->and($survivingReply->fresh()->parent_id)->toBe($tombstone->id);
+
+    $this->actingAs(User::factory()->create(['username' => 'moderator-demo']))
+        ->get(route('reported-commit.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page->has('reports.data', 1)
+            ->where('reports.data.0.id', $keptReport->id)
+            ->where('reports.data.0.commit.parent', null)
+            ->missing('reports.data.0.reporter_id'));
+})->with([false, true]);
