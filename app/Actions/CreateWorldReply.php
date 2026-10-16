@@ -16,8 +16,6 @@ final readonly class CreateWorldReply
 
     private const string USERNAME = 'world';
 
-    private const string REPLY = 'hello.';
-
     public function __construct(
         private HelloWorld $helloWorld,
         private CreateReplyNotifications $createReplyNotifications,
@@ -37,7 +35,9 @@ final readonly class CreateWorldReply
         DB::transaction(function () use ($commit): void {
             $world = $this->world();
 
-            if (! $world instanceof User || $commit->user_id === $world->id) {
+            $author = $commit->user;
+
+            if (! $world instanceof User || ! $author instanceof User || $author->is($world)) {
                 return;
             }
 
@@ -46,7 +46,7 @@ final readonly class CreateWorldReply
             }
 
             $reply = $world->commits()->create([
-                'body' => self::REPLY,
+                'body' => "Hello, {$author->name}.",
                 'parent_id' => $commit->id,
                 'status' => CommitStatus::Approved,
             ]);
