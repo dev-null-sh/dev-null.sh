@@ -98,6 +98,7 @@ final readonly class UserController
             'description' => $user->bio ?? __("Sign in with GitHub to read @:username's commits on /dev/null.", ['username' => $user->username]),
             'url' => route('user.show', $user),
             'image' => route('user-open-graph-image.show', ['user' => $user, 'v' => $user->openGraphImageVersion()]),
+            'feed' => route('user-feed.show', $user),
         ]]);
     }
 }
