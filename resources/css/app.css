@@ -7,6 +7,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Hovering or focusing a reply only reveals that reply's own controls, not those of the commits it sits inside. */
+@custom-variant commit-hover {
+    @media (hover: hover) {
+        [data-commit]:hover:not(:has([data-reply]:hover)) & {
+            @slot;
+        }
+    }
+}
+@custom-variant commit-focus-within ([data-commit]:focus-within:not(:has([data-reply]:focus-within)) &);
+@custom-variant reply-hover {
+    @media (hover: hover) {
+        [data-reply]:hover:not(:has([data-reply]:hover)) & {
+            @slot;
+        }
+    }
+}
+
 @theme {
     --font-sans:
         'Geist', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
@@ -124,6 +141,7 @@
     --ring: #3b6fe0;
     --rail: #d3d7dd;
     --radius: 0.5rem;
+    --brand: #ff2d20;
 
     --lane-0: #d9480f;
     --lane-1: #2f9e44;
@@ -216,6 +234,11 @@
     }
 }
 
+/* The stable scrollbar gutter already keeps the page in place when a dialog locks scrolling. */
+html body[data-scroll-locked] {
+    margin-right: 0 !important;
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
     animation-duration: 160ms;
@@ -237,7 +260,7 @@
 
     .hl-type,
     .hl-generic {
-        color: var(--lane-2);
+        color: var(--brand);
     }
 
     .hl-property {

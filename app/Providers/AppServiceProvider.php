@@ -6,7 +6,10 @@ namespace App\Providers;
 
 use App\Contracts\Services\DnsResolver;
 use App\Services\DnsResolvers\SystemDnsResolver;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
@@ -20,6 +23,8 @@ final class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
+
         $this->bootExceptionHandling();
     }
 

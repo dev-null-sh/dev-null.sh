@@ -45,11 +45,11 @@ it('stores emoji shortcodes and attaches a link preview for each part', function
     Queue::fake();
 
     $parts = resolve(CreateCommitSeries::class)->handle(User::factory()->create(), [
-        'shipped it :heart',
+        'shipped it :heart :rocket:',
         'notes at https://example.com/notes',
     ]);
 
-    expect($parts[0]->body)->toBe('shipped it ❤️')
+    expect($parts[0]->body)->toBe('shipped it ❤️ 🚀')
         ->and($parts[0]->link_preview_id)->toBeNull()
         ->and($parts[1]->linkPreview?->url)->toBe('https://example.com/notes');
 
