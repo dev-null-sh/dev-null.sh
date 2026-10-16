@@ -178,7 +178,11 @@ export function CommitComposer() {
                               .replace(/\.\d{3}Z$/, '+00:00'),
                       }
                     : hasImages
-                      ? { ...data, images: attachments.images }
+                      ? {
+                            ...data,
+                            images: attachments.images,
+                            image_descriptions: attachments.descriptions,
+                        }
                       : data
             }
             options={{ preserveScroll: true }}
@@ -334,6 +338,12 @@ export function CommitComposer() {
                                             <>
                                                 <ImagePickerPreviews
                                                     images={attachments.images}
+                                                    descriptions={
+                                                        attachments.descriptions
+                                                    }
+                                                    onDescribe={
+                                                        attachments.describe
+                                                    }
                                                     onRemove={
                                                         attachments.remove
                                                     }

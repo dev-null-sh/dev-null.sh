@@ -1,12 +1,13 @@
-import { Form, Link, router, usePage } from '@inertiajs/react';
+import { Link, router, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
     CornerDownRight,
     MessageSquareReply,
     Trash2,
 } from 'lucide-react';
-import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
+import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BookmarkButton } from '@/components/bookmark-button';
@@ -17,6 +18,7 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
+import { CommitStarButton } from '@/components/commit-star-button';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import InputError from '@/components/input-error';
@@ -33,10 +35,11 @@ import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
+import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
-import { commitMutationOptions } from '@/lib/commit-mutation-options';
+import { commitStateKey } from '@/lib/commit-state';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import {
     characterCount,
@@ -46,11 +49,49 @@ import {
     laneOf,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+import type {
+    Commit,
+    CommittedFlash,
+    CursorPaginated,
+    DeletedFlash,
+    FlashToast,
+    ThreadCommit,
+} from '@/types';
 
 const maxIndentDepth = 3;
 const maxBodyLength = 280;
 
+type CreatedReply = {
+    committed: CommittedFlash;
+    toast?: FlashToast;
+};
+
+const replyFailedMessage = 'Could not send your reply. Try again.';
+
+const parentUnavailableMessage =
+    'That commit is no longer available to reply to.';
+
+const changedThreadIds = new Set<string>();
+
+function replyFailureMessage(response: { status: number; data: string }) {
+    if (response.status !== 429) {
+        return replyFailedMessage;
+    }
+
+    const { message } = JSON.parse(response.data) as { message: string };
+
+    return message;
+}
+
+function useCommitsCountUpdate(): (change: number) => void {
+    const { auth } = usePage().props;
+    const [, setCommitsCount] = useSharedState(
+        commitStateKey('commits_count', auth.user?.id ?? ''),
+        auth.user?.commits_count ?? 0,
+    );
+
+    return (change) => setCommitsCount((count) => count + change);
+}
 const threadLayouts = {
     // Root replies line up with the commit text, and their elbow branches off the rail.
     root: '[--indent:0px] [--spine:-32px] sm:[--spine:-36px]',
@@ -75,7 +116,7 @@ type Thread = {
 };
 
 async function fetchReplies(
-    commit: ThreadCommit,
+    commit: Pick<ThreadCommit, 'id'>,
     cursor: string | null,
 ): Promise<CursorPaginated<ThreadCommit>> {
     const response = await fetch(
@@ -115,6 +156,7 @@ async function fetchRepliesUntil(
 export function useThread(
     commit: ThreadCommit,
     initialReplies?: CursorPaginated<ThreadCommit>,
+    loadsReplies = false,
 ): Thread {
     const [replies, setReplies] = useState<ThreadCommit[] | null>(
         initialReplies?.data ?? null,
@@ -122,8 +164,17 @@ export function useThread(
     const [nextCursor, setNextCursor] = useState<string | null>(
         initialReplies?.next_cursor ?? null,
     );
-    const [count, setCount] = useState(commit.replies_count ?? 0);
-    const [isOpen, setIsOpen] = useState(initialReplies !== undefined);
+    const [count, setCount] = useSharedState(
+        commitStateKey('replies_count', commit.id),
+        commit.replies_count ?? 0,
+    );
+    const [shouldLoadReplies] = useState(
+        (loadsReplies && count > 0) ||
+            (initialReplies !== undefined && changedThreadIds.has(commit.id)),
+    );
+    const [isOpen, setIsOpen] = useState(
+        initialReplies !== undefined || shouldLoadReplies,
+    );
     const [isLoading, setIsLoading] = useState(false);
     const [isReplying, setIsReplying] = useState(false);
 
@@ -152,7 +203,31 @@ export function useThread(
             .finally(() => setIsLoading(false));
     };
 
+    const commitId = commit.id;
+
+    useEffect(() => {
+        if (!shouldLoadReplies) {
+            return;
+        }
+
+        let isCurrent = true;
+
+        fetchReplies({ id: commitId }, null)
+            .then((page) => {
+                if (isCurrent) {
+                    setReplies(page.data);
+                    setNextCursor(page.next_cursor);
+                }
+            })
+            .catch(() => undefined);
+
+        return () => {
+            isCurrent = false;
+        };
+    }, [commitId, shouldLoadReplies]);
+
     const onRestored = useEffectEvent((restored: Commit) => {
+        changedThreadIds.add(commit.id);
         const target =
             restored.parent_id === commit.id
                 ? restored.parent
@@ -212,12 +287,14 @@ export function useThread(
         startReply: () => setIsReplying(true),
         cancelReply: () => setIsReplying(false),
         onReplied: () => {
+            changedThreadIds.add(commit.id);
             setIsReplying(false);
             setIsOpen(true);
             setCount((current) => current + 1);
             reload();
         },
         onDeleted: () => {
+            changedThreadIds.add(commit.id);
             setCount((current) => Math.max(current - 1, 0));
             reload();
         },
@@ -608,23 +685,35 @@ function CommitReply({
     thread: Thread;
     onDeleted: () => void;
 }) {
-    const {
-        props: { auth },
-        component,
-    } = usePage();
+    const { auth } = usePage().props;
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
+    const request = useHttp<Record<string, never>, { deleted: DeletedFlash }>(
+        {},
+    );
+    const updateCommitsCount = useCommitsCountUpdate();
 
     const avatarRef = useRef<HTMLAnchorElement>(null);
 
     const isOwn = reply.user_id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
 
-    const deleteReply = () =>
-        router.visit(CommitController.destroy(reply), {
-            ...commitMutationOptions(component),
-            onSuccess: onDeleted,
-        });
+    const deleteReply = async () => {
+        try {
+            const response = await request.submit(
+                CommitReplyController.destroy({ commit: parent, reply }),
+            );
+
+            router.flushAll();
+            updateCommitsCount(-1);
+            onDeleted();
+            router.flash(() => response);
+        } catch {
+            toast.error('Could not delete your reply. Try again.');
+
+            return;
+        }
+    };
 
     return (
         <article
@@ -735,7 +824,7 @@ function CommitReply({
                         segments={reply.body_segments}
                         className="text-[15px]"
                     />
-                    {reply.images && <CommitImages images={reply.images} />}
+                    <CommitImages commit={reply} />
                     {reply.link_preview?.title && (
                         <LinkPreview preview={reply.link_preview} />
                     )}
@@ -756,13 +845,22 @@ function CommitReply({
                             <Button
                                 variant="destructive"
                                 size="sm"
+                                disabled={request.processing}
                                 onClick={deleteReply}
                             >
                                 Delete
                             </Button>
                         </div>
                     ) : (
-                        <ThreadActions thread={thread} />
+                        <ThreadActions
+                            thread={thread}
+                            actions={
+                                <CommitStarButton
+                                    commit={reply}
+                                    className="px-2 py-0.5"
+                                />
+                            }
+                        />
                     )}
                 </div>
             </div>
@@ -788,6 +886,20 @@ function ReplyComposer({
     );
     const attachments = useImageAttachments();
     const linkCard = useLinkCard(body);
+    const updateCommitsCount = useCommitsCountUpdate();
+    const request = useHttp<
+        {
+            body: string;
+            images: File[];
+            image_descriptions: string[];
+            link_preview_url?: string;
+        },
+        CreatedReply
+    >({
+        body: '',
+        images: [],
+        image_descriptions: [],
+    });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
     const remaining = maxBodyLength - characterCount(body);
@@ -833,140 +945,160 @@ function ReplyComposer({
         }
     };
 
-    return (
-        <Form
-            {...CommitController.store.form()}
-            errorBag="reply"
-            onBefore={secrets.beforeSubmit}
-            transform={(data) =>
-                attachments.images.length > 0
-                    ? { ...data, images: attachments.images }
-                    : data
-            }
-            options={{ preserveScroll: true, preserveState: true }}
-            onSuccess={(page) => {
-                if (page.flash.committed) {
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (request.processing || !secrets.beforeSubmit()) {
+            return;
+        }
+
+        request.setData(() => ({
+            body,
+            images: attachments.images,
+            image_descriptions: attachments.descriptions,
+            ...(linkCard.isChosen
+                ? { link_preview_url: linkCard.link ?? '' }
+                : {}),
+        }));
+
+        request
+            .submit(CommitReplyController.store(parent), {
+                onSuccess: (reply) => {
                     drop();
                     attachments.clear();
                     linkCard.reset();
                     returnFocusToCommit();
+                    router.flash(() => reply);
+                    router.flushAll();
+                    updateCommitsCount(1);
                     onReplied();
-                }
-            }}
+                },
+                onHttpException: (response) => {
+                    if (response.status === 404) {
+                        request.setError('body', parentUnavailableMessage);
+
+                        return;
+                    }
+
+                    toast.error(replyFailureMessage(response));
+                },
+                onNetworkError: () => {
+                    toast.error(replyFailedMessage);
+                },
+            })
+            .catch(() => undefined);
+    };
+
+    const { processing, errors } = request;
+
+    return (
+        <form
+            onSubmit={submit}
             className="mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
             data-test="reply-composer"
         >
-            {({ processing, errors }) => (
-                <>
-                    <input type="hidden" name="parent_id" value={parent.id} />
-                    <label htmlFor={`reply-${parent.id}`} className="sr-only">
-                        Reply to @{parent.user.username}
-                    </label>
-                    <MentionTextarea
-                        ref={textareaRef}
-                        id={`reply-${parent.id}`}
-                        name="body"
-                        rows={1}
-                        autoFocus
-                        value={body}
-                        onValueChange={updateBody}
-                        onKeyDown={onKeyDown}
-                        onPaste={attachments.onPaste}
-                        onDragOver={attachments.onDragOver}
-                        onDrop={attachments.onDrop}
-                        onFocus={isRestored ? moveCaretToEnd : undefined}
-                        maxLength={maxBodyLength}
-                        placeholder={`Reply to @${parent.user.username}`}
-                        className="block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]"
+            <label htmlFor={`reply-${parent.id}`} className="sr-only">
+                Reply to @{parent.user.username}
+            </label>
+            <MentionTextarea
+                ref={textareaRef}
+                id={`reply-${parent.id}`}
+                name="body"
+                rows={1}
+                autoFocus
+                value={body}
+                onValueChange={updateBody}
+                onKeyDown={onKeyDown}
+                onPaste={attachments.onPaste}
+                onDragOver={attachments.onDragOver}
+                onDrop={attachments.onDrop}
+                onFocus={isRestored ? moveCaretToEnd : undefined}
+                maxLength={maxBodyLength}
+                placeholder={`Reply to @${parent.user.username}`}
+                className="block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]"
+            />
+            <EmojiSuggestionHint
+                suggestion={suggestion}
+                className="mt-1 px-1"
+            />
+            <InputError
+                message={errors.body ?? errors.link_preview_url}
+                className="px-1"
+            />
+            <ImagePickerPreviews
+                images={attachments.images}
+                descriptions={attachments.descriptions}
+                onDescribe={attachments.describe}
+                onRemove={attachments.remove}
+            />
+            <SecretWarning
+                body={body}
+                findings={secrets.findings}
+                textarea={textareaRef}
+                onChange={updateBody}
+                confirming={secrets.confirming}
+                onConfirmingChange={secrets.setConfirming}
+                onApprove={secrets.approve}
+            />
+            <InputError
+                message={attachments.error ?? imageErrorFrom(errors)}
+                className="mt-1 px-1"
+            />
+            <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+                <div className="mr-auto flex min-w-0 items-center gap-2">
+                    <ImagePickerButton
+                        count={attachments.images.length}
+                        disabled={processing}
+                        onPick={attachments.attach}
+                        className="size-8"
                     />
-                    <EmojiSuggestionHint
-                        suggestion={suggestion}
-                        className="mt-1 px-1"
+                    <LinkCardPicker
+                        linkCard={linkCard}
+                        disabled={processing}
+                        className="-ml-1"
+                        labelClassName="max-sm:sr-only"
                     />
-                    <InputError
-                        message={
-                            errors.body ??
-                            errors.parent_id ??
-                            errors.link_preview_url
-                        }
-                        className="px-1"
-                    />
-                    <ImagePickerPreviews
-                        images={attachments.images}
-                        onRemove={attachments.remove}
-                    />
-                    <SecretWarning
-                        body={body}
-                        findings={secrets.findings}
-                        textarea={textareaRef}
-                        onChange={updateBody}
-                        confirming={secrets.confirming}
-                        onConfirmingChange={secrets.setConfirming}
-                        onApprove={secrets.approve}
-                    />
-                    <InputError
-                        message={attachments.error ?? imageErrorFrom(errors)}
-                        className="mt-1 px-1"
-                    />
-                    <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
-                        <div className="mr-auto flex min-w-0 items-center gap-2">
-                            <ImagePickerButton
-                                count={attachments.images.length}
-                                disabled={processing}
-                                onPick={attachments.attach}
-                                className="size-8"
-                            />
-                            <LinkCardPicker
-                                linkCard={linkCard}
-                                disabled={processing}
-                                className="-ml-1"
-                                labelClassName="max-sm:sr-only"
-                            />
-                            {isRestored && (
-                                <StashLabel
-                                    onDrop={() => {
-                                        drop();
-                                        document
-                                            .getElementById(
-                                                `reply-${parent.id}`,
-                                            )
-                                            ?.focus();
-                                    }}
-                                    className="px-1 text-xs"
-                                />
-                            )}
-                        </div>
-                        <span
-                            className={cn(
-                                'mr-1 font-mono text-xs text-muted-foreground',
-                                {
-                                    'text-amber-700 dark:text-amber-400':
-                                        remaining <= 20,
-                                },
-                            )}
-                        >
-                            {remaining}
-                        </span>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={onCancel}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            size="sm"
-                            disabled={processing || !isReplyable}
-                            className="min-w-[4.75rem]"
-                            data-test="submit-reply-button"
-                        >
-                            {processing ? 'Replying…' : 'Reply'}
-                        </Button>
-                    </div>
-                </>
-            )}
-        </Form>
+                    {isRestored && (
+                        <StashLabel
+                            onDrop={() => {
+                                drop();
+                                document
+                                    .getElementById(`reply-${parent.id}`)
+                                    ?.focus();
+                            }}
+                            className="px-1 text-xs"
+                        />
+                    )}
+                </div>
+                <span
+                    className={cn(
+                        'mr-1 font-mono text-xs text-muted-foreground',
+                        {
+                            'text-amber-700 dark:text-amber-400':
+                                remaining <= 20,
+                        },
+                    )}
+                >
+                    {remaining}
+                </span>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onCancel}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    type="submit"
+                    size="sm"
+                    disabled={processing || !isReplyable}
+                    className="min-w-[4.75rem]"
+                    data-test="submit-reply-button"
+                >
+                    {processing ? 'Replying…' : 'Reply'}
+                </Button>
+            </div>
+        </form>
     );
 }

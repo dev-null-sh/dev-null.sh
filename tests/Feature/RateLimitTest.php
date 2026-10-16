@@ -125,3 +125,45 @@ it('shares a people lookup limit per guest IP without limiting other visitors', 
     $this->getJson($search)->assertOk();
     $this->getJson($preview)->assertOk();
 });
+
+it('shares the JSON star budget across commits and replies without consuming other action budgets', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    $ownCommit = Commit::factory()->for($user)->create();
+    $requests = [
+        ['POST', route('commit-star.store', $commit)],
+        ['POST', route('commit-star.store', $reply)],
+        ['DELETE', route('commit-star.destroy', $commit)],
+        ['DELETE', route('commit-star.destroy', $reply)],
+    ];
+
+    $this->actingAs($user);
+
+    foreach (range(0, 59) as $attempt) {
+        [$method, $uri] = $requests[$attempt % count($requests)];
+        $starred = $method === 'POST';
+
+        $this->json($method, $uri)->assertOk()->assertExactJson([
+            'starred' => $starred,
+            'stars_count' => $starred ? 1 : 0,
+        ]);
+    }
+
+    foreach ($requests as [$method, $uri]) {
+        $this->json($method, $uri)->assertTooManyRequests()->assertHeader('Retry-After', '60');
+    }
+
+    expect($user->starredCommits()->count())->toBe(0);
+
+    $this->putJson(route('bookmark.store', $commit))->assertOk();
+    $this->put(route('commit-pin.update', $ownCommit))->assertRedirect();
+    $this->post(route('user-follow.store', $commit->user))->assertRedirect();
+    $this->getJson(route('user-search.index', ['q' => $commit->user->username]))->assertOk();
+    $this->get(route('export'))->assertOk();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-star.store', $reply))
+        ->assertOk()
+        ->assertExactJson(['starred' => true, 'stars_count' => 1]);
+});
