@@ -7,7 +7,6 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 it('shows only the first part of a series in the log with its position', function (Log $log): void {
@@ -269,7 +268,6 @@ it('loads a series with the same number of queries however long it is', function
 
     $queriesFor = function (Commit $part) use ($viewer): int {
         DB::flushQueryLog();
-        Cache::flush();
         DB::enableQueryLog();
 
         $this->actingAs($viewer)

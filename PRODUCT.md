@@ -21,8 +21,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 ## Operating Context
 
 - Sign-in is GitHub OAuth only. Profile changes happen on GitHub ("Edit on GitHub"), then sync at next login or with "Sync from GitHub" (once a minute).
-- There is no landing page: guests land on the log. `/` is the **Trending** log everyone reads (**Latest** at `/?log=latest`), with sign in where the composer would be. Starring, replying, following, and committing take guests to sign in. Signed-in users at `/` go to their log.
-- Everything except the home log, public profiles and commits, the public read API, and profile feeds requires login.
+- Everything except the landing page, the public read API, and profile feeds requires login.
 - Public read API: read-only JSON under `/api/v1`, no authentication, for public profiles (with counts), a user's commits or replies, and single commits. It returns exactly what a guest's link preview may show: approved, non-deleted commits only (with their images), approved reply counts, and a parent only while it is approved. Never emails or other hidden profile fields. 60 requests a minute per IP.
 - Profile feeds: every profile has an Atom feed of its latest 50 approved top-level commits at `/@{username}/feed.atom`, their images as enclosures, advertised with `<link rel="alternate">` on the profile's guest preview.
 - First sign-in leads to a short setup at `/onboarding`: confirm the mirrored profile, pick a color, follow a few suggested developers, learn the composer, `?` shortcuts and terminal commits, then land on the log (or the page the user was headed to). Skippable at any step (Skip setup or Esc); finishing or skipping ends it for good. Accounts that existed before it never see it.

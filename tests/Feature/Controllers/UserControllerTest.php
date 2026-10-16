@@ -304,40 +304,6 @@ it('shows guests the profile with its approved commits and a link preview', func
     $this->assertGuest();
 });
 
-it('gives guests the stats of a profile a few minutes late', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
-    Commit::factory()->for($user)->create();
-
-    $this->get('/@octocat')->assertOk();
-
-    Commit::factory()->for($user)->create(['created_at' => now()->subDay()]);
-
-    $this->get('/@octocat')
-        ->assertInertia(fn ($page) => $page
-            ->where('user.commits_count', 2)
-            ->where('streaks.longest', 1)
-            ->where('achievements.xp_breakdown.commits.count', 1));
-
-    $this->travel(6)->minutes();
-
-    $this->get('/@octocat')
-        ->assertInertia(fn ($page) => $page
-            ->where('streaks.longest', 2)
-            ->where('achievements.xp_breakdown.commits.count', 2));
-});
-
-it('counts the public profile of guests once for the page and its link preview', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
-
-    DB::enableQueryLog();
-
-    $this->get('/@octocat')->assertOk();
-
-    $followerCounts = array_filter(DB::getQueryLog(), fn (array $query): bool => str_contains($query['query'], 'from "follows"') && str_contains($query['query'], 'count(*)'));
-
-    expect($followerCounts)->toHaveCount(2);
-});
-
 it('describes guests a profile without a bio', function (): void {
     User::factory()->create(['username' => 'octocat', 'name' => 'octocat', 'bio' => null]);
 
