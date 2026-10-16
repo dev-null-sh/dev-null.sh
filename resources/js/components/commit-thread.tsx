@@ -25,6 +25,7 @@ import {
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import InputError from '@/components/input-error';
+import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
@@ -33,6 +34,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -755,6 +757,7 @@ function ReplyComposer({
         `reply-${parent.id}`,
     );
     const attachments = useImageAttachments();
+    const linkCard = useLinkCard(body);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - characterCount(body);
     const isReplyable = characterCount(body.trim()) >= 3;
@@ -822,6 +825,7 @@ function ReplyComposer({
                 if (page.flash.committed) {
                     drop();
                     attachments.clear();
+                    linkCard.reset();
                     returnFocusToCommit();
                     onReplied();
                 }
@@ -859,6 +863,7 @@ function ReplyComposer({
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
+                                url={linkCard.link}
                                 images={attachments.images}
                                 className="col-start-1 row-start-1 px-1"
                             />
@@ -871,7 +876,11 @@ function ReplyComposer({
                         />
                     )}
                     <InputError
-                        message={errors.body ?? errors.parent_id}
+                        message={
+                            errors.body ??
+                            errors.parent_id ??
+                            errors.link_preview_url
+                        }
                         className="px-1"
                     />
                     {!preview.isPreviewing && (
@@ -895,6 +904,12 @@ function ReplyComposer({
                             <PreviewToggle
                                 preview={preview}
                                 className="-ml-2 size-8"
+                            />
+                            <LinkCardPicker
+                                linkCard={linkCard}
+                                disabled={processing}
+                                className="-ml-1"
+                                labelClassName="max-sm:sr-only"
                             />
                             {isRestored && (
                                 <StashLabel

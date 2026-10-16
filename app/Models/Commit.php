@@ -108,11 +108,15 @@ final class Commit extends Model
     }
 
     /**
-     * Approved commits are visible to everyone. Authors can also see their own.
+     * Approved commits are visible to everyone but people across a block. Authors can also see their own.
      */
     public function isVisibleTo(?User $user): bool
     {
-        return $this->status === CommitStatus::Approved || $this->user_id === $user?->id;
+        if ($this->user_id === $user?->id) {
+            return true;
+        }
+
+        return $this->status === CommitStatus::Approved && (! $user instanceof User || ! $user->hasBlockWith($this->user));
     }
 
     /**

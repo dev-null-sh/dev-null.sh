@@ -1,16 +1,18 @@
+/// <reference types="node" />
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-/// <reference types="node" />
 import { App } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CommitComposer } from '../../resources/js/components/commit-composer';
 import {
+    ComposerPreviewBody,
     useComposerPreview,
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
 
 function previewFor(options: {
+    body?: string;
     isSubmittable: boolean;
     onAddPart?: () => void;
 }): ComposerPreview {
@@ -164,4 +166,54 @@ void test('requires every preview series part to contain three Unicode character
     assert.ok(submit && /\sdisabled(?:=|\s|>)/.test(submit));
     assert.ok(markup.includes('aria-label="277 characters left"'));
     assert.ok(markup.includes('aria-label="278 characters left"'));
+});
+
+void test('previews the chosen link card instead of the first link in the body', () => {
+    const preview = previewFor({
+        body: 'https://first.example.com https://second.example.com',
+        isSubmittable: true,
+    });
+    const markup = renderToStaticMarkup(
+        <ComposerPreviewBody
+            preview={preview}
+            images={[]}
+            url="https://second.example.com"
+        />,
+    );
+    const card = markup.match(/data-test="link-card-preview"[\s\S]*/)?.[0];
+
+    assert.ok(card);
+    assert.ok(card.includes('second.example.com'));
+    assert.ok(!card.includes('first.example.com'));
+});
+
+void test('omits the preview card when the author chooses no card', () => {
+    const preview = previewFor({
+        body: 'https://first.example.com',
+        isSubmittable: true,
+    });
+    const markup = renderToStaticMarkup(
+        <ComposerPreviewBody preview={preview} images={[]} url={null} />,
+    );
+
+    assert.ok(markup.includes('href="https://first.example.com"'));
+    assert.ok(!markup.includes('data-test="link-card-preview"'));
+});
+
+void test('retains the link card picker beside preview for a draft and every series part', () => {
+    for (const bodies of [
+        ['https://first.example.com https://second.example.com'],
+        ['https://first.example.com', 'https://second.example.com'],
+    ]) {
+        const markup = renderComposer(bodies);
+
+        assert.equal(
+            (markup.match(/data-test="link-card-button"/g) ?? []).length,
+            bodies.length,
+        );
+        assert.equal(
+            (markup.match(/data-test="preview-toggle"/g) ?? []).length,
+            bodies.length,
+        );
+    }
 });

@@ -46,16 +46,6 @@ export function mapTypedProse(
 }
 
 /**
- * Removes the code, leaving a line break in its place so that the prose on either side stays apart.
- */
-export function withoutCode(text: string): string {
-    return text
-        .split(codePattern)
-        .filter((_, index) => index % 2 === 0)
-        .join('\n');
-}
-
-/**
  * Splits the text into segments the way the server does, with each code block escaped but not highlighted, since
  * only the server highlights code.
  */
@@ -94,4 +84,11 @@ export function bodySegments(text: string): BodySegment[] {
 
 export function hasCodeBlock(segments: BodySegment[]): boolean {
     return segments.some((segment) => segment.type === 'block');
+}
+
+/**
+ * The prose being typed, without the code.
+ */
+export function typedProse(text: string): string[] {
+    return text.split(typedCodePattern).filter((_, index) => index % 2 === 0);
 }

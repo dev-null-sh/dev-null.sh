@@ -6,7 +6,6 @@ import CommitPreviewController from '@/actions/App/Http/Controllers/CommitPrevie
 import { CommitBody } from '@/components/commit-body';
 import { objectUrlFor } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
-import { firstUrl } from '@/components/linkified-text';
 import { Button } from '@/components/ui/button';
 import { bodySegments, hasCodeBlock } from '@/lib/code';
 import { cn } from '@/lib/utils';
@@ -160,14 +159,14 @@ export function PreviewToggle({
 export function ComposerPreviewBody({
     preview,
     images,
+    url,
     className,
 }: {
     preview: ComposerPreview;
     images: File[];
+    url: string | null;
     className?: string;
 }) {
-    const url = firstUrl(preview.draft);
-
     return (
         <div
             id={preview.previewId}

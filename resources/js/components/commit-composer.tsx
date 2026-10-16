@@ -17,10 +17,13 @@ import {
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
+import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useLinkCards } from '@/hooks/use-link-card';
+import type { UseLinkCardReturn } from '@/hooks/use-link-card';
 import type { UseSeriesStashReturn } from '@/hooks/use-stash';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -72,6 +75,7 @@ function CommitComposerPart({
     user,
     stash,
     attachments,
+    linkCard,
     index,
     isCommittable,
     processing,
@@ -84,6 +88,7 @@ function CommitComposerPart({
     user: User;
     stash: UseSeriesStashReturn;
     attachments: ReturnType<typeof useImageAttachments>;
+    linkCard: UseLinkCardReturn;
     index: number;
     isCommittable: boolean;
     processing: boolean;
@@ -101,7 +106,10 @@ function CommitComposerPart({
     const canAddPart = bodies.length < maxParts;
     const suggestion = suggestEmoji(body);
     const error =
-        errors[`bodies.${index}`] ?? (index === 0 ? errors.body : undefined);
+        errors[`bodies.${index}`] ??
+        (index === 0 ? errors.body : undefined) ??
+        errors[`link_preview_urls.${index}`] ??
+        (index === 0 ? errors.link_preview_url : undefined);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const preview = useComposerPreview({
         body,
@@ -177,6 +185,7 @@ function CommitComposerPart({
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
+                                url={linkCard.link}
                                 images={index === 0 ? attachments.images : []}
                                 className="col-start-1 row-start-1 py-1.5"
                             />
@@ -217,6 +226,11 @@ function CommitComposerPart({
                             >
                                 {index + 1}/{bodies.length}
                             </span>
+                            <LinkCardPicker
+                                linkCard={linkCard}
+                                name={`link_preview_urls[${index}]`}
+                                disabled={processing}
+                            />
                             <PreviewToggle
                                 preview={preview}
                                 className="ml-auto"
@@ -252,6 +266,13 @@ function CommitComposerPart({
                                         onPick={attachments.attach}
                                         className="-ml-2"
                                     />
+                                    {!isSeries && (
+                                        <LinkCardPicker
+                                            linkCard={linkCard}
+                                            disabled={processing}
+                                            className="-ml-3"
+                                        />
+                                    )}
                                     {!isSeries && (
                                         <PreviewToggle
                                             preview={preview}
@@ -315,9 +336,11 @@ export function CommitComposer() {
     const { user } = useUser();
     const stash = useSeriesStash(user.id, 'commit');
     const { bodies, updateBody, insertPart, removePart } = stash;
+    const linkCards = useLinkCards(bodies);
     const [draftVersion, setDraftVersion] = useState(0);
     const drop = () => {
         stash.drop();
+        linkCards.reset();
         setDraftVersion((version) => version + 1);
     };
     const attachments = useImageAttachments();
@@ -334,12 +357,14 @@ export function CommitComposer() {
         }
 
         insertPart(index + 1);
+        linkCards.insertPart(index + 1);
         setDraftVersion((version) => version + 1);
         focusPart(index + 1);
     };
 
     const removePartAt = (index: number) => {
         removePart(index);
+        linkCards.removePart(index);
         setDraftVersion((version) => version + 1);
         focusPart(Math.max(index - 1, 0), true);
     };
@@ -413,6 +438,7 @@ export function CommitComposer() {
                             user={user}
                             stash={stash}
                             attachments={attachments}
+                            linkCard={linkCards.cards[index]}
                             index={index}
                             isCommittable={isCommittable}
                             processing={processing}

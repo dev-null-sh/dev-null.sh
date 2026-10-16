@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
-import { withoutCode } from '@/lib/code';
+import { typedProse } from '@/lib/code';
 import { shortenUrl } from '@/lib/urls';
 import { show } from '@/routes/user';
 
@@ -73,18 +73,22 @@ function hrefFor(linkText: string): string | null {
 }
 
 /**
- * The URL that gets the link card, like the server's Urls::first(): the first link outside code.
+ * Every link in the prose being typed, in order and once each, as the server finds them for the link card.
  */
-export function firstUrl(text: string): string | null {
-    for (const match of withoutCode(text).matchAll(urlPattern)) {
-        const href = hrefFor(withoutTrailingPunctuation(match[0]));
+export function typedLinks(text: string): string[] {
+    const links = new Set<string>();
 
-        if (href !== null) {
-            return href;
+    for (const prose of typedProse(text)) {
+        for (const match of prose.matchAll(urlPattern)) {
+            const href = hrefFor(withoutTrailingPunctuation(match[0]));
+
+            if (href !== null) {
+                links.add(href);
+            }
         }
     }
 
-    return null;
+    return [...links];
 }
 
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.
