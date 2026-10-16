@@ -9,6 +9,7 @@ use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -56,6 +57,16 @@ final class CommitBuilder extends Builder
     public function approved(): self
     {
         return $this->where('status', CommitStatus::Approved);
+    }
+
+    /**
+     * Loads what anyone may see around the commits, like Commit::loadPublicPreview(): approved replies, stars, images, and the parent only when approved.
+     */
+    public function withPublicPreview(): self
+    {
+        return $this
+            ->withCount(['replies' => fn (self $query): self => $query->approved(), 'stars'])
+            ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
     public function withSavedState(User $user): self

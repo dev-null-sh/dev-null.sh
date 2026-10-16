@@ -180,3 +180,27 @@ it('does not show polls to guests', function (): void {
         ->assertInertia(fn ($page) => $page->component('welcome')->missing('commit'))
         ->assertDontSee('Secret option A');
 });
+
+it('keeps poll details out of public read endpoints', function (string $endpoint): void {
+    $poll = Poll::factory()
+        ->for(Commit::factory()->state(['body' => 'Which editor do you prefer?']))
+        ->withOptions('Private option A', 'Private option B')
+        ->closed()
+        ->create();
+    $voter = User::factory()->create(['username' => 'private-voter']);
+    PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
+
+    $url = match ($endpoint) {
+        'commit' => route('api-commit.show', $poll->commit),
+        'user commits' => route('api-user-commit.index', $poll->commit->user),
+        'feed' => route('user-feed.show', $poll->commit->user),
+    };
+
+    $this->get($url)
+        ->assertOk()
+        ->assertSee('Which editor do you prefer?')
+        ->assertDontSee('Private option A')
+        ->assertDontSee('Private option B')
+        ->assertDontSee('private-voter')
+        ->assertDontSee($poll->id);
+})->with(['commit', 'user commits', 'feed']);

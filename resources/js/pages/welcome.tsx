@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
 import { GitHubIcon } from '@/components/github-icon';
+import { LiveStreamPlayer } from '@/components/live-stream';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { login } from '@/routes';
@@ -119,9 +120,18 @@ export default function Welcome() {
                         </Commit>
 
                         <Commit
-                            lane="var(--primary)"
+                            lane="var(--lane-2)"
                             previousLane="var(--lane-1)"
                             index={2}
+                            nodeTop="0.625rem"
+                        >
+                            <LiveStreamPlayer className="max-w-2xl" />
+                        </Commit>
+
+                        <Commit
+                            lane="var(--primary)"
+                            previousLane="var(--lane-2)"
+                            index={3}
                             nodeTop="1.375rem"
                             isStaged
                             isLast
