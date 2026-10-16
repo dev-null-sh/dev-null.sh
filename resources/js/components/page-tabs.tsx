@@ -6,22 +6,26 @@ export function PageTabs({
     label,
     tabs,
     preserveScroll = false,
+    prefetch = true,
 }: {
     label: string;
     preserveScroll?: boolean;
+    prefetch?: boolean;
     tabs: {
         title: string;
         href: NonNullable<InertiaLinkProps['href']>;
         isActive: boolean;
     }[];
 }) {
+    const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
+
     return (
         <nav aria-label={label} className="flex border-b">
             {tabs.map((tab) => (
                 <Link
                     key={tab.title}
                     href={tab.href}
-                    prefetch
+                    prefetch={prefetch}
                     viewTransition
                     preserveScroll={preserveScroll}
                     aria-current={tab.isActive ? 'page' : undefined}
@@ -30,13 +34,15 @@ export function PageTabs({
                         { 'text-foreground': tab.isActive },
                     )}
                 >
-                    <span
-                        className={cn('py-3.5', {
-                            'shadow-[inset_0_-3px_0_var(--primary)]':
-                                tab.isActive,
-                        })}
-                    >
+                    <span className="relative py-3.5">
                         {tab.title}
+                        {tab.isActive && (
+                            <span
+                                aria-hidden
+                                className="absolute inset-x-0 bottom-0 h-[3px] bg-primary [view-transition-class:tab-indicator]"
+                                style={{ viewTransitionName: indicatorName }}
+                            />
+                        )}
                     </span>
                 </Link>
             ))}

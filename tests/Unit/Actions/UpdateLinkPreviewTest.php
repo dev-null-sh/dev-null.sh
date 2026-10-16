@@ -10,8 +10,8 @@ use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as PsrResponse;
+use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
@@ -228,11 +228,11 @@ it('ignores responses that are not html', function (array $headers): void {
     'no content type' => [[]],
 ]);
 
-it('ignores responses that are not successful', function (int $status): void {
+it('ignores client error responses', function (int $status): void {
     Http::fake(['https://example.com/*' => htmlResponse('<title>Something went wrong</title>', $status)]);
 
     expectNoMetadata(unfurl('https://example.com/'));
-})->with([404, 410, 500, 503]);
+})->with([400, 401, 403, 404, 410, 451]);
 
 it('cleans up whitespace and entities', function (): void {
     Http::fake(['https://example.com/*' => htmlResponse(<<<'HTML'
@@ -399,19 +399,21 @@ it('gives up after more than three redirects', function (): void {
     Http::assertNotSent(fn (Request $request): bool => $request->url() === 'https://example.com/5');
 });
 
-it('gives up quietly when the connection fails', function (): void {
-    Exceptions::fake();
+it('throws without marking the link as fetched when the page may be reachable later', function (Closure|PromiseInterface $response): void {
+    Http::fake(['https://example.com/*' => $response]);
 
-    Http::fake(['*' => Http::failedConnection()]);
+    $linkPreview = LinkPreview::factory()->create(['url' => 'https://example.com/']);
 
-    expectNoMetadata(unfurl('https://example.com/'));
+    expect(fn () => resolve(UpdateLinkPreview::class)->handle($linkPreview))->toThrow(HttpClientException::class)
+        ->and($linkPreview->refresh()->fetched_at)->toBeNull();
+})->with([
+    'failed connection' => fn (): Closure => Http::failedConnection(),
+    'too many requests' => fn (): PromiseInterface => htmlResponse('<title>Slow down</title>', 429),
+    'server error' => fn (): PromiseInterface => htmlResponse('<title>Something went wrong</title>', 500),
+    'service unavailable' => fn (): PromiseInterface => htmlResponse('<title>Down for maintenance</title>', 503),
+]);
 
-    Exceptions::assertNothingReported();
-});
-
-it('reports unexpected errors and still marks the link as fetched', function (): void {
-    Exceptions::fake();
-
+it('throws unexpected errors without marking the link as fetched', function (): void {
     Http::fake();
 
     $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
@@ -422,7 +424,8 @@ it('reports unexpected errors and still marks the link as fetched', function ():
         }
     });
 
-    expectNoMetadata(unfurl('https://example.com/'));
+    $linkPreview = LinkPreview::factory()->create(['url' => 'https://example.com/']);
 
-    Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception->getMessage() === 'The resolver broke.');
+    expect(fn () => resolve(UpdateLinkPreview::class)->handle($linkPreview))->toThrow(RuntimeException::class, 'The resolver broke.')
+        ->and($linkPreview->refresh()->fetched_at)->toBeNull();
 });

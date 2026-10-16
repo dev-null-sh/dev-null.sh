@@ -2,6 +2,8 @@ import type { PropsWithChildren } from 'react';
 import { PageTabs } from '@/components/page-tabs';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { edit as editAppearance } from '@/routes/appearance';
+import { edit as editSafety } from '@/routes/safety';
+import { show as showTerminal } from '@/routes/terminal';
 import { edit } from '@/routes/user-profile';
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
@@ -9,7 +11,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
 
     return (
         <>
-            <div className="sticky top-0 z-10 bg-card">
+            <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:settings-header]">
                 <h1 className="flex h-14 items-center border-b px-4 font-semibold sm:px-6">
                     Settings
                 </h1>
@@ -26,11 +28,23 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                             href: editAppearance(),
                             isActive: isCurrentUrl(editAppearance()),
                         },
+                        {
+                            title: 'Terminal',
+                            href: showTerminal(),
+                            isActive: isCurrentUrl(showTerminal()),
+                        },
+                        {
+                            title: 'Safety',
+                            href: editSafety(),
+                            isActive: isCurrentUrl(editSafety()),
+                        },
                     ]}
                 />
             </div>
 
-            <div className="divide-y">{children}</div>
+            <div className="divide-y [view-transition-class:tab-content] [view-transition-name:settings-content]">
+                {children}
+            </div>
         </>
     );
 }

@@ -46,3 +46,19 @@ it('notifies the parent author once a reply is approved', function (): void {
         ->and($notification->actor_id)->toBe($reply->user_id)
         ->and($notification->commit_id)->toBe($reply->id);
 });
+
+it('notifies the quoted author once a quote is approved', function (): void {
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->pending()->for($quoted, 'quotedCommit')->create();
+
+    $action = resolve(UpdateCommitStatus::class);
+
+    $action->handle($quote, CommitStatus::Approved);
+    $action->handle($quote, CommitStatus::Approved);
+
+    $notification = $quoted->user->notifications()->sole();
+
+    expect($notification->type)->toBe(NotificationType::Quoted)
+        ->and($notification->actor_id)->toBe($quote->user_id)
+        ->and($notification->commit_id)->toBe($quote->id);
+});

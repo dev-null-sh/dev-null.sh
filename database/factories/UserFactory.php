@@ -30,9 +30,18 @@ final class UserFactory extends Factory
             'location' => fake()->city(),
             'website' => fake()->url(),
             'company' => fake()->company(),
+            'has_sponsors_listing' => false,
             'preferred_lane' => null,
+            'onboarded_at' => now(),
             'remember_token' => Str::random(10),
         ];
+    }
+
+    public function notOnboarded(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'onboarded_at' => null,
+        ]);
     }
 
     public function withoutProfile(): self

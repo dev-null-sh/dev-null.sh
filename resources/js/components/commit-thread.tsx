@@ -5,7 +5,7 @@ import {
     MessageSquareReply,
     Trash2,
 } from 'lucide-react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
@@ -18,7 +18,9 @@ import {
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CopyLinkButton } from '@/components/copy-link-button';
+import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import InputError from '@/components/input-error';
+import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
@@ -27,14 +29,31 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
-import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
+import { useUser } from '@/hooks/use-user';
+import { signIn } from '@/lib/auth';
+import { completeEmoji, suggestEmoji } from '@/lib/emoji';
+import {
+    characterCount,
+    cn,
+    formatRelativeTime,
+    isDeleted,
+    laneOf,
+} from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 const maxIndentDepth = 3;
 const maxBodyLength = 280;
+
+const threadLayouts = {
+    // Root replies line up with the commit text, and their elbow branches off the rail.
+    root: '[--indent:0px] [--spine:-32px] sm:[--spine:-36px]',
+    nested: '[--indent:32px] [--spine:12px] sm:[--indent:38px] sm:[--spine:14px]',
+    flattened: '[--indent:0px]',
+};
 
 type Thread = {
     commit: ThreadCommit;
@@ -90,7 +109,7 @@ async function fetchRepliesUntil(
     return { ...page, data, next_cursor: cursor };
 }
 
-function useThread(
+export function useThread(
     commit: ThreadCommit,
     initialReplies?: CursorPaginated<ThreadCommit>,
 ): Thread {
@@ -174,30 +193,7 @@ function useThread(
     };
 }
 
-export function CommitThread({
-    commit,
-    initialReplies,
-    actions,
-}: {
-    commit: Commit;
-    initialReplies?: CursorPaginated<ThreadCommit>;
-    actions?: ReactNode;
-}) {
-    const thread = useThread(commit, initialReplies);
-
-    return (
-        <>
-            <ThreadActions
-                thread={thread}
-                actions={actions}
-                hasKeyboardShortcuts
-            />
-            <ThreadReplies thread={thread} depth={0} />
-        </>
-    );
-}
-
-function ThreadActions({
+export function ThreadActions({
     thread,
     actions,
     hasKeyboardShortcuts = false,
@@ -208,7 +204,7 @@ function ThreadActions({
 }) {
     const { auth } = usePage().props;
     const { commit } = thread;
-    const hasStash = useHasStash(auth.user.id, `reply-${commit.id}`);
+    const hasStash = useHasStash(auth.user?.id ?? null, `reply-${commit.id}`);
 
     return (
         <>
@@ -220,9 +216,11 @@ function ThreadActions({
                         <button
                             type="button"
                             onClick={
-                                thread.isReplying
-                                    ? thread.cancelReply
-                                    : thread.startReply
+                                auth.user === null
+                                    ? signIn
+                                    : thread.isReplying
+                                      ? thread.cancelReply
+                                      : thread.startReply
                             }
                             aria-expanded={thread.isReplying}
                             aria-keyshortcuts={
@@ -278,7 +276,7 @@ function ThreadActions({
                     )}
                 </div>
 
-                <div className="flex items-center gap-0.5">
+                <div className="ml-auto flex items-center gap-0.5">
                     {!isDeleted(commit) && commit.is_saved !== undefined && (
                         <BookmarkButton commit={commit} />
                     )}
@@ -302,42 +300,163 @@ function ThreadActions({
     );
 }
 
-function ThreadReplies({ thread, depth }: { thread: Thread; depth: number }) {
-    if (!thread.isOpen) {
+export function ThreadSpine({
+    thread,
+    className,
+}: {
+    thread: Thread;
+    className?: string;
+}) {
+    if (!thread.isOpen || !thread.replies?.length) {
         return null;
     }
 
     return (
+        <span
+            aria-hidden
+            className={cn(
+                'absolute bottom-0 left-1/2 border-l border-dashed',
+                className,
+            )}
+            style={{ borderColor: laneOf(thread.commit) }}
+            data-test="thread-spine"
+        />
+    );
+}
+
+const replyLink =
+    'absolute left-[calc(var(--indent)+12px)] border-l border-dashed sm:left-[calc(var(--indent)+14px)]';
+
+function ReplyLinks({
+    previousLane,
+    lane,
+    hasNext,
+}: {
+    previousLane: string | null;
+    lane: string;
+    hasNext: boolean;
+}) {
+    return (
+        <span aria-hidden>
+            {previousLane === null ? (
+                <span
+                    className="absolute top-0 left-[calc(var(--spine)-0.5px)] h-[22px] w-[calc(var(--indent)-var(--spine)-3px)] rounded-bl-xl border-b border-l border-dashed border-(--lane) sm:h-6"
+                    data-test="thread-elbow"
+                />
+            ) : (
+                <span
+                    className={cn(replyLink, 'top-0 h-1.5')}
+                    style={{ borderColor: previousLane }}
+                    data-test="reply-link"
+                />
+            )}
+            {hasNext && (
+                <span
+                    className={cn(
+                        replyLink,
+                        'top-[38px] bottom-0 sm:top-[42px]',
+                    )}
+                    style={{ borderColor: lane }}
+                />
+            )}
+        </span>
+    );
+}
+
+export function ThreadReplies({
+    thread,
+    depth,
+}: {
+    thread: Thread;
+    depth: number;
+}) {
+    if (!thread.isOpen) {
+        return null;
+    }
+
+    const isFlattened = depth >= maxIndentDepth;
+    const layout =
+        depth === 0
+            ? threadLayouts.root
+            : isFlattened
+              ? threadLayouts.flattened
+              : threadLayouts.nested;
+
+    return (
         <div
-            className={cn('mt-1', {
-                'ml-3 border-l border-rail pl-2 sm:ml-3.5 sm:pl-3':
-                    depth < maxIndentDepth && depth > 0,
-            })}
+            className={cn('relative', layout)}
+            style={{ '--lane': laneOf(thread.commit) } as CSSProperties}
             data-test="replies"
         >
             {thread.replies === null ? (
-                <p className="py-2 text-sm text-muted-foreground" role="status">
-                    Loading replies…
-                </p>
+                <ReplySkeleton />
             ) : (
                 <>
-                    {thread.replies.map((reply) => (
+                    {thread.replies.map((reply, index, replies) => (
                         <ReplyItem
                             key={reply.id}
                             reply={reply}
                             parent={thread.commit}
                             depth={depth + 1}
+                            links={
+                                isFlattened ? null : (
+                                    <ReplyLinks
+                                        previousLane={
+                                            index === 0
+                                                ? null
+                                                : laneOf(replies[index - 1])
+                                        }
+                                        lane={laneOf(reply)}
+                                        hasNext={
+                                            index < replies.length - 1 ||
+                                            thread.hasMore
+                                        }
+                                    />
+                                )
+                            }
                             onDeleted={thread.onDeleted}
                         />
                     ))}
                     {thread.hasMore && (
-                        <MoreRepliesButton
-                            thread={thread}
-                            isFlattened={depth + 1 > maxIndentDepth}
-                        />
+                        <div className="relative pl-(--indent)">
+                            {!isFlattened && thread.replies.length > 0 && (
+                                <span
+                                    aria-hidden
+                                    className={cn(replyLink, 'top-0 h-1.5')}
+                                    style={{
+                                        borderColor: laneOf(
+                                            thread.replies[
+                                                thread.replies.length - 1
+                                            ],
+                                        ),
+                                    }}
+                                />
+                            )}
+                            <MoreRepliesButton
+                                thread={thread}
+                                isFlattened={depth + 1 > maxIndentDepth}
+                            />
+                        </div>
                     )}
                 </>
             )}
+        </div>
+    );
+}
+
+function ReplySkeleton() {
+    return (
+        <div
+            role="status"
+            aria-label="Loading replies"
+            className="flex gap-2 pt-2.5 pl-(--indent) motion-safe:animate-pulse sm:gap-2.5"
+        >
+            <span className="size-6 shrink-0 rounded-full bg-muted sm:size-7" />
+            <span className="flex-1">
+                <span className="my-1 block h-3 w-1/3 rounded bg-muted" />
+                <span className="my-1.5 block h-3 w-3/4 rounded bg-muted" />
+                <span className="mt-2.5 block h-3 w-24 rounded bg-muted" />
+            </span>
         </div>
     );
 }
@@ -385,23 +504,38 @@ function ReplyItem({
     reply,
     parent,
     depth,
+    links,
     onDeleted,
 }: {
     reply: ThreadCommit;
     parent: ThreadCommit;
     depth: number;
+    links: ReactNode;
     onDeleted: () => void;
 }) {
     const thread = useThread(reply);
 
     if (isDeleted(reply)) {
         return (
-            <article className="pt-2.5" data-test="reply-tombstone">
+            <article
+                className="relative pt-2.5 pl-(--indent)"
+                data-reply
+                data-test="reply-tombstone"
+            >
+                {links}
                 <div className="flex gap-2 sm:gap-2.5">
-                    <span
-                        aria-hidden
-                        className="size-6 shrink-0 rounded-full border-2 border-dashed border-rail sm:size-7"
-                    />
+                    <div className="relative shrink-0">
+                        <span
+                            aria-hidden
+                            className="block size-6 rounded-full border-2 border-dashed border-rail sm:size-7"
+                        />
+                        {depth < maxIndentDepth && (
+                            <ThreadSpine
+                                thread={thread}
+                                className="top-7 sm:top-8"
+                            />
+                        )}
+                    </div>
                     <div className="min-w-0 flex-1">
                         <p className="flex min-h-6 items-center gap-1.5 text-sm text-muted-foreground sm:min-h-7">
                             <span className="font-mono text-xs">[deleted]</span>
@@ -421,6 +555,7 @@ function ReplyItem({
             reply={reply}
             parent={parent}
             depth={depth}
+            links={links}
             thread={thread}
             onDeleted={onDeleted}
         />
@@ -431,12 +566,14 @@ function CommitReply({
     reply,
     parent,
     depth,
+    links,
     thread,
     onDeleted,
 }: {
     reply: Commit;
     parent: ThreadCommit;
     depth: number;
+    links: ReactNode;
     thread: Thread;
     onDeleted: () => void;
 }) {
@@ -444,7 +581,9 @@ function CommitReply({
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
 
-    const isOwn = reply.user_id === auth.user.id;
+    const avatarRef = useRef<HTMLAnchorElement>(null);
+
+    const isOwn = reply.user_id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
 
     const deleteReply = () =>
@@ -455,24 +594,39 @@ function CommitReply({
         });
 
     return (
-        <article className="group/reply pt-2.5" data-test="reply">
+        <article
+            className="relative pt-2.5 pl-(--indent)"
+            data-reply
+            data-test="reply"
+        >
+            {links}
             <div className="flex gap-2 sm:gap-2.5">
-                <UserPreview user={reply.user} className="shrink-0">
-                    <Link
-                        href={show(reply.user)}
-                        className="block rounded-full"
-                    >
-                        <UserAvatar
-                            user={reply.user}
-                            className="size-6 sm:size-7"
+                <div className="relative shrink-0">
+                    <UserPreview user={reply.user} anchor={avatarRef}>
+                        <Link
+                            ref={avatarRef}
+                            href={show(reply.user)}
+                            className="block rounded-full"
+                        >
+                            <UserAvatar
+                                user={reply.user}
+                                className="size-6 sm:size-7"
+                            />
+                        </Link>
+                    </UserPreview>
+                    {depth < maxIndentDepth && (
+                        <ThreadSpine
+                            thread={thread}
+                            className="top-7 sm:top-8"
                         />
-                    </Link>
-                </UserPreview>
+                    )}
+                </div>
 
                 <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-1.5 text-sm">
                         <UserPreview
                             user={reply.user}
+                            anchor={avatarRef}
                             className="flex min-w-0 items-baseline gap-1.5"
                         >
                             <Link
@@ -526,7 +680,7 @@ function CommitReply({
                                 onClick={() => setIsConfirming(true)}
                                 aria-label="Delete reply"
                                 title="Delete reply"
-                                className="-my-1 ml-auto shrink-0 self-center rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:group-hover/reply:opacity-100 [@media(hover:none)]:opacity-100"
+                                className="-my-1 ml-auto shrink-0 self-center rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:reply-hover:opacity-100 [@media(hover:none)]:opacity-100"
                             >
                                 <Trash2 className="size-3.5" />
                             </button>
@@ -592,15 +746,17 @@ function ReplyComposer({
     onCancel: () => void;
     onReplied: () => void;
 }) {
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const { body, isRestored, updateBody, drop } = useStash(
-        auth.user.id,
+        user.id,
         `reply-${parent.id}`,
     );
     const attachments = useImageAttachments();
+    const linkCard = useLinkCard(body);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const remaining = maxBodyLength - body.length;
-    const isReplyable = body.trim().length >= 3;
+    const remaining = maxBodyLength - characterCount(body);
+    const isReplyable = characterCount(body.trim()) >= 3;
+    const suggestion = suggestEmoji(body);
 
     const returnFocusToCommit = () => {
         const commit =
@@ -615,6 +771,17 @@ function ReplyComposer({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key === 'Tab' && suggestion !== null) {
+            const completed = completeEmoji(body);
+
+            if (completed !== null) {
+                event.preventDefault();
+                updateBody(completed);
+            }
+
+            return;
+        }
+
         if (event.key === 'Escape') {
             returnFocusToCommit();
             onCancel();
@@ -644,11 +811,12 @@ function ReplyComposer({
                 if (page.flash.committed) {
                     drop();
                     attachments.clear();
+                    linkCard.reset();
                     returnFocusToCommit();
                     onReplied();
                 }
             }}
-            className="mt-2 rounded-lg border bg-background p-2.5"
+            className="mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
             data-test="reply-composer"
         >
             {({ processing, errors }) => (
@@ -672,10 +840,18 @@ function ReplyComposer({
                         onFocus={isRestored ? moveCaretToEnd : undefined}
                         maxLength={maxBodyLength}
                         placeholder={`Reply to @${parent.user.username}`}
-                        className="block field-sizing-content min-h-9 w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                        className="block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]"
+                    />
+                    <EmojiSuggestionHint
+                        suggestion={suggestion}
+                        className="mt-1 px-1"
                     />
                     <InputError
-                        message={errors.body ?? errors.parent_id}
+                        message={
+                            errors.body ??
+                            errors.parent_id ??
+                            errors.link_preview_url
+                        }
                         className="px-1"
                     />
                     <ImagePickerPreviews
@@ -686,13 +862,19 @@ function ReplyComposer({
                         message={attachments.error ?? imageErrorFrom(errors)}
                         className="mt-1 px-1"
                     />
-                    <div className="mt-1.5 flex items-center justify-end gap-2">
-                        <div className="mr-auto flex items-center gap-2">
+                    <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+                        <div className="mr-auto flex min-w-0 items-center gap-2">
                             <ImagePickerButton
                                 count={attachments.images.length}
                                 disabled={processing}
                                 onPick={attachments.attach}
                                 className="size-8"
+                            />
+                            <LinkCardPicker
+                                linkCard={linkCard}
+                                disabled={processing}
+                                className="-ml-1"
+                                labelClassName="max-sm:sr-only"
                             />
                             {isRestored && (
                                 <StashLabel
@@ -731,6 +913,7 @@ function ReplyComposer({
                             type="submit"
                             size="sm"
                             disabled={processing || !isReplyable}
+                            className="min-w-[4.75rem]"
                             data-test="submit-reply-button"
                         >
                             {processing ? 'Replying…' : 'Reply'}

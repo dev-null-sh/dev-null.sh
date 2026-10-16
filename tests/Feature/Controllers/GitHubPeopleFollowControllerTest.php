@@ -129,6 +129,24 @@ it('validates the selected connection list', function (array $input, string $fie
     'too many selections' => [['user_ids' => array_fill(0, 101, 'not-a-uuid')], 'user_ids'],
 ]);
 
+it('rejects the whole selection when an account is blocked after discovery', function (bool $outgoing): void {
+    $user = User::factory()->create();
+    $person = User::factory()->create();
+    $visible = User::factory()->create();
+    completedGitHubPeople($user, $visible, $person);
+    [$blocker, $blocked] = $outgoing ? [$user, $person] : [$person, $user];
+    $blocker->blocking()->attach($blocked);
+
+    $response = $this->actingAs($user)->fromRoute('github-people.index')
+        ->post(route('github-people-follow.store'), ['user_ids' => [$visible->id, $person->id]]);
+
+    $response->assertRedirectToRoute('github-people.index')->assertSessionHasErrors('user_ids.1');
+    expect($user->following()->count())->toBe(0);
+    expect($person->notifications()->count())->toBe(0);
+    expect($visible->notifications()->count())->toBe(0);
+    Http::assertNothingSent();
+})->with(['blocked by viewer' => true, 'blocked by discovered person' => false]);
+
 it('rejects duplicate selected connections', function (): void {
     $user = User::factory()->create();
     $person = User::factory()->create();

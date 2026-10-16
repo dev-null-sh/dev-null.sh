@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
+import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
 import { useEffect } from 'react';
 import { index as githubPeople } from '@/actions/App/Http/Controllers/GitHubPeopleController';
@@ -13,6 +13,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useLastVisit } from '@/hooks/use-last-visit';
+import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
 import type { Commit, CursorPaginated, Log } from '@/types';
@@ -28,9 +29,9 @@ export default function Show({
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const newestId = commits.data[0]?.id;
-    const firstSeenId = useLastVisit(auth.user.id, log, commits.data);
+    const firstSeenId = useLastVisit(user.id, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
         30_000,
@@ -41,6 +42,11 @@ export default function Show({
         }),
         { autoStart: newestId !== undefined },
     );
+
+    // Showing a log remembers it, so pages prefetched before it still carry the previous log in their shared props.
+    useEffect(() => {
+        router.flushAll();
+    }, [log]);
 
     useEffect(
         () =>
@@ -63,17 +69,18 @@ export default function Show({
 
     return (
         <>
-            <Head title={log === 'following' ? 'Log' : 'Everyone'} />
+            <Head title={log === 'following' ? 'Following' : 'Everyone'} />
 
-            <div className="sticky top-0 z-10 bg-card">
+            <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]">
                 <h1 className="sr-only">
-                    {log === 'following' ? 'Log' : 'Everyone'}
+                    {log === 'following' ? 'Following' : 'Everyone'}
                 </h1>
                 <PageTabs
                     label="Logs"
+                    prefetch={false}
                     tabs={[
                         {
-                            title: 'Log',
+                            title: 'Following',
                             href: LogController.show('following'),
                             isActive: log === 'following',
                         },
@@ -86,11 +93,11 @@ export default function Show({
                 />
 
                 {newCommitsCount > 0 && (
-                    <div className="absolute inset-x-0 top-full flex justify-center pt-3">
+                    <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center pt-3">
                         <button
                             type="button"
                             onClick={showNewCommits}
-                            className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                            className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                         >
                             <ArrowUp className="size-4" />
                             {newCommitsCount}{' '}
@@ -104,51 +111,55 @@ export default function Show({
 
             <CommitComposer />
 
-            <CommitFeed
-                commits={commits}
-                firstLane="var(--rail)"
-                firstSeenId={firstSeenId}
-                end="That's the root commit. There's nothing before it."
-                interlude={(lane, isDimmed) => (
-                    <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
-                )}
-                empty={
-                    log === 'following' ? (
-                        <EmptyFeed command="fatal: your log does not have any commits yet">
-                            Your log shows your commits and commits from people
-                            you follow.{' '}
-                            {suggestions.length > 0
-                                ? 'Here is what a few developers committed lately:'
-                                : 'Find someone worth following on '}
-                            {suggestions.length === 0 && (
-                                <>
-                                    <Link
-                                        href={LogController.show('everyone')}
-                                        className="font-medium text-primary underline"
-                                    >
-                                        Everyone
-                                    </Link>
-                                    .
-                                </>
-                            )}
-                            {suggestions.length > 0 && (
-                                <Suggestions suggestions={suggestions} />
-                            )}
-                            <Link
-                                href={githubPeople()}
-                                className="mt-4 block text-sm text-primary hover:underline"
-                            >
-                                Find your GitHub people
-                            </Link>
-                        </EmptyFeed>
-                    ) : (
-                        <EmptyFeed command="fatal: no commits yet">
-                            Nobody has committed anything. Be the first. It's
-                            280 characters; you'll be fine.
-                        </EmptyFeed>
-                    )
-                }
-            />
+            <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
+                <CommitFeed
+                    commits={commits}
+                    firstLane="var(--rail)"
+                    firstSeenId={firstSeenId}
+                    end="That's the root commit. There's nothing before it."
+                    interlude={(lane, isDimmed) => (
+                        <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
+                    )}
+                    empty={
+                        log === 'following' ? (
+                            <EmptyFeed command="fatal: your log does not have any commits yet">
+                                Your log shows your commits and commits from
+                                people you follow.{' '}
+                                {suggestions.length > 0
+                                    ? 'Here is what a few developers committed lately:'
+                                    : 'Find someone worth following on '}
+                                {suggestions.length === 0 && (
+                                    <>
+                                        <Link
+                                            href={LogController.show(
+                                                'everyone',
+                                            )}
+                                            className="font-medium text-primary underline"
+                                        >
+                                            Everyone
+                                        </Link>
+                                        .
+                                    </>
+                                )}
+                                {suggestions.length > 0 && (
+                                    <Suggestions suggestions={suggestions} />
+                                )}
+                                <Link
+                                    href={githubPeople()}
+                                    className="mt-4 block text-sm text-primary hover:underline"
+                                >
+                                    Find your GitHub people
+                                </Link>
+                            </EmptyFeed>
+                        ) : (
+                            <EmptyFeed command="fatal: no commits yet">
+                                Nobody has committed anything. Be the first.
+                                It's 280 characters; you'll be fine.
+                            </EmptyFeed>
+                        )
+                    }
+                />
+            </div>
         </>
     );
 }

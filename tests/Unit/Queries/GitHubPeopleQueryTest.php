@@ -87,6 +87,24 @@ it('keeps discoveries scoped to the requesting user', function (): void {
         ->and($result['truncated'])->toBeFalse();
 });
 
+it('excludes discovered accounts blocked in either direction', function (bool $outgoing): void {
+    $user = User::factory()->create();
+    $person = User::factory()->create();
+    $visible = User::factory()->create();
+    [$blocker, $blocked] = $outgoing ? [$user, $person] : [$person, $user];
+    $blocker->blocking()->attach($blocked);
+
+    Cache::put('github-people:'.$user->id, [
+        'id' => 'completed-run', 'status' => 'ready', 'github_ids' => [$person->github_id, $visible->github_id],
+        'username' => $user->username, 'page' => 1, 'scanned' => 2,
+        'fetched_at' => now()->toIso8601String(), 'retry_at' => null,
+    ], now()->addHour());
+
+    $result = resolve(GitHubPeopleQuery::class)->get($user);
+
+    expect($result['users']->pluck('id')->all())->toBe([$visible->id]);
+})->with(['blocked by viewer' => true, 'blocked by discovered person' => false]);
+
 it('matches accounts past a database binding chunk without truncating the discovery', function (): void {
     $user = User::factory()->create(['github_id' => '9000']);
     $friend = User::factory()->create(['github_id' => '600']);

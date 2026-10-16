@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\CommitStatus;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -80,6 +81,24 @@ it('shows a pinned commit once above the log with visible reply counts and uncha
             ->where('commits.data.0.is_saved', false)
             ->where('commits.data.0.id', $normal->id));
 });
+
+it('includes the quoted commit of a pinned quote', function (bool $signedIn): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
+    $pinned = Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+    $user->update(['pinned_commit_id' => $pinned->id]);
+
+    if ($signedIn) {
+        $this->actingAs(User::factory()->create());
+    }
+
+    $this->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('pinnedCommit.id', $pinned->id)
+            ->where('pinnedCommit.quoted_commit.body', 'The quoted commit')
+            ->where('pinnedCommit.quoted_commit.user.username', 'taylorotwell'));
+})->with(['guest' => false, 'signed in' => true]);
 
 it('keeps cursor ordering and excludes a pin on every page including tied timestamps', function (): void {
     $user = User::factory()->create();
@@ -198,19 +217,29 @@ it('does not expose a pin belonging to another user or a reply', function (bool 
             ->has('commits.data', 0));
 })->with([false, true]);
 
-it('keeps pinned data out of guest profile and user previews', function (): void {
+it('shows guests an approved pinned commit', function (): void {
     $user = User::factory()->create();
-    $pinned = Commit::factory()->for($user)->create(['body' => 'Signed-in readers only']);
+    $pinned = Commit::factory()->for($user)->create(['body' => 'Everyone may read this']);
+    $user->update(['pinned_commit_id' => $pinned->id]);
+
+    $this->get(route('user.show', $user))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/show')
+            ->where('pinnedCommit.id', $pinned->id)
+            ->where('pinnedCommit.is_saved', false)
+            ->has('commits.data', 0));
+});
+
+it('keeps a pending pinned commit away from guests and pinned data out of user previews', function (): void {
+    $user = User::factory()->create();
+    $pinned = Commit::factory()->for($user)->pending()->create(['body' => 'Only its author may read this']);
     $user->update(['pinned_commit_id' => $pinned->id]);
 
     $this->get(route('user.show', $user))->assertOk()
         ->assertDontSee($pinned->body)
-        ->assertDontSee($pinned->id)
         ->assertInertia(fn ($page) => $page
-            ->component('welcome')
-            ->missing('pinnedCommit')
-            ->missing('commits')
-            ->missing('user'));
+            ->where('pinnedCommit', null)
+            ->has('commits.data', 0));
 
     $this->actingAs(User::factory()->create())->getJson(route('user-preview.show', $user))
         ->assertOk()
@@ -274,4 +303,18 @@ it('resets the scroll log when refreshing the pin and commits together', functio
         ->assertJsonMissingPath('props.activity')
         ->assertJsonMissingPath('props.user')
         ->assertJsonPath('scrollProps.commits.reset', true);
+});
+
+it('includes the images of the pinned commit', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    $image = CommitImage::factory()->for($commit)->create();
+    $user->forceFill(['pinned_commit_id' => $commit->id])->save();
+
+    $this->actingAs(User::factory()->create())->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('pinnedCommit.id', $commit->id)
+            ->has('pinnedCommit.images', 1)
+            ->where('pinnedCommit.images.0.id', $image->id));
 });

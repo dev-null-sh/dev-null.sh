@@ -172,7 +172,7 @@ Every post is a commit and the timeline is the log. The system draws a literal `
 
 The register is a well-lit terminal rather than a dark hacker cosplay. A cool near-white shell holds a white feed column cut by hairline cool-gray rules; ink is near-black. Geist carries prose, Geist Mono carries everything a machine would print: handles, short hashes, relative times, counts, character budgets, `fatal:` lines, and `null` values. Dark mode is a faithful mirror on graphite, with the lanes and primary lifted for luminance rather than redesigned.
 
-Color is rationed. Six author lane colors exist only inside the graph and its direct echoes (profile ring, handle dot). One blue does the work of action and location: the primary button, the current nav item, the active tab underline, links. Motion is the graph's own: a node pops onto the rail when you commit, rail segments draw downward on the landing page, and a deleted commit prints `rm {hash} → /dev/null` before its row collapses.
+Color is rationed. Six author lane colors exist only inside the graph and its direct echoes (profile ring, handle dot). One blue does the work of action and location: the primary button, the current nav item, the active tab underline, links. Motion is the graph's own: a node pops onto the rail when you commit, rail segments draw downward on the landing page, and a deleted commit prints `rm {hash} → /dev/null` before its row collapses. Navigation only moves to say where you went: pages crossfade in 160ms, the Blue Wash behind the current nav item and the active tab underline slide to their new place, and switching between Log and Everyone, or between the Profile and Appearance settings, slides the content toward the tab you picked while the header (and the composer) stays put.
 
 **Key Characteristics:**
 - A vertical graph rail with lane-colored nodes and segments is the signature and the only decorative device.
@@ -188,7 +188,7 @@ A cool, nearly colorless shell with one working blue and six author lanes reserv
 ### Primary
 - **Commit Blue** (light `primary`, dark `primary-dark`): the primary button ("Commit", "Follow", "Sign in with GitHub", "Edit on GitHub"), links, focus rings, caret color, the active tab underline, and the active nav item's text.
 - **Pressed Commit Blue** (`primary-hover`): hover state of the primary button only.
-- **Blue Wash** (`primary-soft`): fill behind the active nav item and the selected appearance option; also the text selection color.
+- **Blue Wash** (`primary-soft`): fill behind the active nav item (the side nav item and the bottom bar's icon pill) and the selected option of the settings switches (theme, who to follow); also the text selection color.
 
 ### Secondary
 - **Author Lanes** (`lane-0` through `lane-5`, burnt orange, green, violet, teal, rose, ochre; each with a `-dark` lift): chosen by the user in Settings → Profile, otherwise assigned by hashing the user id (`User::automaticLane()`); every serialized user carries the effective `lane` (0–5) and the frontend paints it with `laneColor(user.lane)`. Used only for graph nodes, rail segments, the staged composer node, the 8px dot before a handle in profile contexts, and the 2px ring around a profile avatar. Never text, never fills behind text, never buttons.
@@ -236,7 +236,7 @@ A cool, nearly colorless shell with one working blue and six author lanes reserv
 
 ## Layout
 
-A centered shell (max 1264px) holds three columns: a sticky left nav (256px at lg, 80px icon rail at md), the feed column (white, hairline-bordered left and right, max 620px), and a sticky aside (320px, xl and up only). Below md the nav becomes a fixed four-item bottom bar and a 56px mobile header carries the wordmark and account menu; the aside disappears.
+A centered shell (max 1264px) holds three columns: a sticky left nav (256px at lg, 80px icon rail at md), the feed column (white, hairline-bordered left and right, max 620px), and a sticky aside (320px, xl and up only). Below md the nav becomes a fixed bottom bar and a 56px mobile header carries the wordmark and account menu; the aside disappears.
 
 Inside the feed every row is `[rail | content]`. The rail column is 44px (56px from sm) and spans the full row height; content rows pad 12px vertically and 16px on the right, and the row's bottom hairline starts after the rail so the graph runs uninterrupted. Page headers are sticky, 56px tall, with 16/24px horizontal gutters. The landing page reuses the same grammar at large scale: an ordered list of three commits on a rail with 40-48px of air between nodes.
 
@@ -244,7 +244,7 @@ Inside the feed every row is `[rail | content]`. The rail column is 44px (56px f
 
 ## Elevation & Depth
 
-Flat. Depth comes from the shell/feed tone step and hairline rules, not shadows. The only shadows in the build are functional geometry: the 2px zero-offset ring that outlines each graph node in its lane color, the 3px inset underline on the active tab, and the near-invisible `shadow-xs` on primitive buttons. Popovers and the delete-account dialog use the component library's default overlay treatment.
+Flat. Depth comes from the shell/feed tone step and hairline rules, not shadows. The only shadows in the build are functional geometry: the 2px zero-offset ring that outlines each graph node in its lane color and the near-invisible `shadow-xs` on primitive buttons. Popovers and the delete-account dialog use the component library's default overlay treatment.
 
 **The No Cards Rule.** Commits are rows, not cards. Containment is a hairline; there are no floating panels in the feed.
 
@@ -264,17 +264,17 @@ Quiet, rectangular, decisive.
 - **Destructive:** Rm Red fill, white label, small size. Appears only after an explicit confirm step.
 
 ### Navigation
-- **Side nav:** 15px medium, 20px line icons, 12px padding, 8px corners. Inactive is Muted Ink; hover adds the wash; active is Commit Blue text on Blue Wash. Labels collapse to icons at md.
-- **Page tabs:** full-width split under a sticky header, 15px medium. Active text goes to ink with a 3px Commit Blue underline hugging the label; inactive is muted.
-- **Mobile:** fixed bottom bar, four equal cells, icon over 12px label, active in Commit Blue.
+- **Side nav:** 15px medium, 20px line icons, 12px padding, 8px corners. Inactive is Muted Ink; hover adds the wash; active is Commit Blue text on Blue Wash. When you navigate, the Blue Wash slides to the new item (220ms, expo-out) and stays under every label while it moves. Labels collapse to icons at md.
+- **Page tabs:** full-width split under a sticky header, 15px medium. Active text goes to ink with a 3px Commit Blue underline hugging the label; inactive is muted. The underline slides and resizes to the new tab (280ms, ease-out), in step with the content when it slides. On the log (the feed below the composer) and in settings (the panel below the tabs), the content slides out toward the tab you picked and the new content slides in behind it; leaving for another page fades it with the page.
+- **Mobile:** fixed bottom bar of equal cells, icon over 12px label, active in Commit Blue with a 56×32 Blue Wash pill behind the icon. When you navigate, the pill slides to the new item (220ms, expo-out) and stays under every icon while it moves.
 - **Vocabulary:** a post is a **commit** and a timeline is a **log**, in the UI and in code. **Star** is the engagement verb. No other git nouns.
 
 ### Inputs / Fields
 - **Composer:** borderless, no visible field chrome: a 17px textarea ("What did you ship?", max 280) that grows with content. Its state is carried by the graph: the staged node is hollow until the body reaches 3 characters, then fills with the author's lane; the tail below it is a dashed Rail Gray line. A mono countdown sits left of the "Commit" button; ⌘/Ctrl+Enter commits.
 - **Stash:** unsent text in the composer and in each reply composer is kept in `localStorage` per signed-in user (cleared on commit, when emptied, and on log out). When a draft comes back after a reload or navigation, a quiet mono `stash@{0}` (title "Restored your unsent draft") sits at the left of the counter row with a muted `drop` text button that discards it. Merely typing never shows it. A thread with a stashed reply prints a muted 11px mono `stash@{0}` after its "Reply" action; Cancel and Escape close the reply composer but keep the stash. Neither element is blue.
 - **Read-only fields (settings):** a hairline-bordered 8px-radius list, mono keys in a 6.5rem column, values in sans; missing values print a mono `null`.
-- **Color picker (settings):** a live preview row (rail node, 48px avatar with the lane ring, lane-dotted handle) above a radio group of seven 28px swatches with sans captions: a dashed "Auto" swatch showing the hashed lane, then the six lanes. The checked swatch gets the 2px lane ring offset from the surface; focus shows the standard focus ring on the whole option. Saved with a primary "Save color" button, disabled until the choice changes. Only the six lanes are offered so light/dark lifts and contrast keep working.
-- **Theme switch:** a bordered segmented group (8px outer, 6px inner) whose selected option uses the active-nav treatment.
+- **Color picker (settings):** a live preview row (rail node, 48px avatar with the lane ring, lane-dotted handle) above a radio group of seven 28px swatches with sans captions: a dashed "Auto" swatch showing the hashed lane, then the six lanes. The checked swatch gets the 2px lane ring offset from the surface; picking another swatch slides the ring over to it and crossfades the preview into the new lane; focus shows the standard focus ring on the whole option. Saved with a primary "Save color" button, disabled until the choice changes. Only the six lanes are offered so light/dark lifts and contrast keep working.
+- **Theme switch:** a bordered segmented group (8px outer, 6px inner) whose selected option uses the active-nav treatment. The Blue Wash slides to the picked option while the whole page eases into the new theme's colors at once (320ms). The who-to-follow switch slides the same way.
 
 ### Commit Row (signature)
 The graph rail, then avatar (40px circle), then a header line: author name (600), mono handle, a middle dot, mono relative time, and the 7-character short hash pushed right (from sm). The body follows at 15px, pre-wrapped. Under the body, a quiet star: a 16px outline icon in Muted Ink, filled in Commit Blue once starred, with the count in mono 13px beside it when the count is at least 1. It is hidden on commits the viewer cannot star. The toggle updates immediately and rolls back if the request fails, without reloading the log. Your own rows reveal a trash icon on hover/focus (always visible on touch). Deleting is inline: a soft red strip asks "Delete this commit? There's no undo." with Cancel and Delete; confirming swaps the body for a mono `rm {hash} → /dev/null` status, then the row collapses (height and opacity, 300ms after a 400ms hold).
@@ -284,6 +284,9 @@ A 14px circle (16px on the landing page) centered on a 2px vertical line. The se
 
 ### Empty States
 Centered in the feed: a mono `fatal: …` line in Muted Ink, then one or two plain sentences (15px, max 24rem) with a single Commit Blue link when there is somewhere to go.
+
+### Onboarding
+A standalone page (no app shell) after a new account's first sign-in, drawn as a short history on the rail: one row per step with a mono prompt (`$ whoami`, `$ export LANE=teal`, `$ who --should-i-follow`, `$ man devnull`) and a hollow `$ git log` row at the end. Done steps are filled nodes on a solid lane segment with a one-line summary, the current step's node pops in (`node-in`) above a dashed Rail Gray tail and expands into a 1.5rem heading, a muted sentence, its content, and a primary action with a ghost Back; later steps are hollow Rail Gray nodes. The whole rail takes the lane being picked, live. Steps reuse the settings profile list, the color preview and swatches, the suggested-developer rows, and the shortcut sheet. "Skip setup" with an `esc` cap sits top right; Esc skips from any step unless a dialog is open; focus moves to each step's heading.
 
 ### Error Pages
 403, 404, 429, 500 (outside debug), and 503 render one standalone `error` page, with no app shell, for guests and signed-in users alike. A broken rail: the wordmark sits on a node in the viewer's lane (Rail Gray for guests) whose segment fades out before reaching a hollow, dangling node. Beside it, a mono git-style line (`fatal: path '/x' does not exist in 'HEAD'`), a Headline sentence saying what happened, one muted sentence saying what to do, and a single primary button ("Back to your log", "Go to the home page", or "Try again" during maintenance). A 419 is not a page: it redirects back with an error toast.
@@ -306,7 +309,7 @@ Under the graph, a mono 13px strip prints the streaks, `longest streak 12 days �
 - **Loading:** skeleton rows keep the rail running (rail-gray node and line, pulsing bars) while the next page loads.
 - **Keyboard:** `j`/`k` move a focus highlight (Accent background) between commits, `c` focuses the composer, `g` then `l`/`e`/`p`/`s` navigates, `?` opens the shortcut sheet; keys render as bordered mono `kbd` caps. In the moderation queue `a`/`x` approve or reject the focused commit and focus moves to the next one; the caps sit inside the Approve/Reject buttons (from sm), and the sheet adds a Moderation section for admins.
 - **Starter suggestions:** an empty Log for someone who follows nobody lists three recent approved commits from different authors, each with a Follow button.
-- **Thread keys:** on the focused commit, `r` opens its reply composer with the cursor in it and `o` shows or hides its replies; focus stays on the commit (Esc or replying returns it there), so `j`/`k` keep stepping through top-level commits. The commit's own Reply and replies buttons carry `aria-keyshortcuts` and a `title` hint, with no caps in the action row.
+- **Thread keys:** on the focused commit, `r` opens its reply composer with the cursor in it, `q` opens its quote dialog, and `o` shows or hides its replies; focus stays on the commit (Esc or replying returns it there), so `j`/`k` keep stepping through top-level commits. The commit's own Reply and replies buttons carry `aria-keyshortcuts` and a `title` hint, with no caps in the action row.
 - **Activity tooltip:** one dark tooltip (Ink on Background inverted) follows the hovered cell, edge-aligned near the ends ("3 commits on Tue, Oct 14", "2 commits between 14:00 and 15:00 today"); hovering a day or hour tints that period's commits in the profile feed with Primary Soft.
 
 ### User Preview
@@ -317,6 +320,9 @@ Under a commit's body, a quiet action row: "Reply" (muted, opens an inline borde
 
 ### Tombstones
 A deleted commit that still has visible replies keeps its place so the conversation under it stays intact; one with no visible replies is simply gone. It prints no author, time, or body: a dashed Rail Gray circle where the avatar would be, then a muted line with a mono `[deleted]` token and the sentence "This commit was deleted." In a thread it keeps the "N replies" toggle but has no Reply action; as an ancestor on a commit page it sits on the rail as a hollow Rail Gray node, and the segment below it is Rail Gray too. Labels that point at it read "↳ replying to [deleted]" and are not links.
+
+### Quotes
+A quote is a regular commit row with the quoted commit embedded under its body: a hairline-bordered, 8px-rounded block (like a link preview, no lane color) with a 20px avatar, name (600), mono handle, and mono relative time on one line, then the body at 15px, pre-wrapped and clamped to six lines. The whole block is one link to the quoted commit's page and tints Accent on hover/focus; it embeds one level only. A deleted quoted commit is a dashed block with a mono `[deleted]` token and "This commit was deleted."; one the viewer cannot see reads `[unavailable]` and "This commit isn't available.", with no author, time, or body. "Quote" sits in the action row after the star (icon only on phones) and opens a dialog titled "Quote @handle": the viewer's avatar, a 17px textarea ("Add your take") with its own stash, the quoted block as a static preview, a counter, Cancel, and Quote (⌘/Ctrl+Enter). It is hidden wherever the star is.
 
 ### Commit Page
 Every commit has a page at `/@username/commits/{id}`, reached from its relative time or short hash (both links), the "↳ replying to @handle" label, or Enter on a focused commit. A sticky header reads "Commit" with the mono short hash and a copy-link icon on the right. Visible ancestors (up to 20) stack above as regular commit rows on one continuous rail, without delete, with deleted ones as tombstones; the focused commit sits last with a 17px body, a mono "time · date · commit hash" line, and its replies already expanded. A deleted commit's own page is a 404.
@@ -336,7 +342,8 @@ A profile or commit link shared to X, Slack, Discord, or iMessage unfurls as a 1
 - **Do** separate rows with 1px hairlines that start to the right of the rail.
 - **Do** end a finished feed with a hollow root node and a dry, literal sentence.
 - **Do** mirror dark mode token-for-token on graphite (`shell-dark`, `surface-dark`) using the lifted `-dark` lanes and primary.
-- **Do** gate graph motion behind `prefers-reduced-motion`.
+- **Do** gate graph and navigation motion behind `prefers-reduced-motion`.
+- **Do** keep the layout still on load, navigation, polling, and after actions; see the frontend UI stability rules in `.ai/guidelines/resources.js.blade.php`.
 
 ### Don't:
 - **Don't** use lane colors for text, buttons, badges, or backgrounds; they mark authors on the graph and nowhere else.

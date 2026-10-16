@@ -68,6 +68,7 @@ final readonly class SuggestedUsersQuery
         return $candidates
             ->whereKeyNot($user->id)
             ->whereNotIn('id', $followingIds)
+            ->whereNotIn('id', $user->mutedIds())
             ->whereIn('id', Commit::query()->visibleTo($user)->topLevel()->select('user_id'))
             ->addSelect([
                 'followed_by_following_count' => $followersCount()->whereIn($following->getForeignPivotKeyName(), $followingIds),

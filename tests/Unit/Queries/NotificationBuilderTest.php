@@ -8,6 +8,7 @@ use App\Actions\DeleteUser;
 use App\Actions\DeleteUserFollow;
 use App\Actions\UpdateCommitStatus;
 use App\Enums\CommitStatus;
+use App\Enums\NotificationType;
 use App\Models\Notification;
 
 it('scopes notifications to unread ones', function (): void {
@@ -96,6 +97,58 @@ it('deletes replies along with the replied commit', function (): void {
     expect($notification->fresh())->toBeNull();
 });
 
+it('keeps approved quotes', function (): void {
+    $notification = Notification::factory()->quoted()->create();
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+});
+
+it('hides quotes once rejected', function (): void {
+    $notification = Notification::factory()->quoted()->create();
+
+    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
+
+    expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
+});
+
+it('deletes quotes along with the quote', function (): void {
+    $notification = Notification::factory()->quoted()->create();
+
+    resolve(DeleteCommit::class)->handle($notification->commit);
+
+    expect($notification->fresh())->toBeNull();
+});
+
+it('deletes quotes along with the quoted commit', function (): void {
+    $notification = Notification::factory()->quoted()->create();
+
+    resolve(DeleteCommit::class)->handle($notification->commit->quotedCommit);
+
+    expect($notification->fresh())->toBeNull();
+});
+
+it('keeps stars on approved commits', function (): void {
+    $notification = Notification::factory()->starred()->create();
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+});
+
+it('hides stars once the commit is rejected', function (): void {
+    $notification = Notification::factory()->starred()->create();
+
+    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
+
+    expect(Notification::query()->where('type', NotificationType::Starred)->relevant()->exists())->toBeFalse();
+});
+
+it('deletes stars along with the starred commit', function (): void {
+    $notification = Notification::factory()->starred()->create();
+
+    resolve(DeleteCommit::class)->handle($notification->commit);
+
+    expect($notification->fresh())->toBeNull();
+});
+
 it('deletes notifications along with the actor', function (Notification $notification): void {
     resolve(DeleteUser::class)->handle($notification->actor);
 
@@ -103,6 +156,8 @@ it('deletes notifications along with the actor', function (Notification $notific
 })->with([
     'followed' => fn (): Notification => Notification::factory()->create(),
     'replied' => fn (): Notification => Notification::factory()->replied()->create(),
+    'quoted' => fn (): Notification => Notification::factory()->quoted()->create(),
+    'starred' => fn (): Notification => Notification::factory()->starred()->create(),
 ]);
 
 it('deletes notifications along with the recipient', function (): void {
@@ -112,3 +167,28 @@ it('deletes notifications along with the recipient', function (): void {
 
     expect($notification->fresh())->toBeNull();
 });
+
+it('hides notifications from muted actors until they are unmuted', function (Notification $notification): void {
+    $notification->recipient->muting()->attach($notification->actor_id);
+
+    expect(Notification::query()->relevant()->exists())->toBeFalse();
+
+    $notification->recipient->muting()->detach($notification->actor_id);
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+})->with([
+    'followed' => fn (): Notification => Notification::factory()->create(),
+    'replied' => fn (): Notification => Notification::factory()->replied()->create(),
+    'mentioned' => fn (): Notification => Notification::factory()->mentioned()->create(),
+    'starred' => fn (): Notification => Notification::factory()->starred()->create(),
+]);
+
+it('hides replies, mentions and stars across a block in either direction', function (string $state, bool $recipientBlocks): void {
+    $notification = Notification::factory()->{$state}()->create();
+
+    $recipientBlocks
+        ? $notification->recipient->blocking()->attach($notification->actor_id)
+        : $notification->actor->blocking()->attach($notification->recipient_id);
+
+    expect(Notification::query()->relevant()->exists())->toBeFalse();
+})->with(['replied', 'mentioned', 'starred'])->with([true, false]);

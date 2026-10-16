@@ -13,7 +13,7 @@ final readonly class CommitAncestorsQuery
     /**
      * @return Collection<int, Commit>
      */
-    public function get(Commit $commit, User $user, int $limit = 20): Collection
+    public function get(Commit $commit, ?User $user, int $limit = 20): Collection
     {
         $ancestors = new Collection;
         $parentId = $commit->parent_id;
@@ -32,8 +32,8 @@ final readonly class CommitAncestorsQuery
         return $ancestors;
     }
 
-    private function visibleCommit(string $id, User $user): ?Commit
+    private function visibleCommit(string $id, ?User $user): ?Commit
     {
-        return Commit::query()->withTrashed()->visibleTo($user)->withSavedState($user)->with(['user', 'linkPreview', 'images'])->withStarsFor($user)->find($id);
+        return Commit::query()->withTrashed()->visibleTo($user)->withSavedState($user)->with(['user', 'linkPreview', 'images'])->withQuotedCommitFor($user)->withStarsFor($user)->find($id);
     }
 }

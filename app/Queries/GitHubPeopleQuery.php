@@ -27,6 +27,7 @@ final readonly class GitHubPeopleQuery
                 $users = $users->concat(User::query()
                     ->whereIn('github_id', $ids)
                     ->whereKeyNot($user->id)
+                    ->whereNotIn('id', $user->idsAcrossBlocks())
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)])
                     ->get());
             }

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
@@ -31,15 +32,29 @@ it('renders a user profile', function (): void {
             ->where('user.commits_count', 2)
             ->where('user.followers_count', 1)
             ->where('user.following_count', 2)
+            ->where('user.has_sponsors_listing', false)
             ->missing('user.email')
             ->missing('user.github_id')
             ->where('isFollowing', true)
+            ->where('followsYou', false)
+            ->has('achievements')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('renders whether the user can be sponsored on github', function (): void {
+    $user = User::factory()->create(['has_sponsors_listing' => true]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('user.has_sponsors_listing', true));
 });
 
 it('does not count the user relations or activity when reloading only commits', function (string $tab): void {
@@ -58,8 +73,10 @@ it('does not count the user relations or activity when reloading only commits', 
             $page->reloadOnly('commits', fn ($reload) => $reload
                 ->missing('user')
                 ->missing('isFollowing')
+                ->missing('followsYou')
                 ->missing('tab')
-                ->missing('activity'));
+                ->missing('activity')
+                ->missing('achievements'));
         });
 
     expect(collect(DB::getQueryLog())
@@ -164,7 +181,79 @@ it('renders whether the viewer is not following the user', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('isFollowing', false)
+            ->where('isMuting', false)
             ->has('commits.data', 0));
+});
+
+it('still shows the commits of a muted user on their profile', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->has(Commit::factory())->create();
+
+    $viewer->muting()->attach($user);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/show')
+            ->where('isMuting', true)
+            ->has('commits.data', 1));
+});
+
+it('shows the blocker who they blocked, without any of their commits', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat', 'pinned_commit_id' => null]);
+
+    $viewer->blocking()->attach($user);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/unavailable')
+            ->where('username', 'octocat')
+            ->where('blockedUser.id', $user->id)
+            ->where('blockedUser.lane', $user->lane())
+            ->missing('blockedUser.email')
+            ->missing('commits')
+            ->missing('activity'));
+});
+
+it('shows a neutral unavailable profile to someone the user blocked', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat', 'bio' => 'Private bio']);
+
+    $user->blocking()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', ['user' => $user, 'tab' => 'replies']));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/unavailable')
+            ->where('username', 'octocat')
+            ->where('blockedUser', null)
+            ->missing('commits')
+            ->missing('user'));
+
+    expect($response->getContent())->not->toContain('Private bio');
+});
+
+it('renders whether the user follows the viewer', function (): void {
+    $user = User::factory()->create();
+    $viewer = User::factory()->create();
+
+    $user->following()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('isFollowing', false)
+            ->where('followsYou', true));
 });
 
 it('returns not found for unknown usernames', function (): void {
@@ -174,32 +263,43 @@ it('returns not found for unknown usernames', function (): void {
     $response->assertNotFound();
 });
 
-it('shows guests the landing page with a link preview of the profile', function (): void {
+it('shows guests the profile with its approved commits and a link preview', function (): void {
     $user = User::factory()->create([
         'username' => 'octocat',
         'name' => 'The Octocat',
         'bio' => 'I am the Octocat.',
     ]);
 
-    Commit::factory()->for($user)->create(['body' => 'A commit only signed-in users may read']);
+    Commit::factory()->for($user)->create(['body' => 'A commit everyone may read']);
+    Commit::factory()->for($user)->pending()->create(['body' => 'A pending commit only its author may read']);
 
     $response = $this->get('/@octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->component('welcome')
-            ->missing('user')
-            ->missing('commits')
-            ->missing('activity'))
+            ->component('user/show')
+            ->where('user.commits_count', 1)
+            ->where('isFollowing', false)
+            ->where('isMuting', false)
+            ->has('commits.data', 1)
+            ->where('commits.data.0.body', 'A commit everyone may read')
+            ->where('commits.data.0.is_saved', false)
+            ->where('streaks.longest', 1)
+            ->has('activity'))
         ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<link rel="canonical" href="'.route('user.show', $user).'">', false)
+        ->assertSee('<meta property="profile:username" content="octocat">', false)
+        ->assertSee('"@type":"ProfilePage"', false)
+        ->assertSee('"sameAs":["https://github.com/octocat"', false)
         ->assertSee('<meta property="og:type" content="profile">', false)
         ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
         ->assertSee('<meta property="og:description" content="I am the Octocat.">', false)
         ->assertSee('<meta property="og:url" content="'.route('user.show', $user).'">', false)
         ->assertSee('<meta property="og:image" content="'.route('user-open-graph-image.show', $user).'?v=', false)
         ->assertSee('<meta name="twitter:card" content="summary_large_image">', false)
+        ->assertSee('<link rel="alternate" type="application/atom+xml" title="The Octocat (@octocat) on /dev/null" href="'.route('user-feed.show', $user).'">', false)
         ->assertDontSee(url('/og.png'))
-        ->assertDontSee('A commit only signed-in users may read');
+        ->assertDontSee('A pending commit only its author may read');
 
     $this->assertGuest();
 });
@@ -210,7 +310,7 @@ it('describes guests a profile without a bio', function (): void {
     $this->get('/@octocat')
         ->assertOk()
         ->assertSee('<meta property="og:title" content="@octocat on /dev/null">', false)
-        ->assertSee('<meta property="og:description" content="Sign in with GitHub to read @octocat&#039;s commits on /dev/null.">', false);
+        ->assertSee('<meta property="og:description" content="Read @octocat&#039;s commits on /dev/null, a social network for developers.">', false);
 });
 
 it('escapes the profile in the link preview', function (): void {
@@ -252,6 +352,28 @@ it('returns guests to the profile after signing in', function (): void {
     expect(session('url.intended'))->toBe(route('user.show', $user));
 });
 
+it('does not return guests to a profile they only prefetched or partially reloaded', function (): void {
+    User::factory()->create(['username' => 'octocat']);
+
+    $this->get('/@octocat', ['Purpose' => 'prefetch'])->assertOk();
+    $this->get('/@octocat', [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'user/show',
+        'X-Inertia-Partial-Data' => 'commits',
+    ])->assertOk();
+
+    expect(session('url.intended'))->toBeNull();
+});
+
+it('does not change where signed-in users return to', function (): void {
+    User::factory()->create(['username' => 'octocat']);
+
+    $this->actingAs(User::factory()->create())->get('/@octocat')->assertOk();
+
+    expect(session('url.intended'))->toBeNull();
+});
+
 it('returns not found for unknown usernames to guests', function (): void {
     $this->get('/@missing')->assertNotFound();
 });
@@ -264,7 +386,9 @@ it('keeps the default link preview for signed-in users', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('user/show'))
         ->assertSee('<meta property="og:image" content="'.url('/og.png').'">', false)
-        ->assertDontSee('og:url', false);
+        ->assertDontSee('og:url', false)
+        ->assertDontSee('application/atom+xml', false)
+        ->assertDontSee('application/ld+json', false);
 });
 
 it('may delete user account', function (): void {
@@ -281,6 +405,54 @@ it('may delete user account', function (): void {
         ->and(Commit::query()->count())->toBe(0);
 
     $this->assertGuest();
+});
+
+it('keeps the replies other people left under the replies of a deleted account', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($root, 'parent')->create();
+    $otherReply = Commit::factory()->for($reply, 'parent')->create();
+
+    $this->actingAs($user)->delete(route('user.destroy'));
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$otherReply->user, $otherReply]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('ancestors', 2)
+            ->where('ancestors.0.id', $root->id)
+            ->where('ancestors.1.id', $reply->id)
+            ->missing('ancestors.1.body')
+            ->missing('ancestors.1.user'));
+
+    $this->actingAs($root->user)
+        ->getJson(route('commit-reply.index', $root))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.user');
+
+    $this->getJson(route('api-commit.show', $reply))->assertNotFound();
+
+    $this->getJson(route('api-commit.show', $otherReply))
+        ->assertOk()
+        ->assertJsonPath('data.id', $otherReply->id)
+        ->assertJsonPath('data.parent_id', null)
+        ->assertJsonPath('data.author.id', $otherReply->user_id);
+
+    $this->getJson(route('api-user-commit.index', $otherReply->user).'?replies=1')
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$otherReply->id]);
+
+    $this->get(route('user-feed.show', $root->user))
+        ->assertOk()
+        ->assertSee("urn:uuid:{$root->id}")
+        ->assertDontSee("urn:uuid:{$reply->id}");
+
+    $this->getJson(route('api-user.show', $user))->assertNotFound();
+    $this->get(route('user-feed.show', $user))->assertNotFound();
 });
 
 it('hides pending and rejected commits from other users', function (): void {
@@ -350,6 +522,21 @@ it('only shows top-level commits on profiles', function (): void {
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'Root')
             ->where('commits.data.0.replies_count', 1));
+});
+
+it('includes the quoted commits of the user commits', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 1)
+            ->where('commits.data.0.quoted_commit.body', 'The quoted commit')
+            ->where('commits.data.0.quoted_commit.user.username', 'taylorotwell'));
 });
 
 it('includes the link previews of the user commits', function (): void {

@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitStar;
 use App\Actions\DeleteUserFollow;
+use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -26,6 +28,25 @@ it('lists the notifications of the user, newest first', function (): void {
             ->where('notifications.data.1.id', $followed->id)
             ->missing('notifications.data.0.key')
             ->missing('notifications.data.0.actor.email'));
+});
+
+it('lists quotes of the users commits', function (): void {
+    $user = User::factory()->create();
+    $quoted = Notification::factory()->for($user, 'recipient')->quoted()->create();
+
+    $response = $this->actingAs($user)->get(route('notification.index'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 1)
+            ->where('notifications.data.0.type', 'quoted')
+            ->where('notifications.data.0.actor.id', $quoted->actor_id)
+            ->where('notifications.data.0.subject_id', null)
+            ->where('notifications.data.0.actors_count', 1)
+            ->has('notifications.data.0.actors', 1)
+            ->where('notifications.data.0.actors.0.id', $quoted->actor_id)
+            ->where('notifications.data.0.commit.id', $quoted->commit_id)
+            ->where('notifications.data.0.commit.user_id', $quoted->actor_id));
 });
 
 it('lists mentions of the user', function (): void {
@@ -62,6 +83,32 @@ it('shows notifications as unread, then marks them as read', function (): void {
     $response->assertInertia(fn ($page) => $page->where('notifications.data.0.read_at', null));
 
     expect($notification->refresh()->read_at)->not->toBeNull();
+});
+
+it('groups stars per commit, newest stargazer first', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    $stargazers = User::factory()->count(4)->create();
+
+    foreach ($stargazers as $index => $stargazer) {
+        $this->travelTo(now()->subMinutes(4 - $index), fn () => resolve(CreateCommitStar::class)->handle($stargazer, $commit));
+    }
+
+    $response = $this->actingAs($user)->get(route('notification.index'));
+
+    $response->assertInertia(fn ($page) => $page
+        ->has('notifications.data', 1)
+        ->where('notifications.data.0.type', 'starred')
+        ->where('notifications.data.0.actor.id', $stargazers[3]->id)
+        ->where('notifications.data.0.commit.id', $commit->id)
+        ->where('notifications.data.0.actors_count', 4)
+        ->where('notifications.data.0.unread_count', 4)
+        ->has('notifications.data.0.actors', 3)
+        ->where('notifications.data.0.actors.0.id', $stargazers[3]->id)
+        ->missing('notifications.data.0.actors.0.email')
+        ->missing('notifications.data.0.position'));
+
+    expect($user->notifications()->unread()->exists())->toBeFalse();
 });
 
 it('requires authentication', function (): void {
