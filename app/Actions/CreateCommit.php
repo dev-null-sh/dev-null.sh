@@ -21,6 +21,7 @@ final readonly class CreateCommit
         private CreateReplyNotifications $createReplyNotifications,
         private CreateMentionNotifications $createMentionNotifications,
         private CreateCommitImages $createCommitImages,
+        private CreateWorldReply $createWorldReply,
         private EmojiShortcodes $emojiShortcodes,
         private Urls $urls,
     ) {
@@ -53,6 +54,8 @@ final readonly class CreateCommit
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));
             }
+
+            $this->createWorldReply->handle($commit);
 
             return $commit;
         });

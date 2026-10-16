@@ -17,6 +17,7 @@ final readonly class UpdateCommitStatuses
     public function __construct(
         private CreateReplyNotifications $createReplyNotifications,
         private CreateMentionNotifications $createMentionNotifications,
+        private CreateWorldReply $createWorldReply,
     ) {
         //
     }
@@ -67,8 +68,14 @@ final readonly class UpdateCommitStatuses
             ])->values()->all());
 
             if ($status === CommitStatus::Approved) {
+                $commits->each(function (Commit $commit) use ($status): void {
+                    $commit->status = $status;
+                });
+
                 $this->createReplyNotifications->handle(...$commits);
                 $this->createMentionNotifications->handle(...$commits);
+
+                $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
             }
         });
     }
