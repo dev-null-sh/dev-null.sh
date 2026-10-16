@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vite-plus/test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
     typedLinks,
@@ -9,7 +9,7 @@ import {
 
 const url = 'https://www.example.com/a-long-path-to-the-release-notes';
 
-void test('finds the full preview URL outside inline and fenced code', () => {
+test('finds the full preview URL outside inline and fenced code', () => {
     const body = [
         '`https://inline.example.com`',
         '```text',
@@ -22,7 +22,7 @@ void test('finds the full preview URL outside inline and fenced code', () => {
     assert.deepEqual(typedLinks('`https://inline.example.com`'), []);
 });
 
-void test('shortens the displayed preview link while retaining the full URL', () => {
+test('shortens the displayed preview link while retaining the full URL', () => {
     const markup = renderToStaticMarkup(<LinkifiedText text={url} />);
 
     assert.ok(markup.includes(`href="${url}"`));
@@ -37,7 +37,7 @@ void test('shortens the displayed preview link while retaining the full URL', ()
     );
 });
 
-void test('keeps every distinct card URL in order without joining prose across code', () => {
+test('keeps every distinct card URL in order without joining prose across code', () => {
     assert.deepEqual(
         typedLinks(
             'https://first.example.com`code`https://second.example.com https://first.example.com',
@@ -50,7 +50,7 @@ for (const body of [
     'before `https://draft.example.com',
     '```text\nhttps://draft.example.com',
 ]) {
-    void test(`ignores card URLs in unfinished code: ${body}`, () => {
+    test(`ignores card URLs in unfinished code: ${body}`, () => {
         assert.deepEqual(typedLinks(body), []);
     });
 }

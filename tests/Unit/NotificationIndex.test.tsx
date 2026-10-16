@@ -1,7 +1,7 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vite-plus/test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import Index from '../../resources/js/pages/notification/index';
@@ -80,7 +80,7 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
     return result.body.slice(result.body.indexOf('<article'));
 }
 
-void test('renders a code block highlighted in a notification', async () => {
+test('renders a code block highlighted in a notification', async () => {
     const body = await render([notification]);
 
     assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
@@ -91,7 +91,7 @@ void test('renders a code block highlighted in a notification', async () => {
 });
 
 for (const isFollowing of [false, true]) {
-    void test(`keeps ${isFollowing ? 'unfollow' : 'follow-back'} separate from highlighted notification links`, async () => {
+    test(`keeps ${isFollowing ? 'unfollow' : 'follow-back'} separate from highlighted notification links`, async () => {
         const followed = {
             ...notification,
             id: 'follow-notification',

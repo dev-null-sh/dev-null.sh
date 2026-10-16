@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vite-plus/test';
 import { createCommitStarMutations } from '../../resources/js/lib/commit-star-mutations.ts';
 
 const stars = { id: 'commit', starred: false, stars_count: 2 };
 
-void test('applies a poll when no star mutation has started', () => {
+test('applies a poll when no star mutation has started', () => {
     const mutations = createCommitStarMutations();
     const received: (typeof stars)[] = [];
     const update = mutations.prepare(stars.id, (state) => received.push(state));
@@ -14,7 +14,7 @@ void test('applies a poll when no star mutation has started', () => {
     assert.deepEqual(received, [stars]);
 });
 
-void test('a click on either copy rejects every older poll, even after completion', () => {
+test('a click on either copy rejects every older poll, even after completion', () => {
     const mutations = createCommitStarMutations();
     const received: (typeof stars)[] = [];
     const update = (state: typeof stars) => received.push(state);
@@ -31,7 +31,7 @@ void test('a click on either copy rejects every older poll, even after completio
     assert.deepEqual(received, []);
 });
 
-void test('duplicate controls cannot mutate or poll a commit while its mutation is pending', () => {
+test('duplicate controls cannot mutate or poll a commit while its mutation is pending', () => {
     const mutations = createCommitStarMutations();
     const finish = mutations.begin(stars.id);
 
@@ -45,7 +45,7 @@ void test('duplicate controls cannot mutate or poll a commit while its mutation 
     assert.ok(mutations.begin(stars.id));
 });
 
-void test('polling resumes after a mutation finishes or rolls back', () => {
+test('polling resumes after a mutation finishes or rolls back', () => {
     const mutations = createCommitStarMutations();
     const finish = mutations.begin(stars.id);
     const received: (typeof stars)[] = [];
@@ -58,7 +58,7 @@ void test('polling resumes after a mutation finishes or rolls back', () => {
     assert.deepEqual(received, [stars]);
 });
 
-void test('a mutation leaves polls for other commits and other layouts independent', () => {
+test('a mutation leaves polls for other commits and other layouts independent', () => {
     const mutations = createCommitStarMutations();
     const otherLayout = createCommitStarMutations();
     const received: (typeof stars)[] = [];

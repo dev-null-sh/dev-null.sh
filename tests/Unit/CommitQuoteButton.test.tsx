@@ -1,7 +1,7 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vite-plus/test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import { CommitQuoteButton } from '../../resources/js/components/commit-quote-button';
@@ -14,7 +14,7 @@ const commit = {
 } as Commit;
 
 for (const user of [null, { id: 'viewer' }]) {
-    void test(`renders the quote control for ${user === null ? 'guests' : 'signed-in readers'}`, async () => {
+    test(`renders the quote control for ${user === null ? 'guests' : 'signed-in readers'}`, async () => {
         const result = await createInertiaApp<{
             auth: { user: { id: string } | null };
         }>({

@@ -1,7 +1,7 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vite-plus/test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import Index from '../../resources/js/pages/notification/index';
@@ -23,7 +23,7 @@ const actor: User = {
     created_at: timestamp,
     updated_at: timestamp,
 };
-const quote: NotificationGroup = {
+const quote = {
     id: 'notice',
     recipient_id: 'recipient',
     actor_id: actor.id,
@@ -44,6 +44,7 @@ const quote: NotificationGroup = {
         id: 'quote-commit',
         user_id: actor.id,
         parent_id: null,
+        hot_score: 0,
         body: 'My quote commentary',
         body_segments: [{ type: 'text', text: 'My quote commentary' }],
         preview_segments: null,
@@ -51,10 +52,11 @@ const quote: NotificationGroup = {
         created_at: timestamp,
         updated_at: timestamp,
         stars_count: 0,
+        pasteis_count: 0,
         starred: false,
         quoted_commit_id: 'quoted-commit',
     },
-};
+} satisfies NotificationGroup;
 
 async function renderInbox(notifications: NotificationGroup[]) {
     const result = await createInertiaApp({
@@ -94,7 +96,7 @@ async function renderInbox(notifications: NotificationGroup[]) {
     return result.body.replaceAll('<!-- -->', '');
 }
 
-void test('renders quote notifications with their label and quoting commit destination', async () => {
+test('renders quote notifications with their label and quoting commit destination', async () => {
     const html = await renderInbox([quote]);
 
     assert.match(html, /quoted your commit/);
@@ -106,11 +108,11 @@ void test('renders quote notifications with their label and quoting commit desti
     );
 });
 
-void test('includes quotes in the unfiltered empty inbox message', async () => {
+test('includes quotes in the unfiltered empty inbox message', async () => {
     assert.match(await renderInbox([]), /replies, quotes, mentions/);
 });
 
-void test('renders a follow-back control outside the follower profile link', async () => {
+test('renders a follow-back control outside the follower profile link', async () => {
     const follow: NotificationGroup = {
         ...quote,
         type: 'followed',
@@ -134,7 +136,7 @@ void test('renders a follow-back control outside the follower profile link', asy
     );
 });
 
-void test('renders notification code without altering emoji shortcodes or nesting interactive controls', async () => {
+test('renders notification code without altering emoji shortcodes or nesting interactive controls', async () => {
     const html = await renderInbox([
         {
             ...quote,
@@ -150,7 +152,7 @@ void test('renders notification code without altering emoji shortcodes or nestin
     assert.doesNotMatch(html, /Copy code/);
 });
 
-void test('renders highlighted notification blocks without a nested copy button', async () => {
+test('renders highlighted notification blocks without a nested copy button', async () => {
     const html = await renderInbox([
         {
             ...quote,

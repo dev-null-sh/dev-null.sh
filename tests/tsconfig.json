@@ -5,8 +5,9 @@
         "allowImportingTsExtensions": true
     },
     "include": [
+        "../resources/js/**/*.d.ts",
         "Unit/**/*.test.ts",
-        "Unit/DraftStash.test.tsx",
-        "draft-images.config.ts"
+        "Unit/**/*.test.tsx",
+        "unit.config.ts"
     ]
 }
