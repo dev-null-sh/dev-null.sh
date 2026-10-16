@@ -21,11 +21,7 @@ final readonly class TrendingLogQuery implements LogQuery
             ->withoutMutedAuthorsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)
-            ->withSavedState($user)
-            ->with(['user', 'linkPreview', 'images'])
-            ->withQuotedCommitFor($user)
-            ->withStarsFor($user)
-            ->withPollFor($user)
+            ->withCardDataFor($user)
             ->orderByDesc('hot_score')
             ->orderByDesc('id');
     }

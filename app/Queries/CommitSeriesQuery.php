@@ -43,10 +43,7 @@ final readonly class CommitSeriesQuery
             ->where('series_id', $commit->series_id)
             ->where('series_position', $operator, $commit->series_position)
             ->withVisibleReplyCount($user)
-            ->withSavedState($user)
-            ->with(['user', 'linkPreview', 'images'])
-            ->withQuotedCommitFor($user)
-            ->withStarsFor($user)
+            ->withCardDataFor($user)
             ->oldest('series_position')
             ->get();
     }

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use App\Actions\DeleteCommit;
 use App\Actions\UpdateCommitHotScores;
+use App\Jobs\EraseDeletedCommitImages;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Services\TheAlgorithm;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 it('may delete a commit', function (): void {
@@ -37,8 +39,9 @@ it('keeps the quotes of a deleted commit', function (): void {
     $this->assertNotSoftDeleted($quote);
 });
 
-it('erases the images of a deleted commit', function (): void {
+it('keeps the images of a deleted commit until the undo window closes', function (): void {
     Storage::fake();
+    Queue::fake();
 
     $commit = Commit::factory()->create();
     $image = CommitImage::factory()->for($commit)->create();
@@ -46,9 +49,25 @@ it('erases the images of a deleted commit', function (): void {
 
     resolve(DeleteCommit::class)->handle($commit);
 
-    expect(CommitImage::query()->count())->toBe(0);
+    $this->assertModelExists($image);
+    Storage::disk()->assertExists($image->path);
 
-    Storage::disk()->assertMissing($image->path);
+    Queue::assertPushed(
+        EraseDeletedCommitImages::class,
+        fn (EraseDeletedCommitImages $job): bool => $job->commit->is($commit)
+            && $job->delay instanceof DateTimeInterface
+            && now()->addSeconds(30)->equalTo($job->delay),
+    );
+});
+
+it('does not queue the erasure again for a commit already deleted', function (): void {
+    $commit = Commit::factory()->create();
+    resolve(DeleteCommit::class)->handle($commit);
+    Queue::fake();
+
+    resolve(DeleteCommit::class)->handle($commit);
+
+    Queue::assertNothingPushed();
 });
 
 it('lowers the thread when a reply is deleted', function (): void {

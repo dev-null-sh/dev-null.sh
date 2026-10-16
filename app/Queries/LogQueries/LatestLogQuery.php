@@ -18,11 +18,7 @@ final readonly class LatestLogQuery implements LogQuery
             ->withoutMutedAuthorsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)
-            ->withSavedState($user)
-            ->with(['user', 'linkPreview', 'images'])
-            ->withQuotedCommitFor($user)
-            ->withStarsFor($user)
-            ->withPollFor($user)
+            ->withCardDataFor($user)
             ->latest()
             ->latest('id');
     }

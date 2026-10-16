@@ -1,0 +1,71 @@
+name: Setup
+description: Installs PHP, Bun, Node and the project's dependencies, restoring them from cache when possible.
+
+inputs:
+  coverage:
+    description: The PHP coverage driver to install.
+    required: false
+    default: none
+
+runs:
+  using: composite
+  steps:
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: 8.5
+        tools: composer:v2
+        extensions: pdo_pgsql
+        coverage: ${{ inputs.coverage }}
+        ini-values: zend.assertions=1
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+
+    - name: Setup Vite+
+      uses: voidzero-dev/setup-vp@v1.21.1
+      with:
+        node-version: 24
+        # Dependencies are installed with Bun below, from cache when possible.
+        run-install: false
+
+    - name: Get Composer Cache Directory
+      id: composer-cache
+      shell: bash
+      run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Composer Dependencies
+      uses: actions/cache@v6
+      with:
+        path: |
+          vendor
+          ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ runner.os }}-php8.5-composer-${{ hashFiles('composer.lock') }}
+        restore-keys: ${{ runner.os }}-php8.5-composer-
+
+    - name: Cache Bun Dependencies
+      id: bun-cache
+      uses: actions/cache@v6
+      with:
+        path: |
+          node_modules
+          ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'package.json', 'bunfig.toml') }}
+        restore-keys: ${{ runner.os }}-bun-
+
+    - name: Install Composer Dependencies
+      shell: bash
+      run: |
+        composer install --no-interaction --prefer-dist --optimize-autoloader --no-progress --no-scripts
+        composer run-script post-autoload-dump
+
+    - name: Install Bun Dependencies
+      if: steps.bun-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: bun install --frozen-lockfile
+
+    - name: Prepare Environment
+      shell: bash
+      run: |
+        cp .env.example .env
+        php artisan key:generate
