@@ -19,6 +19,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import type { UseIssueCommandReturn } from '@/components/issue-command';
@@ -38,6 +39,7 @@ import {
 } from '@/components/schedule-picker';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
+import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
@@ -126,7 +128,7 @@ function CommitComposerBody({
     drop: () => void;
 }) {
     const keys = useKeyLabels();
-    const { body, isRestored } = stash;
+    const { body, isRestored, updateBody } = stash;
     const { auth } = usePage().props;
     const {
         isScheduling,
@@ -176,6 +178,13 @@ function CommitComposerBody({
 
         return () => observer.disconnect();
     }, [isInDialog]);
+
+    const insertEmoji = useEmojiInsertion({
+        body,
+        updateBody,
+        textareaRef,
+        maxLength: isIssue ? maxBodyLength : maxRawBodyLength,
+    });
 
     return (
         <div
@@ -414,6 +423,10 @@ function CommitComposerBody({
                                         reading={attachments.reading}
                                         onPick={attachments.pick}
                                         className="-ml-2"
+                                    />
+                                    <EmojiPickerButton
+                                        disabled={processing}
+                                        onPick={insertEmoji}
                                     />
                                     <ActionTooltip
                                         label={
