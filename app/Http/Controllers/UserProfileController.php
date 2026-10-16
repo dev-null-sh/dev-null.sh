@@ -17,6 +17,8 @@ final readonly class UserProfileController
         return Inertia::render('user-profile/edit', [
             'preferredLane' => $user->preferred_lane,
             'automaticLane' => $user->automaticLane(),
+            'activityGraphUrl' => route('user-activity-graph.show', $user),
+            'profileUrl' => route('user.show', $user),
             'feedUrl' => route('following-feed.show', $user->feed_token ?? $updateUserFeedToken->handle($user)),
         ]);
     }

@@ -8,11 +8,16 @@ type BaseNotification = {
     read_at: string | null;
     created_at: string;
     updated_at: string;
-    actor: User;
+    actor: User & { is_followed: boolean };
+    reason: string | null;
+};
+
+export type NotificationGroup = Notification & {
+    group_id: string;
+    event_count: number;
     actors: User[];
     actors_count: number;
     unread_count: number;
-    reason: string | null;
 };
 
 export type Notification =

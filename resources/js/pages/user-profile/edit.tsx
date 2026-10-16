@@ -2,6 +2,7 @@ import { Form, Head, Link } from '@inertiajs/react';
 import { ArrowUpRight, Download, RotateCcw } from 'lucide-react';
 import ExportController from '@/actions/App/Http/Controllers/ExportController';
 import UserFeedTokenController from '@/actions/App/Http/Controllers/UserFeedTokenController';
+import ActivityGraphEmbed from '@/components/activity-graph-embed';
 import DeleteUser from '@/components/delete-user';
 import { GitHubProfile } from '@/components/github-profile';
 import Heading from '@/components/heading';
@@ -16,10 +17,14 @@ import { show } from '@/routes/user';
 export default function Edit({
     preferredLane,
     automaticLane,
+    activityGraphUrl,
+    profileUrl,
     feedUrl,
 }: {
     preferredLane: number | null;
     automaticLane: number;
+    activityGraphUrl: string;
+    profileUrl: string;
     feedUrl: string;
 }) {
     const { user } = useUser();
@@ -56,6 +61,11 @@ export default function Edit({
             <LanePicker
                 preferredLane={preferredLane}
                 automaticLane={automaticLane}
+            />
+
+            <ActivityGraphEmbed
+                activityGraphUrl={activityGraphUrl}
+                profileUrl={profileUrl}
             />
 
             <section className="px-4 py-6 sm:px-6">
@@ -98,12 +108,11 @@ export default function Edit({
             <section className="px-4 py-6 sm:px-6">
                 <Heading
                     title="Export your data"
-                    description="Download your GitHub profile as stored here, your color preference, all your live commits and replies with their moderation status, and the usernames you follow, mute, and block. Includes pending and rejected commits."
+                    description="Download everything we store about you: your profile, commits and replies (including pending, rejected, and deleted ones), stars, saved commits, follows, mutes, blocks, notifications, SSH key fingerprints, and active sessions."
                 />
                 <p className="mb-5 text-sm text-muted-foreground">
-                    Deleted commits and other people's replies are excluded.
-                    Your export is a JSON file. Your profile is still managed on
-                    GitHub.
+                    Other people's replies are excluded. Your export is a JSON
+                    file. Your profile is still managed on GitHub.
                 </p>
                 <Button variant="outline" asChild>
                     <a href={ExportController.url()} download>

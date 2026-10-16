@@ -3,14 +3,17 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommit;
+use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Enums\PollDuration;
 use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -289,14 +292,14 @@ it('only fetches link previews that were never fetched', function (): void {
     Queue::assertNothingPushed();
 });
 
-it('fetches the link preview once the commit is saved', function (): void {
+it('queues the link preview for the saved commit', function (): void {
     Queue::fake();
 
     $action = resolve(CreateCommit::class);
 
     $commit = $action->handle(User::factory()->create(), 'Look at https://example.com');
 
-    Queue::assertPushed(UnfurlLink::class);
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
 
     expect($commit->exists)->toBeTrue();
 });
@@ -314,6 +317,27 @@ it('attaches no link preview without a url', function (): void {
     Queue::assertNothingPushed();
 });
 
+it('attaches a poll with its options in order', function (): void {
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Tabs or spaces?', poll: new NewPoll(['Tabs', 'Spaces', 'Both :fire'], PollDuration::ThreeDays));
+
+    expect($commit->poll)
+        ->duration->toBe(PollDuration::ThreeDays)
+        ->opened_at->toBeNull()
+        ->and($commit->poll->options->pluck('label')->all())->toBe(['Tabs', 'Spaces', 'Both 🔥']);
+});
+
+it('opens the poll of an admin right away', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Tabs or spaces?', poll: new NewPoll(['Tabs', 'Spaces'], PollDuration::OneHour));
+
+    expect($commit->poll->closesAt()?->toIso8601String())->toBe(now()->addHour()->toIso8601String());
+});
+
 it('stores the images of a commit', function (): void {
     Storage::fake();
 
@@ -324,3 +348,58 @@ it('stores the images of a commit', function (): void {
     expect($commit->images()->count())->toBe(1)
         ->and($commit->status)->toBe(CommitStatus::Pending);
 });
+
+it('files replies under the top-level commit of their thread', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $nested = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Agreed', $reply);
+
+    expect($nested->root_id)->toBe($commit->id);
+});
+
+it('lifts the thread when an admin replies', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+});
+
+it('lifts the quoted thread when an admin quotes', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+});
+
+it('keeps a poll on a quote while only approved quotes lift its thread', function (bool $admin): void {
+    config(['app.admins' => ['admin']]);
+
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->for($root, 'parent')->create();
+    $user = User::factory()->create(['username' => $admin ? 'admin' : 'author']);
+
+    $quote = resolve(CreateCommit::class)->handle(
+        $user,
+        'Which approach?',
+        quotedCommit: $reply,
+        poll: new NewPoll(['Tabs', 'Spaces'], PollDuration::OneDay),
+    );
+
+    expect($quote->quoted_commit_id)->toBe($reply->id)
+        ->and($quote->status)->toBe($admin ? CommitStatus::Approved : CommitStatus::Pending)
+        ->and($quote->poll->options->pluck('label')->all())->toBe(['Tabs', 'Spaces'])
+        ->and($quote->poll->opened_at?->toIso8601String())->toBe($admin ? now()->toIso8601String() : null)
+        ->and($root->fresh()->hot_score)->toEqualWithDelta(
+            $admin ? resolve(TheAlgorithm::class)->score($root->created_at, 0, 2) : $root->hot_score,
+            1e-9,
+        );
+})->with([false, true]);

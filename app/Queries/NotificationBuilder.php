@@ -36,20 +36,6 @@ final class NotificationBuilder extends Builder
             ->withoutSilencedActors();
     }
 
-    /**
-     * Stars are grouped per starred commit and replies per replied commit, both kept in the subject. Anything else stands alone.
-     */
-    public function inGroupOf(Notification $notification): self
-    {
-        return $this->where('recipient_id', $notification->recipient_id)
-            ->where('type', $notification->type)
-            ->when(
-                $notification->subject_id === null,
-                fn (self $query): self => $query->whereKey($notification->id),
-                fn (self $query): self => $query->where('subject_id', $notification->subject_id),
-            );
-    }
-
     public function unread(): self
     {
         return $this->whereNull('read_at');
