@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\NotificationType;
+use App\Jobs\EraseDeletedCommitImages;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Queries\NotificationBuilder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteCommit
 {
@@ -19,16 +19,16 @@ final readonly class DeleteCommit
     }
 
     /**
-     * Soft deleting keeps the row for its replies and quotes, so its notifications, the notifications about its replies and
-     * quotes, and its images are removed here instead of by the foreign key.
+     * Soft deleting keeps the row for its replies and quotes, so its notifications and the notifications about its replies and quotes are removed here instead of by the foreign key.
+     * Its images are kept until the undo window closes, so undoing the deletion brings them back too.
      */
-    public function handle(Commit $commit): void
+    public function handle(Commit $commit): Commit
     {
-        $imagePaths = DB::transaction(function () use ($commit): array {
-            $commit = Commit::query()->whereKey($commit->id)->lockForUpdate()->first();
+        return DB::transaction(function () use ($commit): Commit {
+            $commit = Commit::withTrashed()->lockForUpdate()->findOrFail($commit->id);
 
-            if (! $commit instanceof Commit) {
-                return [];
+            if ($commit->trashed()) {
+                return $commit;
             }
 
             Notification::query()
@@ -41,16 +41,15 @@ final readonly class DeleteCommit
                     ->whereIn('commit_id', $commit->quotes()->select('id')))
                 ->delete();
 
-            $imagePaths = $commit->images()->pluck('path')->all();
-
-            $commit->images()->delete();
             $commit->delete();
 
             $this->updateCommitHotScores->handle([$commit->id]);
 
-            return $imagePaths;
-        });
+            dispatch(new EraseDeletedCommitImages($commit))
+                ->delay(now()->addSeconds(Commit::RESTORABLE_SECONDS))
+                ->afterCommit();
 
-        Storage::disk()->delete($imagePaths);
+            return $commit->refresh();
+        }, attempts: 3);
     }
 }

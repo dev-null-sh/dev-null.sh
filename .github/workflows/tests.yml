@@ -12,8 +12,77 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  ci:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Generate Wayfinder Types
+        run: php artisan wayfinder:generate --with-form
+
+      - name: Cache Rector
+        uses: actions/cache@v6
+        with:
+          path: tmp/rector
+          key: ${{ runner.os }}-rector-${{ hashFiles('composer.lock', 'rector.php') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-rector-${{ hashFiles('composer.lock', 'rector.php') }}-
+            ${{ runner.os }}-rector-
+
+      - name: Lint
+        run: composer test:lint
+
+  types:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Generate Wayfinder Types
+        run: php artisan wayfinder:generate --with-form
+
+      - name: Cache PHPStan
+        uses: actions/cache@v6
+        with:
+          path: tmp/phpstan
+          key: ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock', 'phpstan.neon') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock', 'phpstan.neon') }}-
+            ${{ runner.os }}-phpstan-
+
+      - name: Types
+        run: composer test:types
+
+  type-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Type Coverage
+        run: composer test:type-coverage
+
+  tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -28,9 +97,9 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
-          --health-interval 5s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 20
 
     env:
       DB_HOST: 127.0.0.1
@@ -51,74 +120,21 @@ jobs:
               -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;'
           done
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+      - name: Setup
+        uses: ./.github/actions/setup
         with:
-          php-version: 8.5
-          tools: composer:v2
-          extensions: pdo_pgsql
           coverage: pcov
-          ini-values: zend.assertions=1
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Setup Vite+
-        uses: voidzero-dev/setup-vp@v1.21.1
-        with:
-          node-version: 24
-
-      - name: Cache Composer Dependencies
+      - name: Cache Built Assets
+        id: build-cache
         uses: actions/cache@v6
         with:
-          path: vendor
-          key: ${{ runner.os }}-composer-${{ hashFiles('composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
-
-      - name: Cache Bun Dependencies
-        uses: actions/cache@v6
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'package.json') }}
-          restore-keys: ${{ runner.os }}-bun-
-
-      - name: Install Dependencies
-        run: |
-          composer install --no-interaction --prefer-dist --optimize-autoloader --no-progress --no-scripts
-          composer run-script post-autoload-dump
-
-      - name: Copy Environment File
-        run: cp .env.example .env
-
-      - name: Generate Application Key
-        run: php artisan key:generate
-
-      - name: Install Bun Dependencies
-        run: bun install
+          path: public/build
+          key: ${{ runner.os }}-build-${{ hashFiles('bun.lock', 'package.json', 'vite.config.ts', 'tsconfig.json', 'resources/**', 'routes/**', 'app/**') }}
 
       - name: Build Assets
+        if: steps.build-cache.outputs.cache-hit != 'true'
         run: bun run build
 
-      - name: Cache Rector
-        uses: actions/cache@v6
-        with:
-          path: tmp/rector
-          key: ${{ runner.os }}-rector-${{ hashFiles('composer.lock') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-rector-${{ hashFiles('composer.lock') }}-
-            ${{ runner.os }}-rector-
-
-      - name: Cache PHPStan
-        uses: actions/cache@v6
-        with:
-          path: tmp/phpstan
-          key: ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock') }}-
-            ${{ runner.os }}-phpstan-
-
-      - name: Create Cache Directories
-        run: mkdir -p tmp/rector tmp/phpstan
-
       - name: Tests
-        run: composer test
+        run: composer test:unit
