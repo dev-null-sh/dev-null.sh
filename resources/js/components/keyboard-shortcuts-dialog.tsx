@@ -18,6 +18,11 @@ const shortcuts: Shortcut[] = [
     { keys: ['⌘', 'K'], label: 'Search developers' },
     { keys: ['/'], label: 'Search developers' },
     { keys: ['⌘', '↵'], label: 'Commit (in the composer)' },
+    {
+        keys: ['⌘', '⇧', '↵'],
+        label: 'Add another commit to the series (in the composer)',
+    },
+    { keys: ['⌫'], label: 'Remove an empty commit from the series' },
     { keys: ['g', 'l'], label: 'Go to your log' },
     { keys: ['g', 'e'], label: 'Go to everyone' },
     { keys: ['g', 'p'], label: 'Go to your profile' },

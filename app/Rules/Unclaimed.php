@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Rules;
 
+use App\Models\Commit;
 use App\Models\CommitClaim;
 use App\Models\User;
+use App\Queries\CommitBuilder;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
@@ -23,7 +25,11 @@ final readonly class Unclaimed implements ValidationRule
     {
         $claim = CommitClaim::query()
             ->active()
-            ->where('commit_id', $value)
+            ->whereIn('commit_id', Commit::query()
+                ->where(fn (CommitBuilder $query): CommitBuilder => $query
+                    ->whereKey($value)
+                    ->orWhereIn('series_id', Commit::query()->whereKey($value)->whereNotNull('series_id')->select('series_id')))
+                ->select('id'))
             ->whereNot('user_id', $this->user->id)
             ->with('user')
             ->first();

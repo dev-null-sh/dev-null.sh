@@ -6,8 +6,12 @@ import CommitClaimController from '@/actions/App/Http/Controllers/CommitClaimCon
 import CommitDecisionController from '@/actions/App/Http/Controllers/CommitDecisionController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
+import { CommitBody } from '@/components/commit-body';
+import { SeriesPosition } from '@/components/commit-card';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { CommitImages } from '@/components/commit-images';
 import InputError from '@/components/input-error';
+import { LinkPreview } from '@/components/link-preview';
 import { RejectionReasonsDialog } from '@/components/rejection-reasons-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -39,6 +43,45 @@ function Keycap({ label, className }: { label: string; className?: string }) {
         >
             {label}
         </kbd>
+    );
+}
+
+function SeriesParts({ commit }: { commit: Commit }) {
+    const parts = (commit.series_parts ?? []).filter(
+        (part) => (part.series_position ?? 0) > (commit.series_position ?? 0),
+    );
+
+    if (parts.length === 0) {
+        return null;
+    }
+
+    return (
+        <section aria-label="Rest of the series" className="mt-3">
+            <ol className="space-y-3 border-l-2 border-dashed border-rail pl-3">
+                {parts.map((part) => (
+                    <li key={part.id} data-test="moderation-series-part">
+                        {part.series_position !== null &&
+                            part.series_size !== null && (
+                                <SeriesPosition
+                                    position={part.series_position}
+                                    size={part.series_size}
+                                />
+                            )}
+                        <CommitBody
+                            segments={part.body_segments}
+                            className="mt-1 text-[15px]"
+                        />
+                        {part.images && <CommitImages images={part.images} />}
+                        {part.link_preview?.title && (
+                            <LinkPreview preview={part.link_preview} />
+                        )}
+                    </li>
+                ))}
+            </ol>
+            <p className="mt-2 text-[13px] text-muted-foreground">
+                Approving or rejecting applies to every part of this series.
+            </p>
+        </section>
     );
 }
 
@@ -663,30 +706,33 @@ export default function Show({
                 removingIds={removingIds}
                 end="That's every pending commit."
                 actions={(commit) => (
-                    <ModerationActions
-                        isSelected={selected.has(commit.id)}
-                        isDisabled={removingIds.has(commit.id)}
-                        reasons={rejectionReasons}
-                        claim={activeClaim(commit.id)}
-                        isClaimMine={
-                            activeClaim(commit.id)?.user.id === auth.user.id
-                        }
-                        onSelectedChange={(isSelected) =>
-                            toggle(commit.id, isSelected)
-                        }
-                        error={
-                            failure?.commitId === commit.id
-                                ? failure.message
-                                : ''
-                        }
-                        onTakeOver={(onClaimed) =>
-                            claim(commit.id, true, onClaimed)
-                        }
-                        onErrorClear={() => setFailure(null)}
-                        onModerate={(route, reason) =>
-                            moderate(commit, route, reason)
-                        }
-                    />
+                    <>
+                        <SeriesParts commit={commit} />
+                        <ModerationActions
+                            isSelected={selected.has(commit.id)}
+                            isDisabled={removingIds.has(commit.id)}
+                            reasons={rejectionReasons}
+                            claim={activeClaim(commit.id)}
+                            isClaimMine={
+                                activeClaim(commit.id)?.user.id === auth.user.id
+                            }
+                            onSelectedChange={(isSelected) =>
+                                toggle(commit.id, isSelected)
+                            }
+                            error={
+                                failure?.commitId === commit.id
+                                    ? failure.message
+                                    : ''
+                            }
+                            onTakeOver={(onClaimed) =>
+                                claim(commit.id, true, onClaimed)
+                            }
+                            onErrorClear={() => setFailure(null)}
+                            onModerate={(route, reason) =>
+                                moderate(commit, route, reason)
+                            }
+                        />
+                    </>
                 )}
                 empty={
                     <EmptyFeed command="nothing to commit, working tree clean">

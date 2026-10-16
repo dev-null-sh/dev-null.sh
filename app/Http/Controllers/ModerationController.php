@@ -13,6 +13,7 @@ use App\Models\CommitClaim;
 use App\Models\RejectionReason;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -24,8 +25,18 @@ final readonly class ModerationController
         return Inertia::render('moderation/show', [
             'commits' => Inertia::scroll(fn () => Commit::query()
                 ->pending()
+                ->exceptLaterPendingSeriesParts()
                 ->withSavedState($user)
-                ->with(['user', 'parent.user', 'linkPreview', 'images'])
+                ->with([
+                    'user',
+                    'parent.user',
+                    'linkPreview',
+                    'images',
+                    'seriesParts' => fn (HasMany $query): HasMany => $query
+                        ->where('status', CommitStatus::Pending)
+                        ->with(['user', 'linkPreview', 'images'])
+                        ->oldest('series_position'),
+                ])
                 ->withStarsFor($user)
                 ->oldest()
                 ->oldest('id')

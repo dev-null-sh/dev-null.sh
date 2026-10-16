@@ -18,9 +18,17 @@ final readonly class UpdateCommitClaim
     public function handle(User $user, Commit $commit): CommitClaim
     {
         return DB::transaction(function () use ($user, $commit): CommitClaim {
+            $commitIds = [$commit->id];
+
+            if ($commit->series_id !== null) {
+                $parts = Commit::query()->where('series_id', $commit->series_id);
+                $commitIds = $parts->pluck('id')->all();
+                $commit = $parts->pending()->oldest('series_position')->firstOrFail();
+            }
+
             CommitClaim::query()
                 ->where('user_id', $user->id)
-                ->orWhere('commit_id', $commit->id)
+                ->orWhereIn('commit_id', $commitIds)
                 ->delete();
 
             return CommitClaim::query()->create([
