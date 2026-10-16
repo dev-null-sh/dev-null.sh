@@ -10,6 +10,11 @@ use Illuminate\Support\Facades\Cache;
 
 final readonly class CreateDevice
 {
+    public function __construct(private UpdateOrCreateDevice $updateOrCreateDevice)
+    {
+        //
+    }
+
     /**
      * Redeems an authorization code: the key it was handed out for becomes an approved device of the user who approved
      * it, and the code is used up. A key that was approved before, even for someone else, is approved again for them.
@@ -25,11 +30,6 @@ final readonly class CreateDevice
 
         Cache::forget($authorizationCode->key);
 
-        return Device::query()->updateOrCreate(['fingerprint' => $authorizationCode->fingerprint], [
-            'user_id' => $authorizationCode->userId,
-            'name' => $authorizationCode->deviceName,
-            'approved_at' => now(),
-            'last_used_at' => null,
-        ]);
+        return $this->updateOrCreateDevice->handle($authorizationCode->userId, $authorizationCode->fingerprint, $authorizationCode->deviceName);
     }
 }
