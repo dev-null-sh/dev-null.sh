@@ -7,6 +7,7 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventFraming;
+use App\Http\Middleware\SyncGitHubProfile;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -42,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleAppearance::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+            SyncGitHubProfile::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

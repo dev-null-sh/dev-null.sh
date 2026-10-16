@@ -29,6 +29,8 @@ Run `composer dev` and visit `http://localhost:8000` (or your configured `APP_UR
 
 Leave `AUTO_LOGIN=false` to sign in using GitHub. Create a [GitHub OAuth app](https://github.com/settings/developers) with the callback URL `{APP_URL}/auth/github/callback`, then set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `.env`.
 
+Profiles are refreshed from GitHub in the background, at most once a day per signed-in user, on the queue. Optionally set `GITHUB_TOKEN` to a [personal access token](https://github.com/settings/tokens) with no scopes so these refreshes get their own rate limit; without it they use the OAuth app's.
+
 ### Verify installation
 
 Run `composer test` to check linting, static analysis, type coverage, and tests. The code coverage check requires Xdebug or PCOV.

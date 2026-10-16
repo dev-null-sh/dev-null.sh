@@ -35,7 +35,8 @@ it('creates a user from github', function (): void {
         ->and($user->bio)->toBe('I am the Octocat.')
         ->and($user->location)->toBe('San Francisco')
         ->and($user->website)->toBe('https://github.blog')
-        ->and($user->company)->toBe('@github');
+        ->and($user->company)->toBe('@github')
+        ->and($user->github_synced_at?->toDateTimeString())->toBe(now()->toDateTimeString());
 });
 
 it('updates an existing user from github', function (): void {

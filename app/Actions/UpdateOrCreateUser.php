@@ -4,58 +4,40 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Dto\GitHubProfile;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Laravel\Socialite\Two\User as GitHubUser;
 
 final readonly class UpdateOrCreateUser
 {
-    public function handle(GitHubUser $githubUser): User
+    public function __construct(private UpdateUserProfile $updateUserProfile)
     {
-        /** @var array<string, mixed> $raw */
-        $raw = $githubUser->getRaw();
-
-        $githubId = (string) $githubUser->getId();
-        $username = (string) $githubUser->getNickname();
-
-        $hasSponsorsListing = $this->hasSponsorsListing($githubUser->token, $username);
-
-        return DB::transaction(function () use ($githubUser, $raw, $githubId, $username, $hasSponsorsListing): User {
-            $this->freeUsername($username, $githubId);
-
-            return User::query()->updateOrCreate([
-                'github_id' => $githubId,
-            ], [
-                'username' => $username,
-                'name' => $this->nullIfBlank($githubUser->getName()) ?? $username,
-                'email' => $this->nullIfBlank($githubUser->getEmail()),
-                'avatar_url' => $this->nullIfBlank($githubUser->getAvatar()),
-                'bio' => $this->nullIfBlank(Arr::get($raw, 'bio')),
-                'location' => $this->nullIfBlank(Arr::get($raw, 'location')),
-                'website' => $this->website(Arr::get($raw, 'blog')),
-                'company' => $this->nullIfBlank(Arr::get($raw, 'company')),
-                ...($hasSponsorsListing === null ? [] : ['has_sponsors_listing' => $hasSponsorsListing]),
-            ]);
-        });
+        //
     }
 
-    /**
-     * GitHub usernames are unique case-insensitively, so another user holding this one renamed away on GitHub. The
-     * placeholder starts with an underscore, which no GitHub username can, and their next sign-in restores a real one.
-     */
-    private function freeUsername(string $username, string $githubId): void
+    public function handle(GitHubUser $githubUser): User
     {
-        User::query()
-            ->whereRaw('LOWER(username) = ?', [mb_strtolower($username)])
-            ->where('github_id', '!=', $githubId)
-            ->each(function (User $user): void {
-                $user->update(['username' => '_renamed-'.$user->github_id]);
-            });
+        $profile = GitHubProfile::fromSocialite($githubUser);
+
+        $githubId = (string) $githubUser->getId();
+        $email = mb_trim((string) $githubUser->getEmail());
+
+        $hasSponsorsListing = $this->hasSponsorsListing($githubUser->token, $profile->username);
+
+        return DB::transaction(function () use ($profile, $githubId, $email, $hasSponsorsListing): User {
+            $user = User::query()->firstOrNew(['github_id' => $githubId]);
+
+            $user->fill([
+                'email' => $email === '' ? null : $email,
+                ...($hasSponsorsListing === null ? [] : ['has_sponsors_listing' => $hasSponsorsListing]),
+            ]);
+
+            return $this->updateUserProfile->handle($user, $profile);
+        });
     }
 
     /**
@@ -92,27 +74,5 @@ final readonly class UpdateOrCreateUser
         }
 
         return $response->json('data.viewer.hasSponsorsListing') === true;
-    }
-
-    private function website(mixed $value): ?string
-    {
-        $website = $this->nullIfBlank($value);
-
-        if ($website === null || Str::startsWith($website, ['http://', 'https://'])) {
-            return $website;
-        }
-
-        return 'https://'.$website;
-    }
-
-    private function nullIfBlank(mixed $value): ?string
-    {
-        if (! is_string($value)) {
-            return null;
-        }
-
-        $value = mb_trim($value);
-
-        return $value === '' ? null : $value;
     }
 }

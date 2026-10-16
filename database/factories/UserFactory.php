@@ -34,6 +34,7 @@ final class UserFactory extends Factory
             'preferred_lane' => null,
             'pinned_commit_id' => null,
             'onboarded_at' => now(),
+            'github_synced_at' => now(),
             'remember_token' => Str::random(10),
         ];
     }

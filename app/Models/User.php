@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
+ * @property-read CarbonInterface|null $github_synced_at
  * @property-read string|null $remember_token
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -61,6 +62,7 @@ use Illuminate\Support\Facades\DB;
     'log',
     'onboarded_at',
     'github_follows_imported_at',
+    'github_synced_at',
 ])]
 final class User extends Authenticatable
 {
@@ -98,6 +100,7 @@ final class User extends Authenticatable
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
+            'github_synced_at' => 'datetime',
             'remember_token' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
