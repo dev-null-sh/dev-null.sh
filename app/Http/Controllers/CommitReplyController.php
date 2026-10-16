@@ -15,7 +15,6 @@ use App\Models\User;
 use App\Queries\CommitRepliesQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Response;
 
 final readonly class CommitReplyController
 {
@@ -40,10 +39,16 @@ final readonly class CommitReplyController
         ], 201);
     }
 
-    public function destroy(DeleteCommitReplyRequest $request, Commit $commit, Commit $reply, DeleteCommit $action): Response
+    public function destroy(DeleteCommitReplyRequest $request, Commit $commit, Commit $reply, DeleteCommit $action): JsonResponse
     {
-        $action->handle($reply);
+        $reply = $action->handle($reply);
 
-        return response()->noContent();
+        return response()->json(['deleted' => [
+            'id' => $reply->id,
+            'parent_id' => $reply->parent_id,
+            'deleted_at' => $reply->deleted_at?->toJSON(),
+            'expires_at' => $reply->deleted_at?->addSeconds(Commit::RESTORABLE_SECONDS)->toJSON(),
+            'server_time' => now()->toJSON(),
+        ]]);
     }
 }

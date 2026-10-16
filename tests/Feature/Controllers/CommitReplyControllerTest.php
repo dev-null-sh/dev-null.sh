@@ -420,7 +420,8 @@ it('may delete own reply', function (): void {
 
     $this->actingAs($reply->user)
         ->deleteJson(route('commit-reply.destroy', [$parent, $reply]))
-        ->assertNoContent();
+        ->assertOk()
+        ->assertJsonPath('deleted.id', $reply->id);
 
     $this->assertSoftDeleted($reply);
 });
@@ -432,7 +433,8 @@ it('may delete own reply to a deleted commit', function (): void {
 
     $this->actingAs($reply->user)
         ->deleteJson(route('commit-reply.destroy', [$parent, $reply]))
-        ->assertNoContent();
+        ->assertOk()
+        ->assertJsonPath('deleted.id', $reply->id);
 
     $this->assertSoftDeleted($reply);
 });
@@ -725,7 +727,8 @@ it('may delete an own quote listed as a reply', function (bool $parentDeleted): 
 
     $this->actingAs($quote->user)
         ->deleteJson(route('commit-reply.destroy', [$parent, $quote]))
-        ->assertNoContent();
+        ->assertOk()
+        ->assertJsonPath('deleted.id', $quote->id);
 
     $this->assertSoftDeleted($quote);
 })->with([false, true]);
@@ -750,3 +753,36 @@ it('may not delete quotes of other users', function (): void {
 
     $this->assertNotSoftDeleted($quote);
 });
+
+it('returns an undo deadline for a json deletion and restores its thread count', function (string $relation): void {
+    $this->travelTo('2026-10-16 12:00:00 UTC');
+
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, $relation)->create();
+    $user = $reply->user;
+
+    $this->actingAs($user)
+        ->deleteJson(route('commit-reply.destroy', [$parent, $reply]))
+        ->assertOk()
+        ->assertExactJson(['deleted' => [
+            'id' => $reply->id,
+            'parent_id' => $reply->parent_id,
+            'deleted_at' => '2026-10-16T12:00:00.000000Z',
+            'expires_at' => '2026-10-16T12:00:30.000000Z',
+            'server_time' => '2026-10-16T12:00:00.000000Z',
+        ]]);
+
+    $this->assertSoftDeleted($reply);
+    $this->getJson(route('commit-reply.index', $parent))->assertJsonCount(0, 'data');
+
+    $this->travel(29)->seconds();
+    $this->post(route('commit-restoration.store', $reply))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.id', $reply->id)
+        ->assertInertiaFlash('restored.'.($relation === 'parent' ? 'parent' : 'quoted_commit').'.replies_count', 1);
+
+    $this->assertNotSoftDeleted($reply);
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+})->with(['reply' => 'parent', 'quote' => 'quotedCommit']);

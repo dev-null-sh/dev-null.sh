@@ -208,6 +208,16 @@ it('counts visible replies and quotes without series continuations in public pre
         ->and($preview->isDirty('body'))->toBeTrue();
 });
 
+it('loads an unsaved public preview without dirtying its computed count', function (): void {
+    $commit = Commit::factory()->make();
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview->replies_count)->toBe(0)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->exists)->toBeFalse();
+});
+
 it('hydrates public preview counts without persisting them or clearing body edits', function (bool $deleted): void {
     $parent = Commit::factory()->create();
     $commit = Commit::factory()->for($parent, 'parent')->create()->refresh();
