@@ -14,7 +14,7 @@ final readonly class TheAlgorithm
     private const int DOUBLING_PERIOD = 12 * 60 * 60;
 
     /**
-     * Replying takes more than starring, so each developer taking part in a thread counts for this many stars.
+     * Replying or quoting takes more than starring, so each developer taking part in a thread counts for this many stars.
      */
     private const int REPLIER_WEIGHT = 3;
 

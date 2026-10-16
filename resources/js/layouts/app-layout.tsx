@@ -20,35 +20,29 @@ export default function AppLayout({ children }: AppLayoutProps) {
     useTabSlide();
 
     return (
-        <>
-            <LiveStreamBanner />
+        <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
+            <AppNav onSearch={openSearch} />
 
-            <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
-                <AppNav onSearch={openSearch} />
+            <main className="min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0">
+                <LiveStreamBanner />
+                <MobileHeader onSearch={openSearch} />
+                {children}
+            </main>
 
-                <main className="min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0">
-                    <MobileHeader onSearch={openSearch} />
-                    {children}
-                </main>
+            <AppAside onShowShortcuts={showShortcuts} onSearch={openSearch} />
 
-                <AppAside
-                    onShowShortcuts={showShortcuts}
-                    onSearch={openSearch}
-                />
+            <MobileNav />
 
-                <MobileNav />
+            <UserSearchDialog
+                open={isSearching}
+                onOpenChange={setIsSearching}
+            />
 
-                <UserSearchDialog
-                    open={isSearching}
-                    onOpenChange={setIsSearching}
-                />
-
-                <KeyboardShortcutsDialog
-                    open={isShowingShortcuts}
-                    onOpenChange={setIsShowingShortcuts}
-                    canModerate={auth.isAdmin}
-                />
-            </div>
-        </>
+            <KeyboardShortcutsDialog
+                open={isShowingShortcuts}
+                onOpenChange={setIsShowingShortcuts}
+                canModerate={auth.isAdmin}
+            />
+        </div>
     );
 }

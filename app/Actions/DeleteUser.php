@@ -25,9 +25,9 @@ final readonly class DeleteUser
      */
     public function handle(User $user): void
     {
-        $engagedCommitIds = $this->engagedCommitIds($user);
-
         $imagePaths = DB::transaction(function () use ($user): array {
+            $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
+
             $topLevelIds = $user->commits()->withTrashed()->topLevel()->pluck('id')->all();
             $replyIds = $user->commits()->withTrashed()->whereNotNull('parent_id')->pluck('id')->all();
 
@@ -48,13 +48,12 @@ final readonly class DeleteUser
             return $imagePaths;
         });
 
-        $this->updateCommitHotScores->handle($engagedCommitIds);
-
         Storage::disk()->delete($imagePaths);
     }
 
     /**
-     * The threads of others the user starred or replied to, which rank lower once their stars and replies are gone.
+     * The commits the user starred, and their replies and quotes, whose threads rank lower once the user's stars,
+     * replies and quotes are gone.
      *
      * @return array<int, string>
      */
@@ -62,7 +61,12 @@ final readonly class DeleteUser
     {
         return [
             ...$user->starredCommits()->get(['commits.id'])->map(fn (Commit $commit): string => $commit->id)->all(),
-            ...$user->commits()->withTrashed()->whereNotNull('root_id')->distinct()->get(['root_id'])->map(fn (Commit $commit): ?string => $commit->root_id)->filter()->all(),
+            ...$user->commits()
+                ->withTrashed()
+                ->where(fn (CommitBuilder $query): CommitBuilder => $query->whereNotNull('root_id')->orWhereNotNull('quoted_commit_id'))
+                ->get(['id'])
+                ->map(fn (Commit $commit): string => $commit->id)
+                ->all(),
         ];
     }
 

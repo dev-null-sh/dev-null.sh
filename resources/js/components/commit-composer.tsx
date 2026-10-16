@@ -20,12 +20,14 @@ import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
+import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCards } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
+import { useSecretWarning } from '@/hooks/use-secret-warning';
 import type { UseSeriesStashReturn } from '@/hooks/use-stash';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -94,6 +96,8 @@ function CommitComposerPart({
     attachments,
     linkCard,
     schedule,
+    secrets,
+    firstSecretPart,
     canAddPart,
     index,
     isSubmittable,
@@ -109,6 +113,8 @@ function CommitComposerPart({
     attachments: ReturnType<typeof useImageAttachments>;
     linkCard: UseLinkCardReturn;
     schedule: ReturnType<typeof useCommitSchedule>;
+    secrets: ReturnType<typeof useSecretWarning>;
+    firstSecretPart: number;
     canAddPart: boolean;
     index: number;
     isSubmittable: boolean;
@@ -234,6 +240,18 @@ function CommitComposerPart({
                         />
                     )}
 
+                    <SecretWarning
+                        body={body}
+                        findings={secrets.findingsByPart[index]}
+                        textarea={textareaRef}
+                        onChange={(text) => updateBody(index, text)}
+                        confirming={
+                            secrets.confirming && index === firstSecretPart
+                        }
+                        onConfirmingChange={secrets.setConfirming}
+                        onApprove={secrets.approve}
+                        onEdit={preview.close}
+                    />
                     <InputError message={error} />
 
                     {index === 0 && (
@@ -491,6 +509,10 @@ export function CommitComposer() {
         setDraftVersion((version) => version + 1);
     };
     const attachments = useImageAttachments();
+    const secrets = useSecretWarning(bodies);
+    const firstSecretPart = secrets.findingsByPart.findIndex(
+        (findings) => findings.length > 0,
+    );
 
     const isSeries = bodies.length > 1;
     const canAddPart = !isScheduling && bodies.length < maxParts;
@@ -563,6 +585,7 @@ export function CommitComposer() {
                 : isSeries
                   ? CommitSeriesController.store.form()
                   : CommitController.store.form())}
+            onBefore={secrets.beforeSubmit}
             transform={(data) =>
                 isScheduling
                     ? {
@@ -602,6 +625,8 @@ export function CommitComposer() {
                             index={index}
                             isSubmittable={isSubmittable}
                             schedule={schedule}
+                            secrets={secrets}
+                            firstSecretPart={firstSecretPart}
                             canAddPart={canAddPart}
                             processing={processing}
                             errors={errors}

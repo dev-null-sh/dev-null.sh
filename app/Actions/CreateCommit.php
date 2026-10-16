@@ -65,8 +65,8 @@ final readonly class CreateCommit
 
             $this->createCommitImages->handle($commit, $images);
 
-            if ($parent instanceof Commit && $commit->status === CommitStatus::Approved) {
-                $this->updateCommitHotScores->handle([$commit->threadRootId()]);
+            if (($parent instanceof Commit || $quotedCommit instanceof Commit) && $commit->status === CommitStatus::Approved) {
+                $this->updateCommitHotScores->handle([$commit->id]);
             }
 
             $this->createReplyNotifications->handle($commit);

@@ -233,3 +233,27 @@ for (const bodies of [['Draft commit'], ['First part', 'Second part']]) {
         );
     });
 }
+
+const secret = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
+
+void test('keeps sensitive text warnings beside preview for every affected series part', () => {
+    for (const bodies of [[secret], ['First part', secret], [secret, secret]]) {
+        const markup = renderComposer(bodies);
+        assert.equal(
+            (markup.match(/aria-label="Sensitive text warning"/g) ?? []).length,
+            bodies.filter((body) => body === secret).length,
+        );
+        assert.equal(
+            (markup.match(/data-test="preview-toggle"/g) ?? []).length,
+            bodies.length,
+        );
+        assert.ok(markup.includes('Remove detected secrets'));
+        assert.ok(!markup.includes('Publish possible secrets?'));
+    }
+});
+
+void test('ordinary drafts retain preview without a sensitive text warning', () => {
+    const markup = renderComposer(['Shipped a small fix']);
+    assert.ok(markup.includes('data-test="preview-toggle"'));
+    assert.ok(!markup.includes('aria-label="Sensitive text warning"'));
+});
