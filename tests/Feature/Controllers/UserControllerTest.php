@@ -198,6 +198,7 @@ it('shows guests the landing page with a link preview of the profile', function 
         ->assertSee('<meta property="og:url" content="'.route('user.show', $user).'">', false)
         ->assertSee('<meta property="og:image" content="'.route('user-open-graph-image.show', $user).'?v=', false)
         ->assertSee('<meta name="twitter:card" content="summary_large_image">', false)
+        ->assertSee('<link rel="alternate" type="application/atom+xml" title="The Octocat (@octocat) on /dev/null" href="'.route('user-feed.show', $user).'">', false)
         ->assertDontSee(url('/og.png'))
         ->assertDontSee('A commit only signed-in users may read');
 
@@ -264,7 +265,8 @@ it('keeps the default link preview for signed-in users', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('user/show'))
         ->assertSee('<meta property="og:image" content="'.url('/og.png').'">', false)
-        ->assertDontSee('og:url', false);
+        ->assertDontSee('og:url', false)
+        ->assertDontSee('application/atom+xml', false);
 });
 
 it('may delete user account', function (): void {
