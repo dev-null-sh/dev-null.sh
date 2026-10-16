@@ -28,9 +28,9 @@ it('restores only the deletion state within thirty seconds', function (CommitSta
     $this->actingAs($commit->user)->delete(route('commit.destroy', $commit))->assertRedirect();
     $this->travel(29)->seconds();
 
-    $this->fromRoute('log.show', Log::Everyone)
+    $this->fromRoute('log.show', Log::Trending)
         ->post(route('commit-restoration.store', $commit), ['status' => 'approved', 'body' => 'Changed'])
-        ->assertRedirectToRoute('log.show', Log::Everyone)
+        ->assertRedirectToRoute('log.show', Log::Trending)
         ->assertInertiaFlash('restored.id', $commit->id)
         ->assertInertiaFlash('restored.stars_count', 1)
         ->assertInertiaFlash('restored.starred', true)
@@ -61,7 +61,7 @@ it('restores a commit with its images', function (): void {
 it('flashes the server deadline from every deletion context', function (string $context): void {
     $commit = Commit::factory()->create();
     $from = match ($context) {
-        'log' => route('log.show', Log::Everyone).'?cursor=older',
+        'log' => route('log.show', Log::Trending).'?cursor=older',
         'profile' => route('user.show', $commit->user).'?cursor=older',
         'thread' => route('commit.show', [$commit->user, Commit::factory()->for($commit->user)->create()]),
         'commit' => route('commit.show', [$commit->user, $commit]),
