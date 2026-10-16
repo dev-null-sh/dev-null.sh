@@ -6,11 +6,12 @@ namespace App\Actions;
 
 use App\Models\User;
 use Generator;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 final readonly class CreateExport
 {
     /**
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, int|string|null>>, following: Generator<int, array{username: string}>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, int|string|null>>, following: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>}
      */
     public function handle(User $user): array
     {
@@ -32,7 +33,9 @@ final readonly class CreateExport
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
             'commits' => $this->commits($user),
-            'following' => $this->following($user),
+            'following' => $this->usernames($user->following()),
+            'muting' => $this->usernames($user->muting()),
+            'blocking' => $this->usernames($user->blocking()),
         ];
     }
 
@@ -57,12 +60,13 @@ final readonly class CreateExport
     }
 
     /**
+     * @param  BelongsToMany<User, User>  $users
      * @return Generator<int, array{username: string}>
      */
-    private function following(User $user): Generator
+    private function usernames(BelongsToMany $users): Generator
     {
-        foreach ($user->following()->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id') as $followed) {
-            yield ['username' => $followed->username];
+        foreach ($users->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id') as $user) {
+            yield ['username' => $user->username];
         }
     }
 }

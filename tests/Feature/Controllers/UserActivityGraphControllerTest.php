@@ -46,6 +46,24 @@ it('draws only approved commits, even for the author', function (): void {
         ->assertSee('0 commits in the last year');
 });
 
+it('keeps the public graph identical for guests and viewers across a block', function (bool $viewerBlocks): void {
+    $user = User::factory()->create();
+    $viewer = User::factory()->create();
+
+    Commit::factory()->for($user)->create();
+    $viewer->muting()->attach($user);
+    $viewerBlocks ? $viewer->blocking()->attach($user) : $user->blocking()->attach($viewer);
+
+    $guest = $this->get(route('user-activity-graph.show', $user));
+    $guest->assertOk()->assertSee('1 commit in the last year');
+
+    $response = $this->actingAs($viewer)->get(route('user-activity-graph.show', $user));
+    $response->assertOk();
+
+    expect($response->getContent())->toBe($guest->getContent())
+        ->and($response->headers->get('ETag'))->toBe($guest->headers->get('ETag'));
+})->with([true, false]);
+
 it('switches the theme', function (mixed $theme, string $card): void {
     $this->get(route('user-activity-graph.show', ['user' => User::factory()->create(), 'theme' => $theme]))
         ->assertOk()

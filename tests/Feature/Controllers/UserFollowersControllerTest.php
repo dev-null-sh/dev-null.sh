@@ -42,6 +42,19 @@ it('marks the users the viewer follows', function (): void {
             ->where('users.data.1.is_followed', false));
 });
 
+it('looks missing to people across a block', function (bool $viewerBlocks): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create();
+    $user->followers()->attach(User::factory()->create());
+
+    $viewerBlocks ? $viewer->blocking()->attach($user) : $user->blocking()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user-followers.index', $user));
+
+    $response->assertNotFound();
+})->with([true, false]);
+
 it('lists them to guests, without anyone marked as followed', function (): void {
     $user = User::factory()->create();
     $user->followers()->attach(User::factory()->create());
