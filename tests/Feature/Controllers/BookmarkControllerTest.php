@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\CommitStatus;
 use App\Models\Bookmark;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -47,6 +48,18 @@ it('includes link previews on saved commits and replies', function (): void {
         ->where('commits.data.0.link_preview.title', 'Saved reply link')
         ->where('commits.data.1.id', $commit->id)
         ->where('commits.data.1.link_preview.title', 'Saved commit link'));
+});
+
+it('includes images on saved commits', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $image = CommitImage::factory()->for($commit)->create();
+
+    $this->actingAs($user)->putJson(route('bookmark.store', $commit))->assertOk();
+
+    $this->get(route('bookmark.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits.data.0.images', 1)
+        ->where('commits.data.0.images.0.id', $image->id));
 });
 
 it('requires authentication for the saved page and mutations', function (): void {

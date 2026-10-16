@@ -1,0 +1,31 @@
+name: devnull commit
+description: Commit to devnull from a workflow, signed with an SSH key that is on your GitHub account.
+author: nunomaduro
+
+inputs:
+  body:
+    description: The commit, up to 280 characters.
+    required: true
+  ssh-key:
+    description: A private Ed25519 or RSA key without a passphrase, whose public key is on your GitHub account. Pass it from a secret.
+    required: true
+  reply-to:
+    description: The hash or link of a commit to reply to.
+    required: false
+    default: ''
+  url:
+    description: The devnull to commit to.
+    required: false
+    default: https://dev-null.sh
+
+runs:
+  using: composite
+  steps:
+    - name: Commit to devnull
+      shell: bash
+      env:
+        DEVNULL_BODY: ${{ inputs.body }}
+        DEVNULL_SSH_KEY: ${{ inputs.ssh-key }}
+        DEVNULL_REPLY_TO: ${{ inputs.reply-to }}
+        DEVNULL_URL: ${{ inputs.url }}
+      run: bash "$GITHUB_ACTION_PATH/commit.sh"

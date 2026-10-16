@@ -50,6 +50,11 @@ const applyTheme = (appearance: Appearance): void => {
 
     document.documentElement.classList.toggle('dark', isDark);
     document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+    document
+        .querySelectorAll('meta[name="theme-color"]')
+        .forEach((meta) =>
+            meta.setAttribute('content', isDark ? '#111112' : '#f6f7f8'),
+        );
 };
 
 const subscribe = (callback: () => void) => {

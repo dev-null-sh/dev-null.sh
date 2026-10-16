@@ -8,6 +8,8 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
  * @extends Builder<Commit>
@@ -15,25 +17,45 @@ use Illuminate\Database\Eloquent\Builder;
 final class CommitBuilder extends Builder
 {
     /**
-     * Approved commits are visible to everyone, while authors may also see their own pending or rejected commits.
+     * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
+     * A block hides each one's commits from the other.
      */
-    public function visibleTo(User $user): self
+    public function visibleTo(?User $user): self
     {
+        if (! $user instanceof User) {
+            return $this->where($this->qualifyColumn('status'), CommitStatus::Approved);
+        }
+
         return $this->where(fn (Builder $query): Builder => $query
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
-            ->orWhere($this->qualifyColumn('user_id'), $user->id));
+            ->orWhere($this->qualifyColumn('user_id'), $user->id))
+            ->where(fn (Builder $query): Builder => $query
+                ->whereNull($this->qualifyColumn('user_id'))
+                ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
+    }
+
+    /**
+     * Muting only quiets what the user comes across: the commits stay reachable from their author's profile and link.
+     */
+    public function withoutMutedAuthorsFor(?User $user): self
+    {
+        return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
+            ->whereNull($this->qualifyColumn('user_id'))
+            ->orWhereNotIn($this->qualifyColumn('user_id'), $user->mutedIds())) : $this;
     }
 
     /**
      * Deleted commits stay in a thread as tombstones while they still have replies the given user can see.
+     * Replies by muted people are left out along with the replies under them.
      */
-    public function visibleInThreadTo(User $user): self
+    public function visibleInThreadTo(?User $user): self
     {
         return $this->withTrashed()
             ->visibleTo($user)
+            ->withoutMutedAuthorsFor($user)
             ->where(fn (self $query): self => $query
                 ->whereNull($query->getModel()->getQualifiedDeletedAtColumn())
-                ->orWhereHas('replies', fn (self $replies): self => $replies->withTrashed()->visibleTo($user)));
+                ->orWhereHas('replies', fn (self $replies): self => $replies->withTrashed()->visibleTo($user)->withoutMutedAuthorsFor($user)));
     }
 
     public function topLevel(): self
@@ -44,11 +66,34 @@ final class CommitBuilder extends Builder
     /**
      * Counts only the replies the given user is allowed to see.
      */
-    public function withVisibleReplyCount(User $user): self
+    public function withVisibleReplyCount(?User $user): self
     {
         return $this->withCount([
-            'replies' => fn (self $query): self => $query->visibleInThreadTo($user),
+            'replies' => fn (self $query): self => $query->visibleInThreadTo($user)->exceptSeriesContinuations(),
         ]);
+    }
+
+    /**
+     * Later parts of a series are replies to the part before them, yet they read as part of it rather than as replies.
+     */
+    public function exceptSeriesContinuations(): self
+    {
+        return $this->where(fn (self $query): self => $query
+            ->whereNull($this->qualifyColumn('series_position'))
+            ->orWhere($this->qualifyColumn('series_position'), 1));
+    }
+
+    /**
+     * A series is moderated as a whole, so the queue lists it once: under its first pending part.
+     */
+    public function exceptLaterPendingSeriesParts(): self
+    {
+        return $this->whereNotExists(fn (QueryBuilder $query): QueryBuilder => $query
+            ->from($this->getModel()->getTable(), 'earlier')
+            ->whereColumn('earlier.series_id', $this->qualifyColumn('series_id'))
+            ->whereColumn('earlier.series_position', '<', $this->qualifyColumn('series_position'))
+            ->where('earlier.status', CommitStatus::Pending)
+            ->whereNull('earlier.deleted_at'));
     }
 
     public function approved(): self
@@ -56,10 +101,25 @@ final class CommitBuilder extends Builder
         return $this->where('status', CommitStatus::Approved);
     }
 
-    public function withSavedState(User $user): self
+    /**
+     * Loads what anyone may see around the commits, like Commit::loadPublicPreview(): approved replies, stars, images, and the parent only when approved.
+     */
+    public function withPublicPreview(): self
+    {
+        return $this
+            ->withCount(['replies' => fn (self $query): self => $query->approved()->exceptSeriesContinuations(), 'stars'])
+            ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+    }
+
+    /**
+     * Guests have nothing saved, yet still get the state, so they see the same save button that asks them to sign in.
+     */
+    public function withSavedState(?User $user): self
     {
         return $this->withExists([
-            'bookmarks as is_saved' => fn (Builder $query): Builder => $query->where('user_id', $user->id),
+            'bookmarks as is_saved' => fn (Builder $query): Builder => $user instanceof User
+                ? $query->where('user_id', $user->id)
+                : $query->whereRaw('1 = 0'),
         ]);
     }
 
@@ -68,12 +128,17 @@ final class CommitBuilder extends Builder
         return $this->where('status', CommitStatus::Pending);
     }
 
-    public function withStarsFor(User $viewer): self
+    /**
+     * Guests see how many stars a commit has, without having starred any.
+     */
+    public function withStarsFor(?User $viewer): self
     {
         return $this
             ->withCount('stars')
             ->withExists([
-                'stars as starred' => fn (Builder $query): Builder => $query->whereKey($viewer->id),
+                'stars as starred' => fn (Builder $query): Builder => $viewer instanceof User
+                    ? $query->whereKey($viewer->id)
+                    : $query->whereRaw('1 = 0'),
             ]);
     }
 }

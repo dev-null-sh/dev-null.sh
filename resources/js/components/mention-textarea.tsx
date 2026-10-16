@@ -5,7 +5,7 @@ import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionS
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { emojifyInput } from '@/lib/emoji';
-import { cn, laneColor } from '@/lib/utils';
+import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
 import type { User } from '@/types';
 
 type Mention = {
@@ -284,7 +284,8 @@ export function MentionTextarea({
     const cached = query === null ? undefined : cache.get(query);
     const current =
         query !== null && cached ? { query, users: cached } : results;
-    const suggestions = query !== null ? (current?.users ?? []) : [];
+    const suggestions =
+        query !== null && current?.query === query ? current.users : [];
     const isOpen =
         mention !== null &&
         position !== null &&
@@ -303,11 +304,11 @@ export function MentionTextarea({
         const separator = /^\s/u.test(after) ? '' : ' ';
         let next = `${value.slice(0, mention.start)}${handle}${separator}${after}`;
 
-        if (maxLength !== undefined && next.length > maxLength) {
+        if (maxLength !== undefined && characterCount(next) > maxLength) {
             next = `${value.slice(0, mention.start)}${handle}${after}`;
         }
 
-        if (maxLength !== undefined && next.length > maxLength) {
+        if (maxLength !== undefined && characterCount(next) > maxLength) {
             close();
 
             return;
@@ -383,7 +384,6 @@ export function MentionTextarea({
                 {...props}
                 ref={setRefs}
                 value={value}
-                maxLength={maxLength}
                 onChange={(event) => {
                     const target = event.currentTarget;
                     const { text, caret } = emojifyInput(
@@ -391,18 +391,24 @@ export function MentionTextarea({
                         target.selectionStart ?? target.value.length,
                     );
 
-                    onValueChange(text);
+                    const limited =
+                        maxLength === undefined
+                            ? text
+                            : limitCharacters(text, maxLength);
 
-                    if (text === target.value) {
+                    onValueChange(limited);
+
+                    if (limited === target.value) {
                         track(target);
 
                         return;
                     }
 
                     close();
-                    requestAnimationFrame(() =>
-                        target.setSelectionRange(caret, caret),
-                    );
+                    requestAnimationFrame(() => {
+                        const position = Math.min(caret, limited.length);
+                        target.setSelectionRange(position, position);
+                    });
                 }}
                 onSelect={(event: SyntheticEvent<HTMLTextAreaElement>) => {
                     track(event.currentTarget);

@@ -33,6 +33,36 @@ it('renders pending commits oldest first', function (): void {
             ->has('commits.data.0.user'));
 });
 
+it('shows the ai decision on commits and their series parts', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+
+    $first = Commit::factory()->pending()->create([
+        'series_id' => 'series',
+        'series_position' => 1,
+        'series_size' => 2,
+        'ai_decision' => CommitStatus::Approved,
+        'ai_categories' => [],
+    ]);
+    Commit::factory()->pending()->for($first, 'parent')->create([
+        'series_id' => 'series',
+        'series_position' => 2,
+        'series_size' => 2,
+        'ai_decision' => CommitStatus::Rejected,
+        'ai_categories' => ['harassment'],
+    ]);
+
+    $response = $this->actingAs($admin)
+        ->get(route('moderation.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 1)
+            ->where('commits.data.0.ai_decision', 'approved')
+            ->where('commits.data.0.ai_categories', [])
+            ->where('commits.data.0.series_parts.1.ai_decision', 'rejected')
+            ->where('commits.data.0.series_parts.1.ai_categories', ['harassment']));
+});
+
 it('drops deleted pending commits from the queue', function (): void {
     $admin = User::factory()->create(['username' => 'admin']);
 

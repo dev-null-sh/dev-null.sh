@@ -2,6 +2,7 @@ import { router, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
 import { useState } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
+import { signIn } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -26,7 +27,7 @@ export function CommitStarButton({
 }) {
     const { auth } = usePage().props;
     const canStar =
-        commit.status === 'approved' || commit.user_id === auth.user.id;
+        commit.status === 'approved' || commit.user_id === auth.user?.id;
     const [starred, setStarred] = useState(commit.starred);
     const [count, setCount] = useState(commit.stars_count);
     const [pending, setPending] = useState(false);
@@ -37,6 +38,12 @@ export function CommitStarButton({
     }
 
     const toggle = () => {
+        if (auth.user === null) {
+            signIn();
+
+            return;
+        }
+
         if (pending) {
             return;
         }
@@ -87,7 +94,7 @@ export function CommitStarButton({
             aria-label={starLabel(starred, count)}
             title={starred ? 'Unstar' : 'Star'}
             className={cn(
-                'group inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                 starred && 'text-primary hover:text-primary',
                 className,
             )}
@@ -96,12 +103,14 @@ export function CommitStarButton({
             <Star
                 onAnimationEnd={() => setIsAnimating(false)}
                 className={cn(
-                    'size-4 transition-transform group-hover:scale-110 active:scale-95',
+                    'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
                     starred && 'fill-current',
                     isAnimating && 'motion-safe:animate-star-pop',
                 )}
             />
-            {count > 0 && <span data-test="star-count">{count}</span>}
+            <span data-test="star-count" className="min-w-[1ch] text-left">
+                {count > 0 ? count : ''}
+            </span>
         </button>
     );
 }

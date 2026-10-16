@@ -4,10 +4,15 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="description" content="{{ $preview['description'] ?? 'A social network for developers. Sign in with GitHub, commit plain text to a shared log.' }}">
-        <meta name="theme-color" content="#f6f7f8" media="(prefers-color-scheme: light)">
-        <meta name="theme-color" content="#111112" media="(prefers-color-scheme: dark)">
+        @if (($appearance ?? 'system') === 'system')
+            <meta name="theme-color" content="#f6f7f8" media="(prefers-color-scheme: light)">
+            <meta name="theme-color" content="#111112" media="(prefers-color-scheme: dark)">
+        @else
+            <meta name="theme-color" content="{{ $appearance === 'dark' ? '#111112' : '#f6f7f8' }}">
+        @endif
 
         @isset($preview)
+            <link rel="canonical" href="{{ $preview['url'] }}">
             <meta property="og:type" content="{{ $preview['type'] }}">
             <meta property="og:site_name" content="/dev/null">
             <meta property="og:title" content="{{ $preview['title'] }}">
@@ -15,6 +20,20 @@
             <meta property="og:url" content="{{ $preview['url'] }}">
             <meta property="og:image" content="{{ $preview['image'] }}">
             <meta property="og:image:alt" content="{{ $preview['title'] }}">
+            @isset($preview['publishedAt'])
+                <meta property="article:published_time" content="{{ $preview['publishedAt'] }}">
+                <meta property="article:author" content="{{ $preview['author'] }}">
+            @endisset
+            @isset($preview['username'])
+                <meta property="profile:username" content="{{ $preview['username'] }}">
+            @endisset
+            <meta name="twitter:title" content="{{ $preview['title'] }}">
+            <meta name="twitter:description" content="{{ $preview['description'] }}">
+            <meta name="twitter:image" content="{{ $preview['image'] }}">
+            @isset($preview['feed'])
+                <link rel="alternate" type="application/atom+xml" title="{{ $preview['title'] }}" href="{{ $preview['feed'] }}">
+            @endisset
+            <script type="application/ld+json">@json($preview['structuredData'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)</script>
         @else
             <meta property="og:type" content="website">
             <meta property="og:title" content="devnull">
@@ -44,10 +63,12 @@
         <style>
             html {
                 background-color: #f6f7f8;
+                color-scheme: light;
             }
 
             html.dark {
                 background-color: #111112;
+                color-scheme: dark;
             }
         </style>
 

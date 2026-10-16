@@ -3,6 +3,7 @@ import { Bookmark } from 'lucide-react';
 import { createContext, useContext, useState } from 'react';
 import { toast } from 'sonner';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
+import { signIn } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -16,11 +17,17 @@ export function BookmarkButton({ commit }: { commit: Commit }) {
     const request = useHttp<Record<string, never>, { is_saved: boolean }>({});
     const onRemoved = useContext(BookmarkRemovalContext);
 
-    if (commit.status !== 'approved' && commit.user_id !== auth.user.id) {
+    if (commit.status !== 'approved' && commit.user_id !== auth.user?.id) {
         return null;
     }
 
     const toggle = async () => {
+        if (auth.user === null) {
+            signIn();
+
+            return;
+        }
+
         if (request.processing) {
             return;
         }

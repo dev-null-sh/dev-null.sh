@@ -1,11 +1,15 @@
 import { Head, router } from '@inertiajs/react';
-import { Check, X } from 'lucide-react';
+import { Bot, Check, X } from 'lucide-react';
 import { useId, useState } from 'react';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
+import { CommitBody } from '@/components/commit-body';
+import { SeriesPosition } from '@/components/commit-card';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { CommitImages } from '@/components/commit-images';
 import InputError from '@/components/input-error';
+import { LinkPreview } from '@/components/link-preview';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -29,6 +33,72 @@ function Keycap({ label, className }: { label: string; className?: string }) {
         >
             {label}
         </kbd>
+    );
+}
+
+function AiDecision({ commit }: { commit: Commit }) {
+    const categories = (commit.ai_categories ?? []).join(', ');
+    const label =
+        commit.ai_decision === 'approved'
+            ? 'AI suggests approving'
+            : commit.ai_decision === 'rejected'
+              ? `AI suggests rejecting${categories ? `: ${categories}` : ''}`
+              : 'No AI decision yet';
+
+    return (
+        <p
+            className={cn(
+                'mt-3 flex h-5 min-w-0 items-center gap-1.5 text-[13px]',
+                commit.ai_decision === 'rejected'
+                    ? 'text-destructive'
+                    : 'text-muted-foreground',
+            )}
+            title={label}
+            data-test="ai-decision"
+        >
+            <Bot aria-hidden className="size-4 shrink-0" />
+            <span className="truncate">{label}</span>
+        </p>
+    );
+}
+
+function SeriesParts({ commit }: { commit: Commit }) {
+    const parts = (commit.series_parts ?? []).filter(
+        (part) => (part.series_position ?? 0) > (commit.series_position ?? 0),
+    );
+
+    if (parts.length === 0) {
+        return null;
+    }
+
+    return (
+        <section aria-label="Rest of the series" className="mt-3">
+            <ol className="space-y-3 border-l-2 border-dashed border-rail pl-3">
+                {parts.map((part) => (
+                    <li key={part.id} data-test="moderation-series-part">
+                        {part.series_position !== null &&
+                            part.series_size !== null && (
+                                <SeriesPosition
+                                    position={part.series_position}
+                                    size={part.series_size}
+                                />
+                            )}
+                        <CommitBody
+                            segments={part.body_segments}
+                            className="mt-1 text-[15px]"
+                        />
+                        {part.images && <CommitImages images={part.images} />}
+                        {part.link_preview?.title && (
+                            <LinkPreview preview={part.link_preview} />
+                        )}
+                        <AiDecision commit={part} />
+                    </li>
+                ))}
+            </ol>
+            <p className="mt-2 text-[13px] text-muted-foreground">
+                Approving or rejecting applies to every part of this series.
+            </p>
+        </section>
     );
 }
 
@@ -123,7 +193,7 @@ function ModerationActions({
                         aria-invalid={Boolean(error)}
                         aria-describedby={`${reasonId}-help${error ? ` ${reasonId}-error` : ''}`}
                         autoFocus
-                        className="block min-h-20 w-full resize-y rounded-md border bg-transparent px-3 py-2 text-[15px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+                        className="block min-h-20 w-full resize-y rounded-md border bg-transparent px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50 md:text-[15px]"
                     />
                     <div
                         className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
@@ -288,16 +358,20 @@ export default function Show({
                 firstLane="var(--rail)"
                 end="That's every pending commit."
                 actions={(commit) => (
-                    <ModerationActions
-                        isSelected={selected.has(commit.id)}
-                        isDisabled={isModerating || approving}
-                        onSelectedChange={(isSelected) =>
-                            toggle(commit.id, isSelected)
-                        }
-                        onModerate={(route, reason, onError) =>
-                            moderate(commit, route, reason, onError)
-                        }
-                    />
+                    <>
+                        <AiDecision commit={commit} />
+                        <SeriesParts commit={commit} />
+                        <ModerationActions
+                            isSelected={selected.has(commit.id)}
+                            isDisabled={isModerating || approving}
+                            onSelectedChange={(isSelected) =>
+                                toggle(commit.id, isSelected)
+                            }
+                            onModerate={(route, reason, onError) =>
+                                moderate(commit, route, reason, onError)
+                            }
+                        />
+                    </>
                 )}
                 empty={
                     <EmptyFeed command="nothing to commit, working tree clean">
