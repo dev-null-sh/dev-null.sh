@@ -38,7 +38,8 @@ final readonly class ModerationController
                 ->withStarsFor($user)
                 ->oldest()
                 ->oldest('id')
-                ->cursorPaginate(20)),
+                ->cursorPaginate(20)
+                ->through($this->withAiDecision(...))),
         ]);
     }
 
@@ -53,5 +54,15 @@ final readonly class ModerationController
         $action->handle($commitIds, CommitStatus::Approved, onlyPending: true);
 
         return back();
+    }
+
+    /**
+     * The AI's decision is hidden everywhere else, but moderators see it, for each part of a series too.
+     */
+    private function withAiDecision(Commit $commit): Commit
+    {
+        $commit->seriesParts->makeVisible(['ai_decision', 'ai_categories']);
+
+        return $commit->makeVisible(['ai_decision', 'ai_categories']);
     }
 }

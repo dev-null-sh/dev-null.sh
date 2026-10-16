@@ -18,6 +18,7 @@ final class CommitBuilder extends Builder
 {
     /**
      * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
+     * A block hides each one's commits from the other.
      */
     public function visibleTo(?User $user): self
     {
@@ -27,19 +28,34 @@ final class CommitBuilder extends Builder
 
         return $this->where(fn (Builder $query): Builder => $query
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
-            ->orWhere($this->qualifyColumn('user_id'), $user->id));
+            ->orWhere($this->qualifyColumn('user_id'), $user->id))
+            ->where(fn (Builder $query): Builder => $query
+                ->whereNull($this->qualifyColumn('user_id'))
+                ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
+    }
+
+    /**
+     * Muting only quiets what the user comes across: the commits stay reachable from their author's profile and link.
+     */
+    public function withoutMutedAuthorsFor(?User $user): self
+    {
+        return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
+            ->whereNull($this->qualifyColumn('user_id'))
+            ->orWhereNotIn($this->qualifyColumn('user_id'), $user->mutedIds())) : $this;
     }
 
     /**
      * Deleted commits stay in a thread as tombstones while they still have replies the given user can see.
+     * Replies by muted people are left out along with the replies under them.
      */
     public function visibleInThreadTo(?User $user): self
     {
         return $this->withTrashed()
             ->visibleTo($user)
+            ->withoutMutedAuthorsFor($user)
             ->where(fn (self $query): self => $query
                 ->whereNull($query->getModel()->getQualifiedDeletedAtColumn())
-                ->orWhereHas('replies', fn (self $replies): self => $replies->withTrashed()->visibleTo($user)));
+                ->orWhereHas('replies', fn (self $replies): self => $replies->withTrashed()->visibleTo($user)->withoutMutedAuthorsFor($user)));
     }
 
     public function topLevel(): self

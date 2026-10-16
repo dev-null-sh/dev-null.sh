@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Dto\SeriesPosition;
 use App\Enums\CommitStatus;
+use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
@@ -29,12 +30,20 @@ final readonly class CreateCommit
     }
 
     /**
+     * The link preview is of the first URL in the body when true, of the given URL when a string, or none when false.
+     *
      * @param  list<UploadedFile>  $images
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], ?SeriesPosition $series = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], bool|string $linkPreview = true, ?SeriesPosition $series = null): Commit
     {
-        return DB::transaction(function () use ($user, $body, $parent, $images, $series): Commit {
-            $linkPreview = $this->linkPreviewFor($body);
+        $url = match ($linkPreview) {
+            true => $this->urls->first($body),
+            false => null,
+            default => $linkPreview,
+        };
+
+        return DB::transaction(function () use ($user, $body, $parent, $images, $url, $series): Commit {
+            $linkPreview = $this->linkPreviewFor($url);
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
@@ -56,6 +65,9 @@ final readonly class CreateCommit
             }
 
             $this->createWorldReply->handle($commit);
+            if ($commit->status === CommitStatus::Pending && filled(config('services.openai.key'))) {
+                dispatch(new ModerateCommit($commit))->afterCommit();
+            }
 
             return $commit;
         });
@@ -64,10 +76,8 @@ final readonly class CreateCommit
     /**
      * Commits that link to the same URL share one preview, so a page is fetched once however often it is linked.
      */
-    private function linkPreviewFor(string $body): ?LinkPreview
+    private function linkPreviewFor(?string $url): ?LinkPreview
     {
-        $url = $this->urls->first($body);
-
         if ($url === null) {
             return null;
         }
