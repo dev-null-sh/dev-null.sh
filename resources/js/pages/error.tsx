@@ -76,7 +76,7 @@ export default function ErrorPage({ status }: { status: Status }) {
     const action =
         status === 503
             ? { label: 'Try again', href: home() }
-            : user
+            : user && page.props.auth.log
               ? {
                     label: 'Back to your log',
                     href: LogController.show(page.props.auth.log),

@@ -1,7 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, ListOrdered, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitBody } from '@/components/commit-body';
@@ -10,13 +10,11 @@ import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ThreadActions,
     ThreadReplies,
-    ThreadSpine,
     useThread,
 } from '@/components/commit-thread';
-import { GraphRail } from '@/components/graph-rail';
+import { GraphRail, RailAvatar, RailDot } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import {
@@ -42,6 +40,7 @@ export function CommitCard({
     isDimmed = false,
     isPreviousDimmed = false,
     isHighlighted = false,
+    isGroupedWithPrevious = false,
     onAuthorHover,
     actions,
     isFocused = false,
@@ -55,6 +54,7 @@ export function CommitCard({
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
     isHighlighted?: boolean;
+    isGroupedWithPrevious?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
     actions?: ReactNode;
     isFocused?: boolean;
@@ -65,12 +65,13 @@ export function CommitCard({
 }) {
     const { auth } = usePage().props;
     const now = useNow();
+    const nodeRef = useRef<HTMLAnchorElement>(null);
     const thread = useThread(commit, initialReplies);
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
     >('idle');
 
-    const isOwn = commit.user_id === auth.user.id;
+    const isOwn = commit.user_id === auth.user?.id;
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
@@ -120,32 +121,37 @@ export function CommitCard({
                     isDimmed={isDimmed}
                     isPreviousDimmed={isPreviousDimmed}
                     onHoverChange={onAuthorHover}
+                    node={
+                        <UserPreview
+                            user={commit.user}
+                            anchor={nodeRef}
+                            className="flex"
+                        >
+                            <Link
+                                ref={nodeRef}
+                                href={show(commit.user)}
+                                tabIndex={-1}
+                                className={cn('group/node flex rounded-full', {
+                                    '-translate-y-[9px]': isGroupedWithPrevious,
+                                })}
+                            >
+                                {isGroupedWithPrevious ? (
+                                    <RailDot className="group-hover/node:scale-125" />
+                                ) : (
+                                    <RailAvatar user={commit.user} />
+                                )}
+                            </Link>
+                        </UserPreview>
+                    }
                 />
 
                 <div className="min-w-0 flex-1 border-b py-3 pr-4">
-                    <div className="flex gap-3">
-                        <div className="relative shrink-0">
-                            <UserPreview
-                                user={commit.user}
-                                onHoverChange={onAuthorHover}
-                            >
-                                <Link
-                                    href={show(commit.user)}
-                                    className="shrink-0 rounded-full"
-                                >
-                                    <UserAvatar
-                                        user={commit.user}
-                                        className="size-10"
-                                    />
-                                </Link>
-                            </UserPreview>
-                            <ThreadSpine thread={thread} className="top-11" />
-                        </div>
-
+                    <div className="flex">
                         <div className="min-w-0 flex-1">
                             <div className="flex items-baseline gap-1.5 text-[15px]">
                                 <UserPreview
                                     user={commit.user}
+                                    anchor={nodeRef}
                                     className="flex min-w-0 items-baseline gap-1.5"
                                     onHoverChange={onAuthorHover}
                                 >
@@ -421,14 +427,12 @@ export function CommitTombstone({
             <GraphRail
                 lane="var(--rail)"
                 previousLane={previousLane}
-                isFilled={false}
+                node={
+                    <span className="size-12 rounded-full border-2 border-dashed border-rail bg-card" />
+                }
             />
 
             <div className="flex min-w-0 flex-1 items-center gap-3 border-b py-3 pr-4">
-                <span
-                    aria-hidden
-                    className="size-10 shrink-0 rounded-full border-2 border-dashed border-rail"
-                />
                 <p className="flex items-baseline gap-1.5 text-[15px] text-muted-foreground">
                     <span className="font-mono text-[13px]">[deleted]</span>
                     This commit was deleted.
