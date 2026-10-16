@@ -1,4 +1,4 @@
-import { Form, usePage } from '@inertiajs/react';
+import { Form } from '@inertiajs/react';
 import { Plus, X } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -16,6 +16,7 @@ import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
+import { useUser } from '@/hooks/use-user';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
@@ -60,9 +61,9 @@ function RemainingCount({ id, body }: { id: string; body: string }) {
 }
 
 export function CommitComposer() {
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const { bodies, isRestored, updateBody, insertPart, removePart, drop } =
-        useSeriesStash(auth.user.id, 'commit');
+        useSeriesStash(user.id, 'commit');
     const attachments = useImageAttachments();
 
     const isSeries = bodies.length > 1;
@@ -164,7 +165,7 @@ export function CommitComposer() {
                                 data-test="commit-composer-part"
                             >
                                 <GraphRail
-                                    lane={laneColor(auth.user.lane)}
+                                    lane={laneColor(user.lane)}
                                     previousLane={
                                         index > 0 ? 'var(--rail)' : undefined
                                     }
@@ -173,7 +174,7 @@ export function CommitComposer() {
                                     node={
                                         index === 0 ? (
                                             <RailAvatar
-                                                user={auth.user}
+                                                user={user}
                                                 isStaged={!isFilled}
                                             />
                                         ) : undefined

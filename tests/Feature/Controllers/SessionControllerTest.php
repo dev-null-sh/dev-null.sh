@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
@@ -126,6 +127,28 @@ it('queues a sync of the ssh keys of the user on login', function (): void {
 
     Queue::assertPushed(SyncGitHubSshKeysJob::class, fn (SyncGitHubSshKeysJob $job): bool => $job->user->is($user));
 });
+
+it('queues an import of the github follows of the user on login, notifying only for new users', function (bool $exists, bool $notify): void {
+    fakeGitHubSponsorsListing();
+
+    if ($exists) {
+        User::factory()->create(['github_id' => '583231']);
+    }
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $this->get(route('login.store'));
+
+    $user = User::query()->where('github_id', '583231')->sole();
+
+    Queue::assertPushed(ImportGitHubFollowsJob::class, fn (ImportGitHubFollowsJob $job): bool => $job->user->is($user) && $job->notify === $notify);
+})->with([
+    'new user' => [false, true],
+    'existing user' => [true, false],
+]);
 
 it('redirects to the intended url after login', function (): void {
     fakeGitHubSponsorsListing();

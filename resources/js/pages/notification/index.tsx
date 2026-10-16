@@ -1,4 +1,4 @@
-import { Head, InfiniteScroll, Link, usePage } from '@inertiajs/react';
+import { Head, InfiniteScroll, Link } from '@inertiajs/react';
 import {
     AtSign,
     Check,
@@ -13,6 +13,7 @@ import { EmptyFeed } from '@/components/commit-feed';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
+import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
@@ -107,7 +108,7 @@ function notificationHref(notification: Notification, recipient: User) {
 
 function NotificationItem({ notification }: { notification: Notification }) {
     const now = useNow();
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const { actor } = notification;
     const isUnread = notification.unread_count > 0;
     const isModeration =
@@ -123,7 +124,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
 
     return (
         <Link
-            href={notificationHref(notification, auth.user)}
+            href={notificationHref(notification, user)}
             className={cn(
                 'flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 sm:px-6',
                 { 'bg-primary-soft/50': isUnread },
