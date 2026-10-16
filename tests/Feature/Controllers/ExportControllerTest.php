@@ -12,7 +12,9 @@ use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\SshKey;
 use App\Models\User;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 
 it('requires authentication to download personal data', function (): void {
     $this->get(route('export'))->assertRedirectToRoute('home');
@@ -380,7 +382,9 @@ it('exports who the user mutes and blocks, but never who mutes or blocks them', 
         ->and($response->streamedContent())->not->toContain('secret-muter', 'secret-blocker', $muted->id, $blocked->id);
 });
 
-it('limits exports to five a minute per user', function (): void {
+it('also limits exports to five a minute per user independently of the hourly budget', function (): void {
+    RateLimiter::for('exports', fn (): Limit => Limit::none());
+
     $user = User::factory()->create();
 
     foreach (range(1, 5) as $attempt) {
@@ -388,4 +392,10 @@ it('limits exports to five a minute per user', function (): void {
     }
 
     $this->actingAs($user)->get(route('export'))->assertTooManyRequests();
+
+    $this->actingAs(User::factory()->create())->get(route('export'))->assertOk();
+
+    $this->travel(1)->minute();
+
+    $this->actingAs($user)->get(route('export'))->assertOk();
 });

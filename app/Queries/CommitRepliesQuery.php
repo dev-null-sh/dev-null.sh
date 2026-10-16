@@ -17,7 +17,7 @@ final readonly class CommitRepliesQuery
      *
      * @return CursorPaginator<int, Commit>
      */
-    public function paginate(Commit $commit, ?User $user): CursorPaginator
+    public function paginate(Commit $commit, ?User $user, bool $newest = false, int $limit = self::PER_PAGE): CursorPaginator
     {
         return Commit::query()
             ->where(fn (CommitBuilder $query): CommitBuilder => $query
@@ -28,8 +28,9 @@ final readonly class CommitRepliesQuery
             ->withVisibleReplyCount($user)
             ->withCardDataFor($user)
             ->without('quotedCommit')
-            ->oldest()
-            ->oldest('id')
-            ->cursorPaginate(self::PER_PAGE);
+            ->when($newest,
+                fn (CommitBuilder $query): CommitBuilder => $query->newestFirst(),
+                fn (CommitBuilder $query): CommitBuilder => $query->oldest()->oldest('id'))
+            ->cursorPaginate($limit);
     }
 }

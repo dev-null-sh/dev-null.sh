@@ -5,6 +5,7 @@ import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { Button } from '@/components/ui/button';
 import { signIn } from '@/lib/auth';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { User } from '@/types';
 
@@ -91,6 +92,7 @@ export function FollowButton({
                 }
                 as="button"
                 preserveScroll
+                onHttpException={(response) => !toastWhenThrottled(response)}
                 aria-label={
                     isFollowing
                         ? `Unfollow @${user.username}`

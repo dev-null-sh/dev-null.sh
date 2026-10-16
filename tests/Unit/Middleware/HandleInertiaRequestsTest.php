@@ -7,6 +7,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
+use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -266,3 +267,22 @@ it('shows who to follow by default', function (string $cookie): void {
     expect($shared['showsWhoToFollow'])->toBeTrue()
         ->and($shared)->toHaveKey('suggestedUsers');
 })->with(['', 'true']);
+
+it('suggests the round of people the user refreshed to', function (string $cookie, int $round): void {
+    $middleware = new HandleInertiaRequests();
+    $user = User::factory()->create();
+    User::factory()->count(6)->has(Commit::factory())->create();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $user);
+    $request->cookies->set('who_to_follow_round', $cookie);
+
+    $suggested = $middleware->share($request)['suggestedUsers']();
+
+    expect($suggested->pluck('id')->all())
+        ->toBe(resolve(SuggestedUsersQuery::class)->get($user, round: $round)->pluck('id')->all());
+})->with([
+    'next round' => ['1', 1],
+    'not a number' => ['abc', 0],
+    'negative' => ['-3', 0],
+]);
