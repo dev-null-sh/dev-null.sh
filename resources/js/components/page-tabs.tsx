@@ -17,6 +17,8 @@ export function PageTabs({
         isActive: boolean;
     }[];
 }) {
+    const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
+
     return (
         <nav aria-label={label} className="flex border-b">
             {tabs.map((tab) => (
@@ -32,13 +34,15 @@ export function PageTabs({
                         { 'text-foreground': tab.isActive },
                     )}
                 >
-                    <span
-                        className={cn('py-3.5', {
-                            'shadow-[inset_0_-3px_0_var(--primary)]':
-                                tab.isActive,
-                        })}
-                    >
+                    <span className="relative py-3.5">
                         {tab.title}
+                        {tab.isActive && (
+                            <span
+                                aria-hidden
+                                className="absolute inset-x-0 bottom-0 h-[3px] bg-primary [view-transition-class:tab-indicator]"
+                                style={{ viewTransitionName: indicatorName }}
+                            />
+                        )}
                     </span>
                 </Link>
             ))}
