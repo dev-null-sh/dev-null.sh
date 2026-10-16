@@ -3,11 +3,13 @@
 declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
+use App\Jobs\UnfurlLink;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 /**
@@ -85,13 +87,18 @@ it('commits with the key from the secret, signed so devnull accepts it', functio
     $user = User::factory()->create();
     SshKey::factory()->for($user)->withPublicKey($this->publicKey)->create();
     fakeGitHubSshKeys($user, signingKeys: [$this->publicKey]);
+    Queue::fake([UnfurlLink::class]);
 
     $this->call('POST', route('cli-commit.store'), server: [
         'CONTENT_TYPE' => 'text/plain; charset=utf-8',
         'HTTP_X_SSH_SIGNATURE' => File::get("{$this->sandbox}/sent-signature"),
     ], content: File::get("{$this->sandbox}/sent-commit"))->assertCreated();
 
-    expect($user->commits()->sole()->body)->toBe("Released v2.0.0.\n\nhttps://github.com/nunomaduro/pest/releases/tag/v2.0.0");
+    $commit = $user->commits()->sole();
+
+    expect($commit->body)->toBe("Released v2.0.0.\n\nhttps://github.com/nunomaduro/pest/releases/tag/v2.0.0");
+
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
 });
 
 it('replies to a commit', function (): void {
