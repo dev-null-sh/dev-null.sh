@@ -116,11 +116,14 @@ export function CommitCard({
 
     return (
         <article
-            onClick={openCommit}
-            onAuxClick={openCommit}
+            onClick={isFocused ? undefined : openCommit}
+            onAuxClick={isFocused ? undefined : openCommit}
             className={cn(
-                'grid cursor-pointer scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
-                { 'bg-primary-soft/60': isHighlighted },
+                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
+                {
+                    'cursor-pointer': !isFocused,
+                    'bg-primary-soft/60': isHighlighted,
+                },
                 deletion === 'deleting'
                     ? 'grid-rows-[0fr] opacity-0 delay-400'
                     : 'grid-rows-[1fr]',
