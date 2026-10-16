@@ -179,7 +179,64 @@ it('renders whether the viewer is not following the user', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('isFollowing', false)
+            ->where('isMuting', false)
             ->has('commits.data', 0));
+});
+
+it('still shows the commits of a muted user on their profile', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->has(Commit::factory())->create();
+
+    $viewer->muting()->attach($user);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/show')
+            ->where('isMuting', true)
+            ->has('commits.data', 1));
+});
+
+it('shows the blocker who they blocked, without any of their commits', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat', 'pinned_commit_id' => null]);
+
+    $viewer->blocking()->attach($user);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/unavailable')
+            ->where('username', 'octocat')
+            ->where('blockedUser.id', $user->id)
+            ->where('blockedUser.lane', $user->lane())
+            ->missing('blockedUser.email')
+            ->missing('commits')
+            ->missing('activity'));
+});
+
+it('shows a neutral unavailable profile to someone the user blocked', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat', 'bio' => 'Private bio']);
+
+    $user->blocking()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', ['user' => $user, 'tab' => 'replies']));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/unavailable')
+            ->where('username', 'octocat')
+            ->where('blockedUser', null)
+            ->missing('commits')
+            ->missing('user'));
+
+    expect($response->getContent())->not->toContain('Private bio');
 });
 
 it('renders whether the user follows the viewer', function (): void {
@@ -221,6 +278,7 @@ it('shows guests the profile with its approved commits and a link preview', func
             ->component('user/show')
             ->where('user.commits_count', 1)
             ->where('isFollowing', false)
+            ->where('isMuting', false)
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'A commit everyone may read')
             ->where('commits.data.0.is_saved', false)

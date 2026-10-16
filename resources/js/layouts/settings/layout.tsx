@@ -2,6 +2,7 @@ import type { PropsWithChildren } from 'react';
 import { PageTabs } from '@/components/page-tabs';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { edit as editAppearance } from '@/routes/appearance';
+import { edit as editSafety } from '@/routes/safety';
 import { show as showTerminal } from '@/routes/terminal';
 import { edit } from '@/routes/user-profile';
 
@@ -31,6 +32,11 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                             title: 'Terminal',
                             href: showTerminal(),
                             isActive: isCurrentUrl(showTerminal()),
+                        },
+                        {
+                            title: 'Safety',
+                            href: editSafety(),
+                            isActive: isCurrentUrl(editSafety()),
                         },
                     ]}
                 />

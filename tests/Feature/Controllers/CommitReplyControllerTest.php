@@ -167,6 +167,40 @@ it('returns not found to guests for the replies of a commit that is not approved
     $response->assertNotFound();
 });
 
+it('leaves out replies by muted people and across blocks', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocker = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $viewer->muting()->attach($muted);
+    $blocker->blocking()->attach($viewer);
+
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    Commit::factory()->for($parent, 'parent')->for($muted)->create();
+    Commit::factory()->for($parent, 'parent')->for($blocker)->create();
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+});
+
+it('returns not found for replies to a commit across a block', function (): void {
+    $viewer = User::factory()->create();
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->create();
+
+    $viewer->blocking()->attach($parent->user);
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertNotFound();
+});
+
 it('includes the link previews of replies', function (): void {
     $parent = Commit::factory()->create();
     Commit::factory()->for($parent, 'parent')->for(LinkPreview::factory()->fetched()->state(['title' => 'Reply link']))->create();
@@ -192,6 +226,39 @@ it('returns 404 to guests for replies of an unapproved tombstone after account d
 })->with([
     'pending' => [CommitStatus::Pending],
     'rejected' => [CommitStatus::Rejected],
+]);
+
+it('keeps account deletion tombstones in threads while filtering silenced authors', function (string $relation, bool $viewerActs): void {
+    $viewer = User::factory()->create();
+    $silenced = User::factory()->create();
+    [$actor, $subject] = $viewerActs ? [$viewer, $silenced] : [$silenced, $viewer];
+    $actor->{$relation}()->attach($subject);
+
+    $author = User::factory()->create();
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($author)->for($root, 'parent')->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    Commit::factory()->for($silenced)->for($parent, 'parent')->create();
+    $hiddenParent = Commit::factory()->for($author)->for($root, 'parent')->create();
+    Commit::factory()->for($silenced)->for($hiddenParent, 'parent')->create();
+    resolve(DeleteUser::class)->handle($author);
+
+    $this->actingAs($viewer)->getJson(route('commit-reply.index', $root))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $parent->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.user')
+        ->assertJsonMissingPath('data.0.body');
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+})->with([
+    'muted author' => ['muting', true],
+    'blocked author' => ['blocking', true],
+    'blocking author' => ['blocking', false],
 ]);
 
 it('keeps approved account deletion tombstones readable to guests without exposing the deleted author', function (): void {
