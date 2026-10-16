@@ -2,11 +2,32 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
 use App\Models\Commit;
 use App\Models\User;
 
 it('requires authentication to download personal data', function (): void {
     $this->get(route('export'))->assertRedirectToRoute('home');
+});
+
+it('exports a surviving quote reference without the deleted authors tombstone content', function (): void {
+    $user = User::factory()->create();
+    $deleted = User::factory()->create(['username' => 'deletedquoteauthor']);
+    $root = Commit::factory()->create();
+    $quoted = Commit::factory()->for($deleted)->for($root, 'parent')->create(['body' => 'Erased quoted words']);
+    $reply = Commit::factory()->for($user)->for($quoted, 'parent')->create();
+    $quote = Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+
+    resolve(DeleteUser::class)->handle($deleted);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+    $commits = collect($data['commits'])->keyBy('id');
+
+    expect($commits->keys()->sort()->values()->all())->toBe(collect([$reply->id, $quote->id])->sort()->values()->all())
+        ->and($commits[$quote->id]['quoted_commit_id'])->toBe($quoted->id)
+        ->and($commits[$reply->id]['parent_id'])->toBe($quoted->id)
+        ->and($response->streamedContent())->not->toContain('deletedquoteauthor', 'Erased quoted words');
 });
 
 it('downloads a versioned private JSON file with an explicit profile and empty lists', function (): void {
@@ -52,6 +73,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         ],
         'commits' => [],
         'following' => [],
+        'muting' => [],
+        'blocking' => [],
     ]);
     expect($user->fresh()->getAttributes())->toBe($original);
 });
@@ -64,6 +87,7 @@ it('exports only the signed-in users live commits including replies and all mode
     $pending = Commit::factory()->for($user)->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
     $reply = Commit::factory()->for($user)->create(['parent_id' => $parent->id]);
+    $quote = Commit::factory()->for($user)->create(['quoted_commit_id' => $parent->id]);
     $deleted = Commit::factory()->for($user)->create(['body' => 'Deleted content must never be exported']);
     $deletedReply = Commit::factory()->for($user)->create(['parent_id' => $approved->id]);
     $survivingReply = Commit::factory()->for($user)->pending()->create(['parent_id' => $deleted->id]);
@@ -78,11 +102,12 @@ it('exports only the signed-in users live commits including replies and all mode
     $commits = collect($data['commits'])->keyBy('id');
 
     expect($commits->keys()->sort()->values()->all())->toBe(collect([
-        $approved->id, $pending->id, $rejected->id, $reply->id, $survivingReply->id,
+        $approved->id, $pending->id, $rejected->id, $reply->id, $quote->id, $survivingReply->id,
     ])->sort()->values()->all());
     expect($commits[$approved->id])->toBe([
         'id' => $approved->id,
         'parent_id' => null,
+        'quoted_commit_id' => null,
         'series_id' => null,
         'series_position' => null,
         'series_size' => null,
@@ -94,6 +119,7 @@ it('exports only the signed-in users live commits including replies and all mode
         ->and($commits[$pending->id]['status'])->toBe('pending')
         ->and($commits[$rejected->id]['status'])->toBe('rejected')
         ->and($commits[$reply->id]['parent_id'])->toBe($parent->id)
+        ->and($commits[$quote->id]['quoted_commit_id'])->toBe($parent->id)
         ->and($commits[$survivingReply->id]['parent_id'])->toBe($deleted->id)
         ->and($response->streamedContent())->not->toContain($deleted->body, $deletedReply->body, $parent->body);
 });
@@ -138,4 +164,24 @@ it('exports all records across chunk boundaries without omissions or duplicates'
 
     expect(collect($data['commits'])->pluck('id')->sort()->values()->all())->toBe($commits->pluck('id')->sort()->values()->all())
         ->and(collect($data['following'])->pluck('username')->sort()->values()->all())->toBe($following->pluck('username')->sort()->values()->all());
+});
+
+it('exports who the user mutes and blocks, but never who mutes or blocks them', function (): void {
+    $user = User::factory()->create();
+    $muted = User::factory()->create(['username' => 'muted-developer']);
+    $blocked = User::factory()->create(['username' => 'blocked-developer']);
+    $muter = User::factory()->create(['username' => 'secret-muter']);
+    $blocker = User::factory()->create(['username' => 'secret-blocker']);
+
+    $user->muting()->attach($muted);
+    $user->blocking()->attach($blocked);
+    $muter->muting()->attach($user);
+    $blocker->blocking()->attach($user);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['muting'])->toBe([['username' => 'muted-developer']])
+        ->and($data['blocking'])->toBe([['username' => 'blocked-developer']])
+        ->and($response->streamedContent())->not->toContain('secret-muter', 'secret-blocker', $muted->id, $blocked->id);
 });

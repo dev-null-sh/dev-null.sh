@@ -48,8 +48,20 @@ it('renders appearance settings page', function (): void {
             ->component('appearance/update'));
 });
 
-it('requires authentication', function (): void {
-    $response = $this->get(route('user-profile.edit'));
+it('renders terminal settings page', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('terminal.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('terminal/show')
+            ->where('url', url('/')));
+});
+
+it('requires authentication', function (string $route): void {
+    $response = $this->get(route($route));
 
     $response->assertRedirectToRoute('home');
-});
+})->with(['user-profile.edit', 'appearance.edit', 'terminal.show']);

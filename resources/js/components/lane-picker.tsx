@@ -1,18 +1,18 @@
-import { Form, usePage } from '@inertiajs/react';
+import { Form } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import UserLaneController from '@/actions/App/Http/Controllers/UserLaneController';
-import { GraphRail } from '@/components/graph-rail';
+import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/user-avatar';
-import { cn, laneColor } from '@/lib/utils';
+import { useUser } from '@/hooks/use-user';
+import { cn, laneColor, withViewTransition } from '@/lib/utils';
 
 const laneNames = ['Orange', 'Green', 'Violet', 'Teal', 'Rose', 'Ochre'];
 
 export function LanePreview({ lane }: { lane: string }) {
-    const { auth } = usePage().props;
+    const { user } = useUser();
 
     return (
         <div
@@ -21,17 +21,17 @@ export function LanePreview({ lane }: { lane: string }) {
             style={{ '--lane': lane } as CSSProperties}
             data-test="lane-preview"
         >
-            <GraphRail lane={lane} previousLane={lane} />
-            <div className="flex min-w-0 items-center gap-3 py-4 pr-4">
-                <UserAvatar
-                    user={auth.user}
-                    className="size-12 ring-2 ring-(--lane) ring-offset-2 ring-offset-card transition-shadow duration-200"
-                />
+            <GraphRail
+                lane={lane}
+                previousLane={lane}
+                node={<RailAvatar user={user} />}
+            />
+            <div className="flex min-w-0 items-center pr-4">
                 <div className="min-w-0">
-                    <p className="truncate font-semibold">{auth.user.name}</p>
+                    <p className="truncate font-semibold">{user.name}</p>
                     <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
                         <span className="size-2 shrink-0 rounded-full bg-(--lane) transition-colors duration-200" />
-                        <span className="truncate">@{auth.user.username}</span>
+                        <span className="truncate">@{user.username}</span>
                     </p>
                 </div>
             </div>
@@ -88,7 +88,7 @@ export function LaneOptions({
                         />
                         <span
                             className={cn(
-                                'flex size-7 items-center justify-center rounded-full ring-offset-2 ring-offset-card peer-checked:ring-2 peer-checked:ring-(--lane)',
+                                'relative flex size-7 items-center justify-center rounded-full',
                                 option.value === null
                                     ? 'border-2 border-dashed border-(--lane)'
                                     : 'bg-(--lane)',
@@ -96,6 +96,17 @@ export function LaneOptions({
                         >
                             {option.value === null && (
                                 <span className="size-2.5 rounded-full bg-(--lane)" />
+                            )}
+                            {selected === option.value && (
+                                <span
+                                    aria-hidden
+                                    className={cn(
+                                        'absolute rounded-full border-2 border-(--lane) in-place:[view-transition-name:lane-selected]',
+                                        option.value === null
+                                            ? '-inset-1.5'
+                                            : '-inset-1',
+                                    )}
+                                />
                             )}
                         </span>
                         <span className="text-xs text-muted-foreground peer-checked:font-medium peer-checked:text-foreground">
@@ -136,7 +147,9 @@ export default function LanePicker({
                         <LaneOptions
                             selected={selected}
                             automaticLane={automaticLane}
-                            onSelect={setSelected}
+                            onSelect={(lane) =>
+                                void withViewTransition(() => setSelected(lane))
+                            }
                         />
 
                         <InputError message={errors.lane} className="mt-2" />

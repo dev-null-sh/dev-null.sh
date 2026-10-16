@@ -20,6 +20,7 @@ import { CommitImages } from '@/components/commit-images';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import InputError from '@/components/input-error';
+import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
@@ -28,10 +29,19 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
+import { useUser } from '@/hooks/use-user';
+import { signIn } from '@/lib/auth';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
-import { cn, formatRelativeTime, isDeleted, laneOf } from '@/lib/utils';
+import {
+    characterCount,
+    cn,
+    formatRelativeTime,
+    isDeleted,
+    laneOf,
+} from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
@@ -39,7 +49,8 @@ const maxIndentDepth = 3;
 const maxBodyLength = 280;
 
 const threadLayouts = {
-    root: '[--indent:52px] [--spine:20px]',
+    // Root replies line up with the commit text, and their elbow branches off the rail.
+    root: '[--indent:0px] [--spine:-32px] sm:[--spine:-36px]',
     nested: '[--indent:32px] [--spine:12px] sm:[--indent:38px] sm:[--spine:14px]',
     flattened: '[--indent:0px]',
 };
@@ -193,7 +204,7 @@ export function ThreadActions({
 }) {
     const { auth } = usePage().props;
     const { commit } = thread;
-    const hasStash = useHasStash(auth.user.id, `reply-${commit.id}`);
+    const hasStash = useHasStash(auth.user?.id ?? null, `reply-${commit.id}`);
 
     return (
         <>
@@ -205,9 +216,11 @@ export function ThreadActions({
                         <button
                             type="button"
                             onClick={
-                                thread.isReplying
-                                    ? thread.cancelReply
-                                    : thread.startReply
+                                auth.user === null
+                                    ? signIn
+                                    : thread.isReplying
+                                      ? thread.cancelReply
+                                      : thread.startReply
                             }
                             aria-expanded={thread.isReplying}
                             aria-keyshortcuts={
@@ -568,7 +581,9 @@ function CommitReply({
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
 
-    const isOwn = reply.user_id === auth.user.id;
+    const avatarRef = useRef<HTMLAnchorElement>(null);
+
+    const isOwn = reply.user_id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
 
     const deleteReply = () =>
@@ -587,8 +602,9 @@ function CommitReply({
             {links}
             <div className="flex gap-2 sm:gap-2.5">
                 <div className="relative shrink-0">
-                    <UserPreview user={reply.user}>
+                    <UserPreview user={reply.user} anchor={avatarRef}>
                         <Link
+                            ref={avatarRef}
                             href={show(reply.user)}
                             className="block rounded-full"
                         >
@@ -610,6 +626,7 @@ function CommitReply({
                     <div className="flex items-baseline gap-1.5 text-sm">
                         <UserPreview
                             user={reply.user}
+                            anchor={avatarRef}
                             className="flex min-w-0 items-baseline gap-1.5"
                         >
                             <Link
@@ -729,15 +746,16 @@ function ReplyComposer({
     onCancel: () => void;
     onReplied: () => void;
 }) {
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const { body, isRestored, updateBody, drop } = useStash(
-        auth.user.id,
+        user.id,
         `reply-${parent.id}`,
     );
     const attachments = useImageAttachments();
+    const linkCard = useLinkCard(body);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const remaining = maxBodyLength - body.length;
-    const isReplyable = body.trim().length >= 3;
+    const remaining = maxBodyLength - characterCount(body);
+    const isReplyable = characterCount(body.trim()) >= 3;
     const suggestion = suggestEmoji(body);
 
     const returnFocusToCommit = () => {
@@ -793,6 +811,7 @@ function ReplyComposer({
                 if (page.flash.committed) {
                     drop();
                     attachments.clear();
+                    linkCard.reset();
                     returnFocusToCommit();
                     onReplied();
                 }
@@ -828,7 +847,11 @@ function ReplyComposer({
                         className="mt-1 px-1"
                     />
                     <InputError
-                        message={errors.body ?? errors.parent_id}
+                        message={
+                            errors.body ??
+                            errors.parent_id ??
+                            errors.link_preview_url
+                        }
                         className="px-1"
                     />
                     <ImagePickerPreviews
@@ -846,6 +869,12 @@ function ReplyComposer({
                                 disabled={processing}
                                 onPick={attachments.attach}
                                 className="size-8"
+                            />
+                            <LinkCardPicker
+                                linkCard={linkCard}
+                                disabled={processing}
+                                className="-ml-1"
+                                labelClassName="max-sm:sr-only"
                             />
                             {isRestored && (
                                 <StashLabel

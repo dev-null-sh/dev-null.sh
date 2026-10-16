@@ -60,7 +60,7 @@ export function UserSearchDialog({
         };
     }, [term]);
 
-    const visibleResults = term === '' ? [] : results;
+    const visibleResults = term !== '' && term === searched ? results : [];
 
     const close = () => {
         onOpenChange(false);
