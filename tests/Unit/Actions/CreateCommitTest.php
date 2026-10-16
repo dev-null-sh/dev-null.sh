@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommit;
 use App\Enums\CommitStatus;
+use App\Enums\NotificationType;
+use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
@@ -73,6 +75,41 @@ it('does not notify about pending replies', function (): void {
     expect(Notification::query()->count())->toBe(0);
 });
 
+it('may quote a commit', function (): void {
+    $quoted = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $quote = $action->handle(User::factory()->create(), 'Worth a read', quotedCommit: $quoted);
+
+    expect($quote->quotedCommit->is($quoted))->toBeTrue()
+        ->and($quote->parent_id)->toBeNull();
+});
+
+it('notifies the quoted author about quotes of admins', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $quoted = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $quote = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $quoted);
+
+    expect($quoted->user->notifications()->sole())
+        ->type->toBe(NotificationType::Quoted)
+        ->commit_id->toBe($quote->id);
+});
+
+it('does not notify about pending quotes', function (): void {
+    $quoted = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(), 'Worth a read', quotedCommit: $quoted);
+
+    expect(Notification::query()->count())->toBe(0);
+});
+
 it('notifies mentioned users about commits of admins', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
@@ -93,6 +130,64 @@ it('does not notify about pending mentions', function (): void {
     $action->handle(User::factory()->create(), 'Shipped it with @taylorotwell');
 
     expect(Notification::query()->count())->toBe(0);
+});
+
+it('asks the ai for its decision on pending commits', function (): void {
+    config(['services.openai.key' => 'sk-test']);
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Initial commit');
+
+    Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($commit));
+});
+
+it('does not ask the ai about commits of admins', function (): void {
+    config(['services.openai.key' => 'sk-test', 'app.admins' => ['nunomaduro']]);
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Initial commit');
+
+    Queue::assertNotPushed(ModerateCommit::class);
+});
+
+it('queues ai review for a quote while preserving its images and chosen link card', function (): void {
+    config(['services.openai.key' => 'sk-test']);
+    Storage::fake();
+    Queue::fake([ModerateCommit::class, UnfurlLink::class]);
+
+    $quoted = Commit::factory()->create();
+
+    $quote = resolve(CreateCommit::class)->handle(
+        User::factory()->create(),
+        'Compare https://example.com/first and https://example.com/second',
+        quotedCommit: $quoted,
+        images: [UploadedFile::fake()->image('comparison.png', 10, 10)],
+        linkPreview: 'https://example.com/second',
+    );
+
+    expect($quote->status)->toBe(CommitStatus::Pending)
+        ->and($quote->quoted_commit_id)->toBe($quoted->id)
+        ->and($quote->images)->toHaveCount(1)
+        ->and($quote->linkPreview->url)->toBe('https://example.com/second')
+        ->and($quoted->user->notifications()->exists())->toBeFalse();
+
+    Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($quote));
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($quote->linkPreview));
+});
+
+it('does not ask the ai without an api key', function (): void {
+    config(['services.openai.key' => null]);
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(), 'Initial commit');
+
+    Queue::assertNotPushed(ModerateCommit::class);
 });
 
 it('attaches a link preview for the first url in the body', function (): void {
