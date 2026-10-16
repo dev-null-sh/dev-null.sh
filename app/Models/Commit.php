@@ -173,6 +173,14 @@ final class Commit extends Model
     }
 
     /**
+     * Later parts of a series are replies to the part before them, yet they read as part of it rather than as replies.
+     */
+    public function isSeriesContinuation(): bool
+    {
+        return $this->series_position !== null && $this->series_position > 1;
+    }
+
+    /**
      * @return HasMany<Bookmark, $this>
      */
     public function bookmarks(): HasMany
@@ -234,7 +242,8 @@ final class Commit extends Model
     public function loadPublicPreview(): self
     {
         $this->forceFill([
-            'replies_count' => self::query()->withTrashed()->withVisibleReplyCount(null)->find($this->id)->replies_count ?? 0,
+            'replies_count' => self::query()->withTrashed()->withVisibleReplyCount(null)
+                ->whereKey($this->getAttributeFromArray($this->getKeyName()))->first()->replies_count ?? 0,
         ])->syncOriginalAttribute('replies_count');
 
         return $this->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
