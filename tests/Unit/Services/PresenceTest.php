@@ -18,7 +18,7 @@ it('counts a user as offline once the online window has passed', function (): vo
 });
 
 it('counts a user who was never active as offline', function (): void {
-    expect((new Presence())->isOnline(null))->toBeFalse();
+    expect(new Presence()->isOnline(null))->toBeFalse();
 });
 
 it('refreshes a timestamp once it is stale enough', function (): void {

@@ -21,13 +21,13 @@ final readonly class Presence
 
     public function isOnline(?CarbonInterface $lastActivityAt): bool
     {
-        return $lastActivityAt !== null
+        return $lastActivityAt instanceof CarbonInterface
             && $lastActivityAt->gt(now()->subMinutes(self::ONLINE_WINDOW_MINUTES));
     }
 
     public function needsRefresh(?CarbonInterface $lastActivityAt): bool
     {
-        return $lastActivityAt === null
+        return ! $lastActivityAt instanceof CarbonInterface
             || $lastActivityAt->lte(now()->subMinutes(self::REFRESH_AFTER_MINUTES));
     }
 }

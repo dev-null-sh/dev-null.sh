@@ -6,8 +6,8 @@ namespace App\Actions;
 
 use App\Models\User;
 use App\Services\Presence;
-use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Date;
 
 final readonly class UpdateUserLastActiveAt
 {
@@ -40,6 +40,6 @@ final readonly class UpdateUserLastActiveAt
         /** @var string|null $lastActivityAt */
         $lastActivityAt = $user->getRawOriginal('last_activity_at');
 
-        return $lastActivityAt === null ? null : Carbon::parse($lastActivityAt);
+        return $lastActivityAt === null ? null : Date::parse($lastActivityAt);
     }
 }
