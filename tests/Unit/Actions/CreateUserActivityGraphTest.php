@@ -6,7 +6,6 @@ use App\Actions\CreateUserActivityGraph;
 use App\Enums\ActivityGraphTheme;
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 30));
@@ -174,19 +173,3 @@ it('mixes the lower levels from the lane into the card like the profile does', f
     'light' => [ActivityGraphTheme::Light, [1 => '#fac8b8', 2 => '#f19e84', 3 => '#e5724e', 4 => '#d9480f']],
     'dark' => [ActivityGraphTheme::Dark, [1 => '#5a3a2d', 2 => '#915639', 3 => '#cc7244', 4 => '#ff8a4c']],
 ]);
-
-it('draws the graph again only once what it shows has changed', function (): void {
-    $user = User::factory()->create();
-    $action = resolve(CreateUserActivityGraph::class);
-    $svg = $action->handle($user, ActivityGraphTheme::Light);
-
-    DB::flushQueryLog();
-    DB::enableQueryLog();
-
-    expect($action->handle($user, ActivityGraphTheme::Light))->toBe($svg)
-        ->and(DB::getQueryLog())->toHaveCount(1);
-
-    Commit::factory()->for($user)->create();
-
-    expect($action->handle($user, ActivityGraphTheme::Light))->not->toBe($svg);
-});

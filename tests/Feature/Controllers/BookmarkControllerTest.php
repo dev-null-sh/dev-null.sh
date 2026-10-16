@@ -9,7 +9,6 @@ use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 it('saves a visible commit idempotently for the authenticated user', function (): void {
@@ -289,7 +288,6 @@ it('loads saved commit authors and state with a bounded number of queries', func
     $singleCount = count(DB::getQueryLog());
     Bookmark::factory()->count(19)->create(['user_id' => $user->id]);
     DB::flushQueryLog();
-    Cache::flush();
 
     $this->get(route('bookmark.index'))->assertOk()->assertInertia(fn ($page) => $page->has('commits.data', 20));
     expect(count(DB::getQueryLog()))->toBe($singleCount);

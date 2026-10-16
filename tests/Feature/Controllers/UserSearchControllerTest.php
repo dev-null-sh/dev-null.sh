@@ -111,13 +111,3 @@ it('leaves out muted people and people across a block', function (): void {
         ->assertJsonCount(1, 'users')
         ->assertJsonPath('users.0.username', 'taylor');
 });
-
-it('asks guests to slow down after 60 searches a minute', function (): void {
-    for ($attempt = 0; $attempt < 60; $attempt++) {
-        $this->getJson('/search/users?q=nuno')->assertOk();
-    }
-
-    $this->getJson('/search/users?q=nuno')
-        ->assertTooManyRequests()
-        ->assertExactJson(['message' => 'Slow down: too many searches. Give it a few seconds.']);
-});

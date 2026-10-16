@@ -5,7 +5,6 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
-import { GuestComposer } from '@/components/guest-composer';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
@@ -13,10 +12,10 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useLastVisit } from '@/hooks/use-last-visit';
+import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { home } from '@/routes';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
@@ -36,15 +35,9 @@ export default function Show({
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
-    const {
-        flash,
-        props: {
-            auth: { user },
-        },
-    } = usePage();
-    // Guests read the log at the home page, without a log of their own to remember...
-    const viewerId = user?.id ?? 'guest';
-    const markerKey = `latest-marker:${viewerId}:${log}`;
+    const { user } = useUser();
+    const { flash } = usePage();
+    const markerKey = `latest-marker:${user.id}:${log}`;
     const [markerId, setMarkerId] = useState(
         () =>
             (flash.committed ? readStorage(markerKey) : '') ||
@@ -53,7 +46,7 @@ export default function Show({
     const newestId = isRanked ? markerId || undefined : commits.data[0]?.id;
 
     useEffect(() => writeStorage(markerKey, markerId), [markerKey, markerId]);
-    const firstSeenId = useLastVisit(viewerId, log, commits.data);
+    const firstSeenId = useLastVisit(user.id, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
         30_000,
@@ -92,7 +85,7 @@ export default function Show({
                 const next =
                     newestOf(
                         (page.props.latestCommits as Commit[]).filter(
-                            (commit) => commit.user_id !== user?.id,
+                            (commit) => commit.user_id !== user.id,
                         ),
                     )?.id ?? markerId;
 
@@ -118,51 +111,30 @@ export default function Show({
 
     return (
         <>
-            <Head
-                title={
-                    user === null
-                        ? 'A social network for developers'
-                        : titles[log]
-                }
-            />
+            <Head title={titles[log]} />
 
             <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]">
                 <h1 className="sr-only">{titles[log]}</h1>
                 <PageTabs
                     label="Logs"
                     prefetch={false}
-                    tabs={
-                        user === null
-                            ? [
-                                  {
-                                      title: 'Latest',
-                                      href: home({ query: { log: 'latest' } }),
-                                      isActive: log === 'latest',
-                                  },
-                                  {
-                                      title: 'Trending',
-                                      href: home(),
-                                      isActive: log === 'trending',
-                                  },
-                              ]
-                            : [
-                                  {
-                                      title: 'Following',
-                                      href: LogController.show('following'),
-                                      isActive: log === 'following',
-                                  },
-                                  {
-                                      title: 'Latest',
-                                      href: LogController.show('latest'),
-                                      isActive: log === 'latest',
-                                  },
-                                  {
-                                      title: 'Trending',
-                                      href: LogController.show('trending'),
-                                      isActive: log === 'trending',
-                                  },
-                              ]
-                    }
+                    tabs={[
+                        {
+                            title: 'Following',
+                            href: LogController.show('following'),
+                            isActive: log === 'following',
+                        },
+                        {
+                            title: 'Latest',
+                            href: LogController.show('latest'),
+                            isActive: log === 'latest',
+                        },
+                        {
+                            title: 'Trending',
+                            href: LogController.show('trending'),
+                            isActive: log === 'trending',
+                        },
+                    ]}
                 />
 
                 {newCommitsCount > 0 && (
@@ -182,7 +154,7 @@ export default function Show({
                 )}
             </div>
 
-            {user === null ? <GuestComposer /> : <CommitComposer />}
+            <CommitComposer />
 
             <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
                 <CommitFeed

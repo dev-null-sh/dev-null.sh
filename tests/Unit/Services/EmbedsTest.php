@@ -7,7 +7,6 @@ use App\Dto\Embed;
 use App\Enums\EmbedKind;
 use App\Services\EmbedProviders\YouTube;
 use App\Services\Embeds;
-use Illuminate\Support\Env;
 use Uri\WhatWg\Url;
 
 it('embeds links to a provider', function (): void {
@@ -63,9 +62,25 @@ it('asks the providers in order', function (): void {
 });
 
 it('reads the provider list from the environment', function (): void {
-    Env::getRepository()->set('EMBEDS_PROVIDERS', ' youtube, ,spotify ');
-    $config = require config_path('embeds.php');
-    Env::getRepository()->clear('EMBEDS_PROVIDERS');
+    $environment = $_ENV['EMBEDS_PROVIDERS'] ?? null;
+    $server = $_SERVER['EMBEDS_PROVIDERS'] ?? null;
 
-    expect($config['only'])->toBe(['youtube', 'spotify']);
+    try {
+        $_ENV['EMBEDS_PROVIDERS'] = $_SERVER['EMBEDS_PROVIDERS'] = ' youtube, ,spotify ';
+        $config = require config_path('embeds.php');
+
+        expect($config['only'])->toBe(['youtube', 'spotify']);
+    } finally {
+        if ($environment === null) {
+            unset($_ENV['EMBEDS_PROVIDERS']);
+        } else {
+            $_ENV['EMBEDS_PROVIDERS'] = $environment;
+        }
+
+        if ($server === null) {
+            unset($_SERVER['EMBEDS_PROVIDERS']);
+        } else {
+            $_SERVER['EMBEDS_PROVIDERS'] = $server;
+        }
+    }
 });
