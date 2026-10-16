@@ -1,12 +1,32 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { App } from '@inertiajs/react';
+import type { ComponentProps, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import {
     LinkifiedText,
     typedLinks,
 } from '../../resources/js/components/linkified-text';
+
+function renderPage(content: ReactElement): string {
+    return renderToStaticMarkup(
+        <App
+            initialComponent={() => content}
+            initialPage={
+                {
+                    component: 'Commit',
+                    url: '/',
+                    version: null,
+                    props: { errors: {}, auth: { user: null, pasteis: null } },
+                    clearHistory: false,
+                    encryptHistory: false,
+                } as unknown as ComponentProps<typeof App>['initialPage']
+            }
+        />,
+    );
+}
 
 void test('keeps stable mention links alongside shortened URLs and their full copyable text', () => {
     const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
@@ -36,7 +56,7 @@ void test('leaves mentions without captured identities as plain text', () => {
 
 void test('keeps captured mention identities in regular bodies alongside highlighted code', () => {
     const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
-    const html = renderToStaticMarkup(
+    const html = renderPage(
         <CommitBody
             segments={[
                 { type: 'text', text: 'Thanks @ORIGINAL and @unknown! ' },

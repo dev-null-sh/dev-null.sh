@@ -120,10 +120,38 @@ function ShortenedUrl({ url }: { url: string }) {
     );
 }
 
+function withPasteis(text: string, pasteisMode: boolean): ReactNode {
+    if (!pasteisMode) {
+        return text;
+    }
+
+    return text
+        .split(
+            /(?<![\p{L}\p{M}\p{N}_])(pastel|pasteis|pastéis)(?![\p{L}\p{M}\p{N}_])/giu,
+        )
+        .map((part, index) =>
+            index % 2 === 0 ? (
+                part
+            ) : (
+                <img
+                    key={index}
+                    src="/pastel-de-nata.svg"
+                    alt={part}
+                    title={part}
+                    width={20}
+                    height={20}
+                    className="inline-block size-[1.25em] object-contain align-[-0.2em]"
+                />
+            ),
+        );
+}
+
 function withMentions(
     text: string,
     offset: number,
     mentions: Commit['mentions'],
+    pasteisMode: boolean,
+    isStatic: boolean,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -136,8 +164,10 @@ function withMentions(
                 : null;
 
         parts.push(
-            text.slice(position, match.index),
-            userId ? (
+            withPasteis(text.slice(position, match.index), pasteisMode),
+            isStatic || !userId ? (
+                match[0]
+            ) : (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
                     user={{ username: match[1] }}
@@ -151,15 +181,13 @@ function withMentions(
                         {match[0]}
                     </Link>
                 </UserPreview>
-            ) : (
-                match[0]
             ),
         );
 
         position = match.index + match[0].length;
     }
 
-    parts.push(text.slice(position));
+    parts.push(withPasteis(text.slice(position), pasteisMode));
 
     return parts;
 }
@@ -167,9 +195,13 @@ function withMentions(
 export function LinkifiedText({
     text,
     mentions,
+    pasteisMode = false,
+    isStatic = false,
 }: {
     text: string;
     mentions: Commit['mentions'];
+    pasteisMode?: boolean;
+    isStatic?: boolean;
 }) {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -187,23 +219,37 @@ export function LinkifiedText({
                 text.slice(position, match.index),
                 position,
                 mentions,
+                pasteisMode,
+                isStatic,
             ),
-            <a
-                key={match.index}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer nofollow ugc"
-                title={href}
-                className="wrap-anywhere text-primary hover:underline"
-            >
-                <ShortenedUrl url={linkText} />
-            </a>,
+            isStatic ? (
+                linkText
+            ) : (
+                <a
+                    key={match.index}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow ugc"
+                    title={href}
+                    className="wrap-anywhere text-primary hover:underline"
+                >
+                    <ShortenedUrl url={linkText} />
+                </a>
+            ),
         );
 
         position = match.index + linkText.length;
     }
 
-    parts.push(...withMentions(text.slice(position), position, mentions));
+    parts.push(
+        ...withMentions(
+            text.slice(position),
+            position,
+            mentions,
+            pasteisMode,
+            isStatic,
+        ),
+    );
 
     return <>{parts}</>;
 }

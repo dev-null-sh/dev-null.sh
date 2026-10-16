@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { CodeBlock } from '@/components/code-block';
 import { LinkifiedText } from '@/components/linkified-text';
@@ -16,6 +17,8 @@ export function CommitBody({
     className?: string;
     isStatic?: boolean;
 }) {
+    const { auth } = usePage().props;
+
     return (
         <div
             className={cn(
@@ -26,13 +29,13 @@ export function CommitBody({
             {segments.map((segment, index) => {
                 switch (segment.type) {
                     case 'text':
-                        return isStatic ? (
-                            emojify(segment.text)
-                        ) : (
+                        return (
                             <LinkifiedText
                                 key={index}
                                 text={emojify(segment.text)}
                                 mentions={mentions}
+                                pasteisMode={Boolean(auth.pasteis)}
+                                isStatic={isStatic}
                             />
                         );
                     case 'code':
