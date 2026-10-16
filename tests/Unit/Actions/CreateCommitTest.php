@@ -290,14 +290,14 @@ it('only fetches link previews that were never fetched', function (): void {
     Queue::assertNothingPushed();
 });
 
-it('fetches the link preview once the commit is saved', function (): void {
+it('queues the link preview for the saved commit', function (): void {
     Queue::fake();
 
     $action = resolve(CreateCommit::class);
 
     $commit = $action->handle(User::factory()->create(), 'Look at https://example.com');
 
-    Queue::assertPushed(UnfurlLink::class);
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
 
     expect($commit->exists)->toBeTrue();
 });

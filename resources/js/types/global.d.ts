@@ -9,6 +9,7 @@ declare module '@inertiajs/core' {
             committed?: CommittedFlash;
             deleted?: DeletedFlash;
             restored?: Commit;
+            scheduled?: boolean;
         };
         sharedPageProps: {
             name: string;
