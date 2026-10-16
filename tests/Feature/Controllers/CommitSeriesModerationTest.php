@@ -9,6 +9,7 @@ use App\Models\CommitClaim;
 use App\Models\CommitDecision;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
@@ -84,6 +85,7 @@ it('lists a series under its next part once its first part is deleted', function
 it('loads the queue with the same number of queries however many series wait', function (): void {
     $queries = function (): int {
         DB::flushQueryLog();
+        Cache::flush();
         DB::enableQueryLog();
 
         $this->actingAs($this->admin)->get(route('moderation.show'))->assertOk();

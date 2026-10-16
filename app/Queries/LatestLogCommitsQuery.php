@@ -20,7 +20,7 @@ final readonly class LatestLogCommitsQuery
     /**
      * The newest commit when the log was loaded, from which newer commits are counted and offered.
      */
-    public function newestId(Log $log, User $user): ?string
+    public function newestId(Log $log, ?User $user): ?string
     {
         return $log->query()->builder($user)
             ->setEagerLoads([])
@@ -30,7 +30,7 @@ final readonly class LatestLogCommitsQuery
             ?->id;
     }
 
-    public function count(Log $log, User $user, Commit $since): int
+    public function count(Log $log, ?User $user, Commit $since): int
     {
         return $this->newerThan($log, $user, $since)->count();
     }
@@ -41,7 +41,7 @@ final readonly class LatestLogCommitsQuery
      *
      * @return Collection<int, Commit>
      */
-    public function get(Log $log, User $user, ?Commit $since, ?Commit $committed): Collection
+    public function get(Log $log, ?User $user, ?Commit $since, ?Commit $committed): Collection
     {
         if (! $log->isRanked()) {
             return new Collection();
@@ -63,10 +63,10 @@ final readonly class LatestLogCommitsQuery
             : new Collection();
     }
 
-    private function newerThan(Log $log, User $user, Commit $since): CommitBuilder
+    private function newerThan(Log $log, ?User $user, Commit $since): CommitBuilder
     {
         return $log->query()->builder($user)
             ->newerThan($since)
-            ->when($log->isRanked(), fn (CommitBuilder $query): CommitBuilder => $query->whereNot('commits.user_id', $user->id));
+            ->when($log->isRanked() ? $user : null, fn (CommitBuilder $query, User $user): CommitBuilder => $query->whereNot('commits.user_id', $user->id));
     }
 }

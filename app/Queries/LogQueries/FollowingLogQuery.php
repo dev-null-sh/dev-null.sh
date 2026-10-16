@@ -12,8 +12,15 @@ use Illuminate\Database\Eloquent\Builder;
 
 final readonly class FollowingLogQuery implements LogQuery
 {
-    public function builder(User $user): CommitBuilder
+    /**
+     * Guests follow no one, so their Following log is empty.
+     */
+    public function builder(?User $user): CommitBuilder
     {
+        if (! $user instanceof User) {
+            return Commit::query()->whereKey([]);
+        }
+
         $following = $user->following();
 
         return Commit::query()

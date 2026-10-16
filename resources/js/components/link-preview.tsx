@@ -1,17 +1,19 @@
 import { useState } from 'react';
+import { LinkEmbed } from '@/components/link-embed';
+import { hostname } from '@/lib/urls';
 import type { LinkPreview as LinkPreviewData } from '@/types';
-
-function hostname(url: string): string {
-    try {
-        return new URL(url).hostname.replace(/^www\./, '');
-    } catch {
-        return url;
-    }
-}
 
 export function LinkPreview({ preview }: { preview: LinkPreviewData }) {
     const [isImageBroken, setIsImageBroken] = useState(false);
     const imageUrl = isImageBroken ? null : preview.image_url;
+
+    if (preview.embed) {
+        return <LinkEmbed preview={preview} embed={preview.embed} />;
+    }
+
+    if (!preview.title) {
+        return null;
+    }
 
     return (
         <a

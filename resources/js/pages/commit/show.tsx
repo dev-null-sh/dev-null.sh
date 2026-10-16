@@ -118,6 +118,7 @@ export default function Show({
                 previousLane={lastAncestor ? laneOf(lastAncestor) : undefined}
                 isGroupedWithPrevious={isSameAuthor(lastAncestor, commit)}
                 initialReplies={replies ?? undefined}
+                endsWithDot={series.length === 0}
                 isFocused
                 isSeriesExpanded
             />
@@ -131,12 +132,14 @@ export default function Show({
                         key={part.id}
                         commit={part}
                         previousLane={previousLane}
+                        endsWithDot={index === series.length - 1}
                     />
                 ) : (
                     <CommitCard
                         key={part.id}
                         commit={part}
                         previousLane={previousLane}
+                        endsWithDot={index === series.length - 1}
                         isGroupedWithPrevious={isSameAuthor(previous, part)}
                         isSeriesExpanded
                     />

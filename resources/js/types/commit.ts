@@ -2,12 +2,23 @@ import type { User } from '@/types/auth';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
+export type EmbedKind = 'video' | 'audio' | 'code';
+
+export type Embed = {
+    provider: string;
+    kind: EmbedKind;
+    src: string;
+    aspect_ratio: string | null;
+    height: number | null;
+};
+
 export type LinkPreview = {
     url: string;
     title: string | null;
     description: string | null;
     image_url: string | null;
     site_name: string | null;
+    embed?: Embed | null;
 };
 
 export type PollOption = {

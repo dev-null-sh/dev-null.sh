@@ -94,3 +94,9 @@ it('leaves out commits by followed people the user muted', function (): void {
 
     expect($commits->modelKeys())->toBe([$visible->id]);
 });
+
+it('is empty for guests, who follow no one', function (): void {
+    Commit::factory()->create();
+
+    expect(resolve(FollowingLogQuery::class)->builder(null)->get())->toBeEmpty();
+});

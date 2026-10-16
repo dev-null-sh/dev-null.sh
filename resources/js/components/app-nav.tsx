@@ -35,7 +35,7 @@ import { edit } from '@/routes/user-profile';
 import type { Log, NavItem, Profile } from '@/types';
 
 /**
- * Guests see the same items, each taking them to sign in.
+ * Guests see the same items, each taking them to sign in, except the log, which they read at the home page.
  */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
     const { auth, hasUnmoderatedCommits } = usePage().props;
@@ -50,7 +50,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     const items: NavItem[] = [
         {
             title: 'Log',
-            href: hrefFor((_, log) => LogController.show(log)),
+            href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
             prefetch: false,
         },
@@ -98,14 +98,15 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     return items.map((item) => ({
         ...item,
         isActive:
-            user !== null &&
-            (item.title === 'Settings'
-                ? isCurrentOrParentUrl('/settings')
-                : item.title === 'Moderation'
-                  ? isCurrentOrParentUrl('/moderation')
-                  : item.title === 'Log'
-                    ? isCurrentOrParentUrl('/log')
-                    : isCurrentUrl(item.href)),
+            user === null
+                ? item.title === 'Log' && isCurrentUrl(home())
+                : item.title === 'Settings'
+                  ? isCurrentOrParentUrl('/settings')
+                  : item.title === 'Moderation'
+                    ? isCurrentOrParentUrl('/moderation')
+                    : item.title === 'Log'
+                      ? isCurrentOrParentUrl('/log')
+                      : isCurrentUrl(item.href),
     }));
 }
 
@@ -121,9 +122,7 @@ function NavLink({
     className: string;
     children: ReactNode;
 }) {
-    const { auth } = usePage().props;
-
-    if (auth.user === null) {
+    if (toUrl(item.href) === login().url) {
         return (
             <a href={toUrl(item.href)} className={className}>
                 {children}
@@ -322,7 +321,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                 <button
                     type="button"
                     onClick={onSearch}
-                    aria-label="Search developers"
+                    aria-label="Search"
                     className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                     <Search className="size-5" />

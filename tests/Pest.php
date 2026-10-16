@@ -8,6 +8,7 @@ use App\Enums\CommitStatus;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\OpenAI;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -67,6 +68,63 @@ function fakeGitHubAccount(User $user, array $account = []): void
     ]);
 
     fakeGitHubSshKeys(User::factory()->make(['github_id' => $user->github_id, 'username' => $account['login']]));
+}
+
+/**
+ * A unit vector in one dimension and zero elsewhere, so two of them differ only in direction and their cosine
+ * distance is exact: 0 for the same dimension, 1 for any other.
+ *
+ * @return list<float>
+ */
+function embeddingVector(int $dimension): array
+{
+    $vector = array_fill(0, OpenAI::EMBEDDING_DIMENSIONS, 0.0);
+    $vector[$dimension] = 1.0;
+
+    return $vector;
+}
+
+/**
+ * @param  list<list<float>>  $embeddings
+ * @return array{data: list<array{index: int, embedding: list<float>}>}
+ */
+function embeddingsResponse(array $embeddings): array
+{
+    return ['data' => array_map(
+        fn (array $embedding, int $index): array => ['index' => $index, 'embedding' => $embedding],
+        $embeddings,
+        array_keys($embeddings),
+    )];
+}
+
+/**
+ * The decision model's verdicts, one per candidate in the order given, as a certain yes or no. Anything past the last
+ * verdict, and everything when the list is empty, counts as relevant.
+ *
+ * @param  list<bool>  $verdicts
+ * @return array{answers: list<array{type: string, name: string, probability: float}>}
+ */
+function relevanceResponse(array $verdicts): array
+{
+    return ['answers' => array_map(
+        fn (bool $verdict, int $index): array => ['type' => 'predicate', 'name' => 'post_'.($index + 1), 'probability' => $verdict ? 1.0 : 0.0],
+        $verdicts,
+        array_keys($verdicts),
+    )];
+}
+
+/**
+ * The two requests a commit search makes: embedding the term, and the decision model's verdicts on the candidates. By
+ * default every candidate is relevant, so only the filtering tests pass verdicts.
+ *
+ * @param  list<bool>  $verdicts
+ */
+function fakeSearch(array $verdicts = []): void
+{
+    Http::fake([
+        'api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(0)])),
+        'api.openai.com/v1/decisions' => Http::response(relevanceResponse($verdicts)),
+    ]);
 }
 
 /**

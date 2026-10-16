@@ -587,7 +587,11 @@ export function CommitComposer() {
         linkCards.reset();
         setDraftVersion((version) => version + 1);
     };
-    const attachments = useImageAttachments();
+    const attachments = useImageAttachments(
+        stash.images,
+        stash.descriptions,
+        stash.updateImages,
+    );
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(bodies);
     const firstSecretPart = secrets.findingsByPart.findIndex(
