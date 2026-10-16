@@ -13,7 +13,7 @@ use Generator;
 final readonly class CreateExport
 {
     /**
-     * @return array{schema_version: int, exported_at: string, profile: array<string, int|string|null>, commits: Generator<int, array<string, string|null>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, following: Generator<int, array{username: string}>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, string|null>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, following: Generator<int, array{username: string}>}
      */
     public function handle(User $user): array
     {
@@ -29,6 +29,7 @@ final readonly class CreateExport
                 'location' => $user->location,
                 'website' => $user->website,
                 'company' => $user->company,
+                'has_sponsors_listing' => $user->has_sponsors_listing,
                 'preferred_lane' => $user->preferred_lane,
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),

@@ -7,6 +7,7 @@ export type User = {
     location: string | null;
     website: string | null;
     company: string | null;
+    has_sponsors_listing: boolean;
     lane: number;
     created_at: string;
     updated_at: string;
