@@ -1,8 +1,7 @@
-import { mock } from 'bun:test';
 /// <reference types="node" />
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import * as React from 'react';
+import { test, vi } from 'vite-plus/test';
 
 const bodies = new Map<string, string>([
     ['stash:author:commit', 'First part'],
@@ -18,7 +17,7 @@ const storedImages = new Map<string, File[]>([
 let state: unknown[] = [];
 let cursor = 0;
 
-mock.module('react', () => ({
+vi.doMock('react', () => ({
     ...React,
     useState: (initial: unknown) => {
         const index = cursor++;
@@ -42,7 +41,7 @@ mock.module('react', () => ({
     },
 }));
 
-mock.module('../../resources/js/lib/storage', () => ({
+vi.doMock('../../resources/js/lib/storage', () => ({
     readStorage: (key: string) => bodies.get(key) ?? '',
     writeStorage: (key: string, body: string) => {
         if (body === '') {
@@ -54,7 +53,7 @@ mock.module('../../resources/js/lib/storage', () => ({
     storedKeys: () => [...bodies.keys()],
 }));
 
-mock.module('../../resources/js/lib/image-storage', () => ({
+vi.doMock('../../resources/js/lib/image-storage', () => ({
     readStoredImages: async () => new Map(storedImages),
     writeStoredImages: (key: string, images: File[]) => {
         if (images.length === 0) {
@@ -75,7 +74,7 @@ mock.module('../../resources/js/lib/image-storage', () => ({
 const { clearStashes, useHasStash, useSeriesStash, useStash } =
     await import('../../resources/js/hooks/use-stash');
 
-void test('restores series images, preserves them through part edits, and drops the complete draft', async () => {
+test('restores series images, preserves them through part edits, and drops the complete draft', async () => {
     const windowBefore = globalThis.window;
     globalThis.window = { addEventListener() {} } as unknown as Window &
         typeof globalThis;
