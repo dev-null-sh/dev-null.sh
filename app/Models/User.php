@@ -25,6 +25,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read string|null $location
  * @property-read string|null $website
  * @property-read string|null $company
+ * @property-read bool $has_sponsors_listing
  * @property-read int|null $preferred_lane
  * @property-read string|null $pinned_commit_id
  * @property-read string|null $remember_token
@@ -70,6 +71,7 @@ final class User extends Authenticatable
             'location' => 'string',
             'website' => 'string',
             'company' => 'string',
+            'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
             'pinned_commit_id' => 'string',
             'remember_token' => 'string',

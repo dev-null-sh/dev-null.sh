@@ -340,6 +340,7 @@ A profile or commit link shared to X, Slack, Discord, or iMessage unfurls as a 1
 - **Do** end a finished feed with a hollow root node and a dry, literal sentence.
 - **Do** mirror dark mode token-for-token on graphite (`shell-dark`, `surface-dark`) using the lifted `-dark` lanes and primary.
 - **Do** gate graph motion behind `prefers-reduced-motion`.
+- **Do** keep the layout still on load, navigation, polling, and after actions; see the frontend UI stability rules in `.ai/guidelines/resources.js.blade.php`.
 
 ### Don't:
 - **Don't** use lane colors for text, buttons, badges, or backgrounds; they mark authors on the graph and nowhere else.
