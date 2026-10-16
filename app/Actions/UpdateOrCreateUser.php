@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Two\User as GitHubUser;
 
@@ -18,6 +20,8 @@ final readonly class UpdateOrCreateUser
 
         $username = (string) $githubUser->getNickname();
 
+        $hasSponsorsListing = $this->hasSponsorsListing($githubUser->token);
+
         return User::query()->updateOrCreate([
             'github_id' => (string) $githubUser->getId(),
         ], [
@@ -29,7 +33,32 @@ final readonly class UpdateOrCreateUser
             'location' => $this->nullIfBlank(Arr::get($raw, 'location')),
             'website' => $this->website(Arr::get($raw, 'blog')),
             'company' => $this->nullIfBlank(Arr::get($raw, 'company')),
+            ...($hasSponsorsListing === null ? [] : ['has_sponsors_listing' => $hasSponsorsListing]),
         ]);
+    }
+
+    /**
+     * Only a public listing has a sponsors page to link to. The REST API doesn't say, so this asks
+     * GraphQL with the user's own token. Null when GitHub can't answer, which keeps the last known value.
+     */
+    private function hasSponsorsListing(string $token): ?bool
+    {
+        try {
+            $response = Http::withToken($token)
+                ->connectTimeout(2)
+                ->timeout(3)
+                ->post('https://api.github.com/graphql', [
+                    'query' => 'query { viewer { sponsorsListing { isPublic } } }',
+                ]);
+        } catch (ConnectionException) {
+            return null;
+        }
+
+        if ($response->failed() || $response->json('errors') !== null) {
+            return null;
+        }
+
+        return $response->json('data.viewer.sponsorsListing.isPublic') === true;
     }
 
     private function website(mixed $value): ?string
