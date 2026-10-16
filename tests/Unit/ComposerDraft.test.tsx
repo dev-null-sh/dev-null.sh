@@ -25,6 +25,7 @@ const user = { id: 'viewer', username: 'viewer', lane: 1 };
 
 vi.doMock('react', () => ({
     ...React,
+    useEffect: (effect: () => void) => effect(),
     useMemo: (factory: () => unknown) => factory(),
     useId: () => `preview-${cursor++}`,
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
@@ -131,6 +132,7 @@ test.each([1, 2])(
             ...data,
             images: [image],
             image_descriptions: ['A restored screenshot'],
+                    image_posters: [],
         });
         const preview = fields.find(
             (element) => element.type === ImagePickerPreviews,
@@ -261,7 +263,7 @@ test('removing restored images enables polls and successful posting resets the p
     }
 });
 
-test('schedules plain text in UTC and keeps pasted images visible until removed before scheduling', () => {
+test('schedules plain text in UTC and keeps pasted images visible until removed before scheduling', async () => {
     let view = render();
     const schedule = view.fields.find(
         (element) => element.props['aria-controls'] === 'commit-schedule',
@@ -302,6 +304,7 @@ test('schedules plain text in UTC and keeps pasted images visible until removed 
         preventDefault,
     });
     assert.equal(preventDefault.mock.calls.length, 1);
+    await vi.waitFor(() => assert.deepEqual(draft.images, [image]));
     view = render();
     const submit = view.fields.find(
         (element) => element.props['data-test'] === 'create-commit-button',
@@ -348,6 +351,7 @@ test('retains restored images while sensitive series text requires explicit appr
         bodies: draft.bodies,
         images: [image],
         image_descriptions: ['A restored screenshot'],
+        image_posters: [],
     });
 });
 
@@ -382,5 +386,6 @@ test('previews restored images and descriptions while keeping them attached when
         body: draft.bodies[0],
         images: [image],
         image_descriptions: ['A restored screenshot'],
+        image_posters: [],
     });
 });

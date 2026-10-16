@@ -109,12 +109,18 @@ function QuoteComposer({
         body,
         images,
         descriptions,
+        posters,
         isRestored,
         updateBody,
         updateImages,
         drop,
     } = useStash(user.id, id);
-    const attachments = useImageAttachments(images, descriptions, updateImages);
+    const attachments = useImageAttachments(
+        images,
+        descriptions,
+        updateImages,
+        posters,
+    );
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
     const keys = useKeyLabels();
@@ -157,13 +163,16 @@ function QuoteComposer({
             <Form
                 {...CommitController.store.form()}
                 errorBag="quote"
-                onBefore={secrets.beforeSubmit}
+                onBefore={() =>
+                    attachments.converting ? false : secrets.beforeSubmit()
+                }
                 transform={(data) =>
                     images.length > 0
                         ? {
                               ...data,
-                              images,
-                              image_descriptions: descriptions,
+                              images: attachments.images,
+                              image_descriptions: attachments.descriptions,
+                              image_posters: attachments.posters,
                           }
                         : data
                 }
@@ -240,6 +249,18 @@ function QuoteComposer({
                                 onDescribe={attachments.describe}
                                 onRemove={attachments.remove}
                             />
+                            {attachments.converting && (
+                                <div role="status" className="mt-2 text-sm">
+                                    {attachments.converting}{' '}
+                                    <button
+                                        type="button"
+                                        className="underline"
+                                        onClick={attachments.cancel}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
                             <InputError
                                 message={
                                     attachments.error ?? imageErrorFrom(errors)
@@ -252,8 +273,11 @@ function QuoteComposer({
                             <div className="mt-3 flex items-center justify-end gap-3">
                                 <div className="mr-auto flex items-center gap-2">
                                     <ImagePickerButton
-                                        count={images.length}
-                                        disabled={processing}
+                                        count={attachments.images.length}
+                                        disabled={
+                                            processing ||
+                                            Boolean(attachments.converting)
+                                        }
                                         onPick={attachments.attach}
                                         className="size-8"
                                     />
@@ -293,7 +317,11 @@ function QuoteComposer({
                                 </Button>
                                 <Button
                                     type="submit"
-                                    disabled={processing || !isQuotable}
+                                    disabled={
+                                        processing ||
+                                        Boolean(attachments.converting) ||
+                                        !isQuotable
+                                    }
                                     title={`Quote (${keys.combo(keys.mod, keys.enter)})`}
                                     data-test="submit-quote-button"
                                 >

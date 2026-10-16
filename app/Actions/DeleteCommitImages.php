@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Models\Commit;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use UnexpectedValueException;
 
 final readonly class DeleteCommitImages
 {
@@ -22,7 +23,14 @@ final readonly class DeleteCommitImages
                 return [];
             }
 
-            $imagePaths = $commit->images()->pluck('path')->all();
+            $imagePaths = $commit->images()
+                ->pluck('mime_type', 'path')
+                ->flatMap(fn (mixed $mimeType, int|string $path): array => match ($mimeType) {
+                    'video/webm' => [$path, $path.'.poster.webp'],
+                    'image/webp' => [$path],
+                    default => throw new UnexpectedValueException('Unsupported stored media type.'),
+                })
+                ->all();
 
             $commit->images()->delete();
 

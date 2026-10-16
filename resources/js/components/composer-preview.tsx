@@ -195,6 +195,10 @@ export function ComposerPreviewBody({
                 images={images.map((image, index) => ({
                     id: objectUrlFor(image),
                     url: objectUrlFor(image),
+                    mime_type:
+                        image.type === 'video/webm'
+                            ? 'video/webm'
+                            : 'image/webp',
                     description: descriptions[index]?.trim() || null,
                 }))}
             />

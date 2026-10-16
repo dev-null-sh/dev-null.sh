@@ -46,7 +46,7 @@ async function render(
     const result = await createInertiaApp({
         page: {
             component: 'quote',
-            props: { errors: {} },
+            props: { errors: {}, auth: { user: null } },
             url: '/@author/quote',
             version: null,
             clearHistory: false,

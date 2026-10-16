@@ -9,11 +9,13 @@ use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
+use App\Rules\CommitMedia;
 use App\Rules\VisibleCommit;
 use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Image\Image as ProcessedImage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\Enum;
@@ -23,6 +25,9 @@ use Illuminate\Validation\Rules\In;
 final class CreateCommitRequest extends FormRequest
 {
     public const array BODY_RULES = ['required', 'string', 'min:3', 'max:280'];
+
+    /** @var array<int, array{file: UploadedFile, width: int, height: int, poster: ProcessedImage}> */
+    private array $animations = [];
 
     public function authorize(): bool
     {
@@ -48,14 +53,11 @@ final class CreateCommitRequest extends FormRequest
             'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
             'poll.duration' => ['required_with:poll', Rule::enum(PollDuration::class)],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
-            'images.*' => [
-                'required',
-                'image',
-                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
-                Rule::dimensions()
-                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
-                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
-            ],
+            'images.*' => ['required', new CommitMedia(function (int $position, array $animation): void {
+                $this->animations[$position] = $animation;
+            })],
+            'image_posters' => ['nullable', 'array', 'max:'.CreateCommitImages::MAX_IMAGES],
+            'image_posters.*' => ['nullable', 'image', File::types(['png', 'webp'])->max('5mb'), Rule::dimensions()->maxWidth(960)->maxHeight(960)],
             'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
         ];
@@ -106,13 +108,19 @@ final class CreateCommitRequest extends FormRequest
     }
 
     /**
-     * @return list<UploadedFile>
+     * @return array<int, array{file: UploadedFile, width: int, height: int, poster: ProcessedImage}>
      */
+    public function animations(): array
+    {
+        return $this->animations;
+    }
+
+    /** @return array<int, UploadedFile> */
     public function images(): array
     {
         $images = $this->file('images');
 
-        return is_array($images) ? array_values($images) : [];
+        return is_array($images) ? array_diff_key($images, $this->animations) : [];
     }
 
     /**

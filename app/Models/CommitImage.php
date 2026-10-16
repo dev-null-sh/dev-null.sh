@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @property-read string $id
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read int $width
  * @property-read int $height
  * @property-read string|null $description
+ * @property-read 'image/webp'|'video/webm' $mime_type
+ * @property-read int|null $duration_ms
  * @property-read int $position
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -29,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'width',
     'height',
     'description',
+    'mime_type',
 ])]
 final class CommitImage extends Model
 {
@@ -49,6 +53,8 @@ final class CommitImage extends Model
             'width' => 'integer',
             'height' => 'integer',
             'description' => 'string',
+            'mime_type' => 'string',
+            'duration_ms' => 'integer',
             'position' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -70,12 +76,32 @@ final class CommitImage extends Model
     {
         return [
             ...parent::toArray(),
+            'duration' => $this->duration_ms === null ? null : $this->duration_ms / 1000,
             'url' => $this->url(),
+            'poster_url' => $this->isAnimation() ? route('commit-image.show', [$this, 'poster' => 1]) : null,
         ];
     }
 
     public function url(): string
     {
         return route('commit-image.show', $this);
+    }
+
+    public function publicUrl(bool $preview = false): string
+    {
+        return Storage::url($preview ? $this->previewPath() : $this->path);
+    }
+
+    public function isAnimation(): bool
+    {
+        return $this->mime_type === 'video/webm';
+    }
+
+    public function previewPath(): string
+    {
+        return match ($this->mime_type) {
+            'image/webp' => $this->path,
+            'video/webm' => $this->path.'.poster.webp',
+        };
     }
 }

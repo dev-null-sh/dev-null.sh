@@ -6,9 +6,12 @@ namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
 use App\Actions\CreateCommitSeries;
+use App\Rules\CommitMedia;
 use App\Services\Urls;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Image\Image as ProcessedImage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\NestedRules;
 use Illuminate\Validation\Rule;
@@ -17,6 +20,9 @@ use Illuminate\Validation\Rules\File;
 
 final class CreateCommitSeriesRequest extends FormRequest
 {
+    /** @var array<int, array{file: UploadedFile, width: int, height: int, poster: ProcessedImage}> */
+    private array $animations = [];
+
     public function authorize(): bool
     {
         return true;
@@ -25,7 +31,7 @@ final class CreateCommitSeriesRequest extends FormRequest
     /**
      * Images go with the first part of the series, checked like those of a single commit: by their contents, not their extension, and never SVG.
      *
-     * @return array<string, array<int, string|File|Dimensions>|NestedRules>
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions>|NestedRules>
      */
     public function rules(): array
     {
@@ -40,14 +46,11 @@ final class CreateCommitSeriesRequest extends FormRequest
                 return ['nullable', 'string', Rule::in(resolve(Urls::class)->all(is_string($body) ? $body : ''))];
             }),
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
-            'images.*' => [
-                'required',
-                'image',
-                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
-                Rule::dimensions()
-                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
-                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
-            ],
+            'images.*' => ['required', new CommitMedia(function (int $position, array $animation): void {
+                $this->animations[$position] = $animation;
+            })],
+            'image_posters' => ['nullable', 'array', 'max:'.CreateCommitImages::MAX_IMAGES],
+            'image_posters.*' => ['nullable', 'image', File::types(['png', 'webp'])->max('5mb'), Rule::dimensions()->maxWidth(960)->maxHeight(960)],
             'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
         ];
@@ -104,13 +107,19 @@ final class CreateCommitSeriesRequest extends FormRequest
     }
 
     /**
-     * @return list<UploadedFile>
+     * @return array<int, array{file: UploadedFile, width: int, height: int, poster: ProcessedImage}>
      */
+    public function animations(): array
+    {
+        return $this->animations;
+    }
+
+    /** @return array<int, UploadedFile> */
     public function images(): array
     {
         $images = $this->file('images');
 
-        return is_array($images) ? array_values($images) : [];
+        return is_array($images) ? array_diff_key($images, $this->animations) : [];
     }
 
     /**

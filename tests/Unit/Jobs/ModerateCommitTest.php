@@ -182,6 +182,29 @@ it('checks the images of a commit too, one per request', function (): void {
     ]);
 });
 
+it('reviews an animation using its poster and leaves the clip for human review', function (): void {
+    Storage::fake();
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+    $commit = Commit::factory()->pending()->create(['body' => 'A short animation']);
+    $image = CommitImage::factory()->for($commit)->create([
+        'path' => 'commit-images/animation.webm',
+        'mime_type' => 'video/webm',
+        'duration_ms' => 470,
+    ]);
+    Storage::put($image->path, mediaFixture('animated.webm'));
+    Storage::put($image->previewPath(), 'poster image');
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Pending)
+        ->and($commit->ai_categories)->toBe(['animation-needs-review']);
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/moderations')
+        && $request['input'][1]['image_url']['url'] === 'data:image/webp;base64,'.base64_encode('poster image'));
+});
+
 it('flags categories scoring above the strict thresholds, even when openai does not flag them', function (): void {
     Http::fake([
         'api.openai.com/v1/moderations' => Http::response(moderationResponse(scores: [

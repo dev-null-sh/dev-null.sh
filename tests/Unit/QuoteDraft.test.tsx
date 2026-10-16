@@ -21,6 +21,7 @@ const draft = {
 
 vi.doMock('react', () => ({
     ...React,
+    useEffect: (effect: () => void) => effect(),
     useMemo: (factory: () => unknown) => factory(),
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
         snapshot(),
@@ -66,7 +67,7 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
     ];
 }
 
-test('quotes submit restored images and clear the complete draft only on success or discard', () => {
+test('quotes submit restored images and clear the complete draft only on success or discard', async () => {
     draft.body = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
     const commit = {
         id: 'quoted',
@@ -98,6 +99,7 @@ test('quotes submit restored images and clear the complete draft only on success
             quoted_commit_id: commit.id,
             images: [image],
             image_descriptions: ['A restored screenshot'],
+            image_posters: [],
         },
     );
 
@@ -127,9 +129,11 @@ test('quotes submit restored images and clear the complete draft only on success
     assert.equal(picker.props.count, 1);
     const added = new File(['new'], 'new.png', { type: 'image/png' });
     (picker.props.onPick as (files: File[]) => void)([added]);
+    await vi.waitFor(() => assert.equal(updateImages.mock.calls.length, 1));
     assert.deepEqual(updateImages.mock.lastCall, [
         [image, added],
         ['A restored screenshot', ''],
+        [null, null],
     ]);
 
     const onSuccess = form.props.onSuccess as (page: {
@@ -141,7 +145,7 @@ test('quotes submit restored images and clear the complete draft only on success
     assert.equal(drop.mock.calls.length, 0);
 
     onSuccess({ flash: { committed: { id: 'created' } } });
-    assert.deepEqual(updateImages.mock.lastCall, [[], []]);
+    assert.deepEqual(updateImages.mock.lastCall, [[], [], []]);
     assert.equal(drop.mock.calls.length, 1);
 
     vi.stubGlobal('document', { getElementById: () => null });
@@ -149,7 +153,7 @@ test('quotes submit restored images and clear the complete draft only on success
         const stash = fields.find((element) => element.type === StashLabel)!;
         updateImages.mockClear();
         (stash.props.onDrop as () => void)();
-        assert.deepEqual(updateImages.mock.lastCall, [[], []]);
+        assert.deepEqual(updateImages.mock.lastCall, [[], [], []]);
         assert.equal(drop.mock.calls.length, 2);
     } finally {
         vi.unstubAllGlobals();

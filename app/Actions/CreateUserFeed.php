@@ -67,7 +67,7 @@ final readonly class CreateUserFeed
         $this->link($xml, 'alternate', route('commit.show', [$user, $commit]), 'text/html');
 
         foreach ($commit->images as $image) {
-            $this->link($xml, 'enclosure', $image->url(), 'image/webp');
+            $this->link($xml, 'enclosure', $image->url(), $image->mime_type);
         }
 
         $xml->writeElement('published', $commit->created_at->toAtomString());

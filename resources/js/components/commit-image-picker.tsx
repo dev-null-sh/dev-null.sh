@@ -1,5 +1,6 @@
 import { ImagePlus, X } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
+import { AnimationVideo } from '@/components/animation-video';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -47,6 +48,7 @@ export function imageErrorFrom(
         (name) =>
             name === 'images' ||
             name.startsWith('images.') ||
+            name.startsWith('image_posters') ||
             name.startsWith('image_descriptions'),
     );
 
@@ -162,11 +164,19 @@ export function ImagePickerPreviews({
 
                     return (
                         <li key={url} className="relative">
-                            <img
-                                src={url}
-                                alt={`Attached image ${index + 1}`}
-                                className="size-20 rounded-md border bg-muted object-cover"
-                            />
+                            {images[index].type === 'video/webm' ? (
+                                <AnimationVideo
+                                    src={url}
+                                    label={`Attached animation ${index + 1}`}
+                                    className="size-20 rounded-md border bg-muted object-cover"
+                                />
+                            ) : (
+                                <img
+                                    src={url}
+                                    alt={`Attached image ${index + 1}`}
+                                    className="size-20 rounded-md border bg-muted object-cover"
+                                />
+                            )}
                             <button
                                 type="button"
                                 onClick={() => {

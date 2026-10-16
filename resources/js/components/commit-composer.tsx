@@ -285,6 +285,18 @@ function CommitComposerPart({
                                     onRemove={attachments.remove}
                                 />
                             )}
+                            {attachments.converting && (
+                                <div role="status" className="mt-2 text-sm">
+                                    {attachments.converting}{' '}
+                                    <button
+                                        type="button"
+                                        className="underline"
+                                        onClick={attachments.cancel}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
                             <InputError
                                 message={
                                     attachments.error ??
@@ -416,7 +428,11 @@ function CommitComposerPart({
                                         <ImagePickerButton
                                             count={attachments.images.length}
                                             disabled={
-                                                processing || poll !== null
+                                                processing ||
+                                                Boolean(
+                                                    attachments.converting,
+                                                ) ||
+                                                poll !== null
                                             }
                                             onPick={attachments.attach}
                                             className="-ml-2"
@@ -428,6 +444,7 @@ function CommitComposerPart({
                                         size="icon"
                                         disabled={
                                             processing ||
+                                            Boolean(attachments.converting) ||
                                             poll !== null ||
                                             hasImages ||
                                             isSeries ||
@@ -545,7 +562,11 @@ function CommitComposerPart({
                                 )}
                                 <Button
                                     type="submit"
-                                    disabled={processing || !isSubmittable}
+                                    disabled={
+                                        processing ||
+                                        Boolean(attachments.converting) ||
+                                        !isSubmittable
+                                    }
                                     title={
                                         isScheduling
                                             ? `Schedule commit (${keys.combo(keys.mod, keys.enter)})`
@@ -583,6 +604,7 @@ export function CommitComposer() {
     const linkCards = useLinkCards(bodies);
     const [draftVersion, setDraftVersion] = useState(0);
     const drop = () => {
+        attachments.cancel();
         stash.drop();
         linkCards.reset();
         setDraftVersion((version) => version + 1);
@@ -591,6 +613,7 @@ export function CommitComposer() {
         stash.images,
         stash.descriptions,
         stash.updateImages,
+        stash.posters,
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(bodies);
@@ -673,7 +696,9 @@ export function CommitComposer() {
                 : isSeries
                   ? CommitSeriesController.store.form()
                   : CommitController.store.form())}
-            onBefore={secrets.beforeSubmit}
+            onBefore={() =>
+                attachments.converting ? false : secrets.beforeSubmit()
+            }
             transform={(data) =>
                 isScheduling
                     ? {
@@ -687,6 +712,7 @@ export function CommitComposer() {
                             ...data,
                             images: attachments.images,
                             image_descriptions: attachments.descriptions,
+                            image_posters: attachments.posters,
                         }
                       : data
             }

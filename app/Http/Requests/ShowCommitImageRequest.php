@@ -17,21 +17,39 @@ final class ShowCommitImageRequest extends FormRequest
      */
     public function authorize(): Response
     {
-        $commitImage = $this->route('commitImage');
-        assert($commitImage instanceof CommitImage);
-
+        $commitImage = $this->commitImage();
         $commit = Commit::query()->find($commitImage->commit_id);
 
-        return $commit instanceof Commit && $commit->imagesAreVisibleTo($this->user()) && Storage::disk()->exists($commitImage->path)
+        return $commit instanceof Commit && $commit->imagesAreVisibleTo($this->user()) && Storage::disk()->exists($this->mediaPath())
             ? Response::allow()
             : Response::denyAsNotFound();
     }
 
     /**
-     * @return array{}
+     * @return array<string, list<string>>
      */
     public function rules(): array
     {
-        return [];
+        return ['poster' => ['sometimes', 'boolean']];
+    }
+
+    public function isPoster(): bool
+    {
+        return $this->boolean('poster') && $this->commitImage()->isAnimation();
+    }
+
+    public function mediaPath(): string
+    {
+        $image = $this->commitImage();
+
+        return $this->isPoster() ? $image->previewPath() : $image->path;
+    }
+
+    private function commitImage(): CommitImage
+    {
+        $image = $this->route('commitImage');
+        assert($image instanceof CommitImage);
+
+        return $image;
     }
 }

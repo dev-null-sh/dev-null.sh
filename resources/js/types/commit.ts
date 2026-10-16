@@ -38,6 +38,9 @@ export type Poll = {
 };
 
 export type CommitImage = {
+    mime_type: 'image/webp' | 'video/webm';
+    duration: number | null;
+    poster_url: string | null;
     id: string;
     url: string;
     width: number;

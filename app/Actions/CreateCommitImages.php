@@ -8,9 +8,12 @@ use App\Models\Commit;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Image\Image as ProcessedImage;
 use Illuminate\Image\ImageException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Image;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 final readonly class CreateCommitImages
 {
@@ -32,18 +35,24 @@ final readonly class CreateCommitImages
     private const array ALLOWED_TYPES = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_GIF, IMAGETYPE_WEBP];
 
     /**
-     * Every image is decoded, scaled down, and re-encoded as WebP: metadata such as GPS location is dropped, and anything smuggled alongside the pixels is not kept.
+     * Still images are decoded, scaled down, and re-encoded as WebP: metadata such as GPS location is dropped, and anything smuggled alongside the pixels is not kept.
      * All of them are encoded before any is stored, so a bad one leaves nothing behind.
      *
-     * @param  list<UploadedFile>  $images
+     * @param  array<int, UploadedFile>  $images
      * @param  array<int, string|null>  $descriptions
      */
     public function handle(Commit $commit, array $images, array $descriptions = []): void
     {
-        $optimized = array_map($this->optimize(...), array_slice($images, 0, self::MAX_IMAGES));
+        $optimized = array_map($this->optimize(...), array_slice($images, 0, self::MAX_IMAGES, preserve_keys: true));
 
         foreach ($optimized as $position => $image) {
             $path = $image->storeAs('commit-images', Str::uuid7()->toString().'.webp');
+            if ($path === false) {
+                throw new RuntimeException('Unable to store image.');
+            }
+
+            $disk = Storage::disk();
+            DB::afterRollBack(fn () => $disk->delete($path));
 
             $commit->images()->create([
                 'path' => $path,

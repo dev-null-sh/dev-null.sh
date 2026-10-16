@@ -1,6 +1,7 @@
 export type StoredImages = {
     images: File[];
     descriptions: string[];
+    posters?: (File | null)[];
 };
 
 const databaseName = 'devnull';
@@ -70,7 +71,7 @@ export async function readStoredImages(): Promise<Map<string, StoredImages>> {
             if (typeof cursor.key === 'string' && Array.isArray(cursor.value)) {
                 const entries = cursor.value.flatMap((value: unknown) => {
                     if (value instanceof File) {
-                        return [{ file: value, description: '' }];
+                        return [{ file: value, description: '', poster: null }];
                     }
 
                     if (
@@ -87,6 +88,11 @@ export async function readStoredImages(): Promise<Map<string, StoredImages>> {
                                     typeof value.description === 'string'
                                         ? value.description
                                         : '',
+                                poster:
+                                    'poster' in value &&
+                                    value.poster instanceof File
+                                        ? value.poster
+                                        : null,
                             },
                         ];
                     }
@@ -97,6 +103,7 @@ export async function readStoredImages(): Promise<Map<string, StoredImages>> {
                 stored.set(cursor.key, {
                     images: entries.map((entry) => entry.file),
                     descriptions: entries.map((entry) => entry.description),
+                    posters: entries.map((entry) => entry.poster),
                 });
             }
 
@@ -111,6 +118,7 @@ export function writeStoredImages(
     key: string,
     images: File[],
     descriptions: string[],
+    posters: (File | null)[] = [],
 ): void {
     void transact('readwrite', (store) => {
         if (images.length === 0) {
@@ -120,6 +128,7 @@ export function writeStoredImages(
                 images.map((file, index) => ({
                     file,
                     description: descriptions[index] ?? '',
+                    poster: posters[index] ?? null,
                 })),
                 key,
             );

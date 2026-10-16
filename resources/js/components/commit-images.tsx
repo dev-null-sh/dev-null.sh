@@ -1,3 +1,4 @@
+import { AnimationVideo } from '@/components/animation-video';
 import { commitPhotoUrl, openCommitPhoto } from '@/lib/commit-photo';
 import { cn } from '@/lib/utils';
 import type { Commit, CommitImage } from '@/types';
@@ -17,7 +18,7 @@ export function commitImageAlt(
 }
 
 type ShownImage = Pick<CommitImage, 'id' | 'url' | 'description'> &
-    Partial<Pick<CommitImage, 'width' | 'height'>>;
+    Partial<Pick<CommitImage, 'width' | 'height' | 'mime_type' | 'poster_url'>>;
 
 type CommitImagesProps =
     | { commit: Commit; images?: never }
@@ -49,31 +50,46 @@ export function CommitImages({
                 const className = cn('block min-h-0 bg-muted', {
                     'row-span-2': images.length === 3 && index === 0,
                 });
-                const thumbnail = (
-                    <img
-                        src={image.url}
-                        alt={commitImageAlt(image, index, images.length)}
-                        width={image.width}
-                        height={image.height}
-                        loading="lazy"
-                        onError={(event) => {
-                            const image = event.currentTarget;
-                            if (image.getAttribute('src') !== '/favicon.svg') {
-                                image.src = '/favicon.svg';
-                                image.classList.replace(
-                                    'object-cover',
-                                    'object-contain',
-                                );
-                            }
-                        }}
-                        className={cn(
-                            'w-full object-cover',
-                            hasMultipleImages ? 'h-full' : 'max-h-[32rem]',
-                        )}
-                    />
-                );
+                const thumbnail =
+                    image.mime_type === 'video/webm' ? (
+                        <AnimationVideo
+                            src={image.url}
+                            poster={image.poster_url ?? undefined}
+                            label={commitImageAlt(image, index, images.length)}
+                            width={image.width}
+                            height={image.height}
+                            className={cn(
+                                'w-full object-cover',
+                                hasMultipleImages ? 'h-full' : 'max-h-[32rem]',
+                            )}
+                        />
+                    ) : (
+                        <img
+                            src={image.url}
+                            alt={commitImageAlt(image, index, images.length)}
+                            width={image.width}
+                            height={image.height}
+                            loading="lazy"
+                            onError={(event) => {
+                                const image = event.currentTarget;
+                                if (
+                                    image.getAttribute('src') !== '/favicon.svg'
+                                ) {
+                                    image.src = '/favicon.svg';
+                                    image.classList.replace(
+                                        'object-cover',
+                                        'object-contain',
+                                    );
+                                }
+                            }}
+                            className={cn(
+                                'w-full object-cover',
+                                hasMultipleImages ? 'h-full' : 'max-h-[32rem]',
+                            )}
+                        />
+                    );
 
-                return commit ? (
+                return commit && image.mime_type !== 'video/webm' ? (
                     <a
                         key={image.id}
                         href={commitPhotoUrl(commit, index)}

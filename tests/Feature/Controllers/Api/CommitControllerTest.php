@@ -139,9 +139,27 @@ it('includes the images of the commit in order', function (): void {
         ->assertOk()
         ->assertDontSee($first->path)
         ->assertJsonPath('data.images', [
-            ['id' => $first->id, 'width' => 1200, 'height' => 800, 'description' => 'A terminal showing a successful build.', 'url' => route('commit-image.show', $first)],
-            ['id' => $second->id, 'width' => 640, 'height' => 480, 'description' => null, 'url' => route('commit-image.show', $second)],
+            ['id' => $first->id, 'width' => 1200, 'height' => 800, 'description' => 'A terminal showing a successful build.', 'mime_type' => 'image/webp', 'duration' => null, 'url' => route('commit-image.show', $first), 'poster_url' => null],
+            ['id' => $second->id, 'width' => 640, 'height' => 480, 'description' => null, 'mime_type' => 'image/webp', 'duration' => null, 'url' => route('commit-image.show', $second), 'poster_url' => null],
         ]);
+});
+
+it('includes animation playback metadata without exposing storage paths', function (): void {
+    $commit = Commit::factory()->create();
+    $image = CommitImage::factory()->for($commit)->create([
+        'path' => 'commit-images/animation.webm',
+        'mime_type' => 'video/webm',
+        'duration_ms' => 470,
+        'width' => 32,
+        'height' => 24,
+    ]);
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertDontSee($image->path)
+        ->assertJsonPath('data.images.0.mime_type', 'video/webm')
+        ->assertJsonPath('data.images.0.duration', 0.47)
+        ->assertJsonPath('data.images.0.poster_url', route('commit-image.show', [$image, 'poster' => 1]));
 });
 
 it('never exposes hidden user fields', function (): void {

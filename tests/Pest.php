@@ -45,6 +45,11 @@ function sshFixture(string $name): string
     return (string) file_get_contents(__DIR__.'/Fixtures/ssh/'.$name);
 }
 
+function mediaFixture(string $name): string
+{
+    return (string) file_get_contents(__DIR__.'/Fixtures/media/'.$name);
+}
+
 /**
  * A unit vector in one dimension and zero elsewhere, so two of them differ only in direction and their cosine
  * distance is exact: 0 for the same dimension, 1 for any other.

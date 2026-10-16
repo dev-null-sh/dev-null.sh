@@ -284,3 +284,25 @@ void test('previews attached image descriptions without a published photo link',
         revokeObjectUrls(images);
     }
 });
+
+void test('previews converted animations as inline videos without a published photo link', () => {
+    const images = [new File(['video'], 'animation.webm', { type: 'video/webm' })];
+
+    try {
+        const markup = renderToStaticMarkup(
+            <ComposerPreviewBody
+                preview={previewFor({ isSubmittable: true })}
+                images={images}
+                descriptions={['A moving diagram']}
+                url={null}
+            />,
+        );
+
+        assert.match(markup, /<video/);
+        assert.match(markup, /aria-label="A moving diagram"/);
+        assert.match(markup, /playsInline=""/);
+        assert.doesNotMatch(markup, /<img|<a |autoplay/i);
+    } finally {
+        revokeObjectUrls(images);
+    }
+});

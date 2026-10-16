@@ -10,6 +10,7 @@ import Lightbox from 'yet-another-react-lightbox';
 import type { ControllerRef } from 'yet-another-react-lightbox';
 import Counter from 'yet-another-react-lightbox/plugins/counter';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
+import { AnimationVideo } from '@/components/animation-video';
 import 'yet-another-react-lightbox/plugins/counter.css';
 import 'yet-another-react-lightbox/styles.css';
 import { CommitCard } from '@/components/commit-card';
@@ -138,6 +139,17 @@ export function CommitImageViewer() {
                 ],
             }}
             render={{
+                slide: ({ slide }) => {
+                    const image = images?.find(({ url }) => url === slide.src);
+                    return image?.mime_type === 'video/webm' ? (
+                        <AnimationVideo
+                            src={image.url}
+                            poster={image.poster_url}
+                            label={slide.alt ?? 'Attached animation'}
+                            className="max-h-full max-w-full object-contain"
+                        />
+                    ) : undefined;
+                },
                 ...(!hasMultipleImages && {
                     buttonPrev: () => null,
                     buttonNext: () => null,

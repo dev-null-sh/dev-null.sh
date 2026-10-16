@@ -920,12 +920,18 @@ function ReplyComposer({
         body,
         images,
         descriptions,
+        posters,
         isRestored,
         updateBody,
         updateImages,
         drop,
     } = useStash(user.id, `reply-${parent.id}`);
-    const attachments = useImageAttachments(images, descriptions, updateImages);
+    const attachments = useImageAttachments(
+        images,
+        descriptions,
+        updateImages,
+        posters,
+    );
     const linkCard = useLinkCard(body);
     const updateCommitsCount = useCommitsCountUpdate();
     const request = useHttp<
@@ -933,6 +939,7 @@ function ReplyComposer({
             body: string;
             images: File[];
             image_descriptions: string[];
+            image_posters: (File | null)[];
             link_preview_url?: string;
         },
         CreatedReply
@@ -940,6 +947,7 @@ function ReplyComposer({
         body: '',
         images: [],
         image_descriptions: [],
+        image_posters: [],
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
@@ -994,14 +1002,19 @@ function ReplyComposer({
     const submit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        if (request.processing || !secrets.beforeSubmit()) {
+        if (
+            request.processing ||
+            attachments.converting ||
+            !secrets.beforeSubmit()
+        ) {
             return;
         }
 
         request.setData(() => ({
             body,
-            images,
-            image_descriptions: descriptions,
+            images: attachments.images,
+            image_descriptions: attachments.descriptions,
+            image_posters: attachments.posters,
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
@@ -1095,6 +1108,18 @@ function ReplyComposer({
                     onRemove={attachments.remove}
                 />
             )}
+            {attachments.converting && (
+                <div role="status" className="mt-2 text-sm">
+                    {attachments.converting}{' '}
+                    <button
+                        type="button"
+                        className="underline"
+                        onClick={attachments.cancel}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            )}
             <SecretWarning
                 body={body}
                 findings={secrets.findings}
@@ -1112,15 +1137,15 @@ function ReplyComposer({
             <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                 <div className="mr-auto flex min-w-0 items-center gap-2">
                     <ImagePickerButton
-                        count={images.length}
-                        disabled={processing}
+                        count={attachments.images.length}
+                        disabled={processing || Boolean(attachments.converting)}
                         onPick={attachments.attach}
                         className="size-8"
                     />
                     <PreviewToggle preview={preview} className="-ml-2 size-8" />
                     <LinkCardPicker
                         linkCard={linkCard}
-                        disabled={processing}
+                        disabled={processing || Boolean(attachments.converting)}
                         className="-ml-1"
                         labelClassName="max-sm:sr-only"
                     />
@@ -1159,7 +1184,11 @@ function ReplyComposer({
                 <Button
                     type="submit"
                     size="sm"
-                    disabled={processing || !isReplyable}
+                    disabled={
+                        processing ||
+                        Boolean(attachments.converting) ||
+                        !isReplyable
+                    }
                     className="min-w-[4.75rem]"
                     data-test="submit-reply-button"
                 >

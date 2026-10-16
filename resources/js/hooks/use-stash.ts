@@ -18,9 +18,14 @@ export type UseStashReturn = {
     readonly body: string;
     readonly images: File[];
     readonly descriptions: string[];
+    readonly posters: (File | null)[];
     readonly isRestored: boolean;
     readonly updateBody: (body: string) => void;
-    readonly updateImages: (images: File[], descriptions?: string[]) => void;
+    readonly updateImages: (
+        images: File[],
+        descriptions?: string[],
+        posters?: (File | null)[],
+    ) => void;
     readonly drop: () => void;
 };
 
@@ -28,9 +33,14 @@ export type UseSeriesStashReturn = {
     readonly bodies: string[];
     readonly images: File[];
     readonly descriptions: string[];
+    readonly posters: (File | null)[];
     readonly isRestored: boolean;
     readonly updateBody: (index: number, body: string) => void;
-    readonly updateImages: (images: File[], descriptions?: string[]) => void;
+    readonly updateImages: (
+        images: File[],
+        descriptions?: string[],
+        posters?: (File | null)[],
+    ) => void;
     readonly insertPart: (index: number) => void;
     readonly removePart: (index: number) => void;
     readonly drop: () => void;
@@ -40,7 +50,7 @@ const listeners = new Set<() => void>();
 const pending = new Map<string, string>();
 const images = new Map<string, StoredImages>();
 const restoredImageKeys = new Set<string>();
-const noImages: StoredImages = { images: [], descriptions: [] };
+const noImages: StoredImages = { images: [], descriptions: [], posters: [] };
 let timeout: ReturnType<typeof setTimeout> | undefined;
 let isListeningForPageHide = false;
 let isLoadingImages = false;
@@ -70,6 +80,7 @@ const useDraftImages = (key: string) => {
     return {
         draftImages: draftImages.images,
         descriptions: draftImages.descriptions,
+        posters: draftImages.posters ?? [],
         isImagesRestored,
     };
 };
@@ -89,14 +100,22 @@ const loadImages = (): void => {
                 .map((file, index) => ({
                     file,
                     description: draft.descriptions[index] ?? '',
+                    poster: draft.posters?.[index] ?? null,
                 }))
-                .filter(({ file }) => pickImages([], [file]).images.length > 0)
+                .filter(({ file, poster }) =>
+                    file.type === 'video/webm'
+                        ? file.size <= 10 * 1024 * 1024 &&
+                          poster !== null &&
+                          poster.size <= 5 * 1024 * 1024
+                        : pickImages([], [file]).images.length > 0,
+                )
                 .slice(0, maxImages);
 
             if (!images.has(key) && restored.length > 0) {
                 images.set(key, {
                     images: restored.map((entry) => entry.file),
                     descriptions: restored.map((entry) => entry.description),
+                    posters: restored.map((entry) => entry.poster),
                 });
                 restoredImageKeys.add(key);
             }
@@ -141,6 +160,7 @@ const storeImages = (
     key: string,
     next: File[],
     descriptions: string[] = [],
+    posters: (File | null)[] = [],
 ): void => {
     if (next.length === 0) {
         restoredImageKeys.delete(key);
@@ -155,8 +175,13 @@ const storeImages = (
     );
 
     const nextDescriptions = next.map((_, index) => descriptions[index] ?? '');
-    images.set(key, { images: next, descriptions: nextDescriptions });
-    writeStoredImages(key, next, nextDescriptions);
+    const nextPosters = next.map((_, index) => posters[index] ?? null);
+    images.set(key, {
+        images: next,
+        descriptions: nextDescriptions,
+        posters: nextPosters,
+    });
+    writeStoredImages(key, next, nextDescriptions, nextPosters);
     notify();
 };
 
@@ -211,7 +236,8 @@ export function useHasStash(userId: string | null, name: string): boolean {
 export function useStash(userId: string, name: string): UseStashReturn {
     const key = keyFor(userId, name);
     const [body, setBody] = useState(() => read(key));
-    const { draftImages, descriptions, isImagesRestored } = useDraftImages(key);
+    const { draftImages, descriptions, posters, isImagesRestored } =
+        useDraftImages(key);
     const [isDraftRestored, setIsDraftRestored] = useState(
         () => body !== '' || draftImages.length > 0,
     );
@@ -242,12 +268,16 @@ export function useStash(userId: string, name: string): UseStashReturn {
         }
     };
 
-    const updateImages = (next: File[], descriptions: string[] = []): void => {
+    const updateImages = (
+        next: File[],
+        descriptions: string[] = [],
+        posters: (File | null)[] = [],
+    ): void => {
         if (next.length === 0 && body === '') {
             setIsDraftRestored(false);
         }
 
-        storeImages(key, next, descriptions);
+        storeImages(key, next, descriptions, posters);
     };
 
     const drop = (): void => {
@@ -261,6 +291,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
         body,
         images: draftImages,
         descriptions,
+        posters,
         isRestored:
             (isDraftRestored || isImagesRestored) &&
             (body !== '' || draftImages.length > 0),
@@ -292,7 +323,8 @@ export function useSeriesStash(
         read(key),
         ...readLaterBodies(laterKey),
     ]);
-    const { draftImages, descriptions, isImagesRestored } = useDraftImages(key);
+    const { draftImages, descriptions, posters, isImagesRestored } =
+        useDraftImages(key);
     const [isDraftRestored, setIsDraftRestored] = useState(
         () => bodies.some((body) => body !== '') || draftImages.length > 0,
     );
@@ -337,17 +369,18 @@ export function useSeriesStash(
         bodies,
         images: draftImages,
         descriptions,
+        posters,
         isRestored:
             (isDraftRestored || isImagesRestored) &&
             (bodies.some((body) => body !== '') || draftImages.length > 0),
         updateBody: (index, body) =>
             store(bodies.map((current, at) => (at === index ? body : current))),
-        updateImages: (next, descriptions = []) => {
+        updateImages: (next, descriptions = [], posters = []) => {
             if (next.length === 0 && bodies.every((body) => body === '')) {
                 setIsDraftRestored(false);
             }
 
-            storeImages(key, next, descriptions);
+            storeImages(key, next, descriptions, posters);
         },
         insertPart: (index) =>
             store([...bodies.slice(0, index), '', ...bodies.slice(index)]),

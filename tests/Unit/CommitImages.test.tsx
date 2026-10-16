@@ -2,6 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { ReactElement, SyntheticEvent } from 'react';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { AnimationVideo } from '../../resources/js/components/animation-video';
 import { CommitImages } from '../../resources/js/components/commit-images';
 import type { Commit } from '../../resources/js/types/commit';
 
@@ -42,6 +45,9 @@ const commit: Commit = {
             width: 100,
             height: 100,
             description: null,
+            mime_type: 'image/webp',
+            duration: null,
+            poster_url: null,
         },
     ],
 };
@@ -90,4 +96,35 @@ void test('replaces a failed image with the site logo without retrying the fallb
 
 void test('renders nothing when there are no uploaded images', () => {
     assert.equal(CommitImages({ commit: { ...commit, images: [] } }), null);
+});
+
+void test('renders an animation with its poster and accessible description', () => {
+    const animation = {
+        ...commit.images![0],
+        mime_type: 'video/webm' as const,
+        url: '/media/animation',
+        poster_url: '/media/animation?poster=1',
+        duration: 0.47,
+        description: 'Colored squares moving over a red background',
+    };
+    const mediaCommit = { ...commit, images: [animation] };
+    const gallery = CommitImages({ commit: mediaCommit });
+    const video = gallery!.props.children[0].props.children;
+    assert.equal(video.type, AnimationVideo);
+    assert.equal(video.props.poster, animation.poster_url);
+    assert.equal(video.props.label, animation.description);
+    const html = renderToStaticMarkup(
+        createElement(CommitImages, { commit: mediaCommit }),
+    );
+    assert.match(html, /<video/);
+    assert.match(html, /muted=""/);
+    assert.match(html, /loop=""/);
+    assert.match(html, /playsInline=""/);
+    assert.match(html, /controls=""/);
+    assert.match(
+        html,
+        /aria-label="Colored squares moving over a red background"/,
+    );
+    assert.doesNotMatch(html, /autoplay/i);
+    assert.doesNotMatch(html, /<a\b/);
 });

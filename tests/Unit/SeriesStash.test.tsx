@@ -10,7 +10,7 @@ const bodies = new Map<string, string>([
 const image = new File(['image'], 'draft.png', { type: 'image/png' });
 const storedImages = new Map<
     string,
-    { images: File[]; descriptions: string[] }
+    { images: File[]; descriptions: string[]; posters?: (File | null)[] }
 >([
     [
         'stash:author:commit',
@@ -31,6 +31,7 @@ let cursor = 0;
 
 vi.doMock('react', () => ({
     ...React,
+    useRef: (initial: unknown) => ({ current: initial }),
     useEffect: (effect: () => void) => effect(),
     useState: (initial: unknown) => {
         const index = cursor++;
@@ -72,11 +73,12 @@ vi.doMock('../../resources/js/lib/image-storage', () => ({
         key: string,
         images: File[],
         descriptions: string[],
+        posters: (File | null)[] = [],
     ) => {
         if (images.length === 0) {
             storedImages.delete(key);
         } else {
-            storedImages.set(key, { images, descriptions });
+            storedImages.set(key, { images, descriptions, posters });
         }
     },
     deleteStoredImages: (prefix: string) => {
@@ -142,6 +144,7 @@ test('restores series images, preserves them through part edits, and drops the c
         assert.deepEqual(storedImages.get('stash:author:commit'), {
             images: [image],
             descriptions: [''],
+            posters: [null],
         });
         draft = render();
         draft.drop();
@@ -218,6 +221,7 @@ test.each(['single', 'series'])(
             assert.deepEqual(storedImages.get(key), {
                 images: [image],
                 descriptions: [''],
+                posters: [null],
             });
             assert.equal(bodies.has(key), false);
             assert.equal(bodies.has(`${key}:later`), false);
@@ -292,6 +296,7 @@ test.each(['single', 'series'])(
             assert.deepEqual(storedImages.get(key), {
                 images: [second],
                 descriptions: ['Edited second screenshot'],
+                posters: [null],
             });
             vi.resetModules();
             const restoredHooks =
@@ -367,6 +372,51 @@ test.each(['single', 'series'])(
         } finally {
             hooks.clearStashes('url-owner');
             revoke.mockRestore();
+        }
+    },
+);
+
+test.each(['single', 'series'])(
+    '%s drafts restore animation posters and keep them paired through description edits and removal',
+    async (kind) => {
+        const video = new File(['video'], 'animation.webm', { type: 'video/webm' });
+        const poster = new File(['poster'], 'poster.png', { type: 'image/png' });
+        const key = 'stash:animated:commit';
+        storedImages.set(key, {
+            images: [image, video],
+            descriptions: ['A still', 'An animation'],
+            posters: [null, poster],
+        });
+        vi.resetModules();
+        const hooks = await import('../../resources/js/hooks/use-stash');
+        const { useImageAttachments } = await import('../../resources/js/hooks/use-image-attachments');
+        state = [];
+        const render = () => {
+            cursor = 0;
+            const draft = kind === 'series'
+                ? hooks.useSeriesStash('animated', 'commit')
+                : hooks.useStash('animated', 'commit');
+            const attachments = useImageAttachments(draft.images, draft.descriptions, draft.updateImages, draft.posters);
+            return { draft, attachments };
+        };
+        try {
+            render();
+            await Promise.resolve();
+            let view = render();
+            assert.deepEqual(view.draft.images, [image, video]);
+            assert.deepEqual(view.draft.posters, [null, poster]);
+            view.attachments.describe(1, 'Edited animation');
+            view = render();
+            view.attachments.remove(0);
+            view = render();
+            assert.deepEqual(view.draft.images, [video]);
+            assert.deepEqual(view.draft.descriptions, ['Edited animation']);
+            assert.deepEqual(view.draft.posters, [poster]);
+            assert.deepEqual(storedImages.get(key)?.posters, [poster]);
+            view.draft.drop();
+            assert.equal(storedImages.has(key), false);
+        } finally {
+            hooks.clearStashes('animated');
         }
     },
 );

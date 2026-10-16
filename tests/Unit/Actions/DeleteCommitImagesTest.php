@@ -78,3 +78,20 @@ it('does nothing for a commit that is gone', function (): void {
 
     expect(CommitImage::query()->count())->toBe(0);
 });
+
+it('erases an animation and its poster together after the undo window', function (): void {
+    $image = CommitImage::factory()->create([
+        'path' => 'commit-images/animation.webm',
+        'mime_type' => 'video/webm',
+        'duration_ms' => 470,
+    ]);
+    Storage::put($image->path, mediaFixture('animated.webm'));
+    Storage::put($image->previewPath(), 'poster');
+    resolve(DeleteCommit::class)->handle($image->commit);
+    $this->travel(30)->seconds();
+
+    resolve(DeleteCommitImages::class)->handle($image->commit);
+
+    $this->assertModelMissing($image);
+    Storage::assertMissing([$image->path, $image->previewPath()]);
+});
