@@ -88,6 +88,28 @@ it('leaves the parent author of a reply to the reply notification', function ():
     expect(Notification::query()->sole()->recipient_id)->toBe($other->id);
 });
 
+it('leaves the quoted author of a quote to the quote notification', function (bool $renamed): void {
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'nunomaduro']))->create();
+    $other = User::factory()->create(['username' => 'taylorotwell']);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create([
+        'body' => '@nunomaduro @taylorotwell look',
+        'mentions' => ['nunomaduro' => $quoted->user_id, 'taylorotwell' => $other->id],
+    ]);
+
+    if ($renamed) {
+        $quoted->user->update(['username' => 'renamed']);
+        User::factory()->create(['username' => 'nunomaduro']);
+        $other->update(['username' => 'renamed-other']);
+        User::factory()->create(['username' => 'taylorotwell']);
+    }
+
+    $action = resolve(CreateMentionNotifications::class);
+
+    $action->handle($quote);
+
+    expect(Notification::query()->sole()->recipient_id)->toBe($other->id);
+})->with([false, true]);
+
 it('is idempotent', function (): void {
     $user = User::factory()->create(['username' => 'nunomaduro']);
     $commit = Commit::factory()->create(['body' => 'Hi @nunomaduro', 'mentions' => ['nunomaduro' => $user->id]]);

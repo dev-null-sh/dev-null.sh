@@ -1,0 +1,280 @@
+import { Form, usePage } from '@inertiajs/react';
+import { Quote } from 'lucide-react';
+import type { KeyboardEvent } from 'react';
+import { useState } from 'react';
+import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import {
+    ImagePickerButton,
+    ImagePickerPreviews,
+    imageErrorFrom,
+} from '@/components/commit-image-picker';
+import InputError from '@/components/input-error';
+import { MentionTextarea } from '@/components/mention-textarea';
+import { QuotedCommit } from '@/components/quoted-commit';
+import { StashLabel } from '@/components/stash-label';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { UserAvatar } from '@/components/user-avatar';
+import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
+import { useUser } from '@/hooks/use-user';
+import { signIn } from '@/lib/auth';
+import { characterCount, cn } from '@/lib/utils';
+import type { Commit } from '@/types';
+
+const minBodyLength = 3;
+const maxBodyLength = 280;
+
+export function CommitQuoteButton({
+    commit,
+    keyShortcut,
+    className,
+}: {
+    commit: Commit;
+    keyShortcut?: string;
+    className?: string;
+}) {
+    const { auth } = usePage().props;
+    const [isOpen, setIsOpen] = useState(false);
+    const hasStash = useHasStash(auth.user?.id ?? null, `quote-${commit.id}`);
+
+    if (commit.status !== 'approved' && commit.user_id !== auth.user?.id) {
+        return null;
+    }
+
+    return (
+        <>
+            <button
+                type="button"
+                onClick={() => {
+                    if (auth.user === null) {
+                        signIn();
+
+                        return;
+                    }
+
+                    setIsOpen(true);
+                }}
+                aria-haspopup="dialog"
+                aria-keyshortcuts={keyShortcut}
+                title={keyShortcut ? `Quote (${keyShortcut})` : 'Quote'}
+                className={cn(
+                    'flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                    className,
+                )}
+                data-test="quote-button"
+            >
+                <Quote className="size-4" />
+                <span className="sr-only sm:not-sr-only">Quote</span>
+                {hasStash && (
+                    <span
+                        title="You have an unsent quote here"
+                        className="font-mono text-[11px] opacity-70"
+                    >
+                        {'stash@{0}'}
+                    </span>
+                )}
+            </button>
+
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                {isOpen && (
+                    <QuoteComposer
+                        commit={commit}
+                        onClose={() => setIsOpen(false)}
+                    />
+                )}
+            </Dialog>
+        </>
+    );
+}
+
+function QuoteComposer({
+    commit,
+    onClose,
+}: {
+    commit: Commit;
+    onClose: () => void;
+}) {
+    const { user } = useUser();
+    const id = `quote-${commit.id}`;
+    const { body, isRestored, updateBody, drop } = useStash(user.id, id);
+    const attachments = useImageAttachments();
+
+    const remaining = maxBodyLength - characterCount(body);
+    const isQuotable = characterCount(body.trim()) >= minBodyLength;
+
+    const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (
+            event.key === 'Enter' &&
+            (event.metaKey || event.ctrlKey) &&
+            isQuotable
+        ) {
+            event.preventDefault();
+            event.currentTarget.form?.requestSubmit();
+        }
+    };
+
+    return (
+        <DialogContent
+            onEscapeKeyDown={(event) => {
+                if (document.querySelector('[data-mention-suggestions]')) {
+                    event.preventDefault();
+                }
+            }}
+            onInteractOutside={(event) => {
+                if (
+                    event.target instanceof Element &&
+                    event.target.closest('[data-mention-suggestions]')
+                ) {
+                    event.preventDefault();
+                }
+            }}
+            className="gap-3 p-4 sm:max-w-xl sm:p-5"
+            data-test="quote-composer"
+        >
+            <DialogTitle className="text-base">
+                Quote @{commit.user.username}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+                Write a commit of your own. This commit is embedded below it.
+            </DialogDescription>
+
+            <Form
+                {...CommitController.store.form()}
+                errorBag="quote"
+                transform={(data) =>
+                    attachments.images.length > 0
+                        ? { ...data, images: attachments.images }
+                        : data
+                }
+                options={{ preserveScroll: true }}
+                onSuccess={(page) => {
+                    if (page.flash.committed) {
+                        drop();
+                        attachments.clear();
+                        onClose();
+                    }
+                }}
+                className="flex gap-3"
+            >
+                {({ processing, errors }) => (
+                    <>
+                        <UserAvatar
+                            user={user}
+                            className="hidden size-10 sm:flex"
+                        />
+
+                        <div className="min-w-0 flex-1">
+                            <input
+                                type="hidden"
+                                name="quoted_commit_id"
+                                value={commit.id}
+                            />
+                            <label htmlFor={id} className="sr-only">
+                                Your commit
+                            </label>
+                            <MentionTextarea
+                                id={id}
+                                name="body"
+                                rows={1}
+                                autoFocus
+                                value={body}
+                                onValueChange={updateBody}
+                                onKeyDown={submitOnModEnter}
+                                onPaste={attachments.onPaste}
+                                onDragOver={attachments.onDragOver}
+                                onDrop={attachments.onDrop}
+                                onFocus={
+                                    isRestored ? moveCaretToEnd : undefined
+                                }
+                                maxLength={maxBodyLength}
+                                placeholder="Add your take"
+                                autoComplete="off"
+                                aria-invalid={
+                                    errors.body || errors.quoted_commit_id
+                                        ? true
+                                        : undefined
+                                }
+                                aria-describedby={`${id}-count`}
+                                className="block field-sizing-content min-h-10 w-full resize-none bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                            />
+
+                            <InputError
+                                message={errors.body ?? errors.quoted_commit_id}
+                            />
+
+                            <ImagePickerPreviews
+                                images={attachments.images}
+                                onRemove={attachments.remove}
+                            />
+                            <InputError
+                                message={
+                                    attachments.error ?? imageErrorFrom(errors)
+                                }
+                                className="mt-1"
+                            />
+
+                            <QuotedCommit commit={commit} isPreview />
+
+                            <div className="mt-3 flex items-center justify-end gap-3">
+                                <div className="mr-auto flex items-center gap-2">
+                                    <ImagePickerButton
+                                        count={attachments.images.length}
+                                        disabled={processing}
+                                        onPick={attachments.attach}
+                                        className="size-8"
+                                    />
+                                    {isRestored && (
+                                        <StashLabel
+                                            onDrop={() => {
+                                                drop();
+                                                document
+                                                    .getElementById(id)
+                                                    ?.focus();
+                                            }}
+                                            className="text-[13px]"
+                                        />
+                                    )}
+                                </div>
+                                <span
+                                    id={`${id}-count`}
+                                    aria-label={`${remaining} characters left`}
+                                    className={cn(
+                                        'font-mono text-[13px] text-muted-foreground',
+                                        {
+                                            'text-amber-700 dark:text-amber-400':
+                                                remaining <= 20,
+                                            'text-destructive': remaining === 0,
+                                        },
+                                    )}
+                                >
+                                    {remaining}
+                                </span>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={onClose}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={processing || !isQuotable}
+                                    title="Quote (⌘/Ctrl + Enter)"
+                                    data-test="submit-quote-button"
+                                >
+                                    {processing ? 'Quoting…' : 'Quote'}
+                                </Button>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </Form>
+        </DialogContent>
+    );
+}

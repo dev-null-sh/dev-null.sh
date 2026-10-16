@@ -42,7 +42,7 @@ final readonly class CreateCommitSeries
                     $user,
                     $body,
                     $parts->last(),
-                    $index === 0 ? $images : [],
+                    images: $index === 0 ? $images : [],
                     linkPreview: $linkPreviews[$index] ?? true,
                     series: new SeriesPosition($seriesId, $index + 1, $size),
                 ));
