@@ -172,14 +172,41 @@ it('loads the polls of the log with a bounded number of queries', function (): v
     DB::disableQueryLog();
 });
 
-it('does not show polls to guests', function (): void {
-    $poll = Poll::factory()->withOptions('Secret option A', 'Secret option B')->closed()->create();
+it('shows public polls to guests while hiding open results and voter identities', function (string $endpoint, bool $closed): void {
+    $factory = Poll::factory()->withOptions('Tabs', 'Spaces');
+    $poll = ($closed ? $factory->closed() : $factory)->create();
+    $voter = User::factory()->create(['username' => 'private-voter']);
+    PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
 
-    $this->get(route('commit.show', [$poll->commit->user, $poll->commit]))
+    [$url, $path, $component] = match ($endpoint) {
+        'commit' => [route('commit.show', [$poll->commit->user, $poll->commit]), 'commit.poll', 'commit/show'],
+        'ancestor' => (function () use ($poll): array {
+            $reply = Commit::factory()->for($poll->commit, 'parent')->create();
+
+            return [route('commit.show', [$reply->user, $reply]), 'ancestors.0.poll', 'commit/show'];
+        })(),
+        'profile' => [route('user.show', $poll->commit->user), 'commits.data.0.poll', 'user/show'],
+        'pinned' => (function () use ($poll): array {
+            $poll->commit->user->update(['pinned_commit_id' => $poll->commit_id]);
+
+            return [route('user.show', $poll->commit->user), 'pinnedCommit.poll', 'user/show'];
+        })(),
+    };
+
+    $this->get($url)
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('welcome')->missing('commit'))
-        ->assertDontSee('Secret option A');
-});
+        ->assertInertia(fn ($page) => $page
+            ->component($component)
+            ->where('auth.user', null)
+            ->where("{$path}.has_voted", false)
+            ->where("{$path}.total_votes", $closed ? 1 : null)
+            ->where("{$path}.options.0.label", 'Tabs')
+            ->where("{$path}.options.0.votes_count", $closed ? 1 : null)
+            ->where("{$path}.options.0.voted", false)
+            ->where("{$path}.options.1.votes_count", $closed ? 0 : null))
+        ->assertDontSee('private-voter')
+        ->assertDontSee($voter->id);
+})->with(['commit', 'ancestor', 'profile', 'pinned'])->with([false, true]);
 
 it('keeps poll details out of public read endpoints', function (string $endpoint): void {
     $poll = Poll::factory()

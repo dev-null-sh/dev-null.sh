@@ -55,6 +55,7 @@ export function CommitPoll({
         poll.is_closed ||
         (poll.closes_at !== null && new Date(poll.closes_at) <= now);
     const canVote =
+        auth.user !== null &&
         commit.status === 'approved' &&
         commit.user_id !== auth.user.id &&
         poll.closes_at !== null &&

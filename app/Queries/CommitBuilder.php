@@ -19,10 +19,14 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 final class CommitBuilder extends Builder
 {
     /**
-     * Approved commits are visible to everyone, while authors may also see their own pending or rejected commits.
+     * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
      */
-    public function visibleTo(User $user): self
+    public function visibleTo(?User $user): self
     {
+        if (! $user instanceof User) {
+            return $this->where($this->qualifyColumn('status'), CommitStatus::Approved);
+        }
+
         return $this->where(fn (Builder $query): Builder => $query
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
             ->orWhere($this->qualifyColumn('user_id'), $user->id));
@@ -31,7 +35,7 @@ final class CommitBuilder extends Builder
     /**
      * Deleted commits stay in a thread as tombstones while they still have replies the given user can see.
      */
-    public function visibleInThreadTo(User $user): self
+    public function visibleInThreadTo(?User $user): self
     {
         return $this->withTrashed()
             ->visibleTo($user)
@@ -48,7 +52,7 @@ final class CommitBuilder extends Builder
     /**
      * Counts only the replies the given user is allowed to see.
      */
-    public function withVisibleReplyCount(User $user): self
+    public function withVisibleReplyCount(?User $user): self
     {
         return $this->withCount([
             'replies' => fn (self $query): self => $query->visibleInThreadTo($user)->exceptSeriesContinuations(),
@@ -93,10 +97,15 @@ final class CommitBuilder extends Builder
             ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
-    public function withSavedState(User $user): self
+    /**
+     * Guests have nothing saved, yet still get the state, so they see the same save button that asks them to sign in.
+     */
+    public function withSavedState(?User $user): self
     {
         return $this->withExists([
-            'bookmarks as is_saved' => fn (Builder $query): Builder => $query->where('user_id', $user->id),
+            'bookmarks as is_saved' => fn (Builder $query): Builder => $user instanceof User
+                ? $query->where('user_id', $user->id)
+                : $query->whereRaw('1 = 0'),
         ]);
     }
 
@@ -105,27 +114,34 @@ final class CommitBuilder extends Builder
         return $this->where('status', CommitStatus::Pending);
     }
 
-    public function withStarsFor(User $viewer): self
+    /**
+     * Guests see how many stars a commit has, without having starred any.
+     */
+    public function withStarsFor(?User $viewer): self
     {
         return $this
             ->withCount('stars')
             ->withExists([
-                'stars as starred' => fn (Builder $query): Builder => $query->whereKey($viewer->id),
+                'stars as starred' => fn (Builder $query): Builder => $viewer instanceof User
+                    ? $query->whereKey($viewer->id)
+                    : $query->whereRaw('1 = 0'),
             ]);
     }
 
     /**
      * Loads the poll with each option's vote count and whether the viewer chose it, in two queries for any number of commits.
      */
-    public function withPollFor(User $viewer): self
+    public function withPollFor(?User $viewer): self
     {
         return $this
             ->with(['poll.options' => fn (HasMany $options): HasMany => $options
                 ->withCount('votes')
-                ->withExists(['votes as voted' => fn (Builder $query): Builder => $query->where('user_id', $viewer->id)])])
+                ->withExists(['votes as voted' => fn (Builder $query): Builder => $viewer instanceof User
+                    ? $query->where('user_id', $viewer->id)
+                    : $query->whereRaw('1 = 0')])])
             ->afterQuery(function (Collection $commits) use ($viewer): void {
                 foreach ($commits->whereInstanceOf(Commit::class) as $commit) {
-                    $commit->poll?->forceFill(['is_own' => $commit->user_id === $viewer->id]);
+                    $commit->poll?->forceFill(['is_own' => $commit->user_id === $viewer?->id]);
                 }
             });
     }

@@ -242,6 +242,14 @@ it('does not share suggested users with guests', function (): void {
     expect($shared)->not->toHaveKey('suggestedUsers');
 });
 
+it('does not show who to follow to guests, who have nobody to be suggested to', function (): void {
+    $middleware = new HandleInertiaRequests();
+
+    $shared = $middleware->share(Request::create('/', 'GET'));
+
+    expect($shared['showsWhoToFollow'])->toBeFalse();
+});
+
 it('shows who to follow by default', function (string $cookie): void {
     $middleware = new HandleInertiaRequests();
 
