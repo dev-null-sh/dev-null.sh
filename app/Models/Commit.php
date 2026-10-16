@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
+use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
@@ -20,17 +21,20 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property-read string $id
- * @property-read string $user_id
+ * @property-read string|null $user_id
  * @property-read string|null $parent_id
  * @property-read string $body
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
+ * @property-read string|null $series_id
+ * @property-read int|null $series_position
+ * @property-read int|null $series_size
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
  * @property-read int $stars_count
  * @property-read bool $starred
- * @property-read User $user
+ * @property-read User|null $user
  * @property-read Collection<int, User> $stars
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
@@ -38,6 +42,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
  * @property-read Collection<int, CommitImage> $images
+ * @property-read Collection<int, Commit> $seriesParts
  */
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -60,6 +65,9 @@ final class Commit extends Model
             'body' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
+            'series_id' => 'string',
+            'series_position' => 'integer',
+            'series_size' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -67,17 +75,20 @@ final class Commit extends Model
     }
 
     /**
-     * A deleted commit only ever leaves a tombstone behind: never its author or body.
+     * A deleted commit only ever leaves a tombstone behind: never its author or body, though a deleted part of a series
+     * keeps its place in it. Otherwise, the body also comes split into prose, inline code and highlighted code blocks, for rendering.
      *
      * @return array<mixed>
      */
     public function toArray(): array
     {
         if ($this->trashed()) {
-            return array_intersect_key($this->attributesToArray(), array_flip(['id', 'parent_id', 'deleted_at', 'replies_count']));
+            $keys = ['id', 'parent_id', 'deleted_at', 'replies_count', ...($this->series_id === null ? [] : ['series_position', 'series_size'])];
+
+            return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return parent::toArray();
+        return [...parent::toArray(), 'body_segments' => resolve(CodeSpans::class)->highlight($this->body)];
     }
 
     /**
@@ -97,11 +108,16 @@ final class Commit extends Model
     }
 
     /**
-     * Approved commits are visible to everyone. Authors can also see their own.
+     * Approved commits are visible to everyone but people across a block. Authors can also see their own.
      */
-    public function isVisibleTo(User $user): bool
+    public function isVisibleTo(?User $user): bool
     {
-        return $this->status === CommitStatus::Approved || $this->user_id === $user->id;
+        if ($user instanceof User && $this->user_id === $user->id) {
+            return true;
+        }
+
+        return $this->status === CommitStatus::Approved
+            && (! $user instanceof User || ! $this->user instanceof User || ! $user->hasBlockWith($this->user));
     }
 
     /**
@@ -118,6 +134,16 @@ final class Commit extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
+    }
+
+    /**
+     * Every part of the series the commit belongs to, the commit included.
+     *
+     * @return HasMany<Commit, $this>
+     */
+    public function seriesParts(): HasMany
+    {
+        return $this->hasMany(self::class, 'series_id', 'series_id');
     }
 
     /**
@@ -157,7 +183,7 @@ final class Commit extends Model
             return true;
         }
 
-        return $user instanceof User && ($this->user_id === $user->id || $user->can('moderate'));
+        return $user instanceof User && ($this->user_id === $user->id || $user->isAdmin());
     }
 
     /**
@@ -177,8 +203,8 @@ final class Commit extends Model
         return hash('xxh3', implode(':', [
             $this->updated_at->getTimestamp(),
             $this->replies_count,
-            $this->user->updated_at->getTimestamp(),
-            $this->parent?->user->username,
+            $this->user?->updated_at->getTimestamp(),
+            $this->parent?->user?->username,
         ]));
     }
 }

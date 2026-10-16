@@ -290,6 +290,67 @@ it('may not reply to a commit that does not exist', function (): void {
     $response->assertSessionHasErrors('parent_id');
 });
 
+it('may not reply across a block in either direction', function (bool $replierBlocks): void {
+    $replier = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $replierBlocks ? $replier->blocking()->attach($parent->user) : $parent->user->blocking()->attach($replier);
+
+    $response = $this->actingAs($replier)
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
+
+    $response->assertSessionHasErrors(['parent_id' => 'That commit is no longer available to reply to.']);
+
+    expect($parent->replies()->count())->toBe(0)
+        ->and($parent->user->notifications()->exists())->toBeFalse();
+})->with([true, false]);
+
+it('may reply to a muted user without them knowing', function (): void {
+    $replier = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $replier->muting()->attach($parent->user);
+
+    $this->actingAs($replier)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id])
+        ->assertSessionHasNoErrors();
+
+    expect($parent->replies()->count())->toBeOne();
+});
+
+it('does not show a commit across a block in either direction', function (bool $viewerBlocks): void {
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    $viewerBlocks ? $viewer->blocking()->attach($commit->user) : $commit->user->blocking()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertNotFound();
+})->with([true, false]);
+
+it('shows a muted user commit when opened directly, without their replies', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $commit = Commit::factory()->for($muted)->create();
+    Commit::factory()->for($commit, 'parent')->for($muted)->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $viewer->muting()->attach($muted);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$muted, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.id', $commit->id)
+            ->where('commit.replies_count', 1)
+            ->has('replies.data', 1)
+            ->where('replies.data.0.id', $reply->id));
+});
+
 it('shows a commit with its ancestors and reply count', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();
@@ -314,6 +375,25 @@ it('shows a commit with its ancestors and reply count', function (): void {
             ->where('ancestors.0.id', $root->id)
             ->where('ancestors.0.user.username', $root->user->username)
             ->missing('commit.user.email'));
+});
+
+it('shows the commit and its replies split into prose and highlighted code', function (): void {
+    $commit = Commit::factory()->create(['body' => "Run `make` :fire\n```php\n\$name = '<b>';\n```"]);
+    Commit::factory()->for($commit, 'parent')->create(['body' => 'try `make test`']);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.body_segments', [
+                ['type' => 'text', 'text' => 'Run '],
+                ['type' => 'code', 'code' => 'make'],
+                ['type' => 'text', 'text' => ' :fire'],
+                ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-variable">$name</span> = <span class="hl-value">\'&lt;b&gt;\'</span>;'],
+            ])
+            ->where('replies.data.0.body_segments.1', ['type' => 'code', 'code' => 'make test'])
+            ->missing('replies.data.0.body_segments.2'));
 });
 
 it('shows the star count and whether the viewer starred the commit and its ancestors', function (): void {
@@ -410,6 +490,7 @@ it('shows deleted ancestors and replies as tombstones', function (): void {
             ->where('ancestors.0.id', $root->id)
             ->where('ancestors.1.id', $deletedAncestor->id)
             ->missing('ancestors.1.body')
+            ->missing('ancestors.1.body_segments')
             ->missing('ancestors.1.user')
             ->has('replies.data', 1)
             ->where('replies.data.0.id', $deletedReply->id)
@@ -426,21 +507,33 @@ it('does not show a commit under another username', function (): void {
     $response->assertNotFound();
 });
 
-it('shows guests the landing page with a link preview of the commit', function (): void {
+it('shows guests the commit with its approved replies and a link preview', function (): void {
     $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
     $commit = Commit::factory()->for($user)->create(['body' => "Shipped the new parser.\n\nIt is twice as fast."]);
-    Commit::factory()->for($commit, 'parent')->create(['body' => 'A reply only signed-in users may read']);
-    Commit::factory()->for($user)->create(['body' => 'Another commit only signed-in users may read']);
+    $commit->stars()->attach(User::factory()->create());
+    Commit::factory()->for($commit, 'parent')->create(['body' => 'A reply everyone may read']);
+    Commit::factory()->for($commit, 'parent')->pending()->create(['body' => 'A pending reply only its author may read']);
+    Commit::factory()->for($user)->create(['body' => 'Another commit, not part of this thread']);
 
     $response = $this->get(route('commit.show', [$user, $commit]));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->component('welcome')
-            ->missing('commit')
-            ->missing('ancestors')
-            ->missing('replies'))
+            ->component('commit/show')
+            ->where('commit.id', $commit->id)
+            ->where('commit.replies_count', 1)
+            ->where('commit.stars_count', 1)
+            ->where('commit.starred', false)
+            ->where('commit.is_saved', false)
+            ->has('ancestors', 0)
+            ->has('replies.data', 1)
+            ->where('replies.data.0.body', 'A reply everyone may read'))
         ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<link rel="canonical" href="'.route('commit.show', [$user, $commit]).'">', false)
+        ->assertSee('<meta name="twitter:title" content="The Octocat (@octocat) on /dev/null">', false)
+        ->assertSee('<meta property="article:published_time" content="'.$commit->created_at->toIso8601String().'">', false)
+        ->assertSee('"@type":"SocialMediaPosting"', false)
+        ->assertSee('"author":{"@type":"Person","name":"The Octocat","alternateName":"@octocat","url":"'.route('user.show', $user).'"}', false)
         ->assertSee('<meta property="og:type" content="article">', false)
         ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
         ->assertSee('<meta property="og:description" content="Shipped the new parser. It is twice as fast.">', false)
@@ -448,8 +541,8 @@ it('shows guests the landing page with a link preview of the commit', function (
         ->assertSee('<meta property="og:image" content="'.route('commit-open-graph-image.show', [$user, $commit]).'?v=', false)
         ->assertSee('<meta name="twitter:card" content="summary_large_image">', false)
         ->assertDontSee(url('/og.png'))
-        ->assertDontSee('A reply only signed-in users may read')
-        ->assertDontSee('Another commit only signed-in users may read');
+        ->assertDontSee('A pending reply only its author may read')
+        ->assertDontSee('Another commit, not part of this thread');
 
     $this->assertGuest();
 
@@ -466,6 +559,14 @@ it('trims long commits in the link preview description', function (): void {
     expect($description)->toEndWith('…')
         ->and(mb_strlen($description))->toBeLessThanOrEqual(201)
         ->and($description)->not->toContain('The end');
+});
+
+it('shortens long urls in the link preview description', function (): void {
+    $commit = Commit::factory()->create(['body' => 'A lot came! https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr']);
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('<meta property="og:description" content="A lot came! github.com/nunomaduro/dev-nul…">', false);
 });
 
 it('escapes the commit in the link preview', function (): void {
@@ -487,7 +588,8 @@ it('mentions the approved parent of a reply in the link preview', function (): v
     $this->get(route('commit.show', [$reply->user, $reply]))
         ->assertOk()
         ->assertSee('<meta property="og:title" content="@octocat replying to @taylorotwell on /dev/null">', false)
-        ->assertDontSee('The parent commit');
+        ->assertSee('"isPartOf":"'.route('commit.show', [$parent->user, $parent]).'"', false)
+        ->assertInertia(fn ($page) => $page->where('ancestors.0.body', 'The parent commit'));
 });
 
 it('does not mention an unavailable parent in the link preview', function (Closure $state): void {
@@ -506,6 +608,15 @@ it('does not mention an unavailable parent in the link preview', function (Closu
     'rejected' => [fn (Commit $parent): bool => $parent->update(['status' => CommitStatus::Rejected])],
     'deleted' => [fn (Commit $parent): ?bool => $parent->delete()],
 ]);
+
+it('escapes the commit in the structured data', function (): void {
+    $commit = Commit::factory()->create(['body' => '</script><script>alert(1)</script>']);
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertDontSee('</script><script>alert(1)', false)
+        ->assertSee('"text":"\u003C/script\u003E\u003Cscript\u003Ealert(1)\u003C/script\u003E"', false);
+});
 
 it('returns not found to guests for deleted commits', function (): void {
     $commit = Commit::factory()->create();
@@ -595,6 +706,64 @@ it('queues a link preview for a commit with a link', function (): void {
     Queue::assertPushed(UnfurlLink::class);
 });
 
+it('queues a link preview for the link the author chose', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Shipped https://example.com/first, docs at laravel.com',
+            'link_preview_url' => 'https://laravel.com',
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following);
+
+    expect($user->commits()->sole()->linkPreview->url)->toBe('https://laravel.com');
+
+    Queue::assertPushed(UnfurlLink::class);
+});
+
+it('attaches no link preview when the author chose none', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Shipped https://example.com/first',
+            'link_preview_url' => '',
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following);
+
+    expect($user->commits()->sole()->link_preview_id)->toBeNull();
+
+    Queue::assertNothingPushed();
+});
+
+it('may not choose a link preview for a url that is not in the body', function (string $url): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Shipped https://example.com/first and `https://example.com/code`',
+            'link_preview_url' => $url,
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasErrors(['link_preview_url' => 'The link card must be one of the links in the body.']);
+
+    expect(Commit::query()->count())->toBe(0);
+})->with([
+    'another url' => 'https://evil.example.com',
+    'a url in code' => 'https://example.com/code',
+    'part of a url' => 'https://example.com',
+]);
+
 it('includes the link previews of a commit, its ancestors and its replies', function (): void {
     $root = Commit::factory()->for(LinkPreview::factory()->fetched()->state(['title' => 'Root link']))->create();
     $commit = Commit::factory()->for($root, 'parent')->for(LinkPreview::factory()->fetched()->state(['title' => 'Focused link']))->create();
@@ -611,7 +780,7 @@ it('includes the link previews of a commit, its ancestors and its replies', func
 });
 
 it('may attach images to a commit', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $user = User::factory()->create();
 
@@ -633,11 +802,11 @@ it('may attach images to a commit', function (): void {
 
     expect($commit->status)->toBe(CommitStatus::Pending)
         ->and($commit->images)->toHaveCount(3)
-        ->and(Storage::disk(CommitImage::DISK)->allFiles('commit-images'))->toHaveCount(3);
+        ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
 });
 
 it('may not attach more than three images to a commit', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $user = User::factory()->create();
 
@@ -652,7 +821,7 @@ it('may not attach more than three images to a commit', function (): void {
 });
 
 it('may only attach jpeg, png, gif or webp images to a commit', function (UploadedFile $file): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $user = User::factory()->create();
 
@@ -664,7 +833,7 @@ it('may only attach jpeg, png, gif or webp images to a commit', function (Upload
     $response->assertSessionHasErrors('images.0');
 
     expect($user->commits()->count())->toBe(0)
-        ->and(Storage::disk(CommitImage::DISK)->allFiles())->toBe([]);
+        ->and(Storage::disk()->allFiles())->toBe([]);
 })->with([
     'svg' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
     'html disguised as png' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.png', '<html><script>alert(1)</script></html>'),

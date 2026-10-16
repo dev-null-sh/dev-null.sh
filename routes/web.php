@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\ApproveCommitsController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
@@ -12,23 +11,34 @@ use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
+use App\Http\Controllers\CommitSeriesController;
+use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
+use App\Http\Controllers\ExportController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\PersonalDataExportController;
+use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\UserLaneController;
+use App\Http\Controllers\UserMuteController;
 use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
+use App\Http\Controllers\UserSitemapController;
+use App\Http\Middleware\RememberIntendedUrl;
+use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -46,26 +56,59 @@ Route::middleware('guest')->group(function (): void {
         ->name('login.store');
 });
 
-// User, previewed for guests...
-Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
+// Public pages, readable by guests and crawlers...
+Route::middleware(RememberIntendedUrl::class)->group(function (): void {
+    Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
+    Route::get('@{user:username}/following', [UserFollowingController::class, 'index'])
+        ->name('user-following.index');
+    Route::get('@{user:username}/followers', [UserFollowersController::class, 'index'])
+        ->name('user-followers.index');
+    Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
+        ->scopeBindings()
+        ->name('commit.show');
+});
+
+// Sitemaps...
+Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
+    Route::get('sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
+    Route::get('sitemaps/users-{page}.xml', [UserSitemapController::class, 'show'])
+        ->where('page', '[1-9][0-9]*')
+        ->name('user-sitemap.show');
+    Route::get('sitemaps/commits-{page}.xml', [CommitSitemapController::class, 'show'])
+        ->where('page', '[1-9][0-9]*')
+        ->name('commit-sitemap.show');
+});
+
+// User...
+Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])->name('user-preview.show');
 Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
+Route::get('@{user:username}/feed.atom', [UserFeedController::class, 'show'])
+    ->middleware('cache.headers:public;max_age=300;etag')
+    ->name('user-feed.show');
 
-// Commit, previewed for guests...
-Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
-    ->scopeBindings()
-    ->name('commit.show');
+// Commit...
 Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
+    ->withTrashed()
+    ->name('commit-reply.index');
+
+// User Search...
+Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
     Route::post('logout', [SessionController::class, 'destroy'])
         ->name('logout');
+
+    // Onboarding...
+    Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
+    Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
 
     // Log...
     Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
@@ -77,8 +120,11 @@ Route::middleware('auth')->group(function (): void {
 
     // Commit...
     Route::post('commits', [CommitController::class, 'store'])
-        ->middleware('throttle:commits')
+        ->middleware(ThrottleCommits::class)
         ->name('commit.store');
+    Route::post('commits/series', [CommitSeriesController::class, 'store'])
+        ->middleware(ThrottleCommits::class)
+        ->name('commit-series.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');
@@ -87,34 +133,27 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-star.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
         ->name('commit-star.destroy');
-    Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
-        ->withTrashed()
-        ->name('commit-reply.index');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
 
     // Moderation...
-    Route::middleware('can:moderate')->group(function (): void {
-        Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
-        Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
-            ->name('commit-approval.store');
-        Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
-            ->name('commit-rejection.store');
-        Route::post('moderation/approve', ApproveCommitsController::class)
-            ->name('moderation.approve');
-    });
+    Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+    Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
+        ->name('commit-approval.store');
+    Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
+        ->name('commit-rejection.store');
+    Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
 
-    // User Search...
-    Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
+    // Mention Suggestions...
     Route::get('search/mentions', [MentionSuggestionController::class, 'index'])->name('mention-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
-    Route::get('settings/export', [PersonalDataExportController::class, 'show'])
+    Route::get('settings/export', ExportController::class)
         ->middleware('throttle:5,1')
-        ->name('personal-data-export.show');
+        ->name('export');
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
@@ -122,20 +161,32 @@ Route::middleware('auth')->group(function (): void {
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
 
+    // Terminal...
+    Route::get('settings/terminal', fn () => Inertia::render('terminal/show', ['url' => url('/')]))->name('terminal.show');
+
+    // Safety...
+    Route::get('settings/safety', [SafetyController::class, 'edit'])->name('safety.edit');
+
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
-    Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])->name('user-preview.show');
-
-    Route::get('@{user:username}/following', [UserFollowingController::class, 'index'])
-        ->name('user-following.index');
-    Route::get('@{user:username}/followers', [UserFollowersController::class, 'index'])
-        ->name('user-followers.index');
 
     // User Follow...
     Route::post('@{user:username}/follow', [UserFollowController::class, 'store'])
         ->name('user-follow.store');
     Route::delete('@{user:username}/follow', [UserFollowController::class, 'destroy'])
         ->name('user-follow.destroy');
+
+    // User Mute...
+    Route::post('@{user:username}/mute', [UserMuteController::class, 'store'])
+        ->name('user-mute.store');
+    Route::delete('@{user:username}/mute', [UserMuteController::class, 'destroy'])
+        ->name('user-mute.destroy');
+
+    // User Block...
+    Route::post('@{user:username}/block', [UserBlockController::class, 'store'])
+        ->name('user-block.store');
+    Route::delete('@{user:username}/block', [UserBlockController::class, 'destroy'])
+        ->name('user-block.destroy');
 });
 
 Route::fallback(fn () => abort(404));

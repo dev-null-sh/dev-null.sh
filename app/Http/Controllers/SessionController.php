@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\SyncGitHubUser;
-use App\Enums\Log;
+use App\Actions\UpdateOrCreateUser;
+use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,7 +23,7 @@ final readonly class SessionController
         return Socialite::driver('github')->redirect();
     }
 
-    public function store(Request $request, SyncGitHubUser $action): RedirectResponse
+    public function store(Request $request, UpdateOrCreateUser $action): RedirectResponse
     {
         if ($request->has('error')) {
             return $this->failed();
@@ -40,12 +40,17 @@ final readonly class SessionController
         $user = $action->handle($githubUser);
 
         dispatch(new SyncGitHubSshKeysJob($user));
+        dispatch(new ImportGitHubFollowsJob($user, notify: $user->wasRecentlyCreated));
 
         Auth::login($user, remember: true);
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('log.show', Log::Following, absolute: false));
+        if (! $user->isOnboarded()) {
+            return to_route('onboarding.show');
+        }
+
+        return redirect()->intended(route('log.show', $user->log, absolute: false));
     }
 
     public function destroy(Request $request): RedirectResponse

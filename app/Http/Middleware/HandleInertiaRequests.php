@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -38,7 +40,7 @@ final class HandleInertiaRequests extends Middleware
     {
         $isAdmin = $request->user()?->isAdmin() ?? false;
         $user = $request->user();
-        $showsWhoToFollow = $request->cookie('who_to_follow') !== 'false';
+        $showsWhoToFollow = $user instanceof User && $request->cookie('who_to_follow') !== 'false';
 
         return [
             ...parent::share($request),
@@ -46,13 +48,14 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $isAdmin,
-                'unreadNotificationsCount' => fn (): int => $request->user()?->notifications()->relevant()->unread()->count() ?? 0,
+                'log' => fn (): ?Log => $request->user()?->log,
+                'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user) : 0,
             ],
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $showsWhoToFollow ? [
-                'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get($user)),
+                'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get($user))->once(),
             ] : [],
         ];
     }

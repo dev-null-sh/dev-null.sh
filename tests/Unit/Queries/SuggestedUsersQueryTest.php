@@ -144,3 +144,21 @@ it('limits the number of suggestions', function (): void {
     expect(resolve(SuggestedUsersQuery::class)->get($user))->toHaveCount(3)
         ->and(resolve(SuggestedUsersQuery::class)->get($user, limit: 2))->toHaveCount(2);
 });
+
+it('does not suggest muted people or people across a block', function (): void {
+    $user = User::factory()->create();
+    $muted = User::factory()->has(Commit::factory())->create();
+    $blocked = User::factory()->has(Commit::factory())->create();
+    $blocker = User::factory()->has(Commit::factory())->create();
+    $stranger = User::factory()->has(Commit::factory())->create();
+
+    $user->muting()->attach($muted);
+    $user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($user);
+
+    $friend = User::factory()->create();
+    $user->following()->attach($friend);
+    $friend->following()->attach([$muted->id, $blocked->id, $blocker->id]);
+
+    expect(resolve(SuggestedUsersQuery::class)->get($user)->pluck('id')->all())->toBe([$stranger->id]);
+});

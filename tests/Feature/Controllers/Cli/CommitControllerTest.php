@@ -3,11 +3,13 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\SshKeyPair;
@@ -72,6 +74,18 @@ it('replies to a commit', function (): void {
         ->and($reply->body)->toBe('Agreed!');
 });
 
+it('attaches a link preview for the first link', function (): void {
+    Queue::fake([UnfurlLink::class]);
+
+    postSignedCommit(signedCommit($this->keyPair, 'Shipped https://example.com/first and https://example.com/second'))->assertCreated();
+
+    $commit = $this->user->commits()->sole();
+
+    expect($commit->linkPreview->url)->toBe('https://example.com/first');
+
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+});
+
 it('fails to reply to an unknown commit', function (): void {
     $response = postSignedCommit(signedCommit($this->keyPair, 'Agreed!', replyTo: '0be0130'));
 
@@ -80,6 +94,33 @@ it('fails to reply to an unknown commit', function (): void {
 
     expect(Commit::query()->count())->toBe(0);
 });
+
+it('fails to reply across a block', function (): void {
+    $parent = Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+    $parent->user->blocking()->attach($this->user);
+
+    $response = postSignedCommit(signedCommit($this->keyPair, 'Agreed!', replyTo: '0be0130'));
+
+    $response->assertUnprocessable()
+        ->assertContent("There is no commit 0be0130 to reply to.\n");
+
+    expect($parent->replies()->count())->toBe(0);
+});
+
+it('fails to reply to an ambiguous or malformed commit reference', function (string $replyTo, string $message): void {
+    Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+    Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52c0be0130']);
+
+    $response = postSignedCommit(signedCommit($this->keyPair, 'Agreed!', replyTo: $replyTo));
+
+    $response->assertUnprocessable()
+        ->assertContent($message."\n");
+
+    expect($this->user->commits()->count())->toBe(0);
+})->with([
+    'ambiguous' => ['0be0130', '0be0130 matches several commits: use the link of the commit instead.'],
+    'malformed' => ['not-a-hash', 'not-a-hash is not a commit hash or link.'],
+]);
 
 it('rejects invalid signatures', function (): void {
     $commit = signedCommit($this->keyPair, 'It was DNS.');
