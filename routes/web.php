@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\Log;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
@@ -25,8 +26,10 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\SafetyController;
+use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
@@ -90,6 +93,11 @@ Route::get('@{user:username}/feed.atom', [UserFeedController::class, 'show'])
     ->middleware('cache.headers:public;max_age=300;etag')
     ->name('user-feed.show');
 
+// User activity graph, embedded in READMEs...
+Route::get('@{user:username}/graph.svg', [UserActivityGraphController::class, 'show'])
+    ->middleware(['throttle:activity-graph', 'cache.headers:public;max_age=3600;etag'])
+    ->name('user-activity-graph.show');
+
 // Commit...
 Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
@@ -114,6 +122,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
 
     // Log...
+    Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
     Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
 
     // Private saved commits...
@@ -122,6 +131,11 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])->name('bookmark.destroy');
 
     // Commit...
+    Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
+    Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
+        ->middleware(ThrottleCommits::class)->name('scheduled-commit.store');
+    Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
+
     Route::post('commits', [CommitController::class, 'store'])
         ->middleware(ThrottleCommits::class)
         ->name('commit.store');
@@ -163,7 +177,9 @@ Route::middleware('auth')->group(function (): void {
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
-    Route::get('settings/export', ExportController::class)->name('export');
+    Route::get('settings/export', ExportController::class)
+        ->middleware('throttle:5,1')
+        ->name('export');
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');

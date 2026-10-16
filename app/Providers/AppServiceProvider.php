@@ -25,6 +25,9 @@ final class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
 
+        // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
+        RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
+
         $this->bootExceptionHandling();
     }
 

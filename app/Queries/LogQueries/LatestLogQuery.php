@@ -7,14 +7,11 @@ namespace App\Queries\LogQueries;
 use App\Contracts\Queries\LogQuery;
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
+use App\Queries\CommitBuilder;
 
-final readonly class EveryoneLogQuery implements LogQuery
+final readonly class LatestLogQuery implements LogQuery
 {
-    /**
-     * @return Builder<Commit>
-     */
-    public function builder(User $user): Builder
+    public function builder(User $user): CommitBuilder
     {
         return Commit::query()
             ->visibleTo($user)
