@@ -30,6 +30,11 @@ final class CreateCommitReplyRequest extends FormRequest
         return $commit->isVisibleTo($user) ? Response::allow() : Response::denyAsNotFound();
     }
 
+    public function prepareForValidation(): void
+    {
+        CreateCommitRequest::normalizeBody($this);
+    }
+
     /**
      * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
      *
@@ -38,7 +43,7 @@ final class CreateCommitReplyRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'body' => ['required', 'string', 'min:3', 'max:280'],
+            'body' => CreateCommitRequest::BODY_RULES,
             'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [

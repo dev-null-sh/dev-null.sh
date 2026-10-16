@@ -124,14 +124,14 @@ it('tracks stars given to other developers and excludes self-starring', function
         ->and($result['xp'])->toBe(32);
 });
 
-it('unlocks pipe badge with replies to other developers and excludes series continuations', function (): void {
+it('unlocks pipe badge with replies to other developers and excludes self-replies', function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
 
     $userCommit = Commit::factory()->for($user)->create();
     $otherCommit = Commit::factory()->for($other)->create();
 
-    // 3 replies to self (series continuations -> must be excluded)
+    // 3 replies to self (must be excluded)
     Commit::factory()->for($user)->for($userCommit, 'parent')->count(3)->create();
 
     // 5 replies to other developer's commit (valid conversation replies)

@@ -44,6 +44,7 @@ final readonly class UserController
 
         return Inertia::render('user/show', [
             'user' => fn (): User => $currentUser instanceof User ? $user->loadCounts($currentUser) : $user->loadPublicCounts(),
+            'pasteisReceived' => $currentUser?->pasteis_mode ? $user->pasteis_received : null,
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
             'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
@@ -64,7 +65,6 @@ final readonly class UserController
                     $request->tab() === 'replies',
                     fn (CommitBuilder $query): CommitBuilder => $query
                         ->whereNotNull('parent_id')
-                        ->exceptSeriesContinuations()
                         ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
                             ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser))
                             ->with('user')]),

@@ -1,0 +1,65 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Actions;
+
+use App\Enums\CommitStatus;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+
+final readonly class CreateTomFriendship
+{
+    /**
+     * Not numeric, so no GitHub account can ever own it and sign in as Tom.
+     */
+    public const string GITHUB_ID = 'tom';
+
+    private const string USERNAME = 'tom';
+
+    /**
+     * Like on MySpace, Tom is everyone's first friend: he follows them and they follow him, without a notification
+     * either way, since nobody chose it.
+     */
+    public function handle(User $user): void
+    {
+        $tom = $this->tom();
+
+        if ($user->is($tom)) {
+            return;
+        }
+
+        DB::transaction(function () use ($user, $tom): void {
+            $user->following()->syncWithoutDetaching([$tom->id]);
+            $tom->following()->syncWithoutDetaching([$user->id]);
+        });
+    }
+
+    private function tom(): User
+    {
+        $tom = User::query()->firstWhere('github_id', self::GITHUB_ID);
+
+        if ($tom instanceof User) {
+            return $tom;
+        }
+
+        return DB::transaction(function (): User {
+            $tom = User::query()->create([
+                'github_id' => self::GITHUB_ID,
+                'username' => self::USERNAME,
+                'name' => 'Tom',
+                'avatar_url' => asset('images/tom.webp'),
+                'bio' => "I'm here to help you get started on dev/null.",
+                'location' => 'Santa Monica, CA',
+                'onboarded_at' => now(),
+            ]);
+
+            $tom->commits()->create([
+                'body' => 'Welcome to dev/null!',
+                'status' => CommitStatus::Approved,
+            ]);
+
+            return $tom;
+        });
+    }
+}

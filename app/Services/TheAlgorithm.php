@@ -11,10 +11,11 @@ final readonly class TheAlgorithm
     /**
      * A commit needs twice the engagement to rank with one committed this many seconds later.
      */
-    private const int DOUBLING_PERIOD = 12 * 60 * 60;
+    private const int DOUBLING_PERIOD = 6 * 60 * 60;
 
     /**
-     * Replying or quoting takes more than starring, so each developer taking part in a thread counts for this many stars.
+     * Replying or quoting takes more than starring, so each developer replying or quoting in a thread counts for this many
+     * developers who only starred it.
      */
     private const int REPLIER_WEIGHT = 3;
 
@@ -23,8 +24,8 @@ final readonly class TheAlgorithm
      * stored and indexed. Engagement counts on a log scale: the first stars lift a commit more than later ones do. It is
      * rounded so that it reads back from the database exactly as it was written, which the log's cursor relies on.
      */
-    public function score(CarbonInterface $createdAt, int $stars, int $repliers): float
+    public function score(CarbonInterface $createdAt, int $stargazers, int $repliers): float
     {
-        return round(log(1 + $stars + self::REPLIER_WEIGHT * $repliers, 2) + $createdAt->getTimestamp() / self::DOUBLING_PERIOD, 6);
+        return round(log(1 + $stargazers + self::REPLIER_WEIGHT * $repliers, 2) + $createdAt->getTimestamp() / self::DOUBLING_PERIOD, 6);
     }
 }

@@ -27,11 +27,12 @@ export function useFlashToast(): void {
 
             if (committed) {
                 toast(
-                    <span className="font-mono text-[13px]">
+                    <span
+                        className="line-clamp-3 font-mono text-[13px] [overflow-wrap:anywhere]"
+                        title={committed.body}
+                    >
                         [log {shortHash(committed.id)}]{' '}
                         {emojify(committed.body)}
-                        {committed.series_size !== undefined &&
-                            ` (1/${committed.series_size})`}
                     </span>,
                 );
             }

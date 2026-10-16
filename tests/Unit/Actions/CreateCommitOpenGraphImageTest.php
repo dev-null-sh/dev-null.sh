@@ -39,18 +39,6 @@ it('draws the parent of a reply only when it is approved', function (CommitStatu
     'rejected' => [CommitStatus::Rejected, false],
 ]);
 
-it('does not draw a later part of a series as a reply', function (): void {
-    $part = commitSeries(User::factory()->withoutProfile()->create())[1];
-    $action = resolve(CreateCommitOpenGraphImage::class);
-
-    $asPart = $action->handle($part->user, $part);
-
-    Cache::flush();
-    $part->update(['parent_id' => null]);
-
-    expect($action->handle($part->user, $part->fresh()))->toBe($asPart);
-});
-
 it('draws the number of approved replies', function (): void {
     $commit = Commit::factory()->for(User::factory()->withoutProfile())->create(['body' => 'Hello, world.']);
     $action = resolve(CreateCommitOpenGraphImage::class);

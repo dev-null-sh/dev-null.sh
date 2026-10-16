@@ -52,4 +52,9 @@ final class ShowCommitImageRequest extends FormRequest
     {
         return $this->signedUrl;
     }
+
+    public function download(): bool
+    {
+        return $this->boolean('download');
+    }
 }

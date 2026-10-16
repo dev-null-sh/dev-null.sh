@@ -15,7 +15,7 @@ import { show } from '@/routes/user';
 
 const rules = [
     'Everyone here signed in with GitHub.',
-    'Commits are plain text, 280 characters max.',
+    'Commits are plain text, up to 4,000 characters.',
     'No algorithm. Newest first.',
     'Profiles mirror GitHub. Edit yours there.',
 ];
@@ -43,7 +43,7 @@ export function AppAside({
                 data-test="search-button"
             >
                 <Search className="size-4" />
-                Search developers
+                Search
                 <kbd className="ml-auto rounded border border-b-2 bg-muted px-1.5 font-mono text-xs">
                     {keys.combo(keys.mod, 'K')}
                 </kbd>

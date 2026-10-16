@@ -409,9 +409,10 @@ export default function Show({
                             <dt className="font-semibold">Write a commit</dt>
                             <dd className="mt-1 text-pretty text-muted-foreground">
                                 The composer sits at the top of your log. Plain
-                                text, up to 280 characters. Press <Kbd>c</Kbd>{' '}
-                                to jump to it, then <Kbd>{keys.mod}</Kbd>{' '}
-                                <Kbd>↵</Kbd> to commit.
+                                text, up to 4,000 characters; feeds fold long
+                                ones after 280. Press <Kbd>c</Kbd> to jump to
+                                it, then <Kbd>{keys.mod}</Kbd> <Kbd>↵</Kbd> to
+                                commit.
                             </dd>
                         </div>
                         <div className="px-4 py-4">

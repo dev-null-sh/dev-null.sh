@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\RecentVolumeQuery;
@@ -25,20 +24,3 @@ it('counts signups, commits, and replies over the last day and week', function (
         'replies' => ['day' => 1, 'week' => 2],
     ]);
 });
-
-it('counts series once as commits and only ordinary replies in each period', function (CommitStatus $status): void {
-    $user = User::factory()->create();
-    $parts = commitSeries($user, status: $status);
-    $older = commitSeries($user, status: $status);
-    Commit::query()->whereKey($older->modelKeys())->update(['created_at' => now()->subDays(3)]);
-    $parts[1]->delete();
-
-    Commit::factory()->for($user)->for($parts[0], 'parent')->create();
-    Commit::factory()->for($user)->for($older[2], 'parent')->create(['created_at' => now()->subDays(3)]);
-
-    expect(resolve(RecentVolumeQuery::class)->get())->toBe([
-        'signups' => ['day' => 1, 'week' => 1],
-        'commits' => ['day' => 1, 'week' => 2],
-        'replies' => ['day' => 1, 'week' => 2],
-    ]);
-})->with(CommitStatus::cases());
