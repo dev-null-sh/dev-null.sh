@@ -81,6 +81,8 @@ The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the d
 
 Commits in a signed response carry what the web's cards show: `preview_segments`, the excerpt a list shows of a long commit (or `null`), the `poll` with the user's view of its votes and each option's `percentage`, the `quoted_commit` (a tombstone once deleted, or `null` when the user may not see it, while `quoted_commit_id` still says a commit was quoted), and in lists the `reply_preview` the web shows under each commit. Its `next_cursor` continues with `GET /api/v1/commits/{id}/replies?newest=1&cursor=…`, as on the web.
 
+A signed profile also says `is_muting` and has the web's `achievements`, with the Unix rank.
+
 `GET /api/v1/log/{log}` serves the web's three logs, `following`, `latest` and `trending`, with the same queries and 20 commits a page. Trending is ranked, so it says `is_ranked`. With `?since={id}`, every log counts the `new_commits_count` newer than that commit, which is always 0 on Trending, since the web offers none there. An empty Following log comes with a few `suggestions`.
 
 `GET /api/v1/notifications` groups notifications like the web and takes the web's `?type=` filter: `all` (the default), `none`, or a comma-separated list of `replies`, `quotes`, `stars`, `mentions`, `follows` and `moderation`. The response echoes it as `filters.type`. Listing them marks every notification as read, whatever the filter, and `read_at` says when, so the groups read at or after it are the new ones. `GET /api/v1/notifications/{id}/group` lists the notifications of one group, with the same filter, the way the web expands it.
