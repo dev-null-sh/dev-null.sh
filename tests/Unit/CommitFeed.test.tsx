@@ -12,6 +12,7 @@ function commit(id: string): Commit {
         id,
         user_id: 'author',
         parent_id: null,
+        hot_score: 41485,
         body: id,
         body_segments: [{ type: 'text', text: id }],
         status: 'approved',
