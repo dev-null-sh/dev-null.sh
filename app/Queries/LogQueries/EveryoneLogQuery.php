@@ -18,6 +18,7 @@ final readonly class EveryoneLogQuery implements LogQuery
     {
         return Commit::query()
             ->visibleTo($user)
+            ->withoutMutedAuthorsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)
             ->withSavedState($user)

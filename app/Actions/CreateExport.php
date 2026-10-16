@@ -9,11 +9,12 @@ use App\Models\PollOption;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use Generator;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 final readonly class CreateExport
 {
     /**
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, int|string|null>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, following: Generator<int, array{username: string}>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, int|string|null>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, following: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>}
      */
     public function handle(User $user): array
     {
@@ -37,7 +38,9 @@ final readonly class CreateExport
             'commits' => $this->commits($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
-            'following' => $this->following($user),
+            'following' => $this->usernames($user->following()),
+            'muting' => $this->usernames($user->muting()),
+            'blocking' => $this->usernames($user->blocking()),
         ];
     }
 
@@ -99,12 +102,13 @@ final readonly class CreateExport
     }
 
     /**
+     * @param  BelongsToMany<User, User>  $users
      * @return Generator<int, array{username: string}>
      */
-    private function following(User $user): Generator
+    private function usernames(BelongsToMany $users): Generator
     {
-        foreach ($user->following()->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id') as $followed) {
-            yield ['username' => $followed->username];
+        foreach ($users->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id') as $user) {
+            yield ['username' => $user->username];
         }
     }
 }

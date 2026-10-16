@@ -103,6 +103,35 @@ it('may not vote on a poll that is not visible', function (string $state): void 
     expect(PollVote::query()->count())->toBe(0);
 })->with(['pending', 'rejected']);
 
+it('may not vote across a block in either direction', function (bool $voterBlocks): void {
+    $user = User::factory()->create();
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+    $author = $poll->commit->user;
+
+    $voterBlocks ? $user->blocking()->attach($author) : $author->blocking()->attach($user);
+
+    $this->actingAs($user)
+        ->postJson(route('commit-poll-vote.store', $poll->commit), ['option' => $poll->options[0]->id])
+        ->assertForbidden();
+
+    expect(PollVote::query()->count())->toBe(0);
+})->with([true, false]);
+
+it('may still vote across a mute in either direction', function (bool $voterMutes): void {
+    $user = User::factory()->create();
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+    $author = $poll->commit->user;
+
+    $voterMutes ? $user->muting()->attach($author) : $author->muting()->attach($user);
+
+    $this->actingAs($user)
+        ->postJson(route('commit-poll-vote.store', $poll->commit), ['option' => $poll->options[0]->id])
+        ->assertOk()
+        ->assertJsonPath('poll.has_voted', true);
+
+    expect($user->pollVotes()->sole()->poll_option_id)->toBe($poll->options[0]->id);
+})->with([true, false]);
+
 it('may not vote on a deleted commit', function (): void {
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
     $poll->commit->delete();
