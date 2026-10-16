@@ -100,11 +100,12 @@ export function UserPreview({
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const isMenuOpen = useRef(false);
     const [position, setPosition] = useState<Position | null>(null);
+    const [isOpen, setIsOpen] = useState(false);
     const [data, setData] = useState<PreviewData | null>(
         () => cache.get(user.username) ?? null,
     );
 
-    const close = () => setPosition(null);
+    const close = () => setIsOpen(false);
 
     const scheduleOpen = () => {
         clearTimeout(timer.current);
@@ -123,6 +124,7 @@ export function UserPreview({
                     ? positionAround(anchor.current)
                     : positionFor(triggerRef.current),
             );
+            setIsOpen(true);
             setData(cache.get(user.username) ?? null);
             fetchPreview(user).then(setData, () => undefined);
         }, openDelay);
@@ -138,7 +140,10 @@ export function UserPreview({
         timer.current = setTimeout(close, closeDelay);
     };
 
-    const keepOpen = () => clearTimeout(timer.current);
+    const keepOpen = () => {
+        clearTimeout(timer.current);
+        setIsOpen(true);
+    };
 
     useEffect(() => {
         if (!position) {
@@ -159,6 +164,27 @@ export function UserPreview({
             window.removeEventListener('keydown', onKeyDown);
         };
     }, [position]);
+
+    useEffect(() => {
+        const preview = previewRef.current;
+
+        if (isOpen || !preview) {
+            return;
+        }
+
+        let isClosing = true;
+
+        Promise.all(
+            preview.getAnimations().map((animation) => animation.finished),
+        ).then(
+            () => isClosing && setPosition(null),
+            () => undefined,
+        );
+
+        return () => {
+            isClosing = false;
+        };
+    }, [isOpen]);
 
     useLayoutEffect(() => {
         if (!previewRef.current || position?.top === undefined) {
@@ -208,12 +234,13 @@ export function UserPreview({
                             onHoverChange?.(false);
                             scheduleClose();
                         }}
-                        className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
+                        data-state={isOpen ? 'open' : 'closed'}
+                        className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
                         style={{
                             ...position,
                             transformOrigin: anchor
                                 ? `${avatarCentre}px ${avatarCentre}px`
-                                : undefined,
+                                : `left ${position.top === undefined ? 'bottom' : 'top'}`,
                         }}
                         data-test="user-preview"
                     >

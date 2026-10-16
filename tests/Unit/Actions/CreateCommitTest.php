@@ -368,3 +368,38 @@ it('lifts the thread when an admin replies', function (): void {
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });
+
+it('lifts the quoted thread when an admin quotes', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+});
+
+it('keeps a poll on a quote while only approved quotes lift its thread', function (bool $admin): void {
+    config(['app.admins' => ['admin']]);
+
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->for($root, 'parent')->create();
+    $user = User::factory()->create(['username' => $admin ? 'admin' : 'author']);
+
+    $quote = resolve(CreateCommit::class)->handle(
+        $user,
+        'Which approach?',
+        quotedCommit: $reply,
+        poll: new NewPoll(['Tabs', 'Spaces'], PollDuration::OneDay),
+    );
+
+    expect($quote->quoted_commit_id)->toBe($reply->id)
+        ->and($quote->status)->toBe($admin ? CommitStatus::Approved : CommitStatus::Pending)
+        ->and($quote->poll->options->pluck('label')->all())->toBe(['Tabs', 'Spaces'])
+        ->and($quote->poll->opened_at?->toIso8601String())->toBe($admin ? now()->toIso8601String() : null)
+        ->and($root->fresh()->hot_score)->toEqualWithDelta(
+            $admin ? resolve(TheAlgorithm::class)->score($root->created_at, 0, 2) : $root->hot_score,
+            1e-9,
+        );
+})->with([false, true]);
