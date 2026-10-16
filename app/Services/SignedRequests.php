@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Actions\UpdateDeviceLastUsedAt;
 use App\Dto\SshPublicKey;
-use App\Models\User;
+use App\Models\Device;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
 
@@ -14,6 +15,9 @@ use InvalidArgumentException;
  *
  * The signed message is "<unix timestamp>\n<nonce>\n<METHOD>\n<path and query>\n<body>". The timestamp and nonce
  * are also sent in the X-Devnull-Timestamp and X-Devnull-Nonce headers, and the signature in X-SSH-Signature.
+ *
+ * A key signs in as a user once that user approved it as a device on the web. The key doesn't have to be on their
+ * GitHub account: the approval is the proof. So a key made for something else, like committing from CI, can't sign in.
  */
 final readonly class SignedRequests
 {
@@ -21,7 +25,7 @@ final readonly class SignedRequests
 
     private const array Headers = ['X-Devnull-Timestamp', 'X-Devnull-Nonce', 'X-SSH-Signature'];
 
-    public function __construct(private SshSignatures $sshSignatures)
+    public function __construct(private SshSignatures $sshSignatures, private UpdateDeviceLastUsedAt $updateDeviceLastUsedAt)
     {
         //
     }
@@ -35,11 +39,10 @@ final readonly class SignedRequests
     }
 
     /**
-     * The user is null when the key is not on the GitHub account of a devnull user.
-     *
-     * @return array{publicKey: SshPublicKey, user: User|null}
+     * Checks the signature, its timestamp and its nonce, which it spends, and returns the key that signed the request,
+     * whether or not it is approved as a device yet.
      */
-    public function verify(Request $request): array
+    public function verifySignature(Request $request): SshPublicKey
     {
         // Only the raw body is signed, so it has to be JSON. PHP hands a multipart body over as fields and files and
         // keeps no raw body, and the same signed bytes read as a form would give the endpoint other fields...
@@ -58,9 +61,29 @@ final readonly class SignedRequests
             self::Namespace,
         );
 
+        $this->sshSignatures->checkFreshness($timestamp, $nonce);
+
+        return $publicKey;
+    }
+
+    /**
+     * The device is null when nobody approved the key that signed the request. Using a device counts as its last use.
+     *
+     * @return array{publicKey: SshPublicKey, device: Device|null}
+     */
+    public function verify(Request $request): array
+    {
+        $publicKey = $this->verifySignature($request);
+
+        $device = Device::query()->with('user')->where('fingerprint', $publicKey->fingerprint())->first();
+
+        if ($device instanceof Device) {
+            $this->updateDeviceLastUsedAt->handle($device);
+        }
+
         return [
             'publicKey' => $publicKey,
-            'user' => $this->sshSignatures->authenticate($publicKey, $timestamp, $nonce),
+            'device' => $device,
         ];
     }
 }

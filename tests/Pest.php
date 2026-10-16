@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
 use App\Jobs\UnfurlLink;
+use App\Models\Device;
 use App\Models\Message;
-use App\Models\SshKey;
 use App\Models\User;
 use App\Services\OpenAI;
 use App\Services\SignedCommits;
@@ -328,15 +328,14 @@ function signedApiRequest(SshKeyPair $keyPair, string $method, string $uri, ?arr
 }
 
 /**
- * Gives the user a key on their GitHub account that the mobile app could sign API requests with.
+ * Gives the user a key approved as a device, that the mobile app signs API requests with. It isn't on their GitHub
+ * account, as the API doesn't need it to be.
  */
 function apiKeyPairFor(User $user): SshKeyPair
 {
     $keyPair = SshKeyPair::generate();
 
-    SshKey::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
-
-    fakeGitHubSshKeys($user, [$keyPair->publicKey]);
+    Device::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
 
     return $keyPair;
 }

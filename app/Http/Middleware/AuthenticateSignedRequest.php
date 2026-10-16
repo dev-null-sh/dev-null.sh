@@ -6,22 +6,26 @@ namespace App\Http\Middleware;
 
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
+use App\Models\Device;
 use App\Models\User;
 use App\Services\SignedRequests;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Authenticates a request to the API signed by the mobile app with an SSH key that is on the user's GitHub account.
+ * Authenticates a request to the API signed by the mobile app with an SSH key that the user approved as a device.
  *
  * The public read endpoints use it through optional(): a request without any signature header is read as a guest,
  * but one that is signed must be signed right, so a broken client never quietly gets the public view instead.
  */
 final readonly class AuthenticateSignedRequest
 {
+    private const int FailuresPerAddressPerMinute = 60;
+
     public function __construct(private SignedRequests $signedRequests)
     {
         //
@@ -41,19 +45,29 @@ final readonly class AuthenticateSignedRequest
             return $this->asGuest($request, $next);
         }
 
+        // Rate limits go by the user, so they only count once the signature checks out. Until then, each address gets
+        // a ceiling on failures, so a key nobody approved can't make the API check signatures and spend nonces freely...
+        $failures = 'api-signature-failures:'.$request->ip();
+
+        throw_if(RateLimiter::tooManyAttempts($failures, self::FailuresPerAddressPerMinute), fn (): ApiException => new ApiException(ApiErrorCode::RateLimited, 'Too Many Attempts.', [
+            'Retry-After' => RateLimiter::availableIn($failures),
+        ]));
+
         try {
-            ['publicKey' => $publicKey, 'user' => $user] = $this->signedRequests->verify($request);
+            ['device' => $device] = $this->signedRequests->verify($request);
         } catch (InvalidArgumentException $invalidArgumentException) {
+            RateLimiter::hit($failures);
+
             throw new ApiException(ApiErrorCode::InvalidSignature, $invalidArgumentException->getMessage());
         }
 
-        if (! $user instanceof User) {
-            throw new ApiException(ApiErrorCode::KeyNotOnGitHub, __('This SSH key (:fingerprint) is not on the GitHub account of a devnull user.', [
-                'fingerprint' => $publicKey->fingerprint(),
-            ]));
+        if (! $device instanceof Device) {
+            RateLimiter::hit($failures);
+
+            throw new ApiException(ApiErrorCode::DeviceNotApproved, __("This key isn't approved for the /dev/null app. Sign in again in the app."));
         }
 
-        Auth::setUser($user);
+        Auth::setUser($device->user);
 
         return $next($request);
     }
