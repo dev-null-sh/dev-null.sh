@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -48,6 +49,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int|null $repliers_count
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
+ * @property-read Poll|null $poll
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
@@ -65,6 +67,8 @@ final class Commit extends Model
 
     use HasUuids;
     use SoftDeletes;
+
+    public const int RESTORABLE_SECONDS = 30;
 
     /**
      * @return array<string, string>
@@ -138,6 +142,11 @@ final class Commit extends Model
             && (! $user instanceof User || ! $this->user instanceof User || ! $user->hasBlockWith($this->user));
     }
 
+    public function isRestorable(): bool
+    {
+        return $this->user_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
+    }
+
     /**
      * @return BelongsTo<Commit, $this>
      */
@@ -194,6 +203,14 @@ final class Commit extends Model
     public function linkPreview(): BelongsTo
     {
         return $this->belongsTo(LinkPreview::class);
+    }
+
+    /**
+     * @return HasOne<Poll, $this>
+     */
+    public function poll(): HasOne
+    {
+        return $this->hasOne(Poll::class);
     }
 
     /**

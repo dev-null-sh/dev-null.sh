@@ -112,13 +112,17 @@ it('validates every part like a commit and posts nothing when one is invalid', f
     'too long' => [str_repeat('a', 281), 'The commit field must not be greater than 280 characters.'],
 ]);
 
-it('spends one of the 10 commits a minute on each part', function (): void {
+it('spends one of the 10 commits a minute on each part', function (bool $withPoll): void {
     $user = User::factory()->create();
 
     for ($i = 0; $i < 6; $i++) {
         $this->actingAs($user)
             ->fromRoute('log.show', Log::Following)
-            ->post(route('commit.store'), ['body' => "Commit {$i}"]);
+            ->post(route('commit.store'), [
+                'body' => "Commit {$i}",
+                ...($withPoll ? ['poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 1440]] : []),
+            ])
+            ->assertSessionHasNoErrors();
     }
 
     $this->actingAs($user)
@@ -147,7 +151,7 @@ it('spends one of the 10 commits a minute on each part', function (): void {
         ]);
 
     expect($user->commits()->count())->toBe(10);
-});
+})->with(['single commits' => false, 'poll commits' => true]);
 
 it('attaches images to the first part of the series', function (): void {
     Storage::fake();

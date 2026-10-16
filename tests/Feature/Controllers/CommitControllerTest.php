@@ -629,6 +629,23 @@ it('shows the star count and whether the viewer starred the commit and its ances
             ->where('ancestors.0.starred', true));
 });
 
+it('shows the star count and whether the viewer starred each reply', function (): void {
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $viewer->starredCommits()->attach($reply);
+    User::factory()->create()->starredCommits()->attach($reply);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('replies.data.0.stars_count', 2)
+            ->where('replies.data.0.starred', true));
+});
+
 it('shows the first 50 replies of a commit with a cursor to the rest', function (): void {
     $viewer = User::factory()->create();
     $commit = Commit::factory()->create();
@@ -742,14 +759,14 @@ it('shows guests the commit with its approved replies and a link preview', funct
             ->has('ancestors', 0)
             ->has('replies.data', 1)
             ->where('replies.data.0.body', 'A reply everyone may read'))
-        ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<title>The Octocat (@octocat) on /dev/null: “Shipped the new parser. It is twice as fast.”</title>', false)
         ->assertSee('<link rel="canonical" href="'.route('commit.show', [$user, $commit]).'">', false)
-        ->assertSee('<meta name="twitter:title" content="The Octocat (@octocat) on /dev/null">', false)
+        ->assertSee('<meta name="twitter:title" content="The Octocat (@octocat) on /dev/null: “Shipped the new parser. It is twice as fast.”">', false)
         ->assertSee('<meta property="article:published_time" content="'.$commit->created_at->toIso8601String().'">', false)
         ->assertSee('"@type":"SocialMediaPosting"', false)
         ->assertSee('"author":{"@type":"Person","name":"The Octocat","alternateName":"@octocat","url":"'.route('user.show', $user).'"}', false)
         ->assertSee('<meta property="og:type" content="article">', false)
-        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
+        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null: “Shipped the new parser. It is twice as fast.”">', false)
         ->assertSee('<meta property="og:description" content="Shipped the new parser. It is twice as fast.">', false)
         ->assertSee('<meta property="og:url" content="'.route('commit.show', [$user, $commit]).'">', false)
         ->assertSee('<meta property="og:image" content="'.route('commit-open-graph-image.show', [$user, $commit]).'?v=', false)
@@ -770,7 +787,7 @@ it('does not show a later part of a series as a reply in the link preview', func
     $response = $this->get(route('commit.show', [$user, $parts[1]]));
 
     $response->assertOk()
-        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
+        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null: “', false)
         ->assertDontSee('(@octocat) replying to', false);
 });
 
@@ -812,7 +829,7 @@ it('mentions the approved parent of a reply in the link preview', function (): v
 
     $this->get(route('commit.show', [$reply->user, $reply]))
         ->assertOk()
-        ->assertSee('<meta property="og:title" content="@octocat replying to @taylorotwell on /dev/null">', false)
+        ->assertSee('<meta property="og:title" content="@octocat replying to @taylorotwell on /dev/null: “', false)
         ->assertSee('"isPartOf":"'.route('commit.show', [$parent->user, $parent]).'"', false)
         ->assertInertia(fn ($page) => $page->where('ancestors.0.body', 'The parent commit'));
 });
@@ -824,7 +841,7 @@ it('does not mention an unavailable parent in the link preview', function (Closu
 
     $this->get(route('commit.show', [$reply->user, $reply]))
         ->assertOk()
-        ->assertSee('<meta property="og:title" content="@octocat on /dev/null">', false)
+        ->assertSee('<meta property="og:title" content="@octocat on /dev/null: “', false)
         ->assertDontSee('replying to')
         ->assertDontSee('taylorotwell')
         ->assertDontSee('The parent commit');
@@ -842,6 +859,89 @@ it('escapes the commit in the structured data', function (): void {
         ->assertDontSee('</script><script>alert(1)', false)
         ->assertSee('"text":"\u003C/script\u003E\u003Cscript\u003Ealert(1)\u003C/script\u003E"', false);
 });
+
+it('previews the images of a commit before its drawn card', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $commit = Commit::factory()->for($user)->create(['body' => 'The new terminal theme']);
+    $first = CommitImage::factory()->for($commit)->create(['width' => 1600, 'height' => 900, 'position' => 0]);
+    $second = CommitImage::factory()->for($commit)->create(['position' => 1]);
+
+    $content = (string) $this->get(route('commit.show', [$user, $commit]))->assertOk()->getContent();
+
+    expect($content)
+        ->toContain('<meta property="og:image" content="'.$first->url().'">
+                <meta property="og:image:type" content="image/webp">
+                <meta property="og:image:width" content="1600">
+                <meta property="og:image:height" content="900">
+                <meta property="og:image:alt" content="Image 1 of 2 attached to the commit of The Octocat (@octocat)">')
+        ->toContain('<meta name="twitter:image" content="'.$first->url().'">')
+        ->toContain('"image":["'.$first->url().'","'.$second->url().'","'.route('commit-open-graph-image.show', [$user, $commit]).'?v=')
+        ->and(mb_strpos($content, $second->url()))->toBeLessThan(mb_strpos($content, route('commit-open-graph-image.show', [$user, $commit])));
+});
+
+it('previews the drawn card of a commit without images', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('<meta name="twitter:image" content="'.route('commit-open-graph-image.show', [$commit->user, $commit]).'?v=', false)
+        ->assertSee('<meta property="og:image:type" content="image/png">', false)
+        ->assertSee('<meta property="og:image:width" content="1200">', false)
+        ->assertSee('<meta property="og:image:height" content="630">', false);
+});
+
+it('trims long commits in the link preview title', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'octocat']);
+    $commit = Commit::factory()->for($user)->create(['body' => str_repeat('Writing PHP on purpose. ', 4).'The end is not in the title.']);
+
+    $title = Str::betweenFirst((string) $this->get(route('commit.show', [$user, $commit]))->getContent(), '<meta property="og:title" content="', '"');
+
+    expect($title)->toStartWith('@octocat on /dev/null: “Writing PHP on purpose.')
+        ->toEndWith('…”')
+        ->not->toContain('The end');
+});
+
+it('lets search engines show large image previews of a commit', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">', false)
+        ->assertSee('<link rel="alternate" type="application/atom+xml" title="'.e($commit->user->nameWithHandle()).' on /dev/null" href="'.route('user-feed.show', $commit->user).'">', false);
+});
+
+it('lists the approved replies of a commit as comments in the structured data', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->for(User::factory()->state(['username' => 'taylorotwell', 'name' => 'Taylor Otwell']))->create(['body' => 'A reply everyone may read']);
+    Commit::factory()->for($commit, 'parent')->pending()->create(['body' => 'A pending reply only its author may read']);
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('"comment":[{"@type":"Comment","url":"'.route('commit.show', [$reply->user, $reply]).'","text":"A reply everyone may read","datePublished":"'.$reply->created_at->toIso8601String().'","author":{"@type":"Person","name":"Taylor Otwell","alternateName":"@taylorotwell","url":"'.route('user.show', $reply->user).'"}}]', false)
+        ->assertDontSee('A pending reply only its author may read');
+});
+
+it('shares the link of a commit in the structured data', function (): void {
+    $commit = Commit::factory()->for(LinkPreview::factory()->fetched()->state(['url' => 'https://laravel.com', 'title' => 'Laravel']))->create();
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('"sharedContent":{"@type":"WebPage","url":"https://laravel.com","name":"Laravel"', false);
+});
+
+it('shares the quoted commit in the structured data only while it is approved', function (bool $isApproved): void {
+    $quoted = Commit::factory()->create(['status' => $isApproved ? CommitStatus::Approved : CommitStatus::Pending]);
+    $commit = Commit::factory()->create(['quoted_commit_id' => $quoted->id]);
+
+    $response = $this->get(route('commit.show', [$commit->user, $commit]))->assertOk();
+
+    $isApproved
+        ? $response->assertSee('"sharedContent":{"@type":"SocialMediaPosting","url":"'.route('commit.show', [$quoted->user, $quoted]).'"', false)
+        : $response->assertDontSee('sharedContent', false);
+})->with([
+    'approved' => [true],
+    'pending' => [false],
+]);
 
 it('returns not found to guests for deleted commits', function (): void {
     $commit = Commit::factory()->create();

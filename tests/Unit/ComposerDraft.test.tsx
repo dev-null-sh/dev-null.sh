@@ -65,6 +65,8 @@ const { MentionTextarea } =
     await import('../../resources/js/components/mention-textarea');
 const { LinkCardPicker } =
     await import('../../resources/js/components/link-card-picker');
+const { PollEditor } =
+    await import('../../resources/js/components/poll-editor');
 
 type Element = ReactElement<Record<string, unknown>>;
 
@@ -125,6 +127,12 @@ test.each([1, 2])(
             (element) => element.props['aria-controls'] === 'commit-schedule',
         )!;
         assert.equal(schedule.props.disabled, true);
+        assert.equal(
+            fields.find(
+                (element) => element.props['data-test'] === 'add-poll-button',
+            )!.props.disabled,
+            true,
+        );
         if (parts === 2) {
             assert.deepEqual(
                 fields
@@ -147,6 +155,93 @@ test.each([1, 2])(
         }
     },
 );
+
+test('removing restored images enables polls and successful posting resets the poll', () => {
+    draft.images = [image];
+    let view = render();
+    const preview = view.fields.find(
+        (element) => element.type === ImagePickerPreviews,
+    )!;
+    (preview.props.onRemove as (index: number) => void)(0);
+    view = render();
+    const pollButton = view.fields.find(
+        (element) => element.props['data-test'] === 'add-poll-button',
+    )!;
+    assert.equal(pollButton.props.disabled, false);
+
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        (pollButton.props.onClick as () => void)();
+        view = render();
+        const editor = view.fields.find(
+            (element) => element.type === PollEditor,
+        )!;
+        const submit = () =>
+            view.fields.find(
+                (element) =>
+                    element.props['data-test'] === 'create-commit-button',
+            )!;
+        assert.equal(submit().props.disabled, true);
+        assert.equal(
+            view.fields.find((element) => element.type === ImagePickerButton)!
+                .props.disabled,
+            true,
+        );
+        assert.equal(
+            view.fields.find(
+                (element) =>
+                    element.props['aria-controls'] === 'commit-schedule',
+            )!.props.disabled,
+            true,
+        );
+        assert.equal(
+            view.fields.find(
+                (element) =>
+                    element.props['data-test'] === 'add-commit-part-button',
+            )!.props.disabled,
+            true,
+        );
+        const textarea = view.fields.find(
+            (element) => element.type === MentionTextarea,
+        )!;
+        assert.equal(textarea.props.onPaste, undefined);
+        assert.equal(textarea.props.onDrop, undefined);
+
+        (editor.props.onChange as (poll: unknown) => void)({
+            options: ['Tabs', 'Spaces'],
+            duration: 1440,
+        });
+        view = render();
+        assert.equal(submit().props.disabled, false);
+        const data = {
+            body: draft.bodies[0],
+            poll: { options: ['Tabs', 'Spaces'], duration: 1440 },
+        };
+        assert.deepEqual(view.form.props.transform(data), data);
+        view.form.props.onSuccess({ flash: {} });
+        assert.equal(draft.drop.mock.calls.length, 0);
+        assert.ok(
+            render().fields.some((element) => element.type === PollEditor),
+        );
+
+        view.form.props.onSuccess({ flash: { committed: { id: 'created' } } });
+        assert.equal(draft.drop.mock.calls.length, 1);
+        assert.deepEqual(draft.images, []);
+        view = render();
+        assert.equal(
+            view.fields.some((element) => element.type === PollEditor),
+            false,
+        );
+        assert.equal(
+            view.fields.find(
+                (element) => element.props['data-test'] === 'add-poll-button',
+            )!.props.disabled,
+            false,
+        );
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
 
 test('schedules plain text in UTC and keeps pasted images visible until removed before scheduling', () => {
     let view = render();

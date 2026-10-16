@@ -213,6 +213,38 @@ it('includes the link previews of replies', function (): void {
         ->assertJsonMissingPath('data.0.link_preview.url_hash');
 });
 
+it('includes the star count of replies and whether the viewer starred them', function (): void {
+    $viewer = User::factory()->create();
+    $parent = Commit::factory()->create();
+    $starred = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    $other = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinute()]);
+
+    $viewer->starredCommits()->attach($starred);
+    User::factory()->create()->starredCommits()->attach([$starred->id, $other->id]);
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.stars_count', 2)
+        ->assertJsonPath('data.0.starred', true)
+        ->assertJsonPath('data.1.stars_count', 1)
+        ->assertJsonPath('data.1.starred', false);
+});
+
+it('includes the star count of replies for guests without marking any as starred', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+
+    User::factory()->create()->starredCommits()->attach($reply);
+
+    $response = $this->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.stars_count', 1)
+        ->assertJsonPath('data.0.starred', false);
+});
+
 it('returns 404 to guests for replies of an unapproved tombstone after account deletion', function (CommitStatus $status): void {
     $user = User::factory()->create();
     $root = Commit::factory()->create();
@@ -271,7 +303,7 @@ it('keeps approved account deletion tombstones readable to guests without exposi
     $response = $this->get(route('commit.show', [$reply->user, $reply]));
 
     $response->assertOk()
-        ->assertSee('<meta property="og:title" content="'.e($reply->user->nameWithHandle()).' on /dev/null">', false)
+        ->assertSee('<meta property="og:title" content="'.e($reply->user->nameWithHandle()).' on /dev/null: “', false)
         ->assertSee('"@type":"SocialMediaPosting"', false)
         ->assertDontSee('"isPartOf":', false)
         ->assertDontSee('deletedauthor')
