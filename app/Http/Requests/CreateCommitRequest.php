@@ -37,6 +37,7 @@ final class CreateCommitRequest extends FormRequest
         return [
             'body' => ['required', 'string', 'min:3', 'max:280'],
             'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
+            'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
             'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
@@ -89,6 +90,16 @@ final class CreateCommitRequest extends FormRequest
 
         return $this->filled('parent_id')
             ? Commit::query()->visibleTo($user)->find($this->string('parent_id')->value())
+            : null;
+    }
+
+    public function quotedCommit(): ?Commit
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return $this->filled('quoted_commit_id')
+            ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
             : null;
     }
 }
