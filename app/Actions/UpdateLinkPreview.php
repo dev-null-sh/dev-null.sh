@@ -10,12 +10,10 @@ use Dom\HTMLDocument;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\IpUtils;
-use Throwable;
 use Uri\WhatWg\Url;
 
 final readonly class UpdateLinkPreview
@@ -66,22 +64,13 @@ final readonly class UpdateLinkPreview
     }
 
     /**
-     * Fetches the page behind the link and stores its Open Graph metadata. It never throws: a page that can't or
-     * mustn't be fetched is marked as fetched without metadata, so it is not tried again.
+     * Fetches the page behind the link and stores its Open Graph metadata. A page that can't or mustn't be fetched is
+     * marked as fetched without metadata, so it is not tried again. Failures that may pass, such as connection errors,
+     * timeouts, rate limits and server errors, are thrown instead, so the caller can try again later.
      */
     public function handle(LinkPreview $linkPreview): void
     {
-        $metadata = self::NO_METADATA;
-
-        try {
-            $metadata = $this->fetchMetadata($linkPreview->url);
-        } catch (HttpClientException) {
-            //
-        } catch (Throwable $exception) {
-            report($exception);
-        }
-
-        $linkPreview->update([...$metadata, 'fetched_at' => now()]);
+        $linkPreview->update([...$this->fetchMetadata($linkPreview->url), 'fetched_at' => now()]);
     }
 
     /**
@@ -101,6 +90,10 @@ final readonly class UpdateLinkPreview
             }
 
             $response = $this->get($page, $address);
+
+            if ($response->serverError() || $response->tooManyRequests()) {
+                $response->throw();
+            }
 
             if (! $response->redirect()) {
                 return $response->successful() && $this->isHtml($response)
