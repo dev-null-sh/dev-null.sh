@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { DeletedCommit } from '@/types/commit';
 
 export type AppLayoutProps = {
     children: ReactNode;
@@ -15,8 +16,7 @@ export type CommittedFlash = {
     series_size?: number;
 };
 
-export type DeletedFlash = {
-    id: string;
+export type DeletedFlash = DeletedCommit & {
     expires_at: string;
     server_time: string;
 };

@@ -5,6 +5,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { useNow } from '@/hooks/use-now';
+import { updateQuotedCommits } from '@/lib/commit-mutation-options';
 import { formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -57,25 +58,32 @@ export function CommitFeed({
                 const { deleted, restored } = event.detail.flash;
                 if (deleted) {
                     router.replaceProp('commits.data', (rows: Commit[]) =>
-                        rows.filter((commit) => commit.id !== deleted.id),
+                        updateQuotedCommits(
+                            rows.filter((commit) => commit.id !== deleted.id),
+                            deleted,
+                        ),
                     );
                 }
-                if (
-                    restored &&
-                    (isSaved
-                        ? restored.is_saved === true
-                        : isProfileReplies
-                          ? restored.parent_id !== null &&
-                            (restored.series_position === null ||
-                                restored.series_position === 1)
-                          : restored.parent_id === null) &&
-                    (profileUserId === null ||
-                        (restored.user_id === profileUserId &&
-                            !restored.is_pinned))
-                ) {
-                    router.replaceProp('commits.data', (rows: Commit[]) =>
-                        [
-                            ...rows.filter(
+                if (restored) {
+                    const belongsInFeed =
+                        (isSaved
+                            ? restored.is_saved === true
+                            : isProfileReplies
+                              ? restored.parent_id !== null &&
+                                (restored.series_position === null ||
+                                    restored.series_position === 1)
+                              : restored.parent_id === null) &&
+                        (profileUserId === null ||
+                            (restored.user_id === profileUserId &&
+                                !restored.is_pinned));
+
+                    router.replaceProp('commits.data', (rows: Commit[]) => {
+                        const updated = updateQuotedCommits(rows, restored);
+                        if (!belongsInFeed) {
+                            return updated;
+                        }
+                        return [
+                            ...updated.filter(
                                 (commit) => commit.id !== restored.id,
                             ),
                             restored,
@@ -89,8 +97,8 @@ export function CommitFeed({
                                 b.created_at.localeCompare(a.created_at) ||
                                 b.id.localeCompare(a.id)
                             );
-                        }),
-                    );
+                        });
+                    });
                 }
             }),
         [profileUserId, isModeration, isProfileReplies, isSaved],

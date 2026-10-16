@@ -6,6 +6,8 @@ use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Enums\NotificationType;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
 use App\Models\Bookmark;
 use App\Models\Commit;
@@ -69,6 +71,8 @@ it('flashes the server deadline from every deletion context', function (string $
 
     $response->assertRedirect($context === 'commit' ? route('user.show', $commit->user) : $from)
         ->assertInertiaFlash('deleted.id', $commit->id)
+        ->assertInertiaFlash('deleted.parent_id', $commit->parent_id)
+        ->assertInertiaFlash('deleted.deleted_at', $commit->refresh()->deleted_at?->toJSON())
         ->assertInertiaFlash('deleted.expires_at', $commit->refresh()->deleted_at?->addSeconds(30)->toJSON())
         ->assertInertiaFlash('deleted.server_time', now()->toJSON());
 })->with(['log', 'profile', 'thread', 'commit']);
@@ -413,3 +417,94 @@ it('retains the chosen link card through deletion and undo without queuing it ag
         Queue::assertNotPushed(UnfurlLink::class);
     }
 })->with([true, false]);
+
+it('restores a quote with only the quoted content its author can still see', function (string $state): void {
+    $target = Commit::factory()->create();
+    $quote = Commit::factory()->for($target, 'quotedCommit')->create();
+    $owner = $quote->user;
+    resolve(DeleteCommit::class)->handle($quote);
+
+    match ($state) {
+        'pending' => $target->update(['status' => CommitStatus::Pending]),
+        'rejected' => $target->update(['status' => CommitStatus::Rejected]),
+        'deleted' => resolve(DeleteCommit::class)->handle($target),
+        'blocked' => $target->user->blocking()->attach($owner),
+        default => null,
+    };
+
+    $response = $this->actingAs($owner)->post(route('commit-restoration.store', $quote))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.quoted_commit_id', $target->id);
+
+    if ($state === 'approved') {
+        $response->assertInertiaFlash('restored.quoted_commit.id', $target->id)
+            ->assertInertiaFlash('restored.quoted_commit.body', $target->body);
+    } elseif ($state === 'deleted') {
+        $response->assertInertiaFlash('restored.quoted_commit.id', $target->id)
+            ->assertInertiaFlashMissing('restored.quoted_commit.body')
+            ->assertInertiaFlashMissing('restored.quoted_commit.user');
+    } else {
+        $response->assertInertiaFlash('restored.quoted_commit', null);
+    }
+})->with(['approved', 'pending', 'rejected', 'deleted', 'blocked']);
+
+it('removes quote notifications permanently when their target is deleted and restored', function (): void {
+    $notification = Notification::factory()->quoted()->create();
+    $quote = $notification->commit;
+    $target = $quote->quotedCommit;
+
+    $this->actingAs($target->user)->delete(route('commit.destroy', $target))->assertRedirect();
+    $this->assertModelMissing($notification);
+    $this->assertNotSoftDeleted($quote);
+
+    $this->post(route('commit-restoration.store', $target))->assertSessionHasNoErrors();
+
+    expect(Notification::query()->count())->toBe(0);
+    $this->assertNotSoftDeleted($target);
+});
+
+it('keeps rejection notifications removed and moderation hints private after undo', function (): void {
+    $commit = Commit::factory()->rejected()->create([
+        'ai_decision' => CommitStatus::Rejected,
+        'ai_categories' => ['harassment'],
+    ]);
+    Notification::factory()->create([
+        'commit_id' => $commit->id,
+        'actor_id' => $commit->user_id,
+        'recipient_id' => $commit->user_id,
+        'type' => NotificationType::Rejected,
+    ]);
+
+    $this->actingAs($commit->user)->delete(route('commit.destroy', $commit))->assertRedirect();
+    $this->post(route('commit-restoration.store', $commit))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.status', 'rejected')
+        ->assertInertiaFlashMissing('restored.ai_decision')
+        ->assertInertiaFlashMissing('restored.ai_categories');
+
+    expect(Notification::query()->count())->toBe(0)
+        ->and($commit->refresh()->ai_decision)->toBe(CommitStatus::Rejected)
+        ->and($commit->ai_categories)->toBe(['harassment']);
+});
+
+it('refreshes profile achievement totals through deletion and undo', function (): void {
+    $commit = Commit::factory()->create();
+    $user = $commit->user;
+    $this->actingAs($user)->fromRoute('user.show', $user)
+        ->delete(route('commit.destroy', $commit))->assertRedirect();
+
+    $headers = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'user/show',
+        'X-Inertia-Partial-Data' => 'achievements',
+    ];
+    $this->get(route('user.show', $user), $headers)
+        ->assertOk()
+        ->assertJsonPath('props.achievements.xp_breakdown.commits.count', 0);
+
+    $this->post(route('commit-restoration.store', $commit))->assertSessionHasNoErrors();
+    $this->get(route('user.show', $user), $headers)
+        ->assertOk()
+        ->assertJsonPath('props.achievements.xp_breakdown.commits.count', 1);
+});

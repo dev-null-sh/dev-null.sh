@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 final readonly class DeleteCommit
 {
     /**
-     * Soft deleting keeps the row for its replies, so its notifications and reply notifications are removed here instead of by the foreign key.
+     * Soft deleting keeps the row for its replies and quotes, so its notifications and the notifications about its replies and quotes are removed here instead of by the foreign key.
      * Its images are kept until the undo window closes, so undoing the deletion brings them back too.
      */
     public function handle(Commit $commit): Commit
@@ -31,6 +31,9 @@ final readonly class DeleteCommit
                 ->orWhere(fn (NotificationBuilder $query): NotificationBuilder => $query
                     ->where('type', NotificationType::Replied)
                     ->whereIn('commit_id', $commit->replies()->select('id')))
+                ->orWhere(fn (NotificationBuilder $query): NotificationBuilder => $query
+                    ->where('type', NotificationType::Quoted)
+                    ->whereIn('commit_id', $commit->quotes()->select('id')))
                 ->delete();
 
             $commit->delete();

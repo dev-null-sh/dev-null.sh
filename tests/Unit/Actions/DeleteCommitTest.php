@@ -28,6 +28,15 @@ it('keeps the replies of a deleted commit', function (): void {
     $this->assertNotSoftDeleted($reply);
 });
 
+it('keeps the quotes of a deleted commit', function (): void {
+    $commit = Commit::factory()->create();
+    $quote = Commit::factory()->for($commit, 'quotedCommit')->create();
+
+    resolve(DeleteCommit::class)->handle($commit);
+
+    $this->assertNotSoftDeleted($quote);
+});
+
 it('keeps the images of a deleted commit until the undo window closes', function (): void {
     Storage::fake();
     Queue::fake();
