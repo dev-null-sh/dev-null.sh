@@ -39,6 +39,7 @@ final readonly class CommitController
             'commit' => $commit,
             'ancestors' => $ancestors->get($commit, $currentUser),
             'replies' => $replies->paginate($commit, $currentUser),
+            'decisions' => $request->showsDecisions() ? $commit->decisions()->with('user')->latest('id')->get() : [],
         ]);
     }
 

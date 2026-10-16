@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Models\Commit;
 use App\Models\User;
+use App\Rules\Unclaimed;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class CreateCommitApprovalRequest extends FormRequest
@@ -18,10 +21,26 @@ final class CreateCommitApprovalRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * @return array<string, array<int, ValidationRule>>
      */
     public function rules(): array
     {
-        return [];
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return [
+            'commit' => [new Unclaimed($user)],
+        ];
+    }
+
+    /**
+     * @return array<array-key, mixed>
+     */
+    public function validationData(): array
+    {
+        $commit = $this->route('commit');
+        assert($commit instanceof Commit);
+
+        return [...$this->all(), 'commit' => $commit->id];
     }
 }

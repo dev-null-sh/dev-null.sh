@@ -1,18 +1,28 @@
-import { Head, router } from '@inertiajs/react';
-import { Check, X } from 'lucide-react';
-import { useId, useState } from 'react';
+import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
+import { Check, History, ListChecks, X } from 'lucide-react';
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
+import CommitClaimController from '@/actions/App/Http/Controllers/CommitClaimController';
+import CommitDecisionController from '@/actions/App/Http/Controllers/CommitDecisionController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import InputError from '@/components/input-error';
+import { RejectionReasonsDialog } from '@/components/rejection-reasons-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { UserAvatar } from '@/components/user-avatar';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import type { Commit, CursorPaginated } from '@/types';
+import type {
+    Commit,
+    CommitClaim,
+    CursorPaginated,
+    RejectionReason,
+} from '@/types';
 
 type ModerationRoute =
     | typeof CommitApprovalController.store
@@ -32,32 +42,136 @@ function Keycap({ label, className }: { label: string; className?: string }) {
     );
 }
 
+const claimRefreshMs = 60_000;
+
+function isActive(claim: CommitClaim | undefined, now: Date): boolean {
+    return claim !== undefined && new Date(claim.expires_at) > now;
+}
+
+function ClaimIndicator({
+    claim,
+    isMine,
+    isDisabled,
+    onTakeOver,
+}: {
+    claim: CommitClaim;
+    isMine: boolean;
+    isDisabled: boolean;
+    onTakeOver: () => void;
+}) {
+    const now = useNow();
+    const minutesLeft = Math.max(
+        1,
+        Math.round(
+            (new Date(claim.expires_at).getTime() - now.getTime()) / 60_000,
+        ),
+    );
+
+    return (
+        <div
+            className={cn(
+                'mt-3 flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-2.5 py-1 text-sm',
+                isMine
+                    ? 'bg-muted/60 text-muted-foreground'
+                    : 'bg-amber-500/10 text-amber-900 dark:text-amber-200',
+            )}
+            data-test="commit-claim"
+        >
+            <UserAvatar user={claim.user} className="size-5" />
+            <span>
+                {isMine ? (
+                    'You are reviewing this'
+                ) : (
+                    <>
+                        <span className="font-medium">
+                            @{claim.user.username}
+                        </span>{' '}
+                        is reviewing this
+                    </>
+                )}
+                <span className="text-muted-foreground">
+                    {' '}
+                    · {minutesLeft}m left
+                </span>
+            </span>
+            {!isMine && (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto h-7 bg-transparent"
+                    disabled={isDisabled}
+                    onClick={onTakeOver}
+                    data-test="take-over-commit-button"
+                >
+                    Take over
+                </Button>
+            )}
+        </div>
+    );
+}
+
 function ModerationActions({
     isSelected,
     isDisabled,
+    reasons,
+    claim,
+    isClaimMine,
+    error,
     onSelectedChange,
+    onTakeOver,
+    onErrorClear,
     onModerate,
 }: {
     isSelected: boolean;
     isDisabled: boolean;
+    reasons: RejectionReason[];
+    claim?: CommitClaim;
+    isClaimMine: boolean;
+    error: string;
     onSelectedChange: (isSelected: boolean) => void;
-    onModerate: (
-        route: ModerationRoute,
-        reason?: string,
-        onError?: (message: string) => void,
-    ) => void;
+    onTakeOver: () => void;
+    onErrorClear: () => void;
+    onModerate: (route: ModerationRoute, reason?: string) => void;
 }) {
     const [showReason, setShowReason] = useState(false);
     const [reason, setReason] = useState('');
-    const [error, setError] = useState('');
     const reasonId = useId();
+    const reasonInput = useRef<HTMLTextAreaElement>(null);
+    const isClaimedByOther = claim !== undefined && !isClaimMine;
+    const isLocked = isDisabled || isClaimedByOther;
+
+    const reject = () => onModerate(CommitRejectionController.store, reason);
+
+    const pickReason = (template: RejectionReason) => {
+        setShowReason(true);
+        setReason(template.body);
+        onErrorClear();
+
+        requestAnimationFrame(() => {
+            const input = reasonInput.current;
+
+            input?.focus();
+            input?.setSelectionRange(
+                template.body.length,
+                template.body.length,
+            );
+        });
+    };
 
     return (
         <div>
+            {claim && (
+                <ClaimIndicator
+                    claim={claim}
+                    isMine={isClaimMine}
+                    isDisabled={isDisabled}
+                    onTakeOver={onTakeOver}
+                />
+            )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Checkbox
                     checked={isSelected}
-                    disabled={isDisabled}
+                    disabled={isLocked}
                     onCheckedChange={(checked) =>
                         onSelectedChange(checked === true)
                     }
@@ -67,7 +181,7 @@ function ModerationActions({
                 />
                 <Button
                     size="sm"
-                    disabled={isDisabled}
+                    disabled={isLocked}
                     onClick={() => onModerate(CommitApprovalController.store)}
                     aria-keyshortcuts="a"
                     data-test="approve-commit-button"
@@ -82,14 +196,8 @@ function ModerationActions({
                 <Button
                     variant="outline"
                     size="sm"
-                    disabled={isDisabled}
-                    onClick={() =>
-                        onModerate(
-                            CommitRejectionController.store,
-                            reason,
-                            setError,
-                        )
-                    }
+                    disabled={isLocked}
+                    onClick={reject}
                     aria-keyshortcuts="x"
                     data-test="reject-commit-button"
                 >
@@ -101,25 +209,74 @@ function ModerationActions({
                     <Button
                         variant="ghost"
                         size="sm"
-                        disabled={isDisabled}
+                        disabled={isLocked}
                         onClick={() => setShowReason(true)}
                     >
                         Add reason
                     </Button>
                 )}
             </div>
+            {reasons.length > 0 && (
+                <div
+                    role="group"
+                    aria-label="Rejection reasons"
+                    className={cn(
+                        'mt-3 flex-wrap items-center gap-1.5',
+                        showReason ? 'flex' : 'hidden group-focus-within:flex',
+                    )}
+                    data-test="rejection-reason-picker"
+                >
+                    {reasons.map((template, index) => (
+                        <Button
+                            key={template.id}
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                                'h-7 gap-1.5 px-2 font-normal',
+                                reason === template.body &&
+                                    'border-foreground/40 bg-accent',
+                            )}
+                            disabled={isLocked}
+                            aria-pressed={reason === template.body}
+                            aria-keyshortcuts={
+                                index < 9 ? String(index + 1) : undefined
+                            }
+                            title={template.body}
+                            onClick={() => pickReason(template)}
+                        >
+                            {index < 9 && (
+                                <Keycap
+                                    label={String(index + 1)}
+                                    className="mr-0 -ml-0.5 bg-muted"
+                                />
+                            )}
+                            {template.title}
+                        </Button>
+                    ))}
+                </div>
+            )}
             {showReason && (
                 <div className="mt-3 space-y-2">
                     <Label htmlFor={reasonId}>Reason (optional)</Label>
                     <textarea
+                        ref={reasonInput}
                         id={reasonId}
                         value={reason}
                         onChange={(event) => {
                             setReason(event.target.value);
-                            setError('');
+                            onErrorClear();
+                        }}
+                        onKeyDown={(event) => {
+                            if (
+                                (event.metaKey || event.ctrlKey) &&
+                                event.key === 'Enter'
+                            ) {
+                                event.preventDefault();
+                                reject();
+                            }
                         }}
                         maxLength={280}
-                        disabled={isDisabled}
+                        disabled={isLocked}
                         aria-invalid={Boolean(error)}
                         aria-describedby={`${reasonId}-help${error ? ` ${reasonId}-error` : ''}`}
                         autoFocus
@@ -129,35 +286,119 @@ function ModerationActions({
                         className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
                         id={`${reasonId}-help`}
                     >
-                        <span>Only the author will see this.</span>
+                        <span>
+                            Only the author will see this.
+                            <span className="hidden sm:inline">
+                                {' '}
+                                ⌘↵ rejects.
+                            </span>
+                        </span>
                         <span className="font-mono text-xs">
                             {280 - reason.length}
                         </span>
                     </div>
-                    <InputError id={`${reasonId}-error`} message={error} />
                 </div>
             )}
+            <InputError
+                id={`${reasonId}-error`}
+                message={error}
+                className="mt-2"
+            />
         </div>
     );
 }
 
 export default function Show({
     commits,
+    rejectionReasons,
+    claims,
 }: {
     commits: CursorPaginated<Commit>;
+    rejectionReasons: RejectionReason[];
+    claims: Record<string, CommitClaim>;
 }) {
+    const { auth } = usePage().props;
+    const now = useNow();
     const [isModerating, setIsModerating] = useState(false);
+    const [isManagingReasons, setIsManagingReasons] = useState(false);
+    const [failure, setFailure] = useState<{
+        commitId: string;
+        message: string;
+    } | null>(null);
+
+    usePoll(15_000, { only: ['claims'], preserveUrl: true });
+
+    const activeClaim = (commitId: string) =>
+        isActive(claims[commitId], now) ? claims[commitId] : undefined;
+    const isClaimedByOther = (commitId: string) => {
+        const claim = activeClaim(commitId);
+
+        return claim !== undefined && claim.user.id !== auth.user.id;
+    };
+
+    const claim = (commitId: string, takeOver = false) =>
+        router.visit(CommitClaimController.update(commitId), {
+            data: { take_over: takeOver },
+            async: true,
+            preserveScroll: true,
+            preserveState: true,
+            preserveUrl: true,
+            showProgress: false,
+            only: ['claims'],
+        });
+
+    const claimFocused = useEffectEvent((commitId: string) => {
+        const current = claims[commitId];
+
+        if (current && current.user.id !== auth.user.id) {
+            return;
+        }
+
+        if (
+            current &&
+            new Date(current.expires_at).getTime() - Date.now() > claimRefreshMs
+        ) {
+            return;
+        }
+
+        claim(commitId);
+    });
+
+    useEffect(() => {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+
+        const onFocusIn = (event: FocusEvent) => {
+            clearTimeout(timeout);
+
+            const commitId =
+                event.target instanceof HTMLElement
+                    ? event.target.closest<HTMLElement>('[data-commit]')
+                          ?.dataset.commit
+                    : undefined;
+
+            if (commitId) {
+                timeout = setTimeout(() => claimFocused(commitId), 300);
+            }
+        };
+
+        document.addEventListener('focusin', onFocusIn);
+
+        return () => {
+            document.removeEventListener('focusin', onFocusIn);
+            clearTimeout(timeout);
+        };
+    }, []);
 
     const moderate = (
         commit: Commit,
         route: ModerationRoute,
         reason?: string,
-        onError?: (message: string) => void,
     ) => {
         const index = commits.data.findIndex(({ id }) => id === commit.id);
         const neighbour = commits.data[index + 1] ?? commits.data[index - 1];
 
         setIsModerating(true);
+        setFailure(null);
 
         router.visit(route(commit), {
             data:
@@ -165,6 +406,8 @@ export default function Show({
                     ? { reason: reason ?? '' }
                     : {},
             preserveScroll: true,
+            preserveState: 'errors',
+            only: ['claims'],
             reset: ['commits'],
             onSuccess: () =>
                 requestAnimationFrame(() => {
@@ -180,21 +423,25 @@ export default function Show({
                 }),
             onFinish: () => setIsModerating(false),
             onError: (errors) =>
-                onError?.(
-                    errors.reason ??
+                setFailure({
+                    commitId: commit.id,
+                    message:
+                        errors.reason ??
+                        errors.commit ??
                         'Could not moderate this commit. Try again.',
-                ),
+                }),
         });
     };
 
     const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
     const [approving, setApproving] = useState(false);
 
-    const selectedIds = commits.data
+    const selectableIds = commits.data
         .map((commit) => commit.id)
-        .filter((id) => selected.has(id));
+        .filter((id) => !isClaimedByOther(id));
+    const selectedIds = selectableIds.filter((id) => selected.has(id));
     const isAllSelected =
-        commits.data.length > 0 && selectedIds.length === commits.data.length;
+        selectableIds.length > 0 && selectedIds.length === selectableIds.length;
 
     const toggle = (id: string, isSelected: boolean) =>
         setSelected((current) => {
@@ -210,9 +457,7 @@ export default function Show({
         });
 
     const toggleAll = (isSelected: boolean) =>
-        setSelected(
-            new Set(isSelected ? commits.data.map((commit) => commit.id) : []),
-        );
+        setSelected(new Set(isSelected ? selectableIds : []));
 
     const approveSelected = () =>
         router.visit(ModerationController.update(), {
@@ -229,11 +474,27 @@ export default function Show({
             <Head title="Moderation" />
 
             <div className="sticky top-0 z-10 bg-card">
-                <div className="flex h-14 items-center border-b px-4">
+                <div className="flex h-14 items-center gap-1 border-b px-4">
                     <h1 className="font-semibold">Moderation</h1>
-                    <p className="ml-auto text-sm text-muted-foreground">
+                    <p className="mr-2 ml-auto hidden text-sm text-muted-foreground sm:block">
                         Oldest first
                     </p>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-auto sm:ml-0"
+                        onClick={() => setIsManagingReasons(true)}
+                        data-test="manage-rejection-reasons-button"
+                    >
+                        <ListChecks />
+                        Reasons
+                    </Button>
+                    <Button variant="ghost" size="sm" asChild>
+                        <Link href={CommitDecisionController.index()}>
+                            <History />
+                            Decisions
+                        </Link>
+                    </Button>
                 </div>
 
                 {commits.data.length > 0 && (
@@ -247,7 +508,11 @@ export default function Show({
                                       ? 'indeterminate'
                                       : false
                             }
-                            disabled={approving || isModerating}
+                            disabled={
+                                approving ||
+                                isModerating ||
+                                selectableIds.length === 0
+                            }
                             onCheckedChange={(checked) =>
                                 toggleAll(checked === true)
                             }
@@ -291,11 +556,23 @@ export default function Show({
                     <ModerationActions
                         isSelected={selected.has(commit.id)}
                         isDisabled={isModerating || approving}
+                        reasons={rejectionReasons}
+                        claim={activeClaim(commit.id)}
+                        isClaimMine={
+                            activeClaim(commit.id)?.user.id === auth.user.id
+                        }
                         onSelectedChange={(isSelected) =>
                             toggle(commit.id, isSelected)
                         }
-                        onModerate={(route, reason, onError) =>
-                            moderate(commit, route, reason, onError)
+                        error={
+                            failure?.commitId === commit.id
+                                ? failure.message
+                                : ''
+                        }
+                        onTakeOver={() => claim(commit.id, true)}
+                        onErrorClear={() => setFailure(null)}
+                        onModerate={(route, reason) =>
+                            moderate(commit, route, reason)
                         }
                     />
                 )}
@@ -304,6 +581,12 @@ export default function Show({
                         No commits are waiting for review.
                     </EmptyFeed>
                 }
+            />
+
+            <RejectionReasonsDialog
+                reasons={rejectionReasons}
+                open={isManagingReasons}
+                onOpenChange={setIsManagingReasons}
             />
         </>
     );

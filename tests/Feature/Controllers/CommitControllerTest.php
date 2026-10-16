@@ -6,6 +6,7 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\CommitDecision;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
@@ -730,4 +731,39 @@ it('includes the images of a commit, its ancestors and its replies', function ()
             ->has('ancestors.0.images', 1)
             ->has('replies.data.0.images', 1)
             ->missing('commit.images.0.path'));
+});
+
+it('shows admins the moderation decisions of a commit', function (): void {
+    config(['app.admins' => ['admin']]);
+
+    $admin = User::factory()->create(['username' => 'admin']);
+    $commit = Commit::factory()->create();
+    CommitDecision::factory()->for($commit)->for($admin)->create([
+        'status' => CommitStatus::Rejected,
+        'reason' => 'Spam.',
+        'created_at' => now()->subHour(),
+    ]);
+    CommitDecision::factory()->for($commit)->for($admin)->create(['status' => CommitStatus::Approved]);
+
+    $response = $this->actingAs($admin)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('decisions', 2)
+            ->where('decisions.0.status', 'approved')
+            ->where('decisions.0.user.username', 'admin')
+            ->where('decisions.1.status', 'rejected')
+            ->where('decisions.1.reason', 'Spam.'));
+});
+
+it('does not show moderation decisions to non admins', function (): void {
+    $commit = Commit::factory()->create();
+    CommitDecision::factory()->for($commit)->create();
+
+    $response = $this->actingAs($commit->user)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('decisions', []));
 });

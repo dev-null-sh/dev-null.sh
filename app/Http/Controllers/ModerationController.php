@@ -9,6 +9,8 @@ use App\Enums\CommitStatus;
 use App\Http\Requests\ShowModerationRequest;
 use App\Http\Requests\UpdateModerationRequest;
 use App\Models\Commit;
+use App\Models\CommitClaim;
+use App\Models\RejectionReason;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
@@ -28,18 +30,20 @@ final readonly class ModerationController
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)),
+            'rejectionReasons' => fn () => RejectionReason::query()->orderBy('title')->get(),
+            'claims' => fn () => CommitClaim::query()->active()->with('user')->get()->keyBy('commit_id'),
         ]);
     }
 
     /**
      * Approves the selected commits that are still in the queue.
      */
-    public function update(UpdateModerationRequest $request, UpdateCommitStatuses $action): RedirectResponse
+    public function update(UpdateModerationRequest $request, #[CurrentUser] User $user, UpdateCommitStatuses $action): RedirectResponse
     {
         /** @var array<int, string> $commitIds */
         $commitIds = $request->validated('commits');
 
-        $action->handle($commitIds, CommitStatus::Approved, onlyPending: true);
+        $action->handle($user, $commitIds, CommitStatus::Approved, onlyPending: true);
 
         return back();
     }

@@ -7,7 +7,10 @@ namespace App\Actions;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\CommitClaim;
+use App\Models\CommitDecision;
 use App\Models\Notification;
+use App\Models\User;
 use App\Queries\CommitBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -22,13 +25,17 @@ final readonly class UpdateCommitStatuses
     }
 
     /**
+     * Records the moderator's decision about each commit, and releases the claims on them.
+     *
      * @param  array<int, string>  $commitIds
      */
-    public function handle(array $commitIds, CommitStatus $status, ?string $reason = null, bool $onlyPending = false): void
+    public function handle(User $moderator, array $commitIds, CommitStatus $status, ?string $reason = null, bool $onlyPending = false): void
     {
         assert($status !== CommitStatus::Pending);
 
-        DB::transaction(function () use ($commitIds, $status, $reason, $onlyPending): void {
+        $reason = $status === CommitStatus::Rejected ? $reason : null;
+
+        DB::transaction(function () use ($moderator, $commitIds, $status, $reason, $onlyPending): void {
             $commits = Commit::query()
                 ->whereKey($commitIds)
                 ->when($onlyPending, fn (CommitBuilder $query): CommitBuilder => $query->pending())
@@ -43,6 +50,17 @@ final readonly class UpdateCommitStatuses
 
             Commit::query()->whereKey($commits->modelKeys())->update(['status' => $status]);
 
+            CommitDecision::query()->insert($commits->map(fn (Commit $commit): array => [
+                'commit_id' => $commit->id,
+                'user_id' => $moderator->id,
+                'status' => $status->value,
+                'reason' => $reason,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])->all());
+
+            CommitClaim::query()->whereIn('commit_id', $commits->modelKeys())->delete();
+
             Notification::query()
                 ->whereIn('commit_id', $commits->modelKeys())
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
@@ -55,7 +73,7 @@ final readonly class UpdateCommitStatuses
                 'type' => $status === CommitStatus::Approved ? NotificationType::Approved->value : NotificationType::Rejected->value,
                 'commit_id' => $commit->id,
                 'key' => 'moderated:'.$commit->id,
-                'reason' => $status === CommitStatus::Rejected ? $reason : null,
+                'reason' => $reason,
                 'created_at' => now(),
                 'updated_at' => now(),
             ])->all());

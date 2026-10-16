@@ -36,4 +36,9 @@ final class ShowCommitRequest extends FormRequest
     {
         return [];
     }
+
+    public function showsDecisions(): bool
+    {
+        return $this->user()?->isAdmin() ?? false;
+    }
 }

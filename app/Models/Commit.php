@@ -39,6 +39,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
  * @property-read Collection<int, CommitImage> $images
+ * @property-read Collection<int, CommitDecision> $decisions
  */
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -128,6 +129,14 @@ final class Commit extends Model
     public function bookmarks(): HasMany
     {
         return $this->hasMany(Bookmark::class);
+    }
+
+    /**
+     * @return HasMany<CommitDecision, $this>
+     */
+    public function decisions(): HasMany
+    {
+        return $this->hasMany(CommitDecision::class);
     }
 
     /**

@@ -28,6 +28,8 @@ const shortcuts: Shortcut[] = [
 const moderationShortcuts: Shortcut[] = [
     { keys: ['a'], label: 'Approve commit (in the queue)' },
     { keys: ['x'], label: 'Reject commit (in the queue)' },
+    { keys: ['1–9'], label: 'Use a rejection reason (in the queue)' },
+    { keys: ['⌘', '↵'], label: 'Reject with the reason (in the queue)' },
 ];
 
 function ShortcutList({ shortcuts }: { shortcuts: Shortcut[] }) {

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Models\CommitClaim;
+use App\Models\CommitDecision;
 use App\Models\LinkPreview;
+use App\Models\RejectionReason;
 use App\Models\User;
 
 beforeEach(function (): void {
@@ -152,6 +155,71 @@ it('may not approve many commits as a non admin', function (): void {
         ]);
 
     $response->assertForbidden();
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Pending);
+});
+
+it('renders the rejection reasons in alphabetical order', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    RejectionReason::factory()->create(['title' => 'Spam', 'body' => 'This looks like spam.']);
+    RejectionReason::factory()->create(['title' => 'Off-topic']);
+
+    $response = $this->actingAs($admin)
+        ->get(route('moderation.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('rejectionReasons', 2)
+            ->where('rejectionReasons.0.title', 'Off-topic')
+            ->where('rejectionReasons.1.title', 'Spam')
+            ->where('rejectionReasons.1.body', 'This looks like spam.'));
+});
+
+it('renders who is reviewing which commit', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    $commit = Commit::factory()->pending()->create();
+    CommitClaim::factory()->for($commit)->for(User::factory()->create(['username' => 'other']))->create();
+    CommitClaim::factory()->expired()->create();
+
+    $response = $this->actingAs($admin)
+        ->get(route('moderation.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('claims', 1)
+            ->where("claims.{$commit->id}.user.username", 'other')
+            ->has("claims.{$commit->id}.expires_at"));
+});
+
+it('records who approved many commits', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    $commits = Commit::factory()->pending()->count(2)->create();
+
+    $this->actingAs($admin)
+        ->put(route('moderation.update'), [
+            'commits' => $commits->modelKeys(),
+        ]);
+
+    expect(CommitDecision::query()->where('user_id', $admin->id)->pluck('commit_id')->all())
+        ->toEqualCanonicalizing($commits->modelKeys());
+});
+
+it('may not approve many commits when another admin is reviewing one of them', function (): void {
+    config(['app.admins' => ['admin', 'other']]);
+
+    $admin = User::factory()->create(['username' => 'admin']);
+    $commit = Commit::factory()->pending()->create();
+    $claimed = Commit::factory()->pending()->create();
+    CommitClaim::factory()->for($claimed)->for(User::factory()->create(['username' => 'other']))->create();
+
+    $response = $this->actingAs($admin)
+        ->fromRoute('moderation.show')
+        ->put(route('moderation.update'), [
+            'commits' => [$commit->id, $claimed->id],
+        ]);
+
+    $response->assertRedirectToRoute('moderation.show')
+        ->assertSessionHasErrors(['commits.1' => '@other is reviewing this commit.']);
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Pending);
 });

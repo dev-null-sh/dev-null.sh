@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Models\User;
 
 final readonly class UpdateCommitStatus
 {
@@ -14,8 +15,8 @@ final readonly class UpdateCommitStatus
         //
     }
 
-    public function handle(Commit $commit, CommitStatus $status, ?string $reason = null): void
+    public function handle(User $moderator, Commit $commit, CommitStatus $status, ?string $reason = null): void
     {
-        $this->updateCommitStatuses->handle([$commit->id], $status, $reason);
+        $this->updateCommitStatuses->handle($moderator, [$commit->id], $status, $reason);
     }
 }

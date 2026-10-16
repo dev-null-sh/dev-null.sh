@@ -5,6 +5,9 @@ declare(strict_types=1);
 use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Models\CommitClaim;
+use App\Models\CommitDecision;
+use App\Models\User;
 
 it('may approve many commits', function (): void {
     $commits = Commit::factory()->pending()->count(2)->create();
@@ -12,7 +15,7 @@ it('may approve many commits', function (): void {
 
     $action = resolve(UpdateCommitStatuses::class);
 
-    $action->handle($commits->modelKeys(), CommitStatus::Approved);
+    $action->handle(User::factory()->create(), $commits->modelKeys(), CommitStatus::Approved);
 
     foreach ($commits as $commit) {
         expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
@@ -27,7 +30,7 @@ it('may only update the commits that are still pending', function (): void {
 
     $action = resolve(UpdateCommitStatuses::class);
 
-    $action->handle([$pending->id, $rejected->id], CommitStatus::Approved, onlyPending: true);
+    $action->handle(User::factory()->create(), [$pending->id, $rejected->id], CommitStatus::Approved, onlyPending: true);
 
     expect($pending->refresh()->status)->toBe(CommitStatus::Approved)
         ->and($rejected->refresh()->status)->toBe(CommitStatus::Rejected);
@@ -40,8 +43,52 @@ it('notifies the parent authors of the approved replies', function (): void {
 
     $action = resolve(UpdateCommitStatuses::class);
 
-    $action->handle([...$replies->modelKeys(), $rejected->id], CommitStatus::Approved, onlyPending: true);
+    $action->handle(User::factory()->create(), [...$replies->modelKeys(), $rejected->id], CommitStatus::Approved, onlyPending: true);
 
     expect($parent->user->notifications()->pluck('commit_id')->all())
         ->toEqualCanonicalizing($replies->modelKeys());
+});
+
+it('records who decided about each commit', function (): void {
+    $this->freezeSecond();
+
+    $moderator = User::factory()->create();
+    $commits = Commit::factory()->pending()->count(2)->create();
+    $rejected = Commit::factory()->rejected()->create();
+
+    $action = resolve(UpdateCommitStatuses::class);
+
+    $action->handle($moderator, [...$commits->modelKeys(), $rejected->id], CommitStatus::Rejected, 'Spam.');
+
+    $decisions = CommitDecision::query()->get();
+
+    expect($decisions)->toHaveCount(2)
+        ->and($decisions->pluck('commit_id')->all())->toEqualCanonicalizing($commits->modelKeys())
+        ->and($decisions->every(fn (CommitDecision $decision): bool => $decision->user_id === $moderator->id
+            && $decision->status === CommitStatus::Rejected
+            && $decision->reason === 'Spam.'
+            && $decision->created_at->equalTo(now())))->toBeTrue();
+});
+
+it('records approvals without a reason', function (): void {
+    $commit = Commit::factory()->pending()->create();
+
+    $action = resolve(UpdateCommitStatuses::class);
+
+    $action->handle(User::factory()->create(), [$commit->id], CommitStatus::Approved, 'Ignored.');
+
+    expect(CommitDecision::query()->sole()->reason)->toBeNull();
+});
+
+it('releases the claims on decided commits', function (): void {
+    $commit = Commit::factory()->pending()->create();
+    $other = Commit::factory()->pending()->create();
+    CommitClaim::factory()->for($commit)->create();
+    CommitClaim::factory()->for($other)->create();
+
+    $action = resolve(UpdateCommitStatuses::class);
+
+    $action->handle(User::factory()->create(), [$commit->id], CommitStatus::Approved);
+
+    expect(CommitClaim::query()->sole()->commit_id)->toBe($other->id);
 });

@@ -9,6 +9,7 @@ use App\Actions\DeleteUserFollow;
 use App\Actions\UpdateCommitStatus;
 use App\Enums\CommitStatus;
 use App\Models\Notification;
+use App\Models\User;
 
 it('scopes notifications to unread ones', function (): void {
     $unread = Notification::factory()->create();
@@ -53,7 +54,7 @@ it('keeps approved replies', function (): void {
 it('hides replies once rejected', function (): void {
     $notification = Notification::factory()->replied()->create();
 
-    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $notification->commit, CommitStatus::Rejected);
 
     expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
 });
@@ -67,7 +68,7 @@ it('keeps approved mentions', function (): void {
 it('hides mentions once rejected', function (): void {
     $notification = Notification::factory()->mentioned()->create();
 
-    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $notification->commit, CommitStatus::Rejected);
 
     expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
 });

@@ -21,8 +21,8 @@ it('notifies an author only once when approving a pending commit using stale mod
     $commit = Commit::factory()->pending()->create();
     $stale = $commit->fresh();
 
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);
-    resolve(UpdateCommitStatus::class)->handle($stale, CommitStatus::Approved);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Approved);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $stale, CommitStatus::Approved);
 
     $notice = $commit->user->notifications()->sole();
 
@@ -41,8 +41,8 @@ it('notifies each author in a bulk approval and preserves reply notifications', 
 
     $ids = [$reply->id, $commit->id, $rejected->id, $deleted->id];
 
-    resolve(UpdateCommitStatuses::class)->handle($ids, CommitStatus::Approved, onlyPending: true);
-    resolve(UpdateCommitStatuses::class)->handle($ids, CommitStatus::Approved, onlyPending: true);
+    resolve(UpdateCommitStatuses::class)->handle(User::factory()->create(), $ids, CommitStatus::Approved, onlyPending: true);
+    resolve(UpdateCommitStatuses::class)->handle(User::factory()->create(), $ids, CommitStatus::Approved, onlyPending: true);
 
     expect($reply->user->notifications()->sole()->type->value)->toBe('approved')
         ->and($commit->user->notifications()->sole()->type->value)->toBe('approved')
@@ -58,7 +58,7 @@ it('notifies mentioned users once a commit is approved', function (): void {
 
     expect($mentioned->notifications()->count())->toBe(0);
 
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Approved);
 
     $notice = $mentioned->notifications()->sole();
 
@@ -149,8 +149,8 @@ it('does not moderate deleted commits even with stale models', function (): void
     $commit = Commit::factory()->pending()->create();
     $commit->delete();
 
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Rejected);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Approved);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Rejected);
 
     expect($commit->fresh()->status)->toBe(CommitStatus::Pending)
         ->and(Notification::query()->count())->toBe(0);
@@ -160,18 +160,18 @@ it('does not send moderation notices for initial autoapproval or unchanged appro
     $admin = User::factory()->create(['username' => 'admin']);
     $commit = resolve(CreateCommit::class)->handle($admin, 'Shipped a smaller query planner.');
 
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Approved);
 
     expect($admin->notifications()->count())->toBe(0);
 });
 
 it('keeps only the current moderation decision relevant and notifies real reversals', function (): void {
     $commit = Commit::factory()->pending()->create();
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Rejected, 'Please add context.');
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Rejected, 'Please add context.');
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Approved);
 
     expect($commit->user->notifications()->relevant()->sole()->type->value)->toBe('approved');
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Rejected, 'Please remove the token.');
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Rejected, 'Please remove the token.');
     expect($commit->user->notifications()->relevant()->sole()->type->value)->toBe('rejected')
         ->and($commit->user->notifications()->relevant()->sole()->reason)->toBe('Please remove the token.');
 });
@@ -180,7 +180,7 @@ it('rolls back notices and moderation together', function (): void {
     $commit = Commit::factory()->pending()->create();
 
     DB::beginTransaction();
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Approved);
     DB::rollBack();
 
     expect($commit->fresh()->status)->toBe(CommitStatus::Pending)
@@ -189,11 +189,11 @@ it('rolls back notices and moderation together', function (): void {
 
 it('keeps a read notice read when the same status is submitted again', function (): void {
     $commit = Commit::factory()->pending()->create();
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Rejected, 'Please add context.');
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Rejected, 'Please add context.');
     $notice = $commit->user->notifications()->sole();
     $notice->update(['read_at' => now()]);
 
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Rejected, 'A different reason');
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Rejected, 'A different reason');
 
     expect($commit->user->notifications()->sole()->id)->toBe($notice->id)
         ->and($notice->fresh()->read_at)->not->toBeNull()
@@ -203,7 +203,7 @@ it('keeps a read notice read when the same status is submitted again', function 
 it('keeps moderation notices for a surviving reply when its parent is soft deleted', function (): void {
     $parent = Commit::factory()->create();
     $reply = Commit::factory()->pending()->for($parent, 'parent')->create();
-    resolve(UpdateCommitStatus::class)->handle($reply, CommitStatus::Approved);
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $reply, CommitStatus::Approved);
 
     resolve(DeleteCommit::class)->handle($parent);
     resolve(DeleteCommit::class)->handle($parent);
@@ -215,7 +215,7 @@ it('keeps moderation notices for a surviving reply when its parent is soft delet
 
 it('hides moderation notices when their commit is pending, deleted, or owned by another recipient', function (string $state): void {
     $commit = Commit::factory()->pending()->create();
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Rejected, 'Private reason');
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Rejected, 'Private reason');
     $notice = $commit->user->notifications()->sole();
 
     if ($state === 'pending') {
@@ -231,7 +231,7 @@ it('hides moderation notices when their commit is pending, deleted, or owned by 
 
 it('cleans up moderation notices with a commit or author', function (string $target): void {
     $commit = Commit::factory()->pending()->create();
-    resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Rejected, 'Private reason');
+    resolve(UpdateCommitStatus::class)->handle(User::factory()->create(), $commit, CommitStatus::Rejected, 'Private reason');
     $notice = $commit->user->notifications()->sole();
 
     if ($target === 'commit') {

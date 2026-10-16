@@ -2,10 +2,16 @@ import { Head, router } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard, CommitTombstone } from '@/components/commit-card';
+import { CommitDecisionSummary } from '@/components/commit-decision-item';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import AppLayout from '@/layouts/app-layout';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
-import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+import type {
+    Commit,
+    CommitDecision,
+    CursorPaginated,
+    ThreadCommit,
+} from '@/types';
 
 const titleLength = 60;
 
@@ -13,10 +19,12 @@ export default function Show({
     commit,
     ancestors,
     replies,
+    decisions,
 }: {
     commit: Commit;
     ancestors: ThreadCommit[];
     replies: CursorPaginated<ThreadCommit>;
+    decisions: CommitDecision[];
 }) {
     const excerpt =
         commit.body.length > titleLength
@@ -54,6 +62,28 @@ export default function Show({
                 </p>
                 <CopyLinkButton commit={commit} className="-mr-1 -ml-1.5" />
             </div>
+
+            {decisions.length > 0 && (
+                <section
+                    aria-labelledby="moderation-decisions"
+                    className="border-b bg-muted/30 px-4 py-2 sm:px-6"
+                >
+                    <h2
+                        id="moderation-decisions"
+                        className="pt-1 font-mono text-xs text-muted-foreground"
+                    >
+                        Moderation (only admins see this)
+                    </h2>
+                    <ul className="divide-y">
+                        {decisions.map((decision) => (
+                            <CommitDecisionSummary
+                                key={decision.id}
+                                decision={decision}
+                            />
+                        ))}
+                    </ul>
+                </section>
+            )}
 
             {ancestors.map((ancestor, index) => {
                 const previousLane =

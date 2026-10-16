@@ -6,13 +6,14 @@ use App\Actions\UpdateCommitStatus;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\User;
 
 it('may approve a commit', function (): void {
     $commit = Commit::factory()->pending()->create();
 
     $action = resolve(UpdateCommitStatus::class);
 
-    $action->handle($commit, CommitStatus::Approved);
+    $action->handle(User::factory()->create(), $commit, CommitStatus::Approved);
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
 });
@@ -22,7 +23,7 @@ it('may reject a commit', function (): void {
 
     $action = resolve(UpdateCommitStatus::class);
 
-    $action->handle($commit, CommitStatus::Rejected, 'Please add context.');
+    $action->handle(User::factory()->create(), $commit, CommitStatus::Rejected, 'Please add context.');
 
     $notification = $commit->user->notifications()->sole();
 
@@ -37,8 +38,8 @@ it('notifies the parent author once a reply is approved', function (): void {
 
     $action = resolve(UpdateCommitStatus::class);
 
-    $action->handle($reply, CommitStatus::Approved);
-    $action->handle($reply, CommitStatus::Approved);
+    $action->handle(User::factory()->create(), $reply, CommitStatus::Approved);
+    $action->handle(User::factory()->create(), $reply, CommitStatus::Approved);
 
     $notification = $parent->user->notifications()->sole();
 

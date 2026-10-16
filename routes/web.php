@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
+use App\Http\Controllers\CommitClaimController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\CommitDecisionController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPinController;
@@ -18,6 +20,7 @@ use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\RejectionReasonController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFollowController;
@@ -100,6 +103,13 @@ Route::middleware('auth')->group(function (): void {
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
         ->name('commit-rejection.store');
     Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
+    Route::put('moderation/{commit}/claim', [CommitClaimController::class, 'update'])->name('commit-claim.update');
+    Route::get('moderation/decisions', [CommitDecisionController::class, 'index'])->name('commit-decision.index');
+    Route::post('moderation/reasons', [RejectionReasonController::class, 'store'])->name('rejection-reason.store');
+    Route::put('moderation/reasons/{rejectionReason}', [RejectionReasonController::class, 'update'])
+        ->name('rejection-reason.update');
+    Route::delete('moderation/reasons/{rejectionReason}', [RejectionReasonController::class, 'destroy'])
+        ->name('rejection-reason.destroy');
 
     // User Search...
     Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
