@@ -28,8 +28,7 @@ export function CommitStarButton({
     className?: string;
 }) {
     const { auth } = usePage().props;
-    const canStar =
-        commit.status === 'approved' || commit.user_id === auth.user?.id;
+    const isOwn = commit.user_id === auth.user?.id;
     const [starred, setStarred] = useSharedState(
         commitStateKey('starred', commit.id),
         commit.starred,
@@ -44,7 +43,11 @@ export function CommitStarButton({
     >({});
     const [isAnimating, setIsAnimating] = useState(false);
 
-    if (!canStar) {
+    if (isOwn) {
+        return <StarCount count={count} className={className} />;
+    }
+
+    if (commit.status !== 'approved') {
         return null;
     }
 
@@ -109,5 +112,40 @@ export function CommitStarButton({
                 {count > 0 ? count : ''}
             </span>
         </button>
+    );
+}
+
+/**
+ * Authors can't star their own commits, so they only see how many stars others gave.
+ */
+function StarCount({
+    count,
+    className,
+}: {
+    count: number;
+    className?: string;
+}) {
+    const label =
+        count === 0
+            ? 'No stars yet'
+            : `${count} ${count === 1 ? 'star' : 'stars'}`;
+
+    return (
+        <span
+            role="img"
+            aria-label={label}
+            title={label}
+            className={cn(
+                'inline-flex cursor-default items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground',
+                count === 0 && 'text-muted-foreground/50',
+                className,
+            )}
+            data-test="star-count-readonly"
+        >
+            <Star aria-hidden className="size-4" />
+            <span data-test="star-count" className="min-w-[1ch] text-left">
+                {count > 0 ? count : ''}
+            </span>
+        </span>
     );
 }

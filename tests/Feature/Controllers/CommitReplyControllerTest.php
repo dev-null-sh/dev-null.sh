@@ -645,3 +645,108 @@ it('keeps quotes out of the json reply endpoint', function (): void {
         ->parent_id->toBe($parent->id)
         ->quoted_commit_id->toBeNull();
 });
+
+it('lists quotes alongside replies without embedding the quoted commit', function (): void {
+    $parent = Commit::factory()->create();
+    $quote = Commit::factory()->for($parent, 'quotedCommit')->create(['created_at' => now()->subMinute()]);
+    $reply = Commit::factory()->for($parent, 'parent')->for($parent, 'quotedCommit')->create();
+    Commit::factory()->for($quote, 'quotedCommit')->create();
+    Commit::factory()->create();
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.id', $quote->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.quoted_commit')
+        ->assertJsonPath('data.1.id', $reply->id);
+
+    $this->get(route('commit.show', [$parent->user, $parent]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.replies_count', 2)
+            ->has('replies.data', 2)
+            ->missing('replies.data.0.quoted_commit'));
+
+    $this->get(route('commit.show', [$quote->user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.quoted_commit.id', $parent->id));
+});
+
+it('applies reply visibility rules to quotes and their counts', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $viewer->muting()->attach($muted);
+    $blocked->blocking()->attach($viewer);
+    $parent = Commit::factory()->create();
+    $quote = Commit::factory()->for($parent, 'quotedCommit')->create();
+    $ownPending = Commit::factory()->for($parent, 'quotedCommit')->for($viewer)->pending()->create();
+    Commit::factory()->for($parent, 'quotedCommit')->pending()->create();
+    Commit::factory()->for($parent, 'quotedCommit')->rejected()->create();
+    Commit::factory()->for($parent, 'quotedCommit')->for($muted)->create();
+    Commit::factory()->for($parent, 'quotedCommit')->for($blocked)->create();
+    Commit::factory()->for($parent, 'quotedCommit')->create()->delete();
+
+    $this->actingAs($viewer)->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.*.id', [$quote->id, $ownPending->id]);
+
+    expect(Commit::query()->withVisibleReplyCount($viewer)->findOrFail($parent->id)->replies_count)->toBe(2);
+});
+
+it('keeps a deleted reply as a tombstone when it has a visible quote', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    $quote = Commit::factory()->for($reply, 'quotedCommit')->create();
+    $reply->delete();
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.body');
+
+    $this->getJson(route('commit-reply.index', $reply))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $quote->id);
+});
+
+it('may delete an own quote listed as a reply', function (bool $parentDeleted): void {
+    $parent = Commit::factory()->create();
+    $quote = Commit::factory()->for($parent, 'quotedCommit')->create();
+
+    if ($parentDeleted) {
+        $parent->delete();
+    }
+
+    $this->actingAs($quote->user)
+        ->deleteJson(route('commit-reply.destroy', [$parent, $quote]))
+        ->assertNoContent();
+
+    $this->assertSoftDeleted($quote);
+})->with([false, true]);
+
+it('may not delete an own quote through another commit', function (): void {
+    $quote = Commit::factory()->for(Commit::factory(), 'quotedCommit')->create();
+
+    $this->actingAs($quote->user)
+        ->deleteJson(route('commit-reply.destroy', [Commit::factory()->create(), $quote]))
+        ->assertNotFound();
+
+    $this->assertNotSoftDeleted($quote);
+});
+
+it('may not delete quotes of other users', function (): void {
+    $parent = Commit::factory()->create();
+    $quote = Commit::factory()->for($parent, 'quotedCommit')->create();
+
+    $this->actingAs(User::factory()->create())
+        ->deleteJson(route('commit-reply.destroy', [$parent, $quote]))
+        ->assertForbidden();
+
+    $this->assertNotSoftDeleted($quote);
+});

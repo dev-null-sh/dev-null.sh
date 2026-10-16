@@ -8,6 +8,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Queries\LatestLogCommitsQuery;
 use Illuminate\Support\Facades\DB;
 
 it('renders own commits and commits of followed users newest first', function (): void {
@@ -449,4 +450,101 @@ it('does not suggest users to follow once they are hidden', function (): void {
             ->missing('suggestedUsers'));
 
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
+});
+
+it('offers the commits newer than a given one on top of the ranked log, newest first', function (): void {
+    $user = User::factory()->create();
+
+    $seen = Commit::factory()->create(['created_at' => now()->subMinutes(5)]);
+    $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    $newer = Commit::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('newestCommitId', $newer->id)
+            ->where('latestCommits', [])
+            ->reloadOnly(['latestCommits'], fn ($reload) => $reload->where('latestCommits', [])));
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'latestCommits',
+        ])
+        ->get('/log/everyone?since='.$seen->id);
+
+    $response->assertOk()
+        ->assertJsonPath('props.latestCommits.0.id', $newer->id)
+        ->assertJsonPath('props.latestCommits.1.id', $older->id)
+        ->assertJsonCount(2, 'props.latestCommits')
+        ->assertJsonPath('prependProps', ['latestCommits']);
+});
+
+it('offers the commit just committed on top of the ranked log', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $starred = Commit::factory()->create(['created_at' => now()->subHour()]);
+    $starred->stars()->attach(User::factory()->create());
+
+    $response = $this->actingAs($user)
+        ->from('/log/everyone')
+        ->followingRedirects()
+        ->post(route('commit.store'), ['body' => 'Initial commit']);
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('latestCommits', 1)
+            ->where('latestCommits.0.body', 'Initial commit'));
+});
+
+it('leaves the user own commits out of the newer commits of the ranked log', function (): void {
+    $user = User::factory()->create();
+
+    $seen = Commit::factory()->create(['created_at' => now()->subMinutes(5)]);
+    Commit::factory()->for($user)->create();
+    $other = Commit::factory()->create();
+
+    $headers = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+    ];
+
+    $this->actingAs($user)
+        ->withHeaders([...$headers, 'X-Inertia-Partial-Data' => 'newCommitsCount'])
+        ->get('/log/everyone?since='.$seen->id)
+        ->assertJsonPath('props.newCommitsCount', 1);
+
+    $this->actingAs($user)
+        ->withHeaders([...$headers, 'X-Inertia-Partial-Data' => 'latestCommits'])
+        ->get('/log/everyone?since='.$seen->id)
+        ->assertJsonCount(1, 'props.latestCommits')
+        ->assertJsonPath('props.latestCommits.0.id', $other->id);
+});
+
+it('offers the oldest of too many newer commits, so the rest are offered next', function (): void {
+    $user = User::factory()->create();
+
+    $seen = Commit::factory()->create(['created_at' => now()->subHour()]);
+    $commits = Commit::factory()->count(LatestLogCommitsQuery::LIMIT + 1)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subMinutes(50)->addSeconds($sequence->index)],
+    )->create();
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'latestCommits',
+        ])
+        ->get('/log/everyone?since='.$seen->id);
+
+    $response->assertJsonCount(LatestLogCommitsQuery::LIMIT, 'props.latestCommits')
+        ->assertJsonPath('props.latestCommits.0.id', $commits[LatestLogCommitsQuery::LIMIT - 1]->id)
+        ->assertJsonPath('props.latestCommits.'.(LatestLogCommitsQuery::LIMIT - 1).'.id', $commits[0]->id);
 });

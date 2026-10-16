@@ -142,7 +142,6 @@ Route::middleware('auth')->group(function (): void {
         ->middleware(ThrottleCommits::class)
         ->name('commit-reply.store');
     Route::delete('commits/{commit}/replies/{reply}', [CommitReplyController::class, 'destroy'])
-        ->scopeBindings()
         ->withTrashed()
         ->name('commit-reply.destroy');
 

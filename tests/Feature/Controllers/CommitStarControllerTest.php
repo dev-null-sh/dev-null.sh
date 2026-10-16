@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
@@ -33,16 +34,16 @@ it('starring is idempotent', function (): void {
     expect($user->starredCommits()->count())->toBeOne();
 });
 
-it('may star their own pending commit', function (): void {
+it('may not star their own commit', function (CommitStatus $status): void {
     $user = User::factory()->create();
-    $commit = Commit::factory()->for($user)->pending()->create();
+    $commit = Commit::factory()->for($user)->create(['status' => $status]);
 
     $this->actingAs($user)
         ->postJson(route('commit-star.store', $commit))
-        ->assertOk();
+        ->assertForbidden();
 
-    expect($user->hasStarred($commit))->toBeTrue();
-});
+    expect($user->hasStarred($commit))->toBeFalse();
+})->with(CommitStatus::cases());
 
 it('may not star a commit across a block in either direction', function (bool $userBlocks): void {
     $user = User::factory()->create();

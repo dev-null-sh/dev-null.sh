@@ -12,17 +12,20 @@ use Illuminate\Foundation\Http\FormRequest;
 final class DeleteCommitReplyRequest extends FormRequest
 {
     /**
-     * Replies of deleted commits stay deletable, as they stay in a thread under its tombstone.
+     * Replies and quotes of deleted commits stay deletable under their tombstone.
      */
     public function authorize(): Response
     {
         $user = $this->user();
         assert($user instanceof User);
 
+        $commit = $this->route('commit');
+        assert($commit instanceof Commit);
+
         $reply = $this->route('reply');
         assert($reply instanceof Commit);
 
-        if ($reply->trashed()) {
+        if ($reply->trashed() || ($reply->parent_id !== $commit->id && $reply->quoted_commit_id !== $commit->id)) {
             return Response::denyAsNotFound();
         }
 

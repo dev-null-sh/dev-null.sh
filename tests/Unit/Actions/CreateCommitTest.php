@@ -11,6 +11,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -323,4 +324,24 @@ it('stores the images of a commit', function (): void {
 
     expect($commit->images()->count())->toBe(1)
         ->and($commit->status)->toBe(CommitStatus::Pending);
+});
+
+it('files replies under the top-level commit of their thread', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $nested = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Agreed', $reply);
+
+    expect($nested->root_id)->toBe($commit->id);
+});
+
+it('lifts the thread when an admin replies', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });

@@ -7,14 +7,12 @@ namespace App\Queries\LogQueries;
 use App\Contracts\Queries\LogQuery;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\CommitBuilder;
 use Illuminate\Database\Eloquent\Builder;
 
 final readonly class FollowingLogQuery implements LogQuery
 {
-    /**
-     * @return Builder<Commit>
-     */
-    public function builder(User $user): Builder
+    public function builder(User $user): CommitBuilder
     {
         $following = $user->following();
 

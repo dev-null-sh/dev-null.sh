@@ -7,14 +7,14 @@ namespace App\Queries\LogQueries;
 use App\Contracts\Queries\LogQuery;
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
+use App\Queries\CommitBuilder;
 
 final readonly class EveryoneLogQuery implements LogQuery
 {
     /**
-     * @return Builder<Commit>
+     * Ranked by hot score, so commits that draw stars and replies rise and then give way to newer ones.
      */
-    public function builder(User $user): Builder
+    public function builder(User $user): CommitBuilder
     {
         return Commit::query()
             ->visibleTo($user)
@@ -25,7 +25,7 @@ final readonly class EveryoneLogQuery implements LogQuery
             ->with(['user', 'linkPreview', 'images'])
             ->withQuotedCommitFor($user)
             ->withStarsFor($user)
-            ->latest()
-            ->latest('id');
+            ->orderByDesc('hot_score')
+            ->orderByDesc('id');
     }
 }

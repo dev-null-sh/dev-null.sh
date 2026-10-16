@@ -9,6 +9,7 @@ const commit: Commit = {
     id: 'commit-1',
     user_id: 'user-1',
     parent_id: null,
+    quoted_commit_id: null,
     body: 'Photo from the build',
     body_segments: [],
     status: 'approved',
