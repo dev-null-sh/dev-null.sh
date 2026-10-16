@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\BookmarkController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitStarController;
@@ -63,6 +64,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
             ->withTrashed()
             ->name('api-commit-reply.index');
+
+        // Private saved commits...
+        Route::get('saved', [BookmarkController::class, 'index'])->name('api-bookmark.index');
+        Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])
+            ->middleware('throttle:bookmarks')
+            ->name('api-bookmark.store');
+        Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])
+            ->middleware('throttle:bookmarks')
+            ->name('api-bookmark.destroy');
 
         // Commit Star...
         Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
