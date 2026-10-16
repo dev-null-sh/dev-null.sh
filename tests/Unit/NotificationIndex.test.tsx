@@ -68,6 +68,7 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
                     prev_cursor: null,
                 }}
                 filters={{ type: 'all' }}
+                readAt="2026-10-16T12:00:00.000000Z"
             />
         ),
         render: renderToString,
@@ -76,7 +77,7 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
 
     assert.ok(result);
 
-    return result.body;
+    return result.body.slice(result.body.indexOf('<article'));
 }
 
 void test('renders a code block highlighted in a notification', async () => {

@@ -139,7 +139,7 @@ export default function Edit({
                     file. Your profile is still managed on GitHub.
                 </p>
                 <Button variant="outline" asChild>
-                    <a href={ExportController.url()} download>
+                    <a href={ExportController.url()}>
                         <Download />
                         Download JSON
                     </a>

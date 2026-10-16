@@ -17,11 +17,12 @@ final readonly class NotificationController
 {
     public function index(ListNotificationsRequest $request, #[CurrentUser] User $user, NotificationGroupsQuery $query, UpdateNotificationsReadAt $action): Response
     {
-        $action->handle($user);
+        $readAt = $action->handle($user);
 
         return Inertia::render('notification/index', [
             'notifications' => Inertia::scroll(fn (): CursorPaginator => $query->paginate($user, $request->type(), $request->through()))->matchOn('data.group_id'),
             'filters' => ['type' => $request->type()],
+            'readAt' => $readAt->toJSON(),
         ]);
     }
 }

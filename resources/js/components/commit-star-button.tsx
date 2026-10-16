@@ -5,6 +5,7 @@ import CommitStarController from '@/actions/App/Http/Controllers/CommitStarContr
 import { useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { commitStateKey } from '@/lib/commit-state';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -75,6 +76,11 @@ export function CommitStarButton({
                 next
                     ? CommitStarController.store(commit)
                     : CommitStarController.destroy(commit),
+                {
+                    onHttpException: (response) => {
+                        toastWhenThrottled(response);
+                    },
+                },
             );
 
             setStarred(response.starred);

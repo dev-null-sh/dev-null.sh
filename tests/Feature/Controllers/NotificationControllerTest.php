@@ -87,6 +87,21 @@ it('marks notifications read when the inbox opens and clears the badge', functio
     expect($notification->refresh()->read_at)->not->toBeNull();
 });
 
+it('shares when the inbox was read so activity read on this visit stands apart from earlier visits', function (): void {
+    $user = User::factory()->create();
+    $earlier = Notification::factory()->for($user, 'recipient')->replied()->create(['read_at' => now()->subDay(), 'created_at' => now()->subDays(2)]);
+    $latest = Notification::factory()->for($user, 'recipient')->create();
+
+    $response = $this->actingAs($user)->get(route('notification.index'));
+
+    $response->assertInertia(fn ($page) => $page
+        ->where('readAt', now()->startOfSecond()->toJSON())
+        ->where('notifications.data.0.id', $latest->id)
+        ->where('notifications.data.0.read_at', now()->startOfSecond()->toJSON())
+        ->where('notifications.data.1.id', $earlier->id)
+        ->where('notifications.data.1.read_at', now()->subDay()->startOfSecond()->toJSON()));
+});
+
 it('groups stars per commit, newest stargazer first', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();

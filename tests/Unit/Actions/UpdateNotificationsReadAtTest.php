@@ -22,6 +22,15 @@ it('marks all relevant notifications of the user as read', function (): void {
     expect($other->refresh()->read_at)->toBeNull();
 });
 
+it('returns the moment it marked notifications read', function (): void {
+    $notification = Notification::factory()->create();
+
+    $readAt = resolve(UpdateNotificationsReadAt::class)->handle($notification->recipient);
+
+    expect($readAt->toJSON())->toBe(now()->startOfSecond()->toJSON())
+        ->and($notification->refresh()->read_at->equalTo($readAt))->toBeTrue();
+});
+
 it('keeps when notifications were first read', function (): void {
     $notification = Notification::factory()->create(['read_at' => now()->subDay()]);
 
