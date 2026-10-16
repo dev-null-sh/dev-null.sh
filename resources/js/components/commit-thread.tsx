@@ -20,6 +20,7 @@ import {
 import { CommitImages } from '@/components/commit-images';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmbedCommandHighlight } from '@/components/embed-command-highlight';
+import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
@@ -32,6 +33,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
+import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
@@ -638,6 +640,7 @@ function ReplyComposer({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
+    const suggestion = suggestEmoji(body);
 
     const returnFocusToCommit = () => {
         const commit =
@@ -652,6 +655,17 @@ function ReplyComposer({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key === 'Tab' && suggestion !== null) {
+            const completed = completeEmoji(body);
+
+            if (completed !== null) {
+                event.preventDefault();
+                updateBody(completed);
+            }
+
+            return;
+        }
+
         if (event.key === 'Escape') {
             returnFocusToCommit();
             onCancel();
@@ -717,6 +731,10 @@ function ReplyComposer({
                             className="relative block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]"
                         />
                     </div>
+                    <EmojiSuggestionHint
+                        suggestion={suggestion}
+                        className="mt-1 px-1"
+                    />
                     <InputError
                         message={errors.body ?? errors.parent_id}
                         className="px-1"
