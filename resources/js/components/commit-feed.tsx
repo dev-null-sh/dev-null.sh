@@ -50,6 +50,10 @@ export function CommitFeed({
     useEffect(
         () =>
             router.on('flash', (event) => {
+                if (isModeration) {
+                    return;
+                }
+
                 const { deleted, restored } = event.detail.flash;
                 if (deleted) {
                     router.replaceProp('commits.data', (rows: Commit[]) =>
@@ -58,13 +62,13 @@ export function CommitFeed({
                 }
                 if (
                     restored &&
-                    (isModeration
-                        ? restored.status === 'pending'
-                        : isSaved
-                          ? restored.is_saved === true
-                          : isProfileReplies
-                            ? restored.parent_id !== null
-                            : restored.parent_id === null) &&
+                    (isSaved
+                        ? restored.is_saved === true
+                        : isProfileReplies
+                          ? restored.parent_id !== null &&
+                            (restored.series_position === null ||
+                                restored.series_position === 1)
+                          : restored.parent_id === null) &&
                     (profileUserId === null ||
                         (restored.user_id === profileUserId &&
                             !restored.is_pinned))
@@ -81,10 +85,10 @@ export function CommitFeed({
                                     (b.saved_order ?? 0) - (a.saved_order ?? 0)
                                 );
                             }
-                            const order =
+                            return (
                                 b.created_at.localeCompare(a.created_at) ||
-                                b.id.localeCompare(a.id);
-                            return isModeration ? -order : order;
+                                b.id.localeCompare(a.id)
+                            );
                         }),
                     );
                 }

@@ -478,7 +478,10 @@ function CommitReply({
     thread: Thread;
     onDeleted: () => void;
 }) {
-    const { auth } = usePage().props;
+    const {
+        props: { auth },
+        component,
+    } = usePage();
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
 
@@ -487,7 +490,7 @@ function CommitReply({
 
     const deleteReply = () =>
         router.visit(CommitController.destroy(reply), {
-            ...commitMutationOptions,
+            ...commitMutationOptions(component),
             onSuccess: onDeleted,
         });
 

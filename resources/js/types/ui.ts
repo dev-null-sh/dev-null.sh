@@ -12,6 +12,7 @@ export type FlashToast = {
 export type CommittedFlash = {
     id: string;
     body: string;
+    series_size?: number;
 };
 
 export type DeletedFlash = {

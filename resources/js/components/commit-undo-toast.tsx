@@ -1,4 +1,4 @@
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -15,6 +15,7 @@ export function CommitUndoToast({
     deleted: DeletedFlash;
     toastId: string | number;
 }) {
+    const { component } = usePage();
     const [deadline] = useState(
         () =>
             Date.now() +
@@ -51,7 +52,7 @@ export function CommitUndoToast({
         setProcessing(true);
 
         router.visit(CommitRestorationController.store(deleted.id), {
-            ...commitMutationOptions,
+            ...commitMutationOptions(component),
             onSuccess: (page) => {
                 toast.dismiss(toastId);
                 if (page.flash.restored) {
