@@ -198,3 +198,34 @@ it('flags a restored profile pin so the feed keeps it out of the list', function
             ? $page->where('pinnedCommit.id', $commit->id)->has('commits.data', 0)
             : $page->has('commits.data', 1)->where('commits.data.0.id', $commit->id));
 })->with([true, false]);
+
+it('keeps public api and feed visibility consistent through deletion and undo', function (CommitStatus $status): void {
+    $commit = Commit::factory()->create(['status' => $status, 'body' => 'Commit restored through undo']);
+    $user = $commit->user;
+
+    $this->actingAs($user)->delete(route('commit.destroy', $commit))->assertRedirect();
+
+    $this->getJson(route('api-commit.show', $commit))->assertNotFound();
+    $this->getJson(route('api-user-commit.index', $user))
+        ->assertOk()
+        ->assertJsonCount(0, 'data');
+    $this->get(route('user-feed.show', $user))->assertOk()->assertDontSee($commit->body);
+
+    $this->post(route('commit-restoration.store', $commit))->assertSessionHasNoErrors();
+
+    if ($status === CommitStatus::Approved) {
+        $this->getJson(route('api-commit.show', $commit))
+            ->assertOk()
+            ->assertJsonPath('data.id', $commit->id);
+        $this->getJson(route('api-user-commit.index', $user))
+            ->assertOk()
+            ->assertJsonPath('data.*.id', [$commit->id]);
+        $this->get(route('user-feed.show', $user))->assertOk()->assertSee($commit->body);
+    } else {
+        $this->getJson(route('api-commit.show', $commit))->assertNotFound();
+        $this->getJson(route('api-user-commit.index', $user))
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+        $this->get(route('user-feed.show', $user))->assertOk()->assertDontSee($commit->body);
+    }
+})->with(CommitStatus::cases());
