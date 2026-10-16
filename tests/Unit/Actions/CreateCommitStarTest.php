@@ -36,3 +36,12 @@ it('may star their own pending commit', function (): void {
 
     expect($user->hasStarred($commit))->toBeTrue();
 });
+
+it('notifies the author', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitStar::class)->handle($user, $commit);
+
+    expect($commit->user->notifications()->sole()->actor_id)->toBe($user->id);
+});
