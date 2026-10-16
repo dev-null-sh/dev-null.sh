@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteCommit
 {
+    public function __construct(private UpdateCommitHotScores $updateCommitHotScores)
+    {
+        //
+    }
+
     /**
      * Soft deleting keeps the row for its replies and quotes, so its notifications, the notifications about its replies and
      * quotes, and its images are removed here instead of by the foreign key.
@@ -40,6 +45,8 @@ final readonly class DeleteCommit
 
             $commit->images()->delete();
             $commit->delete();
+
+            $this->updateCommitHotScores->handle([$commit->threadRootId()]);
 
             return $imagePaths;
         });
