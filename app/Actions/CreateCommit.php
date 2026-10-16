@@ -28,10 +28,11 @@ final readonly class CreateCommit
 
     /**
      * @param  list<UploadedFile>  $images
+     * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, array $images = []): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], array $imageDescriptions = []): Commit
     {
-        return DB::transaction(function () use ($user, $body, $parent, $images): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $images, $imageDescriptions): Commit {
             $linkPreview = $this->linkPreviewFor($body);
 
             $commit = $user->commits()->create([
@@ -41,7 +42,7 @@ final readonly class CreateCommit
                 'link_preview_id' => $linkPreview?->id,
             ]);
 
-            $this->createCommitImages->handle($commit, $images);
+            $this->createCommitImages->handle($commit, $images, $imageDescriptions);
 
             $this->createReplyNotifications->handle($commit);
             $this->createMentionNotifications->handle($commit);

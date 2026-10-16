@@ -15,6 +15,7 @@ export type CommitImage = {
     url: string;
     width: number;
     height: number;
+    description: string | null;
 };
 
 export type BodySegment =

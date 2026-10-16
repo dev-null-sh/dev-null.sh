@@ -46,7 +46,11 @@ export function CommitComposer() {
             {...CommitController.store.form()}
             transform={(data) =>
                 attachments.images.length > 0
-                    ? { ...data, images: attachments.images }
+                    ? {
+                          ...data,
+                          images: attachments.images,
+                          image_descriptions: attachments.descriptions,
+                      }
                     : data
             }
             options={{ preserveScroll: true }}
@@ -106,6 +110,8 @@ export function CommitComposer() {
 
                             <ImagePickerPreviews
                                 images={attachments.images}
+                                descriptions={attachments.descriptions}
+                                onDescribe={attachments.describe}
                                 onRemove={attachments.remove}
                             />
                             <InputError

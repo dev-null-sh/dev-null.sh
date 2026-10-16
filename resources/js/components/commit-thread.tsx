@@ -689,9 +689,13 @@ function ReplyComposer({
     );
     const attachments = useImageAttachments();
     const updateCommitsCount = useCommitsCountUpdate();
-    const request = useHttp<{ body: string; images: File[] }, CreatedReply>({
+    const request = useHttp<
+        { body: string; images: File[]; image_descriptions: string[] },
+        CreatedReply
+    >({
         body: '',
         images: [],
+        image_descriptions: [],
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - body.length;
@@ -732,7 +736,11 @@ function ReplyComposer({
             return;
         }
 
-        request.setData({ body, images: attachments.images });
+        request.setData({
+            body,
+            images: attachments.images,
+            image_descriptions: attachments.descriptions,
+        });
 
         request
             .submit(CommitReplyController.store(parent), {
@@ -792,6 +800,8 @@ function ReplyComposer({
             <InputError message={errors.body} className="px-1" />
             <ImagePickerPreviews
                 images={attachments.images}
+                descriptions={attachments.descriptions}
+                onDescribe={attachments.describe}
                 onRemove={attachments.remove}
             />
             <InputError

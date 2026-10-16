@@ -13,6 +13,7 @@ import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/plugins/counter.css';
 import 'yet-another-react-lightbox/styles.css';
 import { CommitCard } from '@/components/commit-card';
+import { commitImageAlt } from '@/components/commit-images';
 import { isTyping } from '@/hooks/use-keyboard-shortcuts';
 import { closeCommitPhoto, showCommitPhoto } from '@/lib/commit-photo';
 import type { CommitPhoto } from '@/lib/commit-photo';
@@ -21,6 +22,9 @@ import { cn } from '@/lib/utils';
 export function CommitImageViewer() {
     const { photo } = usePage<{ photo?: CommitPhoto }>().props;
     const [isPanelOpen, setIsPanelOpen] = useState(true);
+    const [captionedImageId, setCaptionedImageId] = useState<string | null>(
+        null,
+    );
     const controller = useRef<ControllerRef>(null);
     const isOpen = photo !== undefined;
     const images = photo?.commit.images;
@@ -54,8 +58,9 @@ export function CommitImageViewer() {
 
     const slides = useMemo(
         () =>
-            (images ?? []).map((image) => ({
+            (images ?? []).map((image, index, all) => ({
                 src: image.url,
+                alt: commitImageAlt(image, index, all.length),
                 width: image.width,
                 height: image.height,
             })),
@@ -137,6 +142,52 @@ export function CommitImageViewer() {
                     buttonPrev: () => null,
                     buttonNext: () => null,
                 }),
+                slideFooter: ({ slide }) => {
+                    const image = images?.find(({ url }) => url === slide.src);
+
+                    if (!image?.description) {
+                        return null;
+                    }
+
+                    const isCaptioned = captionedImageId === image.id;
+                    const captionId = `commit-image-caption-${image.id}`;
+
+                    return (
+                        <div
+                            className="absolute inset-x-4 bottom-4 flex flex-col items-start gap-2"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onWheel={(event) => event.stopPropagation()}
+                        >
+                            {isCaptioned && (
+                                <p
+                                    id={captionId}
+                                    className="max-h-40 max-w-xl touch-auto overflow-y-auto overscroll-contain rounded-lg bg-black/80 px-3 py-2 text-sm leading-relaxed whitespace-pre-line text-white ring-1 ring-white/15 select-text"
+                                    data-test="commit-image-caption"
+                                >
+                                    {image.description}
+                                </p>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setCaptionedImageId(
+                                        isCaptioned ? null : image.id,
+                                    )
+                                }
+                                aria-expanded={isCaptioned}
+                                aria-controls={captionId}
+                                aria-label={
+                                    isCaptioned
+                                        ? 'Hide image description'
+                                        : 'Show image description'
+                                }
+                                className="rounded bg-black/75 px-1.5 py-0.5 text-xs font-bold tracking-wide text-white ring-1 ring-white/30 transition hover:bg-black"
+                            >
+                                ALT
+                            </button>
+                        </div>
+                    );
+                },
                 controls: () =>
                     photo &&
                     isPanelOpen && (
