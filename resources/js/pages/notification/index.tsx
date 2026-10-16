@@ -167,6 +167,7 @@ export default function Index({
     const refreshRequiredRef = useRef(false);
     const [arrivals, setArrivals] = useState(0);
     const [refreshRequired, setRefreshRequired] = useState(false);
+    const [scrollReset, setScrollReset] = useState(0);
 
     const refreshInbox = () => {
         const href = index({
@@ -179,6 +180,7 @@ export default function Index({
         pollAnchor.current = null;
         const finishRefresh = () => {
             if (visit === filterVisit.current) {
+                setScrollReset((epoch) => epoch + 1);
                 refreshRequiredRef.current = false;
                 setRefreshRequired(false);
                 setArrivals(0);
@@ -369,6 +371,7 @@ export default function Index({
                 setArrivals(0);
                 const finishNavigation = () => {
                     if (visit === filterVisit.current) {
+                        setScrollReset((epoch) => epoch + 1);
                         refreshRequiredRef.current = false;
                         setRefreshRequired(false);
                     }
@@ -541,6 +544,7 @@ export default function Index({
             ) : (
                 <>
                     <InfiniteScroll
+                        key={scrollReset}
                         data="notifications"
                         onlyNext
                         preserveUrl
