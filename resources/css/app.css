@@ -6,6 +6,7 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant in-place (&:is(:root[data-view-transition] *));
 
 /* Hovering or focusing a reply only reveals that reply's own controls, not those of the commits it sits inside. */
 @custom-variant commit-hover {
@@ -245,9 +246,122 @@ html body[data-scroll-locked] {
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+::view-transition-group(*) {
+    animation-duration: 220ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-group(*.tab-indicator) {
+    animation-duration: 280ms;
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+::view-transition-group(*.tab-header),
+::view-transition-group(mobile-nav),
+::view-transition-group(toasts) {
+    animation-duration: 160ms;
+}
+
+::view-transition-old(*):only-child {
+    animation-duration: 100ms;
+}
+
+::view-transition-new(*):only-child {
+    animation-duration: 160ms;
+}
+
+:root[data-view-transition='theme']::view-transition-group(*),
+:root[data-view-transition='theme']::view-transition-old(*),
+:root[data-view-transition='theme']::view-transition-new(*) {
+    animation-duration: 320ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+::view-transition-group(*.indicator-label) {
+    z-index: 1;
+}
+
+::view-transition-group(*.tab-header),
+::view-transition-group(*.tab-indicator),
+::view-transition-group(mobile-nav) {
+    z-index: 2;
+}
+
+::view-transition-group(mobile-nav-active-item) {
+    z-index: 3;
+}
+
+::view-transition-group(*.mobile-nav-icon) {
+    z-index: 4;
+}
+
+::view-transition-group(toasts) {
+    z-index: 5;
+}
+
+::view-transition-group(*.tab-content) {
+    animation-name: none;
+    animation-duration: 160ms;
+    overflow-x: clip;
+}
+
+[data-sonner-toaster] {
+    view-transition-name: toasts;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    :root[data-tab-slide]::view-transition-old(*.tab-content),
+    :root[data-tab-slide]::view-transition-new(*.tab-content) {
+        animation-duration: 280ms;
+        animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+        mix-blend-mode: normal;
+    }
+
+    :root[data-tab-slide='forward']::view-transition-old(*.tab-content) {
+        animation-name: tab-slide-to-left;
+    }
+
+    :root[data-tab-slide='forward']::view-transition-new(*.tab-content) {
+        animation-name: tab-slide-from-right;
+    }
+
+    :root[data-tab-slide='back']::view-transition-old(*.tab-content) {
+        animation-name: tab-slide-to-right;
+    }
+
+    :root[data-tab-slide='back']::view-transition-new(*.tab-content) {
+        animation-name: tab-slide-from-left;
+    }
+}
+
+@keyframes tab-slide-to-left {
+    to {
+        transform: translateX(-100%);
+    }
+}
+
+@keyframes tab-slide-from-right {
+    from {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes tab-slide-to-right {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes tab-slide-from-left {
+    from {
+        transform: translateX(-100%);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    ::view-transition-old(root),
-    ::view-transition-new(root) {
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
         animation: none;
     }
 }
