@@ -25,6 +25,7 @@ final readonly class CommitRepliesQuery
             ->exceptSeriesContinuations()
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
+            ->withStarsFor($user)
             ->with(['user', 'linkPreview', 'images'])
             ->oldest()
             ->oldest('id')
