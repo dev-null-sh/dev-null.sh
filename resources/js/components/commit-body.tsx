@@ -1,3 +1,4 @@
+import { CodeBlock } from '@/components/code-block';
 import { LinkifiedText } from '@/components/linkified-text';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
@@ -37,23 +38,11 @@ export function CommitBody({
                         );
                     case 'block':
                         return (
-                            <div
+                            <CodeBlock
                                 key={index}
-                                className="relative my-2 rounded-md border bg-muted/60"
-                            >
-                                {segment.language && (
-                                    <span className="absolute top-1.5 right-2.5 font-mono text-[11px] text-muted-foreground select-none">
-                                        {segment.language}
-                                    </span>
-                                )}
-                                {/* The server escapes the code while highlighting it. */}
-                                <pre
-                                    className="overflow-x-auto px-3 py-2.5 font-mono text-[13px] leading-normal wrap-normal whitespace-pre"
-                                    dangerouslySetInnerHTML={{
-                                        __html: segment.html,
-                                    }}
-                                />
-                            </div>
+                                html={segment.html}
+                                language={segment.language}
+                            />
                         );
                 }
             })}

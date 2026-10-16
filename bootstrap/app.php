@@ -33,7 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow']);
 
         $middleware->redirectGuestsTo(fn (): string => route('home'));
-        $middleware->redirectUsersTo(fn (): string => route('log.show', Log::Following));
+        $middleware->redirectUsersTo(fn (Request $request): string => route('log.show', $request->user()->log ?? Log::Following));
 
         // Rate limits apply to the user authenticated by their SSH signature...
         $middleware->prependToPriorityList(before: ThrottleRequests::class, prepend: AuthenticateSshSignature::class);

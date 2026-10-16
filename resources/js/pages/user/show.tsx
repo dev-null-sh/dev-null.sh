@@ -3,6 +3,7 @@ import {
     ArrowUpRight,
     Building2,
     CalendarDays,
+    Heart,
     Link2,
     MapPin,
 } from 'lucide-react';
@@ -37,6 +38,7 @@ function pluralize(count: number, singular: string, plural: string) {
 export default function Show({
     user,
     isFollowing,
+    followsYou,
     activity,
     streaks,
     commits,
@@ -45,6 +47,7 @@ export default function Show({
 }: {
     user: Profile;
     isFollowing: boolean;
+    followsYou: boolean;
     activity: Activity;
     streaks: Streaks;
     commits: CursorPaginated<Commit>;
@@ -52,7 +55,7 @@ export default function Show({
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
-    const isCurrentUser = auth.user.id === user.id;
+    const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
@@ -109,6 +112,11 @@ export default function Show({
                         style={{ background: lane }}
                     />
                     @{user.username}
+                    {followsYou && (
+                        <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                            Follows you
+                        </span>
+                    )}
                 </p>
 
                 {user.bio && (
@@ -154,6 +162,19 @@ export default function Show({
                             github.com/{user.username}
                         </a>
                     </li>
+                    {user.has_sponsors_listing && (
+                        <li className="flex items-center gap-1.5">
+                            <Heart className="size-4" />
+                            <a
+                                href={`https://github.com/sponsors/${user.username}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
+                            >
+                                Sponsor on GitHub
+                            </a>
+                        </li>
+                    )}
                     <li className="flex items-center gap-1.5">
                         <CalendarDays className="size-4" />
                         Joined{' '}

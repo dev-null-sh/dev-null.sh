@@ -68,48 +68,26 @@ jobs:
       - name: Build Assets
         run: bun run build
 
-      - name: Get Playwright version
-        id: playwright-version
-        run: echo "version=$(bun pm ls 2>/dev/null | grep playwright | head -1 | sed 's/.*@//')" >> $GITHUB_OUTPUT
-
-      - name: Cache Playwright Browsers
-        uses: actions/cache@v6
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
-
-      - name: Install Playwright Browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: bunx playwright install --with-deps
-
-      - name: Install Playwright System Dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: bunx playwright install-deps
-
       - name: Cache Rector
         uses: actions/cache@v6
         with:
           path: tmp/rector
-          key: ${{ runner.os }}-rector-${{ hashFiles('composer.lock') }}
-          restore-keys: ${{ runner.os }}-rector-
+          key: ${{ runner.os }}-rector-${{ hashFiles('composer.lock') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-rector-${{ hashFiles('composer.lock') }}-
+            ${{ runner.os }}-rector-
 
       - name: Cache PHPStan
         uses: actions/cache@v6
         with:
           path: tmp/phpstan
-          key: ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock') }}
-          restore-keys: ${{ runner.os }}-phpstan-
+          key: ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock') }}-
+            ${{ runner.os }}-phpstan-
 
       - name: Create Cache Directories
         run: mkdir -p tmp/rector tmp/phpstan
 
       - name: Tests
         run: composer test
-
-      - name: Store Artifacts
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: browser-screenshots
-          path: tests/Browser/Screenshots

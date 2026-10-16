@@ -3,6 +3,7 @@ import { Star } from 'lucide-react';
 import { useContext, useEffect, useRef, useState } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
+import { signIn } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -27,7 +28,8 @@ export function CommitStarButton({
 }) {
     const { auth } = usePage().props;
     const canStar =
-        commit.status === 'approved' || commit.user_id === auth.user.id;
+        commit.status === 'approved' || commit.user_id === auth.user?.id;
+    const canPoll = canStar && auth.user !== null;
     const [starred, setStarred] = useState(commit.starred);
     const [count, setCount] = useState(commit.stars_count);
     const [pending, setPending] = useState(false);
@@ -37,7 +39,7 @@ export function CommitStarButton({
     const subscribe = useContext(CommitStarPollingContext);
 
     useEffect(() => {
-        if (!subscribe || !canStar || !button.current) {
+        if (!subscribe || !canPoll || !button.current) {
             return;
         }
 
@@ -62,13 +64,19 @@ export function CommitStarButton({
                 };
             },
         });
-    }, [subscribe, canStar, commit.id]);
+    }, [subscribe, canPoll, commit.id]);
 
     if (!canStar) {
         return null;
     }
 
     const toggle = () => {
+        if (auth.user === null) {
+            signIn();
+
+            return;
+        }
+
         if (mutation.current.pending) {
             return;
         }

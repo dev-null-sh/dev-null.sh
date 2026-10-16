@@ -22,8 +22,14 @@ test('to array', function (): void {
             'company',
             'created_at',
             'updated_at',
+            'has_sponsors_listing',
             'lane',
         ]);
+});
+
+it('knows whether it has onboarded', function (): void {
+    expect(User::factory()->create()->isOnboarded())->toBeTrue()
+        ->and(User::factory()->notOnboarded()->create()->isOnboarded())->toBeFalse();
 });
 
 it('has commits', function (): void {

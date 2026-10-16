@@ -42,10 +42,15 @@ it('marks the users the viewer follows', function (): void {
             ->where('users.data.1.is_followed', false));
 });
 
-it('requires authentication', function (): void {
+it('lists them to guests, without anyone marked as followed', function (): void {
     $user = User::factory()->create();
+    $user->following()->attach(User::factory()->create());
 
     $response = $this->get(route('user-following.index', $user));
 
-    $response->assertRedirectToRoute('home');
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/connections')
+            ->has('users.data', 1)
+            ->where('users.data.0.is_followed', false));
 });

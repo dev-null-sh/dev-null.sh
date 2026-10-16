@@ -1,9 +1,10 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { Button } from '@/components/ui/button';
+import { signIn } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import type { User } from '@/types';
 
@@ -58,7 +59,22 @@ export function FollowButton({
     size?: ComponentProps<typeof Button>['size'];
     className?: string;
 } & Omit<InertiaLinkProps, 'href' | 'as' | 'method' | 'size' | 'className'>) {
+    const { auth } = usePage().props;
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
+
+    if (auth.user === null) {
+        return (
+            <Button
+                size={size}
+                className={className}
+                onClick={signIn}
+                aria-label={`Follow @${user.username}`}
+                data-test="follow-button"
+            >
+                Follow
+            </Button>
+        );
+    }
 
     return (
         <Button
