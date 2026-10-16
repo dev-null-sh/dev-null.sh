@@ -31,6 +31,7 @@ export type CommitImage = {
     url: string;
     width: number;
     height: number;
+    description: string | null;
 };
 
 export type BodySegment =
@@ -56,6 +57,7 @@ export type Commit = {
     starred: boolean;
     user: User;
     replies_count?: number;
+    reply_preview?: CursorPaginated<ThreadCommit>;
     is_saved?: boolean;
     saved_order?: number | null;
     is_pinned?: boolean;
@@ -81,6 +83,7 @@ export type QuotedCommit = Pick<
     | 'deleted_at'
     | 'user'
     | 'replies_count'
+    | 'poll'
 >;
 
 export type DeletedCommit = {

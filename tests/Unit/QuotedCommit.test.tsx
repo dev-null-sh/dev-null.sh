@@ -5,7 +5,10 @@ import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import { QuotedCommit } from '../../resources/js/components/quoted-commit';
-import type { QuotedCommit as QuotedCommitData } from '../../resources/js/types';
+import type {
+    Poll,
+    QuotedCommit as QuotedCommitData,
+} from '../../resources/js/types';
 
 const commit = {
     id: 'quoted',
@@ -24,7 +27,22 @@ const commit = {
     user: { id: 'author', name: 'Matthieu Napoli', username: 'mnapoli' },
 } as QuotedCommitData;
 
-async function render(isPreview: boolean): Promise<string> {
+const poll = {
+    id: 'poll',
+    closes_at: '2099-01-01T00:00:00.000000Z',
+    is_closed: false,
+    has_voted: false,
+    total_votes: null,
+    options: [
+        { id: 'tabs', label: 'Tabs', votes_count: null, voted: false },
+        { id: 'spaces', label: 'Spaces', votes_count: null, voted: false },
+    ],
+} satisfies Poll;
+
+async function render(
+    isPreview: boolean,
+    quoted: QuotedCommitData = commit,
+): Promise<string> {
     const result = await createInertiaApp({
         page: {
             component: 'quote',
@@ -38,7 +56,7 @@ async function render(isPreview: boolean): Promise<string> {
             flash: {},
         },
         resolve: () => () => (
-            <QuotedCommit commit={commit} isPreview={isPreview} />
+            <QuotedCommit commit={quoted} isPreview={isPreview} />
         ),
         render: renderToString,
         setup: ({ App, props }) => <App {...props} />,
@@ -63,4 +81,32 @@ void test('keeps the quote a single link', async () => {
 
     assert.equal(body.match(/<a\b/g)?.length, 1);
     assert.doesNotMatch(body, /<button\b/);
+});
+
+void test('shows the options of a quoted poll without letting anyone vote inside the quote', async () => {
+    const body = await render(false, { ...commit, poll });
+
+    assert.match(body, /data-test="commit-poll"/);
+    assert.match(body, />Tabs</);
+    assert.match(body, />Spaces</);
+    assert.equal(body.match(/<a\b/g)?.length, 1);
+    assert.doesNotMatch(body, /<(input|button|fieldset|label)\b/);
+});
+
+void test('shows the results of a quoted poll once the viewer may see them', async () => {
+    const body = await render(true, {
+        ...commit,
+        poll: {
+            ...poll,
+            has_voted: true,
+            total_votes: 4,
+            options: [
+                { id: 'tabs', label: 'Tabs', votes_count: 1, voted: false },
+                { id: 'spaces', label: 'Spaces', votes_count: 3, voted: true },
+            ],
+        },
+    });
+
+    assert.match(body, />75<!-- -->%/);
+    assert.match(body, /4 votes/);
 });

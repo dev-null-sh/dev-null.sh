@@ -2,11 +2,12 @@ import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { signIn } from '@/lib/auth';
+import { hasModKey } from '@/lib/keyboard';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
 import type { Log, User } from '@/types';
 
-function isTyping(target: EventTarget | null): boolean {
+export function isTyping(target: EventTarget | null): boolean {
     return (
         target instanceof HTMLElement &&
         (target.isContentEditable ||
@@ -108,10 +109,7 @@ export function useKeyboardShortcuts(
                   };
 
         const onKeyDown = (event: KeyboardEvent) => {
-            if (
-                (event.metaKey || event.ctrlKey) &&
-                event.key.toLowerCase() === 'k'
-            ) {
+            if (hasModKey(event) && event.key.toLowerCase() === 'k') {
                 event.preventDefault();
                 onSearch();
 
@@ -124,7 +122,9 @@ export function useKeyboardShortcuts(
                 event.ctrlKey ||
                 event.altKey ||
                 isTyping(event.target) ||
-                document.querySelector('[role="dialog"][data-state="open"]')
+                document.querySelector(
+                    '[role="dialog"][data-state="open"], [role="dialog"][aria-modal="true"]',
+                )
             ) {
                 return;
             }

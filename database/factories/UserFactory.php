@@ -35,6 +35,7 @@ final class UserFactory extends Factory
             'pinned_commit_id' => null,
             'onboarded_at' => now(),
             'remember_token' => Str::random(10),
+            'github_synced_at' => null,
         ];
     }
 

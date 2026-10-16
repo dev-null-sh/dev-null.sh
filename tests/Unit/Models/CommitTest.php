@@ -189,15 +189,23 @@ it('serializes a deleted commit as a tombstone without its author or body', func
     ]);
 });
 
-it('excludes series continuations from its public preview reply count', function (): void {
+it('counts visible replies and quotes without series continuations in public previews', function (): void {
     $parts = commitSeries();
     Commit::factory()->for($parts[0], 'parent')->create();
     Commit::factory()->for($parts[0], 'parent')->pending()->create();
+    Commit::factory()->for($parts[0], 'quotedCommit')->create();
+    Commit::factory()->for($parts[0], 'quotedCommit')->pending()->create();
+    Commit::factory()->for($parts[0], 'quotedCommit')->rejected()->create();
+    Commit::factory()->for($parts[0], 'quotedCommit')->create()->delete();
 
+    $parts[0]->fill(['body' => 'Unsaved preview body']);
     $preview = $parts[0]->loadPublicPreview();
 
-    expect($preview->replies_count)->toBe(1)
-        ->and($preview->isDirty('replies_count'))->toBeFalse();
+    expect($preview)->toBe($parts[0])
+        ->and($preview->replies_count)->toBe(2)
+        ->and($preview->toArray()['replies_count'])->toBe(2)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->isDirty('body'))->toBeTrue();
 });
 
 it('loads an unsaved public preview without dirtying its computed count', function (): void {

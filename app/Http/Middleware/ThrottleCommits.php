@@ -52,6 +52,10 @@ final readonly class ThrottleCommits
                 ->header('Content-Type', 'text/plain; charset=utf-8');
         }
 
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $message], 429, ['Retry-After' => $retryAfter]);
+        }
+
         Inertia::flash('toast', [
             'type' => 'error',
             'message' => $message,
