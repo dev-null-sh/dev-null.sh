@@ -7,7 +7,6 @@ use App\Actions\CreateReplyNotifications;
 use App\Actions\CreateUserFollow;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
-use App\Actions\UpdateNotificationsReadAt;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -213,43 +212,6 @@ it('counts the unread groups', function (): void {
     Notification::factory()->for($user, 'recipient')->read()->create();
 
     expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(2);
-});
-
-it('keeps the unread count while the notifications stay as they were', function (): void {
-    $user = User::factory()->create();
-    resolve(CreateUserFollow::class)->handle(User::factory()->create(), $user);
-    $query = resolve(NotificationGroupsQuery::class);
-
-    expect($query->unreadCount($user))->toBe(1);
-
-    DB::flushQueryLog();
-    DB::enableQueryLog();
-
-    expect($query->unreadCount($user))->toBe(1)
-        ->and(DB::getQueryLog())->toHaveCount(1);
-});
-
-it('counts the unread groups again once a notification is created, read or deleted', function (): void {
-    $user = User::factory()->create();
-    $query = resolve(NotificationGroupsQuery::class);
-
-    expect($query->unreadCount($user))->toBe(0);
-
-    resolve(CreateUserFollow::class)->handle(User::factory()->create(), $user);
-
-    expect($query->unreadCount($user))->toBe(1);
-
-    resolve(UpdateNotificationsReadAt::class)->handle($user);
-
-    expect($query->unreadCount($user))->toBe(0);
-
-    starAt(User::factory()->create(), Commit::factory()->for($user)->create(), 0);
-
-    expect($query->unreadCount($user))->toBe(1);
-
-    $user->notifications()->where('type', NotificationType::Starred)->delete();
-
-    expect($query->unreadCount($user))->toBe(0);
 });
 
 it('compiles the grouping window for each database dialect with bound recipient and filter values', function (string $driver, string $gap): void {

@@ -11,7 +11,6 @@ use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 final readonly class NotificationGroupsQuery
@@ -42,26 +41,9 @@ final readonly class NotificationGroupsQuery
         return $groups;
     }
 
-    /**
-     * Every page asks for it, and every open tab polls it, yet grouping is costly: the count is kept for as long as the
-     * user's notifications stay as they were, which a cheap fingerprint tells. What the fingerprint misses, like an
-     * actor muted or a reply rejected after the fact, shows within the cache's lifetime.
-     */
     public function unreadCount(User $user): int
     {
-        $key = "notifications:unread-count:{$user->id}";
-        $fingerprint = $this->fingerprint($user);
-        $cached = Cache::get($key);
-
-        if (is_array($cached) && $cached['fingerprint'] === $fingerprint && is_int($cached['count'])) {
-            return $cached['count'];
-        }
-
-        $count = $this->events($user)->where('group_rank', 1)->where('unread_count', '>', 0)->count();
-
-        Cache::put($key, ['fingerprint' => $fingerprint, 'count' => $count], now()->addMinutes(5));
-
-        return $count;
+        return $this->events($user)->where('group_rank', 1)->where('unread_count', '>', 0)->count();
     }
 
     public function members(User $user, Notification $notification, string $type = 'all'): NotificationBuilder
@@ -153,18 +135,6 @@ final readonly class NotificationGroupsQuery
         return Notification::query()->fromSub($sql, 'notifications')->addBinding($visible->getBindings(), 'from')
             ->addBinding($filtered->getBindings(), 'from')
             ->withCasts(['event_count' => 'integer']);
-    }
-
-    /**
-     * Changes whenever one of the user's notifications is created, deleted or read.
-     */
-    private function fingerprint(User $user): string
-    {
-        $stats = $user->notifications()->toBase()
-            ->selectRaw('count(*) as total, count(read_at) as read_count, max(created_at) as latest')
-            ->first();
-
-        return hash('xxh3', serialize($stats));
     }
 
     /** @param array<int, Notification> $groups */

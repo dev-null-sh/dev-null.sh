@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitSeries;
 use App\Enums\CommitStatus;
-use App\Jobs\EmbedCommit;
 use App\Jobs\EvaluateCommitJob;
 use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
@@ -145,7 +144,7 @@ it('evaluates a series after fetching only the link cards its author chose', fun
     Queue::assertNotPushed(EvaluateCommitJob::class);
 });
 
-it('keeps production processing for every part while Jev evaluates the whole series once', function (): void {
+it('keeps production moderation for every part while Jev evaluates the whole series once', function (): void {
     Queue::fake();
     config([
         'services.openai.key' => 'test-openai-key',
@@ -156,12 +155,11 @@ it('keeps production processing for every part while Jev evaluates the whole ser
 
     $parts = resolve(CreateCommitSeries::class)->handle(User::factory()->create(), ['First part', 'Second part']);
 
-    Queue::assertPushed(EmbedCommit::class, 2);
     Queue::assertPushed(ModerateCommit::class, 2);
     foreach ($parts as $part) {
-        Queue::assertPushed(EmbedCommit::class, fn (EmbedCommit $job): bool => $job->commit->is($part));
         Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($part));
     }
+
     Queue::assertPushed(EvaluateCommitJob::class, 1);
     Queue::assertPushed(EvaluateCommitJob::class, fn (EvaluateCommitJob $job): bool => $job->commit->is($parts[0]));
 });

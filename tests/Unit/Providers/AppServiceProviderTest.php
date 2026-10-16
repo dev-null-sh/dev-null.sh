@@ -9,7 +9,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Support\SessionKey;
 
@@ -67,29 +66,3 @@ it('limits each address to 60 public api requests a minute', function (): void {
         ->and($limit->maxAttempts)->toBe(60)
         ->and($limit->decaySeconds)->toBe(60);
 });
-
-it('gives each developer their own search budget, and guests a smaller one per address', function (string $name, array $forDevelopers, array $forGuests): void {
-    $user = User::factory()->create();
-
-    $limiter = RateLimiter::limiter($name);
-
-    assert($limiter instanceof Closure);
-
-    $signedIn = Request::create('/search', server: ['REMOTE_ADDR' => '203.0.113.7']);
-    $signedIn->setUserResolver(fn (): User => $user);
-
-    $guest = Request::create('/search', server: ['REMOTE_ADDR' => '203.0.113.7']);
-
-    $budgets = fn (Request $request): array => collect(Arr::wrap($limiter($request)))
-        ->map(fn (Limit $limit): array => [$limit->maxAttempts, $limit->decaySeconds])
-        ->all();
-
-    expect($budgets($signedIn))->toBe($forDevelopers)
-        ->and($budgets($guest))->toBe($forGuests)
-        ->and(Arr::wrap($limiter($signedIn))[0]->key)->toContain($user->id)
-        ->and(Arr::wrap($limiter($guest))[0]->key)->toContain('203.0.113.7');
-})->with([
-    'developer search' => ['user-search', [[120, 60]], [[60, 60]]],
-    'mention suggestions' => ['mention-suggestions', [[120, 60]], [[60, 60]]],
-    'commit search' => ['commit-search', [[30, 60], [500, 86400]], [[15, 60], [200, 86400]]],
-]);

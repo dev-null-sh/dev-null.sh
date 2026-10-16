@@ -7,7 +7,6 @@ use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
-use App\Jobs\EmbedCommit;
 use App\Jobs\EvaluateCommitJob;
 use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
@@ -164,7 +163,7 @@ it('does not ask the ai about commits of admins', function (): void {
 it('queues ai review for a quote while preserving its images and chosen link card', function (): void {
     config(['services.openai.key' => 'sk-test']);
     Storage::fake();
-    Queue::fake([ModerateCommit::class, UnfurlLink::class, EmbedCommit::class]);
+    Queue::fake([ModerateCommit::class, UnfurlLink::class]);
 
     $quoted = Commit::factory()->create();
 
@@ -186,15 +185,6 @@ it('queues ai review for a quote while preserving its images and chosen link car
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($quote->linkPreview));
 });
 
-it('queues an embedding for a new commit', function (): void {
-    config(['services.openai.key' => 'sk-test']);
-    Queue::fake();
-
-    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Hello, devnull!');
-
-    Queue::assertPushed(EmbedCommit::class, fn (EmbedCommit $job): bool => $job->commit->is($commit));
-});
-
 it('does not ask the ai without an api key', function (): void {
     config(['services.openai.key' => null]);
     Queue::fake();
@@ -204,7 +194,6 @@ it('does not ask the ai without an api key', function (): void {
     $action->handle(User::factory()->create(), 'Initial commit');
 
     Queue::assertNotPushed(ModerateCommit::class);
-    Queue::assertNotPushed(EmbedCommit::class);
 });
 
 it('attaches a link preview for the first url in the body', function (): void {

@@ -7,7 +7,6 @@ namespace App\Actions;
 use App\Dto\NewPoll;
 use App\Dto\SeriesPosition;
 use App\Enums\CommitStatus;
-use App\Jobs\EmbedCommit;
 use App\Jobs\EvaluateCommitJob;
 use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
@@ -101,10 +100,6 @@ final readonly class CreateCommit
             $this->createWorldReply->handle($commit);
             if ($commit->status === CommitStatus::Pending && filled(config('services.openai.key'))) {
                 dispatch(new ModerateCommit($commit))->afterCommit();
-            }
-
-            if (filled(config('services.openai.key'))) {
-                dispatch(new EmbedCommit($commit))->afterCommit();
             }
 
             return $commit;

@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 /**
@@ -69,37 +68,7 @@ final readonly class CreateUserActivityGraph
         //
     }
 
-    /**
-     * READMEs embed the graph, so it is fetched far more often than it changes: it is only drawn again once the
-     * user's approved commits, their username or lane, or the day have changed.
-     */
     public function handle(User $user, ActivityGraphTheme $theme): string
-    {
-        $key = "activity-graph:user:{$user->id}:{$theme->value}";
-        $version = $this->version($user);
-        $cached = Cache::get($key);
-
-        if (is_array($cached) && $cached['version'] === $version && is_string($cached['svg'])) {
-            return $cached['svg'];
-        }
-
-        $svg = $this->render($user, $theme);
-
-        Cache::put($key, ['version' => $version, 'svg' => $svg], now()->addDay());
-
-        return $svg;
-    }
-
-    private function version(User $user): string
-    {
-        $commits = $user->commits()->approved()->toBase()
-            ->selectRaw('count(*) as total, max(created_at) as latest')
-            ->first();
-
-        return hash('xxh3', serialize([$user->username, $user->lane(), CarbonImmutable::today()->toDateString(), $commits]));
-    }
-
-    private function render(User $user, ActivityGraphTheme $theme): string
     {
         ['buckets' => $buckets] = $this->activity->get($user, null, ActivityScale::Year);
         ['longest' => $longestStreak, 'current' => $currentStreak] = $this->streaks->get($user, null);

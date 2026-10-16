@@ -103,7 +103,6 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ### Maintenance
 - `composer update:requirements` - Updates the PHP and frontend dependency version constraints
-- `php artisan commits:embed` - Embeds the body of every commit missing an embedding, for semantic search (`--all` re-embeds everything)
 
 ## License
 

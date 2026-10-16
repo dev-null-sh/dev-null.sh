@@ -45,7 +45,7 @@ it('is the latest evaluation of its commit', function (bool $sameTime): void {
     $commit = Commit::factory()->pending()->create();
 
     CommitEvaluation::factory()->for($commit)->failed()->create([
-        'id' => '00000000-0000-4000-8000-000000000001',
+        'id' => $sameTime ? '00000000-0000-4000-8000-000000000001' : '00000000-0000-4000-8000-000000000002',
     ]);
 
     if (! $sameTime) {
@@ -53,7 +53,7 @@ it('is the latest evaluation of its commit', function (bool $sameTime): void {
     }
 
     $latest = CommitEvaluation::factory()->for($commit)->create([
-        'id' => '00000000-0000-4000-8000-000000000002',
+        'id' => $sameTime ? '00000000-0000-4000-8000-000000000002' : '00000000-0000-4000-8000-000000000001',
     ]);
 
     expect($commit->refresh()->evaluation->id)->toBe($latest->id)
