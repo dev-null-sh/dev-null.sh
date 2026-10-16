@@ -15,6 +15,7 @@ use App\Http\Controllers\CommitPollVoteController;
 use App\Http\Controllers\CommitPreviewController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
+use App\Http\Controllers\CommitReportController;
 use App\Http\Controllers\CommitRestorationController;
 use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSeriesController;
@@ -31,6 +32,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
@@ -185,6 +187,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->middleware('throttle:stars')
         ->name('commit-star.store');
+    Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
+        ->middleware('throttle:commit-reports')
+        ->name('commit-report.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
         ->middleware('throttle:stars')
         ->name('commit-star.destroy');
@@ -203,6 +208,8 @@ Route::middleware('auth')->group(function (): void {
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+    Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
+    Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
     Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
         ->name('commit-approval.store');
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])

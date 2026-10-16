@@ -18,6 +18,7 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
+import { CommitReportButton } from '@/components/commit-report-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ComposerPreviewBody,
@@ -421,6 +422,9 @@ export function ThreadActions({
                             commit={commit}
                             keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                         />
+                    )}
+                    {!isDeleted(commit) && (
+                        <CommitReportButton commit={commit} />
                     )}
                 </div>
             </div>

@@ -10,6 +10,7 @@ import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { CommitImages } from '@/components/commit-images';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
+import { ModerationTabs } from '@/components/moderation-tabs';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -309,6 +310,8 @@ export default function Show({
                         Oldest first
                     </p>
                 </div>
+
+                <ModerationTabs active="pending" />
 
                 {commits.data.length > 0 && (
                     <div className="flex h-12 items-center gap-3 border-b px-4">

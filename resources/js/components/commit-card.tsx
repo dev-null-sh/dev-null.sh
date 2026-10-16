@@ -8,6 +8,7 @@ import { CommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
+import { CommitReportButton } from '@/components/commit-report-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ThreadActions,
@@ -366,6 +367,7 @@ export function CommitCard({
                                         keyShortcut="q"
                                         className="px-1.5 py-1"
                                     />
+                                    <CommitReportButton commit={commit} />
                                 </div>
                             ) : (
                                 <ThreadActions
