@@ -115,10 +115,11 @@
     --animate-rail-draw: rail-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-star-pop: star-pop 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275)
         both;
-    --animate-dash-fall: dash-fall 2400ms cubic-bezier(0.4, 0, 0.6, 1) infinite
-        both;
+    --animate-slash-fall: slash-fall 2400ms cubic-bezier(0.4, 0, 0.6, 1)
+        infinite both;
+    --animate-slash-spin: slash-spin 2400ms linear infinite both;
 
-    @keyframes dash-fall {
+    @keyframes slash-fall {
         0% {
             transform: translateY(-4%);
             opacity: 0;
@@ -134,6 +135,15 @@
             transform: translateY(72%);
             opacity: 0;
             filter: blur(2px);
+        }
+    }
+
+    @keyframes slash-spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(var(--spin));
         }
     }
 

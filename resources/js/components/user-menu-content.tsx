@@ -2,7 +2,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { Activity, Bookmark, LogOut, Settings, UserRound } from 'lucide-react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
-import { DashRain } from '@/components/dash-rain';
+import { SlashRain } from '@/components/slash-rain';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -33,7 +33,7 @@ export function UserMenuContent({ user }: Props) {
 
     return (
         <>
-            <DashRain />
+            <SlashRain />
             <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                     <UserInfo user={user} showUsername={true} />
