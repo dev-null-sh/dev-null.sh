@@ -10,7 +10,7 @@ import { show } from '@/routes/user';
 const rules = [
     'Everyone here signed in with GitHub.',
     'Commits are plain text, 280 characters max.',
-    'No likes, no reposts, no algorithm. Newest first.',
+    'No reposts, no algorithm. Newest first.',
     'Profiles mirror GitHub. Edit yours there.',
 ];
 
@@ -24,7 +24,7 @@ export function AppAside({
     const { auth } = usePage().props;
 
     return (
-        <aside className="sticky top-0 hidden h-svh w-80 shrink-0 flex-col gap-8 px-6 py-6 xl:flex">
+        <aside className="sticky top-0 hidden h-svh w-80 shrink-0 [scrollbar-width:none] flex-col gap-8 overflow-y-auto px-6 py-6 xl:flex">
             <button
                 type="button"
                 onClick={onSearch}
@@ -89,18 +89,23 @@ export function AppAside({
                     ].map((stat) => (
                         <div
                             key={stat.label}
-                            className="flex flex-row-reverse gap-1.5"
+                            className="group flex flex-row-reverse gap-1.5"
                         >
                             <dt className="text-muted-foreground">
                                 <Link
                                     href={stat.href}
-                                    className="hover:underline"
+                                    className="group-hover:underline"
                                 >
                                     {stat.label}
                                 </Link>
                             </dt>
                             <dd className="font-mono font-medium">
-                                {stat.count}
+                                <Link
+                                    href={stat.href}
+                                    className="group-hover:underline"
+                                >
+                                    {stat.count}
+                                </Link>
                             </dd>
                         </div>
                     ))}

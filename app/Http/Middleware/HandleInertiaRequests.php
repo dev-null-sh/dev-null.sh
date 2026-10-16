@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -46,13 +47,13 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $isAdmin,
-                'unreadNotificationsCount' => fn (): int => $request->user()?->notifications()->relevant()->unread()->count() ?? 0,
+                'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user) : 0,
             ],
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $showsWhoToFollow ? [
-                'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get($user)),
+                'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get($user))->once(),
             ] : [],
         ];
     }

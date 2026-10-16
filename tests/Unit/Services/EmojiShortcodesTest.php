@@ -14,8 +14,8 @@ it('replaces every shortcode with its emoji', function (): void {
 it('leaves a shortcode inside a longer word untouched', function (): void {
     $emoji = resolve(EmojiShortcodes::class);
 
-    expect($emoji->replace(':heartbeat and :likewise stay put'))
-        ->toBe(':heartbeat and :likewise stay put');
+    expect($emoji->replace(':hearted and :likewise stay put'))
+        ->toBe(':hearted and :likewise stay put');
 });
 
 it('replaces shortcodes next to punctuation and the end of the text', function (): void {
@@ -23,6 +23,20 @@ it('replaces shortcodes next to punctuation and the end of the text', function (
 
     expect($emoji->replace('one: :heart, two: :like!'))
         ->toBe('one: ❤️, two: 👍!');
+});
+
+it('replaces shortcodes with an optional closing colon', function (): void {
+    $emoji = resolve(EmojiShortcodes::class);
+
+    expect($emoji->replace('shipped it :heart: :like: :rocket:!'))
+        ->toBe('shipped it ❤️ 👍 🚀!');
+});
+
+it('replaces adjacent shortcodes', function (): void {
+    $emoji = resolve(EmojiShortcodes::class);
+
+    expect($emoji->replace(':heart::like:'))
+        ->toBe('❤️👍');
 });
 
 it('does not modify text without shortcodes', function (): void {

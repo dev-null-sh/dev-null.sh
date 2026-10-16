@@ -168,6 +168,27 @@ it('counts new commits since a commit that was deleted, without deleted ones', f
         ->assertJsonPath('props.newCommitsCount', 1);
 });
 
+it('counts commits created in the same second after a given commit', function (): void {
+    $user = User::factory()->create();
+    $createdAt = now()->startOfSecond();
+
+    Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c7', 'created_at' => $createdAt]);
+    $seen = Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c8', 'created_at' => $createdAt]);
+    Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c9', 'created_at' => $createdAt]);
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'newCommitsCount',
+        ])
+        ->get('/log/following?since='.$seen->id);
+
+    $response->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 1);
+});
+
 it('does not count new commits on a regular visit', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->get('/log/following');
@@ -320,6 +341,25 @@ it('defers suggested users to follow', function (): void {
                 ->missing('suggestedUsers.0.email')));
 
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
+});
+
+it('keeps the suggested users the client already loaded when navigating', function (): void {
+    $user = User::factory()->create();
+    User::factory()->has(Commit::factory())->create();
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Except-Once-Props' => 'suggestedUsers',
+        ])
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertJsonMissingPath('props.suggestedUsers')
+        ->assertJsonPath('onceProps.suggestedUsers.prop', 'suggestedUsers');
+
+    expect(collect($response->json('deferredProps') ?? [])->flatten())->not->toContain('suggestedUsers');
 });
 
 it('does not suggest users to follow once they are hidden', function (): void {
