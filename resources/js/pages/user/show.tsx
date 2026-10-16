@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowUpRight,
     Building2,
@@ -29,6 +29,10 @@ import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileActionsMenu } from '@/components/profile-actions-menu';
 import { ProfileShareButton } from '@/components/profile-share-button';
+import {
+    ShiptalkerIndex,
+    ShiptalkerIndexSkeleton,
+} from '@/components/shiptalker-index';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -42,6 +46,7 @@ import type {
     Commit,
     CursorPaginated,
     Profile,
+    ShiptalkerIndex as ShiptalkerIndexData,
     Streaks,
 } from '@/types';
 
@@ -59,6 +64,7 @@ export default function Show({
     activity,
     streaks,
     achievements,
+    shiptalkerIndex,
     commits,
     tab,
     pinnedCommit,
@@ -72,12 +78,21 @@ export default function Show({
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
+    shiptalkerIndex?: ShiptalkerIndexData | null;
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies';
     pinnedCommit: Commit | null;
 }) {
-    const { auth } = usePage().props;
+    const {
+        props: { auth },
+        deferredProps,
+    } = usePage();
     const isCurrentUser = auth.user?.id === user.id;
+    const hasShiptalkerIndex =
+        shiptalkerIndex !== undefined ||
+        Object.values(deferredProps ?? {})
+            .flat()
+            .includes('shiptalkerIndex');
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
@@ -388,6 +403,15 @@ export default function Show({
             />
 
             <ActivityStreaks streaks={streaks} lane={lane} />
+
+            {hasShiptalkerIndex && (
+                <Deferred
+                    data="shiptalkerIndex"
+                    fallback={<ShiptalkerIndexSkeleton />}
+                >
+                    <ShiptalkerIndex index={shiptalkerIndex ?? null} />
+                </Deferred>
+            )}
 
             <AchievementsShelf
                 achievements={achievements}
