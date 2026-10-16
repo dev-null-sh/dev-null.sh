@@ -7,6 +7,7 @@ use App\Enums\NotificationType;
 use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\MinesweeperGame;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\PollVote;
@@ -84,6 +85,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'commits' => [],
         'polls' => [],
         'poll_votes' => [],
+        'minesweeper_games' => [],
         'stars' => [],
         'bookmarks' => [],
         'following' => [],
@@ -215,6 +217,24 @@ it('exports the polls of live commits and votes without other voters', function 
             'created_at' => $vote->created_at->toIso8601String(),
         ]])
         ->and($response->streamedContent())->not->toContain($voter->id, $voter->username, $deleted->options[0]->label);
+});
+
+it('exports the games of minesweeper played, without other players', function (): void {
+    $user = User::factory()->create();
+    $won = MinesweeperGame::factory()->for($user)->won(12_345)->create();
+    $other = MinesweeperGame::factory()->for($won->commit)->won(1_000)->create();
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['minesweeper_games'])->toBe([[
+        'commit_id' => $won->commit_id,
+        'status' => 'won',
+        'duration_ms' => 12_345,
+        'created_at' => $won->created_at->toIso8601String(),
+        'finished_at' => $won->finished_at?->toIso8601String(),
+    ]])
+        ->and($response->streamedContent())->not->toContain($other->id, $other->user->username);
 });
 
 it('exports where each commit sits in its series', function (): void {

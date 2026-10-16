@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
 use App\Services\CodeSpans;
+use App\Services\Minesweeper;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -54,6 +55,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
  * @property-read Collection<int, Commit> $seriesParts
+ * @property-read Collection<int, MinesweeperGame> $minesweeperGames
  */
 #[Hidden([
     'ai_decision',
@@ -98,7 +100,8 @@ final class Commit extends Model
 
     /**
      * A deleted commit only ever leaves a tombstone behind: never its author or body, though a deleted part of a series
-     * keeps its place in it. Otherwise, the body also comes split into prose, inline code and highlighted code blocks, for rendering.
+     * keeps its place in it. Otherwise, the body also comes split into prose, inline code and highlighted code blocks, for rendering,
+     * and says whether the commit is a game of minesweeper.
      *
      * @return array<mixed>
      */
@@ -110,7 +113,11 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return [...parent::toArray(), 'body_segments' => resolve(CodeSpans::class)->highlight($this->body)];
+        return [
+            ...parent::toArray(),
+            'body_segments' => resolve(CodeSpans::class)->highlight($this->body),
+            'is_minesweeper' => resolve(Minesweeper::class)->matches($this->body),
+        ];
     }
 
     /**
@@ -195,6 +202,14 @@ final class Commit extends Model
     public function bookmarks(): HasMany
     {
         return $this->hasMany(Bookmark::class);
+    }
+
+    /**
+     * @return HasMany<MinesweeperGame, $this>
+     */
+    public function minesweeperGames(): HasMany
+    {
+        return $this->hasMany(MinesweeperGame::class);
     }
 
     /**

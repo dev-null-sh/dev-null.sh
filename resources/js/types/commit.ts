@@ -46,6 +46,7 @@ export type Commit = {
     hot_score: number;
     body: string;
     body_segments: BodySegment[];
+    is_minesweeper: boolean;
     status: CommitStatus;
     series_id: string | null;
     series_position: number | null;

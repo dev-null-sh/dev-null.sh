@@ -16,6 +16,7 @@ import {
 } from '@/components/commit-thread';
 import { GraphRail, RailAvatar, RailDot } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
+import { Minesweeper } from '@/components/minesweeper';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
@@ -290,6 +291,9 @@ export function CommitCard({
                                     isFocused ? 'text-[17px]' : 'text-[15px]',
                                 )}
                             />
+                            {commit.is_minesweeper && (
+                                <Minesweeper commit={commit} />
+                            )}
                             {showImages && <CommitImages commit={commit} />}
                             {commit.poll && (
                                 <CommitPoll

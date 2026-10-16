@@ -13,6 +13,7 @@ const commit: Commit = {
     quoted_commit_id: null,
     body: 'Photo from the build',
     body_segments: [],
+    is_minesweeper: false,
     status: 'approved',
     series_id: null,
     series_position: null,

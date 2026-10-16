@@ -31,7 +31,13 @@ test('to array', function (): void {
             'root_id',
             'hot_score',
             'body_segments',
+            'is_minesweeper',
         ]);
+});
+
+it('says whether it is a game of minesweeper', function (): void {
+    expect(Commit::factory()->create(['body' => '/minesweeper'])->toArray()['is_minesweeper'])->toBeTrue()
+        ->and(Commit::factory()->create(['body' => 'not a game'])->toArray()['is_minesweeper'])->toBeFalse();
 });
 
 it('splits its body into segments', function (): void {

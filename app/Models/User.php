@@ -46,6 +46,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, User> $blocking
  * @property-read Collection<int, User> $blockers
  * @property-read Collection<int, Notification> $notifications
+ * @property-read Collection<int, MinesweeperGame> $minesweeperGames
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read Collection<int, PollVote> $pollVotes
  * @property-read int $commits_count
@@ -118,6 +119,14 @@ final class User extends Authenticatable
     public function pollVotes(): HasMany
     {
         return $this->hasMany(PollVote::class);
+    }
+
+    /**
+     * @return HasMany<MinesweeperGame, $this>
+     */
+    public function minesweeperGames(): HasMany
+    {
+        return $this->hasMany(MinesweeperGame::class);
     }
 
     /**

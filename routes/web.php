@@ -24,6 +24,7 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
+use App\Http\Controllers\MinesweeperGameController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
@@ -169,6 +170,17 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-reply.destroy');
     Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
         ->name('commit-poll-vote.store');
+
+    // Minesweeper...
+    Route::get('commits/{commit}/minesweeper-games', [MinesweeperGameController::class, 'index'])
+        ->name('minesweeper-game.index');
+    Route::post('commits/{commit}/minesweeper-games', [MinesweeperGameController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('minesweeper-game.store');
+    Route::put('commits/{commit}/minesweeper-games/{minesweeperGame}', [MinesweeperGameController::class, 'update'])
+        ->scopeBindings()
+        ->middleware('throttle:240,1')
+        ->name('minesweeper-game.update');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');

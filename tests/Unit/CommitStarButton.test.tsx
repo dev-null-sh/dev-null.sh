@@ -61,6 +61,7 @@ for (const scenario of cases) {
             quoted_commit_id: null,
             body: 'Shipped a repair',
             body_segments: [],
+            is_minesweeper: false,
             status: scenario.status,
             series_id: null,
             series_position: null,
