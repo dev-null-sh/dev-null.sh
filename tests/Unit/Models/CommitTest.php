@@ -22,6 +22,9 @@ test('to array', function (): void {
             'parent_id',
             'deleted_at',
             'link_preview_id',
+            'series_id',
+            'series_position',
+            'series_size',
             'quoted_commit_id',
             'body_segments',
         ]);
@@ -155,6 +158,14 @@ it('serializes a deleted commit as a tombstone without its author or body', func
         'deleted_at' => $tombstone->deleted_at?->toJSON(),
         'replies_count' => 0,
     ]);
+});
+
+it('excludes series continuations from its public preview reply count', function (): void {
+    $parts = commitSeries();
+    Commit::factory()->for($parts[0], 'parent')->create();
+    Commit::factory()->for($parts[0], 'parent')->pending()->create();
+
+    expect($parts[0]->loadPublicPreview()->replies_count)->toBe(1);
 });
 
 it('may belong to a link preview', function (): void {
