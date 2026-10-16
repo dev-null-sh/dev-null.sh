@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Actions\SyncGitHubSshKeys;
+use App\Actions\UpdateUserSshKeys;
 use App\Models\User;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -16,14 +16,14 @@ use Illuminate\Http\Client\RequestException;
 #[Description('Mirror the SSH keys of all users from GitHub (used by the `devnull commit` script)')]
 final class SyncSshKeysCommand extends Command
 {
-    public function handle(SyncGitHubSshKeys $syncGitHubSshKeys): int
+    public function handle(UpdateUserSshKeys $updateUserSshKeys): int
     {
         $synced = 0;
         $failed = 0;
 
         foreach (User::query()->lazyById() as $user) {
             try {
-                $syncGitHubSshKeys->handle($user);
+                $updateUserSshKeys->handle($user);
 
                 $synced++;
             } catch (RequestException $exception) {

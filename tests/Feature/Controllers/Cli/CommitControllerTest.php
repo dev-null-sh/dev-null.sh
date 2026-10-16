@@ -81,6 +81,21 @@ it('fails to reply to an unknown commit', function (): void {
     expect(Commit::query()->count())->toBe(0);
 });
 
+it('fails to reply to an ambiguous or malformed commit reference', function (string $replyTo, string $message): void {
+    Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+    Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52c0be0130']);
+
+    $response = postSignedCommit(signedCommit($this->keyPair, 'Agreed!', replyTo: $replyTo));
+
+    $response->assertUnprocessable()
+        ->assertContent($message."\n");
+
+    expect($this->user->commits()->count())->toBe(0);
+})->with([
+    'ambiguous' => ['0be0130', '0be0130 matches several commits: use the link of the commit instead.'],
+    'malformed' => ['not-a-hash', 'not-a-hash is not a commit hash or link.'],
+]);
+
 it('rejects invalid signatures', function (): void {
     $commit = signedCommit($this->keyPair, 'It was DNS.');
 
