@@ -260,7 +260,7 @@ final class CommitBuilder extends Builder
                 ->values();
             $last = $replies->last();
             $cursor = $last instanceof Commit && $commit->replies_count > $replies->count()
-                ? (new Cursor(['created_at' => $last->getRawOriginal('created_at'), 'id' => $last->id]))->encode()
+                ? new Cursor(['created_at' => $last->getRawOriginal('created_at'), 'id' => $last->id])->encode()
                 : null;
 
             $commit->setAttribute('reply_preview', [
