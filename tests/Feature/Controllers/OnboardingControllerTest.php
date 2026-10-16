@@ -26,6 +26,18 @@ it('renders the onboarding for a new user', function (): void {
             ->where('suggestions', []));
 });
 
+it('leaves who to follow to the pages with a sidebar', function (): void {
+    $user = User::factory()->notOnboarded()->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('onboarding.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('showsWhoToFollow', true)->missing('suggestedUsers'));
+
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
+});
+
 it('suggests developers to follow', function (): void {
     $user = User::factory()->notOnboarded()->create();
     $authors = User::factory()->count(6)->has(Commit::factory())->create();
