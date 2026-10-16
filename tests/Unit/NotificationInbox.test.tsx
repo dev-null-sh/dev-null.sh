@@ -84,6 +84,7 @@ async function renderInbox(notifications: NotificationGroup[]) {
                     prev_cursor: null,
                 }}
                 filters={{ type: 'all' }}
+                readAt={timestamp}
             />
         ),
         render: renderToString,
@@ -100,7 +101,10 @@ void test('renders quote notifications with their label and quoting commit desti
     assert.match(html, /quoted your commit/);
     assert.match(html, /href="\/@quoter\/commits\/quote-commit"/);
     assert.match(html, /My quote commentary/);
-    assert.match(html, /<option value="quotes">Quotes<\/option>/);
+    assert.match(
+        html,
+        /<a[^>]*href="\/notifications\?type=quotes"[^>]*><span[^>]*>Quotes<\/span><\/a>/,
+    );
 });
 
 void test('includes quotes in the unfiltered empty inbox message', async () => {
@@ -119,9 +123,10 @@ void test('renders a follow-back control outside the follower profile link', asy
     };
     const html = await renderInbox([follow]);
 
-    assert.match(html, /2 new followers/);
-    assert.match(html, /Show activity/);
-    assert.match(html, /<\/a><button[^>]*aria-label="Follow @quoter"/);
+    assert.match(html, /Quoter<\/span> and 1 other followed you/);
+    assert.match(html, /aria-expanded="false"[^>]*>.*2 followers/s);
+    assert.match(html, /<button[^>]*aria-label="Follow @quoter"/);
+    assert.doesNotMatch(html, /<a\b[^>]*>(?:(?!<\/a>).)*<button\b/s);
     assert.match(
         await renderInbox([
             { ...follow, actor: { ...follow.actor, is_followed: true } },

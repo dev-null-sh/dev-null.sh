@@ -141,7 +141,7 @@ it('does not count the authenticated user relations when reloading only commits'
 
     expect(collect(DB::getQueryLog())
         ->pluck('query')
-        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*'))
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*') || str_starts_with($query, 'select * from (select "commits".*'))
         ->all())
         ->not->toBeEmpty()
         ->each->not->toContain('count(*)');
@@ -581,4 +581,29 @@ it('offers the oldest of too many newer commits, so the rest are offered next', 
     $response->assertJsonCount(LatestLogCommitsQuery::LIMIT, 'props.latestCommits')
         ->assertJsonPath('props.latestCommits.0.id', $commits[LatestLogCommitsQuery::LIMIT - 1]->id)
         ->assertJsonPath('props.latestCommits.'.(LatestLogCommitsQuery::LIMIT - 1).'.id', $commits[0]->id);
+});
+
+it('preloads the latest reply per feed commit with a cursor to the older replies', function (): void {
+    $viewer = User::factory()->create();
+    $parents = Commit::factory()->for($viewer)->count(2)->create();
+    foreach ($parents as $parent) {
+        Commit::factory()->for($parent, 'parent')->create(['body' => 'Older reply', 'created_at' => now()->subMinutes(2)]);
+        Commit::factory()->for($parent, 'quotedCommit')->create(['body' => 'Latest quote', 'created_at' => now()->subMinute()]);
+        Commit::factory()->for($parent, 'parent')->pending()->create();
+    }
+
+    $response = $this->actingAs($viewer)->get(route('log.show', 'latest'));
+    $response->assertOk()->assertInertia(function ($page): void {
+        foreach ([0, 1] as $index) {
+            $page->has("commits.data.{$index}.reply_preview.data", 1)
+                ->where("commits.data.{$index}.reply_preview.data.0.body", 'Latest quote');
+        }
+    });
+    foreach (array_slice($response->inertiaProps('commits.data'), 0, 2) as $commit) {
+        $this->getJson(route('commit-reply.index', [
+            $commit['id'], 'newest' => 1, 'cursor' => $commit['reply_preview']['next_cursor'],
+        ]))->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.body', 'Older reply')
+            ->assertJsonPath('next_cursor', null);
+    }
 });

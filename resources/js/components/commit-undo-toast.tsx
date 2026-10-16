@@ -1,10 +1,11 @@
-import { router, usePage } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import { Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitRestorationController from '@/actions/App/Http/Controllers/CommitRestorationController';
 import { Button } from '@/components/ui/button';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
+import { currentPageComponent } from '@/lib/current-page';
 import { shortHash } from '@/lib/utils';
 import type { DeletedFlash } from '@/types';
 
@@ -15,7 +16,6 @@ export function CommitUndoToast({
     deleted: DeletedFlash;
     toastId: string | number;
 }) {
-    const { component } = usePage();
     const [deadline] = useState(
         () =>
             Date.now() +
@@ -52,7 +52,7 @@ export function CommitUndoToast({
         setProcessing(true);
 
         router.visit(CommitRestorationController.store(deleted.id), {
-            ...commitMutationOptions(component),
+            ...commitMutationOptions(currentPageComponent()),
             onSuccess: (page) => {
                 toast.dismiss(toastId);
                 if (page.flash.restored) {
