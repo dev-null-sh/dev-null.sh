@@ -18,6 +18,7 @@ import {
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitReportButton } from '@/components/commit-report-button';
+import { CommitStarButton } from '@/components/commit-star-button';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import InputError from '@/components/input-error';
@@ -766,7 +767,15 @@ function CommitReply({
                             </Button>
                         </div>
                     ) : (
-                        <ThreadActions thread={thread} />
+                        <ThreadActions
+                            thread={thread}
+                            actions={
+                                <CommitStarButton
+                                    commit={reply}
+                                    className="px-2 py-0.5"
+                                />
+                            }
+                        />
                     )}
                 </div>
             </div>

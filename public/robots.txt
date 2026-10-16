@@ -2,6 +2,7 @@ User-agent: *
 Disallow: /log/
 Disallow: /notifications
 Disallow: /saved
+Disallow: /scheduled-commits
 Disallow: /moderation
 Disallow: /onboarding
 Disallow: /settings

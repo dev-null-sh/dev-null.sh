@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\LinkPreview;
+use App\Models\Poll;
+use App\Models\PollVote;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -89,6 +92,29 @@ it('includes images in the moderator report context without querying per report'
 
     expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'commit_images')))->toHaveCount(1);
 });
+
+it('includes reported polls with viewer specific results and card state', function (bool $voted, bool $closed): void {
+    $moderator = User::factory()->create(['username' => 'moderator-demo']);
+    $factory = Poll::factory()->withOptions('Tabs', 'Spaces');
+    $poll = ($closed ? $factory->closed() : $factory)->create();
+    PollVote::factory()->for($poll->options[0], 'option')->for($voted ? $moderator : User::factory())->create();
+    $poll->commit->stars()->attach($moderator);
+    Bookmark::factory()->create(['user_id' => $moderator->id, 'commit_id' => $poll->commit_id]);
+    CommitReport::factory()->for($poll->commit)->create();
+
+    $this->actingAs($moderator)->get(route('reported-commit.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('reports.data.0.commit.poll.options.0.label', 'Tabs')
+            ->where('reports.data.0.commit.starred', true)
+            ->where('reports.data.0.commit.is_saved', true)
+            ->where('reports.data.0.commit.poll.has_voted', $voted)
+            ->where('reports.data.0.commit.poll.is_closed', $closed)
+            ->where('reports.data.0.commit.poll.total_votes', $voted || $closed ? 1 : null)
+            ->where('reports.data.0.commit.poll.options.0.votes_count', $voted || $closed ? 1 : null)
+            ->missing('reports.data.0.commit.poll.votes')
+            ->missing('reports.data.0.reporter_id'));
+})->with([false, true])->with([false, true]);
 
 it('includes visible quoted context in reports without exposing ai advice or deleted content', function (bool $deleted): void {
     $quoted = Commit::factory()->create(['ai_decision' => CommitStatus::Rejected, 'ai_categories' => ['private-quoted-category']]);

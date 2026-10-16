@@ -74,13 +74,15 @@ it('hides notifications that no longer hold', function (): void {
     $response->assertInertia(fn ($page) => $page->has('notifications.data', 0));
 });
 
-it('shows notifications as unread, then marks them as read', function (): void {
+it('marks notifications read when the inbox opens and clears the badge', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();
 
     $response = $this->actingAs($user)->get(route('notification.index'));
 
-    $response->assertInertia(fn ($page) => $page->where('notifications.data.0.read_at', null));
+    $response->assertInertia(fn ($page) => $page
+        ->where('notifications.data.0.read_at', now()->startOfSecond()->toJSON())
+        ->where('auth.unreadNotificationsCount', 0));
 
     expect($notification->refresh()->read_at)->not->toBeNull();
 });
@@ -102,7 +104,7 @@ it('groups stars per commit, newest stargazer first', function (): void {
         ->where('notifications.data.0.actor.id', $stargazers[3]->id)
         ->where('notifications.data.0.commit.id', $commit->id)
         ->where('notifications.data.0.actors_count', 4)
-        ->where('notifications.data.0.unread_count', 4)
+        ->where('notifications.data.0.unread_count', 0)
         ->has('notifications.data.0.actors', 3)
         ->where('notifications.data.0.actors.0.id', $stargazers[3]->id)
         ->missing('notifications.data.0.actors.0.email')
@@ -114,16 +116,25 @@ it('groups stars per commit, newest stargazer first', function (): void {
 it('says whether the user follows each new follower back', function (): void {
     $user = User::factory()->create();
     $followedBack = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinute()]);
-    Notification::factory()->for($user, 'recipient')->create();
+    $latest = Notification::factory()->for($user, 'recipient')->create();
     $user->following()->attach($followedBack->actor_id);
 
     $response = $this->actingAs($user)->get(route('notification.index'));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->has('notifications.data', 2)
+            ->has('notifications.data', 1)
             ->where('notifications.data.0.actor.is_followed', false)
-            ->where('notifications.data.1.actor.is_followed', true));
+            ->where('notifications.data.0.event_count', 2)
+            ->where('notifications.data.0.actors_count', 2));
+
+    $this->getJson(route('notification-group.show', $latest))
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.actor.is_followed', false)
+        ->assertJsonPath('data.1.actor.is_followed', true)
+        ->assertJsonMissingPath('data.0.actor.email')
+        ->assertJsonMissingPath('data.1.actor.email');
 });
 
 it('requires authentication', function (): void {
