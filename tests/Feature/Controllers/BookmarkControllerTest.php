@@ -50,6 +50,23 @@ it('includes link previews on saved commits and replies', function (): void {
         ->where('commits.data.1.link_preview.title', 'Saved commit link'));
 });
 
+it('includes the quoted commits of saved commits', function (): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    $hiddenQuote = Commit::factory()->for(Commit::factory()->pending(), 'quotedCommit')->create(['created_at' => now()->subMinute()]);
+
+    $this->actingAs($user)->putJson(route('bookmark.store', $hiddenQuote))->assertOk();
+    $this->putJson(route('bookmark.store', $quote))->assertOk();
+
+    $this->get(route('bookmark.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('commits.data', 2)
+        ->where('commits.data.0.quoted_commit.body', 'The quoted commit')
+        ->where('commits.data.0.quoted_commit.user.username', 'taylorotwell')
+        ->where('commits.data.1.quoted_commit_id', $hiddenQuote->quoted_commit_id)
+        ->where('commits.data.1.quoted_commit', null));
+});
+
 it('includes images on saved commits', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->create();
@@ -227,7 +244,7 @@ it('returns only the viewers saved state across logs profiles commit pages and r
     Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $reply->id]);
     $user->following()->attach($other);
 
-    foreach ([route('log.show', 'everyone'), route('log.show', 'following'), route('user.show', $other), route('user.show', [$other, 'tab' => 'replies'])] as $url) {
+    foreach ([route('log.show', 'trending'), route('log.show', 'following'), route('user.show', $other), route('user.show', [$other, 'tab' => 'replies'])] as $url) {
         $this->actingAs($user)->get($url)->assertOk()->assertInertia(fn ($page) => $page
             ->where('commits.data.0.is_saved', true));
         $this->actingAs($other)->get($url)->assertOk()->assertInertia(fn ($page) => $page

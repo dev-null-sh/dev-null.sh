@@ -97,6 +97,36 @@ it('deletes replies along with the replied commit', function (): void {
     expect($notification->fresh())->toBeNull();
 });
 
+it('keeps approved quotes', function (): void {
+    $notification = Notification::factory()->quoted()->create();
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+});
+
+it('hides quotes once rejected', function (): void {
+    $notification = Notification::factory()->quoted()->create();
+
+    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
+
+    expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
+});
+
+it('deletes quotes along with the quote', function (): void {
+    $notification = Notification::factory()->quoted()->create();
+
+    resolve(DeleteCommit::class)->handle($notification->commit);
+
+    expect($notification->fresh())->toBeNull();
+});
+
+it('deletes quotes along with the quoted commit', function (): void {
+    $notification = Notification::factory()->quoted()->create();
+
+    resolve(DeleteCommit::class)->handle($notification->commit->quotedCommit);
+
+    expect($notification->fresh())->toBeNull();
+});
+
 it('keeps stars on approved commits', function (): void {
     $notification = Notification::factory()->starred()->create();
 
@@ -126,6 +156,7 @@ it('deletes notifications along with the actor', function (Notification $notific
 })->with([
     'followed' => fn (): Notification => Notification::factory()->create(),
     'replied' => fn (): Notification => Notification::factory()->replied()->create(),
+    'quoted' => fn (): Notification => Notification::factory()->quoted()->create(),
     'starred' => fn (): Notification => Notification::factory()->starred()->create(),
 ]);
 

@@ -152,3 +152,25 @@ it('does not count deleted commits', function (): void {
 
     expect(resolve(UserActivityQuery::class)->get($user, $user)['buckets'][23]['count'])->toBe(1);
 });
+
+it('only counts approved commits for guests', function (): void {
+    $user = User::factory()->create();
+
+    Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->pending()->create();
+    Commit::factory()->for($user)->rejected()->create();
+
+    expect(resolve(UserActivityQuery::class)->get($user, null)['buckets'][23]['count'])->toBe(1);
+});
+
+it('counts the commits of the given scale whatever the visible activity', function (): void {
+    $user = User::factory()->create();
+
+    Commit::factory()->for($user)->count(2)->create();
+
+    $activity = resolve(UserActivityQuery::class)->get($user, null, ActivityScale::Year);
+
+    expect($activity['scale'])->toBe(ActivityScale::Year)
+        ->and($activity['buckets'])->toHaveCount(369)
+        ->and($activity['buckets'][368])->toBe(['date' => '2026-10-15', 'count' => 2]);
+});

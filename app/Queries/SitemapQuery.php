@@ -45,7 +45,7 @@ final readonly class SitemapQuery
     {
         return $this->commits()
             ->select(['id', 'user_id', 'updated_at'])
-            ->with('user:id,username')
+            ->with(['user:id,username', 'images:id,commit_id,position'])
             ->orderBy('id')
             ->forPage($page, self::PER_PAGE)
             ->get();

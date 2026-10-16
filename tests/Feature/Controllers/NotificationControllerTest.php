@@ -30,6 +30,25 @@ it('lists the notifications of the user, newest first', function (): void {
             ->missing('notifications.data.0.actor.email'));
 });
 
+it('lists quotes of the users commits', function (): void {
+    $user = User::factory()->create();
+    $quoted = Notification::factory()->for($user, 'recipient')->quoted()->create();
+
+    $response = $this->actingAs($user)->get(route('notification.index'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 1)
+            ->where('notifications.data.0.type', 'quoted')
+            ->where('notifications.data.0.actor.id', $quoted->actor_id)
+            ->where('notifications.data.0.subject_id', null)
+            ->where('notifications.data.0.actors_count', 1)
+            ->has('notifications.data.0.actors', 1)
+            ->where('notifications.data.0.actors.0.id', $quoted->actor_id)
+            ->where('notifications.data.0.commit.id', $quoted->commit_id)
+            ->where('notifications.data.0.commit.user_id', $quoted->actor_id));
+});
+
 it('lists mentions of the user', function (): void {
     $user = User::factory()->create();
     $mentioned = Notification::factory()->for($user, 'recipient')->mentioned()->create();
@@ -90,6 +109,21 @@ it('groups stars per commit, newest stargazer first', function (): void {
         ->missing('notifications.data.0.position'));
 
     expect($user->notifications()->unread()->exists())->toBeFalse();
+});
+
+it('says whether the user follows each new follower back', function (): void {
+    $user = User::factory()->create();
+    $followedBack = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinute()]);
+    Notification::factory()->for($user, 'recipient')->create();
+    $user->following()->attach($followedBack->actor_id);
+
+    $response = $this->actingAs($user)->get(route('notification.index'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 2)
+            ->where('notifications.data.0.actor.is_followed', false)
+            ->where('notifications.data.1.actor.is_followed', true));
 });
 
 it('requires authentication', function (): void {

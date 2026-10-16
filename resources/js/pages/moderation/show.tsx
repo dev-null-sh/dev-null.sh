@@ -10,6 +10,7 @@ import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { CommitImages } from '@/components/commit-images';
 import InputError from '@/components/input-error';
 import { LinkPreview } from '@/components/link-preview';
+import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -88,6 +89,9 @@ function SeriesParts({ commit }: { commit: Commit }) {
                             className="mt-1 text-[15px]"
                         />
                         {part.images && <CommitImages images={part.images} />}
+                        {part.quoted_commit_id !== null && (
+                            <QuotedCommit commit={part.quoted_commit ?? null} />
+                        )}
                         {part.link_preview?.title && (
                             <LinkPreview preview={part.link_preview} />
                         )}

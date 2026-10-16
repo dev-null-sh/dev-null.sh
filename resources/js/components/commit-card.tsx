@@ -6,6 +6,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
+import { CommitQuoteButton } from '@/components/commit-quote-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ThreadActions,
@@ -14,9 +15,11 @@ import {
 } from '@/components/commit-thread';
 import { GraphRail, RailAvatar, RailDot } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
+import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
+import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import {
     cn,
     formatFullDateTime,
@@ -63,7 +66,10 @@ export function CommitCard({
     threadActions?: ReactNode;
     isSeriesExpanded?: boolean;
 }) {
-    const { auth } = usePage().props;
+    const {
+        props: { auth },
+        component,
+    } = usePage();
     const now = useNow();
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const thread = useThread(commit, initialReplies);
@@ -92,7 +98,7 @@ export function CommitCard({
         window.setTimeout(
             () =>
                 router.visit(CommitController.destroy(commit), {
-                    preserveScroll: true,
+                    ...commitMutationOptions(component),
                     onError: () => setDeletion('idle'),
                 }),
             prefersReducedMotion ? 0 : 700,
@@ -282,6 +288,11 @@ export function CommitCard({
                             {commit.images && (
                                 <CommitImages images={commit.images} />
                             )}
+                            {commit.quoted_commit_id !== null && (
+                                <QuotedCommit
+                                    commit={commit.quoted_commit ?? null}
+                                />
+                            )}
                             {commit.link_preview?.title && (
                                 <LinkPreview preview={commit.link_preview} />
                             )}
@@ -313,11 +324,17 @@ export function CommitCard({
                             )}
 
                             {commit.replies_count === undefined ? (
-                                <CommitStarButton
-                                    key={`${commit.starred}-${commit.stars_count}`}
-                                    commit={commit}
-                                    className="mt-1.5 -ml-1.5"
-                                />
+                                <div className="mt-1.5 -ml-1.5 flex items-center gap-0.5">
+                                    <CommitStarButton
+                                        key={`${commit.starred}-${commit.stars_count}`}
+                                        commit={commit}
+                                    />
+                                    <CommitQuoteButton
+                                        commit={commit}
+                                        keyShortcut="q"
+                                        className="px-1.5 py-1"
+                                    />
+                                </div>
                             ) : (
                                 <ThreadActions
                                     thread={thread}
@@ -328,6 +345,10 @@ export function CommitCard({
                                                 key={`${commit.starred}-${commit.stars_count}`}
                                                 commit={commit}
                                                 className="px-2 py-0.5"
+                                            />
+                                            <CommitQuoteButton
+                                                commit={commit}
+                                                keyShortcut="q"
                                             />
                                             {threadActions}
                                         </>
@@ -365,7 +386,8 @@ export function CommitCard({
                                     className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
                                 >
                                     <span className="mr-auto">
-                                        Delete this commit? There's no undo.
+                                        Delete this commit? You can undo for 30
+                                        seconds.
                                     </span>
                                     <Button
                                         variant="ghost"

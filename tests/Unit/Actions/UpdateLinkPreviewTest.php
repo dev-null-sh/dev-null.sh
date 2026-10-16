@@ -81,7 +81,7 @@ it('stores the open graph metadata of a page', function (): void {
         ->fetched_at->not->toBeNull();
 });
 
-it('sends a pinned and bounded request that identifies itself', function (): void {
+it('sends a pinned and bounded request that identifies itself and asks for english', function (): void {
     config(['app.url' => 'https://devnull.com']);
 
     $options = [];
@@ -97,7 +97,8 @@ it('sends a pinned and bounded request that identifies itself', function (): voi
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://example.com/post'
         && $request->method() === 'GET'
         && $request->header('User-Agent') === ['Mozilla/5.0 (compatible; devnull-linkpreview/1.0; +https://devnull.com)']
-        && $request->header('Accept') === ['text/html']);
+        && $request->header('Accept') === ['text/html']
+        && $request->header('Accept-Language') === ['en-US,en;q=0.9']);
 
     expect($options)
         ->allow_redirects->toBeFalse()

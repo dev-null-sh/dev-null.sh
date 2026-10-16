@@ -26,6 +26,7 @@ export type Commit = {
     id: string;
     user_id: string;
     parent_id: string | null;
+    hot_score: number;
     body: string;
     body_segments: BodySegment[];
     status: CommitStatus;
@@ -40,13 +41,30 @@ export type Commit = {
     user: User;
     replies_count?: number;
     is_saved?: boolean;
+    saved_order?: number | null;
+    is_pinned?: boolean;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
+    quoted_commit_id: string | null;
+    quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
     series_parts?: Commit[];
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
 };
+
+export type QuotedCommit = Pick<
+    Commit,
+    | 'id'
+    | 'user_id'
+    | 'body'
+    | 'body_segments'
+    | 'status'
+    | 'created_at'
+    | 'deleted_at'
+    | 'user'
+    | 'replies_count'
+>;
 
 export type DeletedCommit = {
     id: string;
