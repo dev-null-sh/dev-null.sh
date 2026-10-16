@@ -57,6 +57,7 @@ for (const scenario of cases) {
             id: scenario.name,
             user_id: 'author',
             parent_id: null,
+            hot_score: 41487,
             quoted_commit_id: null,
             body: 'Shipped a repair',
             body_segments: [],
