@@ -25,7 +25,7 @@ import type { UseSeriesStashReturn } from '@/hooks/use-stash';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
-import { cn, laneColor } from '@/lib/utils';
+import { characterCount, cn, laneColor } from '@/lib/utils';
 import type { User } from '@/types';
 
 const minBodyLength = 3;
@@ -52,7 +52,7 @@ function focusPart(index: number, atEnd = false): void {
 }
 
 function RemainingCount({ id, body }: { id: string; body: string }) {
-    const remaining = maxBodyLength - body.length;
+    const remaining = maxBodyLength - characterCount(body);
 
     return (
         <span
@@ -116,12 +116,14 @@ function CommitComposerPart({
                 lane={laneColor(user.lane)}
                 previousLane={index > 0 ? 'var(--rail)' : undefined}
                 variant="staged"
-                isFilled={body.trim().length >= minBodyLength}
+                isFilled={characterCount(body.trim()) >= minBodyLength}
                 node={
                     index === 0 ? (
                         <RailAvatar
                             user={user}
-                            isStaged={body.trim().length < minBodyLength}
+                            isStaged={
+                                characterCount(body.trim()) < minBodyLength
+                            }
                         />
                     ) : undefined
                 }
@@ -323,7 +325,7 @@ export function CommitComposer() {
     const isSeries = bodies.length > 1;
     const canAddPart = bodies.length < maxParts;
     const isCommittable = bodies.every(
-        (body) => body.trim().length >= minBodyLength,
+        (body) => characterCount(body.trim()) >= minBodyLength,
     );
 
     const addPartAfter = (index: number) => {
