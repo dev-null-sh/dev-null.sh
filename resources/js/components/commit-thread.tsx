@@ -21,6 +21,7 @@ import { CommitImages } from '@/components/commit-images';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import InputError from '@/components/input-error';
+import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
@@ -29,6 +30,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
@@ -837,9 +839,15 @@ function ReplyComposer({
         `reply-${parent.id}`,
     );
     const attachments = useImageAttachments();
+    const linkCard = useLinkCard(body);
     const updateCommitsCount = useCommitsCountUpdate();
     const request = useHttp<
-        { body: string; images: File[]; image_descriptions: string[] },
+        {
+            body: string;
+            images: File[];
+            image_descriptions: string[];
+            link_preview_url?: string;
+        },
         CreatedReply
     >({
         body: '',
@@ -897,17 +905,21 @@ function ReplyComposer({
             return;
         }
 
-        request.setData({
+        request.setData(() => ({
             body,
             images: attachments.images,
             image_descriptions: attachments.descriptions,
-        });
+            ...(linkCard.isChosen
+                ? { link_preview_url: linkCard.link ?? '' }
+                : {}),
+        }));
 
         request
             .submit(CommitReplyController.store(parent), {
                 onSuccess: (reply) => {
                     drop();
                     attachments.clear();
+                    linkCard.reset();
                     returnFocusToCommit();
                     router.flash(() => reply);
                     router.flushAll();
@@ -962,7 +974,10 @@ function ReplyComposer({
                 suggestion={suggestion}
                 className="mt-1 px-1"
             />
-            <InputError message={errors.body} className="px-1" />
+            <InputError
+                message={errors.body ?? errors.link_preview_url}
+                className="px-1"
+            />
             <ImagePickerPreviews
                 images={attachments.images}
                 descriptions={attachments.descriptions}
@@ -980,6 +995,12 @@ function ReplyComposer({
                         disabled={processing}
                         onPick={attachments.attach}
                         className="size-8"
+                    />
+                    <LinkCardPicker
+                        linkCard={linkCard}
+                        disabled={processing}
+                        className="-ml-1"
+                        labelClassName="max-sm:sr-only"
                     />
                     {isRestored && (
                         <StashLabel

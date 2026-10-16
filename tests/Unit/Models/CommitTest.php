@@ -136,6 +136,17 @@ it('leaves the link preview out of a tombstone', function (): void {
     expect($tombstone->toArray())->not->toHaveKeys(['link_preview_id', 'link_preview']);
 });
 
+it('is not visible across a block in either direction', function (bool $viewerBlocks): void {
+    $author = User::factory()->create();
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+
+    $viewerBlocks ? $viewer->blocking()->attach($author) : $author->blocking()->attach($viewer);
+
+    expect($commit->isVisibleTo($viewer))->toBeFalse()
+        ->and($commit->isVisibleTo($author))->toBeTrue();
+})->with([true, false]);
+
 it('has images in order', function (): void {
     $commit = Commit::factory()->create();
     $second = CommitImage::factory()->for($commit)->create(['position' => 1]);

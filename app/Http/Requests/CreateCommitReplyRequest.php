@@ -7,6 +7,7 @@ namespace App\Http\Requests;
 use App\Actions\CreateCommitImages;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\Urls;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,6 +15,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\File;
+use Illuminate\Validation\Rules\In;
 
 final class CreateCommitReplyRequest extends FormRequest
 {
@@ -31,12 +33,13 @@ final class CreateCommitReplyRequest extends FormRequest
     /**
      * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
      *
-     * @return array<string, array<int, string|ValidationRule|File|Dimensions>>
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions|In>>
      */
     public function rules(): array
     {
         return [
             'body' => ['required', 'string', 'min:3', 'max:280'],
+            'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
                 'required',
@@ -59,6 +62,28 @@ final class CreateCommitReplyRequest extends FormRequest
         return [
             'image_descriptions.*' => 'image description',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'link_preview_url.in' => __('The link card must be one of the links in the body.'),
+        ];
+    }
+
+    /**
+     * The first link in the body gets the link preview, unless the author chose another link or none at all.
+     */
+    public function linkPreview(): bool|string
+    {
+        if (! $this->has('link_preview_url')) {
+            return true;
+        }
+
+        return $this->filled('link_preview_url') ? $this->string('link_preview_url')->value() : false;
     }
 
     /**

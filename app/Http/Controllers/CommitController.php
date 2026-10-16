@@ -51,7 +51,7 @@ final readonly class CommitController
 
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): RedirectResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), images: $request->images(), imageDescriptions: $request->imageDescriptions());
+        $commit = $action->handle($user, $request->string('body')->value(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview());
 
         Inertia::flash('committed', [
             'id' => $commit->id,

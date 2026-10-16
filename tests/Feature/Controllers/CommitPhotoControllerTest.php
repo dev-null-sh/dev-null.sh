@@ -126,3 +126,14 @@ it('sends guests to the commit', function (): void {
 
     $response->assertRedirectToRoute('commit.show', [$commit->user, $commit]);
 });
+
+it('does not show photos across a block in either direction', function (bool $viewerBlocks): void {
+    $viewer = User::factory()->create();
+    $commit = commitWithPhotos();
+
+    $viewerBlocks ? $viewer->blocking()->attach($commit->user) : $commit->user->blocking()->attach($viewer);
+
+    $this->actingAs($viewer)
+        ->get(route('commit-photo.show', [$commit->user, $commit, 1]))
+        ->assertNotFound();
+})->with([true, false]);

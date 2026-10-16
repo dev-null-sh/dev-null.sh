@@ -15,7 +15,7 @@ final readonly class MentionSuggestionsQuery
     /**
      * Without a term, the people the user follows, most recently followed first, so a bare "@" already has
      * suggestions. With one, the same matches as people search, people the user follows first within each tier.
-     * Never the user themselves.
+     * Never the user themselves, people they mute, or anyone across a block.
      *
      * @return Collection<int, User>
      */
@@ -30,6 +30,7 @@ final readonly class MentionSuggestionsQuery
 
         if ($term === '') {
             return $user->following()
+                ->whereNotIn('users.id', $user->mutedIds())
                 ->orderByPivot('created_at', 'desc')
                 ->orderBy('username')
                 ->limit($limit)
@@ -40,6 +41,8 @@ final readonly class MentionSuggestionsQuery
 
         return User::query()
             ->whereKeyNot($user->id)
+            ->whereNotIn('id', $user->mutedIds())
+            ->whereNotIn('id', $user->idsAcrossBlocks())
             ->where(fn (Builder $query): Builder => $query
                 ->whereRaw('LOWER(username) LIKE ?', ["%{$term}%"])
                 ->orWhereRaw('LOWER(name) LIKE ?', ["%{$term}%"]))

@@ -27,13 +27,14 @@ final readonly class CreateCommitSeries
      * @param  list<string>  $bodies
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
+     * @param  array<int, bool|string>  $linkPreviews
      * @return Collection<int, Commit>
      */
-    public function handle(User $user, array $bodies, array $images = [], array $imageDescriptions = []): Collection
+    public function handle(User $user, array $bodies, array $images = [], array $imageDescriptions = [], array $linkPreviews = []): Collection
     {
         $size = count($bodies);
 
-        return DB::transaction(function () use ($user, $bodies, $images, $imageDescriptions, $size): Collection {
+        return DB::transaction(function () use ($user, $bodies, $images, $imageDescriptions, $size, $linkPreviews): Collection {
             $seriesId = Str::uuid7()->toString();
             $parts = new Collection;
 
@@ -43,7 +44,8 @@ final readonly class CreateCommitSeries
                     $body,
                     $parts->last(),
                     $index === 0 ? $images : [],
-                    $index === 0 ? $imageDescriptions : [],
+                    imageDescriptions: $index === 0 ? $imageDescriptions : [],
+                    linkPreview: $linkPreviews[$index] ?? true,
                     series: new SeriesPosition($seriesId, $index + 1, $size),
                 ));
             }

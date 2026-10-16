@@ -53,3 +53,23 @@ it('counts replies including deleted ones that still have replies', function ():
 
     expect($commits->sole()->replies_count)->toBe(2);
 });
+
+it('leaves out commits by muted people and across blocks', function (): void {
+    $user = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $blocker = User::factory()->create();
+
+    $user->muting()->attach($muted);
+    $user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($user);
+
+    $visible = Commit::factory()->create();
+    Commit::factory()->for($muted)->create();
+    Commit::factory()->for($blocked)->create();
+    Commit::factory()->for($blocker)->create();
+
+    $commits = resolve(EveryoneLogQuery::class)->builder($user)->get();
+
+    expect($commits->modelKeys())->toBe([$visible->id]);
+});

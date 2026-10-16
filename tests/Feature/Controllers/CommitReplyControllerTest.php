@@ -3,11 +3,13 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 it('lists visible replies oldest first with their own reply counts', function (): void {
@@ -164,6 +166,40 @@ it('lists only approved replies to guests', function (): void {
 
 it('returns not found to guests for the replies of a commit that is not approved', function (): void {
     $response = $this->getJson(route('commit-reply.index', Commit::factory()->pending()->create()));
+
+    $response->assertNotFound();
+});
+
+it('leaves out replies by muted people and across blocks', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocker = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $viewer->muting()->attach($muted);
+    $blocker->blocking()->attach($viewer);
+
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    Commit::factory()->for($parent, 'parent')->for($muted)->create();
+    Commit::factory()->for($parent, 'parent')->for($blocker)->create();
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+});
+
+it('returns not found for replies to a commit across a block', function (): void {
+    $viewer = User::factory()->create();
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->create();
+
+    $viewer->blocking()->attach($parent->user);
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('commit-reply.index', $parent));
 
     $response->assertNotFound();
 });
@@ -440,3 +476,84 @@ it('requires authentication to delete a reply', function (): void {
 
     $this->assertNotSoftDeleted($reply);
 });
+
+it('may not reply across a block in either direction', function (bool $replierBlocks): void {
+    $replier = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $replierBlocks ? $replier->blocking()->attach($parent->user) : $parent->user->blocking()->attach($replier);
+
+    $response = $this->actingAs($replier)
+        ->postJson(route('commit-reply.store', $parent), ['body' => 'Hello']);
+
+    $response->assertNotFound();
+
+    expect($parent->replies()->count())->toBe(0)
+        ->and($parent->user->notifications()->exists())->toBeFalse();
+})->with([true, false]);
+
+it('may reply to a muted user without them knowing', function (): void {
+    $replier = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $replier->muting()->attach($parent->user);
+
+    $this->actingAs($replier)
+        ->postJson(route('commit-reply.store', $parent), ['body' => 'Hello'])
+        ->assertCreated();
+
+    expect($parent->replies()->count())->toBeOne();
+});
+
+it('keeps the chosen link card and image description on a json reply', function (array $choice, ?string $url): void {
+    Storage::fake();
+    Queue::fake([UnfurlLink::class]);
+
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit-reply.store', $parent), [
+            'body' => 'Photo at https://example.com/first and docs at https://example.com/second',
+            'images' => [UploadedFile::fake()->image('photo.jpg', 40, 30)],
+            'image_descriptions' => ['The team at the cabin.'],
+            ...$choice,
+        ], ['Accept' => 'application/json'])
+        ->assertCreated();
+
+    $reply = $user->commits()->sole();
+
+    expect($reply->parent_id)->toBe($parent->id)
+        ->and($reply->images->sole()->description)->toBe('The team at the cabin.')
+        ->and($reply->linkPreview?->url)->toBe($url);
+
+    if ($url === null) {
+        Queue::assertNotPushed(UnfurlLink::class);
+    } else {
+        Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($reply->linkPreview));
+    }
+})->with([
+    'default first link' => [[], 'https://example.com/first'],
+    'chosen second link' => [['link_preview_url' => 'https://example.com/second'], 'https://example.com/second'],
+    'no card' => [['link_preview_url' => ''], null],
+]);
+
+it('rejects a json reply card that is not a link in its body', function (string $url): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('commit-reply.store', $parent), [
+            'body' => 'Read https://example.com/first and `https://example.com/code`',
+            'link_preview_url' => $url,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['link_preview_url' => 'The link card must be one of the links in the body.']);
+
+    expect($user->commits()->count())->toBe(0)
+        ->and($parent->replies()->count())->toBe(0);
+})->with([
+    'another url' => 'https://evil.example.com',
+    'a url in code' => 'https://example.com/code',
+    'part of a url' => 'https://example.com',
+]);

@@ -85,3 +85,56 @@ it('scopes commits to approved ones', function (): void {
 
     expect(Commit::query()->approved()->sole()->is($approved))->toBeTrue();
 });
+
+it('hides commits across a block in either direction', function (): void {
+    $user = User::factory()->create();
+    $blocked = User::factory()->create();
+    $blocker = User::factory()->create();
+
+    $user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($user);
+
+    $own = Commit::factory()->for($user)->create();
+    $visible = Commit::factory()->create();
+    Commit::factory()->for($blocked)->create();
+    Commit::factory()->for($blocker)->create();
+
+    expect(Commit::query()->visibleTo($user)->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$own->id, $visible->id])->sort()->values()->all())
+        ->and(Commit::query()->visibleTo($blocked)->whereBelongsTo($user)->exists())->toBeFalse()
+        ->and(Commit::query()->visibleTo($blocker)->whereBelongsTo($user)->exists())->toBeFalse();
+});
+
+it('scopes commits to those by people the user has not muted', function (): void {
+    $user = User::factory()->create();
+    $muted = User::factory()->create();
+
+    $user->muting()->attach($muted);
+
+    $visible = Commit::factory()->create();
+    Commit::factory()->for($muted)->create();
+
+    expect(Commit::query()->withoutMutedAuthorsFor($user)->pluck('id')->all())->toBe([$visible->id])
+        ->and(Commit::query()->withoutMutedAuthorsFor($muted)->count())->toBe(2);
+});
+
+it('leaves muted and blocked replies out of threads and reply counts', function (): void {
+    $user = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+
+    $user->muting()->attach($muted);
+    $user->blocking()->attach($blocked);
+
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'parent')->for($muted)->create();
+    Commit::factory()->for($commit, 'parent')->for($blocked)->create();
+
+    $deletedWithMutedReply = Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($deletedWithMutedReply, 'parent')->for($muted)->create();
+    $deletedWithMutedReply->delete();
+
+    expect($commit->replies()->visibleInThreadTo($user)->pluck('id')->all())->toBe([$reply->id])
+        ->and(Commit::query()->withVisibleReplyCount($user)->find($commit->id)->replies_count)->toBe(1);
+});
