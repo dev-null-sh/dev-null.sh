@@ -1,18 +1,22 @@
 import { cn } from '@/lib/utils';
 
 const drops = [
-    { left: '8%', delay: 0, duration: 1700 },
-    { left: '21%', delay: 260, duration: 1900 },
-    { left: '34%', delay: 90, duration: 1600 },
-    { left: '47%', delay: 420, duration: 2000 },
-    { left: '59%', delay: 170, duration: 1750 },
-    { left: '71%', delay: 520, duration: 1850 },
-    { left: '83%', delay: 40, duration: 1650 },
-    { left: '92%', delay: 330, duration: 1950 },
+    { left: '6%', delay: 0, duration: 2300 },
+    { left: '14%', delay: 1300, duration: 2600 },
+    { left: '23%', delay: 500, duration: 2200 },
+    { left: '31%', delay: 1900, duration: 2500 },
+    { left: '40%', delay: 200, duration: 2700 },
+    { left: '49%', delay: 1100, duration: 2300 },
+    { left: '57%', delay: 700, duration: 2600 },
+    { left: '66%', delay: 2100, duration: 2400 },
+    { left: '74%', delay: 300, duration: 2500 },
+    { left: '82%', delay: 1600, duration: 2200 },
+    { left: '89%', delay: 900, duration: 2700 },
+    { left: '95%', delay: 2400, duration: 2400 },
 ];
 
 /**
- * A light rain of mono "--" that falls once behind its container's content
+ * A light rain of mono "--" that keeps falling behind its container's content
  * and dissolves before reaching the bottom. The container must be `relative isolate`.
  */
 export function DashRain({ className }: { className?: string }) {
@@ -27,7 +31,7 @@ export function DashRain({ className }: { className?: string }) {
             {drops.map((drop) => (
                 <span
                     key={drop.left}
-                    className="absolute inset-y-0 animate-dash-fall font-mono text-[11px] leading-none text-muted-foreground/40"
+                    className="absolute inset-y-0 animate-dash-fall font-mono text-xs leading-none text-muted-foreground"
                     style={{
                         left: drop.left,
                         animationDelay: `${drop.delay}ms`,
