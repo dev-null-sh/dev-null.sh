@@ -85,11 +85,11 @@ export default function Show({
                 />
 
                 {newCommitsCount > 0 && (
-                    <div className="absolute inset-x-0 top-full flex justify-center pt-3">
+                    <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center pt-3">
                         <button
                             type="button"
                             onClick={showNewCommits}
-                            className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                            className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                         >
                             <ArrowUp className="size-4" />
                             {newCommitsCount}{' '}

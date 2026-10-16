@@ -17,6 +17,17 @@ export type UseStashReturn = {
     readonly drop: () => void;
 };
 
+export type UseSeriesStashReturn = {
+    readonly bodies: string[];
+    readonly images: File[];
+    readonly isRestored: boolean;
+    readonly updateBody: (index: number, body: string) => void;
+    readonly updateImages: (images: File[]) => void;
+    readonly insertPart: (index: number) => void;
+    readonly removePart: (index: number) => void;
+    readonly drop: () => void;
+};
+
 const listeners = new Set<() => void>();
 const pending = new Map<string, string>();
 const images = new Map<string, File[]>();
@@ -35,6 +46,21 @@ const read = (key: string): string =>
     pending.has(key) ? (pending.get(key) ?? '') : readStorage(key);
 
 const imagesFor = (key: string): File[] => images.get(key) ?? noImages;
+
+const useDraftImages = (key: string) => {
+    const draftImages = useSyncExternalStore(
+        subscribe,
+        () => imagesFor(key),
+        () => noImages,
+    );
+    const isImagesRestored = useSyncExternalStore(
+        subscribe,
+        () => restoredImageKeys.has(key),
+        () => false,
+    );
+
+    return { draftImages, isImagesRestored };
+};
 
 const notify = (): void => listeners.forEach((listener) => listener());
 
@@ -149,16 +175,7 @@ export function useHasStash(userId: string, name: string): boolean {
 export function useStash(userId: string, name: string): UseStashReturn {
     const key = keyFor(userId, name);
     const [body, setBody] = useState(() => read(key));
-    const draftImages = useSyncExternalStore(
-        subscribe,
-        () => imagesFor(key),
-        () => noImages,
-    );
-    const isImagesRestored = useSyncExternalStore(
-        subscribe,
-        () => restoredImageKeys.has(key),
-        () => false,
-    );
+    const { draftImages, isImagesRestored } = useDraftImages(key);
     const [isDraftRestored, setIsDraftRestored] = useState(
         () => body !== '' || draftImages.length > 0,
     );
@@ -203,5 +220,82 @@ export function useStash(userId: string, name: string): UseStashReturn {
         updateBody,
         updateImages,
         drop,
+    } as const;
+}
+
+const readLaterBodies = (key: string): string[] => {
+    try {
+        const stored: unknown = JSON.parse(read(key) || '[]');
+
+        return Array.isArray(stored)
+            ? stored.filter((body): body is string => typeof body === 'string')
+            : [];
+    } catch {
+        return [];
+    }
+};
+
+export function useSeriesStash(
+    userId: string,
+    name: string,
+): UseSeriesStashReturn {
+    const key = keyFor(userId, name);
+    const laterKey = `${key}:later`;
+    const [bodies, setBodies] = useState(() => [
+        read(key),
+        ...readLaterBodies(laterKey),
+    ]);
+    const { draftImages, isImagesRestored } = useDraftImages(key);
+    const [isDraftRestored, setIsDraftRestored] = useState(
+        () => bodies.some((body) => body !== '') || draftImages.length > 0,
+    );
+
+    const store = (next: string[]): void => {
+        const [first = '', ...later] = next;
+
+        setBodies(next);
+
+        if (first === '') {
+            discardBody(key);
+        } else {
+            schedule(key, first);
+        }
+
+        if (later.some((body) => body !== '')) {
+            schedule(laterKey, JSON.stringify(later));
+        } else {
+            discardBody(laterKey);
+        }
+
+        if (next.every((body) => body === '') && draftImages.length === 0) {
+            setIsDraftRestored(false);
+        }
+    };
+
+    return {
+        bodies,
+        images: draftImages,
+        isRestored:
+            (isDraftRestored || isImagesRestored) &&
+            (bodies.some((body) => body !== '') || draftImages.length > 0),
+        updateBody: (index, body) =>
+            store(bodies.map((current, at) => (at === index ? body : current))),
+        updateImages: (next) => {
+            if (next.length === 0 && bodies.every((body) => body === '')) {
+                setIsDraftRestored(false);
+            }
+
+            storeImages(key, next);
+        },
+        insertPart: (index) =>
+            store([...bodies.slice(0, index), '', ...bodies.slice(index)]),
+        removePart: (index) => store(bodies.filter((_, at) => at !== index)),
+        drop: () => {
+            setBodies(['']);
+            setIsDraftRestored(false);
+            discardBody(key);
+            discardBody(laterKey);
+            storeImages(key, []);
+        },
     } as const;
 }

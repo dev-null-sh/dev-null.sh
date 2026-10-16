@@ -8,6 +8,8 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
  * @extends Builder<Commit>
@@ -47,13 +49,46 @@ final class CommitBuilder extends Builder
     public function withVisibleReplyCount(User $user): self
     {
         return $this->withCount([
-            'replies' => fn (self $query): self => $query->visibleInThreadTo($user),
+            'replies' => fn (self $query): self => $query->visibleInThreadTo($user)->exceptSeriesContinuations(),
         ]);
+    }
+
+    /**
+     * Later parts of a series are replies to the part before them, yet they read as part of it rather than as replies.
+     */
+    public function exceptSeriesContinuations(): self
+    {
+        return $this->where(fn (self $query): self => $query
+            ->whereNull($this->qualifyColumn('series_position'))
+            ->orWhere($this->qualifyColumn('series_position'), 1));
+    }
+
+    /**
+     * A series is moderated as a whole, so the queue lists it once: under its first pending part.
+     */
+    public function exceptLaterPendingSeriesParts(): self
+    {
+        return $this->whereNotExists(fn (QueryBuilder $query): QueryBuilder => $query
+            ->from($this->getModel()->getTable(), 'earlier')
+            ->whereColumn('earlier.series_id', $this->qualifyColumn('series_id'))
+            ->whereColumn('earlier.series_position', '<', $this->qualifyColumn('series_position'))
+            ->where('earlier.status', CommitStatus::Pending)
+            ->whereNull('earlier.deleted_at'));
     }
 
     public function approved(): self
     {
         return $this->where('status', CommitStatus::Approved);
+    }
+
+    /**
+     * Loads what anyone may see around the commits, like Commit::loadPublicPreview(): approved replies, stars, images, and the parent only when approved.
+     */
+    public function withPublicPreview(): self
+    {
+        return $this
+            ->withCount(['replies' => fn (self $query): self => $query->approved()->exceptSeriesContinuations(), 'stars'])
+            ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
     public function withSavedState(User $user): self
