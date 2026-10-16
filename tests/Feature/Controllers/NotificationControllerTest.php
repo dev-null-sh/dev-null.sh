@@ -113,6 +113,30 @@ it('groups stars per commit, newest stargazer first', function (): void {
     expect($user->notifications()->unread()->exists())->toBeFalse();
 });
 
+it('says whether the user follows each new follower back', function (): void {
+    $user = User::factory()->create();
+    $followedBack = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinute()]);
+    $latest = Notification::factory()->for($user, 'recipient')->create();
+    $user->following()->attach($followedBack->actor_id);
+
+    $response = $this->actingAs($user)->get(route('notification.index'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 1)
+            ->where('notifications.data.0.actor.is_followed', false)
+            ->where('notifications.data.0.event_count', 2)
+            ->where('notifications.data.0.actors_count', 2));
+
+    $this->getJson(route('notification-group.show', $latest))
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.actor.is_followed', false)
+        ->assertJsonPath('data.1.actor.is_followed', true)
+        ->assertJsonMissingPath('data.0.actor.email')
+        ->assertJsonMissingPath('data.1.actor.email');
+});
+
 it('requires authentication', function (): void {
     $response = $this->get(route('notification.index'));
 

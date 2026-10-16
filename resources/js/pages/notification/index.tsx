@@ -14,14 +14,15 @@ import { useId, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
+import { CommitBody } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
+import { FollowButton } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
-import { emojify } from '@/lib/emoji';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
@@ -281,6 +282,25 @@ function NotificationGroupItem({
     );
 }
 
+function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
+    const [isFollowing, setIsFollowing] = useState(actor.is_followed);
+
+    return (
+        <FollowButton
+            user={actor}
+            isFollowing={isFollowing}
+            size="sm"
+            className="min-w-24 shrink-0"
+            only={['auth']}
+            preserveState
+            onSuccess={() => {
+                setIsFollowing(!isFollowing);
+                router.flushAll();
+            }}
+        />
+    );
+}
+
 function NotificationContent({
     notification,
     summary = false,
@@ -310,95 +330,118 @@ function NotificationContent({
     }[notification.type];
 
     return (
-        <Link
-            href={
-                notification.type === 'followed'
-                    ? show(actor)
-                    : CommitController.show({
-                          user: notification.type === 'starred' ? user : actor,
-                          commit: notification.commit,
-                      })
-            }
-            className="flex gap-3 rounded-md outline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ring"
-        >
-            <Icon
-                className={cn('mt-1.5 size-5 shrink-0 text-muted-foreground', {
-                    'fill-current': notification.type === 'starred',
-                })}
-                aria-hidden
-            />
-            <div className="min-w-0 flex-1">
-                <div className="flex min-h-8 items-center gap-2">
-                    {moderation ? (
-                        <span className="text-sm font-medium">
-                            Moderation update
+        <div className="flex items-start gap-3">
+            <Link
+                href={
+                    notification.type === 'followed'
+                        ? show(actor)
+                        : CommitController.show({
+                              user:
+                                  notification.type === 'starred'
+                                      ? user
+                                      : actor,
+                              commit: notification.commit,
+                          })
+                }
+                className="flex min-w-0 flex-1 gap-3 rounded-md outline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ring"
+            >
+                <Icon
+                    className={cn(
+                        'mt-1.5 size-5 shrink-0 text-muted-foreground',
+                        {
+                            'fill-current': notification.type === 'starred',
+                        },
+                    )}
+                    aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                    <div className="flex min-h-8 items-center gap-2">
+                        {moderation ? (
+                            <span className="text-sm font-medium">
+                                Moderation update
+                            </span>
+                        ) : (
+                            <div className="flex -space-x-2" aria-hidden>
+                                {actors.map((stacked, index) => (
+                                    <UserAvatar
+                                        key={stacked.id}
+                                        user={stacked}
+                                        className="relative size-8 ring-2 ring-card"
+                                        style={{
+                                            zIndex: actors.length - index,
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <p className="mt-2 text-[15px] wrap-anywhere">
+                        {moderation ? (
+                            `Your commit was ${notification.type}`
+                        ) : (
+                            <>
+                                <span className="font-medium">
+                                    {actor.name}
+                                </span>{' '}
+                                {notification.type === 'starred' &&
+                                otherActors > 0
+                                    ? `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
+                                    : ''}
+                                {notification.type === 'followed'
+                                    ? 'followed you'
+                                    : notification.type === 'starred'
+                                      ? 'starred your commit'
+                                      : notification.type === 'mentioned'
+                                        ? 'mentioned you'
+                                        : notification.type === 'quoted'
+                                          ? 'quoted your commit'
+                                          : 'replied to your commit'}
+                            </>
+                        )}
+                        <span className="text-muted-foreground">
+                            <span aria-hidden> · </span>
+                            <time
+                                dateTime={notification.created_at}
+                                title={new Date(
+                                    notification.created_at,
+                                ).toLocaleString()}
+                            >
+                                {formatRelativeTime(
+                                    notification.created_at,
+                                    now,
+                                )}
+                            </time>
                         </span>
-                    ) : (
-                        <div className="flex -space-x-2" aria-hidden>
-                            {actors.map((stacked, index) => (
-                                <UserAvatar
-                                    key={stacked.id}
-                                    user={stacked}
-                                    className="relative size-8 ring-2 ring-card"
-                                    style={{ zIndex: actors.length - index }}
-                                />
-                            ))}
+                    </p>
+                    {notification.type !== 'followed' && (
+                        <CommitBody
+                            segments={notification.commit.body_segments}
+                            className="mt-1 line-clamp-2 text-[15px]"
+                            isStatic
+                        />
+                    )}
+                    {notification.type === 'rejected' && (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                            {notification.reason && (
+                                <p className="wrap-anywhere whitespace-pre-wrap text-foreground">
+                                    <span className="font-medium">
+                                        Reason:{' '}
+                                    </span>
+                                    {notification.reason}
+                                </p>
+                            )}
+                            <p className="mt-1">
+                                Only you can see this update and your rejected
+                                commit.
+                            </p>
                         </div>
                     )}
                 </div>
-                <p className="mt-2 text-[15px] wrap-anywhere">
-                    {moderation ? (
-                        `Your commit was ${notification.type}`
-                    ) : (
-                        <>
-                            <span className="font-medium">{actor.name}</span>{' '}
-                            {notification.type === 'starred' && otherActors > 0
-                                ? `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
-                                : ''}
-                            {notification.type === 'followed'
-                                ? 'followed you'
-                                : notification.type === 'starred'
-                                  ? 'starred your commit'
-                                  : notification.type === 'mentioned'
-                                    ? 'mentioned you'
-                                    : notification.type === 'quoted'
-                                      ? 'quoted your commit'
-                                      : 'replied to your commit'}
-                        </>
-                    )}
-                    <span className="text-muted-foreground">
-                        <span aria-hidden> · </span>
-                        <time
-                            dateTime={notification.created_at}
-                            title={new Date(
-                                notification.created_at,
-                            ).toLocaleString()}
-                        >
-                            {formatRelativeTime(notification.created_at, now)}
-                        </time>
-                    </span>
-                </p>
-                {notification.type !== 'followed' && (
-                    <p className="mt-1 line-clamp-2 text-[15px] wrap-anywhere">
-                        {emojify(notification.commit.body)}
-                    </p>
-                )}
-                {notification.type === 'rejected' && (
-                    <div className="mt-2 text-sm text-muted-foreground">
-                        {notification.reason && (
-                            <p className="wrap-anywhere whitespace-pre-wrap text-foreground">
-                                <span className="font-medium">Reason: </span>
-                                {notification.reason}
-                            </p>
-                        )}
-                        <p className="mt-1">
-                            Only you can see this update and your rejected
-                            commit.
-                        </p>
-                    </div>
-                )}
-            </div>
-        </Link>
+            </Link>
+            {notification.type === 'followed' && (
+                <FollowBackButton actor={actor} />
+            )}
+        </div>
     );
 }
 

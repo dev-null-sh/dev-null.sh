@@ -8,7 +8,7 @@ type BaseNotification = {
     read_at: string | null;
     created_at: string;
     updated_at: string;
-    actor: User;
+    actor: User & { is_followed: boolean };
     reason: string | null;
 };
 

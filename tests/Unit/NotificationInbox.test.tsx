@@ -32,7 +32,7 @@ const quote: NotificationGroup = {
     read_at: timestamp,
     group_id: 'notice',
     type: 'quoted',
-    actor,
+    actor: { ...actor, is_followed: false },
     actors: [actor],
     actors_count: 1,
     event_count: 1,
@@ -91,7 +91,7 @@ async function renderInbox(notifications: NotificationGroup[]) {
     });
 
     assert.ok(result);
-    return result.body;
+    return result.body.replaceAll('<!-- -->', '');
 }
 
 void test('renders quote notifications with their label and quoting commit destination', async () => {
@@ -105,4 +105,68 @@ void test('renders quote notifications with their label and quoting commit desti
 
 void test('includes quotes in the unfiltered empty inbox message', async () => {
     assert.match(await renderInbox([]), /replies, quotes, mentions/);
+});
+
+void test('renders a follow-back control outside the follower profile link', async () => {
+    const follow: NotificationGroup = {
+        ...quote,
+        type: 'followed',
+        commit_id: null,
+        subject_id: null,
+        commit: null,
+        event_count: 2,
+        actors_count: 2,
+    };
+    const html = await renderInbox([follow]);
+
+    assert.match(html, /2 new followers/);
+    assert.match(html, /Show activity/);
+    assert.match(html, /<\/a><button[^>]*aria-label="Follow @quoter"/);
+    assert.match(
+        await renderInbox([
+            { ...follow, actor: { ...follow.actor, is_followed: true } },
+        ]),
+        /aria-label="Unfollow @quoter"/,
+    );
+});
+
+void test('renders notification code without altering emoji shortcodes or nesting interactive controls', async () => {
+    const html = await renderInbox([
+        {
+            ...quote,
+            commit: {
+                ...quote.commit,
+                body: '`echo ":fire:"`',
+                body_segments: [{ type: 'code', code: 'echo ":fire:"' }],
+            },
+        },
+    ]);
+
+    assert.match(html, /<code[^>]*>echo &quot;:fire:&quot;<\/code>/);
+    assert.doesNotMatch(html, /Copy code/);
+});
+
+void test('renders highlighted notification blocks without a nested copy button', async () => {
+    const html = await renderInbox([
+        {
+            ...quote,
+            commit: {
+                ...quote.commit,
+                body: '```php\nreturn ":fire:";\n```',
+                body_segments: [
+                    {
+                        type: 'block',
+                        language: 'php',
+                        html: '<span class="hl-keyword">return</span> &quot;:fire:&quot;;',
+                    },
+                ],
+            },
+        },
+    ]);
+
+    assert.match(
+        html,
+        /<pre[^>]*><span class="hl-keyword">return<\/span> &quot;:fire:&quot;;<\/pre>/,
+    );
+    assert.doesNotMatch(html, /Copy code/);
 });

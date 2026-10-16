@@ -52,7 +52,14 @@ export type Commit = {
 
 export type QuotedCommit = Pick<
     Commit,
-    'id' | 'user_id' | 'body' | 'status' | 'created_at' | 'deleted_at' | 'user'
+    | 'id'
+    | 'user_id'
+    | 'body'
+    | 'body_segments'
+    | 'status'
+    | 'created_at'
+    | 'deleted_at'
+    | 'user'
 >;
 
 export type DeletedCommit = {

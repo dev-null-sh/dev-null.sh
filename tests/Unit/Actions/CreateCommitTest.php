@@ -11,6 +11,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -289,14 +290,14 @@ it('only fetches link previews that were never fetched', function (): void {
     Queue::assertNothingPushed();
 });
 
-it('fetches the link preview once the commit is saved', function (): void {
+it('queues the link preview for the saved commit', function (): void {
     Queue::fake();
 
     $action = resolve(CreateCommit::class);
 
     $commit = $action->handle(User::factory()->create(), 'Look at https://example.com');
 
-    Queue::assertPushed(UnfurlLink::class);
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
 
     expect($commit->exists)->toBeTrue();
 });
@@ -323,4 +324,35 @@ it('stores the images of a commit', function (): void {
 
     expect($commit->images()->count())->toBe(1)
         ->and($commit->status)->toBe(CommitStatus::Pending);
+});
+
+it('files replies under the top-level commit of their thread', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $nested = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Agreed', $reply);
+
+    expect($nested->root_id)->toBe($commit->id);
+});
+
+it('lifts the thread when an admin replies', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+});
+
+it('lifts the quoted thread when an admin quotes', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });

@@ -6,6 +6,7 @@ use App\Actions\CreateCommitStar;
 use App\Actions\DeleteCommitStar;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\TheAlgorithm;
 
 it('may unstar a commit', function (): void {
     $user = User::factory()->create();
@@ -52,4 +53,15 @@ it('does not spam the author when toggling a star', function (): void {
     resolve(CreateCommitStar::class)->handle($user, $commit);
 
     expect($commit->user->notifications()->count())->toBeOne();
+});
+
+it('lowers the commit back', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitStar::class)->handle($user, $commit);
+    resolve(DeleteCommitStar::class)->handle($user, $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
 });

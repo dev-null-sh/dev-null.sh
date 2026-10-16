@@ -8,7 +8,9 @@ use App\Models\Notification;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
 
 final readonly class NotificationGroupsQuery
@@ -22,7 +24,11 @@ final readonly class NotificationGroupsQuery
     {
         $query = $this->events($user, $type)
             ->where('group_rank', 1)
-            ->with(['actor', 'commit'])
+            ->with([
+                'actor' => fn (BelongsTo $query): BelongsTo => $query
+                    ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
+                'commit',
+            ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable
             ? max(self::PER_PAGE, (clone $query)->where('created_at', '>=', $through)->count())
@@ -44,7 +50,9 @@ final readonly class NotificationGroupsQuery
     {
         $group = $this->events($user)->whereKey($notification->id)->sole();
 
-        return $this->events($user, $type)->where('group_id', $group->group_id);
+        return $this->events($user, $type)->where('group_id', $group->group_id)
+            ->with(['actor' => fn (BelongsTo $query): BelongsTo => $query
+                ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)])]);
     }
 
     public function events(User $user, string $type = 'all'): NotificationBuilder
