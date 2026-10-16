@@ -28,16 +28,20 @@ final readonly class CreateWorldReply
      */
     public function handle(Commit $commit): void
     {
-        if ($commit->status !== CommitStatus::Approved || ! $this->helloWorld->matches($commit->body)) {
+        if (! $this->helloWorld->matches($commit->body)) {
             return;
         }
 
         DB::transaction(function () use ($commit): void {
+            $commit->refresh();
+
+            if ($commit->status !== CommitStatus::Approved) {
+                return;
+            }
+
             $world = $this->world();
 
-            $author = $commit->user;
-
-            if (! $world instanceof User || ! $author instanceof User || $author->is($world)) {
+            if (! $world instanceof User || $commit->user->is($world)) {
                 return;
             }
 
@@ -46,7 +50,7 @@ final readonly class CreateWorldReply
             }
 
             $reply = $world->commits()->create([
-                'body' => "Hello, {$author->name}.",
+                'body' => "Hello, {$commit->user->name}.",
                 'parent_id' => $commit->id,
                 'status' => CommitStatus::Approved,
             ]);

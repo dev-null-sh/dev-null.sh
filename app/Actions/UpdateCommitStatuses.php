@@ -68,10 +68,6 @@ final readonly class UpdateCommitStatuses
             ])->values()->all());
 
             if ($status === CommitStatus::Approved) {
-                $commits->each(function (Commit $commit) use ($status): void {
-                    $commit->status = $status;
-                });
-
                 $this->createReplyNotifications->handle(...$commits);
                 $this->createMentionNotifications->handle(...$commits);
 
