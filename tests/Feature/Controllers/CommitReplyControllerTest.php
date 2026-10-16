@@ -204,6 +204,9 @@ it('keeps approved account deletion tombstones readable to guests without exposi
     $response = $this->get(route('commit.show', [$reply->user, $reply]));
 
     $response->assertOk()
+        ->assertSee('<meta property="og:title" content="'.e($reply->user->nameWithHandle()).' on /dev/null">', false)
+        ->assertSee('"@type":"SocialMediaPosting"', false)
+        ->assertDontSee('"isPartOf":', false)
         ->assertDontSee('deletedauthor')
         ->assertDontSee('Deleted body')
         ->assertInertia(fn ($page) => $page
