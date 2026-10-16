@@ -334,7 +334,7 @@ Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue v
 
 ### Exporting your data
 
-Choose **Download JSON** in Settings → Profile to export your account data. The export includes profile details, your commits and replies (including pending, rejected, and deleted entries still stored), polls and your votes, stars, bookmarks, follows, mutes, blocks, messages you sent, notifications, SSH key fingerprints, and active-session metadata. Other people's replies and received messages are not included as your authored data. Image references are URLs, not an archive of the image files.
+Choose **Download JSON** in Settings → Profile to export your account data. The export includes profile details, your commits and replies (including pending, rejected, and deleted entries still stored), polls and your votes, stars, bookmarks, follows, mutes, blocks, messages you sent, notifications, SSH key fingerprints, the devices you approved for an app, and active-session metadata. Other people's replies and received messages are not included as your authored data. Image references are URLs, not an archive of the image files.
 
 The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. Exports are limited to **three per hour**.
 
