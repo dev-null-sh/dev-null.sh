@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import type { MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
+import { cardClickAction } from '@/lib/card-click';
 import type { DeletedCommit, ThreadCommit } from '@/types';
 
 export function characterCount(value: string): number {
@@ -198,24 +199,24 @@ function isClickOnCard(event: MouseEvent<HTMLElement>): boolean {
 }
 
 /**
- * Opens a commit or reply from a click on its card, in a new tab on a
- * Cmd/Ctrl-click or middle-click like a regular link.
+ * Opens a commit or reply from a click on its card.
  */
 export function openFromCardClick(
     event: MouseEvent<HTMLElement>,
     href: NonNullable<InertiaLinkProps['href']>,
 ): void {
-    if (!isClickOnCard(event)) {
-        return;
-    }
+    const action = cardClickAction({
+        button: event.button,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        isOnCard: isClickOnCard(event),
+    });
 
-    if (event.metaKey || event.ctrlKey || event.button === 1) {
+    if (action === 'new-tab') {
         window.open(toUrl(href), '_blank', 'noopener');
-
-        return;
     }
 
-    if (event.button === 0) {
+    if (action === 'visit') {
         router.visit(href);
     }
 }
