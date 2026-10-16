@@ -4,7 +4,6 @@ import {
     Bell,
     Bookmark,
     GitCommitVertical,
-    Globe,
     Search,
     Settings2,
     ShieldCheck,
@@ -37,13 +36,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     const items: NavItem[] = [
         {
             title: 'Log',
-            href: LogController.show('following'),
+            href: LogController.show(auth.log),
             icon: GitCommitVertical,
-        },
-        {
-            title: 'Everyone',
-            href: LogController.show('everyone'),
-            icon: Globe,
+            prefetch: false,
         },
         {
             title: 'Notifications',
@@ -91,7 +86,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
         isActive:
             item.title === 'Settings'
                 ? isCurrentOrParentUrl('/settings')
-                : isCurrentUrl(item.href),
+                : item.title === 'Log'
+                  ? isCurrentOrParentUrl('/log')
+                  : isCurrentUrl(item.href),
     }));
 }
 
@@ -137,7 +134,7 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
     return (
         <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
             <Link
-                href={LogController.show('following')}
+                href={LogController.show(auth.log)}
                 className="mb-8 rounded-md px-3 lg:px-3"
                 aria-label="devnull, go to your log"
             >
@@ -217,7 +214,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     return (
         <div className="flex h-14 items-center justify-between border-b px-4 md:hidden">
             <Link
-                href={LogController.show('following')}
+                href={LogController.show(auth.log)}
                 aria-label="devnull, go to your log"
             >
                 <AppLogo className="text-lg" />

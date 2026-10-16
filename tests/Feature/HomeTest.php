@@ -20,6 +20,13 @@ it('redirects authenticated users to the log', function (): void {
     $response->assertRedirectToRoute('log.show', Log::Following);
 });
 
+it('redirects authenticated users to the log they visited last', function (): void {
+    $response = $this->actingAs(User::factory()->create(['log' => Log::Everyone]))
+        ->get(route('home'));
+
+    $response->assertRedirectToRoute('log.show', Log::Everyone);
+});
+
 it('automatically signs in a local developer without GitHub', function (): void {
     app()->instance('env', 'local');
     config()->set('app.auto_login', true);

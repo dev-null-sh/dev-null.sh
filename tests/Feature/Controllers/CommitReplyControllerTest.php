@@ -145,10 +145,24 @@ it('does not list replies of a commit that is not visible', function (): void {
     $response->assertNotFound();
 });
 
-it('requires authentication to list replies', function (): void {
-    $response = $this->getJson(route('commit-reply.index', Commit::factory()->create()));
+it('lists only approved replies to guests', function (): void {
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->create(['body' => 'Approved']);
+    Commit::factory()->for($parent, 'parent')->pending()->create(['body' => 'Pending']);
+    Commit::factory()->for($parent, 'parent')->rejected()->create(['body' => 'Rejected']);
 
-    $response->assertUnauthorized();
+    $response = $this->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.body', 'Approved')
+        ->assertJsonPath('data.0.is_saved', false);
+});
+
+it('returns not found to guests for the replies of a commit that is not approved', function (): void {
+    $response = $this->getJson(route('commit-reply.index', Commit::factory()->pending()->create()));
+
+    $response->assertNotFound();
 });
 
 it('includes the link previews of replies', function (): void {

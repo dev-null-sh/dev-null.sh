@@ -1,3 +1,5 @@
+import type { Log } from '@/types/log';
+
 export type User = {
     id: string;
     username: string;
@@ -19,9 +21,13 @@ export type Profile = User & {
     following_count: number;
 };
 
+/**
+ * Commits and profiles are public, so guests browse them too, without a user or a log.
+ */
 export type Auth = {
-    user: Profile;
+    user: Profile | null;
     isAdmin: boolean;
+    log: Log | null;
     unreadNotificationsCount: number;
 };
 

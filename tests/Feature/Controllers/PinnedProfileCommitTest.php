@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\CommitStatus;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -274,4 +275,18 @@ it('resets the scroll log when refreshing the pin and commits together', functio
         ->assertJsonMissingPath('props.activity')
         ->assertJsonMissingPath('props.user')
         ->assertJsonPath('scrollProps.commits.reset', true);
+});
+
+it('includes the images of the pinned commit', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    $image = CommitImage::factory()->for($commit)->create();
+    $user->forceFill(['pinned_commit_id' => $commit->id])->save();
+
+    $this->actingAs(User::factory()->create())->get(route('user.show', $user))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('pinnedCommit.id', $commit->id)
+            ->has('pinnedCommit.images', 1)
+            ->where('pinnedCommit.images.0.id', $image->id));
 });
