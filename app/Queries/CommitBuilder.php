@@ -70,6 +70,16 @@ final class CommitBuilder extends Builder
         return $this->where('status', CommitStatus::Approved);
     }
 
+    /**
+     * Loads what anyone may see around the commits, like Commit::loadPublicPreview(): approved replies, stars, images, and the parent only when approved.
+     */
+    public function withPublicPreview(): self
+    {
+        return $this
+            ->withCount(['replies' => fn (self $query): self => $query->approved(), 'stars'])
+            ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+    }
+
     public function withSavedState(User $user): self
     {
         return $this->withExists([
