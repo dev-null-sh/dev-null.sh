@@ -217,6 +217,60 @@ it('publishes trusted commits to the public api and atom feed and hides new comm
         ->assertSee('Shipped it 🚀')->assertDontSee('Waiting after revocation');
 });
 
+it('keeps trusted series publication and public visibility subject to moderation and revocation', function (): void {
+    $moderator = User::factory()->create();
+    $author = User::factory()->trusted()->create();
+    config(['app.admins' => [$moderator->username]]);
+
+    $this->actingAs($author)->post(route('commit-series.store'), [
+        'bodies' => ['Shipped it :rocket:', 'Celebrated it :tada:'],
+    ])->assertRedirect()->assertSessionHasNoErrors()->assertInertiaFlashMissing('toast');
+
+    $parts = $author->commits()->oldest('series_position')->get();
+    expect($parts->pluck('status')->all())->toBe([CommitStatus::Approved, CommitStatus::Approved])
+        ->and($parts->pluck('body')->all())->toBe(['Shipped it 🚀', 'Celebrated it 🎉']);
+
+    Auth::logout();
+
+    $this->getJson(route('api-user-commit.index', $author))->assertOk()
+        ->assertJsonPath('data.*.id', [$parts[0]->id])
+        ->assertJsonPath('data.0.replies_count', 0);
+    $this->getJson(route('api-user-commit.index', [$author, 'replies' => 1]))->assertOk()
+        ->assertJsonPath('data', []);
+    $this->getJson(route('api-commit.show', $parts[1]))->assertOk()
+        ->assertJsonPath('data.parent_id', $parts[0]->id);
+    $this->get(route('user-feed.show', $author))->assertOk()
+        ->assertSee('Shipped it 🚀')->assertDontSee('Celebrated it 🎉');
+
+    $this->actingAs($moderator)->post(route('commit-rejection.store', $parts[1]), ['reason' => 'Series needs revision'])
+        ->assertRedirect();
+    expect($parts->fresh()->pluck('status')->all())->toBe([CommitStatus::Rejected, CommitStatus::Rejected]);
+
+    $this->put(route('user-trust.update', $author), ['is_trusted' => false])->assertRedirect();
+    $this->actingAs($author)->post(route('commit-series.store'), [
+        'bodies' => ['Waiting first part', 'Waiting second part'],
+        'is_trusted' => true,
+        'status' => 'approved',
+    ])->assertRedirect()->assertSessionHasNoErrors()->assertInertiaFlash('toast', [
+        'type' => 'info',
+        'message' => 'Your series is pending review. Everyone will see it once it is approved.',
+    ]);
+
+    $pending = $author->commits()->whereNotIn('id', $parts->modelKeys())->get();
+    expect($pending->pluck('status')->all())->toBe([CommitStatus::Pending, CommitStatus::Pending]);
+
+    Auth::logout();
+
+    foreach ($parts->merge($pending) as $part) {
+        $this->getJson(route('api-commit.show', $part))->assertNotFound();
+    }
+
+    $this->getJson(route('api-user-commit.index', $author))->assertOk()->assertJsonPath('data', []);
+    $this->get(route('user-feed.show', $author))->assertOk()
+        ->assertDontSee('Shipped it 🚀')->assertDontSee('Celebrated it 🎉')
+        ->assertDontSee('Waiting first part')->assertDontSee('Waiting second part');
+});
+
 it('rolls back trust if recording the decision fails', function (): void {
     $author = User::factory()->create();
     $missingModerator = User::factory()->make(['id' => Str::uuid7()->toString()]);

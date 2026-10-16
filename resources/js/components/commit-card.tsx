@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight, Trash2 } from 'lucide-react';
+import { CornerDownRight, ListOrdered, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -24,7 +24,12 @@ import {
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+import type {
+    Commit,
+    CursorPaginated,
+    DeletedCommit,
+    ThreadCommit,
+} from '@/types';
 
 export function CommitCard({
     commit,
@@ -38,6 +43,7 @@ export function CommitCard({
     canDelete = true,
     initialReplies,
     threadActions,
+    isSeriesExpanded = false,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -50,6 +56,7 @@ export function CommitCard({
     canDelete?: boolean;
     initialReplies?: CursorPaginated<ThreadCommit>;
     threadActions?: ReactNode;
+    isSeriesExpanded?: boolean;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
@@ -61,6 +68,12 @@ export function CommitCard({
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
+    const laterParts =
+        commit.series_size !== null &&
+        commit.series_position !== null &&
+        commit.series_parts === undefined
+            ? commit.series_size - commit.series_position
+            : 0;
 
     const deleteCommit = () => {
         setDeletion('deleting');
@@ -159,6 +172,14 @@ export function CommitCard({
                                 </time>
                             </Link>
 
+                            {commit.series_position !== null &&
+                                commit.series_size !== null && (
+                                    <SeriesPosition
+                                        position={commit.series_position}
+                                        size={commit.series_size}
+                                    />
+                                )}
+
                             {commit.status !== 'approved' && (
                                 <span
                                     className={cn(
@@ -242,6 +263,18 @@ export function CommitCard({
                         )}
                         {commit.link_preview?.title && (
                             <LinkPreview preview={commit.link_preview} />
+                        )}
+                        {laterParts > 0 && !isSeriesExpanded && (
+                            <Link
+                                href={permalink}
+                                className="mt-1.5 flex w-fit items-center gap-1.5 font-mono text-xs text-primary hover:underline"
+                                data-test="series-continues"
+                            >
+                                <ListOrdered className="size-3.5" />
+                                {laterParts} more{' '}
+                                {laterParts === 1 ? 'commit' : 'commits'} in
+                                this series
+                            </Link>
                         )}
                         {isFocused && (
                             <p className="mt-2 font-mono text-[13px] text-muted-foreground">
@@ -338,7 +371,31 @@ export function CommitCard({
     );
 }
 
-export function CommitTombstone({ previousLane }: { previousLane?: string }) {
+export function SeriesPosition({
+    position,
+    size,
+}: {
+    position: number;
+    size: number;
+}) {
+    return (
+        <span
+            className="shrink-0 self-center rounded-full bg-primary-soft px-2 py-0.5 font-mono text-xs text-primary"
+            title={`Commit ${position} of ${size} in a series`}
+            data-test="series-position"
+        >
+            {position}/{size}
+        </span>
+    );
+}
+
+export function CommitTombstone({
+    commit,
+    previousLane,
+}: {
+    commit?: DeletedCommit;
+    previousLane?: string;
+}) {
     return (
         <article className="flex" data-test="commit-tombstone">
             <GraphRail
@@ -356,6 +413,15 @@ export function CommitTombstone({ previousLane }: { previousLane?: string }) {
                     <span className="font-mono text-[13px]">[deleted]</span>
                     This commit was deleted.
                 </p>
+                {commit?.series_position !== undefined &&
+                    commit.series_size !== undefined && (
+                        <span className="ml-auto">
+                            <SeriesPosition
+                                position={commit.series_position}
+                                size={commit.series_size}
+                            />
+                        </span>
+                    )}
             </div>
         </article>
     );
