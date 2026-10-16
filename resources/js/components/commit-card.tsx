@@ -14,7 +14,12 @@ import {
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
-import { GraphRail, RailAvatar, RailDot } from '@/components/graph-rail';
+import {
+    GraphRail,
+    RailAvatar,
+    RailDot,
+    RailSegment,
+} from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
@@ -54,6 +59,9 @@ export function CommitCard({
     showImages = true,
     loadsReplies = false,
     isSeriesExpanded = false,
+    endsWithDot = false,
+    railNodePosition = 'top',
+    hasRailTail = true,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -70,6 +78,9 @@ export function CommitCard({
     showImages?: boolean;
     loadsReplies?: boolean;
     isSeriesExpanded?: boolean;
+    endsWithDot?: boolean;
+    railNodePosition?: 'top' | 'center' | 'bottom' | 'author';
+    hasRailTail?: boolean;
 }) {
     const {
         props: { auth },
@@ -82,6 +93,7 @@ export function CommitCard({
         'idle' | 'confirming' | 'deleting'
     >('idle');
 
+    const hasVisibleReplies = thread.isOpen && !!thread.replies?.length;
     const isOwn = commit.user_id === auth.user?.id;
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
@@ -124,10 +136,16 @@ export function CommitCard({
             data-permalink={permalink.url}
             data-test="commit"
         >
-            <div className="flex min-h-0 overflow-hidden">
+            <div className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]">
                 <GraphRail
                     lane={laneColor(commit.user.lane)}
                     previousLane={previousLane}
+                    endsWithDot={endsWithDot}
+                    nodePosition={railNodePosition}
+                    hasTail={hasRailTail && railNodePosition !== 'bottom'}
+                    hasReplyTail={
+                        hasVisibleReplies && (!hasRailTail || endsWithDot)
+                    }
                     isFresh={isOwn && isWithinSeconds(commit.created_at, 15)}
                     isDimmed={isDimmed}
                     isPreviousDimmed={isPreviousDimmed}
@@ -143,7 +161,9 @@ export function CommitCard({
                                 href={show(commit.user)}
                                 tabIndex={-1}
                                 className={cn('group/node flex rounded-full', {
-                                    '-translate-y-[9px]': isGroupedWithPrevious,
+                                    '-translate-y-[9px]':
+                                        isGroupedWithPrevious &&
+                                        railNodePosition === 'top',
                                 })}
                             >
                                 {isGroupedWithPrevious ? (
@@ -156,7 +176,12 @@ export function CommitCard({
                     }
                 />
 
-                <div className="min-w-0 flex-1 border-b py-3 pr-4">
+                <div
+                    className={cn(
+                        'min-w-0 pr-4',
+                        hasVisibleReplies ? 'pt-3' : 'border-b py-3',
+                    )}
+                >
                     <div className="flex">
                         <div className="min-w-0 flex-1">
                             <div className="flex items-baseline gap-1.5 text-[15px]">
@@ -415,11 +440,26 @@ export function CommitCard({
                             )}
                         </div>
                     </div>
-
-                    {commit.replies_count !== undefined && (
-                        <ThreadReplies thread={thread} depth={0} />
-                    )}
                 </div>
+                {commit.replies_count !== undefined && (
+                    <>
+                        <RailSegment
+                            lane={
+                                hasRailTail && !endsWithDot
+                                    ? laneColor(commit.user.lane)
+                                    : undefined
+                            }
+                            isDimmed={isDimmed}
+                        />
+                        <div
+                            className={cn('min-w-0 pr-4', {
+                                'border-b pb-3': hasVisibleReplies,
+                            })}
+                        >
+                            <ThreadReplies thread={thread} depth={0} />
+                        </div>
+                    </>
+                )}
             </div>
         </article>
     );

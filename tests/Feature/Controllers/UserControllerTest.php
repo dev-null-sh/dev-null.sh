@@ -81,7 +81,7 @@ it('does not count the user relations or activity when reloading only commits', 
 
     expect(collect(DB::getQueryLog())
         ->pluck('query')
-        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*'))
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*') || str_starts_with($query, 'select * from (select "commits".*'))
         ->all())
         ->not->toBeEmpty()
         ->each(fn ($query) => $query->not->toContain('count(*)')->not->toContain('exists'));
@@ -555,4 +555,28 @@ it('includes the link previews of the user commits', function (): void {
             ->where('commits.data.0.link_preview.title', 'Octocat links')
             ->missing('commits.data.0.link_preview.url_hash')
             ->missing('commits.data.0.link_preview.fetched_at'));
+});
+
+it('preloads only replies visible to the profile visitor', function (): void {
+    $author = User::factory()->create();
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $viewer->muting()->attach($muted);
+    $blocked->blocking()->attach($viewer);
+    $parent = Commit::factory()->for($author)->create();
+    Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    $ownPending = Commit::factory()->for($parent, 'parent')->for($viewer)->pending()->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($parent, 'parent')->pending()->create();
+    Commit::factory()->for($parent, 'parent')->rejected()->create();
+    Commit::factory()->for($parent, 'parent')->create(['deleted_at' => now()]);
+    Commit::factory()->for($parent, 'quotedCommit')->for($muted)->create();
+    Commit::factory()->for($parent, 'quotedCommit')->for($blocked)->create();
+
+    $this->actingAs($viewer)->get(route('user.show', $author))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commits.data.0.replies_count', 2)
+        ->where('commits.data.0.reply_preview.data.0.id', $ownPending->id)
+        ->where('commits.data.0.reply_preview.next_cursor', fn (string $cursor): bool => $cursor !== '')
+        ->missing('commits.data.0.reply_preview.data.0.user.email'));
 });
