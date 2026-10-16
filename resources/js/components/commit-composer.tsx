@@ -99,7 +99,7 @@ export function CommitComposer() {
                                 autoComplete="off"
                                 aria-invalid={errors.body ? true : undefined}
                                 aria-describedby="body-count"
-                                className="block field-sizing-content min-h-10 w-full resize-none bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                                className="block field-sizing-content min-h-10 w-full resize-none overflow-x-hidden bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
                             />
 
                             <InputError message={errors.body} />
@@ -115,8 +115,8 @@ export function CommitComposer() {
                                 className="mt-1"
                             />
 
-                            <div className="mt-2 flex items-center justify-end gap-4">
-                                <div className="mr-auto flex items-center gap-4">
+                            <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+                                <div className="mr-auto flex min-w-0 items-center gap-4">
                                     <ImagePickerButton
                                         count={attachments.images.length}
                                         disabled={processing}
@@ -153,6 +153,7 @@ export function CommitComposer() {
                                     type="submit"
                                     disabled={processing || !isCommittable}
                                     title="Commit (⌘/Ctrl + Enter)"
+                                    className="min-w-[7.5rem]"
                                     data-test="create-commit-button"
                                 >
                                     {processing ? 'Committing…' : 'Commit'}
