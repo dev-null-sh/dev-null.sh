@@ -48,6 +48,8 @@ final class CreateCommitSeriesRequest extends FormRequest
                     ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
                     ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
             ],
+            'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
+            'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
         ];
     }
 
@@ -58,6 +60,7 @@ final class CreateCommitSeriesRequest extends FormRequest
     {
         return [
             'bodies.*' => 'commit',
+            'image_descriptions.*' => 'image description',
         ];
     }
 
@@ -108,5 +111,16 @@ final class CreateCommitSeriesRequest extends FormRequest
         $images = $this->file('images');
 
         return is_array($images) ? array_values($images) : [];
+    }
+
+    /**
+     * @return list<string|null>
+     */
+    public function imageDescriptions(): array
+    {
+        /** @var list<string|null> $descriptions */
+        $descriptions = $this->array('image_descriptions');
+
+        return $descriptions;
     }
 }

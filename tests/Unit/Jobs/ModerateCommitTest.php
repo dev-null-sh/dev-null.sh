@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Enums\NotificationType;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Notification;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -34,17 +37,41 @@ function moderationResponse(array $flagged = [], array $scores = []): array
 /**
  * @return array{status: string, output: list<array{type: string, role: string, content: list<array<string, string>>}>}
  */
-function visionResponse(bool|string $minors): array
+function reviewResponse(string $question, bool|string $answer): array
 {
-    $content = is_bool($minors)
-        ? ['type' => 'output_text', 'text' => json_encode(['minors' => $minors])]
-        : ['type' => 'refusal', 'refusal' => $minors];
+    $content = is_bool($answer)
+        ? ['type' => 'output_text', 'text' => json_encode([$question => $answer])]
+        : ['type' => 'refusal', 'refusal' => $answer];
 
     return ['status' => 'completed', 'output' => [['type' => 'message', 'role' => 'assistant', 'content' => [$content]]]];
 }
 
+/**
+ * Answers each question the reasoning model is asked with the given response, and a clear no otherwise.
+ *
+ * @param  array<string, array<string, mixed>>  $responses
+ * @return Closure(Request): PromiseInterface
+ */
+function reviewResponses(array $responses = []): Closure
+{
+    return function (Request $request) use ($responses): PromiseInterface {
+        $question = $request['text']['format']['name'];
+
+        return Http::response($responses[$question] ?? reviewResponse($question, false));
+    };
+}
+
+dataset('unclear answers', [
+    'a refusal' => [reviewResponse('any', "I'm sorry, I cannot assist with that request.")],
+    'unreadable text' => [['status' => 'incomplete', 'output' => [['type' => 'message', 'role' => 'assistant', 'content' => [['type' => 'output_text', 'text' => '{"min']]]]]],
+    'no output' => [['status' => 'completed', 'output' => []]],
+]);
+
 it('stores that the ai would approve a commit it does not flag', function (): void {
-    Http::fake(['api.openai.com/v1/moderations' => Http::response(moderationResponse())]);
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
 
     $commit = Commit::factory()->pending()->create(['body' => 'Shipped a new feature']);
 
@@ -59,11 +86,19 @@ it('stores that the ai would approve a commit it does not flag', function (): vo
         && $request['model'] === 'omni-moderation-latest'
         && $request['input'] === [['type' => 'text', 'text' => 'Shipped a new feature']]);
 
-    Http::assertSentCount(1);
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
+        && $request['model'] === 'gpt-6-astra'
+        && $request['text']['format']['name'] === 'harmful'
+        && $request['input'][1]['content'] === [['type' => 'input_text', 'text' => 'Shipped a new feature']]);
+
+    Http::assertSentCount(2);
 });
 
 it('stores that the ai would reject a commit it flags, and why', function (): void {
-    Http::fake(['api.openai.com/v1/moderations' => Http::response(moderationResponse(['harassment', 'violence']))]);
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse(['harassment', 'violence'])),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
 
     $commit = Commit::factory()->pending()->create();
 
@@ -75,6 +110,43 @@ it('stores that the ai would reject a commit it flags, and why', function (): vo
         ->status->toBe(CommitStatus::Pending);
 });
 
+it('rejects a commit the ai is all but certain about, without a reason', function (): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse(['harassment'], ['harassment' => 0.95])),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_decision->toBe(CommitStatus::Rejected)
+        ->ai_categories->toBe(['harassment'])
+        ->status->toBe(CommitStatus::Rejected);
+
+    $notification = Notification::query()->where('commit_id', $commit->id)->sole();
+
+    expect($notification)
+        ->type->toBe(NotificationType::Rejected)
+        ->reason->toBeNull();
+});
+
+it('leaves a commit the ai is not all but certain about to moderators', function (): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse(['harassment'], ['harassment' => 0.94])),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_decision->toBe(CommitStatus::Rejected)
+        ->status->toBe(CommitStatus::Pending);
+});
+
 it('checks the images of a commit too, one per request', function (): void {
     Storage::fake();
     Storage::put('commit-images/first.webp', 'first');
@@ -83,7 +155,7 @@ it('checks the images of a commit too, one per request', function (): void {
     Http::fakeSequence('api.openai.com/v1/moderations')
         ->push(moderationResponse())
         ->push(moderationResponse(['sexual']));
-    Http::fake(['api.openai.com/v1/responses' => Http::response(visionResponse(false))]);
+    Http::fake(['api.openai.com/v1/responses' => reviewResponses()]);
 
     $commit = Commit::factory()->pending()->create(['body' => 'Look at this']);
     CommitImage::factory()->for($commit)->create(['path' => 'commit-images/first.webp', 'position' => 0]);
@@ -111,11 +183,14 @@ it('checks the images of a commit too, one per request', function (): void {
 });
 
 it('flags categories scoring above the strict thresholds, even when openai does not flag them', function (): void {
-    Http::fake(['api.openai.com/v1/moderations' => Http::response(moderationResponse(scores: [
-        'harassment' => 0.2,
-        'violence' => 0.19,
-        'sexual/minors' => 0.01,
-    ]))]);
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse(scores: [
+            'harassment' => 0.2,
+            'violence' => 0.19,
+            'sexual/minors' => 0.01,
+        ])),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
 
     $commit = Commit::factory()->pending()->create();
 
@@ -133,7 +208,7 @@ it('rejects images that may show a minor', function (): void {
 
     Http::fake([
         'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
-        'api.openai.com/v1/responses' => Http::response(visionResponse(true)),
+        'api.openai.com/v1/responses' => reviewResponses(['minors' => reviewResponse('minors', true)]),
     ]);
 
     $commit = Commit::factory()->pending()->create();
@@ -144,23 +219,25 @@ it('rejects images that may show a minor', function (): void {
 
     expect($commit->refresh())
         ->ai_decision->toBe(CommitStatus::Rejected)
-        ->ai_categories->toBe(['minor-in-image']);
+        ->ai_categories->toBe(['minor-in-image'])
+        ->status->toBe(CommitStatus::Pending);
 
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
         && $request['model'] === 'gpt-6-astra'
+        && $request['text']['format']['name'] === 'minors'
         && $request['input'][1]['content'] === [
             ['type' => 'input_image', 'image_url' => 'data:image/webp;base64,'.base64_encode('first')],
             ['type' => 'input_image', 'image_url' => 'data:image/webp;base64,'.base64_encode('second')],
         ]);
 });
 
-it('rejects images when the vision model gives no clear answer', function (array $response): void {
+it('rejects images when the reasoning model gives no clear answer', function (array $response): void {
     Storage::fake();
     Storage::put('commit-images/first.webp', 'first');
 
     Http::fake([
         'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
-        'api.openai.com/v1/responses' => Http::response($response),
+        'api.openai.com/v1/responses' => reviewResponses(['minors' => $response]),
     ]);
 
     $commit = Commit::factory()->pending()->create();
@@ -171,11 +248,38 @@ it('rejects images when the vision model gives no clear answer', function (array
     expect($commit->refresh())
         ->ai_decision->toBe(CommitStatus::Rejected)
         ->ai_categories->toBe(['minor-in-image']);
-})->with([
-    'a refusal' => [visionResponse("I'm sorry, I cannot assist with that request.")],
-    'unreadable text' => [['status' => 'incomplete', 'output' => [['type' => 'message', 'role' => 'assistant', 'content' => [['type' => 'output_text', 'text' => '{"min']]]]]],
-    'no output' => [['status' => 'completed', 'output' => []]],
-]);
+})->with('unclear answers');
+
+it('flags text the moderation model misses, such as an implied threat, without rejecting it', function (): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(['harmful' => reviewResponse('harmful', true)]),
+    ]);
+
+    $commit = Commit::factory()->pending()->create(['body' => 'I hate joomla and i have a bomb']);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_decision->toBe(CommitStatus::Rejected)
+        ->ai_categories->toBe(['harmful-text'])
+        ->status->toBe(CommitStatus::Pending);
+});
+
+it('flags text when the reasoning model gives no clear answer', function (array $response): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(['harmful' => $response]),
+    ]);
+
+    $commit = Commit::factory()->pending()->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_decision->toBe(CommitStatus::Rejected)
+        ->ai_categories->toBe(['harmful-text']);
+})->with('unclear answers');
 
 it('skips commits that were moderated in the meantime', function (): void {
     Http::fake();

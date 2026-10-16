@@ -23,7 +23,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
-import { cn, formatRelativeTime } from '@/lib/utils';
+import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
 
@@ -346,12 +346,15 @@ function NotificationContent({
                 className="flex min-w-0 flex-1 gap-3 rounded-md outline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ring"
             >
                 <Icon
-                    className={cn(
-                        'mt-1.5 size-5 shrink-0 text-muted-foreground',
-                        {
-                            'fill-current': notification.type === 'starred',
-                        },
-                    )}
+                    className={cn('mt-1.5 size-5 shrink-0', {
+                        'text-muted-foreground': moderation,
+                        'fill-current': notification.type === 'starred',
+                    })}
+                    style={
+                        moderation
+                            ? undefined
+                            : { color: laneColor(actor.lane) }
+                    }
                     aria-hidden
                 />
                 <div className="min-w-0 flex-1">

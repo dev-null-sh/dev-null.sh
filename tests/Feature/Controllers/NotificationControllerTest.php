@@ -137,6 +137,31 @@ it('says whether the user follows each new follower back', function (): void {
         ->assertJsonMissingPath('data.1.actor.email');
 });
 
+it('gives the lane of every actor so each notification takes their color', function (): void {
+    $user = User::factory()->create();
+    $earlier = Notification::factory()->for($user, 'recipient')
+        ->for(User::factory()->state(['preferred_lane' => 2]), 'actor')
+        ->create(['created_at' => now()->subMinute()]);
+    $latest = Notification::factory()->for($user, 'recipient')
+        ->for(User::factory()->state(['preferred_lane' => 5]), 'actor')
+        ->create();
+
+    $this->actingAs($user)->get(route('notification.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 1)
+            ->where('notifications.data.0.actor.lane', 5)
+            ->where('notifications.data.0.actors.0.lane', 5)
+            ->where('notifications.data.0.actors.1.lane', 2));
+
+    $this->getJson(route('notification-group.show', $latest))
+        ->assertOk()
+        ->assertJsonPath('data.0.actor_id', $latest->actor_id)
+        ->assertJsonPath('data.0.actor.lane', 5)
+        ->assertJsonPath('data.1.actor_id', $earlier->actor_id)
+        ->assertJsonPath('data.1.actor.lane', 2);
+});
+
 it('requires authentication', function (): void {
     $response = $this->get(route('notification.index'));
 

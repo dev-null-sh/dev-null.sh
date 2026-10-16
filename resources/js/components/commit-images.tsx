@@ -1,17 +1,36 @@
+import { commitPhotoUrl, openCommitPhoto } from '@/lib/commit-photo';
 import { cn } from '@/lib/utils';
-import type { CommitImage } from '@/types';
+import type { Commit, CommitImage } from '@/types';
 
-export function CommitImages({ images }: { images: CommitImage[] }) {
+export function commitImageAlt(
+    image: CommitImage,
+    index: number,
+    count: number,
+): string {
+    if (image.description) {
+        return image.description;
+    }
+
+    return count > 1
+        ? `Attached image ${index + 1} of ${count}`
+        : 'Attached image';
+}
+
+export function CommitImages({ commit }: { commit: Commit }) {
+    const images = commit.images ?? [];
+
     if (images.length === 0) {
         return null;
     }
+
+    const hasMultipleImages = images.length > 1;
 
     return (
         <div
             className={cn(
                 'mt-3 grid gap-0.5 overflow-hidden rounded-lg border',
                 {
-                    'h-72 grid-cols-2': images.length > 1,
+                    'h-72 grid-cols-2': hasMultipleImages,
                 },
             )}
             data-test="commit-images"
@@ -19,21 +38,29 @@ export function CommitImages({ images }: { images: CommitImage[] }) {
             {images.map((image, index) => (
                 <a
                     key={image.id}
-                    href={image.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(event) => event.stopPropagation()}
+                    href={commitPhotoUrl(commit, index)}
+                    onClick={(event) => {
+                        event.stopPropagation();
+
+                        if (
+                            event.metaKey ||
+                            event.ctrlKey ||
+                            event.shiftKey ||
+                            event.altKey
+                        ) {
+                            return;
+                        }
+
+                        event.preventDefault();
+                        openCommitPhoto(commit, index);
+                    }}
                     className={cn('block min-h-0 bg-muted', {
                         'row-span-2': images.length === 3 && index === 0,
                     })}
                 >
                     <img
                         src={image.url}
-                        alt={
-                            images.length === 1
-                                ? 'Attached image'
-                                : `Attached image ${index + 1} of ${images.length}`
-                        }
+                        alt={commitImageAlt(image, index, images.length)}
                         width={image.width}
                         height={image.height}
                         loading="lazy"
@@ -49,7 +76,7 @@ export function CommitImages({ images }: { images: CommitImage[] }) {
                         }}
                         className={cn(
                             'w-full object-cover',
-                            images.length === 1 ? 'max-h-[32rem]' : 'h-full',
+                            hasMultipleImages ? 'h-full' : 'max-h-[32rem]',
                         )}
                     />
                 </a>

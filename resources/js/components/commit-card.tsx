@@ -52,6 +52,8 @@ export function CommitCard({
     canDelete = true,
     initialReplies,
     threadActions,
+    showImages = true,
+    loadsReplies = false,
     isSeriesExpanded = false,
 }: {
     commit: Commit;
@@ -66,6 +68,8 @@ export function CommitCard({
     canDelete?: boolean;
     initialReplies?: CursorPaginated<ThreadCommit>;
     threadActions?: ReactNode;
+    showImages?: boolean;
+    loadsReplies?: boolean;
     isSeriesExpanded?: boolean;
 }) {
     const {
@@ -74,7 +78,7 @@ export function CommitCard({
     } = usePage();
     const now = useNow();
     const nodeRef = useRef<HTMLAnchorElement>(null);
-    const thread = useThread(commit, initialReplies);
+    const thread = useThread(commit, initialReplies, loadsReplies);
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
     >('idle');
@@ -287,9 +291,7 @@ export function CommitCard({
                                     isFocused ? 'text-[17px]' : 'text-[15px]',
                                 )}
                             />
-                            {commit.images && (
-                                <CommitImages images={commit.images} />
-                            )}
+                            {showImages && <CommitImages commit={commit} />}
                             {commit.poll && (
                                 <CommitPoll
                                     key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}
@@ -334,10 +336,7 @@ export function CommitCard({
 
                             {commit.replies_count === undefined ? (
                                 <div className="mt-1.5 -ml-1.5 flex items-center gap-0.5">
-                                    <CommitStarButton
-                                        key={`${commit.starred}-${commit.stars_count}`}
-                                        commit={commit}
-                                    />
+                                    <CommitStarButton commit={commit} />
                                     <CommitQuoteButton
                                         commit={commit}
                                         keyShortcut="q"
@@ -352,7 +351,6 @@ export function CommitCard({
                                     actions={
                                         <>
                                             <CommitStarButton
-                                                key={`${commit.starred}-${commit.stars_count}`}
                                                 commit={commit}
                                                 className="px-2 py-0.5"
                                             />

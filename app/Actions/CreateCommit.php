@@ -38,8 +38,9 @@ final readonly class CreateCommit
      * The link preview is of the first URL in the body when true, of the given URL when a string, or none when false.
      *
      * @param  list<UploadedFile>  $images
+     * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?SeriesPosition $series = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?SeriesPosition $series = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -47,7 +48,7 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $url, $poll, $series): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $series): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
 
@@ -65,7 +66,7 @@ final readonly class CreateCommit
                 'created_at' => $createdAt,
             ]);
 
-            $this->createCommitImages->handle($commit, $images);
+            $this->createCommitImages->handle($commit, $images, $imageDescriptions);
 
             if ($poll instanceof NewPoll) {
                 $this->createPoll($commit, $poll);
