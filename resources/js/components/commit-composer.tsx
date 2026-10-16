@@ -244,6 +244,9 @@ function CommitComposerPart({
                                         : linkCard.link
                                 }
                                 images={index === 0 ? attachments.images : []}
+                                descriptions={
+                                    index === 0 ? attachments.descriptions : []
+                                }
                                 className="col-start-1 row-start-1 py-1.5"
                             />
                         )}
@@ -275,6 +278,8 @@ function CommitComposerPart({
                             {!preview.isPreviewing && (
                                 <ImagePickerPreviews
                                     images={attachments.images}
+                                    descriptions={attachments.descriptions}
+                                    onDescribe={attachments.describe}
                                     onRemove={attachments.remove}
                                 />
                             )}
@@ -673,7 +678,11 @@ export function CommitComposer() {
                               .replace(/\.\d{3}Z$/, '+00:00'),
                       }
                     : hasImages
-                      ? { ...data, images: attachments.images }
+                      ? {
+                            ...data,
+                            images: attachments.images,
+                            image_descriptions: attachments.descriptions,
+                        }
                       : data
             }
             options={{ preserveScroll: true }}

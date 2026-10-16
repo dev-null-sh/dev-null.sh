@@ -1,8 +1,10 @@
-import { router, usePage } from '@inertiajs/react';
+import { router, useHttp, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
 import { useState } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
+import { useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
+import { commitStateKey } from '@/lib/commit-state';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -27,9 +29,18 @@ export function CommitStarButton({
 }) {
     const { auth } = usePage().props;
     const isOwn = commit.user_id === auth.user?.id;
-    const [starred, setStarred] = useState(commit.starred);
-    const [count, setCount] = useState(commit.stars_count);
-    const [pending, setPending] = useState(false);
+    const [starred, setStarred] = useSharedState(
+        commitStateKey('starred', commit.id),
+        commit.starred,
+    );
+    const [count, setCount] = useSharedState(
+        commitStateKey('stars_count', commit.id),
+        commit.stars_count,
+    );
+    const request = useHttp<
+        Record<string, never>,
+        { starred: boolean; stars_count: number }
+    >({});
     const [isAnimating, setIsAnimating] = useState(false);
 
     if (isOwn) {
@@ -40,14 +51,14 @@ export function CommitStarButton({
         return null;
     }
 
-    const toggle = () => {
+    const toggle = async () => {
         if (auth.user === null) {
             signIn();
 
             return;
         }
 
-        if (pending) {
+        if (request.processing) {
             return;
         }
 
@@ -58,35 +69,21 @@ export function CommitStarButton({
         if (next) {
             setIsAnimating(true);
         }
-        setPending(true);
 
-        const revert = () => {
+        try {
+            const response = await request.submit(
+                next
+                    ? CommitStarController.store(commit)
+                    : CommitStarController.destroy(commit),
+            );
+
+            setStarred(response.starred);
+            setCount(response.stars_count);
+            router.flushAll();
+        } catch {
             setStarred(!next);
             setCount((current) => Math.max(0, current + (next ? -1 : 1)));
-        };
-
-        router.visit(
-            next
-                ? CommitStarController.store(commit)
-                : CommitStarController.destroy(commit),
-            {
-                preserveScroll: true,
-                preserveState: true,
-                except: ['commits'],
-                showProgress: false,
-                onHttpException: () => {
-                    revert();
-
-                    return false;
-                },
-                onNetworkError: () => {
-                    revert();
-
-                    return false;
-                },
-                onFinish: () => setPending(false),
-            },
-        );
+        }
     };
 
     return (

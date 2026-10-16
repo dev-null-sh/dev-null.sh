@@ -263,8 +263,7 @@ final class Commit extends Model
                 ->whereKey($this->getAttributeFromArray($this->getKeyName()))->first()->replies_count ?? 0,
         ])->syncOriginalAttribute('replies_count');
 
-        return $this
-            ->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
+        return $this->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
     }
 
     /**

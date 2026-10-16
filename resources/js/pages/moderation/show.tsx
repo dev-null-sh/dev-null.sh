@@ -88,7 +88,7 @@ function SeriesParts({ commit }: { commit: Commit }) {
                             segments={part.body_segments}
                             className="mt-1 text-[15px]"
                         />
-                        {part.images && <CommitImages images={part.images} />}
+                        <CommitImages commit={part} />
                         {part.quoted_commit_id !== null && (
                             <QuotedCommit commit={part.quoted_commit ?? null} />
                         )}

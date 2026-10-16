@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $path
  * @property-read int $width
  * @property-read int $height
+ * @property-read string|null $description
  * @property-read int $position
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -27,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'id',
     'width',
     'height',
+    'description',
 ])]
 final class CommitImage extends Model
 {
@@ -46,6 +48,7 @@ final class CommitImage extends Model
             'path' => 'string',
             'width' => 'integer',
             'height' => 'integer',
+            'description' => 'string',
             'position' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

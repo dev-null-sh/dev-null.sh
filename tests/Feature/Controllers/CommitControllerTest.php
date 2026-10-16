@@ -204,6 +204,19 @@ it('may delete own commit from its page', function (): void {
     $this->assertSoftDeleted($commit);
 });
 
+it('may delete own commit while viewing one of its photos', function (): void {
+    $commit = Commit::factory()->create();
+    CommitImage::factory()->for($commit)->create();
+
+    $response = $this->actingAs($commit->user)
+        ->from(route('commit-photo.show', [$commit->user, $commit, 1]))
+        ->delete(route('commit.destroy', $commit));
+
+    $response->assertRedirectToRoute('user.show', $commit->user);
+
+    $this->assertSoftDeleted($commit);
+});
+
 it('tells users their commit is pending review', function (): void {
     $user = User::factory()->create();
 
@@ -232,65 +245,20 @@ it('publishes commits of admins right away', function (): void {
     expect($user->commits()->sole()->status)->toBe(CommitStatus::Approved);
 });
 
-it('may reply to a commit', function (): void {
+it('does not create replies', function (): void {
     $user = User::factory()->create();
     $parent = Commit::factory()->create();
 
-    $response = $this->actingAs($user)
+    $this->actingAs($user)
         ->fromRoute('log.show', Log::Trending)
         ->post(route('commit.store'), [
             'body' => 'Agreed, ship it.',
             'parent_id' => $parent->id,
-        ]);
+        ])
+        ->assertRedirectToRoute('log.show', Log::Trending);
 
-    $response->assertRedirectToRoute('log.show', Log::Trending);
-
-    expect($user->commits()->sole()->parent_id)->toBe($parent->id);
-});
-
-it('may reply to own pending commit', function (): void {
-    $user = User::factory()->create();
-    $parent = Commit::factory()->for($user)->pending()->create();
-
-    $this->actingAs($user)
-        ->fromRoute('log.show', Log::Following)
-        ->post(route('commit.store'), ['body' => 'Follow-up', 'parent_id' => $parent->id])
-        ->assertSessionHasNoErrors();
-
-    expect($parent->replies()->count())->toBe(1);
-});
-
-it('may not reply to a commit that is not visible', function (): void {
-    $parent = Commit::factory()->pending()->create();
-
-    $response = $this->actingAs(User::factory()->create())
-        ->fromRoute('log.show', Log::Trending)
-        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
-
-    $response->assertSessionHasErrors('parent_id');
-
-    expect($parent->replies()->count())->toBe(0);
-});
-
-it('may not reply to a deleted commit', function (): void {
-    $parent = Commit::factory()->create();
-    $parent->delete();
-
-    $response = $this->actingAs(User::factory()->create())
-        ->fromRoute('log.show', Log::Trending)
-        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
-
-    $response->assertSessionHasErrors('parent_id');
-
-    expect(Commit::query()->count())->toBe(0);
-});
-
-it('may not reply to a commit that does not exist', function (): void {
-    $response = $this->actingAs(User::factory()->create())
-        ->fromRoute('log.show', Log::Trending)
-        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => '01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3']);
-
-    $response->assertSessionHasErrors('parent_id');
+    expect($user->commits()->sole()->parent_id)->toBeNull()
+        ->and($parent->replies()->count())->toBe(0);
 });
 
 it('may quote a commit', function (): void {
@@ -503,35 +471,6 @@ it('hides the quoted commit across a block in either direction', function (bool 
             ->where('commit.quoted_commit', null))
         ->assertDontSee('Blocked words');
 })->with([true, false]);
-
-it('may not reply across a block in either direction', function (bool $replierBlocks): void {
-    $replier = User::factory()->create();
-    $parent = Commit::factory()->create();
-
-    $replierBlocks ? $replier->blocking()->attach($parent->user) : $parent->user->blocking()->attach($replier);
-
-    $response = $this->actingAs($replier)
-        ->fromRoute('log.show', Log::Trending)
-        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
-
-    $response->assertSessionHasErrors(['parent_id' => 'That commit is no longer available to reply to.']);
-
-    expect($parent->replies()->count())->toBe(0)
-        ->and($parent->user->notifications()->exists())->toBeFalse();
-})->with([true, false]);
-
-it('may reply to a muted user without them knowing', function (): void {
-    $replier = User::factory()->create();
-    $parent = Commit::factory()->create();
-
-    $replier->muting()->attach($parent->user);
-
-    $this->actingAs($replier)
-        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id])
-        ->assertSessionHasNoErrors();
-
-    expect($parent->replies()->count())->toBeOne();
-});
 
 it('does not show a commit across a block in either direction', function (bool $viewerBlocks): void {
     $viewer = User::factory()->create();
@@ -1130,6 +1069,44 @@ it('may attach images to a commit', function (): void {
         ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
 });
 
+it('may describe the images attached to a commit', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Offsite photo dump',
+        'images' => [
+            UploadedFile::fake()->image('cabin.jpg', 40, 30),
+            UploadedFile::fake()->image('hike.jpg', 40, 30),
+        ],
+        'image_descriptions' => ['The cabin at sunrise, fog over the lake.', ''],
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->images->pluck('description')->all())->toBe([
+        'The cabin at sunrise, fog over the lake.',
+        null,
+    ]);
+});
+
+it('may not describe an image in more than a thousand characters', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Too long a description',
+        'images' => [UploadedFile::fake()->image('photo.jpg', 10, 10)],
+        'image_descriptions' => [str_repeat('a', 1001)],
+    ]);
+
+    $response->assertSessionHasErrors('image_descriptions.0');
+
+    expect($user->commits()->count())->toBe(0);
+});
+
 it('may attach images to a quote with the chosen link card', function (?string $linkPreviewUrl, ?string $expectedUrl): void {
     Storage::fake();
     Queue::fake([UnfurlLink::class]);
@@ -1143,6 +1120,7 @@ it('may attach images to a quote with the chosen link card', function (?string $
             'body' => 'Compare https://example.com/first and https://example.com/second',
             'quoted_commit_id' => $quoted->id,
             'images' => [UploadedFile::fake()->image('trace.png', 40, 30)],
+            'image_descriptions' => ['Trace showing the regression.'],
             ...($linkPreviewUrl === null ? [] : ['link_preview_url' => $linkPreviewUrl]),
         ])
         ->assertRedirectToRoute('log.show', Log::Following)
@@ -1152,6 +1130,7 @@ it('may attach images to a quote with the chosen link card', function (?string $
 
     expect($commit->quoted_commit_id)->toBe($quoted->id)
         ->and($commit->images)->toHaveCount(1)
+        ->and($commit->images->sole()->description)->toBe('Trace showing the regression.')
         ->and($commit->linkPreview?->url)->toBe($expectedUrl);
 
     if ($expectedUrl === null) {

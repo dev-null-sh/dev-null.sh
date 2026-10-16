@@ -159,11 +159,13 @@ export function PreviewToggle({
 export function ComposerPreviewBody({
     preview,
     images,
+    descriptions = [],
     url,
     className,
 }: {
     preview: ComposerPreview;
     images: File[];
+    descriptions?: string[];
     url: string | null;
     className?: string;
 }) {
@@ -189,9 +191,10 @@ export function ComposerPreviewBody({
             )}
 
             <CommitImages
-                images={images.map((image) => ({
+                images={images.map((image, index) => ({
                     id: objectUrlFor(image),
                     url: objectUrlFor(image),
+                    description: descriptions[index]?.trim() || null,
                 }))}
             />
 

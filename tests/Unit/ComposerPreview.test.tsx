@@ -5,6 +5,7 @@ import { App } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CommitComposer } from '../../resources/js/components/commit-composer';
+import { revokeObjectUrls } from '../../resources/js/components/commit-image-picker';
 import {
     ComposerPreviewBody,
     useComposerPreview,
@@ -256,4 +257,30 @@ void test('ordinary drafts retain preview without a sensitive text warning', () 
     const markup = renderComposer(['Shipped a small fix']);
     assert.ok(markup.includes('data-test="preview-toggle"'));
     assert.ok(!markup.includes('aria-label="Sensitive text warning"'));
+});
+
+
+void test('previews attached image descriptions without a published photo link', () => {
+    const images = [
+        new File(['first'], 'first.png', { type: 'image/png' }),
+        new File(['second'], 'second.png', { type: 'image/png' }),
+    ];
+
+    try {
+        const markup = renderToStaticMarkup(
+            <ComposerPreviewBody
+                preview={previewFor({ isSubmittable: true })}
+                images={images}
+                descriptions={['  Build output in the terminal  ', '']}
+                url={null}
+            />,
+        );
+
+        assert.ok(markup.includes('alt="Build output in the terminal"'));
+        assert.ok(markup.includes('alt="Attached image 2 of 2"'));
+        assert.ok(markup.includes('data-test="commit-images"'));
+        assert.ok(!markup.includes('<a '));
+    } finally {
+        revokeObjectUrls(images);
+    }
 });

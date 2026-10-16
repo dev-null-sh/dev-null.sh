@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Middleware\ThrottleCommits;
 use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -32,6 +33,23 @@ it('limits each user to 10 commits a minute', function (): void {
                 'message' => 'Slow down: 10 commits a minute. Even CI takes breaks.',
             ],
         ]);
+});
+
+it('tells json requests to slow down without flashing', function (): void {
+    $user = User::factory()->create();
+
+    $request = Request::create('/commits/01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3/replies', 'POST', server: ['HTTP_ACCEPT' => 'application/json']);
+    $request->setUserResolver(fn (): User => $user);
+
+    RateLimiter::increment("commits:{$user->id}", 60, 10);
+
+    $response = new ThrottleCommits()->handle($request, fn (): Response => response('Committed'));
+
+    expect($response)->toBeInstanceOf(JsonResponse::class)
+        ->and($response->getStatusCode())->toBe(429)
+        ->and($response->headers->get('Retry-After'))->toBe('60')
+        ->and($response->getData(true))->toBe(['message' => 'Slow down: 10 commits a minute. Even CI takes breaks.'])
+        ->and(session(SessionKey::FLASH_DATA))->toBeNull();
 });
 
 it('limits each address to 60 public api requests a minute', function (): void {
