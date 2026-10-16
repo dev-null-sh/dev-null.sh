@@ -179,7 +179,6 @@ export function CommitCard({
                             <div className="flex items-baseline gap-1.5 text-[15px]">
                                 <UserPreview
                                     user={commit.user}
-                                    anchor={nodeRef}
                                     className="flex min-w-0 items-baseline gap-1.5"
                                     onHoverChange={onAuthorHover}
                                 >
