@@ -380,7 +380,7 @@ export default function Show({
                             </p>
                             <p className="mt-1 text-[15px] text-pretty">
                                 You're early. Once people start committing,
-                                you'll find them in the Everyone log.
+                                you'll find them in the Latest log.
                             </p>
                         </div>
                     )}

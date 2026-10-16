@@ -11,10 +11,10 @@ it('may star a commit', function (): void {
     $commit = Commit::factory()->create();
 
     $response = $this->actingAs($user)
-        ->fromRoute('log.show', Log::Everyone)
+        ->fromRoute('log.show', Log::Trending)
         ->post(route('commit-star.store', $commit));
 
-    $response->assertRedirectToRoute('log.show', Log::Everyone);
+    $response->assertRedirectToRoute('log.show', Log::Trending);
 
     expect($user->hasStarred($commit))->toBeTrue();
 });
@@ -58,7 +58,7 @@ it('may not star a commit that is not visible', function (string $state): void {
     $commit = Commit::factory()->{$state}()->create();
 
     $this->actingAs($user)
-        ->fromRoute('log.show', Log::Everyone)
+        ->fromRoute('log.show', Log::Trending)
         ->post(route('commit-star.store', $commit))
         ->assertForbidden();
 
@@ -72,10 +72,10 @@ it('may unstar a commit', function (): void {
     $user->starredCommits()->attach($commit);
 
     $response = $this->actingAs($user)
-        ->fromRoute('log.show', Log::Everyone)
+        ->fromRoute('log.show', Log::Trending)
         ->delete(route('commit-star.destroy', $commit));
 
-    $response->assertRedirectToRoute('log.show', Log::Everyone);
+    $response->assertRedirectToRoute('log.show', Log::Trending);
 
     expect($user->hasStarred($commit))->toBeFalse();
 });
@@ -104,7 +104,7 @@ it('shows the star count and whether the viewer starred the commit', function ()
     $user->starredCommits()->attach($starred);
     User::factory()->create()->starredCommits()->attach($starred);
 
-    $response = $this->actingAs($user)->get(route('log.show', Log::Everyone));
+    $response = $this->actingAs($user)->get(route('log.show', Log::Trending));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page

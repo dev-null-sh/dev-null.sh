@@ -25,7 +25,7 @@ const shortcuts: Shortcut[] = [
     },
     { keys: ['⌫'], label: 'Remove an empty commit from the series' },
     { keys: ['g', 'l'], label: 'Go to your log' },
-    { keys: ['g', 'e'], label: 'Go to everyone' },
+    { keys: ['g', 'e'], label: 'Go to trending' },
     { keys: ['g', 'p'], label: 'Go to your profile' },
     { keys: ['g', 's'], label: 'Go to settings' },
     { keys: ['?'], label: 'Show this list' },

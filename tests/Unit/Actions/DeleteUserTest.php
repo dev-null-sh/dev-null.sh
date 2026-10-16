@@ -129,3 +129,15 @@ it('lowers the threads the deleted user starred or replied to', function (): voi
         ->and($repliedTo->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($repliedTo->created_at, 0, 1), 1e-9);
 });
+
+it('lowers the threads the deleted user quoted', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($user)->for($commit, 'quotedCommit')->create();
+    resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+});

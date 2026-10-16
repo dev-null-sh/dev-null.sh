@@ -111,12 +111,10 @@ export default function Show({
 
     return (
         <>
-            <Head title={log === 'following' ? 'Following' : 'Everyone'} />
+            <Head title={titles[log]} />
 
             <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]">
-                <h1 className="sr-only">
-                    {log === 'following' ? 'Following' : 'Everyone'}
-                </h1>
+                <h1 className="sr-only">{titles[log]}</h1>
                 <PageTabs
                     label="Logs"
                     prefetch={false}
@@ -127,9 +125,14 @@ export default function Show({
                             isActive: log === 'following',
                         },
                         {
-                            title: 'Everyone',
-                            href: LogController.show('everyone'),
-                            isActive: log === 'everyone',
+                            title: 'Latest',
+                            href: LogController.show('latest'),
+                            isActive: log === 'latest',
+                        },
+                        {
+                            title: 'Trending',
+                            href: LogController.show('trending'),
+                            isActive: log === 'trending',
                         },
                     ]}
                 />
@@ -176,11 +179,11 @@ export default function Show({
                                     <>
                                         <Link
                                             href={LogController.show(
-                                                'everyone',
+                                                'trending',
                                             )}
                                             className="font-medium text-primary underline"
                                         >
-                                            Everyone
+                                            Trending
                                         </Link>
                                         .
                                     </>
@@ -201,6 +204,12 @@ export default function Show({
         </>
     );
 }
+
+const titles: Record<Log, string> = {
+    following: 'Following',
+    latest: 'Latest',
+    trending: 'Trending',
+};
 
 /**
  * Commits fetched earlier are older than the ones fetched last, so the newest of all is where the next fetch starts.
@@ -257,10 +266,10 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
             <p className="mt-4 text-sm text-muted-foreground">
                 Or browse{' '}
                 <Link
-                    href={LogController.show('everyone')}
+                    href={LogController.show('trending')}
                     className="font-medium text-primary underline"
                 >
-                    Everyone
+                    Trending
                 </Link>{' '}
                 for more.
             </p>
