@@ -34,24 +34,36 @@ final readonly class Urls
     }
 
     /**
-     * Finds the first http(s) URL or bare domain in the text, whichever comes first, and returns it as a URL. A bare
-     * domain gets an https scheme. A URL in code doesn't count. Keep the rules in sync with
-     * resources/js/components/linkified-text.tsx.
+     * Finds the first http(s) URL or bare domain in the text, whichever comes first, and returns it as a URL.
      */
     public function first(string $text): ?string
     {
+        return $this->all($text)[0] ?? null;
+    }
+
+    /**
+     * Finds every http(s) URL and bare domain in the text, in order and once each, and returns them as URLs. A bare
+     * domain gets an https scheme. A URL in code doesn't count. Keep the rules in sync with
+     * resources/js/components/linkified-text.tsx.
+     *
+     * @return list<string>
+     */
+    public function all(string $text): array
+    {
         preg_match_all($this->pattern(), $this->codeSpans->withoutCode($text), $matches);
+
+        $urls = [];
 
         foreach ($matches[0] as $candidate) {
             $match = $this->withoutTrailingPunctuation($candidate);
             $url = preg_match('/^https?:\/\//i', $match) === 1 ? $match : 'https://'.$match;
 
-            if (! str_ends_with($url, '://') && mb_strlen($url) <= self::MAX_LENGTH) {
-                return $url;
+            if (! str_ends_with($url, '://') && mb_strlen($url) <= self::MAX_LENGTH && ! in_array($url, $urls, true)) {
+                $urls[] = $url;
             }
         }
 
-        return null;
+        return $urls;
     }
 
     /**
