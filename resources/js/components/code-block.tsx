@@ -7,9 +7,11 @@ import { cn } from '@/lib/utils';
 export function CodeBlock({
     html,
     language,
+    isCopyable = true,
 }: {
     html: string;
     language: string | null;
+    isCopyable?: boolean;
 }) {
     const codeRef = useRef<HTMLPreElement>(null);
     const [, copy] = useClipboard();
@@ -56,41 +58,48 @@ export function CodeBlock({
                 {language && (
                     <span
                         className={cn(
-                            'rounded-sm bg-muted px-1.5 font-mono text-[11px] text-muted-foreground transition-opacity select-none group-hover/code:opacity-0 group-has-focus-visible/code:opacity-0 [@media(hover:none)]:opacity-0',
+                            'rounded-sm bg-muted px-1.5 font-mono text-[11px] text-muted-foreground select-none',
+                            isCopyable &&
+                                'transition-opacity group-hover/code:opacity-0 group-has-focus-visible/code:opacity-0 [@media(hover:none)]:opacity-0',
                             isCopied && 'opacity-0',
                         )}
                     >
                         {language}
                     </span>
                 )}
-                <button
-                    type="button"
-                    onClick={copyCode}
-                    aria-label="Copy code"
-                    title="Copy code"
-                    className={cn(
-                        'relative grid size-7 place-items-center rounded-md bg-muted text-muted-foreground opacity-0 transition group-hover/code:opacity-100 group-has-focus-visible/code:opacity-100 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [@media(hover:none)]:opacity-100',
-                        isCopied && 'text-foreground opacity-100',
-                    )}
-                >
-                    <Copy
-                        className={cn(
-                            'absolute size-3.5 transition-[opacity,scale,filter] duration-200 motion-reduce:transition-none',
-                            isCopied && 'scale-50 opacity-0 blur-[2px]',
-                        )}
-                        aria-hidden
-                    />
-                    <Check
-                        className={cn(
-                            'absolute size-3.5 transition-[opacity,scale,filter] duration-200 motion-reduce:transition-none',
-                            !isCopied && 'scale-50 opacity-0 blur-[2px]',
-                        )}
-                        aria-hidden
-                    />
-                </button>
-                <span role="status" className="sr-only">
-                    {isCopied ? 'Code copied to clipboard' : ''}
-                </span>
+                {isCopyable && (
+                    <>
+                        <button
+                            type="button"
+                            onClick={copyCode}
+                            aria-label="Copy code"
+                            title="Copy code"
+                            className={cn(
+                                'relative grid size-7 place-items-center rounded-md bg-muted text-muted-foreground opacity-0 transition group-hover/code:opacity-100 group-has-focus-visible/code:opacity-100 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [@media(hover:none)]:opacity-100',
+                                isCopied && 'text-foreground opacity-100',
+                            )}
+                        >
+                            <Copy
+                                className={cn(
+                                    'absolute size-3.5 transition-[opacity,scale,filter] duration-200 motion-reduce:transition-none',
+                                    isCopied && 'scale-50 opacity-0 blur-[2px]',
+                                )}
+                                aria-hidden
+                            />
+                            <Check
+                                className={cn(
+                                    'absolute size-3.5 transition-[opacity,scale,filter] duration-200 motion-reduce:transition-none',
+                                    !isCopied &&
+                                        'scale-50 opacity-0 blur-[2px]',
+                                )}
+                                aria-hidden
+                            />
+                        </button>
+                        <span role="status" className="sr-only">
+                            {isCopied ? 'Code copied to clipboard' : ''}
+                        </span>
+                    </>
+                )}
             </div>
         </div>
     );
