@@ -42,18 +42,3 @@ await test('preserves ordinary code and obvious placeholder examples', () => {
         assert.equal(stashableBody(body), body);
     }
 });
-
-await test('never stashes a series with a secret in any part', () => {
-    const privateKey =
-        '-----BEGIN PRIVATE KEY-----\nAbCdEfGhIjKlMnOp1234567890\n-----END PRIVATE KEY-----';
-
-    for (const secret of [githubToken, privateKey]) {
-        assert.equal(stashableBody(['An ordinary first part', secret]), '');
-        assert.equal(stashableBody([secret, 'An ordinary continuation']), '');
-    }
-});
-
-await test('keeps safe series parts and their positions in the stash', () => {
-    const bodies = ['First part', '', 'Third part'];
-    assert.equal(stashableBody(bodies), JSON.stringify(bodies));
-});

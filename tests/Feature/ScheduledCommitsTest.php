@@ -74,12 +74,12 @@ it('rejects invalid times and bodies', function (array $payload, string $field):
     'beyond thirty days' => [['scheduled_at' => '2026-11-14T12:00:01+00:00'], 'scheduled_at'],
     'too short' => [['body' => 'ab'], 'body'],
     'whitespace' => [['body' => '    '], 'body'],
-    'too long' => [['body' => str_repeat('a', 281)], 'body'],
+    'too long' => [['body' => str_repeat('a', 4001)], 'body'],
 ]);
 
 it('accepts the scheduling window boundary and unicode body', function (): void {
     $this->actingAs(User::factory()->create())->post(route('scheduled-commit.store'), [
-        'body' => str_repeat('é', 280),
+        'body' => str_repeat('é', 4000),
         'scheduled_at' => now()->addDays(30)->toIso8601String(),
     ])->assertSessionHasNoErrors();
     expect(ScheduledCommit::query()->count())->toBe(1);
@@ -123,38 +123,6 @@ it('shares the existing commit rate limit', function (): void {
     expect(ScheduledCommit::query()->count())->toBe(0);
 });
 
-it('counts series parts against the scheduled submission budget', function (): void {
-    $user = User::factory()->create();
-    $this->actingAs($user)->post(route('commit-series.store'), [
-        'bodies' => array_fill(0, 9, 'A series part.'),
-    ])->assertSessionHasNoErrors();
-
-    $payload = ['body' => 'A scheduled commit.', 'scheduled_at' => now()->addDay()->toIso8601String()];
-    $this->post(route('scheduled-commit.store'), $payload)->assertSessionHasNoErrors();
-    $this->post(route('scheduled-commit.store'), $payload)->assertRedirect();
-
-    expect(Commit::query()->count())->toBe(9)
-        ->and(ScheduledCommit::query()->count())->toBe(1);
-});
-
-it('counts scheduled submissions against the series budget without partially posting', function (): void {
-    $user = User::factory()->create();
-    $this->actingAs($user)->post(route('scheduled-commit.store'), [
-        'body' => 'A scheduled commit.', 'scheduled_at' => now()->addDay()->toIso8601String(),
-    ])->assertSessionHasNoErrors();
-
-    $this->post(route('commit-series.store'), [
-        'bodies' => array_fill(0, 10, 'A series part.'),
-    ])->assertRedirect();
-    expect(Commit::query()->count())->toBe(0);
-
-    $this->post(route('commit-series.store'), [
-        'bodies' => array_fill(0, 9, 'A series part.'),
-    ])->assertSessionHasNoErrors();
-    expect(Commit::query()->count())->toBe(9)
-        ->and(ScheduledCommit::query()->count())->toBe(1);
-});
-
 it('keeps schedules out of logs profiles activity previews and moderation until due', function (): void {
     $user = User::factory()->create();
     $admin = User::factory()->create(['username' => 'admin']);
@@ -174,6 +142,17 @@ it('keeps schedules out of logs profiles activity previews and moderation until 
     $this->travelTo($scheduled->scheduled_at);
     $this->artisan('commits:submit-scheduled')->assertSuccessful();
     $this->get(route('moderation.show'))->assertInertia(fn ($page) => $page->has('commits.data', 1)->where('hasUnmoderatedCommits', true));
+});
+
+it('splits scheduled bodies into segments, with an excerpt of the long ones', function (): void {
+    $user = User::factory()->create();
+    ScheduledCommit::factory()->for($user)->create(['body' => 'run `make`', 'scheduled_at' => now()->addHour()]);
+    ScheduledCommit::factory()->for($user)->create(['body' => str_repeat('again ', 60), 'scheduled_at' => now()->addHours(2)]);
+
+    $this->actingAs($user)->get(route('scheduled-commit.index'))->assertInertia(fn ($page) => $page
+        ->where('scheduledCommits.data.0.body_segments', [['type' => 'text', 'text' => 'run '], ['type' => 'code', 'code' => 'make']])
+        ->where('scheduledCommits.data.0.preview_segments', null)
+        ->where('scheduledCommits.data.1.preview_segments', [['type' => 'text', 'text' => mb_rtrim(str_repeat('again ', 46)).'…']]));
 });
 
 it('only lists the current authors schedules and forbids canceling another authors item', function (): void {

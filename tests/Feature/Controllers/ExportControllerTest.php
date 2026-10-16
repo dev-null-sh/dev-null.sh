@@ -137,9 +137,6 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         'id' => $approved->id,
         'parent_id' => null,
         'quoted_commit_id' => null,
-        'series_id' => null,
-        'series_position' => null,
-        'series_size' => null,
         'body' => $approved->body,
         'status' => 'approved',
         'images' => [],
@@ -217,20 +214,6 @@ it('exports the polls of live commits and votes without other voters', function 
             'created_at' => $vote->created_at->toIso8601String(),
         ]])
         ->and($response->streamedContent())->not->toContain($voter->id, $voter->username, $deleted->options[0]->label);
-});
-
-it('exports where each commit sits in its series', function (): void {
-    $user = User::factory()->create();
-    $parts = commitSeries($user, size: 2);
-
-    $response = $this->actingAs($user)->get(route('export'));
-    $commits = collect(json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR)['commits'])->keyBy('id');
-
-    expect($commits[$parts[1]->id])
-        ->parent_id->toBe($parts[0]->id)
-        ->series_id->toBe($parts[0]->series_id)
-        ->series_position->toBe(2)
-        ->series_size->toBe(2);
 });
 
 it('exports surviving replies and polls after another account is deleted', function (): void {

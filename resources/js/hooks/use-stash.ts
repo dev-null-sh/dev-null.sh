@@ -24,18 +24,6 @@ export type UseStashReturn = {
     readonly drop: () => void;
 };
 
-export type UseSeriesStashReturn = {
-    readonly bodies: string[];
-    readonly images: File[];
-    readonly descriptions: string[];
-    readonly isRestored: boolean;
-    readonly updateBody: (index: number, body: string) => void;
-    readonly updateImages: (images: File[], descriptions?: string[]) => void;
-    readonly insertPart: (index: number) => void;
-    readonly removePart: (index: number) => void;
-    readonly drop: () => void;
-};
-
 const listeners = new Set<() => void>();
 const pending = new Map<string, string>();
 const images = new Map<string, StoredImages>();
@@ -171,6 +159,13 @@ export function moveCaretToEnd(event: FocusEvent<HTMLTextAreaElement>): void {
     }
 }
 
+/**
+ * Drafts of series kept their later parts there. Only the first part survives, as the commit being written.
+ */
+export function discardSeriesStash(userId: string): void {
+    writeStorage(`${keyFor(userId, 'commit')}:later`, '');
+}
+
 export function clearStashes(userId: string): void {
     const prefix = prefixFor(userId);
 
@@ -267,97 +262,5 @@ export function useStash(userId: string, name: string): UseStashReturn {
         updateBody,
         updateImages,
         drop,
-    } as const;
-}
-
-const readLaterBodies = (key: string): string[] => {
-    try {
-        const stored: unknown = JSON.parse(read(key) || '[]');
-
-        return Array.isArray(stored)
-            ? stored.filter((body): body is string => typeof body === 'string')
-            : [];
-    } catch {
-        return [];
-    }
-};
-
-export function useSeriesStash(
-    userId: string,
-    name: string,
-): UseSeriesStashReturn {
-    const key = keyFor(userId, name);
-    const laterKey = `${key}:later`;
-    const [bodies, setBodies] = useState(() => [
-        read(key),
-        ...readLaterBodies(laterKey),
-    ]);
-    const { draftImages, descriptions, isImagesRestored } = useDraftImages(key);
-    const [isDraftRestored, setIsDraftRestored] = useState(
-        () => bodies.some((body) => body !== '') || draftImages.length > 0,
-    );
-
-    useEffect(() => {
-        if (stashableBody(bodies) === '') {
-            discardBody(key);
-            discardBody(laterKey);
-        }
-    }, [bodies, key, laterKey]);
-
-    const store = (next: string[]): void => {
-        const [first = '', ...later] = next;
-
-        setBodies(next);
-
-        if (stashableBody(next) === '') {
-            discardBody(key);
-            discardBody(laterKey);
-
-            return;
-        }
-
-        if (first === '') {
-            discardBody(key);
-        } else {
-            schedule(key, first);
-        }
-
-        if (later.some((body) => body !== '')) {
-            schedule(laterKey, JSON.stringify(later));
-        } else {
-            discardBody(laterKey);
-        }
-
-        if (next.every((body) => body === '') && draftImages.length === 0) {
-            setIsDraftRestored(false);
-        }
-    };
-
-    return {
-        bodies,
-        images: draftImages,
-        descriptions,
-        isRestored:
-            (isDraftRestored || isImagesRestored) &&
-            (bodies.some((body) => body !== '') || draftImages.length > 0),
-        updateBody: (index, body) =>
-            store(bodies.map((current, at) => (at === index ? body : current))),
-        updateImages: (next, descriptions = []) => {
-            if (next.length === 0 && bodies.every((body) => body === '')) {
-                setIsDraftRestored(false);
-            }
-
-            storeImages(key, next, descriptions);
-        },
-        insertPart: (index) =>
-            store([...bodies.slice(0, index), '', ...bodies.slice(index)]),
-        removePart: (index) => store(bodies.filter((_, at) => at !== index)),
-        drop: () => {
-            setBodies(['']);
-            setIsDraftRestored(false);
-            discardBody(key);
-            discardBody(laterKey);
-            storeImages(key, []);
-        },
     } as const;
 }

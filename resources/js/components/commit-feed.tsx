@@ -26,6 +26,7 @@ export function CommitFeed({
     pinnedCommit = null,
     latestCommits = [],
     isRanked = false,
+    isFolded = true,
     interlude,
 }: {
     commits: CursorPaginated<Commit>;
@@ -39,6 +40,7 @@ export function CommitFeed({
     pinnedCommit?: Commit | null;
     latestCommits?: Commit[];
     isRanked?: boolean;
+    isFolded?: boolean;
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
 }) {
     const now = useNow();
@@ -90,9 +92,7 @@ export function CommitFeed({
                         (isSaved
                             ? restored.is_saved === true
                             : isProfileReplies
-                              ? restored.parent_id !== null &&
-                                (restored.series_position === null ||
-                                    restored.series_position === 1)
+                              ? restored.parent_id !== null
                               : restored.parent_id === null) &&
                         (profileUserId === null ||
                             (restored.user_id === profileUserId &&
@@ -187,6 +187,7 @@ export function CommitFeed({
             }
             actions={actions?.(commit)}
             threadActions={threadActions?.(commit)}
+            isFolded={isFolded}
             onAuthorHover={(isHovering) =>
                 setHighlightedAuthor(isHovering ? commit.user_id : null)
             }

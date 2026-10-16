@@ -9,7 +9,6 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
@@ -37,21 +36,10 @@ it('renders pending commits oldest first', function (): void {
             ->has('commits.data.0.user'));
 });
 
-it('shows the ai decision on commits and their series parts', function (): void {
+it('shows the ai decision on commits', function (): void {
     $admin = User::factory()->create(['username' => 'admin']);
-    $seriesId = Str::uuid7()->toString();
 
-    $first = Commit::factory()->pending()->create([
-        'series_id' => $seriesId,
-        'series_position' => 1,
-        'series_size' => 2,
-        'ai_decision' => CommitStatus::Approved,
-        'ai_categories' => [],
-    ]);
-    Commit::factory()->pending()->for($first, 'parent')->create([
-        'series_id' => $seriesId,
-        'series_position' => 2,
-        'series_size' => 2,
+    Commit::factory()->pending()->create([
         'ai_decision' => CommitStatus::Rejected,
         'ai_categories' => ['harassment'],
     ]);
@@ -62,10 +50,8 @@ it('shows the ai decision on commits and their series parts', function (): void 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->has('commits.data', 1)
-            ->where('commits.data.0.ai_decision', 'approved')
-            ->where('commits.data.0.ai_categories', [])
-            ->where('commits.data.0.series_parts.1.ai_decision', 'rejected')
-            ->where('commits.data.0.series_parts.1.ai_categories', ['harassment']));
+            ->where('commits.data.0.ai_decision', 'rejected')
+            ->where('commits.data.0.ai_categories', ['harassment']));
 });
 
 it('keeps ai suggestions private and notifies the quoted author only after moderator approval', function (): void {

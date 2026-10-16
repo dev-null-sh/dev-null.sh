@@ -22,11 +22,6 @@ const shortcuts = (keys: KeyLabels): Shortcut[] => [
     { keys: ['/'], label: 'Search developers and commits' },
     { keys: [keys.mod, '↵'], label: 'Commit (in the composer)' },
     { keys: [keys.mod, keys.shift, 'P'], label: 'Preview (in the composer)' },
-    {
-        keys: [keys.mod, keys.shift, '↵'],
-        label: 'Add another commit to the series (in the composer)',
-    },
-    { keys: [keys.backspace], label: 'Remove an empty commit from the series' },
     { keys: ['g', 'l'], label: 'Go to your log' },
     { keys: ['g', 'e'], label: 'Go to trending' },
     { keys: ['g', 'p'], label: 'Go to your profile' },

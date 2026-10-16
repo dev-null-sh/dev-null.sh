@@ -24,13 +24,11 @@ test('to array', function (): void {
             'parent_id',
             'deleted_at',
             'link_preview_id',
-            'series_id',
-            'series_position',
-            'series_size',
             'quoted_commit_id',
             'root_id',
             'hot_score',
             'body_segments',
+            'preview_segments',
         ]);
 });
 
@@ -41,6 +39,18 @@ it('splits its body into segments', function (): void {
         ['type' => 'text', 'text' => 'run '],
         ['type' => 'code', 'code' => 'make'],
     ]);
+});
+
+it('splits the excerpt of a body too long to show whole in a list into segments too', function (): void {
+    $short = Commit::factory()->create(['body' => 'run `make`']);
+    $long = Commit::factory()->create(['body' => 'run `make` '.str_repeat('again ', 60)]);
+
+    expect($short->toArray()['preview_segments'])->toBeNull()
+        ->and($long->toArray()['preview_segments'])->toBe([
+            ['type' => 'text', 'text' => 'run '],
+            ['type' => 'code', 'code' => 'make'],
+            ['type' => 'text', 'text' => ' '.mb_rtrim(str_repeat('again ', 45)).'…'],
+        ]);
 });
 
 it('belongs to a user', function (): void {
@@ -68,15 +78,6 @@ it('is visible when approved or owned', function (): void {
         ->and($pending->isVisibleTo($viewer))->toBeFalse()
         ->and($rejected->isVisibleTo($author))->toBeTrue()
         ->and($rejected->isVisibleTo($viewer))->toBeFalse();
-});
-
-it('continues a series from its second part on', function (): void {
-    $parts = commitSeries();
-
-    expect(Commit::factory()->create()->isSeriesContinuation())->toBeFalse()
-        ->and($parts[0]->isSeriesContinuation())->toBeFalse()
-        ->and($parts[1]->isSeriesContinuation())->toBeTrue()
-        ->and($parts[2]->isSeriesContinuation())->toBeTrue();
 });
 
 it('deletes stars with the commit', function (): void {
@@ -189,8 +190,8 @@ it('serializes a deleted commit as a tombstone without its author or body', func
     ]);
 });
 
-it('counts visible replies and quotes without series continuations in public previews', function (): void {
-    $parts = commitSeries();
+it('counts visible replies and quotes in public previews', function (): void {
+    $parts = [Commit::factory()->create()];
     Commit::factory()->for($parts[0], 'parent')->create();
     Commit::factory()->for($parts[0], 'parent')->pending()->create();
     Commit::factory()->for($parts[0], 'quotedCommit')->create();

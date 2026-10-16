@@ -18,7 +18,6 @@ use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitReportController;
 use App\Http\Controllers\CommitRestorationController;
 use App\Http\Controllers\CommitSearchController;
-use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
@@ -176,9 +175,6 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.store');
     Route::post('commits/preview', [CommitPreviewController::class, 'store'])
         ->name('commit-preview.store');
-    Route::post('commits/series', [CommitSeriesController::class, 'store'])
-        ->middleware(ThrottleCommits::class)
-        ->name('commit-series.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::post('commits/{commit}/restoration', [CommitRestorationController::class, 'store'])

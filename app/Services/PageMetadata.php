@@ -41,7 +41,7 @@ final readonly class PageMetadata
     public function home(): array
     {
         $url = route('home');
-        $description = __('A social network for developers. Sign in with GitHub, follow people who write code, and commit plain text to a shared log, 280 characters at a time.');
+        $description = __('A social network for developers. Sign in with GitHub, follow people who write code, and commit plain text to a shared log.');
 
         return [
             'type' => 'website',
@@ -103,7 +103,7 @@ final readonly class PageMetadata
             : null;
         $url = route('commit.show', [$user, $commit]);
 
-        $author = $parentUser instanceof User && ! $commit->isSeriesContinuation()
+        $author = $parentUser instanceof User
             ? "{$user->nameWithHandle()} replying to @{$parentUser->username} on /dev/null"
             : "{$user->nameWithHandle()} on /dev/null";
 

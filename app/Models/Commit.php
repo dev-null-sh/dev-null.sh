@@ -6,7 +6,7 @@ namespace App\Models;
 
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
-use App\Services\CodeSpans;
+use App\Services\CommitBodies;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -32,9 +32,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
  * @property-read string|null $quoted_commit_id
- * @property-read string|null $series_id
- * @property-read int|null $series_position
- * @property-read int|null $series_size
  * @property-read CommitStatus|null $ai_decision
  * @property-read list<string>|null $ai_categories
  * @property-read list<float>|null $embedding
@@ -55,7 +52,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
- * @property-read Collection<int, Commit> $seriesParts
  */
 #[Hidden([
     'ai_decision',
@@ -73,6 +69,17 @@ final class Commit extends Model
 
     public const int RESTORABLE_SECONDS = 30;
 
+    public const int MIN_BODY_LENGTH = 3;
+
+    public const int MAX_BODY_LENGTH = 4000;
+
+    /**
+     * Lists show a longer body folded to its first characters and lines, the rest one click away.
+     */
+    public const int PREVIEW_LENGTH = 280;
+
+    public const int PREVIEW_LINES = 8;
+
     /**
      * @return array<string, string>
      */
@@ -88,9 +95,6 @@ final class Commit extends Model
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
             'quoted_commit_id' => 'string',
-            'series_id' => 'string',
-            'series_position' => 'integer',
-            'series_size' => 'integer',
             'ai_decision' => CommitStatus::class,
             'ai_categories' => 'array',
             'embedding' => AsVector::class,
@@ -101,20 +105,20 @@ final class Commit extends Model
     }
 
     /**
-     * A deleted commit only ever leaves a tombstone behind: never its author or body, though a deleted part of a series
-     * keeps its place in it. Otherwise, the body also comes split into prose, inline code and highlighted code blocks, for rendering.
+     * A deleted commit only ever leaves a tombstone behind: never its author or body. Otherwise, the body also comes split
+     * into segments, for rendering.
      *
      * @return array<mixed>
      */
     public function toArray(): array
     {
         if ($this->trashed()) {
-            $keys = ['id', 'parent_id', 'deleted_at', 'replies_count', ...($this->series_id === null ? [] : ['series_position', 'series_size'])];
+            $keys = ['id', 'parent_id', 'deleted_at', 'replies_count'];
 
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return [...parent::toArray(), 'body_segments' => resolve(CodeSpans::class)->highlight($this->body)];
+        return [...parent::toArray(), ...resolve(CommitBodies::class)->segments($this->body)];
     }
 
     /**
@@ -173,24 +177,6 @@ final class Commit extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
-    }
-
-    /**
-     * Every part of the series the commit belongs to, the commit included.
-     *
-     * @return HasMany<Commit, $this>
-     */
-    public function seriesParts(): HasMany
-    {
-        return $this->hasMany(self::class, 'series_id', 'series_id');
-    }
-
-    /**
-     * Later parts of a series are replies to the part before them, yet they read as part of it rather than as replies.
-     */
-    public function isSeriesContinuation(): bool
-    {
-        return $this->series_position !== null && $this->series_position > 1;
     }
 
     /**

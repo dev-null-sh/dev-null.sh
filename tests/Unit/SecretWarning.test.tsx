@@ -9,7 +9,7 @@ import { useSecretWarning } from '../../resources/js/hooks/use-secret-warning';
 const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
 type Warning = ReturnType<typeof useSecretWarning>;
 type Step = {
-    body: string | string[];
+    body: string;
     check: (warning: Warning) => void;
 };
 
@@ -65,28 +65,6 @@ void test('requires confirmation and consumes approval for a single submission',
         },
         {
             body: token,
-            check: (warning) => assert.equal(warning.beforeSubmit(), false),
-        },
-    ]);
-});
-
-void test('invalidates confirmation when any series part changes', () => {
-    run([
-        {
-            body: ['First part', token],
-            check: (warning) => assert.equal(warning.beforeSubmit(), false),
-        },
-        {
-            body: ['First part', token],
-            check: (warning) => {
-                assert.deepEqual(warning.findingsByPart[0], []);
-                assert.equal(warning.findings.length, 1);
-                assert.deepEqual(warning.findingsByPart[1], warning.findings);
-                warning.approve();
-            },
-        },
-        {
-            body: ['Changed first part', token],
             check: (warning) => assert.equal(warning.beforeSubmit(), false),
         },
     ]);

@@ -3,13 +3,17 @@ import { ArrowLeft, Clock3, LockKeyhole } from 'lucide-react';
 import { useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
+import { FoldedCommitBody } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
+import type { BodySegment } from '@/types';
 
 type ScheduledCommit = {
     id: string;
     body: string | null;
+    body_segments: BodySegment[];
+    preview_segments: BodySegment[] | null;
     scheduled_at: string;
     submitted_at: string | null;
     status: 'scheduled' | 'pending' | 'approved' | 'rejected' | 'deleted';
@@ -112,7 +116,7 @@ export default function Index({
                                             variant="outline"
                                             size="sm"
                                             disabled={canceling !== null}
-                                            aria-label={`Cancel scheduled commit: ${scheduled.body}`}
+                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
                                             onClick={() => {
                                                 setCanceling(scheduled.id);
                                                 router.delete(
@@ -134,9 +138,13 @@ export default function Index({
                                     )}
                                 </div>
                                 {scheduled.body && (
-                                    <p className="text-[15px] leading-relaxed break-words whitespace-pre-wrap">
-                                        {scheduled.body}
-                                    </p>
+                                    <FoldedCommitBody
+                                        segments={scheduled.body_segments}
+                                        previewSegments={
+                                            scheduled.preview_segments
+                                        }
+                                        className="text-[15px]"
+                                    />
                                 )}
                                 {scheduled.status === 'scheduled' && (
                                     <p className="text-xs text-muted-foreground">

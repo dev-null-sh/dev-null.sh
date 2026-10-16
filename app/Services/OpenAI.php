@@ -131,7 +131,11 @@ final readonly class OpenAI
         $questions = [];
 
         foreach (array_keys($bodies) as $index) {
-            $questions[] = ['name' => 'post_'.($index + 1), 'type' => 'predicate'];
+            $questions[] = [
+                'name' => 'post_'.($index + 1),
+                'type' => 'predicate',
+                'instructions' => 'Is post '.($index + 1).' actually about what the query asks for?',
+            ];
         }
 
         $response = $this->request()

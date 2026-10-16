@@ -56,6 +56,61 @@ export function CommitBody({
     );
 }
 
+/**
+ * A body too long to show whole in a list comes with its first lines as a preview, unfolded on demand.
+ */
+export function FoldedCommitBody({
+    segments,
+    previewSegments,
+    className,
+}: {
+    segments: BodySegment[];
+    previewSegments: BodySegment[] | null;
+    className?: string;
+}) {
+    const [isUnfolded, setIsUnfolded] = useState(false);
+    const bodyRef = useRef<HTMLDivElement>(null);
+
+    if (previewSegments === null) {
+        return <CommitBody segments={segments} className={className} />;
+    }
+
+    // The button goes away, so focus moves to what was unfolded: the commit card, which the keyboard shortcuts walk,
+    // or the body itself inside a reply, which they don't.
+    const unfold = (button: HTMLButtonElement) => {
+        const card = button.closest<HTMLElement>('[data-reply], [data-commit]');
+
+        setIsUnfolded(true);
+
+        if (card?.matches('[data-commit]')) {
+            card.focus({ preventScroll: true });
+        } else {
+            requestAnimationFrame(() =>
+                bodyRef.current?.focus({ preventScroll: true }),
+            );
+        }
+    };
+
+    return (
+        <div ref={bodyRef} tabIndex={-1} className="outline-none">
+            <CommitBody
+                segments={isUnfolded ? segments : previewSegments}
+                className={className}
+            />
+            {!isUnfolded && (
+                <button
+                    type="button"
+                    onClick={(event) => unfold(event.currentTarget)}
+                    className="mt-0.5 text-[15px] font-medium text-primary hover:underline"
+                    data-test="show-more"
+                >
+                    Show more
+                </button>
+            )}
+        </div>
+    );
+}
+
 export function CommitBodyExcerpt({
     segments,
     className,

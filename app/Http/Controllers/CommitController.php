@@ -14,7 +14,6 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitRepliesQuery;
-use App\Queries\CommitSeriesQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
@@ -27,16 +26,13 @@ final readonly class CommitController
     /**
      * Commits are public, so guests and crawlers read the same page, with the commit's link preview and the replies shown under it as structured data.
      */
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, CommitSeriesQuery $series, PageMetadata $metadata): Response
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, PageMetadata $metadata): Response
     {
-        $isInSeries = $commit->series_id !== null;
-
-        // A series reads in order, so the replies to a part stay folded until asked for...
-        $threadReplies = $isInSeries ? null : $replies->paginate($commit, $currentUser);
+        $threadReplies = $replies->paginate($commit, $currentUser);
 
         $preview = $currentUser instanceof User ? null : $metadata->commit(
             $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.user']),
-            $threadReplies?->items() ?? [],
+            $threadReplies->items(),
         );
 
         $commit = Commit::query()
@@ -46,8 +42,7 @@ final readonly class CommitController
 
         return Inertia::render('commit/show', [
             'commit' => $commit,
-            'ancestors' => $isInSeries ? $series->before($commit, $currentUser) : $ancestors->get($commit, $currentUser),
-            'series' => $series->after($commit, $currentUser),
+            'ancestors' => $ancestors->get($commit, $currentUser),
             'replies' => $threadReplies,
         ])->withViewData(['preview' => $preview]);
     }

@@ -10,8 +10,9 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
+import { BodyCounter } from '@/components/body-counter';
 import { BookmarkButton } from '@/components/bookmark-button';
-import { CommitBody } from '@/components/commit-body';
+import { FoldedCommitBody } from '@/components/commit-body';
 import {
     ImagePickerButton,
     ImagePickerPreviews,
@@ -46,6 +47,7 @@ import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
+import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { hasModKey } from '@/lib/keyboard';
@@ -67,7 +69,6 @@ import type {
 } from '@/types';
 
 const maxIndentDepth = 3;
-const maxBodyLength = 280;
 
 type CreatedReply = {
     committed: CommittedFlash;
@@ -856,8 +857,9 @@ function CommitReply({
                         </p>
                     )}
 
-                    <CommitBody
+                    <FoldedCommitBody
                         segments={reply.body_segments}
+                        previewSegments={reply.preview_segments}
                         className="text-[15px]"
                     />
                     <CommitImages commit={reply} />
@@ -943,8 +945,7 @@ function ReplyComposer({
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
-    const remaining = maxBodyLength - characterCount(body);
-    const isReplyable = characterCount(body.trim()) >= 3;
+    const isReplyable = characterCount(body.trim()) >= minBodyLength;
     const suggestion = suggestEmoji(body);
     const preview = useComposerPreview({
         body,
@@ -1063,7 +1064,7 @@ function ReplyComposer({
                     maxLength={maxBodyLength}
                     placeholder={`Reply to @${parent.user.username}`}
                     className={cn(
-                        'col-start-1 row-start-1 block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
+                        'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
                         { invisible: preview.isPreviewing },
                     )}
                 />
@@ -1137,17 +1138,7 @@ function ReplyComposer({
                         />
                     )}
                 </div>
-                <span
-                    className={cn(
-                        'mr-1 font-mono text-xs text-muted-foreground',
-                        {
-                            'text-amber-700 dark:text-amber-400':
-                                remaining <= 20,
-                        },
-                    )}
-                >
-                    {remaining}
-                </span>
+                <BodyCounter body={body} className="mr-1 text-xs" />
                 <Button
                     type="button"
                     variant="ghost"

@@ -48,6 +48,12 @@ it('creates a commit signed with an ssh key', function (): void {
         ->and($commit->status)->toBe(CommitStatus::Pending);
 });
 
+it('collapses runs of blank lines in a signed commit', function (): void {
+    postSignedCommit(signedCommit($this->keyPair, "It was DNS.\n\n\n\nIt is always DNS."))->assertCreated();
+
+    expect($this->user->commits()->sole()->body)->toBe("It was DNS.\n\nIt is always DNS.");
+});
+
 it('links to the commit when it is published right away', function (): void {
     config(['app.admins' => [$this->user->username]]);
 
@@ -161,7 +167,7 @@ it('validates the commit', function (string $body, string $message): void {
     expect(Commit::query()->count())->toBe(0);
 })->with([
     'too short' => ['  ab  ', 'The body field must be at least 3 characters.'],
-    'too long' => [str_repeat('a', 281), 'The body field must not be greater than 280 characters.'],
+    'too long' => [str_repeat('a', 4001), 'The body field must not be greater than 4000 characters.'],
 ]);
 
 it('rate limits commits', function (): void {

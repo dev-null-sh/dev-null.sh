@@ -15,7 +15,7 @@ import { show } from '@/routes/user';
 
 const rules = [
     'Everyone here signed in with GitHub.',
-    'Commits are plain text, 280 characters max.',
+    'Commits are plain text, up to 4,000 characters.',
     'No algorithm. Newest first.',
     'Profiles mirror GitHub. Edit yours there.',
 ];

@@ -2,15 +2,11 @@
 
 declare(strict_types=1);
 
-use App\Actions\CreateCommitSeries;
 use App\Dto\SshPublicKey;
-use App\Enums\CommitStatus;
 use App\Jobs\UnfurlLink;
-use App\Models\Commit;
 use App\Models\User;
 use App\Services\OpenAI;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -230,19 +226,4 @@ function queuedJob(string $queue, CarbonInterface $createdAt): void
         'available_at' => $createdAt->getTimestamp(),
         'created_at' => $createdAt->getTimestamp(),
     ]);
-}
-
-/**
- * @return Collection<int, Commit>
- */
-function commitSeries(?User $user = null, int $size = 3, CommitStatus $status = CommitStatus::Approved): Collection
-{
-    $parts = resolve(CreateCommitSeries::class)->handle(
-        $user ?? User::factory()->create(),
-        array_map(fn (int $position): string => "Part {$position} of the series", range(1, $size)),
-    );
-
-    Commit::query()->whereKey($parts->modelKeys())->update(['status' => $status]);
-
-    return $parts->fresh();
 }
