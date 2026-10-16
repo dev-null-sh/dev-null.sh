@@ -7,7 +7,7 @@ import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-user';
-import { cn, laneColor } from '@/lib/utils';
+import { cn, laneColor, withViewTransition } from '@/lib/utils';
 
 const laneNames = ['Orange', 'Green', 'Violet', 'Teal', 'Rose', 'Ochre'];
 
@@ -88,7 +88,7 @@ export function LaneOptions({
                         />
                         <span
                             className={cn(
-                                'flex size-7 items-center justify-center rounded-full ring-offset-2 ring-offset-card peer-checked:ring-2 peer-checked:ring-(--lane)',
+                                'relative flex size-7 items-center justify-center rounded-full',
                                 option.value === null
                                     ? 'border-2 border-dashed border-(--lane)'
                                     : 'bg-(--lane)',
@@ -96,6 +96,17 @@ export function LaneOptions({
                         >
                             {option.value === null && (
                                 <span className="size-2.5 rounded-full bg-(--lane)" />
+                            )}
+                            {selected === option.value && (
+                                <span
+                                    aria-hidden
+                                    className={cn(
+                                        'absolute rounded-full border-2 border-(--lane) in-place:[view-transition-name:lane-selected]',
+                                        option.value === null
+                                            ? '-inset-1.5'
+                                            : '-inset-1',
+                                    )}
+                                />
                             )}
                         </span>
                         <span className="text-xs text-muted-foreground peer-checked:font-medium peer-checked:text-foreground">
@@ -136,7 +147,9 @@ export default function LanePicker({
                         <LaneOptions
                             selected={selected}
                             automaticLane={automaticLane}
-                            onSelect={setSelected}
+                            onSelect={(lane) =>
+                                void withViewTransition(() => setSelected(lane))
+                            }
                         />
 
                         <InputError message={errors.lane} className="mt-2" />
