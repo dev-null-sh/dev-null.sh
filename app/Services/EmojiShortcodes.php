@@ -52,7 +52,7 @@ final readonly class EmojiShortcodes
 
         usort($names, static fn (string $left, string $right): int => mb_strlen($right) <=> mb_strlen($left));
 
-        return '/:('.implode('|', $names).')(?![A-Za-z0-9_])/';
+        return '/:('.implode('|', $names).'):?(?![A-Za-z0-9_])/';
     }
 
     /**

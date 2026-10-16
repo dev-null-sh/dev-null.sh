@@ -123,7 +123,7 @@ function ModerationActions({
                         aria-invalid={Boolean(error)}
                         aria-describedby={`${reasonId}-help${error ? ` ${reasonId}-error` : ''}`}
                         autoFocus
-                        className="block min-h-20 w-full resize-y rounded-md border bg-transparent px-3 py-2 text-[15px] outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+                        className="block min-h-20 w-full resize-y rounded-md border bg-transparent px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50 md:text-[15px]"
                     />
                     <div
                         className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
