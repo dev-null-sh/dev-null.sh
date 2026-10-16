@@ -3,10 +3,7 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import { test, vi } from 'vite-plus/test';
 
-const bodies = new Map<string, string>([
-    ['stash:author:commit', 'First part'],
-    ['stash:author:commit:later', JSON.stringify(['Second part'])],
-]);
+const bodies = new Map<string, string>([['stash:author:commit', 'First draft']]);
 const image = new File(['image'], 'draft.png', { type: 'image/png' });
 const storedImages = new Map<
     string,
@@ -88,10 +85,10 @@ vi.doMock('../../resources/js/lib/image-storage', () => ({
     },
 }));
 
-const { clearStashes, useHasStash, useSeriesStash, useStash } =
+const { clearStashes, useHasStash, useStash } =
     await import('../../resources/js/hooks/use-stash');
 
-test('restores series images, preserves them through part edits, and drops the complete draft', async () => {
+test('restores draft images, preserves them through body edits, and drops the complete draft', async () => {
     const windowBefore = globalThis.window;
     globalThis.window = { addEventListener() {} } as unknown as Window &
         typeof globalThis;
@@ -99,7 +96,7 @@ test('restores series images, preserves them through part edits, and drops the c
     const render = () => {
         cursor = 0;
 
-        return useSeriesStash('author', 'commit');
+        return useStash('author', 'commit');
     };
 
     try {
@@ -107,29 +104,22 @@ test('restores series images, preserves them through part edits, and drops the c
         await Promise.resolve();
 
         let draft = render();
-        assert.deepEqual(draft.bodies, ['First part', 'Second part']);
+        assert.equal(draft.body, 'First draft');
         assert.deepEqual(draft.images, [image]);
         assert.deepEqual(draft.descriptions, ['A saved screenshot']);
         assert.equal(draft.isRestored, true);
 
-        draft.insertPart(1);
+        draft.updateBody('Edited draft');
         draft = render();
-        draft.updateBody(1, 'Inserted part');
-        draft = render();
-        draft.removePart(0);
-        draft = render();
-
-        assert.deepEqual(draft.bodies, ['Inserted part', 'Second part']);
+        assert.equal(draft.body, 'Edited draft');
         assert.deepEqual(draft.images, [image]);
 
         state = [];
         draft = render();
-        assert.deepEqual(draft.bodies, ['Inserted part', 'Second part']);
+        assert.equal(draft.body, 'Edited draft');
         assert.deepEqual(draft.images, [image]);
 
-        draft.updateBody(0, '');
-        draft = render();
-        draft.removePart(1);
+        draft.updateBody('');
         draft = render();
         assert.equal(draft.isRestored, true);
 
@@ -147,7 +137,7 @@ test('restores series images, preserves them through part edits, and drops the c
         draft.drop();
         draft = render();
 
-        assert.deepEqual(draft.bodies, ['']);
+        assert.equal(draft.body, '');
         assert.deepEqual(draft.images, []);
         assert.equal(draft.isRestored, false);
         assert.equal(storedImages.has('stash:author:commit'), false);
@@ -173,59 +163,41 @@ test('restores series images, preserves them through part edits, and drops the c
     }
 });
 
-test.each(['single', 'series'])(
-    '%s drafts keep sensitive text in the editor and images in storage without storing secrets',
-    (kind) => {
+test('drafts keep sensitive text in the editor and images in storage without storing secrets', () => {
         const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
-        const name = `sensitive-${kind}`;
+        const name = 'sensitive';
         const key = `stash:author:${name}`;
         bodies.set(key, token);
-        if (kind === 'series') {
-            bodies.set(`${key}:later`, JSON.stringify(['Later part']));
-        }
         state = [];
         const render = () => {
             cursor = 0;
-            return kind === 'series'
-                ? useSeriesStash('author', name)
-                : useStash('author', name);
-        };
-        const text = (draft: ReturnType<typeof render>) =>
-            'bodies' in draft ? draft.bodies[0] : draft.body;
-        const update = (draft: ReturnType<typeof render>, body: string) => {
-            if ('bodies' in draft) {
-                draft.updateBody(0, body);
-            } else {
-                draft.updateBody(body);
-            }
+            return useStash('author', name);
         };
         vi.stubGlobal('window', { addEventListener() {} });
         try {
             let draft = render();
-            assert.equal(text(draft), token);
+            assert.equal(draft.body, token);
             assert.equal(bodies.has(key), false);
-            assert.equal(bodies.has(`${key}:later`), false);
 
             draft.updateImages([image]);
             draft = render();
-            update(draft, 'Ordinary edited body');
+            draft.updateBody('Ordinary edited body');
             draft = render();
-            update(draft, token);
+            draft.updateBody(token);
             draft = render();
 
-            assert.equal(text(draft), token);
+            assert.equal(draft.body, token);
             assert.deepEqual(draft.images, [image]);
             assert.deepEqual(storedImages.get(key), {
                 images: [image],
                 descriptions: [''],
             });
             assert.equal(bodies.has(key), false);
-            assert.equal(bodies.has(`${key}:later`), false);
             assert.equal(useHasStash('author', name), true);
 
             draft.drop();
             draft = render();
-            assert.equal(text(draft), '');
+            assert.equal(draft.body, '');
             assert.deepEqual(draft.images, []);
             assert.equal(storedImages.has(key), false);
             assert.equal(useHasStash('author', name), false);
@@ -233,14 +205,11 @@ test.each(['single', 'series'])(
             clearStashes('author');
             vi.unstubAllGlobals();
         }
-    },
-);
+});
 
-test.each(['single', 'series'])(
-    '%s drafts keep descriptions paired with repeated files through filtering, removal, restoration and clearing',
-    async (kind) => {
+test('drafts keep descriptions paired with repeated files through filtering, removal, restoration and clearing', async () => {
         vi.resetModules();
-        const name = `described-${kind}`;
+        const name = 'described';
         const key = `stash:described:${name}`;
         const invalid = new File(['text'], 'invalid.txt', {
             type: 'text/plain',
@@ -261,10 +230,7 @@ test.each(['single', 'series'])(
         vi.stubGlobal('window', { addEventListener() {} });
         const render = () => {
             cursor = 0;
-            const draft =
-                kind === 'series'
-                    ? hooks.useSeriesStash('described', name)
-                    : hooks.useStash('described', name);
+            const draft = hooks.useStash('described', name);
             const attachments = useImageAttachments(
                 draft.images,
                 draft.descriptions,
@@ -299,9 +265,7 @@ test.each(['single', 'series'])(
             state = [];
             const restore = () => {
                 cursor = 0;
-                return kind === 'series'
-                    ? restoredHooks.useSeriesStash('described', name)
-                    : restoredHooks.useStash('described', name);
+                return restoredHooks.useStash('described', name);
             };
             restore();
             await Promise.resolve();
@@ -320,12 +284,9 @@ test.each(['single', 'series'])(
             hooks.clearStashes('described');
             vi.unstubAllGlobals();
         }
-    },
-);
+});
 
-test.each(['single', 'series'])(
-    '%s drafts release image URLs on replacement, drop and logout while keeping retained images usable',
-    async (kind) => {
+test('drafts release image URLs on replacement, drop and logout while keeping retained images usable', async () => {
         vi.resetModules();
         const hooks = await import('../../resources/js/hooks/use-stash');
         const { objectUrlFor } =
@@ -338,9 +299,7 @@ test.each(['single', 'series'])(
         state = [];
         const render = () => {
             cursor = 0;
-            return kind === 'series'
-                ? hooks.useSeriesStash('url-owner', 'commit')
-                : hooks.useStash('url-owner', 'commit');
+            return hooks.useStash('url-owner', 'commit');
         };
         try {
             let draft = render();
@@ -368,5 +327,4 @@ test.each(['single', 'series'])(
             hooks.clearStashes('url-owner');
             revoke.mockRestore();
         }
-    },
-);
+});

@@ -39,7 +39,7 @@ export function GuestComposer() {
                 </h2>
                 <p className="mt-1 text-[15px] text-pretty text-muted-foreground">
                     Everyone below signed in with GitHub and committed plain
-                    text, 280 characters at a time. Your turn.
+                    text. Your turn.
                 </p>
 
                 <a

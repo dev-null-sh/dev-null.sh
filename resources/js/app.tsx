@@ -10,7 +10,7 @@ import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
 import '../css/app.css';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || '/dev/null';
 
 trackCurrentPage();
 

@@ -708,7 +708,9 @@ function NotificationContent({
             ? actorsCount - 1
             : 0;
     const moderation =
-        notification.type === 'approved' || notification.type === 'rejected';
+        notification.type === 'approved' ||
+        notification.type === 'rejected' ||
+        notification.type === 'warned';
     const isOwnCommit = notification.type === 'starred' || moderation;
     const Icon = {
         followed: UserPlus,

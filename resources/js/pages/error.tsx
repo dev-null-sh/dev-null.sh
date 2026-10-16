@@ -60,7 +60,7 @@ function errorCopy(
             return {
                 title: 'Down for maintenance',
                 command: `fatal: unable to access '${path}': The requested URL returned error: 503`,
-                headline: 'devnull is down for maintenance.',
+                headline: '/dev/null is down for maintenance.',
                 description:
                     "We're making changes and will be back shortly. Try again in a few minutes.",
             };
@@ -103,7 +103,7 @@ export default function ErrorPage({ status }: { status: Status }) {
                         <div className="min-w-0 flex-1 pb-14 sm:pb-16">
                             <Link
                                 href={action.href}
-                                aria-label={`devnull, ${action.label.toLowerCase()}`}
+                                aria-label={`/dev/null, ${action.label.toLowerCase()}`}
                                 className="inline-flex"
                             >
                                 <AppLogo />

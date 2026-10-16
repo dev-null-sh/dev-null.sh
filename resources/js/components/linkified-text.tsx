@@ -119,36 +119,79 @@ function ShortenedUrl({ url }: { url: string }) {
     );
 }
 
-function withMentions(text: string, offset: number): ReactNode[] {
+function withPasteis(text: string, pasteisMode: boolean): ReactNode {
+    if (!pasteisMode) {
+        return text;
+    }
+
+    return text
+        .split(
+            /(?<![\p{L}\p{M}\p{N}_])(pastel|pasteis|pastéis)(?![\p{L}\p{M}\p{N}_])/giu,
+        )
+        .map((part, index) =>
+            index % 2 === 0 ? (
+                part
+            ) : (
+                <img
+                    key={index}
+                    src="/pastel-de-nata.svg"
+                    alt={part}
+                    title={part}
+                    width={20}
+                    height={20}
+                    className="inline-block size-[1.25em] object-contain align-[-0.2em]"
+                />
+            ),
+        );
+}
+
+function withMentions(
+    text: string,
+    offset: number,
+    pasteisMode: boolean,
+    isStatic: boolean,
+): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
 
     for (const match of text.matchAll(mentionPattern)) {
         parts.push(
-            text.slice(position, match.index),
-            <UserPreview
-                key={`mention-${offset + match.index}`}
-                user={{ username: match[1] }}
-            >
-                <Link
-                    href={show({ username: match[1] })}
-                    className="font-medium text-primary hover:underline"
-                    data-test="mention"
+            withPasteis(text.slice(position, match.index), pasteisMode),
+            isStatic ? (
+                match[0]
+            ) : (
+                <UserPreview
+                    key={`mention-${offset + match.index}`}
+                    user={{ username: match[1] }}
                 >
-                    {match[0]}
-                </Link>
-            </UserPreview>,
+                    <Link
+                        href={show({ username: match[1] })}
+                        className="font-medium text-primary hover:underline"
+                        data-test="mention"
+                    >
+                        {match[0]}
+                    </Link>
+                </UserPreview>
+            ),
         );
 
         position = match.index + match[0].length;
     }
 
-    parts.push(text.slice(position));
+    parts.push(withPasteis(text.slice(position), pasteisMode));
 
     return parts;
 }
 
-export function LinkifiedText({ text }: { text: string }) {
+export function LinkifiedText({
+    text,
+    pasteisMode = false,
+    isStatic = false,
+}: {
+    text: string;
+    pasteisMode?: boolean;
+    isStatic?: boolean;
+}) {
     const parts: ReactNode[] = [];
     let position = 0;
 
@@ -161,23 +204,34 @@ export function LinkifiedText({ text }: { text: string }) {
         }
 
         parts.push(
-            ...withMentions(text.slice(position, match.index), position),
-            <a
-                key={match.index}
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer nofollow ugc"
-                title={href}
-                className="wrap-anywhere text-primary hover:underline"
-            >
-                <ShortenedUrl url={linkText} />
-            </a>,
+            ...withMentions(
+                text.slice(position, match.index),
+                position,
+                pasteisMode,
+                isStatic,
+            ),
+            isStatic ? (
+                linkText
+            ) : (
+                <a
+                    key={match.index}
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow ugc"
+                    title={href}
+                    className="wrap-anywhere text-primary hover:underline"
+                >
+                    <ShortenedUrl url={linkText} />
+                </a>
+            ),
         );
 
         position = match.index + linkText.length;
     }
 
-    parts.push(...withMentions(text.slice(position), position));
+    parts.push(
+        ...withMentions(text.slice(position), position, pasteisMode, isStatic),
+    );
 
     return <>{parts}</>;
 }

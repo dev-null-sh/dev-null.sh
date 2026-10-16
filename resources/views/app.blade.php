@@ -47,7 +47,7 @@
         @else
             <meta property="og:type" content="website">
             <meta property="og:site_name" content="/dev/null">
-            <meta property="og:title" content="devnull">
+            <meta property="og:title" content="/dev/null">
             <meta property="og:description" content="A social network for developers. Sign in with GitHub, commit plain text to a shared log.">
             <meta property="og:image" content="{{ url('/og.png') }}">
             <meta property="og:image:width" content="1200">
@@ -93,7 +93,7 @@
         @viteReactRefresh
         @vite(['resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
         <x-inertia::head>
-            <title>{{ $preview['title'] ?? config('app.name', 'Laravel') }}</title>
+            <title>{{ $preview['title'] ?? config('app.name') }}</title>
         </x-inertia::head>
     </head>
     <body class="font-sans antialiased">

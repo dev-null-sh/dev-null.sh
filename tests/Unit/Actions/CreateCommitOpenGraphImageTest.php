@@ -16,7 +16,7 @@ it('fits commits that would overflow the card', function (string $body): void {
     expect(array_slice((array) getimagesizefromstring($image), 0, 2))->toBe([1200, 630]);
 })->with([
     'a one-liner' => ['Hello, world.'],
-    'a long body with a url' => [str_repeat('Writing PHP on purpose and shipping it before lunch. ', 3).'https://github.com/nunomaduro/devnull.com/pull/57/files#diff-0123456789abcdef'],
+    'a long body with a url' => [str_repeat('Writing PHP on purpose and shipping it before lunch. ', 3).'https://github.com/nunomaduro/dev-null.sh/pull/57/files#diff-0123456789abcdef'],
     'an unbroken word wider than the card' => [str_repeat('supercalifragilistic', 14)],
     'paragraphs' => ["First line.\n\nSecond line.\nThird line.\n\n\nFourth line.\nFifth line.\nSixth line.\nSeventh line."],
     'nothing Geist can draw' => ['🚀🔥✨'],
@@ -38,18 +38,6 @@ it('draws the parent of a reply only when it is approved', function (CommitStatu
     'pending' => [CommitStatus::Pending, false],
     'rejected' => [CommitStatus::Rejected, false],
 ]);
-
-it('does not draw a later part of a series as a reply', function (): void {
-    $part = commitSeries(User::factory()->withoutProfile()->create())[1];
-    $action = resolve(CreateCommitOpenGraphImage::class);
-
-    $asPart = $action->handle($part->user, $part);
-
-    Cache::flush();
-    $part->update(['parent_id' => null]);
-
-    expect($action->handle($part->user, $part->fresh()))->toBe($asPart);
-});
 
 it('draws the number of approved replies', function (): void {
     $commit = Commit::factory()->for(User::factory()->withoutProfile())->create(['body' => 'Hello, world.']);

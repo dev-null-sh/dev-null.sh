@@ -95,12 +95,6 @@ export default function Reports({
                                             ).toLocaleString()}
                                         </time>
                                     </p>
-                                    {report.commit.series_id !== null && (
-                                        <p className="text-xs text-muted-foreground">
-                                            Rejecting applies to every part of
-                                            this series.
-                                        </p>
-                                    )}
                                     <div className="flex flex-wrap gap-2">
                                         <Button
                                             variant="outline"
@@ -122,9 +116,7 @@ export default function Reports({
                                             }
                                         >
                                             <X />
-                                            {report.commit.series_id !== null
-                                                ? 'Reject series'
-                                                : 'Reject commit'}
+                                            Reject commit
                                         </Button>
                                     </div>
                                 </div>

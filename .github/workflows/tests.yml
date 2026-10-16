@@ -125,6 +125,9 @@ jobs:
         with:
           coverage: pcov
 
+      - name: Generate Wayfinder Types
+        run: php artisan wayfinder:generate --with-form
+
       - name: Cache Built Assets
         id: build-cache
         uses: actions/cache@v6

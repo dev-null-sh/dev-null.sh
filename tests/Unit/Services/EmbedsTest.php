@@ -7,7 +7,6 @@ use App\Dto\Embed;
 use App\Enums\EmbedKind;
 use App\Services\EmbedProviders\YouTube;
 use App\Services\Embeds;
-use Illuminate\Support\Env;
 use Uri\WhatWg\Url;
 
 it('embeds links to a provider', function (): void {
@@ -63,14 +62,18 @@ it('asks the providers in order', function (): void {
 });
 
 it('reads the provider list from the environment', function (): void {
-    // Parallel workers inherit EMBEDS_PROVIDERS from the parent, and the immutable
-    // repository will not overwrite that. Drop the inherited value so set() can.
-    putenv('EMBEDS_PROVIDERS');
-    unset($_ENV['EMBEDS_PROVIDERS'], $_SERVER['EMBEDS_PROVIDERS']);
+    // The environment repository is immutable, so it can't override a value that .env already defines (CI copies
+    // .env.example, which does). env() reads $_SERVER and $_ENV first, so the value is set there instead.
+    $server = $_SERVER;
+    $env = $_ENV;
+    $_SERVER['EMBEDS_PROVIDERS'] = $_ENV['EMBEDS_PROVIDERS'] = ' youtube, ,spotify ';
 
-    Env::getRepository()->set('EMBEDS_PROVIDERS', ' youtube, ,spotify ');
-    $config = require config_path('embeds.php');
-    Env::getRepository()->clear('EMBEDS_PROVIDERS');
+    try {
+        $config = require config_path('embeds.php');
+    } finally {
+        $_SERVER = $server;
+        $_ENV = $env;
+    }
 
     expect($config['only'])->toBe(['youtube', 'spotify']);
 });

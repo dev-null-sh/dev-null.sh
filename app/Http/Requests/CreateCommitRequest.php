@@ -10,6 +10,7 @@ use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
+use App\Services\CommitBodies;
 use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -22,7 +23,17 @@ use Illuminate\Validation\Rules\In;
 
 final class CreateCommitRequest extends FormRequest
 {
-    public const array BODY_RULES = ['required', 'string', 'min:3', 'max:280'];
+    public const array BODY_RULES = ['required', 'string', 'min:'.Commit::MIN_BODY_LENGTH, 'max:'.Commit::MAX_BODY_LENGTH];
+
+    /**
+     * Blank lines are collapsed before the body is measured, by every request that takes a body with BODY_RULES.
+     */
+    public static function normalizeBody(FormRequest $request): void
+    {
+        if (is_string($request->input('body'))) {
+            $request->merge(['body' => resolve(CommitBodies::class)->normalize($request->string('body')->value())]);
+        }
+    }
 
     public function authorize(): bool
     {
@@ -134,5 +145,10 @@ final class CreateCommitRequest extends FormRequest
         return $this->filled('quoted_commit_id')
             ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
             : null;
+    }
+
+    public function prepareForValidation(): void
+    {
+        self::normalizeBody($this);
     }
 }

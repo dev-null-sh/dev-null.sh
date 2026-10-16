@@ -57,14 +57,13 @@ export type Commit = {
     hot_score: number;
     body: string;
     body_segments: BodySegment[];
+    preview_segments: BodySegment[] | null;
     status: CommitStatus;
-    series_id: string | null;
-    series_position: number | null;
-    series_size: number | null;
     created_at: string;
     updated_at: string;
     deleted_at?: null;
     stars_count: number;
+    pasteis_count: number;
     starred: boolean;
     user: User;
     replies_count?: number;
@@ -78,7 +77,6 @@ export type Commit = {
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
-    series_parts?: Commit[];
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
     disparages_php: boolean;
@@ -103,8 +101,6 @@ export type DeletedCommit = {
     parent_id: string | null;
     deleted_at: string;
     replies_count?: number;
-    series_position?: number;
-    series_size?: number;
 };
 
 export type ThreadCommit = Commit | DeletedCommit;

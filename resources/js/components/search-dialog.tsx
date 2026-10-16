@@ -10,8 +10,12 @@ import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
+import {
+    searchCommits,
+    suggestedQueries,
+    TooManySearches,
+} from '@/lib/commit-search';
 import { useKeyLabels } from '@/lib/keyboard';
-import { searchMockCommits, suggestedQueries } from '@/lib/mock-search';
 import { searchesCommits, searchIntent } from '@/lib/search-intent';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -27,11 +31,6 @@ const commitDebounce = 350;
 const commitLimit = 5;
 
 type Found<T> = { term: string; items: T[]; throttled?: boolean };
-
-/**
- * Thrown when the server asks the dialog to slow down, so it can say so instead of claiming nothing matched.
- */
-class TooManySearches extends Error {}
 
 type Option =
     | { kind: 'developer'; id: string; user: User }
@@ -69,7 +68,7 @@ export function SearchDialog({
     const commits = useDebouncedSearch(
         commitTerm,
         commitDebounce,
-        (value, signal) => searchMockCommits(value, commitLimit, signal),
+        (value, signal) => searchCommits(value, commitLimit, signal),
     );
 
     const visibleDevelopers = developers.resultsFor(developerTerm);

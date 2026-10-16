@@ -55,7 +55,7 @@ final readonly class SignedCommits
         throw_if(
             ! $user instanceof User,
             InvalidArgumentException::class,
-            "This SSH key ({$sshSignature->publicKey->fingerprint()}) is not on the GitHub account of a devnull user.",
+            "This SSH key ({$sshSignature->publicKey->fingerprint()}) is not on the GitHub account of a /dev/null user.",
         );
 
         throw_unless(

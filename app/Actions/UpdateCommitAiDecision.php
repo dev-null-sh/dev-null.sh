@@ -27,9 +27,10 @@ final readonly class UpdateCommitAiDecision
 
     /**
      * Asks the AI whether the commit, images included, should be approved. The decision is mostly a hint for
-     * moderators: the commit is never approved on its own, but it is rejected, without a reason, when the AI is all
-     * but certain. A commit claiming another language beats PHP is not rejected for it: it gets a community note, and
-     * its author a warning. Failures, such as timeouts or rate limits, are thrown, so the caller can try again later.
+     * moderators: a clean commit is approved when its author already has an approved commit, and it is rejected,
+     * without a reason, when the AI is all but certain. A commit claiming another language beats PHP is not rejected
+     * for it: it gets a community note, and its author a warning. Failures, such as timeouts or rate limits, are
+     * thrown, so the caller can try again later.
      */
     public function handle(Commit $commit): void
     {
@@ -63,6 +64,14 @@ final readonly class UpdateCommitAiDecision
 
         if ($scores !== [] && max($scores) >= self::AUTO_REJECT_THRESHOLD) {
             $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Rejected, onlyPending: true);
+        }
+
+        if ($categories === [] && $commit->user_id !== null && Commit::query()
+            ->where('user_id', $commit->user_id)
+            ->whereKeyNot($commit->id)
+            ->approved()
+            ->exists()) {
+            $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Approved, onlyPending: true);
         }
     }
 }

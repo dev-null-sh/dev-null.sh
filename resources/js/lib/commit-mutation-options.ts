@@ -1,6 +1,6 @@
 import type { Commit, DeletedCommit } from '@/types';
 
-// Keep loaded feed pages and cursors; moderation must regroup the remaining series parts.
+// Keep loaded feed pages and cursors; moderation reloads its queue.
 export function commitMutationOptions(component: string) {
     return {
         preserveScroll: true,
@@ -15,7 +15,6 @@ export function commitMutationOptions(component: string) {
             'commit',
             'pinnedCommit',
             'ancestors',
-            'series',
             'hasUnmoderatedCommits',
             ...(component === 'moderation/show' ? ['commits'] : []),
         ],

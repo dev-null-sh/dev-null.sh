@@ -8,7 +8,7 @@ const image = new File(['restored'], 'draft.png', { type: 'image/png' });
 let state: unknown[] = [];
 let cursor = 0;
 const draft = {
-    bodies: ['A restored draft https://example.com'],
+    body: 'A restored draft https://example.com',
     images: [] as File[],
     descriptions: [] as string[],
     isRestored: true,
@@ -17,14 +17,13 @@ const draft = {
         draft.images = images;
         draft.descriptions = descriptions;
     }),
-    insertPart: vi.fn(),
-    removePart: vi.fn(),
     drop: vi.fn(),
 };
 const user = { id: 'viewer', username: 'viewer', lane: 1 };
 
 vi.doMock('react', () => ({
     ...React,
+    useEffect: () => {},
     useMemo: (factory: () => unknown) => factory(),
     useId: () => `preview-${cursor++}`,
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
@@ -59,8 +58,9 @@ vi.doMock('../../resources/js/hooks/use-user', () => ({
     useUser: () => ({ user }),
 }));
 vi.doMock('../../resources/js/hooks/use-stash', () => ({
-    useSeriesStash: () => draft,
+    useStash: () => draft,
     moveCaretToEnd: vi.fn(),
+    discardSeriesStash: vi.fn(),
 }));
 
 const { CommitComposer } =
@@ -109,22 +109,17 @@ function render() {
 beforeEach(() => {
     vi.clearAllMocks();
     state = [];
-    draft.bodies = ['A restored draft https://example.com'];
+    draft.body = 'A restored draft https://example.com';
     draft.images = [];
     draft.descriptions = [];
 });
 
-test.each([1, 2])(
-    'preserves restored images and link cards for %i draft parts while preventing scheduling',
-    (parts) => {
+test('preserves restored images and link cards while preventing scheduling', () => {
         draft.images = [image];
         draft.descriptions = ['A restored screenshot'];
-        if (parts === 2) {
-            draft.bodies.push('The second part https://example.org');
-        }
         const { form, fields } = render();
         const data = {
-            body: draft.bodies[0],
+            body: draft.body,
             link_preview_url: 'https://example.com',
         };
         assert.deepEqual(form.props.transform(data), {
@@ -150,14 +145,10 @@ test.each([1, 2])(
             )!.props.disabled,
             true,
         );
-        if (parts === 2) {
-            assert.deepEqual(
-                fields
-                    .filter((element) => element.type === LinkCardPicker)
-                    .map((element) => element.props.name),
-                ['link_preview_urls[0]', 'link_preview_urls[1]'],
-            );
-        }
+        assert.equal(
+            fields.filter((element) => element.type === LinkCardPicker).length,
+            1,
+        );
 
         form.props.onSuccess({ flash: {} });
         assert.equal(draft.drop.mock.calls.length, 0);
@@ -170,8 +161,7 @@ test.each([1, 2])(
         } finally {
             vi.unstubAllGlobals();
         }
-    },
-);
+});
 
 test('removing restored images enables polls and successful posting resets the poll', () => {
     draft.images = [image];
@@ -212,13 +202,6 @@ test('removing restored images enables polls and successful posting resets the p
             )!.props.disabled,
             true,
         );
-        assert.equal(
-            view.fields.find(
-                (element) =>
-                    element.props['data-test'] === 'add-commit-part-button',
-            )!.props.disabled,
-            true,
-        );
         const textarea = view.fields.find(
             (element) => element.type === MentionTextarea,
         )!;
@@ -232,7 +215,7 @@ test('removing restored images enables polls and successful posting resets the p
         view = render();
         assert.equal(submit().props.disabled, false);
         const data = {
-            body: draft.bodies[0],
+            body: draft.body,
             poll: { options: ['Tabs', 'Spaces'], duration: 1440 },
         };
         assert.deepEqual(view.form.props.transform(data), data);
@@ -279,8 +262,8 @@ test('schedules plain text in UTC and keeps pasted images visible until removed 
     });
     assert.deepEqual(setCustomValidity.mock.lastCall, ['']);
     view = render();
-    assert.deepEqual(view.form.props.transform({ body: draft.bodies[0] }), {
-        body: draft.bodies[0],
+    assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+        body: draft.body,
         scheduled_at: new Date(date)
             .toISOString()
             .replace(/\.\d{3}Z$/, '+00:00'),
@@ -328,9 +311,9 @@ test('schedules plain text in UTC and keeps pasted images visible until removed 
     );
 });
 
-test('retains restored images while sensitive series text requires explicit approval', () => {
+test('retains restored images while sensitive text requires explicit approval', () => {
     const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
-    draft.bodies = ['First part', token];
+    draft.body = token;
     draft.images = [image];
     draft.descriptions = ['A restored screenshot'];
     const { form, fields } = render();
@@ -344,8 +327,8 @@ test('retains restored images while sensitive series text requires explicit appr
     (warning.props.onApprove as () => void)();
     assert.equal(form.props.onBefore(), true);
     assert.equal(form.props.onBefore(), false);
-    assert.deepEqual(form.props.transform({ bodies: draft.bodies }), {
-        bodies: draft.bodies,
+    assert.deepEqual(form.props.transform({ body: draft.body }), {
+        body: draft.body,
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -378,8 +361,8 @@ test('previews restored images and descriptions while keeping them attached when
             .props.images,
         [image],
     );
-    assert.deepEqual(view.form.props.transform({ body: draft.bodies[0] }), {
-        body: draft.bodies[0],
+    assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+        body: draft.body,
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });

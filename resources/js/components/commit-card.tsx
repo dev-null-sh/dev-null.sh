@@ -1,11 +1,12 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight, ListOrdered, Trash2 } from 'lucide-react';
+import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
-import { CommitBody } from '@/components/commit-body';
+import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
+import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
 import { CommitReportButton } from '@/components/commit-report-button';
@@ -16,6 +17,7 @@ import {
     useThread,
 } from '@/components/commit-thread';
 import { CommunityNote } from '@/components/community-note';
+import { CopyLinkButton } from '@/components/copy-link-button';
 import {
     GraphRail,
     RailAvatar,
@@ -38,12 +40,7 @@ import {
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type {
-    Commit,
-    CursorPaginated,
-    DeletedCommit,
-    ThreadCommit,
-} from '@/types';
+import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 export function CommitCard({
     commit,
@@ -56,11 +53,11 @@ export function CommitCard({
     actions,
     isFocused = false,
     canDelete = true,
+    isFolded = true,
     initialReplies,
     threadActions,
     showImages = true,
     loadsReplies = false,
-    isSeriesExpanded = false,
     endsWithDot = false,
     railNodePosition = 'top',
     hasRailTail = true,
@@ -75,11 +72,11 @@ export function CommitCard({
     actions?: ReactNode;
     isFocused?: boolean;
     canDelete?: boolean;
+    isFolded?: boolean;
     initialReplies?: CursorPaginated<ThreadCommit>;
     threadActions?: ReactNode;
     showImages?: boolean;
     loadsReplies?: boolean;
-    isSeriesExpanded?: boolean;
     endsWithDot?: boolean;
     railNodePosition?: 'top' | 'center' | 'bottom' | 'author';
     hasRailTail?: boolean;
@@ -100,12 +97,6 @@ export function CommitCard({
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
-    const laterParts =
-        commit.series_size !== null &&
-        commit.series_position !== null &&
-        commit.series_parts === undefined
-            ? commit.series_size - commit.series_position
-            : 0;
 
     const deleteCommit = () => {
         setDeletion('deleting');
@@ -231,14 +222,6 @@ export function CommitCard({
                                     </time>
                                 </Link>
 
-                                {commit.series_position !== null &&
-                                    commit.series_size !== null && (
-                                        <SeriesPosition
-                                            position={commit.series_position}
-                                            size={commit.series_size}
-                                        />
-                                    )}
-
                                 {commit.status !== 'approved' && (
                                     <span
                                         className={cn(
@@ -310,8 +293,13 @@ export function CommitCard({
                                     replying to @{commit.parent.user.username}
                                 </Link>
                             )}
-                            <CommitBody
+                            <FoldedCommitBody
                                 segments={commit.body_segments}
+                                previewSegments={
+                                    isFolded && !isFocused
+                                        ? commit.preview_segments
+                                        : null
+                                }
                                 className={cn(
                                     'mt-0.5',
                                     isFocused ? 'text-[17px]' : 'text-[15px]',
@@ -334,18 +322,6 @@ export function CommitCard({
                                 <LinkPreview preview={commit.link_preview} />
                             )}
                             {commit.disparages_php && <CommunityNote />}
-                            {laterParts > 0 && !isSeriesExpanded && (
-                                <Link
-                                    href={permalink}
-                                    className="mt-1.5 flex w-fit items-center gap-1.5 font-mono text-xs text-primary hover:underline"
-                                    data-test="series-continues"
-                                >
-                                    <ListOrdered className="size-3.5" />
-                                    {laterParts} more{' '}
-                                    {laterParts === 1 ? 'commit' : 'commits'} in
-                                    this series
-                                </Link>
-                            )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                     <time dateTime={commit.created_at}>
@@ -362,14 +338,28 @@ export function CommitCard({
                             )}
 
                             {commit.replies_count === undefined ? (
-                                <div className="mt-1.5 -ml-1.5 flex items-center gap-0.5">
-                                    <CommitStarButton commit={commit} />
-                                    <CommitQuoteButton
-                                        commit={commit}
-                                        keyShortcut="q"
-                                        className="px-1.5 py-1"
-                                    />
-                                    <CommitReportButton commit={commit} />
+                                <div className="mt-1 -ml-2 flex items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">
+                                    <div className="flex items-center gap-0.5">
+                                        <CommitStarButton
+                                            commit={commit}
+                                            className="px-2 py-0.5"
+                                        />
+                                        <CommitPastelButton
+                                            commit={commit}
+                                            className="px-2 py-0.5"
+                                        />
+                                        <CommitQuoteButton
+                                            commit={commit}
+                                            keyShortcut="q"
+                                        />
+                                    </div>
+                                    <div className="ml-auto flex items-center gap-0.5">
+                                        {commit.is_saved !== undefined && (
+                                            <BookmarkButton commit={commit} />
+                                        )}
+                                        <CopyLinkButton commit={commit} />
+                                        <CommitReportButton commit={commit} />
+                                    </div>
                                 </div>
                             ) : (
                                 <ThreadActions
@@ -378,6 +368,10 @@ export function CommitCard({
                                     actions={
                                         <>
                                             <CommitStarButton
+                                                commit={commit}
+                                                className="px-2 py-0.5"
+                                            />
+                                            <CommitPastelButton
                                                 commit={commit}
                                                 className="px-2 py-0.5"
                                             />
@@ -392,13 +386,6 @@ export function CommitCard({
                             )}
 
                             {actions}
-
-                            {commit.replies_count === undefined &&
-                                commit.is_saved !== undefined && (
-                                    <div className="mt-1 -ml-1.5">
-                                        <BookmarkButton commit={commit} />
-                                    </div>
-                                )}
 
                             {deletion === 'deleting' && (
                                 <p
@@ -469,30 +456,10 @@ export function CommitCard({
     );
 }
 
-export function SeriesPosition({
-    position,
-    size,
-}: {
-    position: number;
-    size: number;
-}) {
-    return (
-        <span
-            className="shrink-0 self-center rounded-full bg-primary-soft px-2 py-0.5 font-mono text-xs text-primary"
-            title={`Commit ${position} of ${size} in a series`}
-            data-test="series-position"
-        >
-            {position}/{size}
-        </span>
-    );
-}
-
 export function CommitTombstone({
-    commit,
     previousLane,
     endsWithDot = false,
 }: {
-    commit?: DeletedCommit;
     previousLane?: string;
     endsWithDot?: boolean;
 }) {
@@ -512,15 +479,6 @@ export function CommitTombstone({
                     <span className="font-mono text-[13px]">[deleted]</span>
                     This commit was deleted.
                 </p>
-                {commit?.series_position !== undefined &&
-                    commit.series_size !== undefined && (
-                        <span className="ml-auto">
-                            <SeriesPosition
-                                position={commit.series_position}
-                                size={commit.series_size}
-                            />
-                        </span>
-                    )}
             </div>
         </article>
     );

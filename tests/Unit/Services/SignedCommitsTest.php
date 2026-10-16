@@ -87,7 +87,7 @@ it('rejects keys that are not on the github account of a user', function (): voi
     ['payload' => $payload, 'signature' => $signature] = signedCommit($keyPair, 'It was DNS.');
 
     expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $signature))
-        ->toThrow(InvalidArgumentException::class, "This SSH key ({$keyPair->publicKey->fingerprint()}) is not on the GitHub account of a devnull user.");
+        ->toThrow(InvalidArgumentException::class, "This SSH key ({$keyPair->publicKey->fingerprint()}) is not on the GitHub account of a /dev/null user.");
 });
 
 it('rejects a replayed signature', function (): void {
@@ -138,7 +138,7 @@ it('rejects keys removed from github since the last sync', function (): void {
     ['payload' => $payload, 'signature' => $signature] = signedCommit($keyPair, 'It was DNS.');
 
     expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $signature))
-        ->toThrow(InvalidArgumentException::class, "This SSH key ({$keyPair->publicKey->fingerprint()}) is not on the GitHub account of a devnull user.")
+        ->toThrow(InvalidArgumentException::class, "This SSH key ({$keyPair->publicKey->fingerprint()}) is not on the GitHub account of a /dev/null user.")
         ->and($sshKey->fresh())->toBeNull();
 });
 
