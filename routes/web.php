@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\Log;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
@@ -16,17 +17,21 @@ use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\FailedJobController;
+use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
@@ -90,6 +95,11 @@ Route::get('@{user:username}/feed.atom', [UserFeedController::class, 'show'])
     ->middleware('cache.headers:public;max_age=300;etag')
     ->name('user-feed.show');
 
+// User activity graph, embedded in READMEs...
+Route::get('@{user:username}/graph.svg', [UserActivityGraphController::class, 'show'])
+    ->middleware(['throttle:activity-graph', 'cache.headers:public;max_age=3600;etag'])
+    ->name('user-activity-graph.show');
+
 // Commit...
 Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
@@ -114,6 +124,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
 
     // Log...
+    Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
     Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
 
     // Private saved commits...
@@ -158,13 +169,24 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-rejection.store');
     Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
 
+    // Operations...
+    Route::get('operations', [OperationsController::class, 'show'])->name('operations.show');
+    Route::post('operations/failed-jobs/{failedJob}/retry', [FailedJobRetryController::class, 'store'])
+        ->whereUuid('failedJob')
+        ->name('failed-job-retry.store');
+    Route::delete('operations/failed-jobs/{failedJob}', [FailedJobController::class, 'destroy'])
+        ->whereUuid('failedJob')
+        ->name('failed-job.destroy');
+
     // Mention Suggestions...
     Route::get('search/mentions', [MentionSuggestionController::class, 'index'])->name('mention-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
-    Route::get('settings/export', ExportController::class)->name('export');
+    Route::get('settings/export', ExportController::class)
+        ->middleware('throttle:5,1')
+        ->name('export');
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');

@@ -69,3 +69,13 @@ it('lifts the thread when a reply is approved', function (): void {
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });
+
+it('lifts the quoted thread when a quote is approved', function (): void {
+    $commit = Commit::factory()->create();
+    $quote = Commit::factory()->pending()->for($commit, 'quotedCommit')->create();
+
+    resolve(UpdateCommitStatuses::class)->handle([$quote->id], CommitStatus::Approved);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+});

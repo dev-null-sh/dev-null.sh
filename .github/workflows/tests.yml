@@ -17,6 +17,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: root
+      DB_PASSWORD: password
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -26,6 +47,7 @@ jobs:
         with:
           php-version: 8.5
           tools: composer:v2
+          extensions: pdo_pgsql
           coverage: pcov
           ini-values: zend.assertions=1
 

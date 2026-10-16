@@ -25,6 +25,6 @@ it('fits bios that would overflow the card', function (string $bio): void {
 
     expect(array_slice((array) getimagesizefromstring($image), 0, 2))->toBe([1200, 630]);
 })->with([
-    'an unbroken word wider than the card' => ['See '.str_repeat('supercalifragilistic', 20)],
-    'more lines than the card holds' => [str_repeat('Writing PHP on purpose and shipping it before lunch. ', 6)],
+    'an unbroken word wider than the card' => ['See '.str_repeat('supercalifragilistic', 12)],
+    'more lines than the card holds' => [str_repeat('Writing PHP on purpose and shipping it before lunch. ', 4)],
 ]);

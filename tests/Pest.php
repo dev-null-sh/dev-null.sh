@@ -5,10 +5,13 @@ declare(strict_types=1);
 use App\Actions\CreateCommitSeries;
 use App\Dto\SshPublicKey;
 use App\Enums\CommitStatus;
+use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
@@ -110,6 +113,36 @@ function fakeAvatar(): string
     imagepng($image);
 
     return (string) ob_get_clean();
+}
+
+/**
+ * @param  array<string, mixed>|null  $payload
+ */
+function failedJob(string $queue = 'default', ?CarbonInterface $failedAt = null, string $exception = "RuntimeException: Something broke\nStack trace:\n#0 {main}", ?array $payload = null): string
+{
+    $uuid = (string) Str::uuid();
+
+    DB::table('failed_jobs')->insert([
+        'uuid' => $uuid,
+        'connection' => 'database',
+        'queue' => $queue,
+        'payload' => json_encode($payload ?? ['uuid' => $uuid, 'displayName' => UnfurlLink::class, 'attempts' => 1]),
+        'exception' => $exception,
+        'failed_at' => $failedAt ?? now(),
+    ]);
+
+    return $uuid;
+}
+
+function queuedJob(string $queue, CarbonInterface $createdAt): void
+{
+    DB::table('jobs')->insert([
+        'queue' => $queue,
+        'payload' => json_encode(['uuid' => (string) Str::uuid(), 'displayName' => UnfurlLink::class]),
+        'attempts' => 0,
+        'available_at' => $createdAt->getTimestamp(),
+        'created_at' => $createdAt->getTimestamp(),
+    ]);
 }
 
 /**
