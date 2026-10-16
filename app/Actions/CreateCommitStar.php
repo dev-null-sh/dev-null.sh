@@ -10,8 +10,10 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class CreateCommitStar
 {
-    public function __construct(private CreateStarNotification $createStarNotification)
-    {
+    public function __construct(
+        private CreateStarNotification $createStarNotification,
+        private UpdateCommitHotScores $updateCommitHotScores,
+    ) {
         //
     }
 
@@ -21,6 +23,8 @@ final readonly class CreateCommitStar
             $user->starredCommits()->syncWithoutDetaching([$commit->id]);
 
             $this->createStarNotification->handle($user, $commit);
+
+            $this->updateCommitHotScores->handle([$commit->id]);
         });
     }
 }

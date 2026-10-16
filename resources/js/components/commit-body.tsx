@@ -7,9 +7,11 @@ import type { BodySegment } from '@/types';
 export function CommitBody({
     segments,
     className,
+    isStatic = false,
 }: {
     segments: BodySegment[];
     className?: string;
+    isStatic?: boolean;
 }) {
     return (
         <div
@@ -21,7 +23,9 @@ export function CommitBody({
             {segments.map((segment, index) => {
                 switch (segment.type) {
                     case 'text':
-                        return (
+                        return isStatic ? (
+                            emojify(segment.text)
+                        ) : (
                             <LinkifiedText
                                 key={index}
                                 text={emojify(segment.text)}
@@ -42,6 +46,7 @@ export function CommitBody({
                                 key={index}
                                 html={segment.html}
                                 language={segment.language}
+                                isCopyable={!isStatic}
                             />
                         );
                 }

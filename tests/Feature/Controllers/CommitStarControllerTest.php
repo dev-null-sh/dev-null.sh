@@ -29,15 +29,15 @@ it('starring is idempotent', function (): void {
     expect($user->starredCommits()->count())->toBeOne();
 });
 
-it('may star their own pending commit', function (): void {
+it('may not star their own commit', function (): void {
     $user = User::factory()->create();
-    $commit = Commit::factory()->for($user)->pending()->create();
+    $commit = Commit::factory()->for($user)->create();
 
     $this->actingAs($user)
         ->post(route('commit-star.store', $commit))
-        ->assertRedirect();
+        ->assertForbidden();
 
-    expect($user->hasStarred($commit))->toBeTrue();
+    expect($user->hasStarred($commit))->toBeFalse();
 });
 
 it('may not star a commit across a block in either direction', function (bool $userBlocks): void {

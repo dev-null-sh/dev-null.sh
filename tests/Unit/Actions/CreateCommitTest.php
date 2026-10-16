@@ -12,6 +12,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -358,4 +359,47 @@ it('stores the images of a commit', function (): void {
 
     expect($commit->images()->count())->toBe(1)
         ->and($commit->status)->toBe(CommitStatus::Pending);
+});
+
+it('files replies under the top-level commit of their thread', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $nested = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Agreed', $reply);
+
+    expect($nested->root_id)->toBe($commit->id);
+});
+
+it('lifts the thread when an admin replies', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+});
+
+it('ranks trusted replies under their thread root and requires review after trust is revoked', function (): void {
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($root->user)->for($root, 'parent')->create();
+    $author = User::factory()->create();
+    $moderator = User::factory()->create();
+    $trust = resolve(UpdateUserTrust::class);
+    $create = resolve(CreateCommit::class);
+    $algorithm = resolve(TheAlgorithm::class);
+
+    $trust->handle($author, $moderator, true);
+    $approved = $create->handle($author, 'A trusted nested reply', $parent);
+
+    expect($approved)->status->toBe(CommitStatus::Approved)->root_id->toBe($root->id);
+    expect($root->fresh()->hot_score)->toEqualWithDelta($algorithm->score($root->created_at, 0, 1), 1e-9);
+
+    $previouslyTrusted = $author->fresh();
+    $trust->handle($author, $moderator, false);
+    $pending = $create->handle($previouslyTrusted, 'A nested reply after revocation', $parent);
+
+    expect($pending)->status->toBe(CommitStatus::Pending)->root_id->toBe($root->id);
+    expect($root->fresh()->hot_score)->toEqualWithDelta($algorithm->score($root->created_at, 0, 1), 1e-9);
 });
