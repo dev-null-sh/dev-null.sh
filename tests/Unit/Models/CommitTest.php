@@ -187,6 +187,33 @@ it('excludes series continuations from its public preview reply count', function
     expect($parts[0]->loadPublicPreview()->replies_count)->toBe(1);
 });
 
+it('hydrates public preview counts without persisting them or clearing body edits', function (bool $deleted): void {
+    $parent = Commit::factory()->create();
+    $commit = Commit::factory()->for($parent, 'parent')->create()->refresh();
+    Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'quotedCommit')->create();
+    Commit::factory()->for($commit, 'parent')->pending()->create();
+
+    if ($deleted) {
+        $commit->delete();
+    }
+
+    $commit->fill(['body' => 'Edited after loading']);
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview)->toBe($commit)
+        ->and($preview->replies_count)->toBe(2)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->getDirty())->toBe(['body' => 'Edited after loading'])
+        ->and($preview->parent->is($parent))->toBeTrue();
+
+    $preview->save();
+
+    expect(Commit::withTrashed()->findOrFail($commit->id)->body)->toBe('Edited after loading')
+        ->and($preview->isDirty())->toBeFalse();
+})->with([false, true]);
+
 it('may belong to a link preview', function (): void {
     $linkPreview = LinkPreview::factory()->create();
     $commit = Commit::factory()->for($linkPreview)->create();
