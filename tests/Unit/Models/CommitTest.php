@@ -67,6 +67,15 @@ it('is visible when approved or owned', function (): void {
         ->and($rejected->isVisibleTo($viewer))->toBeFalse();
 });
 
+it('continues a series from its second part on', function (): void {
+    $parts = commitSeries();
+
+    expect(Commit::factory()->create()->isSeriesContinuation())->toBeFalse()
+        ->and($parts[0]->isSeriesContinuation())->toBeFalse()
+        ->and($parts[1]->isSeriesContinuation())->toBeTrue()
+        ->and($parts[2]->isSeriesContinuation())->toBeTrue();
+});
+
 it('deletes stars with the commit', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->create();
