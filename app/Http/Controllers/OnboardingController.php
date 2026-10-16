@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\UpdateUserOnboardedAt;
-use App\Enums\Log;
 use App\Http\Requests\ShowOnboardingRequest;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
@@ -33,6 +32,6 @@ final readonly class OnboardingController
     {
         $action->handle($user);
 
-        return redirect()->intended(route('log.show', Log::Following, absolute: false));
+        return redirect()->intended(route('log.show', $user->log, absolute: false));
     }
 }
