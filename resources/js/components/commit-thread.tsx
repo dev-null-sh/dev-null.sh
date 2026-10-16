@@ -857,7 +857,7 @@ function CommitReply({
                         className="text-[15px]"
                     />
                     <CommitImages commit={reply} />
-                    {reply.link_preview?.title && (
+                    {reply.link_preview && (
                         <LinkPreview preview={reply.link_preview} />
                     )}
 

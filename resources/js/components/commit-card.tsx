@@ -328,7 +328,7 @@ export function CommitCard({
                                     commit={commit.quoted_commit ?? null}
                                 />
                             )}
-                            {commit.link_preview?.title && (
+                            {commit.link_preview && (
                                 <LinkPreview preview={commit.link_preview} />
                             )}
                             {laterParts > 0 && !isSeriesExpanded && (
