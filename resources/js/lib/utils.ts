@@ -4,6 +4,14 @@ import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import type { DeletedCommit, ThreadCommit } from '@/types';
 
+export function characterCount(value: string): number {
+    return Array.from(value).length;
+}
+
+export function limitCharacters(value: string, max: number): string {
+    return Array.from(value).slice(0, max).join('');
+}
+
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
