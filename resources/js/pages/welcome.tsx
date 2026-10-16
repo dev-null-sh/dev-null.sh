@@ -153,11 +153,6 @@ export default function Welcome() {
                         </Commit>
                     </ol>
                 </main>
-
-                <footer className="mx-auto w-full max-w-4xl pr-4 pb-8 pl-14 text-sm text-muted-foreground sm:pr-8 sm:pl-24">
-                    No likes. No reposts. No algorithm. Everything else goes to
-                    /dev/null.
-                </footer>
             </div>
         </>
     );
