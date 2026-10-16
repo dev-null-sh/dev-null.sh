@@ -89,18 +89,23 @@ export function AppAside({
                     ].map((stat) => (
                         <div
                             key={stat.label}
-                            className="flex flex-row-reverse gap-1.5"
+                            className="group flex flex-row-reverse gap-1.5"
                         >
                             <dt className="text-muted-foreground">
                                 <Link
                                     href={stat.href}
-                                    className="hover:underline"
+                                    className="group-hover:underline"
                                 >
                                     {stat.label}
                                 </Link>
                             </dt>
                             <dd className="font-mono font-medium">
-                                {stat.count}
+                                <Link
+                                    href={stat.href}
+                                    className="group-hover:underline"
+                                >
+                                    {stat.count}
+                                </Link>
                             </dd>
                         </div>
                     ))}

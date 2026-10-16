@@ -36,9 +36,9 @@ it('creates commits pending review', function (): void {
 it('stores emoji shortcodes as their emoji', function (): void {
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(), 'shipped it :heart :like');
+    $commit = $action->handle(User::factory()->create(), 'shipped it :heart :like :rocket:');
 
-    expect($commit->body)->toBe('shipped it ❤️ 👍');
+    expect($commit->body)->toBe('shipped it ❤️ 👍 🚀');
 });
 
 it('approves commits of admins right away', function (): void {

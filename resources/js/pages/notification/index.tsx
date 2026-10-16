@@ -8,6 +8,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import { commitSummary } from '@/lib/embed';
+import { emojify } from '@/lib/emoji';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, Notification } from '@/types';
@@ -142,7 +143,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
 
                 {notification.type !== 'followed' && (
                     <p className="mt-1 truncate text-[15px]">
-                        {commitSummary(notification.commit)}
+                        {emojify(commitSummary(notification.commit))}
                     </p>
                 )}
                 {notification.type === 'rejected' && (
