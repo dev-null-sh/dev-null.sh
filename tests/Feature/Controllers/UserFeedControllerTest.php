@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\User;
@@ -75,8 +76,8 @@ it('serves the public top-level commits of a user as an atom feed', function ():
 
 it('includes only the first part of a public series', function (): void {
     $parts = commitSeries();
-    commitSeries($parts[0]->user, status: App\Enums\CommitStatus::Pending);
-    commitSeries($parts[0]->user, status: App\Enums\CommitStatus::Rejected);
+    commitSeries($parts[0]->user, status: CommitStatus::Pending);
+    commitSeries($parts[0]->user, status: CommitStatus::Rejected);
 
     $feed = atomFeed($this->get(route('user-feed.show', $parts[0]->user))->assertOk());
 

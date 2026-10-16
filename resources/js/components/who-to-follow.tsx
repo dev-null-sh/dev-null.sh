@@ -85,7 +85,7 @@ function FollowButton({
     );
 }
 
-function SuggestedUserRow({
+export function SuggestedUserRow({
     user,
     className,
     buttonClassName,

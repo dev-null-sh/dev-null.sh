@@ -45,6 +45,10 @@ final readonly class SessionController
 
         $request->session()->regenerate();
 
+        if (! $user->isOnboarded()) {
+            return to_route('onboarding.show');
+        }
+
         return redirect()->intended(route('log.show', Log::Following, absolute: false));
     }
 

@@ -19,6 +19,7 @@ use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
@@ -71,6 +72,10 @@ Route::middleware('auth')->group(function (): void {
     // Session...
     Route::post('logout', [SessionController::class, 'destroy'])
         ->name('logout');
+
+    // Onboarding...
+    Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
+    Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
 
     // Log...
     Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
