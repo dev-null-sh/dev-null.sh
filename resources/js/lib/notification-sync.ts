@@ -65,6 +65,7 @@ export function reconcileNotificationSync(
     current: CursorPaginated<NotificationGroup>,
     sync: NotificationSyncResponse,
     refreshRequired = false,
+    scrollHasNext = false,
 ): {
     notifications: CursorPaginated<NotificationGroup>;
     refreshRequired: boolean;
@@ -88,7 +89,8 @@ export function reconcileNotificationSync(
                 next_cursor: null,
             },
             refreshRequired: false,
-            paginationResetRequired: current.next_cursor !== null,
+            paginationResetRequired:
+                current.next_cursor !== null || scrollHasNext,
         };
     }
 

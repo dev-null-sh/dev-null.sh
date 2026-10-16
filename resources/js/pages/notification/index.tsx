@@ -1,3 +1,4 @@
+import type { InfiniteScrollRef } from '@inertiajs/core';
 import { Head, InfiniteScroll, Link, router } from '@inertiajs/react';
 import {
     ArrowUp,
@@ -165,6 +166,7 @@ export default function Index({
     const pollAnchor = useRef<PollAnchor | null>(null);
     const filterVisit = useRef(0);
     const refreshRequiredRef = useRef(false);
+    const notificationScroll = useRef<InfiniteScrollRef>(null);
     const [arrivals, setArrivals] = useState(0);
     const [refreshRequired, setRefreshRequired] = useState(false);
     const [scrollReset, setScrollReset] = useState(0);
@@ -242,6 +244,7 @@ export default function Index({
                         currentProps.notifications,
                         response,
                         refreshRequiredRef.current,
+                        notificationScroll.current?.hasNext() ?? false,
                     );
                     reconciliation = result;
 
@@ -545,6 +548,7 @@ export default function Index({
                 <>
                     <InfiniteScroll
                         key={scrollReset}
+                        ref={notificationScroll}
                         data="notifications"
                         onlyNext
                         preserveUrl

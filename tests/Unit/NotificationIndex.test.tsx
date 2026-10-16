@@ -2,6 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
+import type { InfiniteScrollRef } from '@inertiajs/core';
 import { createInertiaApp, InfiniteScroll, router } from '@inertiajs/react';
 import React, { type ReactElement, type ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
@@ -144,7 +145,7 @@ function elements(node: ReactNode): Element[] {
 
 // This seam executes Index and its completion callbacks with persistent hook
 // state. It inspects React keys; it does not mount Inertia or simulate its DOM.
-function inboxLifecycle() {
+function inboxLifecycle(nextCursor: string | null = 'old-deep-cursor') {
     const slots: unknown[] = [];
     let cursor = 0;
     let applySync: (
@@ -156,7 +157,7 @@ function inboxLifecycle() {
         errors: {} as Record<string, string>,
         notifications: {
             data: [notification],
-            next_cursor: 'old-deep-cursor' as string | null,
+            next_cursor: nextCursor,
             prev_cursor: null,
         },
     };
@@ -246,6 +247,34 @@ function inboxLifecycle() {
         render,
         visits,
         sync: (response: NotificationSyncResponse) => applySync(response, 0),
+        attachScroll: (handle: InfiniteScrollRef) => {
+            const ref = render().find(
+                (element) => element.type === InfiniteScroll,
+            )?.props.ref as React.RefObject<InfiniteScrollRef> | undefined;
+
+            if (ref) {
+                ref.current = handle;
+            }
+        },
+        appendFinalPage: () => {
+            props = {
+                ...props,
+                errors: { notice: 'Earlier action failed' },
+                notifications: {
+                    ...props.notifications,
+                    data: [
+                        ...props.notifications.data,
+                        {
+                            ...notification,
+                            id: 'last-row',
+                            group_id: 'last-row',
+                        },
+                    ],
+                    next_cursor: null,
+                },
+            };
+        },
+        currentProps: () => props,
         swap: (errors: Record<string, string>, nextCursor: string | null) => {
             props = {
                 ...props,
@@ -417,6 +446,106 @@ void test('safe poll reconciliation preserves the rendered scroll instance', () 
             oldScroll.key,
         );
         assert.equal(inbox.visits.length, 0);
+    } finally {
+        inbox.restore();
+        if (originalDocument) {
+            Object.defineProperty(globalThis, 'document', originalDocument);
+        } else {
+            Reflect.deleteProperty(globalThis, 'document');
+        }
+    }
+});
+
+void test('complete sync resets a live manager after an error-bearing final-page append', () => {
+    const inbox = inboxLifecycle();
+    const originalDocument = Object.getOwnPropertyDescriptor(
+        globalThis,
+        'document',
+    );
+    Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: { querySelectorAll: () => [] },
+    });
+
+    try {
+        // Inertia advances this token only on success, so an error-bearing
+        // append updates the paginator while this handle still reports true.
+        inbox.attachScroll({
+            hasNext: () => true,
+            hasPrevious: () => false,
+            fetchNext: () => {},
+            fetchPrevious: () => {},
+        });
+        inbox.appendFinalPage();
+        const appended = inbox.currentProps().notifications;
+        assert.equal(appended.next_cursor, null);
+        assert.equal(appended.data.length, 2);
+        assert.notDeepEqual(inbox.currentProps().errors, {});
+
+        inbox.sync({
+            head: [notification],
+            boundary: null,
+            visible: [],
+            missing_visible_group_ids: [],
+            unread_notifications_count: 0,
+        });
+
+        assert.equal(
+            inbox.visits.length,
+            1,
+            'a live scroll token requires a server-backed reset',
+        );
+        assert.deepEqual(inbox.visits[0]?.reset, ['notifications']);
+        assert.equal(inbox.currentProps().notifications, appended);
+    } finally {
+        inbox.restore();
+        if (originalDocument) {
+            Object.defineProperty(globalThis, 'document', originalDocument);
+        } else {
+            Reflect.deleteProperty(globalThis, 'document');
+        }
+    }
+});
+
+void test('repeated complete polls keep an exhausted first-page scroll instance', () => {
+    const inbox = inboxLifecycle(null);
+    const originalDocument = Object.getOwnPropertyDescriptor(
+        globalThis,
+        'document',
+    );
+    Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: { querySelectorAll: () => [] },
+    });
+
+    try {
+        inbox.attachScroll({
+            hasNext: () => false,
+            hasPrevious: () => false,
+            fetchNext: () => {},
+            fetchPrevious: () => {},
+        });
+        const oldScroll = inbox
+            .render()
+            .find((element) => element.type === InfiniteScroll);
+        assert.ok(oldScroll);
+
+        for (let poll = 0; poll < 2; poll++) {
+            inbox.sync({
+                head: [notification],
+                boundary: null,
+                visible: [],
+                missing_visible_group_ids: [],
+                unread_notifications_count: 0,
+            });
+        }
+
+        assert.equal(inbox.visits.length, 0);
+        assert.equal(
+            inbox.render().find((element) => element.type === InfiniteScroll)
+                ?.key,
+            oldScroll.key,
+        );
     } finally {
         inbox.restore();
         if (originalDocument) {

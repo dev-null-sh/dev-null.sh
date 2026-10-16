@@ -143,6 +143,37 @@ void test('updates a complete paginator locally when its cursor is already exhau
     assert.equal(result.notifications.next_cursor, null);
 });
 
+void test('resets a live scroll cursor after error-bearing final-page props look exhausted', () => {
+    const current = page(sequence('loaded', 40), null);
+    const result = reconcileNotificationSync(
+        current,
+        response({ head: sequence('remaining', 4) }),
+        false,
+        true,
+    );
+
+    assert.equal(result.refreshRequired, false);
+    assert.equal(result.paginationResetRequired, true);
+});
+
+void test('does not repeatedly reset a complete first page with an exhausted scroll manager', () => {
+    const complete = response({ head: sequence('A', 4) });
+    let current = page(complete.head, null);
+
+    for (let poll = 0; poll < 2; poll++) {
+        const result = reconcileNotificationSync(
+            current,
+            complete,
+            false,
+            false,
+        );
+
+        assert.equal(result.refreshRequired, false);
+        assert.equal(result.paginationResetRequired, false);
+        current = result.notifications;
+    }
+});
+
 void test('accepts an unchanged representative prefix with an unloaded boundary', () => {
     const head = sequence('A', 20);
     const result = reconcileNotificationSync(
