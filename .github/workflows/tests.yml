@@ -42,6 +42,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Enable PostgreSQL Search Extensions
+        run: |
+          # Parallel test databases inherit extensions from template1.
+          for database in testing template1; do
+            docker exec "${{ job.services.postgres.id }}" \
+              psql -U root -d "$database" -v ON_ERROR_STOP=1 \
+              -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;'
+          done
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
