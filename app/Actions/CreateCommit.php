@@ -27,7 +27,7 @@ final readonly class CreateCommit
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
         private CreateCommitImages $createCommitImages,
-        private CreateWorldReply $createWorldReply,
+        private CreateEasterEggReplies $createEasterEggReplies,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TheAlgorithm $theAlgorithm,
         private EmojiShortcodes $emojiShortcodes,
@@ -86,7 +86,7 @@ final readonly class CreateCommit
                 dispatch(new UnfurlLink($linkPreview));
             }
 
-            $this->createWorldReply->handle($commit);
+            $this->createEasterEggReplies->handle($commit);
 
             if ($commit->status === CommitStatus::Approved && isset($commit->mentions[CreateTomFriendship::USERNAME])
                 && $user->github_id !== CreateTomFriendship::GITHUB_ID && filled(config('ai.providers.opencode.key'))) {
