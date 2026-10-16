@@ -1,7 +1,9 @@
 import { Form, usePage } from '@inertiajs/react';
+import { Plus, X } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import CommitSeriesController from '@/actions/App/Http/Controllers/CommitSeriesController';
 import {
     ImagePickerButton,
     ImagePickerPreviews,
@@ -20,60 +22,373 @@ import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
-import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
+import type { UseSeriesStashReturn } from '@/hooks/use-stash';
+import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
+import type { User } from '@/types';
 
 const minBodyLength = 3;
 const maxBodyLength = 280;
+const maxParts = 10;
 
-export function CommitComposer() {
-    const { auth } = usePage().props;
-    const { body, isRestored, updateBody, drop } = useStash(
-        auth.user.id,
-        'commit',
-    );
-    const attachments = useImageAttachments();
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
+const partId = (index: number): string =>
+    index === 0 ? 'body' : `body-${index + 1}`;
 
+function focusPart(index: number, atEnd = false): void {
+    requestAnimationFrame(() => {
+        const part = document.getElementById(partId(index));
+
+        if (!(part instanceof HTMLTextAreaElement)) {
+            return;
+        }
+
+        part.focus();
+
+        if (atEnd) {
+            part.setSelectionRange(part.value.length, part.value.length);
+        }
+    });
+}
+
+function RemainingCount({ id, body }: { id: string; body: string }) {
     const remaining = maxBodyLength - body.length;
-    const isCommittable = body.trim().length >= minBodyLength;
+
+    return (
+        <span
+            id={id}
+            aria-label={`${remaining} characters left`}
+            className={cn('font-mono text-[13px] text-muted-foreground', {
+                'text-amber-700 dark:text-amber-400': remaining <= 20,
+                'text-destructive': remaining === 0,
+            })}
+        >
+            {remaining}
+        </span>
+    );
+}
+
+function CommitComposerPart({
+    user,
+    stash,
+    attachments,
+    index,
+    isCommittable,
+    processing,
+    errors,
+    onKeyDown,
+    addPartAfter,
+    removePartAt,
+    drop,
+}: {
+    user: User;
+    stash: UseSeriesStashReturn;
+    attachments: ReturnType<typeof useImageAttachments>;
+    index: number;
+    isCommittable: boolean;
+    processing: boolean;
+    errors: Record<string, string>;
+    onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+    addPartAfter: () => void;
+    removePartAt: () => void;
+    drop: () => void;
+}) {
+    const { bodies, isRestored, updateBody } = stash;
+    const body = bodies[index];
+    const id = partId(index);
+    const isSeries = bodies.length > 1;
+    const isLast = index === bodies.length - 1;
+    const canAddPart = bodies.length < maxParts;
     const suggestion = suggestEmoji(body);
+    const error =
+        errors[`bodies.${index}`] ?? (index === 0 ? errors.body : undefined);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const preview = useComposerPreview({
         body,
         textareaRef,
         isSubmittable: isCommittable,
+        onAddPart: addPartAfter,
     });
 
-    const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (preview.handleShortcut(event)) {
+    return (
+        <div className="flex" data-test="commit-composer-part">
+            <GraphRail
+                lane={laneColor(user.lane)}
+                previousLane={index > 0 ? 'var(--rail)' : undefined}
+                variant="staged"
+                isFilled={body.trim().length >= minBodyLength}
+            />
+
+            <div
+                className={cn('flex min-w-0 flex-1 gap-3 pt-3 pr-4', {
+                    'border-b pb-3': isLast,
+                })}
+            >
+                {index === 0 ? (
+                    <UserAvatar
+                        user={user}
+                        className="hidden size-10 sm:flex"
+                    />
+                ) : (
+                    <span
+                        aria-hidden
+                        className="hidden size-10 shrink-0 sm:block"
+                    />
+                )}
+
+                <div className="min-w-0 flex-1">
+                    <label htmlFor={id} className="sr-only">
+                        {isSeries
+                            ? `Commit ${index + 1} of ${bodies.length}`
+                            : 'Body'}
+                    </label>
+                    <div className="grid">
+                        <MentionTextarea
+                            ref={textareaRef}
+                            id={id}
+                            name={isSeries ? 'bodies[]' : 'body'}
+                            rows={1}
+                            value={body}
+                            onValueChange={(text) => updateBody(index, text)}
+                            onPaste={
+                                index === 0 ? attachments.onPaste : undefined
+                            }
+                            onDragOver={
+                                index === 0 ? attachments.onDragOver : undefined
+                            }
+                            onDrop={
+                                index === 0 ? attachments.onDrop : undefined
+                            }
+                            onKeyDown={(event) =>
+                                preview.handleShortcut(event) ||
+                                onKeyDown(event)
+                            }
+                            onFocus={isRestored ? moveCaretToEnd : undefined}
+                            maxLength={maxBodyLength}
+                            placeholder={
+                                index === 0 ? 'What did you ship?' : 'And then?'
+                            }
+                            autoComplete="off"
+                            aria-invalid={error ? true : undefined}
+                            aria-describedby={`${id}-count`}
+                            className={cn(
+                                'col-start-1 row-start-1 block field-sizing-content min-h-10 w-full resize-none overflow-x-hidden bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
+                                { invisible: preview.isPreviewing },
+                            )}
+                        />
+                        {preview.isPreviewing && (
+                            <ComposerPreviewBody
+                                preview={preview}
+                                images={index === 0 ? attachments.images : []}
+                                className="col-start-1 row-start-1 py-1.5"
+                            />
+                        )}
+                    </div>
+
+                    {!preview.isPreviewing && (
+                        <EmojiSuggestionHint
+                            suggestion={suggestion}
+                            className="mt-1.5"
+                        />
+                    )}
+
+                    <InputError message={error} />
+
+                    {index === 0 && (
+                        <>
+                            {!preview.isPreviewing && (
+                                <ImagePickerPreviews
+                                    images={attachments.images}
+                                    onRemove={attachments.remove}
+                                />
+                            )}
+                            <InputError
+                                message={
+                                    attachments.error ?? imageErrorFrom(errors)
+                                }
+                                className="mt-1"
+                            />
+                        </>
+                    )}
+
+                    {isSeries && (
+                        <div className="mt-1 flex items-center gap-3">
+                            <span
+                                className="font-mono text-[13px] text-muted-foreground"
+                                data-test="commit-composer-position"
+                            >
+                                {index + 1}/{bodies.length}
+                            </span>
+                            <PreviewToggle
+                                preview={preview}
+                                className="ml-auto"
+                            />
+                            <span>
+                                <RemainingCount
+                                    id={`${id}-count`}
+                                    body={body}
+                                />
+                            </span>
+                            <button
+                                type="button"
+                                onClick={removePartAt}
+                                aria-label={`Remove commit ${index + 1}`}
+                                title="Remove this commit"
+                                className="-mr-1.5 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                data-test="remove-commit-part-button"
+                            >
+                                <X className="size-4" />
+                            </button>
+                        </div>
+                    )}
+
+                    {isLast && (
+                        <>
+                            <InputError message={errors.bodies} />
+
+                            <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+                                <div className="mr-auto flex min-w-0 items-center gap-3">
+                                    <ImagePickerButton
+                                        count={attachments.images.length}
+                                        disabled={processing}
+                                        onPick={attachments.attach}
+                                        className="-ml-2"
+                                    />
+                                    {!isSeries && (
+                                        <PreviewToggle
+                                            preview={preview}
+                                            className="-ml-3"
+                                        />
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={addPartAfter}
+                                        disabled={!canAddPart}
+                                        title={
+                                            canAddPart
+                                                ? 'Add another commit (⌘/Ctrl + Shift + Enter)'
+                                                : `A series has at most ${maxParts} commits`
+                                        }
+                                        className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                                        data-test="add-commit-part-button"
+                                    >
+                                        <Plus className="size-4" />
+                                        Add commit
+                                    </button>
+                                    {isRestored && (
+                                        <StashLabel
+                                            onDrop={() => {
+                                                drop();
+                                                focusPart(0);
+                                            }}
+                                            className="text-[13px]"
+                                        />
+                                    )}
+                                </div>
+                                {!isSeries && (
+                                    <RemainingCount
+                                        id="body-count"
+                                        body={body}
+                                    />
+                                )}
+                                <Button
+                                    type="submit"
+                                    disabled={processing || !isCommittable}
+                                    title="Commit (⌘/Ctrl + Enter)"
+                                    className="min-w-[7.5rem]"
+                                    data-test="create-commit-button"
+                                >
+                                    {processing
+                                        ? 'Committing…'
+                                        : isSeries
+                                          ? `Commit ${bodies.length}`
+                                          : 'Commit'}
+                                </Button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export function CommitComposer() {
+    const { auth } = usePage().props;
+    const stash = useSeriesStash(auth.user.id, 'commit');
+    const { bodies, updateBody, insertPart, removePart } = stash;
+    const [draftVersion, setDraftVersion] = useState(0);
+    const drop = () => {
+        stash.drop();
+        setDraftVersion((version) => version + 1);
+    };
+    const attachments = useImageAttachments();
+
+    const isSeries = bodies.length > 1;
+    const canAddPart = bodies.length < maxParts;
+    const isCommittable = bodies.every(
+        (body) => body.trim().length >= minBodyLength,
+    );
+
+    const addPartAfter = (index: number) => {
+        if (!canAddPart) {
             return;
         }
 
-        if (event.key === 'Tab' && suggestion !== null) {
-            const completed = completeEmoji(body);
+        insertPart(index + 1);
+        setDraftVersion((version) => version + 1);
+        focusPart(index + 1);
+    };
+
+    const removePartAt = (index: number) => {
+        removePart(index);
+        setDraftVersion((version) => version + 1);
+        focusPart(Math.max(index - 1, 0), true);
+    };
+
+    const onKeyDown = (
+        index: number,
+        event: KeyboardEvent<HTMLTextAreaElement>,
+    ) => {
+        if (event.key === 'Tab' && suggestEmoji(bodies[index]) !== null) {
+            const completed = completeEmoji(bodies[index]);
 
             if (completed !== null) {
                 event.preventDefault();
-                updateBody(completed);
+                updateBody(index, completed);
             }
 
             return;
         }
 
-        if (
-            event.key === 'Enter' &&
-            (event.metaKey || event.ctrlKey) &&
-            isCommittable
-        ) {
+        const isModEnter =
+            event.key === 'Enter' && (event.metaKey || event.ctrlKey);
+
+        if (isModEnter && event.shiftKey) {
+            event.preventDefault();
+            addPartAfter(index);
+
+            return;
+        }
+
+        if (isModEnter && isCommittable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
+
+            return;
+        }
+
+        if (event.key === 'Backspace' && isSeries && bodies[index] === '') {
+            event.preventDefault();
+            removePartAt(index);
         }
     };
 
     return (
         <Form
-            {...CommitController.store.form()}
+            {...(isSeries
+                ? CommitSeriesController.store.form()
+                : CommitController.store.form())}
             transform={(data) =>
                 attachments.images.length > 0
                     ? { ...data, images: attachments.images }
@@ -87,139 +402,29 @@ export function CommitComposer() {
 
                 drop();
                 attachments.clear();
-                preview.close();
-                requestAnimationFrame(() =>
-                    document.getElementById('body')?.focus(),
-                );
+                focusPart(0);
             }}
-            className="flex"
+            className="flex flex-col"
+            data-test="commit-composer"
         >
             {({ processing, errors }) => (
                 <>
-                    <GraphRail
-                        lane={laneColor(auth.user.lane)}
-                        variant="staged"
-                        isFilled={isCommittable}
-                    />
-
-                    <div className="flex min-w-0 flex-1 gap-3 border-b py-3 pr-4">
-                        <UserAvatar
+                    {bodies.map((_, index) => (
+                        <CommitComposerPart
+                            key={`${draftVersion}-${index}`}
                             user={auth.user}
-                            className="hidden size-10 sm:flex"
+                            stash={stash}
+                            attachments={attachments}
+                            index={index}
+                            isCommittable={isCommittable}
+                            processing={processing}
+                            errors={errors}
+                            onKeyDown={(event) => onKeyDown(index, event)}
+                            addPartAfter={() => addPartAfter(index)}
+                            removePartAt={() => removePartAt(index)}
+                            drop={drop}
                         />
-
-                        <div className="min-w-0 flex-1">
-                            <label htmlFor="body" className="sr-only">
-                                Body
-                            </label>
-                            <div className="grid">
-                                <MentionTextarea
-                                    ref={textareaRef}
-                                    id="body"
-                                    name="body"
-                                    rows={1}
-                                    value={body}
-                                    onValueChange={updateBody}
-                                    onKeyDown={onKeyDown}
-                                    onPaste={attachments.onPaste}
-                                    onDragOver={attachments.onDragOver}
-                                    onDrop={attachments.onDrop}
-                                    onFocus={
-                                        isRestored ? moveCaretToEnd : undefined
-                                    }
-                                    maxLength={maxBodyLength}
-                                    placeholder="What did you ship?"
-                                    autoComplete="off"
-                                    aria-invalid={
-                                        errors.body ? true : undefined
-                                    }
-                                    aria-describedby="body-count"
-                                    className={cn(
-                                        'col-start-1 row-start-1 block field-sizing-content min-h-10 w-full resize-none overflow-x-hidden bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
-                                        { invisible: preview.isPreviewing },
-                                    )}
-                                />
-                                {preview.isPreviewing && (
-                                    <ComposerPreviewBody
-                                        preview={preview}
-                                        images={attachments.images}
-                                        className="col-start-1 row-start-1 py-1.5"
-                                    />
-                                )}
-                            </div>
-
-                            {!preview.isPreviewing && (
-                                <EmojiSuggestionHint
-                                    suggestion={suggestion}
-                                    className="mt-1.5"
-                                />
-                            )}
-
-                            <InputError message={errors.body} />
-
-                            {!preview.isPreviewing && (
-                                <ImagePickerPreviews
-                                    images={attachments.images}
-                                    onRemove={attachments.remove}
-                                />
-                            )}
-                            <InputError
-                                message={
-                                    attachments.error ?? imageErrorFrom(errors)
-                                }
-                                className="mt-1"
-                            />
-
-                            <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-                                <div className="mr-auto flex min-w-0 items-center gap-4">
-                                    <ImagePickerButton
-                                        count={attachments.images.length}
-                                        disabled={processing}
-                                        onPick={attachments.attach}
-                                        className="-ml-2"
-                                    />
-                                    <PreviewToggle
-                                        preview={preview}
-                                        className="-ml-3"
-                                    />
-                                    {isRestored && (
-                                        <StashLabel
-                                            onDrop={() => {
-                                                drop();
-                                                document
-                                                    .getElementById('body')
-                                                    ?.focus();
-                                            }}
-                                            className="text-[13px]"
-                                        />
-                                    )}
-                                </div>
-                                <span
-                                    id="body-count"
-                                    aria-label={`${remaining} characters left`}
-                                    className={cn(
-                                        'font-mono text-[13px] text-muted-foreground',
-                                        {
-                                            'text-amber-700 dark:text-amber-400':
-                                                remaining <= 20,
-                                            'text-destructive': remaining === 0,
-                                        },
-                                    )}
-                                >
-                                    {remaining}
-                                </span>
-                                <Button
-                                    type="submit"
-                                    disabled={processing || !isCommittable}
-                                    title="Commit (⌘/Ctrl + Enter)"
-                                    className="min-w-[7.5rem]"
-                                    data-test="create-commit-button"
-                                >
-                                    {processing ? 'Committing…' : 'Commit'}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
+                    ))}
                 </>
             )}
         </Form>

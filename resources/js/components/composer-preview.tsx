@@ -32,10 +32,12 @@ export function useComposerPreview({
     body,
     textareaRef,
     isSubmittable,
+    onAddPart,
 }: {
     body: string;
     textareaRef: RefObject<HTMLTextAreaElement | null>;
     isSubmittable: boolean;
+    onAddPart?: () => void;
 }) {
     const [isPreviewing, setIsPreviewing] = useState(false);
     const [highlighted, setHighlighted] = useState<Highlighted | null>(null);
@@ -112,7 +114,14 @@ export function useComposerPreview({
                 show(false, true);
             }
 
-            if (isModifierEnter(event) && isSubmittable) {
+            if (isModifierEnter(event) && event.shiftKey && onAddPart) {
+                event.preventDefault();
+                onAddPart();
+
+                return;
+            }
+
+            if (isModifierEnter(event) && !event.shiftKey && isSubmittable) {
                 event.preventDefault();
                 event.currentTarget.closest('form')?.requestSubmit();
             }

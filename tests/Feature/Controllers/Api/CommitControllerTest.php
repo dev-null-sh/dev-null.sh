@@ -66,6 +66,20 @@ it('counts only approved replies and every star', function (): void {
         ->assertJsonPath('data.stars_count', 3);
 });
 
+it('counts public replies without series continuations', function (bool $list): void {
+    $parts = commitSeries();
+    Commit::factory()->for($parts[0], 'parent')->create();
+    Commit::factory()->for($parts[0], 'parent')->pending()->create();
+    Commit::factory()->for($parts[0], 'parent')->rejected()->create();
+    Commit::factory()->for($parts[0], 'parent')->create()->delete();
+
+    $this->getJson($list
+        ? route('api-user-commit.index', $parts[0]->user)
+        : route('api-commit.show', $parts[0]))
+        ->assertOk()
+        ->assertJsonPath($list ? 'data.0.replies_count' : 'data.replies_count', 1);
+})->with([false, true]);
+
 it('shows the parent of a reply only while the parent is public', function (Closure $hide, bool $isPublic): void {
     $parent = Commit::factory()->create();
     $reply = Commit::factory()->for($parent, 'parent')->create();
