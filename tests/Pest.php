@@ -59,6 +59,24 @@ function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []
     ]);
 }
 
+/**
+ * @param  list<User>  $following
+ * @param  list<User>  $followers
+ */
+function fakeGitHubFollows(User $user, array $following = [], array $followers = []): void
+{
+    $toResponse = fn (array $users): array => array_map(
+        fn (User $user): array => ['id' => (int) $user->github_id, 'login' => $user->username],
+        $users,
+    );
+
+    Http::fake([
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
+        "api.github.com/users/{$user->username}/following*" => Http::response($toResponse($following)),
+        "api.github.com/users/{$user->username}/followers*" => Http::response($toResponse($followers)),
+    ]);
+}
+
 function fakeGitHubSponsorsListing(?bool $isPublic = null): void
 {
     Http::fake([

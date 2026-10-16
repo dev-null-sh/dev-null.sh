@@ -25,7 +25,7 @@ final class NotificationBuilder extends Builder
                     ->whereColumn('follows.follower_id', 'notifications.actor_id')
                     ->whereColumn('follows.followed_id', 'notifications.recipient_id')))
             ->orWhere(fn (Builder $query): Builder => $query
-                ->whereIn('type', [NotificationType::Replied, NotificationType::Mentioned])
+                ->whereIn('type', [NotificationType::Replied, NotificationType::Mentioned, NotificationType::Starred])
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
                     ->where('status', CommitStatus::Approved)))
             ->orWhere(fn (Builder $query): Builder => $query
@@ -33,6 +33,20 @@ final class NotificationBuilder extends Builder
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
                     ->whereColumn('commits.user_id', 'notifications.recipient_id')
                     ->whereColumn('commits.status', 'notifications.type'))));
+    }
+
+    /**
+     * Stars are grouped per starred commit and replies per replied commit, both kept in the subject. Anything else stands alone.
+     */
+    public function inGroupOf(Notification $notification): self
+    {
+        return $this->where('recipient_id', $notification->recipient_id)
+            ->where('type', $notification->type)
+            ->when(
+                $notification->subject_id === null,
+                fn (self $query): self => $query->whereKey($notification->id),
+                fn (self $query): self => $query->where('subject_id', $notification->subject_id),
+            );
     }
 
     public function unread(): self
