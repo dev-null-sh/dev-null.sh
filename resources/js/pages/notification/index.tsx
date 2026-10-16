@@ -18,6 +18,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
+import { emojify } from '@/lib/emoji';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
@@ -296,7 +297,7 @@ function NotificationContent({ notification }: { notification: Notification }) {
                 aria-hidden
             />
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex min-h-8 items-center gap-2">
                     {moderation ? (
                         <span className="text-sm font-medium">
                             Moderation update
@@ -332,7 +333,7 @@ function NotificationContent({ notification }: { notification: Notification }) {
                 </p>
                 {notification.type !== 'followed' && (
                     <p className="mt-1 line-clamp-2 text-[15px] wrap-anywhere">
-                        {notification.commit.body}
+                        {emojify(notification.commit.body)}
                     </p>
                 )}
                 {notification.type === 'rejected' && (
