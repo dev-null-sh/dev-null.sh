@@ -218,7 +218,7 @@ it('paginates complete groups rather than splitting a busy conversation', functi
 
     Notification::factory()->for($user, 'recipient')->count(21)->replied()->create(['created_at' => now()->subDay()]);
 
-    $first = resolve(NotificationGroupsQuery::class)->get($user);
+    $first = resolve(NotificationGroupsQuery::class)->paginate($user);
     expect($first->items())->toHaveCount(20)
         ->and($first->items()[0]->event_count)->toBe(24);
     $firstIds = collect($first->items())->pluck('group_id')->all();
@@ -356,6 +356,39 @@ it('keeps moderation decisions independent from conversation groups', function (
         ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
             ->where('notifications.data.0.type', 'rejected')->where('notifications.data.0.event_count', 1)
             ->where('notifications.data.0.reason', 'Please remove the access token.'));
+});
+
+it('keeps lifetime star groups separate from conversations and supports filtering and expansion', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    $old = Notification::factory()->for($user, 'recipient')->starred($commit)->create([
+        'created_at' => now()->subDays(2),
+    ]);
+    $reply = Notification::factory()->for($user, 'recipient')->replied($commit)->create([
+        'created_at' => now()->subMinute(),
+    ]);
+    $latest = Notification::factory()->for($user, 'recipient')->starred($commit)->create();
+
+    $this->actingAs($user)->get(route('notification.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 2)
+            ->where('notifications.data.0.id', $latest->id)
+            ->where('notifications.data.0.group_id', $old->id)
+            ->where('notifications.data.0.event_count', 2)
+            ->where('notifications.data.0.actors_count', 2)
+            ->where('notifications.data.1.id', $reply->id));
+
+    $this->get(route('notification.index', ['type' => 'stars']))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 1)
+            ->where('filters.type', 'stars')
+            ->where('notifications.data.0.group_id', $old->id)
+            ->where('auth.unreadNotificationsCount', 0));
+
+    $this->getJson(route('notification-group.show', [$latest, 'type' => 'stars']))->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.id', $latest->id)
+        ->assertJsonPath('data.1.id', $old->id);
 });
 
 it('rejects other recipients and irrelevant notifications', function (): void {

@@ -1,10 +1,18 @@
 import type { CancelToken } from '@inertiajs/core';
-import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
+import {
+    Head,
+    InfiniteScroll,
+    Link,
+    router,
+    usePage,
+    usePoll,
+} from '@inertiajs/react';
 import {
     AtSign,
     Check,
     ChevronDown,
     MessageSquareReply,
+    Star,
     UserPlus,
     X,
 } from 'lucide-react';
@@ -24,7 +32,7 @@ import { show } from '@/routes/user';
 import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
 
 type Filters = {
-    type: 'all' | 'replies' | 'mentions' | 'follows' | 'moderation';
+    type: 'all' | 'replies' | 'stars' | 'mentions' | 'follows' | 'moderation';
 };
 
 export default function Index({
@@ -93,6 +101,7 @@ export default function Index({
                         >
                             <option value="all">All activity</option>
                             <option value="replies">Replies</option>
+                            <option value="stars">Stars</option>
                             <option value="mentions">Mentions</option>
                             <option value="follows">Follows</option>
                             <option value="moderation">Moderation</option>
@@ -109,7 +118,7 @@ export default function Index({
                     <EmptyFeed command="$ cat /dev/notifications">
                         {filters.type !== 'all'
                             ? 'No activity of this type yet.'
-                            : 'Nothing here yet. Follows, replies, mentions, and moderation updates will show up here.'}
+                            : 'Nothing here yet. Follows, stars, replies, mentions, and moderation updates will show up here.'}
                     </EmptyFeed>
                 </div>
             ) : (
@@ -194,11 +203,13 @@ function NotificationGroupItem({
                         {notification.event_count}{' '}
                         {notification.type === 'followed'
                             ? 'new followers'
-                            : 'updates in this conversation'}
+                            : notification.type === 'starred'
+                              ? 'stars on your commit'
+                              : 'updates in this conversation'}
                     </span>
                 </div>
             )}
-            <NotificationContent notification={notification} />
+            <NotificationContent notification={notification} summary />
             {grouped && (
                 <div className="mt-2">
                     <Button
@@ -267,14 +278,28 @@ function NotificationGroupItem({
     );
 }
 
-function NotificationContent({ notification }: { notification: Notification }) {
+function NotificationContent({
+    notification,
+    summary = false,
+}: {
+    notification: Notification | NotificationGroup;
+    summary?: boolean;
+}) {
     const now = useNow();
+    const { auth } = usePage().props;
     const { actor } = notification;
+    const actors =
+        summary && 'actors' in notification ? notification.actors : [actor];
+    const otherActors =
+        summary && 'actors_count' in notification
+            ? notification.actors_count - 1
+            : 0;
     const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
     const Icon = {
         followed: UserPlus,
         replied: MessageSquareReply,
+        starred: Star,
         mentioned: AtSign,
         approved: Check,
         rejected: X,
@@ -286,14 +311,19 @@ function NotificationContent({ notification }: { notification: Notification }) {
                 notification.type === 'followed'
                     ? show(actor)
                     : CommitController.show({
-                          user: actor,
+                          user:
+                              notification.type === 'starred'
+                                  ? auth.user
+                                  : actor,
                           commit: notification.commit,
                       })
             }
             className="flex gap-3 rounded-md outline-offset-4 hover:opacity-80 focus-visible:outline-2 focus-visible:outline-ring"
         >
             <Icon
-                className="mt-1.5 size-5 shrink-0 text-muted-foreground"
+                className={cn('mt-1.5 size-5 shrink-0 text-muted-foreground', {
+                    'fill-current': notification.type === 'starred',
+                })}
                 aria-hidden
             />
             <div className="min-w-0 flex-1">
@@ -303,7 +333,16 @@ function NotificationContent({ notification }: { notification: Notification }) {
                             Moderation update
                         </span>
                     ) : (
-                        <UserAvatar user={actor} className="size-8" />
+                        <div className="flex -space-x-2" aria-hidden>
+                            {actors.map((stacked, index) => (
+                                <UserAvatar
+                                    key={stacked.id}
+                                    user={stacked}
+                                    className="relative size-8 ring-2 ring-card"
+                                    style={{ zIndex: actors.length - index }}
+                                />
+                            ))}
+                        </div>
                     )}
                 </div>
                 <p className="mt-2 text-[15px] wrap-anywhere">
@@ -312,11 +351,16 @@ function NotificationContent({ notification }: { notification: Notification }) {
                     ) : (
                         <>
                             <span className="font-medium">{actor.name}</span>{' '}
+                            {notification.type === 'starred' && otherActors > 0
+                                ? `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
+                                : ''}
                             {notification.type === 'followed'
                                 ? 'followed you'
-                                : notification.type === 'mentioned'
-                                  ? 'mentioned you'
-                                  : 'replied to your commit'}
+                                : notification.type === 'starred'
+                                  ? 'starred your commit'
+                                  : notification.type === 'mentioned'
+                                    ? 'mentioned you'
+                                    : 'replied to your commit'}
                         </>
                     )}
                     <span className="text-muted-foreground">
