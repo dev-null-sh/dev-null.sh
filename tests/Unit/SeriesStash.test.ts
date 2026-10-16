@@ -19,6 +19,7 @@ let cursor = 0;
 
 vi.doMock('react', () => ({
     ...React,
+    useEffect: (effect: () => void) => effect(),
     useState: (initial: unknown) => {
         const index = cursor++;
 
@@ -151,3 +152,63 @@ test('restores series images, preserves them through part edits, and drops the c
         globalThis.window = windowBefore;
     }
 });
+
+test.each(['single', 'series'])(
+    '%s drafts keep sensitive text in the editor and images in storage without storing secrets',
+    (kind) => {
+        const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
+        const name = `sensitive-${kind}`;
+        const key = `stash:author:${name}`;
+        bodies.set(key, token);
+        if (kind === 'series') {
+            bodies.set(`${key}:later`, JSON.stringify(['Later part']));
+        }
+        state = [];
+        const render = () => {
+            cursor = 0;
+            return kind === 'series'
+                ? useSeriesStash('author', name)
+                : useStash('author', name);
+        };
+        const text = (draft: ReturnType<typeof render>) =>
+            'bodies' in draft ? draft.bodies[0] : draft.body;
+        const update = (draft: ReturnType<typeof render>, body: string) => {
+            if ('bodies' in draft) {
+                draft.updateBody(0, body);
+            } else {
+                draft.updateBody(body);
+            }
+        };
+        vi.stubGlobal('window', { addEventListener() {} });
+        try {
+            let draft = render();
+            assert.equal(text(draft), token);
+            assert.equal(bodies.has(key), false);
+            assert.equal(bodies.has(`${key}:later`), false);
+
+            draft.updateImages([image]);
+            draft = render();
+            update(draft, 'Ordinary edited body');
+            draft = render();
+            update(draft, token);
+            draft = render();
+
+            assert.equal(text(draft), token);
+            assert.deepEqual(draft.images, [image]);
+            assert.deepEqual(storedImages.get(key), [image]);
+            assert.equal(bodies.has(key), false);
+            assert.equal(bodies.has(`${key}:later`), false);
+            assert.equal(useHasStash('author', name), true);
+
+            draft.drop();
+            draft = render();
+            assert.equal(text(draft), '');
+            assert.deepEqual(draft.images, []);
+            assert.equal(storedImages.has(key), false);
+            assert.equal(useHasStash('author', name), false);
+        } finally {
+            clearStashes('author');
+            vi.unstubAllGlobals();
+        }
+    },
+);

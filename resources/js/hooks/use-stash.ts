@@ -1,11 +1,12 @@
 import type { FocusEvent } from 'react';
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { pickImages } from '@/components/commit-image-picker';
 import {
     deleteStoredImages,
     readStoredImages,
     writeStoredImages,
 } from '@/lib/image-storage';
+import { stashableBody } from '@/lib/sensitive-text';
 import { readStorage, storedKeys, writeStorage } from '@/lib/storage';
 
 export type UseStashReturn = {
@@ -94,7 +95,7 @@ const subscribe = (callback: () => void) => {
 
 const flush = (): void => {
     clearTimeout(timeout);
-    pending.forEach((body, key) => writeStorage(key, body));
+    pending.forEach((body, key) => writeStorage(key, stashableBody(body)));
     pending.clear();
     notify();
 };
@@ -183,6 +184,12 @@ export function useStash(userId: string, name: string): UseStashReturn {
         () => body !== '' || draftImages.length > 0,
     );
 
+    useEffect(() => {
+        if (body !== '' && stashableBody(body) === '') {
+            discardBody(key);
+        }
+    }, [body, key]);
+
     const updateBody = (next: string): void => {
         setBody(next);
 
@@ -196,7 +203,11 @@ export function useStash(userId: string, name: string): UseStashReturn {
             return;
         }
 
-        schedule(key, next);
+        if (stashableBody(next) === '') {
+            discardBody(key);
+        } else {
+            schedule(key, next);
+        }
     };
 
     const updateImages = (next: File[]): void => {
@@ -253,10 +264,24 @@ export function useSeriesStash(
         () => bodies.some((body) => body !== '') || draftImages.length > 0,
     );
 
+    useEffect(() => {
+        if (stashableBody(bodies) === '') {
+            discardBody(key);
+            discardBody(laterKey);
+        }
+    }, [bodies, key, laterKey]);
+
     const store = (next: string[]): void => {
         const [first = '', ...later] = next;
 
         setBodies(next);
+
+        if (stashableBody(next) === '') {
+            discardBody(key);
+            discardBody(laterKey);
+
+            return;
+        }
 
         if (first === '') {
             discardBody(key);

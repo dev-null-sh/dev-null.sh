@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    Activity,
     Bell,
     Bookmark,
     GitCommitVertical,
@@ -13,6 +14,7 @@ import BookmarkController from '@/actions/App/Http/Controllers/BookmarkControlle
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
+import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { GitHubIcon } from '@/components/github-icon';
@@ -76,6 +78,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                       href: ModerationController.show(),
                       icon: ShieldCheck,
                       hasIndicator: hasUnmoderatedCommits,
+                  },
+                  {
+                      title: 'Operations',
+                      href: OperationsController.show(),
+                      icon: Activity,
+                      prefetch: false,
                   },
               ]
             : []),
@@ -341,7 +349,9 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
 }
 
 export function MobileNav() {
-    const items = useNavItems().filter((item) => item.title !== 'Saved');
+    const items = useNavItems().filter(
+        (item) => !['Saved', 'Operations'].includes(item.title),
+    );
 
     return (
         <nav

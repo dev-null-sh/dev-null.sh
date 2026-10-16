@@ -42,6 +42,21 @@ it('suggests matches, people the user follows first', function (): void {
         ->assertJsonPath('users.3.username', 'jess');
 });
 
+it('matches literal wildcard characters in display names', function (string $name, string $query): void {
+    $match = User::factory()->create(['username' => 'matching', 'name' => $name]);
+    User::factory()->create(['username' => 'other', 'name' => 'JaneXDoe']);
+
+    $this->actingAs(User::factory()->create(['username' => 'viewer']))
+        ->getJson('/search/mentions?q='.rawurlencode($query))
+        ->assertOk()
+        ->assertJsonCount(1, 'users')
+        ->assertJsonPath('users.0.id', $match->id);
+})->with([
+    'underscore' => ['Jane_Doe', 'Jane_Doe'],
+    'percent' => ['Discount 50%', '50%'],
+    'escape character' => ['Bang!', 'Bang!'],
+]);
+
 it('never suggests the user themselves', function (): void {
     $user = User::factory()->create(['username' => 'nuno', 'name' => 'Nuno Maduro']);
 

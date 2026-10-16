@@ -45,4 +45,11 @@ final class LinkPreviewFactory extends Factory
             'title' => null,
         ]);
     }
+
+    public function failed(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'fetched_at' => now(),
+        ]);
+    }
 }

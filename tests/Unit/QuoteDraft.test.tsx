@@ -20,6 +20,8 @@ const draft = {
 
 vi.doMock('react', () => ({
     ...React,
+    useMemo: (factory: () => unknown) => factory(),
+    useRef: (initial: unknown) => ({ current: initial }),
     useState: (initial: unknown) => [
         initial === false ? true : initial,
         vi.fn(),
@@ -62,6 +64,7 @@ function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 
 test('quotes submit restored images and clear the complete draft only on success or discard', () => {
+    draft.body = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
     const commit = {
         id: 'quoted',
         user_id: 'author',
@@ -99,6 +102,16 @@ test('quotes submit restored images and clear the complete draft only on success
         errors: Record<string, string>;
     }) => ReactNode;
     const fields = elements(renderFields({ processing: false, errors: {} }));
+    const beforeSubmit = form.props.onBefore as () => boolean;
+    const warning = fields.find(
+        (element) => (element.props.findings as unknown[] | undefined)?.length,
+    )!;
+    assert.equal(beforeSubmit(), false);
+    assert.equal(drop.mock.calls.length, 0);
+    (warning.props.onApprove as () => void)();
+    assert.equal(beforeSubmit(), true);
+    assert.equal(beforeSubmit(), false);
+
     const previews = fields.find(
         (element) => element.type === ImagePickerPreviews,
     )!;

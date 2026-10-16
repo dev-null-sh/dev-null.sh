@@ -1,7 +1,7 @@
 import { Form, usePage } from '@inertiajs/react';
 import { Quote } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import {
     ImagePickerButton,
@@ -11,6 +11,7 @@ import {
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { QuotedCommit } from '@/components/quoted-commit';
+import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
@@ -105,6 +107,8 @@ function QuoteComposer({
     const { body, images, isRestored, updateBody, updateImages, drop } =
         useStash(user.id, id);
     const attachments = useImageAttachments(images, updateImages);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const secrets = useSecretWarning(body);
 
     const remaining = maxBodyLength - characterCount(body);
     const isQuotable = characterCount(body.trim()) >= minBodyLength;
@@ -148,6 +152,7 @@ function QuoteComposer({
             <Form
                 {...CommitController.store.form()}
                 errorBag="quote"
+                onBefore={secrets.beforeSubmit}
                 transform={(data) =>
                     images.length > 0 ? { ...data, images } : data
                 }
@@ -178,6 +183,7 @@ function QuoteComposer({
                                 Your commit
                             </label>
                             <MentionTextarea
+                                ref={textareaRef}
                                 id={id}
                                 name="body"
                                 rows={1}
@@ -205,6 +211,16 @@ function QuoteComposer({
 
                             <InputError
                                 message={errors.body ?? errors.quoted_commit_id}
+                            />
+
+                            <SecretWarning
+                                body={body}
+                                findings={secrets.findings}
+                                textarea={textareaRef}
+                                onChange={updateBody}
+                                confirming={secrets.confirming}
+                                onConfirmingChange={secrets.setConfirming}
+                                onApprove={secrets.approve}
                             />
 
                             <ImagePickerPreviews

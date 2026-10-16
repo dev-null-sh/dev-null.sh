@@ -23,6 +23,7 @@ import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
+import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -31,6 +32,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
+import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
@@ -752,6 +754,7 @@ function ReplyComposer({
     const attachments = useImageAttachments(images, updateImages);
     const linkCard = useLinkCard(body);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const secrets = useSecretWarning(body);
     const remaining = maxBodyLength - characterCount(body);
     const isReplyable = characterCount(body.trim()) >= 3;
     const suggestion = suggestEmoji(body);
@@ -799,6 +802,7 @@ function ReplyComposer({
         <Form
             {...CommitController.store.form()}
             errorBag="reply"
+            onBefore={secrets.beforeSubmit}
             transform={(data) =>
                 images.length > 0 ? { ...data, images } : data
             }
@@ -853,6 +857,15 @@ function ReplyComposer({
                     <ImagePickerPreviews
                         images={images}
                         onRemove={attachments.remove}
+                    />
+                    <SecretWarning
+                        body={body}
+                        findings={secrets.findings}
+                        textarea={textareaRef}
+                        onChange={updateBody}
+                        confirming={secrets.confirming}
+                        onConfirmingChange={secrets.setConfirming}
+                        onApprove={secrets.approve}
                     />
                     <InputError
                         message={attachments.error ?? imageErrorFrom(errors)}

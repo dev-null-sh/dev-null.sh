@@ -173,6 +173,14 @@ final class Commit extends Model
     }
 
     /**
+     * Later parts of a series are replies to the part before them, yet they read as part of it rather than as replies.
+     */
+    public function isSeriesContinuation(): bool
+    {
+        return $this->series_position !== null && $this->series_position > 1;
+    }
+
+    /**
      * @return HasMany<Bookmark, $this>
      */
     public function bookmarks(): HasMany

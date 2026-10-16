@@ -23,6 +23,14 @@ const user = { id: 'viewer', username: 'viewer', lane: 1 };
 
 vi.doMock('react', () => ({
     ...React,
+    useMemo: (factory: () => unknown) => factory(),
+    useRef: (initial: unknown) => {
+        const index = cursor++;
+        if (!(index in state)) {
+            state[index] = { current: initial };
+        }
+        return state[index];
+    },
     useState: (initial: unknown) => {
         const index = cursor++;
         if (!(index in state)) {
@@ -205,4 +213,25 @@ test('schedules plain text in UTC and keeps pasted images visible until removed 
         )!.props.disabled,
         false,
     );
+});
+
+test('retains restored images while sensitive series text requires explicit approval', () => {
+    const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
+    draft.bodies = ['First part', token];
+    draft.images = [image];
+    const { form, fields } = render();
+    const warning = fields.find(
+        (element) => (element.props.findings as unknown[] | undefined)?.length,
+    )!;
+
+    assert.equal(form.props.onBefore(), false);
+    assert.equal(draft.drop.mock.calls.length, 0);
+    assert.deepEqual(draft.images, [image]);
+    (warning.props.onApprove as () => void)();
+    assert.equal(form.props.onBefore(), true);
+    assert.equal(form.props.onBefore(), false);
+    assert.deepEqual(form.props.transform({ bodies: draft.bodies }), {
+        bodies: draft.bodies,
+        images: [image],
+    });
 });
