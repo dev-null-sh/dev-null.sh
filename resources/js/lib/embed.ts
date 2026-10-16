@@ -55,6 +55,13 @@ export function findEmbedCommand(body: string): EmbedCommand | null {
 }
 
 /**
+ * Whether the body ends partway through an "/embed" line, where a colon starts a ratio like 4:3 rather than an emoji.
+ */
+export function endsInEmbedCommand(body: string): boolean {
+    return /(?<!\S)\/embed[ \t][^\n]*$/.test(body);
+}
+
+/**
  * The body as it reads in a single line of text: an embed without a message stands in as "/embed <host>". Keep in
  * sync with Commit::summary().
  */

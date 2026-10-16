@@ -33,6 +33,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
+import { endsInEmbedCommand } from '@/lib/embed';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -640,7 +641,7 @@ function ReplyComposer({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - body.length;
     const isReplyable = body.trim().length >= 3;
-    const suggestion = suggestEmoji(body);
+    const suggestion = endsInEmbedCommand(body) ? null : suggestEmoji(body);
 
     const returnFocusToCommit = () => {
         const commit =

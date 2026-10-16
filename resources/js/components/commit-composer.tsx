@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
+import { endsInEmbedCommand } from '@/lib/embed';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
@@ -32,7 +33,7 @@ export function CommitComposer() {
 
     const remaining = maxBodyLength - body.length;
     const isCommittable = body.trim().length >= minBodyLength;
-    const suggestion = suggestEmoji(body);
+    const suggestion = endsInEmbedCommand(body) ? null : suggestEmoji(body);
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Tab' && suggestion !== null) {
