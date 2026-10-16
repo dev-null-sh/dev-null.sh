@@ -8,11 +8,11 @@ use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 });
 
 it('shows the operational health of the app to admins', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
 
     Commit::factory()->pending()->count(2)->create();
     Commit::factory()->for(Commit::factory(), 'parent')->create();
@@ -48,7 +48,7 @@ it('shows the GitHub rate limit when GitHub credentials are configured', functio
         ]),
     ]);
 
-    $response = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $response = $this->actingAs(User::factory()->create(['github_id' => '583231']))
         ->get(route('operations.show'));
 
     $response->assertOk()

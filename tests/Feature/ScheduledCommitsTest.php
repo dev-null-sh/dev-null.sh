@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 });
 
 it('rejects polls instead of silently scheduling only their question', function (): void {
@@ -157,7 +157,7 @@ it('counts scheduled submissions against the series budget without partially pos
 
 it('keeps schedules out of logs profiles activity previews and moderation until due', function (): void {
     $user = User::factory()->create();
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     $scheduled = ScheduledCommit::factory()->for($user)->create(['body' => 'Private future parser release.']);
 
     foreach ([$user, $admin, User::factory()->create()] as $viewer) {
@@ -184,12 +184,12 @@ it('only lists the current authors schedules and forbids canceling another autho
         ->component('scheduled-commits/index')->has('scheduledCommits.data', 1)->where('scheduledCommits.data.0.id', $mine->id))
         ->assertDontSee($other->body);
     $this->delete(route('scheduled-commit.destroy', $other))->assertForbidden();
-    $this->actingAs(User::factory()->create(['username' => 'admin']))->delete(route('scheduled-commit.destroy', $mine))->assertForbidden();
+    $this->actingAs(User::factory()->create(['github_id' => '583231']))->delete(route('scheduled-commit.destroy', $mine))->assertForbidden();
     expect($other->fresh()->canceled_at)->toBeNull();
 });
 
 it('keeps scheduled content private in the public API and feed until approved delivery', function (bool $admin): void {
-    $user = User::factory()->create(['username' => $admin ? 'admin' : 'octocat']);
+    $user = User::factory()->create(['github_id' => $admin ? '583231' : '5457236']);
     $scheduled = ScheduledCommit::factory()->for($user)->create(['body' => 'Private future release :rocket:']);
 
     $this->getJson(route('api-user-commit.index', $user))->assertOk()->assertJsonCount(0, 'data');
@@ -217,7 +217,7 @@ it('submits once at the due time using the authors current approval privileges',
     $user = User::factory()->create();
     $scheduled = ScheduledCommit::factory()->for($user)->create();
     if ($admin) {
-        $user->update(['username' => 'admin']);
+        config(['app.admins' => [$user->github_id]]);
     }
 
     $action = resolve(UpdateScheduledCommitSubmittedAt::class);

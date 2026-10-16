@@ -58,9 +58,9 @@ it('tells users their series is pending review', function (): void {
 });
 
 it('publishes a series of an admin right away', function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
 
     $response = $this->actingAs($admin)
         ->fromRoute('log.show', Log::Following)
@@ -235,11 +235,11 @@ it('validates the images of a series like those of a commit', function (): void 
 });
 
 it('notifies people mentioned in each part once the series is approved', function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 
     $mentioned = User::factory()->create(['username' => 'taylor']);
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['github_id' => '583231']))
         ->fromRoute('log.show', Log::Following)
         ->post(route('commit-series.store'), ['bodies' => ['Paired with @taylor today', 'Thanks again @taylor']]);
 

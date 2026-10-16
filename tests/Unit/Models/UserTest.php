@@ -158,6 +158,7 @@ it('has no password', function (): void {
 
 it('knows admins by their github id, not their username', function (): void {
     config(['app.admins' => ['583231']]);
+    fakeGitHubSponsorsListing();
 
     $admin = User::factory()->create(['github_id' => '583231', 'username' => 'octocat']);
 

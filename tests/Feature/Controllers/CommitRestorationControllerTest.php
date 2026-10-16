@@ -296,8 +296,8 @@ it('restores a series part in place without publishing continuations as feed ent
 })->with([1, 2])->with(CommitStatus::cases());
 
 it('regroups an own pending series in moderation through deletion and undo', function (int $position): void {
-    $user = User::factory()->create(['username' => 'admin']);
-    config(['app.admins' => ['admin']]);
+    $user = User::factory()->create(['github_id' => '583231']);
+    config(['app.admins' => ['583231']]);
     $parts = commitSeries($user, status: CommitStatus::Pending);
     $part = $parts[$position - 1];
 
@@ -324,8 +324,8 @@ it('regroups an own pending series in moderation through deletion and undo', fun
 it('retains the moderation status of a deleted part when the rest of the series is approved before undo', function (): void {
     $parts = commitSeries(status: CommitStatus::Pending);
     $user = $parts[0]->user;
-    $admin = User::factory()->create(['username' => 'admin']);
-    config(['app.admins' => ['admin']]);
+    $admin = User::factory()->create(['github_id' => '583231']);
+    config(['app.admins' => ['583231']]);
 
     $this->actingAs($user)->delete(route('commit.destroy', $parts[1]))->assertRedirect();
     $this->actingAs($admin)->post(route('commit-approval.store', $parts[0]))->assertRedirect();

@@ -38,7 +38,7 @@ it('renders pending commits oldest first', function (): void {
 });
 
 it('shows the ai decision on commits and their series parts', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     $seriesId = Str::uuid7()->toString();
 
     $first = Commit::factory()->pending()->create([
@@ -80,7 +80,7 @@ it('keeps ai suggestions private and notifies the quoted author only after moder
         ]]]]),
     ]);
 
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     $quoted = Commit::factory()->create([
         'ai_decision' => CommitStatus::Approved,
         'ai_categories' => ['private-quoted-category'],
@@ -167,7 +167,7 @@ it('shows who a pending reply is replying to', function (): void {
 });
 
 it('shows what a pending quote is quoting', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['github_id' => '583231']);
     $quoted = Commit::factory()->for(User::factory()->create(['username' => 'octocat']))->pending()->create(['body' => 'Quoted while pending']);
     Commit::factory()->pending()->for($quoted, 'quotedCommit')->create(['created_at' => now()->addMinute()]);
 

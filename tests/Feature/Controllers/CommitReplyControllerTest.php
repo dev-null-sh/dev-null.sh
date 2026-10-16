@@ -240,9 +240,9 @@ it('may reply to a commit', function (): void {
 });
 
 it('publishes replies of admins right away', function (): void {
-    config(['app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['5457236']]);
 
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['github_id' => '5457236', 'username' => 'nunomaduro']);
     $parent = Commit::factory()->create();
 
     $response = $this->actingAs($user)

@@ -254,11 +254,11 @@ it('shows the poll of a quoted commit with the same results as the commit itself
 });
 
 it('shows the poll of a quoted commit in moderation and after undoing a deletion', function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
     $quote = Commit::factory()->pending()->for($poll->commit, 'quotedCommit')->create();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['github_id' => '583231']))
         ->get(route('moderation.show'))
         ->assertInertia(fn ($page) => $page->where('commits.data.0.quoted_commit.poll.options.0.label', 'Tabs'));
 
@@ -288,10 +288,10 @@ it('shows polls on profiles and saved commits', function (): void {
 });
 
 it('shows the poll of a pending commit to moderators', function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
     Poll::factory()->for(Commit::factory()->pending())->withOptions('Tabs', 'Spaces')->unopened()->create();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['github_id' => '583231']))
         ->get(route('moderation.show'))
         ->assertInertia(fn ($page) => $page
             ->where('commits.data.0.poll.closes_at', null)

@@ -33,9 +33,9 @@ it('creates a series pending review', function (): void {
 });
 
 it('approves a series of an admin right away without notifying them about their own parts', function (): void {
-    config(['app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['5457236']]);
 
-    $parts = resolve(CreateCommitSeries::class)->handle(User::factory()->create(['username' => 'nunomaduro']), ['First part', 'Second part']);
+    $parts = resolve(CreateCommitSeries::class)->handle(User::factory()->create(['github_id' => '5457236', 'username' => 'nunomaduro']), ['First part', 'Second part']);
 
     expect($parts->pluck('status')->unique()->all())->toBe([CommitStatus::Approved])
         ->and(Notification::query()->count())->toBe(0);

@@ -90,13 +90,13 @@ it('may quote a commit', function (): void {
 });
 
 it('notifies the quoted author about quotes of admins', function (): void {
-    config(['app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['5457236']]);
 
     $quoted = Commit::factory()->create();
 
     $action = resolve(CreateCommit::class);
 
-    $quote = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $quoted);
+    $quote = $action->handle(User::factory()->create(['github_id' => '5457236', 'username' => 'nunomaduro']), 'Worth a read', quotedCommit: $quoted);
 
     expect($quoted->user->notifications()->sole())
         ->type->toBe(NotificationType::Quoted)
@@ -147,12 +147,12 @@ it('asks the ai for its decision on pending commits', function (): void {
 });
 
 it('does not ask the ai about commits of admins', function (): void {
-    config(['services.openai.key' => 'sk-test', 'app.admins' => ['nunomaduro']]);
+    config(['services.openai.key' => 'sk-test', 'app.admins' => ['5457236']]);
     Queue::fake();
 
     $action = resolve(CreateCommit::class);
 
-    $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Initial commit');
+    $action->handle(User::factory()->create(['github_id' => '5457236', 'username' => 'nunomaduro']), 'Initial commit');
 
     Queue::assertNotPushed(ModerateCommit::class);
 });
@@ -329,11 +329,11 @@ it('attaches a poll with its options in order', function (): void {
 });
 
 it('opens the poll of an admin right away', function (): void {
-    config(['app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['5457236']]);
 
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Tabs or spaces?', poll: new NewPoll(['Tabs', 'Spaces'], PollDuration::OneHour));
+    $commit = $action->handle(User::factory()->create(['github_id' => '5457236', 'username' => 'nunomaduro']), 'Tabs or spaces?', poll: new NewPoll(['Tabs', 'Spaces'], PollDuration::OneHour));
 
     expect($commit->poll->closesAt()?->toIso8601String())->toBe(now()->addHour()->toIso8601String());
 });
@@ -359,33 +359,33 @@ it('files replies under the top-level commit of their thread', function (): void
 });
 
 it('lifts the thread when an admin replies', function (): void {
-    config(['app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['5457236']]);
 
     $commit = Commit::factory()->create();
 
-    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $commit);
+    resolve(CreateCommit::class)->handle(User::factory()->create(['github_id' => '5457236', 'username' => 'nunomaduro']), 'Nice one', $commit);
 
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });
 
 it('lifts the quoted thread when an admin quotes', function (): void {
-    config(['app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['5457236']]);
 
     $commit = Commit::factory()->create();
 
-    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
+    resolve(CreateCommit::class)->handle(User::factory()->create(['github_id' => '5457236', 'username' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
 
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });
 
 it('keeps a poll on a quote while only approved quotes lift its thread', function (bool $admin): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 
     $root = Commit::factory()->create();
     $reply = Commit::factory()->for($root, 'parent')->create();
-    $user = User::factory()->create(['username' => $admin ? 'admin' : 'author']);
+    $user = User::factory()->create(['github_id' => $admin ? '583231' : '5457236']);
 
     $quote = resolve(CreateCommit::class)->handle(
         $user,

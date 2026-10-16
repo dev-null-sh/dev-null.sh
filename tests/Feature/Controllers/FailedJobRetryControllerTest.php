@@ -6,13 +6,13 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
-    config(['app.admins' => ['admin']]);
+    config(['app.admins' => ['583231']]);
 });
 
 it('may retry a failed job', function (): void {
     $uuid = failedJob(queue: 'previews');
 
-    $response = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $response = $this->actingAs(User::factory()->create(['github_id' => '583231']))
         ->fromRoute('operations.show')
         ->post(route('failed-job-retry.store', $uuid));
 
