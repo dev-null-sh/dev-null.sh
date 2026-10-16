@@ -34,6 +34,17 @@ it('creates tom once, with a single welcome commit and no github account', funct
         ->and($tom->following()->count())->toBe(2);
 });
 
+it('does not make tom follow himself', function (): void {
+    $action = resolve(CreateTomFollows::class);
+    $action->handle(User::factory()->create());
+    $tom = User::query()->where('username', 'tom')->sole();
+
+    $action->handle($tom);
+
+    expect($tom->isFollowing($tom))->toBeFalse()
+        ->and($tom->following()->count())->toBe(1);
+});
+
 it('befriends every existing user', function (): void {
     $users = User::factory()->count(3)->create();
 
