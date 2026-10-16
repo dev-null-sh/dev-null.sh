@@ -8,6 +8,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 
 test('to array', function (): void {
     $commit = Commit::factory()->create()->refresh();
@@ -67,6 +68,15 @@ it('is visible when approved or owned', function (): void {
         ->and($pending->isVisibleTo($viewer))->toBeFalse()
         ->and($rejected->isVisibleTo($author))->toBeTrue()
         ->and($rejected->isVisibleTo($viewer))->toBeFalse();
+});
+
+it('continues a series from its second part on', function (): void {
+    $parts = commitSeries();
+
+    expect(Commit::factory()->create()->isSeriesContinuation())->toBeFalse()
+        ->and($parts[0]->isSeriesContinuation())->toBeFalse()
+        ->and($parts[1]->isSeriesContinuation())->toBeTrue()
+        ->and($parts[2]->isSeriesContinuation())->toBeTrue();
 });
 
 it('deletes stars with the commit', function (): void {
@@ -190,22 +200,15 @@ it('excludes series continuations from its public preview reply count', function
         ->and($preview->isDirty('replies_count'))->toBeFalse();
 });
 
-it('keeps public preview counts clean without discarding unsaved changes', function (): void {
+it('counts only approved quotes in its public preview', function (): void {
     $commit = Commit::factory()->create();
     Commit::factory()->for($commit, 'quotedCommit')->create();
     Commit::factory()->for($commit, 'quotedCommit')->pending()->create();
-    $commit->forceFill(['body' => 'Updated commit body']);
 
     $preview = $commit->loadPublicPreview();
 
-    expect($preview)->toBe($commit)
-        ->and($preview->replies_count)->toBe(1)
-        ->and($preview->isDirty('replies_count'))->toBeFalse()
-        ->and($preview->isDirty('body'))->toBeTrue();
-
-    $preview->save();
-
-    expect($commit->fresh()->body)->toBe('Updated commit body');
+    expect($preview->replies_count)->toBe(1)
+        ->and($preview->isDirty('replies_count'))->toBeFalse();
 });
 
 it('loads a public preview for an unsaved commit without making it persistent', function (): void {
@@ -221,18 +224,95 @@ it('loads a public preview for an unsaved commit without making it persistent', 
         ->and($preview->user->is($user))->toBeTrue();
 });
 
-it('loads public preview counts onto a partially selected commit', function (bool $includesId): void {
+it('loads public preview counts onto a partially selected commit with its id', function (): void {
     $commit = Commit::factory()->create();
     Commit::factory()->for($commit, 'parent')->create();
     Commit::factory()->for($commit, 'quotedCommit')->create();
-    $partial = Commit::query()->select($includesId ? ['id', 'user_id', 'parent_id'] : ['user_id', 'parent_id'])->findOrFail($commit->id);
+    $partial = Commit::query()->select(['id', 'user_id', 'parent_id'])->findOrFail($commit->id);
 
     $partial->loadPublicPreview();
 
-    expect($partial->replies_count)->toBe($includesId ? 2 : 0)
+    expect($partial->replies_count)->toBe(2)
         ->and($partial->isDirty('replies_count'))->toBeFalse()
         ->and($partial->getAttributes())->not->toHaveKey('body');
-})->with([true, false]);
+});
+
+it('hydrates public preview counts without persisting them or clearing body edits', function (bool $deleted): void {
+    $parent = Commit::factory()->create();
+    $commit = Commit::factory()->for($parent, 'parent')->create()->refresh();
+    Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'quotedCommit')->create();
+    Commit::factory()->for($commit, 'parent')->pending()->create();
+    Commit::factory()->for($commit, 'parent')->rejected()->create();
+    $deletedReply = Commit::factory()->for($commit, 'parent')->create();
+    $deletedReply->delete();
+
+    $commit->load('images');
+    $images = $commit->images;
+    $author = $commit->user;
+
+    if ($deleted) {
+        $commit->delete();
+    }
+
+    $commit->fill(['body' => 'Edited after loading']);
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview)->toBe($commit)
+        ->and($preview->replies_count)->toBe(2)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->getDirty())->toBe(['body' => 'Edited after loading'])
+        ->and($preview->images)->toBe($images)
+        ->and($preview->user->is($author))->toBeTrue()
+        ->and($preview->parent->is($parent))->toBeTrue();
+
+    if ($deleted) {
+        expect($preview->toArray())->toBe([
+            'id' => $commit->id,
+            'parent_id' => $parent->id,
+            'deleted_at' => $commit->deleted_at?->toJSON(),
+            'replies_count' => 2,
+        ]);
+    }
+
+    $preview->save();
+
+    expect(Commit::withTrashed()->findOrFail($commit->id)->body)->toBe('Edited after loading')
+        ->and($preview->isDirty())->toBeFalse();
+})->with([false, true]);
+
+it('hydrates a zero public preview count when no persisted primary key is available', function (Closure $makeCommit): void {
+    $commit = $makeCommit();
+    $strict = Model::preventsAccessingMissingAttributes();
+    Model::preventAccessingMissingAttributes();
+
+    try {
+        $preview = $commit->loadPublicPreview();
+
+        expect($preview)->toBe($commit)
+            ->and($preview->replies_count)->toBe(0)
+            ->and($preview->isDirty('replies_count'))->toBeFalse()
+            ->and($preview->relationLoaded('user'))->toBeTrue()
+            ->and($preview->relationLoaded('parent'))->toBeTrue();
+    } finally {
+        Model::preventAccessingMissingAttributes($strict);
+    }
+})->with([
+    'unsaved' => [fn (): Commit => new Commit],
+    'unsaved with uuid' => [fn (): Commit => Commit::factory()->make(['id' => fake()->uuid()])],
+    'partial without id' => [function (): Commit {
+        Commit::factory()->create();
+
+        return Commit::query()->firstOrFail(['body', 'user_id', 'parent_id']);
+    }],
+    'removed row' => [function (): Commit {
+        $commit = Commit::factory()->create();
+        $commit->forceDelete();
+
+        return $commit;
+    }],
+]);
 
 it('may belong to a link preview', function (): void {
     $linkPreview = LinkPreview::factory()->create();
