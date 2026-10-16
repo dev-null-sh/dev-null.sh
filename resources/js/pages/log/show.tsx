@@ -1,6 +1,7 @@
 import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { index as githubPeople } from '@/actions/App/Http/Controllers/GitHubPeopleController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
@@ -188,6 +189,12 @@ export default function Show({
                                 {suggestions.length > 0 && (
                                     <Suggestions suggestions={suggestions} />
                                 )}
+                                <Link
+                                    href={githubPeople()}
+                                    className="mt-4 block text-sm text-primary hover:underline"
+                                >
+                                    Find your GitHub people
+                                </Link>
                             </EmptyFeed>
                         ) : (
                             <EmptyFeed command="fatal: no commits yet">

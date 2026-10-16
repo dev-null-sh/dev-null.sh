@@ -15,6 +15,8 @@ use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\GitHubPeopleController;
+use App\Http\Controllers\GitHubPeopleFollowController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
@@ -103,6 +105,14 @@ Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
 Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
 
 Route::middleware('auth')->group(function (): void {
+    Route::get('people/github', [GitHubPeopleController::class, 'index'])->name('github-people.index');
+    Route::post('people/github', [GitHubPeopleController::class, 'store'])
+        ->middleware('throttle:6,1,github-people-discovery')
+        ->name('github-people.store');
+    Route::post('people/github/follows', [GitHubPeopleFollowController::class, 'store'])
+        ->middleware('throttle:10,1,github-people-follows')
+        ->name('github-people-follow.store');
+
     // Session...
     Route::post('logout', [SessionController::class, 'destroy'])
         ->name('logout');
