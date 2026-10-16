@@ -77,7 +77,7 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ## Signed requests
 
-The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, committing, deleting and following only take signed requests. Signed requests are limited to 120 a minute per user.
+The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, committing, deleting, following and starring only take signed requests. Signed requests are limited to 120 a minute per user.
 
 Commits in a signed response carry what the web's cards show: `preview_segments`, the excerpt a list shows of a long commit (or `null`), the `poll` with the user's view of its votes and each option's `percentage`, the `quoted_commit` (a tombstone once deleted, or `null` when the user may not see it, while `quoted_commit_id` still says a commit was quoted), and in lists the `reply_preview` the web shows under each commit. Its `next_cursor` continues with `GET /api/v1/commits/{id}/replies?newest=1&cursor=…`, as on the web.
 
@@ -124,7 +124,7 @@ An error is JSON with a `message` to show the user. The errors the app has to te
 | `401` | `device_not_approved` | Nobody approved the key as a device, or it was revoked. |
 | `403` | `user_blocked` | The user blocked the profile they asked for. Neither of them sees the other's commits. |
 | `403` | `user_unavailable` | The profile isn't available to the user, because it blocked them. |
-| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, 30 follows and unfollows a minute, or 60 failed signatures a minute from one IP. `Retry-After` says when to try again. |
+| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, 30 follows and unfollows a minute, 60 stars and unstars a minute, or 60 failed signatures a minute from one IP. `Retry-After` says when to try again. |
 
 Other errors have no `code`, like a `422` for a commit that fails validation or a `404` for one that doesn't exist. Unsigned requests to the public endpoints get the same errors as before, without codes.
 
