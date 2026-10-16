@@ -763,6 +763,17 @@ it('shows guests the commit with its approved replies and a link preview', funct
     expect(session('url.intended'))->toBe(route('commit.show', [$user, $commit]));
 });
 
+it('does not show a later part of a series as a reply in the link preview', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $parts = commitSeries($user);
+
+    $response = $this->get(route('commit.show', [$user, $parts[1]]));
+
+    $response->assertOk()
+        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
+        ->assertDontSee('(@octocat) replying to', false);
+});
+
 it('trims long commits in the link preview description', function (): void {
     $commit = Commit::factory()->create(['body' => str_repeat('Writing PHP on purpose. ', 9).'The end is not described.']);
 
