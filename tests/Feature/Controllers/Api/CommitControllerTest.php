@@ -90,6 +90,20 @@ it('masks inline spoilers in public api responses while preserving code', functi
         ->assertJsonPath('data.body', 'Ending: [spoiler]; `a || b`');
 });
 
+it('counts public replies without series continuations', function (bool $list): void {
+    $parts = commitSeries();
+    Commit::factory()->for($parts[0], 'parent')->create();
+    Commit::factory()->for($parts[0], 'parent')->pending()->create();
+    Commit::factory()->for($parts[0], 'parent')->rejected()->create();
+    Commit::factory()->for($parts[0], 'parent')->create()->delete();
+
+    $this->getJson($list
+        ? route('api-user-commit.index', $parts[0]->user)
+        : route('api-commit.show', $parts[0]))
+        ->assertOk()
+        ->assertJsonPath($list ? 'data.0.replies_count' : 'data.replies_count', 1);
+})->with([false, true]);
+
 it('shows the parent of a reply only while the parent is public', function (Closure $hide, bool $isPublic): void {
     $parent = Commit::factory()->create();
     $reply = Commit::factory()->for($parent, 'parent')->create();
@@ -196,4 +210,21 @@ it('limits each address to 60 requests a minute', function (): void {
         ->assertHeader('Retry-After', 60);
 
     $this->getJson(route('api-commit.show', $commit), ['REMOTE_ADDR' => '10.0.0.2'])->assertOk();
+});
+
+it('keeps warned series continuations hidden when fetched directly', function (): void {
+    config(['app.admins' => ['admin']]);
+    $user = User::factory()->create(['username' => 'admin']);
+    $this->actingAs($user)->post(route('commit-series.store'), [
+        'bodies' => ['Hidden first part', 'Hidden continuation'],
+        'content_warning' => 'Season finale',
+    ])->assertSessionHasNoErrors();
+
+    foreach ($user->commits()->get() as $part) {
+        $this->getJson(route('api-commit.show', $part))
+            ->assertOk()
+            ->assertJsonPath('data.body', 'CW: Season finale')
+            ->assertDontSee('Hidden first part')
+            ->assertDontSee('Hidden continuation');
+    }
 });

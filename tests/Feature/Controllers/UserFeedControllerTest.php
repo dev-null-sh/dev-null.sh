@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\User;
@@ -71,6 +72,18 @@ it('serves the public top-level commits of a user as an atom feed', function ():
         ->and((string) $feed->entry[1]->updated)->toBe(now()->subDay()->toAtomString())
         ->and((string) $feed->entry[1]->content)->toBe('First commit')
         ->and((string) $feed->entry[1]->content['type'])->toBe('text');
+});
+
+it('includes only the first part of a public series', function (): void {
+    $parts = commitSeries();
+    commitSeries($parts[0]->user, status: CommitStatus::Pending);
+    commitSeries($parts[0]->user, status: CommitStatus::Rejected);
+
+    $feed = atomFeed($this->get(route('user-feed.show', $parts[0]->user))->assertOk());
+
+    expect($feed->entry)->toHaveCount(1)
+        ->and((string) $feed->entry[0]->id)->toBe("urn:uuid:{$parts[0]->id}")
+        ->and((string) $feed->entry[0]->content)->toBe($parts[0]->body);
 });
 
 it('attaches the images of commits as enclosures', function (): void {
@@ -215,4 +228,21 @@ it('serves an empty feed for users without public commits', function (): void {
 
 it('returns not found for unknown usernames', function (): void {
     $this->get('/@missing/feed.atom')->assertNotFound();
+});
+
+it('keeps warned series private and includes only their first part in feeds', function (): void {
+    config(['app.admins' => ['admin']]);
+    $user = User::factory()->create(['username' => 'admin']);
+    $this->actingAs($user)->post(route('commit-series.store'), [
+        'bodies' => ['Hidden first part', 'Hidden continuation'],
+        'content_warning' => 'Season finale',
+    ])->assertSessionHasNoErrors();
+
+    $response = $this->get(route('user-feed.show', $user))->assertOk()
+        ->assertDontSee('Hidden first part')
+        ->assertDontSee('Hidden continuation');
+    $feed = atomFeed($response);
+
+    expect($feed->entry)->toHaveCount(1)
+        ->and((string) $feed->entry[0]->content)->toBe('CW: Season finale');
 });

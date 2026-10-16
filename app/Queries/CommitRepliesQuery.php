@@ -19,6 +19,7 @@ final readonly class CommitRepliesQuery
     {
         return $commit->replies()
             ->visibleInThreadTo($user)
+            ->exceptSeriesContinuations()
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
             ->with(['user', 'linkPreview', 'images'])

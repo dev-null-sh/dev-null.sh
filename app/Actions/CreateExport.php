@@ -10,7 +10,7 @@ use Generator;
 final readonly class CreateExport
 {
     /**
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, string|null>>, following: Generator<int, array{username: string}>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, int|string|null>>, following: Generator<int, array{username: string}>}
      */
     public function handle(User $user): array
     {
@@ -37,14 +37,17 @@ final readonly class CreateExport
     }
 
     /**
-     * @return Generator<int, array<string, string|null>>
+     * @return Generator<int, array<string, int|string|null>>
      */
     private function commits(User $user): Generator
     {
-        foreach ($user->commits()->select(['id', 'parent_id', 'body', 'content_warning', 'status', 'created_at', 'updated_at'])->lazyById(500) as $commit) {
+        foreach ($user->commits()->select(['id', 'parent_id', 'series_id', 'series_position', 'series_size', 'body', 'content_warning', 'status', 'created_at', 'updated_at'])->lazyById(500) as $commit) {
             yield [
                 'id' => $commit->id,
                 'parent_id' => $commit->parent_id,
+                'series_id' => $commit->series_id,
+                'series_position' => $commit->series_position,
+                'series_size' => $commit->series_size,
                 'body' => $commit->body,
                 'content_warning' => $commit->content_warning,
                 'status' => $commit->status->value,

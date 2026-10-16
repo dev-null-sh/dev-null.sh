@@ -59,6 +59,15 @@ it('masks warnings and spoilers in user commit listings', function (): void {
         ->assertDontSee('the secret');
 });
 
+it('lists real replies without later parts of a series', function (): void {
+    $parts = commitSeries();
+    $reply = Commit::factory()->for($parts[0]->user)->for($parts[0], 'parent')->create();
+
+    $this->getJson(route('api-user-commit.index', [$parts[0]->user, 'replies' => 1]))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$reply->id]);
+});
+
 it('pages through commits with a cursor', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 
