@@ -104,8 +104,9 @@ it('does not count the profile of guests reloading only commits', function (): v
 
     expect(collect(DB::getQueryLog())
         ->pluck('query')
-        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*') || str_starts_with($query, 'select * from (select "commits".*'))
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits"."id", "commits"."user_id"') || str_starts_with($query, 'select * from (select "commits"."id"'))
         ->all())
+        ->not->toBeEmpty()
         ->each(fn ($query) => $query->not->toContain('count(*)'));
 });
 
