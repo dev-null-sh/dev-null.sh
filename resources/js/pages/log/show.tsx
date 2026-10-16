@@ -270,15 +270,27 @@ export default function Show({
         router.flushAll();
     }, [log]);
 
+    // Inertia drops async reloads once a deploy changes the asset version, so the button has to load the page in full.
+    const isOutdated = useRef(false);
+
     useEffect(
         () =>
             router.on('location', (event) => {
                 if (event.detail.versionChange) {
+                    isOutdated.current = true;
                     stopPolling();
                 }
             }),
         [stopPolling],
     );
+
+    const showNewCommits = () => {
+        if (isOutdated.current) {
+            window.location.assign(window.location.pathname);
+        } else {
+            reloadNewestFirst();
+        }
+    };
 
     const reloadNewestFirst = () =>
         router.reload({
@@ -329,7 +341,13 @@ export default function Show({
 
     // On Latest, new commits are fetched on their own, once the pill has had a moment to be read.
     useEffect(() => {
-        if (!autoLoads || newCommitsCount === 0 || isFetching) {
+        // After a deploy the reload would be dropped, so the button loads the page in full instead.
+        if (
+            !autoLoads ||
+            newCommitsCount === 0 ||
+            isFetching ||
+            isOutdated.current
+        ) {
             return;
         }
 
@@ -354,6 +372,11 @@ export default function Show({
                         onFinish: () => {
                             loadingNew.current = false;
                             setIsFetching(false);
+
+                            if (isOutdated.current) {
+                                return;
+                            }
+
                             setWaiting((total) => total + count);
                             setLoaded('shown');
                             loadedTimers.current.forEach(clearTimeout);
@@ -422,7 +445,7 @@ export default function Show({
                                       });
                                       dismissLoaded(900);
                                   }
-                                : reloadNewestFirst
+                                : showNewCommits
                         }
                         disabled={isFetching}
                         className={cn(
