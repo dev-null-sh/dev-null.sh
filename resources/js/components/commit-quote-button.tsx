@@ -22,7 +22,9 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
-import { cn } from '@/lib/utils';
+import { useUser } from '@/hooks/use-user';
+import { signIn } from '@/lib/auth';
+import { characterCount, cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const minBodyLength = 3;
@@ -39,9 +41,9 @@ export function CommitQuoteButton({
 }) {
     const { auth } = usePage().props;
     const [isOpen, setIsOpen] = useState(false);
-    const hasStash = useHasStash(auth.user.id, `quote-${commit.id}`);
+    const hasStash = useHasStash(auth.user?.id ?? null, `quote-${commit.id}`);
 
-    if (commit.status !== 'approved' && commit.user_id !== auth.user.id) {
+    if (commit.status !== 'approved' && commit.user_id !== auth.user?.id) {
         return null;
     }
 
@@ -49,7 +51,15 @@ export function CommitQuoteButton({
         <>
             <button
                 type="button"
-                onClick={() => setIsOpen(true)}
+                onClick={() => {
+                    if (auth.user === null) {
+                        signIn();
+
+                        return;
+                    }
+
+                    setIsOpen(true);
+                }}
                 aria-haspopup="dialog"
                 aria-keyshortcuts={keyShortcut}
                 title={keyShortcut ? `Quote (${keyShortcut})` : 'Quote'}
@@ -90,13 +100,13 @@ function QuoteComposer({
     commit: Commit;
     onClose: () => void;
 }) {
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const id = `quote-${commit.id}`;
-    const { body, isRestored, updateBody, drop } = useStash(auth.user.id, id);
+    const { body, isRestored, updateBody, drop } = useStash(user.id, id);
     const attachments = useImageAttachments();
 
-    const remaining = maxBodyLength - body.length;
-    const isQuotable = body.trim().length >= minBodyLength;
+    const remaining = maxBodyLength - characterCount(body);
+    const isQuotable = characterCount(body.trim()) >= minBodyLength;
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (
@@ -155,7 +165,7 @@ function QuoteComposer({
                 {({ processing, errors }) => (
                     <>
                         <UserAvatar
-                            user={auth.user}
+                            user={user}
                             className="hidden size-10 sm:flex"
                         />
 

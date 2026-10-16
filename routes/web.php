@@ -12,6 +12,7 @@ use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitSeriesController;
+use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\HomeController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
@@ -31,6 +33,8 @@ use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
+use App\Http\Controllers\UserSitemapController;
+use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -49,24 +53,50 @@ Route::middleware('guest')->group(function (): void {
         ->name('login.store');
 });
 
-// User, previewed for guests...
-Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
+// Public pages, readable by guests and crawlers...
+Route::middleware(RememberIntendedUrl::class)->group(function (): void {
+    Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
+    Route::get('@{user:username}/following', [UserFollowingController::class, 'index'])
+        ->name('user-following.index');
+    Route::get('@{user:username}/followers', [UserFollowersController::class, 'index'])
+        ->name('user-followers.index');
+    Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
+        ->scopeBindings()
+        ->name('commit.show');
+});
+
+// Sitemaps...
+Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
+    Route::get('sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
+    Route::get('sitemaps/users-{page}.xml', [UserSitemapController::class, 'show'])
+        ->where('page', '[1-9][0-9]*')
+        ->name('user-sitemap.show');
+    Route::get('sitemaps/commits-{page}.xml', [CommitSitemapController::class, 'show'])
+        ->where('page', '[1-9][0-9]*')
+        ->name('commit-sitemap.show');
+});
+
+// User...
+Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])->name('user-preview.show');
 Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
 Route::get('@{user:username}/feed.atom', [UserFeedController::class, 'show'])
     ->middleware('cache.headers:public;max_age=300;etag')
     ->name('user-feed.show');
 
-// Commit, previewed for guests...
-Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
-    ->scopeBindings()
-    ->name('commit.show');
+// Commit...
 Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
+    ->withTrashed()
+    ->name('commit-reply.index');
+
+// User Search...
+Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -100,9 +130,6 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-star.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
         ->name('commit-star.destroy');
-    Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
-        ->withTrashed()
-        ->name('commit-reply.index');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
@@ -115,8 +142,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-rejection.store');
     Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
 
-    // User Search...
-    Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
+    // Mention Suggestions...
     Route::get('search/mentions', [MentionSuggestionController::class, 'index'])->name('mention-suggestion.index');
 
     // User Profile...
@@ -130,14 +156,11 @@ Route::middleware('auth')->group(function (): void {
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
 
+    // Terminal...
+    Route::get('settings/terminal', fn () => Inertia::render('terminal/show', ['url' => url('/')]))->name('terminal.show');
+
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
-    Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])->name('user-preview.show');
-
-    Route::get('@{user:username}/following', [UserFollowingController::class, 'index'])
-        ->name('user-following.index');
-    Route::get('@{user:username}/followers', [UserFollowersController::class, 'index'])
-        ->name('user-followers.index');
 
     // User Follow...
     Route::post('@{user:username}/follow', [UserFollowController::class, 'store'])

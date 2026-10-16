@@ -1,20 +1,20 @@
-import { usePage } from '@inertiajs/react';
 import { UserAvatar } from '@/components/user-avatar';
+import { useUser } from '@/hooks/use-user';
 
 export function GitHubProfile() {
-    const { auth } = usePage().props;
+    const { user } = useUser();
 
     const fields = [
-        { label: 'name', value: auth.user.name },
-        { label: 'username', value: `@${auth.user.username}` },
-        { label: 'bio', value: auth.user.bio },
-        { label: 'company', value: auth.user.company },
-        { label: 'location', value: auth.user.location },
-        { label: 'website', value: auth.user.website },
+        { label: 'name', value: user.name },
+        { label: 'username', value: `@${user.username}` },
+        { label: 'bio', value: user.bio },
+        { label: 'company', value: user.company },
+        { label: 'location', value: user.location },
+        { label: 'website', value: user.website },
         {
             label: 'sponsors',
-            value: auth.user.has_sponsors_listing
-                ? `github.com/sponsors/${auth.user.username}`
+            value: user.has_sponsors_listing
+                ? `github.com/sponsors/${user.username}`
                 : null,
         },
     ];
@@ -22,11 +22,11 @@ export function GitHubProfile() {
     return (
         <>
             <div className="flex items-center gap-4">
-                <UserAvatar user={auth.user} className="size-14" />
+                <UserAvatar user={user} className="size-14" />
                 <div className="min-w-0">
-                    <p className="truncate font-semibold">{auth.user.name}</p>
+                    <p className="truncate font-semibold">{user.name}</p>
                     <p className="truncate font-mono text-sm text-muted-foreground">
-                        @{auth.user.username}
+                        @{user.username}
                     </p>
                 </div>
             </div>

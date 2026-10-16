@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
@@ -35,6 +36,7 @@ it('renders a user profile', function (): void {
             ->missing('user.email')
             ->missing('user.github_id')
             ->where('isFollowing', true)
+            ->where('followsYou', false)
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
@@ -70,6 +72,7 @@ it('does not count the user relations or activity when reloading only commits', 
             $page->reloadOnly('commits', fn ($reload) => $reload
                 ->missing('user')
                 ->missing('isFollowing')
+                ->missing('followsYou')
                 ->missing('tab')
                 ->missing('activity'));
         });
@@ -179,6 +182,21 @@ it('renders whether the viewer is not following the user', function (): void {
             ->has('commits.data', 0));
 });
 
+it('renders whether the user follows the viewer', function (): void {
+    $user = User::factory()->create();
+    $viewer = User::factory()->create();
+
+    $user->following()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('isFollowing', false)
+            ->where('followsYou', true));
+});
+
 it('returns not found for unknown usernames', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->get('/@missing');
@@ -186,24 +204,33 @@ it('returns not found for unknown usernames', function (): void {
     $response->assertNotFound();
 });
 
-it('shows guests the landing page with a link preview of the profile', function (): void {
+it('shows guests the profile with its approved commits and a link preview', function (): void {
     $user = User::factory()->create([
         'username' => 'octocat',
         'name' => 'The Octocat',
         'bio' => 'I am the Octocat.',
     ]);
 
-    Commit::factory()->for($user)->create(['body' => 'A commit only signed-in users may read']);
+    Commit::factory()->for($user)->create(['body' => 'A commit everyone may read']);
+    Commit::factory()->for($user)->pending()->create(['body' => 'A pending commit only its author may read']);
 
     $response = $this->get('/@octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->component('welcome')
-            ->missing('user')
-            ->missing('commits')
-            ->missing('activity'))
+            ->component('user/show')
+            ->where('user.commits_count', 1)
+            ->where('isFollowing', false)
+            ->has('commits.data', 1)
+            ->where('commits.data.0.body', 'A commit everyone may read')
+            ->where('commits.data.0.is_saved', false)
+            ->where('streaks.longest', 1)
+            ->has('activity'))
         ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<link rel="canonical" href="'.route('user.show', $user).'">', false)
+        ->assertSee('<meta property="profile:username" content="octocat">', false)
+        ->assertSee('"@type":"ProfilePage"', false)
+        ->assertSee('"sameAs":["https://github.com/octocat"', false)
         ->assertSee('<meta property="og:type" content="profile">', false)
         ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
         ->assertSee('<meta property="og:description" content="I am the Octocat.">', false)
@@ -212,7 +239,7 @@ it('shows guests the landing page with a link preview of the profile', function 
         ->assertSee('<meta name="twitter:card" content="summary_large_image">', false)
         ->assertSee('<link rel="alternate" type="application/atom+xml" title="The Octocat (@octocat) on /dev/null" href="'.route('user-feed.show', $user).'">', false)
         ->assertDontSee(url('/og.png'))
-        ->assertDontSee('A commit only signed-in users may read');
+        ->assertDontSee('A pending commit only its author may read');
 
     $this->assertGuest();
 });
@@ -223,7 +250,7 @@ it('describes guests a profile without a bio', function (): void {
     $this->get('/@octocat')
         ->assertOk()
         ->assertSee('<meta property="og:title" content="@octocat on /dev/null">', false)
-        ->assertSee('<meta property="og:description" content="Sign in with GitHub to read @octocat&#039;s commits on /dev/null.">', false);
+        ->assertSee('<meta property="og:description" content="Read @octocat&#039;s commits on /dev/null, a social network for developers.">', false);
 });
 
 it('escapes the profile in the link preview', function (): void {
@@ -265,6 +292,28 @@ it('returns guests to the profile after signing in', function (): void {
     expect(session('url.intended'))->toBe(route('user.show', $user));
 });
 
+it('does not return guests to a profile they only prefetched or partially reloaded', function (): void {
+    User::factory()->create(['username' => 'octocat']);
+
+    $this->get('/@octocat', ['Purpose' => 'prefetch'])->assertOk();
+    $this->get('/@octocat', [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'user/show',
+        'X-Inertia-Partial-Data' => 'commits',
+    ])->assertOk();
+
+    expect(session('url.intended'))->toBeNull();
+});
+
+it('does not change where signed-in users return to', function (): void {
+    User::factory()->create(['username' => 'octocat']);
+
+    $this->actingAs(User::factory()->create())->get('/@octocat')->assertOk();
+
+    expect(session('url.intended'))->toBeNull();
+});
+
 it('returns not found for unknown usernames to guests', function (): void {
     $this->get('/@missing')->assertNotFound();
 });
@@ -278,7 +327,8 @@ it('keeps the default link preview for signed-in users', function (): void {
         ->assertInertia(fn ($page) => $page->component('user/show'))
         ->assertSee('<meta property="og:image" content="'.url('/og.png').'">', false)
         ->assertDontSee('og:url', false)
-        ->assertDontSee('application/atom+xml', false);
+        ->assertDontSee('application/atom+xml', false)
+        ->assertDontSee('application/ld+json', false);
 });
 
 it('may delete user account', function (): void {

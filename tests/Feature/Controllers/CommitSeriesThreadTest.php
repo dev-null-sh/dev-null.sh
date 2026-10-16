@@ -95,7 +95,7 @@ it('shows the first part of a series with the rest of the series after it', func
             ->where('replies', null));
 });
 
-it('loads visible quotes and deleted quote tombstones around the focused series part', function (CommitStatus $hiddenStatus): void {
+it('loads visible quotes and deleted quote tombstones around the focused series part', function (CommitStatus $hiddenStatus, bool $signedIn): void {
     $parts = commitSeries(size: 4);
     $visible = Commit::factory()->create();
     $hidden = Commit::factory()->create(['status' => $hiddenStatus]);
@@ -105,8 +105,11 @@ it('loads visible quotes and deleted quote tombstones around the focused series 
     $parts[2]->update(['quoted_commit_id' => $hidden->id]);
     $parts[3]->update(['quoted_commit_id' => $deleted->id]);
 
-    $this->actingAs(User::factory()->create())
-        ->get(route('commit.show', [$parts[1]->user, $parts[1]]))
+    if ($signedIn) {
+        $this->actingAs(User::factory()->create());
+    }
+
+    $this->get(route('commit.show', [$parts[1]->user, $parts[1]]))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('ancestors.0.quoted_commit.body', $visible->body)
@@ -116,7 +119,7 @@ it('loads visible quotes and deleted quote tombstones around the focused series 
             ->whereNot('series.1.quoted_commit.deleted_at', null)
             ->missing('series.1.quoted_commit.body')
             ->missing('series.1.quoted_commit.user'));
-})->with([CommitStatus::Pending, CommitStatus::Rejected]);
+})->with([CommitStatus::Pending, CommitStatus::Rejected])->with(['guest' => false, 'signed in' => true]);
 
 it('shows a middle part of a series between the parts around it', function (): void {
     $viewer = User::factory()->create();

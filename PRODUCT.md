@@ -34,6 +34,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 
 - Commits (posts): plain text, 3–280 characters; create and delete only (no editing). Rate limited to 10 commits per minute per user.
 - Follow/unfollow, idempotent; self-follow rejected.
+- GitHub follows come over once, on first sign-in: you follow the developers you follow on GitHub, and the ones following you there follow you (up to 1,000 each way), with the usual follow notifications. It only ever adds follows, so unfollowing someone sticks. `php artisan follows:import` does the same, silently, for everyone not imported yet.
 - Replies: any visible commit can be replied to; a reply is itself a commit (same 280 limit, moderation, and rate limit). Threads expand inline under a commit; logs and the profile's Commits tab list top-level commits only, while the profile's Replies tab lists that user's replies. Every commit has its own page with its ancestors above it and its replies expanded; it is behind login like everything else. Deleting a commit removes it from logs, profiles, counts, and its own page, but never takes other people's replies with it: while it still has visible replies it stays in its thread as a `[deleted]` tombstone with no author or body, and it can no longer be replied to. Deleting an account erases that user's commits for good, along with the replies under them.
 - Quotes: any visible commit can be quoted. A quote is a new top-level commit (same 280 limit, moderation, and rate limit) with the quoted commit embedded under its body as a compact card that opens the quoted commit's page; a reply cannot also quote. The embed only ever shows what the viewer can see: a deleted quoted commit leaves a `[deleted]` tombstone, one the viewer can no longer see (pending or rejected) reads `[unavailable]` with no author or body, and erasing an account removes the embed from quotes of its commits. Quotes have no count.
 - Stars: anyone who can see a commit can star and unstar it. Starring is idempotent. The count sits on the commit. A star is the engagement action, named the way GitHub names it, and it is not a git ref.
@@ -43,7 +44,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 - People search: find developers by name or GitHub username (⌘K). Commits are not searchable.
 - Public read API and Atom feeds: read-only, so nothing can be created, starred, or followed through them, and there are no API tokens. Lists are cursor-paginated, 20 per page.
 - Deliberately excluded for now: likes/reactions, reposts without a comment of your own (quotes are in), images/media, hashtags, searching commits, DMs, other OAuth providers, a write API or API tokens, moderation tools, blocking/muting, header/banner images. Future work must not design for these as if they exist.
-- Open: handling GitHub username renames that collide with a stale username.
+- GitHub username renames: signing in takes the current GitHub username. If a stale account still holds it because its owner renamed on GitHub, that account moves to a `_renamed-<github id>` placeholder until its owner signs in again. Accounts are never merged.
 
 ## Brand Commitments
 

@@ -20,6 +20,7 @@ import { LaneOptions, LanePreview } from '@/components/lane-picker';
 import { Button } from '@/components/ui/button';
 import { SuggestedUserRow } from '@/components/who-to-follow';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { useUser } from '@/hooks/use-user';
 import { cn, laneColor } from '@/lib/utils';
 import type { SuggestedUser } from '@/types';
 
@@ -220,6 +221,7 @@ export default function Show({
     commitScriptUrl: string;
 }) {
     const { auth } = usePage().props;
+    const { user: currentUser } = useUser();
     const [step, setStep] = useRemember(0, 'onboarding-step');
     const [selectedLane, setSelectedLane] = useState<number | null>(
         preferredLane,
@@ -496,7 +498,7 @@ export default function Show({
 
                 <main className="mt-10 sm:mt-14">
                     <p className="mb-8 pl-10 text-sm text-muted-foreground sm:pl-14">
-                        Welcome, @{auth.user.username}. Four steps, then your
+                        Welcome, @{currentUser.username}. Four steps, then your
                         log. Skip whenever.
                     </p>
 
