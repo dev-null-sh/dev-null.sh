@@ -61,6 +61,11 @@ export function BookmarkCollectionsMenu({ commit }: { commit: Commit }) {
             );
 
             router.reload({ only: ['collections'] });
+            toast.success(
+                isAdding
+                    ? `Added to ${collection.name}.`
+                    : `Removed from ${collection.name}.`,
+            );
 
             if (!isAdding && collection.id === selectedId) {
                 onRemovedFromSelected(commit.id);
@@ -109,7 +114,6 @@ export function BookmarkCollectionsMenu({ commit }: { commit: Commit }) {
                         <DropdownMenuCheckboxItem
                             key={collection.id}
                             checked={collectionIds.includes(collection.id)}
-                            disabled={request.processing}
                             onSelect={(event) => {
                                 event.preventDefault();
                                 void toggle(collection);
