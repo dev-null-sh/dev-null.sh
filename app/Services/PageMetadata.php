@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -18,15 +19,24 @@ final readonly class PageMetadata
     /**
      * The link preview and structured data of a commit, from its public preview and stars count.
      *
-     * @return array{type: string, title: string, description: string, url: string, image: string, publishedAt: string, author: string, structuredData: array<string, mixed>}
+     * @return array{type: string, title: string, description: string, url: string, image: string, publishedAt: string, author: string, structuredData: array<string, mixed>}|null
      */
-    public function commit(Commit $commit): array
+    public function commit(Commit $commit): ?array
     {
         $user = $commit->user;
+
+        if ($commit->trashed() || $commit->status !== CommitStatus::Approved || ! $user instanceof User) {
+            return null;
+        }
+
+        $parent = $commit->parent;
+        $parentUser = $parent instanceof Commit && ! $parent->trashed() && $parent->status === CommitStatus::Approved
+            ? $parent->user
+            : null;
         $url = route('commit.show', [$user, $commit]);
 
-        $title = $commit->parent instanceof Commit
-            ? "{$user->nameWithHandle()} replying to @{$commit->parent->user->username} on /dev/null"
+        $title = $parentUser instanceof User
+            ? "{$user->nameWithHandle()} replying to @{$parentUser->username} on /dev/null"
             : "{$user->nameWithHandle()} on /dev/null";
 
         $description = Str::limit(Str::squish($this->urls->withShortenedUrls($commit->body)), 200, '…', preserveWords: true);
@@ -53,8 +63,8 @@ final readonly class PageMetadata
                     $this->interactionCounter('LikeAction', $commit->stars_count),
                     $this->interactionCounter('CommentAction', $commit->replies_count),
                 ],
-                ...$commit->parent instanceof Commit ? [
-                    'isPartOf' => route('commit.show', [$commit->parent->user, $commit->parent]),
+                ...$parent instanceof Commit && $parentUser instanceof User ? [
+                    'isPartOf' => route('commit.show', [$parentUser, $parent]),
                 ] : [],
             ],
         ];
