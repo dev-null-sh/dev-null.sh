@@ -23,6 +23,7 @@ const commit = {
             html: '<span class="hl-keyword">return</span> round($score, 6);',
         },
     ],
+    preview_segments: null,
     status: 'approved',
     created_at: '2026-10-16T11:51:00.000000Z',
     user: { id: 'author', name: 'Matthieu Napoli', username: 'mnapoli' },
@@ -128,6 +129,23 @@ void test('shows the images, link card and embed of a quoted commit inside the s
         assert.equal(body.match(/<a\b/g)?.length, 1);
         assert.doesNotMatch(body, /<(button|iframe)\b/);
     }
+});
+
+void test('cuts a long quoted commit off at its preview', async () => {
+    const body = await render(false, {
+        ...commit,
+        body: 'We now have long posts! You can write long articles on /dev/null.',
+        body_segments: [
+            {
+                type: 'text',
+                text: 'We now have long posts! You can write long articles on /dev/null.',
+            },
+        ],
+        preview_segments: [{ type: 'text', text: 'We now have long posts!…' }],
+    });
+
+    assert.match(body, /We now have long posts!…/);
+    assert.doesNotMatch(body, /long articles/);
 });
 
 void test('shows the options of a quoted poll without letting anyone vote inside the quote', async () => {

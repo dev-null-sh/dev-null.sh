@@ -86,6 +86,7 @@ export type QuotedCommit = Pick<
     | 'user_id'
     | 'body'
     | 'body_segments'
+    | 'preview_segments'
     | 'status'
     | 'created_at'
     | 'deleted_at'

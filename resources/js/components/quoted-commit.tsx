@@ -71,6 +71,7 @@ export function QuotedCommit({
             </span>
             <CommitBodyExcerpt
                 segments={commit.body_segments}
+                previewSegments={commit.preview_segments}
                 className="mt-1 max-h-60"
             />
             {commit.images && <CommitImages images={commit.images} />}
