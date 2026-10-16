@@ -15,6 +15,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'bio' => "Building tools.\nKeeping them small.",
         'email' => 'zoe@example.test',
         'company' => null,
+        'has_sponsors_listing' => true,
         'preferred_lane' => 3,
         'remember_token' => 'never-export-this-token',
     ]);
@@ -44,6 +45,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'location' => $user->location,
             'website' => $user->website,
             'company' => null,
+            'has_sponsors_listing' => true,
             'preferred_lane' => 3,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
