@@ -11,6 +11,7 @@ use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
+use Illuminate\Database\Eloquent\Casts\AsVector;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -35,6 +37,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int|null $series_size
  * @property-read CommitStatus|null $ai_decision
  * @property-read list<string>|null $ai_categories
+ * @property-read list<float>|null $embedding
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -48,6 +51,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int|null $repliers_count
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
+ * @property-read Poll|null $poll
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
@@ -56,6 +60,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Hidden([
     'ai_decision',
     'ai_categories',
+    'embedding',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -88,6 +93,7 @@ final class Commit extends Model
             'series_size' => 'integer',
             'ai_decision' => CommitStatus::class,
             'ai_categories' => 'array',
+            'embedding' => AsVector::class,
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -204,6 +210,14 @@ final class Commit extends Model
     }
 
     /**
+     * @return HasOne<Poll, $this>
+     */
+    public function poll(): HasOne
+    {
+        return $this->hasOne(Poll::class);
+    }
+
+    /**
      * @return BelongsTo<Commit, $this>
      */
     public function quotedCommit(): BelongsTo
@@ -253,8 +267,7 @@ final class Commit extends Model
                 ->whereKey($this->getAttributeFromArray($this->getKeyName()))->first()->replies_count ?? 0,
         ])->syncOriginalAttribute('replies_count');
 
-        return $this
-            ->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
+        return $this->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
     }
 
     /**

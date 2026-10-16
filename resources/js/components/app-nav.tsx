@@ -27,6 +27,7 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { useKeyLabels } from '@/lib/keyboard';
 import { cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
@@ -34,7 +35,7 @@ import { edit } from '@/routes/user-profile';
 import type { Log, NavItem, Profile } from '@/types';
 
 /**
- * Guests see the same items, each taking them to sign in.
+ * Guests see the same items, each taking them to sign in, except the log, which they read at the home page.
  */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
     const { auth, hasUnmoderatedCommits } = usePage().props;
@@ -49,7 +50,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     const items: NavItem[] = [
         {
             title: 'Log',
-            href: hrefFor((_, log) => LogController.show(log)),
+            href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
             prefetch: false,
         },
@@ -97,12 +98,13 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     return items.map((item) => ({
         ...item,
         isActive:
-            user !== null &&
-            (item.title === 'Settings'
-                ? isCurrentOrParentUrl('/settings')
-                : item.title === 'Log'
-                  ? isCurrentOrParentUrl('/log')
-                  : isCurrentUrl(item.href)),
+            user === null
+                ? item.title === 'Log' && isCurrentUrl(home())
+                : item.title === 'Settings'
+                  ? isCurrentOrParentUrl('/settings')
+                  : item.title === 'Log'
+                    ? isCurrentOrParentUrl('/log')
+                    : isCurrentUrl(item.href),
     }));
 }
 
@@ -118,9 +120,7 @@ function NavLink({
     className: string;
     children: ReactNode;
 }) {
-    const { auth } = usePage().props;
-
-    if (auth.user === null) {
+    if (toUrl(item.href) === login().url) {
         return (
             <a href={toUrl(item.href)} className={className}>
                 {children}
@@ -192,6 +192,7 @@ function NavIcon({
 export function AppNav({ onSearch }: { onSearch: () => void }) {
     const { auth } = usePage().props;
     const items = useNavItems();
+    const keys = useKeyLabels();
 
     return (
         <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
@@ -261,7 +262,7 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                     <Search className="size-5" />
                     <span className="sr-only lg:not-sr-only">Search</span>
                     <kbd className="ml-auto hidden rounded border border-b-2 bg-muted px-1.5 font-mono text-xs lg:block">
-                        ⌘K
+                        {keys.combo(keys.mod, 'K')}
                     </kbd>
                 </button>
             </nav>
@@ -318,7 +319,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                 <button
                     type="button"
                     onClick={onSearch}
-                    aria-label="Search developers"
+                    aria-label="Search"
                     className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                     <Search className="size-5" />

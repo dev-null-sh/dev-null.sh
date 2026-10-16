@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Rules;
+
+use App\Enums\CommitStatus;
+use App\Models\Commit;
+use App\Models\Poll;
+use App\Models\User;
+use Closure;
+use Illuminate\Contracts\Validation\ValidationRule;
+
+/**
+ * Votes are final, and authors see their results instead of voting.
+ */
+final readonly class OpenPoll implements ValidationRule
+{
+    public function __construct(private Commit $commit, private User $voter)
+    {
+        //
+    }
+
+    public function validate(string $attribute, mixed $value, Closure $fail): void
+    {
+        $poll = $this->commit->poll;
+
+        if (! $poll instanceof Poll) {
+            return;
+        }
+
+        if ($this->commit->status !== CommitStatus::Approved || $poll->opened_at === null) {
+            $fail(__('This poll is not open for votes.'));
+        } elseif ($this->commit->user_id === $this->voter->id) {
+            $fail(__("You can't vote on your own poll."));
+        } elseif ($poll->isClosed()) {
+            $fail(__('This poll has closed.'));
+        } elseif ($poll->votes()->where('user_id', $this->voter->id)->exists()) {
+            $fail(__('You have already voted on this poll.'));
+        }
+    }
+}

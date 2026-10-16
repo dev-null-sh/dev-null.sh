@@ -4,27 +4,20 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Models\Notification;
-use App\Queries\NotificationBuilder;
+use App\Models\User;
+use Carbon\CarbonImmutable;
 
 final readonly class UpdateNotificationsReadAt
 {
-    /**
-     * Reading a notification reads the whole group it is shown in.
-     */
-    public function handle(Notification ...$notifications): void
+    public function handle(User $user): CarbonImmutable
     {
-        if ($notifications === []) {
-            return;
-        }
+        $readAt = CarbonImmutable::now()->startOfSecond();
 
-        Notification::query()
-            ->where(function (NotificationBuilder $query) use ($notifications): void {
-                foreach ($notifications as $notification) {
-                    $query->orWhere(fn (NotificationBuilder $query): NotificationBuilder => $query->inGroupOf($notification));
-                }
-            })
+        $user->notifications()
+            ->relevant()
             ->unread()
-            ->update(['read_at' => now()]);
+            ->update(['read_at' => $readAt]);
+
+        return $readAt;
     }
 }

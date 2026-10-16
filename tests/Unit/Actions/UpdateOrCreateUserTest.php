@@ -130,7 +130,8 @@ it('marks users with a sponsors listing', function (): void {
         'token' => 'gho_octocat',
     ]));
 
-    expect($user->has_sponsors_listing)->toBeTrue();
+    expect($user->has_sponsors_listing)->toBeTrue()
+        ->and($user->github_synced_at->toDateTimeString())->toBe(now()->toDateTimeString());
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/graphql'
         && $request->hasHeader('Authorization', 'Bearer gho_octocat')
@@ -182,7 +183,8 @@ it('keeps the last known sponsors listing when github cannot say', function (Clo
 
     expect($existing->refresh())
         ->username->toBe('octocat')
-        ->has_sponsors_listing->toBeTrue();
+        ->has_sponsors_listing->toBeTrue()
+        ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 
     expect($stale->refresh()->username)->toBe('_renamed-1');
 
@@ -232,6 +234,16 @@ it('creates users without a sponsors listing when github cannot say', function (
     $user = $action->handle(GitHubUser::fake());
 
     expect($user->refresh()->has_sponsors_listing)->toBeFalse();
+});
+
+it('records when the profile was synced from github', function (): void {
+    fakeGitHubSponsorsListing();
+
+    $action = resolve(UpdateOrCreateUser::class);
+
+    $user = $action->handle(GitHubUser::fake([]));
+
+    expect($user->refresh()->github_synced_at->toDateTimeString())->toBe(now()->toDateTimeString());
 });
 
 it('frees a username still held by a stale user who renamed on github', function (string $staleUsername): void {

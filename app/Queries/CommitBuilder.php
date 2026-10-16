@@ -8,8 +8,11 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Pagination\Cursor;
 
 /**
  * @extends Builder<Commit>
@@ -98,6 +101,14 @@ final class CommitBuilder extends Builder
         return $this->addSelect([$this->qualifyColumn('*')])->selectSub($replies, 'replies_count');
     }
 
+    public function withReplyPreviews(?User $user): self
+    {
+        $preview = fn (HasMany $relation): HasMany => $this->configureReplyPreview($relation, $user);
+
+        return $this->with(['replies' => $preview, 'quotes' => $preview])
+            ->afterQuery($this->attachReplyPreviews(...));
+    }
+
     /**
      * Loads the quoted commit only when the given user may see it, and as a tombstone once deleted.
      */
@@ -107,7 +118,8 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with('user'),
+                ->with('user')
+                ->withPollFor($viewer),
         ]);
     }
 
@@ -182,6 +194,26 @@ final class CommitBuilder extends Builder
     }
 
     /**
+     * Loads the poll with each option's vote count and whether the viewer chose it, in two queries for any number of commits.
+     */
+    public function withPollFor(?User $viewer): self
+    {
+        return $this
+            ->with(['poll.options' => fn (HasMany $options): HasMany => $options
+                ->withCount('votes')
+                ->withExists(['votes as voted' => fn (Builder $query): Builder => $viewer instanceof User
+                    ? $query->where('user_id', $viewer->id)
+                    : $query->whereRaw('1 = 0')])])
+            ->afterQuery(function (Collection $commits) use ($viewer): void {
+                foreach ($commits->whereInstanceOf(Commit::class) as $commit) {
+                    if ($commit->relationLoaded('poll')) {
+                        $commit->poll?->forceFill(['is_own' => $commit->user_id === $viewer?->id]);
+                    }
+                }
+            });
+    }
+
+    /**
      * Everything a commit card shows for the given viewer, so every list renders its commits the same way.
      * The reply count is left out, as its presence is what gives a card its thread actions.
      */
@@ -191,6 +223,54 @@ final class CommitBuilder extends Builder
             ->with(['user', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)
             ->withSavedState($viewer)
-            ->withStarsFor($viewer);
+            ->withStarsFor($viewer)
+            ->withPollFor($viewer);
+    }
+
+    /**
+     * @param  HasMany<Commit, Commit>  $relation
+     * @return HasMany<Commit, Commit>
+     */
+    private function configureReplyPreview(HasMany $relation, ?User $user): HasMany
+    {
+        return $relation
+            ->visibleInThreadTo($user)
+            ->exceptSeriesContinuations()
+            ->withVisibleReplyCount($user)
+            ->withCardDataFor($user)
+            ->without('quotedCommit')
+            ->newestFirst()
+            ->limit(1);
+    }
+
+    /**
+     * @param  Collection<int, Commit>  $commits
+     * @return Collection<int, Commit>
+     */
+    private function attachReplyPreviews(Collection $commits): Collection
+    {
+        foreach ($commits as $commit) {
+            if (! $commit->relationLoaded('replies') || ! $commit->relationLoaded('quotes')) {
+                continue;
+            }
+
+            $replies = $commit->replies->merge($commit->quotes)
+                ->sortByDesc(fn (Commit $reply): string => $reply->created_at->format('Y-m-d H:i:s.u').$reply->id)
+                ->take(1)
+                ->values();
+            $last = $replies->last();
+            $cursor = $last instanceof Commit && $commit->replies_count > $replies->count()
+                ? new Cursor(['created_at' => $last->getRawOriginal('created_at'), 'id' => $last->id])->encode()
+                : null;
+
+            $commit->setAttribute('reply_preview', [
+                'data' => $replies->map(fn (Commit $reply): array => $reply->toArray())->all(),
+                'next_cursor' => $cursor,
+                'prev_cursor' => null,
+            ]);
+            $commit->unsetRelation('replies')->unsetRelation('quotes');
+        }
+
+        return $commits;
     }
 }

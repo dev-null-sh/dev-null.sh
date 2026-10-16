@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import Index from '../../resources/js/pages/notification/index';
-import type { Commit, Notification, User } from '../../resources/js/types';
+import type { Commit, NotificationGroup, User } from '../../resources/js/types';
 
 const actor = {
     id: 'actor',
@@ -16,6 +16,8 @@ const actor = {
 
 const notification = {
     id: 'notification',
+    group_id: 'notification',
+    event_count: 1,
     type: 'replied',
     actor,
     actors: [actor],
@@ -37,9 +39,9 @@ const notification = {
             },
         ],
     } as Omit<Commit, 'user'>,
-} as Notification;
+} as NotificationGroup;
 
-async function render(notifications: Notification[]): Promise<string> {
+async function render(notifications: NotificationGroup[]): Promise<string> {
     const result = await createInertiaApp({
         page: {
             component: 'notification/index',
@@ -65,6 +67,8 @@ async function render(notifications: Notification[]): Promise<string> {
                     next_cursor: null,
                     prev_cursor: null,
                 }}
+                filters={{ type: 'all' }}
+                readAt="2026-10-16T12:00:00.000000Z"
             />
         ),
         render: renderToString,
@@ -73,7 +77,7 @@ async function render(notifications: Notification[]): Promise<string> {
 
     assert.ok(result);
 
-    return result.body;
+    return result.body.slice(result.body.indexOf('<article'));
 }
 
 void test('renders a code block highlighted in a notification', async () => {
@@ -91,12 +95,13 @@ for (const isFollowing of [false, true]) {
         const followed = {
             ...notification,
             id: 'follow-notification',
+            group_id: 'follow-notification',
             type: 'followed',
             actor: { ...actor, is_followed: isFollowing },
             commit: null,
             commit_id: null,
             subject_id: null,
-        } as Notification;
+        } as NotificationGroup;
         const body = await render([notification, followed]);
 
         assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);

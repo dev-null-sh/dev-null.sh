@@ -35,6 +35,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
  * @property-read string|null $remember_token
+ * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -47,6 +48,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, User> $blockers
  * @property-read Collection<int, Notification> $notifications
  * @property-read Collection<int, SshKey> $sshKeys
+ * @property-read Collection<int, PollVote> $pollVotes
  * @property-read int $commits_count
  * @property-read int $following_count
  * @property-read int $followers_count
@@ -57,6 +59,7 @@ use Illuminate\Support\Facades\DB;
     'remember_token',
     'preferred_lane',
     'pinned_commit_id',
+    'github_synced_at',
     'log',
     'onboarded_at',
     'github_follows_imported_at',
@@ -98,6 +101,7 @@ final class User extends Authenticatable
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
             'remember_token' => 'string',
+            'github_synced_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -109,6 +113,14 @@ final class User extends Authenticatable
     public function commits(): HasMany
     {
         return $this->hasMany(Commit::class);
+    }
+
+    /**
+     * @return HasMany<PollVote, $this>
+     */
+    public function pollVotes(): HasMany
+    {
+        return $this->hasMany(PollVote::class);
     }
 
     /**

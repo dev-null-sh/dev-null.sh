@@ -3,6 +3,7 @@ import { Pin, PinOff } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import CommitPinController from '@/actions/App/Http/Controllers/CommitPinController';
+import { toastWhenThrottled } from '@/lib/throttle';
 import type { Commit } from '@/types';
 
 export function PinCommitButton({
@@ -34,6 +35,7 @@ export function PinCommitButton({
                     ),
                 onError: () =>
                     toast.error('Could not update your pinned commit.'),
+                onHttpException: (response) => !toastWhenThrottled(response),
             },
         );
     };

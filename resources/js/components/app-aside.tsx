@@ -6,6 +6,9 @@ import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
+import { useSharedState } from '@/hooks/use-shared-state';
+import { commitStateKey } from '@/lib/commit-state';
+import { useKeyLabels } from '@/lib/keyboard';
 import { laneColor } from '@/lib/utils';
 import { login } from '@/routes';
 import { show } from '@/routes/user';
@@ -25,6 +28,11 @@ export function AppAside({
     onSearch: () => void;
 }) {
     const { user } = usePage().props.auth;
+    const keys = useKeyLabels();
+    const [commitsCount] = useSharedState(
+        commitStateKey('commits_count', user?.id ?? ''),
+        user?.commits_count ?? 0,
+    );
 
     return (
         <aside className="sticky top-0 hidden h-svh w-80 shrink-0 [scrollbar-width:none] flex-col gap-8 overflow-y-auto px-6 py-6 xl:flex">
@@ -35,9 +43,9 @@ export function AppAside({
                 data-test="search-button"
             >
                 <Search className="size-4" />
-                Search developers
+                Search
                 <kbd className="ml-auto rounded border border-b-2 bg-muted px-1.5 font-mono text-xs">
-                    ⌘K
+                    {keys.combo(keys.mod, 'K')}
                 </kbd>
             </button>
 
@@ -89,11 +97,9 @@ export function AppAside({
                     <dl className="mt-4 flex gap-4 text-sm">
                         {[
                             {
-                                count: user.commits_count,
+                                count: commitsCount,
                                 label:
-                                    user.commits_count === 1
-                                        ? 'commit'
-                                        : 'commits',
+                                    commitsCount === 1 ? 'commit' : 'commits',
                                 href: show(user),
                             },
                             {

@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\CommitReport;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +36,7 @@ final readonly class DeleteUser
 
             Commit::query()->withTrashed()->whereKey($topLevelIds)->forceDelete();
             CommitImage::query()->whereIn('commit_id', $replyIds)->delete();
+            CommitReport::query()->whereIn('commit_id', $replyIds)->delete();
 
             while (($leafIds = $this->repliesWithoutReplies($user)) !== []) {
                 Commit::query()->withTrashed()->whereKey($leafIds)->forceDelete();

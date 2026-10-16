@@ -26,6 +26,7 @@ import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
+import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -104,20 +105,25 @@ function QuoteComposer({
 }) {
     const { user } = useUser();
     const id = `quote-${commit.id}`;
-    const { body, isRestored, updateBody, drop } = useStash(user.id, id);
-    const attachments = useImageAttachments();
+    const {
+        body,
+        images,
+        descriptions,
+        isRestored,
+        updateBody,
+        updateImages,
+        drop,
+    } = useStash(user.id, id);
+    const attachments = useImageAttachments(images, descriptions, updateImages);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
+    const keys = useKeyLabels();
 
     const remaining = maxBodyLength - characterCount(body);
     const isQuotable = characterCount(body.trim()) >= minBodyLength;
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (
-            event.key === 'Enter' &&
-            (event.metaKey || event.ctrlKey) &&
-            isQuotable
-        ) {
+        if (event.key === 'Enter' && hasModKey(event) && isQuotable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
         }
@@ -153,15 +159,19 @@ function QuoteComposer({
                 errorBag="quote"
                 onBefore={secrets.beforeSubmit}
                 transform={(data) =>
-                    attachments.images.length > 0
-                        ? { ...data, images: attachments.images }
+                    images.length > 0
+                        ? {
+                              ...data,
+                              images,
+                              image_descriptions: descriptions,
+                          }
                         : data
                 }
                 options={{ preserveScroll: true }}
                 onSuccess={(page) => {
                     if (page.flash.committed) {
-                        drop();
                         attachments.clear();
+                        drop();
                         onClose();
                     }
                 }}
@@ -225,7 +235,9 @@ function QuoteComposer({
                             />
 
                             <ImagePickerPreviews
-                                images={attachments.images}
+                                images={images}
+                                descriptions={descriptions}
+                                onDescribe={attachments.describe}
                                 onRemove={attachments.remove}
                             />
                             <InputError
@@ -240,7 +252,7 @@ function QuoteComposer({
                             <div className="mt-3 flex items-center justify-end gap-3">
                                 <div className="mr-auto flex items-center gap-2">
                                     <ImagePickerButton
-                                        count={attachments.images.length}
+                                        count={images.length}
                                         disabled={processing}
                                         onPick={attachments.attach}
                                         className="size-8"
@@ -248,6 +260,7 @@ function QuoteComposer({
                                     {isRestored && (
                                         <StashLabel
                                             onDrop={() => {
+                                                attachments.clear();
                                                 drop();
                                                 document
                                                     .getElementById(id)
@@ -281,7 +294,7 @@ function QuoteComposer({
                                 <Button
                                     type="submit"
                                     disabled={processing || !isQuotable}
-                                    title="Quote (⌘/Ctrl + Enter)"
+                                    title={`Quote (${keys.combo(keys.mod, keys.enter)})`}
                                     data-test="submit-quote-button"
                                 >
                                     {processing ? 'Quoting…' : 'Quote'}

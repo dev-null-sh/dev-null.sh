@@ -162,3 +162,61 @@ it('does not suggest muted people or people across a block', function (): void {
 
     expect(resolve(SuggestedUsersQuery::class)->get($user)->pluck('id')->all())->toBe([$stranger->id]);
 });
+
+it('suggests other people on the next round', function (): void {
+    $user = User::factory()->create();
+    vouchedFor($user, 3);
+    popularUsers(3);
+
+    $query = resolve(SuggestedUsersQuery::class);
+
+    $first = $query->get($user)->pluck('id')->all();
+    $second = $query->get($user, round: 1)->pluck('id')->all();
+
+    expect($first)->toHaveCount(3)
+        ->and($second)->toHaveCount(3)
+        ->and(array_intersect($first, $second))->toBeEmpty();
+});
+
+it('keeps the first round as the suggestions of the day', function (): void {
+    $user = User::factory()->create();
+    vouchedFor($user, 4);
+    popularUsers(5);
+
+    $query = resolve(SuggestedUsersQuery::class);
+
+    expect($query->get($user, round: 0)->pluck('id')->all())->toBe($query->get($user)->pluck('id')->all());
+});
+
+it('goes back to the first suggestions after the last round', function (): void {
+    $user = User::factory()->create();
+    popularUsers(6);
+
+    $query = resolve(SuggestedUsersQuery::class);
+
+    expect($query->get($user, round: 2)->pluck('id')->all())->toBe($query->get($user)->pluck('id')->all())
+        ->and($query->get($user, round: 3)->pluck('id')->all())->toBe($query->get($user, round: 1)->pluck('id')->all());
+});
+
+it('tops up the last round so it never shows fewer people', function (): void {
+    $user = User::factory()->create();
+    $popular = popularUsers(4);
+
+    $query = resolve(SuggestedUsersQuery::class);
+
+    $first = $query->get($user)->pluck('id')->all();
+    $last = $query->get($user, round: 1)->pluck('id')->all();
+
+    expect($last)->toHaveCount(3)
+        ->and($last)->each->toBeIn($popular->modelKeys())
+        ->and(array_diff($popular->modelKeys(), $first))->each->toBeIn($last);
+});
+
+it('keeps the same suggestions when there is nobody else to suggest', function (): void {
+    $user = User::factory()->create();
+    popularUsers(2);
+
+    $query = resolve(SuggestedUsersQuery::class);
+
+    expect($query->get($user, round: 1)->pluck('id')->all())->toBe($query->get($user)->pluck('id')->all());
+});
