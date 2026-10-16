@@ -34,6 +34,23 @@ it('creates tom once, with a single welcome commit and no github account', funct
         ->and($tom->following()->count())->toBe(2);
 });
 
+it('does not make tom follow himself or change his existing friendships', function (): void {
+    $user = User::factory()->create();
+    $action = resolve(CreateTomFriendship::class);
+
+    $action->handle($user);
+
+    $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->sole();
+
+    $action->handle($tom);
+
+    expect($tom->isFollowing($tom))->toBeFalse()
+        ->and($tom->following()->sole()->is($user))->toBeTrue()
+        ->and($tom->followers()->sole()->is($user))->toBeTrue()
+        ->and($tom->commits()->count())->toBe(1)
+        ->and($tom->notifications()->count())->toBe(0);
+});
+
 it('befriends every existing user', function (): void {
     $users = User::factory()->count(3)->create();
 
