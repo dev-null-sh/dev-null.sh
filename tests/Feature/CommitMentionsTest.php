@@ -64,6 +64,47 @@ it('does not bind an unknown mention to an account created before approval', fun
     expect($newcomer->notifications()->count())->toBe(0);
 });
 
+it('keeps captured mention identities on every part when a series is approved after a rename', function (): void {
+    config(['app.admins' => ['moderator']]);
+
+    $author = User::factory()->create();
+    $mentioned = User::factory()->create(['username' => 'original']);
+    $moderator = User::factory()->create(['username' => 'moderator']);
+
+    $this->actingAs($author)->post(route('commit-series.store'), [
+        'bodies' => ['Thanks @Original :smile:', 'More thanks @ORIGINAL!'],
+        'mentions' => ['original' => $moderator->id],
+    ])->assertRedirect()->assertSessionHasNoErrors();
+
+    $parts = $author->commits()->oldest('series_position')->get();
+
+    expect($parts)->toHaveCount(2)
+        ->and($parts->pluck('mentions')->all())->toBe(array_fill(0, 2, ['original' => $mentioned->id]))
+        ->and($mentioned->notifications()->count())->toBe(0);
+
+    $mentioned->update(['username' => 'renamed']);
+    $replacement = User::factory()->create(['username' => 'original']);
+
+    $this->actingAs($moderator)->get(route('moderation.show'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.series_parts.0.mentions.original', $mentioned->id)
+            ->where('commits.data.0.series_parts.1.mentions.original', $mentioned->id));
+
+    $this->actingAs($moderator)->post(route('commit-approval.store', $parts[1]))->assertRedirect();
+
+    expect($mentioned->notifications()->where('type', NotificationType::Mentioned)->pluck('commit_id')->sort()->values()->all())
+        ->toBe($parts->pluck('id')->sort()->values()->all())
+        ->and($replacement->notifications()->count())->toBe(0);
+
+    $this->actingAs($author)->get(route('commit.show', [$author, $parts[0]]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.mentions.original', $mentioned->id)
+            ->where('commit.replies_count', 0)
+            ->where('series.0.mentions.original', $mentioned->id));
+});
+
 it('only captures mentions in prose', function (): void {
     $author = User::factory()->create();
     $mentioned = User::factory()->create(['username' => 'original']);
