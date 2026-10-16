@@ -77,6 +77,7 @@ function commit(
         replies_count: replies,
         is_saved: false,
         quoted_commit_id: null,
+        disparages_php: false,
         images: [],
     };
 }

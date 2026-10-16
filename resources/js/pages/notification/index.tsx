@@ -754,6 +754,7 @@ function NotificationContent({
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
+        warned: 'Your commit claims PHP is worse than another language, so a community note was added',
     }[notification.type];
     const excerpt =
         notification.type === 'followed' ? null : isOwnCommit ? (

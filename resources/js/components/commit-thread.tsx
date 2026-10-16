@@ -20,6 +20,7 @@ import {
 import { CommitImages } from '@/components/commit-images';
 import { CommitReportButton } from '@/components/commit-report-button';
 import { CommitStarButton } from '@/components/commit-star-button';
+import { CommunityNote } from '@/components/community-note';
 import {
     ComposerPreviewBody,
     PreviewToggle,

@@ -63,6 +63,11 @@ it('asks the providers in order', function (): void {
 });
 
 it('reads the provider list from the environment', function (): void {
+    // Parallel workers inherit EMBEDS_PROVIDERS from the parent, and the immutable
+    // repository will not overwrite that. Drop the inherited value so set() can.
+    putenv('EMBEDS_PROVIDERS');
+    unset($_ENV['EMBEDS_PROVIDERS'], $_SERVER['EMBEDS_PROVIDERS']);
+
     Env::getRepository()->set('EMBEDS_PROVIDERS', ' youtube, ,spotify ');
     $config = require config_path('embeds.php');
     Env::getRepository()->clear('EMBEDS_PROVIDERS');

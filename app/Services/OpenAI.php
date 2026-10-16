@@ -65,6 +65,14 @@ final readonly class OpenAI
         Answer with one boolean per post, in the same order.
         TEXT;
 
+    private const string PHP_INSTRUCTIONS = <<<'TEXT'
+        You review posts on devnull, a social network for developers, before they are published.
+        Answer whether the post claims that PHP is dead, dying, obsolete or worse than another programming language,
+        such as "JavaScript is better than PHP" or "nobody uses PHP anymore". Praising another language without
+        comparing it to PHP, criticizing a single PHP feature, or asking a question about PHP is not such a claim.
+        When unsure, answer false.
+        TEXT;
+
     public function request(): PendingRequest
     {
         return Http::baseUrl('https://api.openai.com/v1')

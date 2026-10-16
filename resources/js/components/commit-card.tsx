@@ -15,6 +15,7 @@ import {
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
+import { CommunityNote } from '@/components/community-note';
 import {
     GraphRail,
     RailAvatar,
