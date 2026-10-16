@@ -184,8 +184,55 @@ it('excludes series continuations from its public preview reply count', function
     Commit::factory()->for($parts[0], 'parent')->create();
     Commit::factory()->for($parts[0], 'parent')->pending()->create();
 
-    expect($parts[0]->loadPublicPreview()->replies_count)->toBe(1);
+    $preview = $parts[0]->loadPublicPreview();
+
+    expect($preview->replies_count)->toBe(1)
+        ->and($preview->isDirty('replies_count'))->toBeFalse();
 });
+
+it('keeps public preview counts clean without discarding unsaved changes', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'quotedCommit')->create();
+    Commit::factory()->for($commit, 'quotedCommit')->pending()->create();
+    $commit->forceFill(['body' => 'Updated commit body']);
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview)->toBe($commit)
+        ->and($preview->replies_count)->toBe(1)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->isDirty('body'))->toBeTrue();
+
+    $preview->save();
+
+    expect($commit->fresh()->body)->toBe('Updated commit body');
+});
+
+it('loads a public preview for an unsaved commit without making it persistent', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->make();
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview)->toBe($commit)
+        ->and($preview->exists)->toBeFalse()
+        ->and($preview->replies_count)->toBe(0)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->user->is($user))->toBeTrue();
+});
+
+it('loads public preview counts onto a partially selected commit', function (bool $includesId): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'quotedCommit')->create();
+    $partial = Commit::query()->select($includesId ? ['id', 'user_id', 'parent_id'] : ['user_id', 'parent_id'])->findOrFail($commit->id);
+
+    $partial->loadPublicPreview();
+
+    expect($partial->replies_count)->toBe($includesId ? 2 : 0)
+        ->and($partial->isDirty('replies_count'))->toBeFalse()
+        ->and($partial->getAttributes())->not->toHaveKey('body');
+})->with([true, false]);
 
 it('may belong to a link preview', function (): void {
     $linkPreview = LinkPreview::factory()->create();
