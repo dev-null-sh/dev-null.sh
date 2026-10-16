@@ -7,6 +7,7 @@ namespace App\Queries;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,6 +20,40 @@ use Illuminate\Pagination\Cursor;
  */
 final class CommitBuilder extends Builder
 {
+    /**
+     * Every column but the embedding, in the table's order.
+     */
+    private const array COLUMNS_BUT_EMBEDDING = [
+        'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
+        'series_id', 'series_position', 'series_size', 'quoted_commit_id', 'ai_decision', 'ai_categories', 'root_id',
+        'hot_score',
+    ];
+
+    /**
+     * Embeddings are only ever compared within the database, so commits are loaded without theirs rather than carry
+     * kilobytes of numbers each that nothing reads.
+     *
+     * @param  array<int, Expression|string>|string  $columns
+     * @return array<int, Commit>
+     */
+    public function getModels($columns = ['*'])
+    {
+        $selected = $this->query->columns;
+
+        $this->query->columns = array_merge(...array_map(
+            fn (Expression|string $column): array => $this->isEveryColumn($column)
+                ? array_map($this->qualifyColumn(...), self::COLUMNS_BUT_EMBEDDING)
+                : [$column],
+            $selected ?? (array) $columns,
+        ));
+
+        try {
+            return parent::getModels();
+        } finally {
+            $this->query->columns = $selected;
+        }
+    }
+
     /**
      * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
      * A block hides each one's commits from the other.
@@ -260,6 +295,15 @@ final class CommitBuilder extends Builder
         $rows->selectRaw('count(*) > 0')->whereColumn($commitColumn, $this->qualifyColumn('id'));
 
         return $viewer instanceof User ? $rows->where($userColumn, $viewer->id) : $rows->whereRaw('1 = 0');
+    }
+
+    /**
+     * A bare * only stands for the commit's columns when no other table is joined in.
+     */
+    private function isEveryColumn(Expression|string $column): bool
+    {
+        return $this->query->from === $this->getModel()->getTable()
+            && ($column === $this->qualifyColumn('*') || ($column === '*' && $this->query->joins === null));
     }
 
     /**
