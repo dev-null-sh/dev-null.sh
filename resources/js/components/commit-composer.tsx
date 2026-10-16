@@ -21,7 +21,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
-import { cn, laneColor } from '@/lib/utils';
+import { characterCount, cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
 const maxBodyLength = 280;
@@ -47,7 +47,7 @@ function focusPart(index: number, atEnd = false): void {
 }
 
 function RemainingCount({ id, body }: { id: string; body: string }) {
-    const remaining = maxBodyLength - body.length;
+    const remaining = maxBodyLength - characterCount(body);
 
     return (
         <span
@@ -74,7 +74,7 @@ export function CommitComposer() {
     const isSeries = bodies.length > 1;
     const canAddPart = bodies.length < maxParts && poll === null;
     const isCommittable =
-        bodies.every((body) => body.trim().length >= minBodyLength) &&
+        bodies.every((body) => characterCount(body.trim()) >= minBodyLength) &&
         (poll === null ||
             poll.options.every((option) => option.trim().length > 0));
 
@@ -159,7 +159,8 @@ export function CommitComposer() {
                     {bodies.map((body, index) => {
                         const id = partId(index);
                         const isLast = index === bodies.length - 1;
-                        const isFilled = body.trim().length >= minBodyLength;
+                        const isFilled =
+                            characterCount(body.trim()) >= minBodyLength;
                         const suggestion = suggestEmoji(body);
                         const error =
                             errors[`bodies.${index}`] ??
