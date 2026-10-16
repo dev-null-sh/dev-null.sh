@@ -7,6 +7,7 @@ namespace App\Queries;
 use App\Models\Notification;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -38,7 +39,7 @@ final readonly class NotificationGroupsQuery
             ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable
-            ? max(self::PER_PAGE, $this->group($this->visible($user)->where('created_at', '>=', $through), $type)->where('group_rank', 1)->count())
+            ? max(self::PER_PAGE, $this->groupsSince($user, $through, $type)->where('group_rank', 1)->count())
             : self::PER_PAGE;
 
         $groups = $query->cursorPaginate($perPage)->appends(request()->except('through'));
@@ -48,21 +49,13 @@ final readonly class NotificationGroupsQuery
         return $groups;
     }
 
-    /**
-     * Grouping only the notifications from some point onwards puts every one of them in the same group as grouping all
-     * of them does, apart from the oldest group of each topic missing what came before that point. So it finds just as
-     * many groups among the notifications from then on.
-     */
     public function unreadCount(User $user): int
     {
-        $oldestUnreadAt = $this->visible($user)->unread()->oldest()->value('created_at');
+        $oldestUnread = $this->visible($user)->unread()->oldest()->first();
 
-        if ($oldestUnreadAt === null) {
-            return 0;
-        }
-
-        return $this->group($this->visible($user)->where('created_at', '>=', $oldestUnreadAt))
-            ->where('group_rank', 1)->where('unread_count', '>', 0)->count();
+        return $oldestUnread instanceof Notification
+            ? $this->groupsSince($user, $oldestUnread->created_at)->where('group_rank', 1)->where('unread_count', '>', 0)->count()
+            : 0;
     }
 
     public function members(User $user, Notification $notification, string $type = 'all'): NotificationBuilder
@@ -75,6 +68,16 @@ final readonly class NotificationGroupsQuery
     public function events(User $user, string $type = 'all'): NotificationBuilder
     {
         return $this->group($this->visible($user), $type);
+    }
+
+    /**
+     * Grouping only the notifications from some point onwards puts every one of them in the same group as grouping all
+     * of them does, apart from the oldest group of each topic missing what came before that point. So it finds just as
+     * many groups with notifications from then on.
+     */
+    private function groupsSince(User $user, CarbonInterface $since, string $type = 'all'): NotificationBuilder
+    {
+        return $this->group($this->visible($user)->where('created_at', '>=', $since), $type);
     }
 
     private function visible(User $user): NotificationBuilder
