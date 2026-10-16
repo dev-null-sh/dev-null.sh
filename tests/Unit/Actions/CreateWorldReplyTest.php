@@ -8,6 +8,7 @@ use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\CommitClaim;
 use App\Models\User;
 
 it('answers an approved hello world once', function (): void {
@@ -40,15 +41,25 @@ it('answers when an admin commits hello world', function (): void {
 
 it('waits until a hello world is approved', function (): void {
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(['name' => 'Taylor Otwell']), 'hello world');
+    $moderator = User::factory()->create();
+    CommitClaim::factory()->for($commit)->for($moderator)->create();
 
     expect($commit->status)->toBe(CommitStatus::Pending)
         ->and($commit->replies()->count())->toBe(0);
 
-    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+    $action = resolve(UpdateCommitStatuses::class);
+    $action->handle($moderator, [$commit->id], CommitStatus::Approved);
+    $action->handle($moderator, [$commit->id], CommitStatus::Approved);
 
     $reply = $commit->replies()->sole();
+    $decision = $commit->decisions()->sole();
 
     expect($reply->body)->toBe('Hello, Taylor Otwell.')
+        ->and($commit->fresh()->status)->toBe(CommitStatus::Approved)
+        ->and($decision->user_id)->toBe($moderator->id)
+        ->and($decision->status)->toBe(CommitStatus::Approved)
+        ->and($decision->reason)->toBeNull()
+        ->and(CommitClaim::query()->whereBelongsTo($commit)->exists())->toBeFalse()
         ->and($commit->user->notifications()->where('type', NotificationType::Replied)->sole()->commit_id)->toBe($reply->id);
 });
 
