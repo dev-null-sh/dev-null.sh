@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ListUserFollowingRequest;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Builder;
@@ -12,7 +13,7 @@ use Inertia\Response;
 
 final readonly class UserFollowingController
 {
-    public function index(#[CurrentUser] ?User $currentUser, User $user): Response
+    public function index(ListUserFollowingRequest $request, #[CurrentUser] ?User $currentUser, User $user): Response
     {
         return Inertia::render('user/connections', [
             'user' => $user,

@@ -81,6 +81,18 @@ it('fails to reply to an unknown commit', function (): void {
     expect(Commit::query()->count())->toBe(0);
 });
 
+it('fails to reply across a block', function (): void {
+    $parent = Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+    $parent->user->blocking()->attach($this->user);
+
+    $response = postSignedCommit(signedCommit($this->keyPair, 'Agreed!', replyTo: '0be0130'));
+
+    $response->assertUnprocessable()
+        ->assertContent("There is no commit 0be0130 to reply to.\n");
+
+    expect($parent->replies()->count())->toBe(0);
+});
+
 it('fails to reply to an ambiguous or malformed commit reference', function (string $replyTo, string $message): void {
     Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
     Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52c0be0130']);

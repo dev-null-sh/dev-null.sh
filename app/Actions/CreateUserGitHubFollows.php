@@ -70,6 +70,7 @@ final readonly class CreateUserGitHubFollows
         return User::query()
             ->whereIn('github_id', $this->github->accountIds($path, self::MaxPages))
             ->whereKeyNot($user->id)
+            ->whereNotIn('id', $user->idsAcrossBlocks())
             ->get();
     }
 }
