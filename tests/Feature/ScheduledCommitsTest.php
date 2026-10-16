@@ -147,7 +147,7 @@ it('keeps schedules out of logs profiles activity previews and moderation until 
     $scheduled = ScheduledCommit::factory()->for($user)->create(['body' => 'Private future parser release.']);
 
     foreach ([$user, $admin, User::factory()->create()] as $viewer) {
-        $this->actingAs($viewer)->get(route('log.show', 'everyone'))->assertInertia(fn ($page) => $page->has('commits.data', 0))->assertDontSee($scheduled->body);
+        $this->actingAs($viewer)->get(route('log.show', 'trending'))->assertInertia(fn ($page) => $page->has('commits.data', 0))->assertDontSee($scheduled->body);
         $this->get(route('user.show', $user))->assertInertia(fn ($page) => $page->has('commits.data', 0)->where('user.commits_count', 0));
         $this->get(route('user-preview.show', $user))->assertJsonPath('user.commits_count', 0);
         expect(array_sum(array_column(resolve(UserActivityQuery::class)->get($user, $viewer)['buckets'], 'count')))->toBe(0);

@@ -5,13 +5,13 @@ declare(strict_types=1);
 use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\User;
-use App\Queries\LogQueries\EveryoneLogQuery;
+use App\Queries\LogQueries\TrendingLogQuery;
 
-it('includes commits of everyone newest first', function (): void {
+it('includes commits of everyone', function (): void {
     $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
     $newer = Commit::factory()->create();
 
-    $query = resolve(EveryoneLogQuery::class);
+    $query = resolve(TrendingLogQuery::class);
 
     $commits = $query->builder(User::factory()->create())->get();
 
@@ -28,7 +28,7 @@ it('only includes approved commits of others', function (): void {
     Commit::factory()->pending()->create();
     Commit::factory()->rejected()->create();
 
-    $commits = resolve(EveryoneLogQuery::class)->builder($user)->get();
+    $commits = resolve(TrendingLogQuery::class)->builder($user)->get();
 
     expect($commits->modelKeys())->toBe([$ownPending->id, $approved->id]);
 });
@@ -37,7 +37,7 @@ it('excludes deleted commits', function (): void {
     $commit = Commit::factory()->create();
     Commit::factory()->create()->delete();
 
-    $commits = resolve(EveryoneLogQuery::class)->builder(User::factory()->create())->get();
+    $commits = resolve(TrendingLogQuery::class)->builder(User::factory()->create())->get();
 
     expect($commits->modelKeys())->toBe([$commit->id]);
 });
@@ -50,7 +50,7 @@ it('counts replies including deleted ones that still have replies', function ():
     Commit::factory()->for($tombstone, 'parent')->create();
     $tombstone->delete();
 
-    $commits = resolve(EveryoneLogQuery::class)->builder(User::factory()->create())->get();
+    $commits = resolve(TrendingLogQuery::class)->builder(User::factory()->create())->get();
 
     expect($commits->sole()->replies_count)->toBe(2);
 });
@@ -70,7 +70,7 @@ it('leaves out commits by muted people and across blocks', function (): void {
     Commit::factory()->for($blocked)->create();
     Commit::factory()->for($blocker)->create();
 
-    $commits = resolve(EveryoneLogQuery::class)->builder($user)->get();
+    $commits = resolve(TrendingLogQuery::class)->builder($user)->get();
 
     expect($commits->modelKeys())->toBe([$visible->id]);
 });
@@ -81,7 +81,7 @@ it('ranks commits that draw stars and replies above newer ones', function (): vo
     $newer = Commit::factory()->create();
     resolve(UpdateCommitHotScores::class)->handle([$starred->id]);
 
-    $commits = resolve(EveryoneLogQuery::class)->builder(User::factory()->create())->get();
+    $commits = resolve(TrendingLogQuery::class)->builder(User::factory()->create())->get();
 
     expect($commits->modelKeys())->toBe([$starred->id, $newer->id]);
 });

@@ -23,7 +23,7 @@ it('polls only the unread count outside the inbox without acknowledging activity
         'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
         'X-Inertia-Partial-Component' => 'log/show',
         'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount',
-    ])->get(route('log.show', 'everyone'))->assertOk()
+    ])->get(route('log.show', 'trending'))->assertOk()
         ->assertJsonPath('props.auth.unreadNotificationsCount', 1)
         ->assertJsonMissingPath('props.auth.user')->assertJsonMissingPath('props.commits');
 
@@ -337,7 +337,7 @@ it('leaves later arrivals unread until the inbox is visited again', function ():
     $this->travel(5)->minutes();
     $latest = Notification::factory()->for($user, 'recipient')->mentioned()->create();
 
-    $this->get(route('log.show', 'everyone'))->assertInertia(fn ($page) => $page
+    $this->get(route('log.show', 'trending'))->assertInertia(fn ($page) => $page
         ->where('auth.unreadNotificationsCount', 1));
     expect($latest->refresh()->read_at)->toBeNull();
     $this->get(route('notification.index', ['type' => 'follows']))->assertInertia(fn ($page) => $page
