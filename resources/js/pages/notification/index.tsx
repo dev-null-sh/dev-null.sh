@@ -14,7 +14,7 @@ import { useId, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
-import { CommitBody } from '@/components/commit-body';
+import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
@@ -414,10 +414,9 @@ function NotificationContent({
                         </span>
                     </p>
                     {notification.type !== 'followed' && (
-                        <CommitBody
+                        <CommitBodyExcerpt
                             segments={notification.commit.body_segments}
-                            className="mt-1 line-clamp-2 text-[15px]"
-                            isStatic
+                            className="mt-1 max-h-40"
                         />
                     )}
                     {notification.type === 'rejected' && (
