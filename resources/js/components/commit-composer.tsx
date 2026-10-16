@@ -1,5 +1,5 @@
 import { Form, Link, usePage } from '@inertiajs/react';
-import { Clock3, Plus, X } from 'lucide-react';
+import { ChartBar, Clock3, Plus, X } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -20,6 +20,8 @@ import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
+import type { PollDraft } from '@/components/poll-editor';
+import { emptyPollDraft, PollEditor } from '@/components/poll-editor';
 import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
@@ -96,6 +98,8 @@ function CommitComposerPart({
     attachments,
     linkCard,
     schedule,
+    poll,
+    setPoll,
     secrets,
     firstSecretPart,
     canAddPart,
@@ -113,6 +117,8 @@ function CommitComposerPart({
     attachments: ReturnType<typeof useImageAttachments>;
     linkCard: UseLinkCardReturn;
     schedule: ReturnType<typeof useCommitSchedule>;
+    poll: PollDraft | null;
+    setPoll: (poll: PollDraft | null) => void;
     secrets: ReturnType<typeof useSecretWarning>;
     firstSecretPart: number;
     canAddPart: boolean;
@@ -194,13 +200,19 @@ function CommitComposerPart({
                             value={body}
                             onValueChange={(text) => updateBody(index, text)}
                             onPaste={
-                                index === 0 ? attachments.onPaste : undefined
+                                index === 0 && poll === null
+                                    ? attachments.onPaste
+                                    : undefined
                             }
                             onDragOver={
-                                index === 0 ? attachments.onDragOver : undefined
+                                index === 0 && poll === null
+                                    ? attachments.onDragOver
+                                    : undefined
                             }
                             onDrop={
-                                index === 0 ? attachments.onDrop : undefined
+                                index === 0 && poll === null
+                                    ? attachments.onDrop
+                                    : undefined
                             }
                             onKeyDown={(event) =>
                                 preview.handleShortcut(event) ||
@@ -209,7 +221,11 @@ function CommitComposerPart({
                             onFocus={isRestored ? moveCaretToEnd : undefined}
                             maxLength={maxBodyLength}
                             placeholder={
-                                index === 0 ? 'What did you ship?' : 'And then?'
+                                poll
+                                    ? 'Ask a question'
+                                    : index === 0
+                                      ? 'What did you ship?'
+                                      : 'And then?'
                             }
                             autoComplete="off"
                             aria-invalid={error ? true : undefined}
@@ -272,6 +288,18 @@ function CommitComposerPart({
                                 className="mt-1"
                             />
                         </>
+                    )}
+
+                    {poll && index === 0 && (
+                        <PollEditor
+                            poll={poll}
+                            errors={errors}
+                            onChange={setPoll}
+                            onRemove={() => {
+                                setPoll(null);
+                                focusPart(0);
+                            }}
+                        />
                     )}
 
                     {isScheduling && (
@@ -376,15 +404,53 @@ function CommitComposerPart({
                             <InputError message={errors.bodies} />
 
                             <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-                                <div className="mr-auto flex min-w-0 items-center gap-3">
+                                <div className="mr-auto flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
                                     {!isScheduling && (
                                         <ImagePickerButton
                                             count={attachments.images.length}
-                                            disabled={processing}
+                                            disabled={
+                                                processing || poll !== null
+                                            }
                                             onPick={attachments.attach}
                                             className="-ml-2"
                                         />
                                     )}
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={
+                                            processing ||
+                                            poll !== null ||
+                                            hasImages ||
+                                            isSeries ||
+                                            isScheduling
+                                        }
+                                        onClick={() => {
+                                            setPoll(emptyPollDraft);
+                                            requestAnimationFrame(() =>
+                                                document
+                                                    .getElementById(
+                                                        'poll-option-0',
+                                                    )
+                                                    ?.focus(),
+                                            );
+                                        }}
+                                        aria-label="Add poll"
+                                        title={
+                                            isScheduling
+                                                ? 'Polls cannot be scheduled yet'
+                                                : hasImages
+                                                  ? 'A commit can have images or a poll, not both'
+                                                  : isSeries
+                                                    ? 'Polls are available on single commits'
+                                                    : 'Add poll'
+                                        }
+                                        className="text-muted-foreground"
+                                        data-test="add-poll-button"
+                                    >
+                                        <ChartBar className="size-5" />
+                                    </Button>
                                     {!isScheduling && !isSeries && (
                                         <LinkCardPicker
                                             linkCard={linkCard}
@@ -405,9 +471,11 @@ function CommitComposerPart({
                                         title={
                                             isScheduling
                                                 ? 'Series cannot be scheduled yet'
-                                                : canAddPart
-                                                  ? 'Add another commit (⌘/Ctrl + Shift + Enter)'
-                                                  : `A series has at most ${maxParts} commits`
+                                                : poll !== null
+                                                  ? 'Remove the poll to start a series'
+                                                  : canAddPart
+                                                    ? 'Add another commit (⌘/Ctrl + Shift + Enter)'
+                                                    : `A series has at most ${maxParts} commits`
                                         }
                                         className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                                         data-test="add-commit-part-button"
@@ -434,14 +502,18 @@ function CommitComposerPart({
                                     disabled={
                                         processing ||
                                         (!isScheduling &&
-                                            (hasImages || isSeries))
+                                            (hasImages ||
+                                                isSeries ||
+                                                poll !== null))
                                     }
                                     title={
-                                        !isScheduling && isSeries
-                                            ? 'Series cannot be scheduled yet'
-                                            : !isScheduling && hasImages
-                                              ? "Images can't be scheduled yet"
-                                              : undefined
+                                        !isScheduling && poll !== null
+                                            ? 'Polls cannot be scheduled yet'
+                                            : !isScheduling && isSeries
+                                              ? 'Series cannot be scheduled yet'
+                                              : !isScheduling && hasImages
+                                                ? "Images can't be scheduled yet"
+                                                : undefined
                                     }
                                     onClick={() => {
                                         setTimezone(
@@ -509,18 +581,24 @@ export function CommitComposer() {
         setDraftVersion((version) => version + 1);
     };
     const attachments = useImageAttachments();
+    const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(bodies);
     const firstSecretPart = secrets.findingsByPart.findIndex(
         (findings) => findings.length > 0,
     );
 
     const isSeries = bodies.length > 1;
-    const canAddPart = !isScheduling && bodies.length < maxParts;
-    const isCommittable = bodies.every(
-        (body) => characterCount(body.trim()) >= minBodyLength,
-    );
+    const canAddPart =
+        !isScheduling && bodies.length < maxParts && poll === null;
+    const isCommittable =
+        bodies.every((body) => characterCount(body.trim()) >= minBodyLength) &&
+        (poll === null ||
+            poll.options.every((option) => option.trim().length > 0));
     const hasImages = attachments.images.length > 0;
-    const isSubmittable = isCommittable && !(isScheduling && hasImages);
+    const isSubmittable =
+        isCommittable &&
+        !(isScheduling && hasImages) &&
+        (!isScheduling || poll === null);
 
     const addPartAfter = (index: number) => {
         if (!canAddPart) {
@@ -608,6 +686,7 @@ export function CommitComposer() {
                 setScheduledAt('');
                 setIsScheduling(false);
                 attachments.clear();
+                setPoll(null);
                 focusPart(0);
             }}
             className="flex flex-col"
@@ -625,6 +704,8 @@ export function CommitComposer() {
                             index={index}
                             isSubmittable={isSubmittable}
                             schedule={schedule}
+                            poll={poll}
+                            setPoll={setPoll}
                             secrets={secrets}
                             firstSecretPart={firstSecretPart}
                             canAddPart={canAddPart}

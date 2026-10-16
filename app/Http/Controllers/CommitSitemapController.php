@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Queries\SitemapQuery;
 use Illuminate\Http\Response;
 
@@ -16,6 +17,7 @@ final readonly class CommitSitemapController
             'urls' => $sitemaps->commitsOn($page)->map(fn (Commit $commit): array => [
                 'loc' => route('commit.show', [$commit->user, $commit]),
                 'lastmod' => $commit->updated_at->toAtomString(),
+                'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
             ]),
         ], headers: ['Content-Type' => 'application/xml; charset=UTF-8']);
     }

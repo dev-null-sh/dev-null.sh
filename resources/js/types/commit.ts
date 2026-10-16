@@ -10,6 +10,22 @@ export type LinkPreview = {
     site_name: string | null;
 };
 
+export type PollOption = {
+    id: string;
+    label: string;
+    votes_count: number | null;
+    voted: boolean;
+};
+
+export type Poll = {
+    id: string;
+    closes_at: string | null;
+    is_closed: boolean;
+    has_voted: boolean;
+    total_votes: number | null;
+    options: PollOption[];
+};
+
 export type CommitImage = {
     id: string;
     url: string;
@@ -45,6 +61,7 @@ export type Commit = {
     is_pinned?: boolean;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
+    poll?: Poll | null;
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
