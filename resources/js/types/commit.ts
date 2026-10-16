@@ -44,6 +44,8 @@ export type Commit = {
     link_preview?: LinkPreview | null;
     images?: CommitImage[];
     series_parts?: Commit[];
+    ai_decision?: Exclude<CommitStatus, 'pending'> | null;
+    ai_categories?: string[] | null;
 };
 
 export type DeletedCommit = {

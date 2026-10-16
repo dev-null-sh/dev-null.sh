@@ -1,5 +1,5 @@
 import { Head, Link, router, usePoll } from '@inertiajs/react';
-import { Check, History, ListChecks, X } from 'lucide-react';
+import { Bot, Check, History, ListChecks, X } from 'lucide-react';
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitClaimController from '@/actions/App/Http/Controllers/CommitClaimController';
@@ -47,6 +47,32 @@ function Keycap({ label, className }: { label: string; className?: string }) {
     );
 }
 
+function AiDecision({ commit }: { commit: Commit }) {
+    const categories = (commit.ai_categories ?? []).join(', ');
+    const label =
+        commit.ai_decision === 'approved'
+            ? 'AI suggests approving'
+            : commit.ai_decision === 'rejected'
+              ? `AI suggests rejecting${categories ? `: ${categories}` : ''}`
+              : 'No AI decision yet';
+
+    return (
+        <p
+            className={cn(
+                'mt-3 flex h-5 min-w-0 items-center gap-1.5 text-[13px]',
+                commit.ai_decision === 'rejected'
+                    ? 'text-destructive'
+                    : 'text-muted-foreground',
+            )}
+            title={label}
+            data-test="ai-decision"
+        >
+            <Bot aria-hidden className="size-4 shrink-0" />
+            <span className="truncate">{label}</span>
+        </p>
+    );
+}
+
 function SeriesParts({ commit }: { commit: Commit }) {
     const parts = (commit.series_parts ?? []).filter(
         (part) => (part.series_position ?? 0) > (commit.series_position ?? 0),
@@ -76,6 +102,7 @@ function SeriesParts({ commit }: { commit: Commit }) {
                         {part.link_preview?.title && (
                             <LinkPreview preview={part.link_preview} />
                         )}
+                        <AiDecision commit={part} />
                     </li>
                 ))}
             </ol>
@@ -708,6 +735,7 @@ export default function Show({
                 end="That's every pending commit."
                 actions={(commit) => (
                     <>
+                        <AiDecision commit={commit} />
                         <SeriesParts commit={commit} />
                         <ModerationActions
                             isSelected={selected.has(commit.id)}

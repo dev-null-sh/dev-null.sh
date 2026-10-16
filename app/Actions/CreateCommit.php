@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Dto\SeriesPosition;
 use App\Enums\CommitStatus;
+use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
@@ -60,6 +61,10 @@ final readonly class CreateCommit
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));
+            }
+
+            if ($commit->status === CommitStatus::Pending && filled(config('services.openai.key'))) {
+                dispatch(new ModerateCommit($commit))->afterCommit();
             }
 
             return $commit;

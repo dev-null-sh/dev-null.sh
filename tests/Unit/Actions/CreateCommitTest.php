@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommit;
 use App\Enums\CommitStatus;
+use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
@@ -93,6 +94,39 @@ it('does not notify about pending mentions', function (): void {
     $action->handle(User::factory()->create(), 'Shipped it with @taylorotwell');
 
     expect(Notification::query()->count())->toBe(0);
+});
+
+it('asks the ai for its decision on pending commits', function (): void {
+    config(['services.openai.key' => 'sk-test']);
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Initial commit');
+
+    Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($commit));
+});
+
+it('does not ask the ai about commits of admins', function (): void {
+    config(['services.openai.key' => 'sk-test', 'app.admins' => ['nunomaduro']]);
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Initial commit');
+
+    Queue::assertNotPushed(ModerateCommit::class);
+});
+
+it('does not ask the ai without an api key', function (): void {
+    config(['services.openai.key' => null]);
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(), 'Initial commit');
+
+    Queue::assertNotPushed(ModerateCommit::class);
 });
 
 it('attaches a link preview for the first url in the body', function (): void {
