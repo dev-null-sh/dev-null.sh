@@ -41,6 +41,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Terminal commits](#terminal-commits)
   - [GitHub Actions integration](#github-actions-integration)
   - [Public read API and Atom feeds](#public-read-api-and-atom-feeds)
+  - [Signed API and devices](#signed-api-and-devices)
   - [Bug reports and feature requests](#bug-reports-and-feature-requests)
   - [Exporting your data](#exporting-your-data)
   - [Deleting your account](#deleting-your-account)
@@ -318,11 +319,19 @@ Sources: [workflow instructions](resources/js/pages/terminal/show.tsx), [GitHub 
 
 ### Public read API and Atom feeds
 
-The read-only JSON API at `/api/v1` requires no authentication or token. Read a public profile at `/api/v1/users/{username}`, that user's commits at `/api/v1/users/{username}/commits`, or one commit at `/api/v1/commits/{commit}`. Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination, 20 items per page. Only public approved, non-deleted content is returned, not private profile data such as email. The API is limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting is a separate signed interface.
+The read-only JSON API at `/api/v1` requires no authentication or token. Read a public profile at `/api/v1/users/{username}`, that user's commits at `/api/v1/users/{username}/commits`, or one commit at `/api/v1/commits/{commit}`. Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination, 20 items per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
 
 Subscribe in a feed reader to `/@{username}/feed.atom` for a profile's latest **50 approved top-level commits**, including image enclosures. Feeds are public and can be cached for five minutes.
 
 Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Api), [feed generation](app/Actions/CreateUserFeed.php), [rate limits](app/Providers/AppServiceProvider.php).
+
+### Signed API and devices
+
+An app can use the same `/api/v1` for you with signed requests. It keeps an SSH key on the device and signs every request with it; there are no passwords or API tokens. To sign in, the app opens `/mobile/authorize` on the web: sign in with GitHub if needed, check the key's fingerprint, and approve it. The key then becomes one of your devices, and it does not need to be on your GitHub account. A key that is only on GitHub, such as a GitHub Actions key, cannot use the signed API.
+
+A signed request sees what the web shows you, such as your own pending commits, and can also read your logs, replies, and notifications, commit and reply, delete your commits, and follow or unfollow, with the web's validation, moderation, and rate limits. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
+
+Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
 ### Bug reports and feature requests
 
