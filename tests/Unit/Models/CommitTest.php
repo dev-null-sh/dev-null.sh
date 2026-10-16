@@ -27,6 +27,8 @@ test('to array', function (): void {
             'series_position',
             'series_size',
             'quoted_commit_id',
+            'root_id',
+            'hot_score',
             'body_segments',
         ]);
 });
@@ -182,7 +184,20 @@ it('excludes series continuations from its public preview reply count', function
     Commit::factory()->for($parts[0], 'parent')->create();
     Commit::factory()->for($parts[0], 'parent')->pending()->create();
 
-    expect($parts[0]->loadPublicPreview()->replies_count)->toBe(1);
+    $preview = $parts[0]->loadPublicPreview();
+
+    expect($preview->replies_count)->toBe(1)
+        ->and($preview->isDirty('replies_count'))->toBeFalse();
+});
+
+it('loads an unsaved public preview without dirtying its computed count', function (): void {
+    $commit = Commit::factory()->make();
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview->replies_count)->toBe(0)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->exists)->toBeFalse();
 });
 
 it('may belong to a link preview', function (): void {

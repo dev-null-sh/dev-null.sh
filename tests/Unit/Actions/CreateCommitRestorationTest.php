@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Actions\CreateCommitRestoration;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
+use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
+use App\Services\TheAlgorithm;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 it('restores a commit within its undo window', function (): void {
@@ -63,4 +65,16 @@ it('cannot restore an authorless reply left by account deletion from a stale mod
     $this->assertSoftDeleted($reply);
     expect($reply->refresh()->user_id)->toBeNull()
         ->and($reply->toArray())->not->toHaveKeys(['body', 'user', 'user_id']);
+});
+
+it('restores the thread score when a deleted reply returns', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
+    $deleted = resolve(DeleteCommit::class)->handle($reply);
+
+    resolve(CreateCommitRestoration::class)->handle($deleted);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });

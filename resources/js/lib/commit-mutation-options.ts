@@ -32,3 +32,27 @@ export function updateQuotedCommits(
             : commit,
     );
 }
+
+export function restoreFeedCommit(
+    rows: Commit[],
+    restored: Commit,
+    order: 'latest' | 'ranked' | 'saved',
+): Commit[] {
+    const updated = updateQuotedCommits(rows, restored).filter(
+        (commit) => commit.id !== restored.id,
+    );
+    const compare = (a: Commit, b: Commit) => {
+        if (order === 'saved') {
+            return (b.saved_order ?? 0) - (a.saved_order ?? 0);
+        }
+        if (order === 'ranked') {
+            return b.hot_score - a.hot_score || b.id.localeCompare(a.id);
+        }
+        return (
+            b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id)
+        );
+    };
+    const index = updated.findIndex((commit) => compare(restored, commit) < 0);
+    updated.splice(index === -1 ? updated.length : index, 0, restored);
+    return updated;
+}

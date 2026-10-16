@@ -26,6 +26,7 @@ export type Commit = {
     id: string;
     user_id: string;
     parent_id: string | null;
+    hot_score: number;
     body: string;
     body_segments: BodySegment[];
     status: CommitStatus;
@@ -54,7 +55,15 @@ export type Commit = {
 
 export type QuotedCommit = Pick<
     Commit,
-    'id' | 'user_id' | 'body' | 'status' | 'created_at' | 'deleted_at' | 'user'
+    | 'id'
+    | 'user_id'
+    | 'body'
+    | 'body_segments'
+    | 'status'
+    | 'created_at'
+    | 'deleted_at'
+    | 'user'
+    | 'replies_count'
 >;
 
 export type DeletedCommit = {

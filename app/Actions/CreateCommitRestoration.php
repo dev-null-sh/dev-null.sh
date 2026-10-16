@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class CreateCommitRestoration
 {
+    public function __construct(private UpdateCommitHotScores $updateCommitHotScores)
+    {
+        //
+    }
+
     public function handle(Commit $commit): Commit
     {
         return DB::transaction(function () use ($commit): Commit {
@@ -16,6 +21,7 @@ final readonly class CreateCommitRestoration
 
             if ($commit->isRestorable()) {
                 $commit->restore();
+                $this->updateCommitHotScores->handle([$commit->threadRootId()]);
             }
 
             return $commit;

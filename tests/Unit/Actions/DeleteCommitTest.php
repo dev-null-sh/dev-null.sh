@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Actions\DeleteCommit;
+use App\Actions\UpdateCommitHotScores;
 use App\Jobs\EraseDeletedCommitImages;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -66,4 +68,15 @@ it('does not queue the erasure again for a commit already deleted', function ():
     resolve(DeleteCommit::class)->handle($commit);
 
     Queue::assertNothingPushed();
+});
+
+it('lowers the thread when a reply is deleted', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    resolve(UpdateCommitHotScores::class)->handle([$commit->id]);
+
+    resolve(DeleteCommit::class)->handle($reply);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
 });

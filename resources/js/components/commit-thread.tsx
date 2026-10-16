@@ -151,8 +151,12 @@ export function useThread(
     };
 
     const onRestored = useEffectEvent((restored: Commit) => {
-        if (restored.parent?.replies_count !== undefined) {
-            setCount(restored.parent.replies_count);
+        const target =
+            restored.parent_id === commit.id
+                ? restored.parent
+                : restored.quoted_commit;
+        if (target?.replies_count !== undefined) {
+            setCount(target.replies_count);
         }
         if (replies !== null) {
             reload(replies.some((reply) => reply.id === restored.id) ? 0 : 1);
@@ -163,7 +167,11 @@ export function useThread(
         () =>
             router.on('flash', (event) => {
                 const restored = event.detail.flash.restored;
-                if (restored?.parent_id === commit.id) {
+                if (
+                    restored &&
+                    (restored.parent_id === commit.id ||
+                        restored.quoted_commit_id === commit.id)
+                ) {
                     onRestored(restored);
                 }
             }),

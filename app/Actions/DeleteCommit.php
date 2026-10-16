@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class DeleteCommit
 {
+    public function __construct(private UpdateCommitHotScores $updateCommitHotScores)
+    {
+        //
+    }
+
     /**
      * Soft deleting keeps the row for its replies and quotes, so its notifications and the notifications about its replies and quotes are removed here instead of by the foreign key.
      * Its images are kept until the undo window closes, so undoing the deletion brings them back too.
@@ -37,6 +42,8 @@ final readonly class DeleteCommit
                 ->delete();
 
             $commit->delete();
+
+            $this->updateCommitHotScores->handle([$commit->threadRootId()]);
 
             dispatch(new EraseDeletedCommitImages($commit))
                 ->delay(now()->addSeconds(Commit::RESTORABLE_SECONDS))

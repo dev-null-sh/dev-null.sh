@@ -508,3 +508,18 @@ it('refreshes profile achievement totals through deletion and undo', function ()
         ->assertOk()
         ->assertJsonPath('props.achievements.xp_breakdown.commits.count', 1);
 });
+
+it('returns the quote target reply count after restoring a quote', function (): void {
+    $target = Commit::factory()->create();
+    $quote = Commit::factory()->for($target, 'quotedCommit')->create();
+    resolve(DeleteCommit::class)->handle($quote);
+
+    $this->actingAs($quote->user)->post(route('commit-restoration.store', $quote))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.quoted_commit.replies_count', 1);
+
+    $this->get(route('commit.show', [$target->user, $target]))
+        ->assertInertia(fn (Assert $page): Assert => $page
+            ->where('commit.replies_count', 1)
+            ->where('replies.data.0.id', $quote->id));
+});

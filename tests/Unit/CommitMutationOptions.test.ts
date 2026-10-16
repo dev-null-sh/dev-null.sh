@@ -1,7 +1,10 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { updateQuotedCommits } from '../../resources/js/lib/commit-mutation-options';
+import {
+    restoreFeedCommit,
+    updateQuotedCommits,
+} from '../../resources/js/lib/commit-mutation-options';
 import type { Commit, DeletedCommit } from '../../resources/js/types';
 
 const target = {
@@ -50,4 +53,56 @@ void test('keeps the same rows when no loaded commit quotes the changed target',
     const updated = updateQuotedCommits(quotes, { ...target, id: 'other' });
     assert.deepEqual(updated, quotes);
     updated.forEach((row, index) => assert.strictEqual(row, quotes[index]));
+});
+
+void test('restores a ranked row by score without reordering already loaded rows', () => {
+    const rows = [
+        { id: 'top', hot_score: 50, created_at: '2026-10-14' },
+        { id: 'middle', hot_score: 10, created_at: '2026-10-16' },
+        { id: 'bottom', hot_score: 30, created_at: '2026-10-15' },
+    ] as Commit[];
+    const restored = {
+        id: 'restored',
+        hot_score: 40,
+        created_at: '2026-10-13',
+    } as Commit;
+    const updated = restoreFeedCommit(rows, restored, 'ranked');
+    assert.deepEqual(
+        updated.map((row) => row.id),
+        ['top', 'restored', 'middle', 'bottom'],
+    );
+    assert.strictEqual(updated[0], rows[0]);
+    assert.strictEqual(updated[2], rows[1]);
+    assert.strictEqual(updated[3], rows[2]);
+    assert.deepEqual(restoreFeedCommit(updated, restored, 'ranked'), updated);
+});
+
+void test('restores a latest row by creation time and a saved row by bookmark order', () => {
+    const rows = [
+        { id: 'newest', created_at: '2026-10-16', saved_order: 4 },
+        { id: 'oldest', created_at: '2026-10-14', saved_order: 2 },
+    ] as Commit[];
+    const restored = {
+        id: 'restored',
+        created_at: '2026-10-15',
+        saved_order: 5,
+    } as Commit;
+    assert.deepEqual(
+        restoreFeedCommit(rows, restored, 'latest').map((row) => row.id),
+        ['newest', 'restored', 'oldest'],
+    );
+    assert.deepEqual(
+        restoreFeedCommit(rows, restored, 'saved').map((row) => row.id),
+        ['restored', 'newest', 'oldest'],
+    );
+});
+
+void test('restoring a target also refreshes its embeds while preserving the loaded rows', () => {
+    const restored = { ...target, hot_score: 5, created_at: '2026-10-16' };
+    const rows = restoreFeedCommit(quotes, restored, 'ranked');
+    assert.strictEqual(
+        rows.find((row) => row.id === 'quote')!.quoted_commit,
+        restored,
+    );
+    assert.equal(rows.filter((row) => row.id === target.id).length, 1);
 });
