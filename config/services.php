@@ -22,6 +22,10 @@ return [
         'redirect' => env('GITHUB_REDIRECT_URI', '/auth/github/callback'),
     ],
 
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

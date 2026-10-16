@@ -9,6 +9,7 @@ use App\Queries\CommitBuilder;
 use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -30,6 +31,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $series_id
  * @property-read int|null $series_position
  * @property-read int|null $series_size
+ * @property-read CommitStatus|null $ai_decision
+ * @property-read list<string>|null $ai_categories
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -47,6 +50,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, CommitImage> $images
  * @property-read Collection<int, Commit> $seriesParts
  */
+#[Hidden([
+    'ai_decision',
+    'ai_categories',
+])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
 {
@@ -72,6 +79,8 @@ final class Commit extends Model
             'series_id' => 'string',
             'series_position' => 'integer',
             'series_size' => 'integer',
+            'ai_decision' => CommitStatus::class,
+            'ai_categories' => 'array',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
