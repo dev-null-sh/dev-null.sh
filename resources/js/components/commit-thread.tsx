@@ -31,7 +31,13 @@ import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
-import { cn, formatRelativeTime, isDeleted, laneOf } from '@/lib/utils';
+import {
+    characterCount,
+    cn,
+    formatRelativeTime,
+    isDeleted,
+    laneOf,
+} from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
@@ -741,8 +747,8 @@ function ReplyComposer({
     );
     const attachments = useImageAttachments();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const remaining = maxBodyLength - body.length;
-    const isReplyable = body.trim().length >= 3;
+    const remaining = maxBodyLength - characterCount(body);
+    const isReplyable = characterCount(body.trim()) >= 3;
     const suggestion = suggestEmoji(body);
 
     const returnFocusToCommit = () => {
