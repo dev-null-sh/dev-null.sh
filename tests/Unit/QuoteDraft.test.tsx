@@ -133,14 +133,16 @@ test('quotes submit restored images and clear the complete draft only on success
     ]);
 
     const onSuccess = form.props.onSuccess as (page: {
-        flash: { committed?: object };
+        flash: { toast?: { type: 'error'; message: string } };
     }) => void;
     updateImages.mockClear();
-    onSuccess({ flash: {} });
+    onSuccess({
+        flash: { toast: { type: 'error', message: 'Slow down' } },
+    });
     assert.equal(updateImages.mock.calls.length, 0);
     assert.equal(drop.mock.calls.length, 0);
 
-    onSuccess({ flash: { committed: { id: 'created' } } });
+    onSuccess({ flash: {} });
     assert.deepEqual(updateImages.mock.lastCall, [[], []]);
     assert.equal(drop.mock.calls.length, 1);
 
