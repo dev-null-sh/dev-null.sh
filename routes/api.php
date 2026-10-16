@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\ApiException;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitReplyController;
+use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
@@ -17,6 +19,7 @@ use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
 use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\ThrottleCommits;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('cli')->group(function (): void {
@@ -62,6 +65,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
             ->withTrashed()
             ->name('api-commit-reply.index');
+
+        // Commit Report: a commit that doesn't exist or was deleted gets the same answer as one the user may not see...
+        Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
+            ->middleware('throttle:commit-reports')
+            ->missing(fn (): JsonResponse => ApiException::commitUnavailable()->render())
+            ->name('api-commit-report.store');
 
         // User Follow...
         Route::post('users/{user:username}/follow', [UserFollowController::class, 'store'])

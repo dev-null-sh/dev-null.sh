@@ -36,6 +36,15 @@ final class ApiException extends HttpException
     }
 
     /**
+     * A commit that doesn't exist, was deleted, isn't published, or that the user may not see. The web answers them
+     * all alike, so nothing tells them apart.
+     */
+    public static function commitUnavailable(): self
+    {
+        return new self(ApiErrorCode::CommitUnavailable, __("This commit isn't available."));
+    }
+
+    /**
      * The one answer to a code the app can't redeem, whatever is wrong with it, as OAuth answers it.
      */
     public static function invalidGrant(): self
