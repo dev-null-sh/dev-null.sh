@@ -65,17 +65,18 @@ it('flashes the server deadline from every deletion context', function (string $
         'profile' => route('user.show', $commit->user).'?cursor=older',
         'thread' => route('commit.show', [$commit->user, Commit::factory()->for($commit->user)->create()]),
         'commit' => route('commit.show', [$commit->user, $commit]),
+        'photo' => route('commit-photo.show', [$commit->user, $commit, 1]),
     };
 
     $response = $this->actingAs($commit->user)->from($from)->delete(route('commit.destroy', $commit));
 
-    $response->assertRedirect($context === 'commit' ? route('user.show', $commit->user) : $from)
+    $response->assertRedirect(in_array($context, ['commit', 'photo'], true) ? route('user.show', $commit->user) : $from)
         ->assertInertiaFlash('deleted.id', $commit->id)
         ->assertInertiaFlash('deleted.parent_id', $commit->parent_id)
         ->assertInertiaFlash('deleted.deleted_at', $commit->refresh()->deleted_at?->toJSON())
         ->assertInertiaFlash('deleted.expires_at', $commit->refresh()->deleted_at?->addSeconds(30)->toJSON())
         ->assertInertiaFlash('deleted.server_time', now()->toJSON());
-})->with(['log', 'profile', 'thread', 'commit']);
+})->with(['log', 'profile', 'thread', 'commit', 'photo']);
 
 it('rejects undo at and after the deadline', function (int $seconds): void {
     $this->travelTo(now()->startOfSecond());

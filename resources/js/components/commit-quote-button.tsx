@@ -154,7 +154,11 @@ function QuoteComposer({
                 onBefore={secrets.beforeSubmit}
                 transform={(data) =>
                     attachments.images.length > 0
-                        ? { ...data, images: attachments.images }
+                        ? {
+                              ...data,
+                              images: attachments.images,
+                              image_descriptions: attachments.descriptions,
+                          }
                         : data
                 }
                 options={{ preserveScroll: true }}
@@ -226,6 +230,8 @@ function QuoteComposer({
 
                             <ImagePickerPreviews
                                 images={attachments.images}
+                                descriptions={attachments.descriptions}
+                                onDescribe={attachments.describe}
                                 onRemove={attachments.remove}
                             />
                             <InputError

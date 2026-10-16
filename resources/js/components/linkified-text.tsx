@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import { UserPreview } from '@/components/user-preview';
 import { typedProse } from '@/lib/code';
 import { shortenUrl } from '@/lib/urls';
 import { show } from '@/routes/mention';
@@ -137,14 +138,19 @@ function withMentions(
         parts.push(
             text.slice(position, match.index),
             userId ? (
-                <Link
+                <UserPreview
                     key={`mention-${offset + match.index}`}
-                    href={show(userId)}
-                    className="font-medium text-primary hover:underline"
-                    data-test="mention"
+                    user={{ username: match[1] }}
+                    userId={userId}
                 >
-                    {match[0]}
-                </Link>
+                    <Link
+                        href={show(userId)}
+                        className="font-medium text-primary hover:underline"
+                        data-test="mention"
+                    >
+                        {match[0]}
+                    </Link>
+                </UserPreview>
             ) : (
                 match[0]
             ),

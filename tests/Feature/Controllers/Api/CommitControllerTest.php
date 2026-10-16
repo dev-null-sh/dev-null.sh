@@ -117,14 +117,14 @@ it('includes the link preview without internal fields', function (): void {
 it('includes the images of the commit in order', function (): void {
     $commit = Commit::factory()->create();
     $second = CommitImage::factory()->for($commit)->create(['position' => 1, 'width' => 640, 'height' => 480]);
-    $first = CommitImage::factory()->for($commit)->create(['position' => 0]);
+    $first = CommitImage::factory()->for($commit)->create(['position' => 0, 'description' => 'A terminal showing a successful build.']);
 
     $this->getJson(route('api-commit.show', $commit))
         ->assertOk()
         ->assertDontSee($first->path)
         ->assertJsonPath('data.images', [
-            ['id' => $first->id, 'width' => 1200, 'height' => 800, 'url' => route('commit-image.show', $first)],
-            ['id' => $second->id, 'width' => 640, 'height' => 480, 'url' => route('commit-image.show', $second)],
+            ['id' => $first->id, 'width' => 1200, 'height' => 800, 'description' => 'A terminal showing a successful build.', 'url' => route('commit-image.show', $first)],
+            ['id' => $second->id, 'width' => 640, 'height' => 480, 'description' => null, 'url' => route('commit-image.show', $second)],
         ]);
 });
 

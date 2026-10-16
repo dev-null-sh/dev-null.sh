@@ -45,6 +45,31 @@ function sshFixture(string $name): string
 }
 
 /**
+ * @param  array<string, mixed>  $account
+ */
+function fakeGitHubAccount(User $user, array $account = []): void
+{
+    $account = [
+        'id' => (int) $user->github_id,
+        'login' => 'octocat',
+        'name' => 'The Octocat',
+        'email' => 'octocat@github.com',
+        'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4',
+        'bio' => 'I am the Octocat.',
+        'company' => '@github',
+        'location' => 'San Francisco',
+        'blog' => 'https://github.blog',
+        ...$account,
+    ];
+
+    Http::fake([
+        "api.github.com/user/{$user->github_id}" => Http::response($account),
+    ]);
+
+    fakeGitHubSshKeys(User::factory()->make(['github_id' => $user->github_id, 'username' => $account['login']]));
+}
+
+/**
  * @param  list<SshPublicKey>  $keys
  * @param  list<SshPublicKey>  $signingKeys
  */

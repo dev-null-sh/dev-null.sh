@@ -16,11 +16,11 @@ devnull is a social network for developers: sign in with GitHub, get a profile m
 
 ## Positioning
 
-Identity is GitHub. Every account is a real GitHub user, and the profile (avatar, name, username, bio, company, location, website) is mirrored from GitHub on every login and cannot be edited on devnull. A general-purpose network cannot truthfully claim that every account is a developer with a public GitHub identity.
+Identity is GitHub. Every account is a real GitHub user, and the profile (avatar, name, username, bio, company, location, website) is mirrored from GitHub on every login, or on demand with "Sync from GitHub" in settings, and cannot be edited on devnull. A general-purpose network cannot truthfully claim that every account is a developer with a public GitHub identity.
 
 ## Operating Context
 
-- Sign-in is GitHub OAuth only. Profile changes happen on GitHub ("Edit on GitHub"), then sync at next login.
+- Sign-in is GitHub OAuth only. Profile changes happen on GitHub ("Edit on GitHub"), then sync at next login or with "Sync from GitHub" (once a minute).
 - Everything except the landing page, the public read API, and profile feeds requires login.
 - Public read API: read-only JSON under `/api/v1`, no authentication, for public profiles (with counts), a user's commits or replies, and single commits. It returns exactly what a guest's link preview may show: approved, non-deleted commits only (with their images), approved reply counts, and a parent only while it is approved. Never emails or other hidden profile fields. 60 requests a minute per IP.
 - Profile feeds: every profile has an Atom feed of its latest 50 approved top-level commits at `/@{username}/feed.atom`, their images as enclosures, advertised with `<link rel="alternate">` on the profile's guest preview.
@@ -37,6 +37,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 
 - Commits (posts): plain text, 3–280 characters; create and delete only (no editing). Rate limited to 10 commits per minute per user.
 - Follow/unfollow, idempotent; self-follow rejected.
+- World: the account @world replies "Hello, {name}." when an approved commit's whole text is hello world, including "Hello, World!". A pending one is answered once it is approved, and only once. @world does not sign in.
 - GitHub follows come over once, on first sign-in: you follow the developers you follow on GitHub, and the ones following you there follow you (up to 1,000 each way), with the usual follow notifications. It only ever adds follows, so unfollowing someone sticks. `php artisan follows:import` does the same, silently, for everyone not imported yet.
 - Replies: any visible commit can be replied to; a reply is itself a commit (same 280 limit, moderation, and rate limit). Threads expand inline under a commit; logs and the profile's Commits tab list top-level commits only, while the profile's Replies tab lists that user's replies. Every commit has its own page with its ancestors above it and its replies expanded; it is behind login like everything else. Deleting a commit removes it from logs, profiles, counts, and its own page, but never takes other people's replies with it: while it still has visible replies it stays in its thread as a `[deleted]` tombstone with no author or body, and it can no longer be replied to. Its author can undo a deletion for 30 seconds, which brings it back exactly as it was, without notifying anyone again. Deleting an account erases that user's commits and replies for good, along with every reply under their commits; replies other people left under their replies survive, under the same authorless `[deleted]` tombstone.
 - Quotes: any visible commit can be quoted. A quote is a new top-level commit (same 280 limit, moderation, and rate limit) with the quoted commit embedded under its body as a compact card that opens the quoted commit's page; a reply cannot also quote. The embed only ever shows what the viewer can see: a deleted quoted commit leaves a `[deleted]` tombstone, one the viewer can no longer see (pending or rejected) reads `[unavailable]` with no author or body, and erasing an account removes embeds of erased commits, while approved quoted replies retained as authorless thread tombstones still read `[deleted]`. Quotes have no count.

@@ -85,7 +85,7 @@ it('stores a concise rejection reason privately and leaves repeated rejections u
             ->where('notifications.data.0.type', 'rejected')
             ->where('notifications.data.0.reason', $notice->reason)
             ->where('notifications.data.0.commit.id', $commit->id)
-            ->where('notifications.data.0.read_at', null));
+            ->where('notifications.data.0.read_at', now()->startOfSecond()->toJSON()));
     expect($notice->fresh()->read_at)->not->toBeNull();
 
     $this->get(route('commit.show', [$commit->user, $commit]))

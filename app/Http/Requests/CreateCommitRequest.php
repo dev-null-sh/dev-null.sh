@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
+use App\Dto\NewPoll;
+use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
@@ -14,6 +16,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Dimensions;
+use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rules\In;
 
@@ -29,7 +32,7 @@ final class CreateCommitRequest extends FormRequest
     /**
      * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
      *
-     * @return array<string, array<int, string|ValidationRule|File|Dimensions|In>>
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>>
      */
     public function rules(): array
     {
@@ -38,9 +41,12 @@ final class CreateCommitRequest extends FormRequest
 
         return [
             'body' => self::BODY_RULES,
-            'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
             'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
+            'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],
+            'poll.options' => ['required_with:poll', 'list', 'min:'.NewPoll::MinOptions, 'max:'.NewPoll::MaxOptions],
+            'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
+            'poll.duration' => ['required_with:poll', Rule::enum(PollDuration::class)],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
                 'required',
@@ -50,7 +56,31 @@ final class CreateCommitRequest extends FormRequest
                     ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
                     ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
             ],
+            'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
+            'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'image_descriptions.*' => 'image description',
+        ];
+    }
+
+    public function poll(): ?NewPoll
+    {
+        if (! $this->filled('poll')) {
+            return null;
+        }
+
+        /** @var list<string> $options */
+        $options = $this->array('poll.options');
+
+        return new NewPoll($options, PollDuration::from($this->integer('poll.duration')));
     }
 
     /**
@@ -85,14 +115,15 @@ final class CreateCommitRequest extends FormRequest
         return is_array($images) ? array_values($images) : [];
     }
 
-    public function parent(): ?Commit
+    /**
+     * @return list<string|null>
+     */
+    public function imageDescriptions(): array
     {
-        $user = $this->user();
-        assert($user instanceof User);
+        /** @var list<string|null> $descriptions */
+        $descriptions = $this->array('image_descriptions');
 
-        return $this->filled('parent_id')
-            ? Commit::query()->visibleTo($user)->find($this->string('parent_id')->value())
-            : null;
+        return $descriptions;
     }
 
     public function quotedCommit(): ?Commit
