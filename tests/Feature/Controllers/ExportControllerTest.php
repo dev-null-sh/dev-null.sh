@@ -87,6 +87,9 @@ it('exports only the signed-in users live commits including replies and all mode
     expect($commits[$approved->id])->toBe([
         'id' => $approved->id,
         'parent_id' => null,
+        'series_id' => null,
+        'series_position' => null,
+        'series_size' => null,
         'body' => $approved->body,
         'status' => 'approved',
         'created_at' => $approved->created_at->toIso8601String(),
@@ -124,6 +127,20 @@ it('exports the polls of live commits and votes without other voters', function 
             'created_at' => $vote->created_at->toIso8601String(),
         ]])
         ->and($response->streamedContent())->not->toContain($voter->id, $voter->username, $deleted->options[0]->label);
+});
+
+it('exports where each commit sits in its series', function (): void {
+    $user = User::factory()->create();
+    $parts = commitSeries($user, size: 2);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $commits = collect(json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR)['commits'])->keyBy('id');
+
+    expect($commits[$parts[1]->id])
+        ->parent_id->toBe($parts[0]->id)
+        ->series_id->toBe($parts[0]->series_id)
+        ->series_position->toBe(2)
+        ->series_size->toBe(2);
 });
 
 it('exports following usernames without private identity fields or followers', function (): void {

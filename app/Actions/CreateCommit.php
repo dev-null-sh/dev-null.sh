@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\NewPoll;
+use App\Dto\SeriesPosition;
 use App\Enums\CommitStatus;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
@@ -30,9 +31,9 @@ final readonly class CreateCommit
     /**
      * @param  list<UploadedFile>  $images
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], ?NewPoll $poll = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], ?NewPoll $poll = null, ?SeriesPosition $series = null): Commit
     {
-        return DB::transaction(function () use ($user, $body, $parent, $images, $poll): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $images, $poll, $series): Commit {
             $linkPreview = $this->linkPreviewFor($body);
 
             $commit = $user->commits()->create([
@@ -40,6 +41,9 @@ final readonly class CreateCommit
                 'parent_id' => $parent?->id,
                 'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
+                'series_id' => $series?->seriesId,
+                'series_position' => $series?->position,
+                'series_size' => $series?->size,
             ]);
 
             $this->createCommitImages->handle($commit, $images);
