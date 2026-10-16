@@ -74,6 +74,19 @@ final class CommitBuilder extends Builder
     }
 
     /**
+     * Loads the quoted commit only when the given user may see it, and as a tombstone once deleted.
+     */
+    public function withQuotedCommitFor(?User $viewer): self
+    {
+        return $this->with([
+            'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
+                ->withTrashed()
+                ->where(fn (self $query): self => $query->visibleTo($viewer))
+                ->with('user'),
+        ]);
+    }
+
+    /**
      * Later parts of a series are replies to the part before them, yet they read as part of it rather than as replies.
      */
     public function exceptSeriesContinuations(): self

@@ -26,6 +26,7 @@ test('to array', function (): void {
             'series_id',
             'series_position',
             'series_size',
+            'quoted_commit_id',
             'body_segments',
         ]);
 });
@@ -121,6 +122,46 @@ it('erases replies along with their parent when force deleted', function (): voi
     expect(Commit::withTrashed()->whereKey([$reply->id, $nested->id])->exists())->toBeFalse();
 });
 
+it('may quote another commit', function (): void {
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    expect($quote->quotedCommit->is($quoted))->toBeTrue()
+        ->and($quoted->quotes->sole()->is($quote))->toBeTrue()
+        ->and($quoted->quotedCommit)->toBeNull();
+});
+
+it('keeps quotes when the quoted commit is deleted', function (): void {
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    $quoted->delete();
+
+    $this->assertNotSoftDeleted($quote);
+
+    expect($quote->refresh()->quoted_commit_id)->toBe($quoted->id);
+});
+
+it('keeps quotes without the reference when the quoted commit is force deleted', function (): void {
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    $quoted->forceDelete();
+
+    $this->assertNotSoftDeleted($quote);
+
+    expect($quote->refresh()->quoted_commit_id)->toBeNull();
+});
+
+it('leaves the quoted commit out of a tombstone', function (): void {
+    $commit = Commit::factory()->for(Commit::factory(), 'quotedCommit')->create();
+    $commit->delete();
+
+    $tombstone = Commit::withTrashed()->with('quotedCommit')->findOrFail($commit->id);
+
+    expect($tombstone->toArray())->not->toHaveKeys(['quoted_commit_id', 'quoted_commit']);
+});
+
 it('serializes a deleted commit as a tombstone without its author or body', function (): void {
     $parent = Commit::factory()->create();
     $commit = Commit::factory()->for($parent, 'parent')->create();
@@ -134,6 +175,14 @@ it('serializes a deleted commit as a tombstone without its author or body', func
         'deleted_at' => $tombstone->deleted_at?->toJSON(),
         'replies_count' => 0,
     ]);
+});
+
+it('excludes series continuations from its public preview reply count', function (): void {
+    $parts = commitSeries();
+    Commit::factory()->for($parts[0], 'parent')->create();
+    Commit::factory()->for($parts[0], 'parent')->pending()->create();
+
+    expect($parts[0]->loadPublicPreview()->replies_count)->toBe(1);
 });
 
 it('may belong to a link preview', function (): void {

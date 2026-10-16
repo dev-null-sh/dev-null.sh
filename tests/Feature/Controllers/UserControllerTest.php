@@ -37,6 +37,7 @@ it('renders a user profile', function (): void {
             ->missing('user.github_id')
             ->where('isFollowing', true)
             ->where('followsYou', false)
+            ->has('achievements')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
@@ -74,7 +75,8 @@ it('does not count the user relations or activity when reloading only commits', 
                 ->missing('isFollowing')
                 ->missing('followsYou')
                 ->missing('tab')
-                ->missing('activity'));
+                ->missing('activity')
+                ->missing('achievements'));
         });
 
     expect(collect(DB::getQueryLog())
@@ -520,6 +522,21 @@ it('only shows top-level commits on profiles', function (): void {
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'Root')
             ->where('commits.data.0.replies_count', 1));
+});
+
+it('includes the quoted commits of the user commits', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 1)
+            ->where('commits.data.0.quoted_commit.body', 'The quoted commit')
+            ->where('commits.data.0.quoted_commit.user.username', 'taylorotwell'));
 });
 
 it('includes the link previews of the user commits', function (): void {
