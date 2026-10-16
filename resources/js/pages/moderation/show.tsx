@@ -92,7 +92,7 @@ function SeriesParts({ commit }: { commit: Commit }) {
                         {part.quoted_commit_id !== null && (
                             <QuotedCommit commit={part.quoted_commit ?? null} />
                         )}
-                        {part.link_preview?.title && (
+                        {part.link_preview && (
                             <LinkPreview preview={part.link_preview} />
                         )}
                         <AiDecision commit={part} />

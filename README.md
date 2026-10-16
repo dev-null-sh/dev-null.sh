@@ -29,6 +29,31 @@ Run `composer dev` and visit `http://localhost:8000` (or your configured `APP_UR
 
 Leave `AUTO_LOGIN=false` to sign in using GitHub. Create a [GitHub OAuth app](https://github.com/settings/developers) with the callback URL `{APP_URL}/auth/github/callback`, then set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `.env`.
 
+### Embeds
+
+A link card for a video, song or pen becomes a player that loads when clicked. The player URL is built on the server from the link, so only the sites below can be framed. None of them need an API key.
+
+| Key | Links |
+|---|---|
+| `youtube` | `youtube.com/watch`, `youtu.be`, `/shorts`, `/live`, `/playlist` (with `t=` start times) |
+| `vimeo` | `vimeo.com/{id}`, unlisted `vimeo.com/{id}/{hash}`, channels and groups |
+| `loom` | `loom.com/share/{id}` |
+| `twitch` | channels, `/videos/{id}` and clips |
+| `suno` | `suno.com/song/{id}` |
+| `spotify` | tracks, albums, playlists, artists, episodes and shows |
+| `soundcloud` | tracks and sets |
+| `apple_music` | albums, playlists and songs |
+| `codepen` | pens |
+| `asciinema` | recordings |
+
+| Variable | Default | |
+|---|---|---|
+| `EMBEDS_ENABLED` | `true` | `false` turns every link back into a plain link card |
+| `EMBEDS_PROVIDERS` | empty (all) | Comma-separated keys from the table above, such as `youtube,suno,spotify` |
+| `EMBEDS_YOUTUBE_PRIVACY_ENHANCED` | `true` | Plays YouTube from `youtube-nocookie.com` |
+
+Twitch requires the embedding site's host, which is taken from `APP_URL`. To add a site, implement `App\Contracts\Services\EmbedProvider` and register it in `config/embeds.php`.
+
 ### Verify installation
 
 Run `composer test` to check linting, static analysis, type coverage, and tests. The code coverage check requires Xdebug or PCOV.
@@ -41,7 +66,7 @@ Read-only, no authentication, JSON, versioned under `/api/v1`. Only approved com
 |---|---|
 | `GET /api/v1/users/{username}` | A public profile with commit, follower, and following counts |
 | `GET /api/v1/users/{username}/commits` | The user's top-level commits, newest first, 20 per page (`?replies=1` for their replies instead) |
-| `GET /api/v1/commits/{id}` | One commit with its author, public parent id, star and reply counts, link preview, and images (`id`, `url`, `width`, `height`) |
+| `GET /api/v1/commits/{id}` | One commit with its author, public parent id, star and reply counts, link preview (with its `embed` player, if any), and images (`id`, `url`, `width`, `height`) |
 
 Lists are cursor-paginated: follow `links.next` (or pass `meta.next_cursor` as `?cursor=`) until it is `null`.
 
