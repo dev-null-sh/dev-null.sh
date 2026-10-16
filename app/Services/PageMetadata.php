@@ -233,6 +233,26 @@ final readonly class PageMetadata
     }
 
     /**
+     * The link preview of a follower network graph. Like the lists, it is a thin page, so it is not indexed.
+     *
+     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, username: string}
+     */
+    public function followersGraph(User $user): array
+    {
+        $title = __('Follower network of :user on /dev/null', ['user' => $user->nameWithHandle()]);
+
+        return [
+            'type' => 'profile',
+            'title' => $title,
+            'description' => __('See everyone following @:username as a network graph on /dev/null, a social network for developers.', ['username' => $user->username]),
+            'url' => route('user-followers-graph.show', $user),
+            'robots' => self::NOT_INDEXABLE,
+            'images' => [$this->profileImage($user, $title)],
+            'username' => $user->username,
+        ];
+    }
+
+    /**
      * @return list<Image>
      */
     private function commitImages(Commit $commit, User $user): array

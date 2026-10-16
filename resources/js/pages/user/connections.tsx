@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
+import UserFollowersGraphController from '@/actions/App/Http/Controllers/UserFollowersGraphController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
@@ -79,6 +80,11 @@ export default function Connections({
                             title: 'Following',
                             href: UserFollowingController.index(user),
                             isActive: type === 'following',
+                        },
+                        {
+                            title: 'Graph',
+                            href: UserFollowersGraphController.show(user),
+                            isActive: false,
                         },
                     ]}
                 />
