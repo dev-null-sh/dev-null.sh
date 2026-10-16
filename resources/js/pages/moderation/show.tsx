@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
+import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { Check, History, ListChecks, X } from 'lucide-react';
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { UserAvatar } from '@/components/user-avatar';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
+import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import type {
@@ -449,7 +450,7 @@ export default function Show({
     rejectionReasons: RejectionReason[];
     claims: Record<string, CommitClaim>;
 }) {
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const now = useNow();
     const [isModerating, setIsModerating] = useState(false);
     const [removingIds, setRemovingIds] = useState<ReadonlySet<string>>(
@@ -470,7 +471,7 @@ export default function Show({
     const isClaimedByOther = (commitId: string) => {
         const claim = activeClaim(commitId);
 
-        return claim !== undefined && claim.user.id !== auth.user.id;
+        return claim !== undefined && claim.user.id !== user.id;
     };
 
     const claim = (
@@ -492,7 +493,7 @@ export default function Show({
     const claimFocused = useEffectEvent((commitId: string) => {
         const current = claims[commitId];
 
-        if (current && current.user.id !== auth.user.id) {
+        if (current && current.user.id !== user.id) {
             return;
         }
 
@@ -714,7 +715,7 @@ export default function Show({
                             reasons={rejectionReasons}
                             claim={activeClaim(commit.id)}
                             isClaimMine={
-                                activeClaim(commit.id)?.user.id === auth.user.id
+                                activeClaim(commit.id)?.user.id === user.id
                             }
                             onSelectedChange={(isSelected) =>
                                 toggle(commit.id, isSelected)

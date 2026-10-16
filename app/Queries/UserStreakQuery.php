@@ -15,7 +15,7 @@ final readonly class UserStreakQuery
      *
      * @return array{longest: int, current: int}
      */
-    public function get(User $user, User $viewer): array
+    public function get(User $user, ?User $viewer): array
     {
         /** @var list<string> $days */
         $days = $user->commits()

@@ -6,6 +6,7 @@ import { CommitDecisionSummary } from '@/components/commit-decision-item';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import AppLayout from '@/layouts/app-layout';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
+import { home } from '@/routes';
 import type {
     Commit,
     CommitDecision,
@@ -41,7 +42,7 @@ export default function Show({
             return;
         }
 
-        router.visit(LogController.show(auth.log));
+        router.visit(auth.log === null ? home() : LogController.show(auth.log));
     };
 
     const lastAncestor = ancestors.at(-1);
