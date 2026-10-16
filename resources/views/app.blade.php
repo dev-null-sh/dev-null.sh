@@ -19,6 +19,9 @@
             <meta property="og:url" content="{{ $preview['url'] }}">
             <meta property="og:image" content="{{ $preview['image'] }}">
             <meta property="og:image:alt" content="{{ $preview['title'] }}">
+            @isset($preview['feed'])
+                <link rel="alternate" type="application/atom+xml" title="{{ $preview['title'] }}" href="{{ $preview['feed'] }}">
+            @endisset
         @else
             <meta property="og:type" content="website">
             <meta property="og:title" content="devnull">
