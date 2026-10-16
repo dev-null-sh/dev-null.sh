@@ -279,7 +279,8 @@ it('removes bookmarks when the saver or commit is permanently deleted', function
 });
 
 it('loads saved commit authors and state with a bounded number of queries', function (): void {
-    $user = User::factory()->create();
+    // An already active user adds no presence write to the counts below.
+    $user = User::factory()->create(['last_activity_at' => now()]);
     Bookmark::factory()->create(['user_id' => $user->id]);
     $this->actingAs($user);
     DB::enableQueryLog();

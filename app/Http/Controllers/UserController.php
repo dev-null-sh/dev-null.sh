@@ -14,6 +14,7 @@ use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
+use App\Services\Presence;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
@@ -26,7 +27,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PageMetadata $metadata, Presence $presence): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -37,6 +38,10 @@ final readonly class UserController
             ]);
         }
 
+        // A visit to the profile refreshes the viewer's presence after the route binding read them, so the viewer's
+        // own profile reads the freshness back from the authenticated instance.
+        $lastActivityAt = $currentUser?->is($user) === true ? $currentUser->last_activity_at : $user->last_activity_at;
+
         $streakData = null;
         $getStreaks = function () use (&$streakData, $streaks, $user, $currentUser): array {
             return $streakData ??= $streaks->get($user, $currentUser);
@@ -44,6 +49,8 @@ final readonly class UserController
 
         return Inertia::render('user/show', [
             'user' => fn (): User => $currentUser instanceof User ? $user->loadCounts($currentUser) : $user->loadPublicCounts(),
+            'online' => $presence->isOnline($lastActivityAt),
+            'lastActivityAt' => $lastActivityAt?->toIso8601ZuluString(),
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
             'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,

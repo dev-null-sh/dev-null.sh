@@ -264,7 +264,8 @@ it('shows a commit outside a series without a series', function (): void {
 });
 
 it('loads a series with the same number of queries however long it is', function (): void {
-    $viewer = User::factory()->create();
+    // An already active viewer adds no presence write to the counts below.
+    $viewer = User::factory()->create(['last_activity_at' => now()]);
 
     $queriesFor = function (Commit $part) use ($viewer): int {
         DB::flushQueryLog();

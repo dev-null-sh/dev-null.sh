@@ -52,6 +52,30 @@ export function formatRelativeTime(date: string, now: Date = new Date()) {
     });
 }
 
+const oneDayInSeconds = 86_400;
+
+/**
+ * The online status line, capped at a day so it never reads as a date: "Online", "Active 5m ago", or "Offline".
+ */
+export function formatPresence(
+    online: boolean,
+    lastActivityAt: string | null,
+    now: Date = new Date(),
+): string {
+    if (online) {
+        return 'Online';
+    }
+
+    if (
+        lastActivityAt === null ||
+        !isWithinSeconds(lastActivityAt, oneDayInSeconds, now)
+    ) {
+        return 'Offline';
+    }
+
+    return `Active ${formatRelativeTime(lastActivityAt, now)} ago`;
+}
+
 export function formatFullDateTime(date: string): string {
     const value = new Date(date);
 

@@ -411,7 +411,8 @@ it('includes the quoted commits with their authors', function (Log $log): void {
 })->with(Log::cases());
 
 it('loads the quoted commits of a log without a query per commit', function (Log $log): void {
-    $user = User::factory()->create(['log' => $log]);
+    // An already active user adds no presence write to the counts below.
+    $user = User::factory()->create(['log' => $log, 'last_activity_at' => now()]);
 
     $queries = function () use ($user, $log): int {
         DB::flushQueryLog();
