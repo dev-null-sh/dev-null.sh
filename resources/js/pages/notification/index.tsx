@@ -1,12 +1,5 @@
 import type { CancelToken } from '@inertiajs/core';
-import {
-    Head,
-    InfiniteScroll,
-    Link,
-    router,
-    usePage,
-    usePoll,
-} from '@inertiajs/react';
+import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
 import {
     AtSign,
     Check,
@@ -25,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
+import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
 import { cn, formatRelativeTime } from '@/lib/utils';
@@ -286,7 +280,7 @@ function NotificationContent({
     summary?: boolean;
 }) {
     const now = useNow();
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const { actor } = notification;
     const actors =
         summary && 'actors' in notification ? notification.actors : [actor];
@@ -311,10 +305,7 @@ function NotificationContent({
                 notification.type === 'followed'
                     ? show(actor)
                     : CommitController.show({
-                          user:
-                              notification.type === 'starred'
-                                  ? auth.user
-                                  : actor,
+                          user: notification.type === 'starred' ? user : actor,
                           commit: notification.commit,
                       })
             }

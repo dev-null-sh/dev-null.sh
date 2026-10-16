@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
@@ -39,7 +40,7 @@ final class HandleInertiaRequests extends Middleware
     {
         $isAdmin = $request->user()?->isAdmin() ?? false;
         $user = $request->user();
-        $showsWhoToFollow = $request->cookie('who_to_follow') !== 'false';
+        $showsWhoToFollow = $user instanceof User && $request->cookie('who_to_follow') !== 'false';
 
         return [
             ...parent::share($request),
@@ -47,6 +48,7 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $isAdmin,
+                'log' => fn (): ?Log => $request->user()?->log,
                 'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user) : 0,
             ],
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),

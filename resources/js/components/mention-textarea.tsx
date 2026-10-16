@@ -284,7 +284,8 @@ export function MentionTextarea({
     const cached = query === null ? undefined : cache.get(query);
     const current =
         query !== null && cached ? { query, users: cached } : results;
-    const suggestions = query !== null ? (current?.users ?? []) : [];
+    const suggestions =
+        query !== null && current?.query === query ? current.users : [];
     const isOpen =
         mention !== null &&
         position !== null &&
