@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
@@ -209,4 +211,77 @@ it('includes the link previews of replies', function (): void {
     $response->assertOk()
         ->assertJsonPath('data.0.link_preview.title', 'Reply link')
         ->assertJsonMissingPath('data.0.link_preview.url_hash');
+});
+
+it('returns 404 to guests for replies of an unapproved tombstone after account deletion', function (CommitStatus $status): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($user)->for($root, 'parent')->create(['status' => $status]);
+    Commit::factory()->for($parent, 'parent')->create();
+    resolve(DeleteUser::class)->handle($user);
+
+    $response = $this->getJson(route('commit-reply.index', $parent));
+
+    $response->assertNotFound();
+})->with([
+    'pending' => [CommitStatus::Pending],
+    'rejected' => [CommitStatus::Rejected],
+]);
+
+it('keeps account deletion tombstones in threads while filtering silenced authors', function (string $relation, bool $viewerActs): void {
+    $viewer = User::factory()->create();
+    $silenced = User::factory()->create();
+    [$actor, $subject] = $viewerActs ? [$viewer, $silenced] : [$silenced, $viewer];
+    $actor->{$relation}()->attach($subject);
+
+    $author = User::factory()->create();
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($author)->for($root, 'parent')->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    Commit::factory()->for($silenced)->for($parent, 'parent')->create();
+    $hiddenParent = Commit::factory()->for($author)->for($root, 'parent')->create();
+    Commit::factory()->for($silenced)->for($hiddenParent, 'parent')->create();
+    resolve(DeleteUser::class)->handle($author);
+
+    $this->actingAs($viewer)->getJson(route('commit-reply.index', $root))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $parent->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.user')
+        ->assertJsonMissingPath('data.0.body');
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+})->with([
+    'muted author' => ['muting', true],
+    'blocked author' => ['blocking', true],
+    'blocking author' => ['blocking', false],
+]);
+
+it('keeps approved account deletion tombstones readable to guests without exposing the deleted author', function (): void {
+    $user = User::factory()->create(['username' => 'deletedauthor']);
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($user)->for($root, 'parent')->create(['body' => 'Deleted body']);
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    resolve(DeleteUser::class)->handle($user);
+
+    $response = $this->get(route('commit.show', [$reply->user, $reply]));
+
+    $response->assertOk()
+        ->assertSee('<meta property="og:title" content="'.e($reply->user->nameWithHandle()).' on /dev/null">', false)
+        ->assertSee('"@type":"SocialMediaPosting"', false)
+        ->assertDontSee('"isPartOf":', false)
+        ->assertDontSee('deletedauthor')
+        ->assertDontSee('Deleted body')
+        ->assertInertia(fn ($page) => $page
+            ->where('ancestors.1.id', $parent->id)
+            ->missing('ancestors.1.body')
+            ->missing('ancestors.1.user'));
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $reply->id);
 });
