@@ -115,7 +115,8 @@ export default function Welcome() {
                             <p className="mt-3 max-w-[38ch] text-lg text-pretty text-muted-foreground">
                                 Sign in with GitHub, follow people who write
                                 code, and commit plain text to a shared log, 280
-                                characters at a time.
+                                characters at a time. Everything else goes to
+                                /dev/null.
                             </p>
                         </Commit>
 
