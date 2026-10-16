@@ -63,11 +63,15 @@ final readonly class CreateUserFeed
     {
         $xml->startElement('entry');
         $xml->writeElement('id', "urn:uuid:{$commit->id}");
-        $xml->writeElement('title', $this->text(Str::limit(Str::squish($commit->body), 72, '…', preserveWords: true)));
+        $xml->writeElement('title', $this->text(Str::limit(Str::squish($commit->summary()), 72, '…', preserveWords: true)));
         $this->link($xml, 'alternate', route('commit.show', [$user, $commit]), 'text/html');
 
         foreach ($commit->images as $image) {
             $this->link($xml, 'enclosure', $image->url(), 'image/webp');
+        }
+
+        if ($commit->embed_url !== null) {
+            $this->link($xml, 'related', $commit->embed_url, 'text/html');
         }
 
         $xml->writeElement('published', $commit->created_at->toAtomString());
@@ -75,7 +79,7 @@ final readonly class CreateUserFeed
 
         $xml->startElement('content');
         $xml->writeAttribute('type', 'text');
-        $xml->text($this->text($commit->body));
+        $xml->text($this->text($commit->summary()));
         $xml->endElement();
 
         $xml->endElement();

@@ -90,6 +90,22 @@ it('attaches the images of commits as enclosures', function (): void {
         ->and($feed->entry[1]->link)->toHaveCount(1);
 });
 
+it('links embeds and titles commits that are only an embed by the embedded site', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    Commit::factory()->for($user)->create(['body' => '', 'embed_url' => 'https://www.example.com/game', 'embed_ratio' => '1:1']);
+    Commit::factory()->for($user)->create(['body' => 'Watch it', 'embed_url' => 'https://example.com/video', 'embed_ratio' => '16:9', 'created_at' => now()->subDay()]);
+
+    $feed = atomFeed($this->get('/@octocat/feed.atom'));
+
+    expect((string) $feed->entry[0]->title)->toBe('/embed example.com')
+        ->and((string) $feed->entry[0]->content)->toBe('/embed example.com')
+        ->and((string) $feed->entry[0]->link[1]['rel'])->toBe('related')
+        ->and((string) $feed->entry[0]->link[1]['type'])->toBe('text/html')
+        ->and((string) $feed->entry[0]->link[1]['href'])->toBe('https://www.example.com/game')
+        ->and((string) $feed->entry[1]->title)->toBe('Watch it')
+        ->and((string) $feed->entry[1]->link[1]['href'])->toBe('https://example.com/video');
+});
+
 it('renders the feed without a query per commit', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 
