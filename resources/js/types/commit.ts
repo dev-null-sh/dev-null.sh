@@ -42,11 +42,18 @@ export type Commit = {
     is_saved?: boolean;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
+    quoted_commit_id: string | null;
+    quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
     series_parts?: Commit[];
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
 };
+
+export type QuotedCommit = Pick<
+    Commit,
+    'id' | 'user_id' | 'body' | 'status' | 'created_at' | 'deleted_at' | 'user'
+>;
 
 export type DeletedCommit = {
     id: string;

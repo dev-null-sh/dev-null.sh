@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $body
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
+ * @property-read string|null $quoted_commit_id
  * @property-read string|null $series_id
  * @property-read int|null $series_position
  * @property-read int|null $series_size
@@ -44,6 +45,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int $replies_count
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
+ * @property-read Commit|null $quotedCommit
+ * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
  * @property-read Collection<int, CommitDecision> $decisions
  * @property-read Collection<int, Commit> $seriesParts
@@ -73,6 +76,7 @@ final class Commit extends Model
             'body' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
+            'quoted_commit_id' => 'string',
             'series_id' => 'string',
             'series_position' => 'integer',
             'series_size' => 'integer',
@@ -181,6 +185,22 @@ final class Commit extends Model
     }
 
     /**
+     * @return BelongsTo<Commit, $this>
+     */
+    public function quotedCommit(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'quoted_commit_id');
+    }
+
+    /**
+     * @return HasMany<Commit, $this>
+     */
+    public function quotes(): HasMany
+    {
+        return $this->hasMany(self::class, 'quoted_commit_id');
+    }
+
+    /**
      * @return HasMany<CommitImage, $this>
      */
     public function images(): HasMany
@@ -209,7 +229,7 @@ final class Commit extends Model
      */
     public function loadPublicPreview(): self
     {
-        return $this->loadCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()])
+        return $this->loadCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()->exceptSeriesContinuations()])
             ->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
     }
 

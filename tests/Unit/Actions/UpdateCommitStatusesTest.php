@@ -92,3 +92,16 @@ it('releases the claims on decided commits', function (): void {
 
     expect(CommitClaim::query()->sole()->commit_id)->toBe($other->id);
 });
+
+it('notifies the quoted authors of the approved quotes', function (): void {
+    $quoted = Commit::factory()->create();
+    $quotes = Commit::factory()->pending()->for($quoted, 'quotedCommit')->count(2)->create();
+    $rejected = Commit::factory()->rejected()->for($quoted, 'quotedCommit')->create();
+
+    $action = resolve(UpdateCommitStatuses::class);
+
+    $action->handle(User::factory()->create(), [...$quotes->modelKeys(), $rejected->id], CommitStatus::Approved, onlyPending: true);
+
+    expect($quoted->user->notifications()->pluck('commit_id')->all())
+        ->toEqualCanonicalizing($quotes->modelKeys());
+});
