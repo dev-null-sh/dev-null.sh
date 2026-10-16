@@ -117,6 +117,7 @@ export function UserSearchDialog({
                         <Search className="size-5 shrink-0 text-muted-foreground" />
                         <input
                             autoFocus
+                            maxLength={100}
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
                             onKeyDown={onKeyDown}
