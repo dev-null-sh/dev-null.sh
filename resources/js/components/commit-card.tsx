@@ -71,7 +71,7 @@ export function CommitCard({
         'idle' | 'confirming' | 'deleting'
     >('idle');
 
-    const isOwn = commit.user_id === auth.user.id;
+    const isOwn = commit.user_id === auth.user?.id;
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });

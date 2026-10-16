@@ -138,7 +138,7 @@ export default function Connections({
                                         )}
                                     </div>
                                 </Link>
-                                {person.id !== auth.user.id && (
+                                {person.id !== auth.user?.id && (
                                     <ConnectionFollowButton person={person} />
                                 )}
                             </li>

@@ -5,6 +5,7 @@ import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import AppLayout from '@/layouts/app-layout';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
+import { home } from '@/routes';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 const titleLength = 60;
@@ -33,7 +34,7 @@ export default function Show({
             return;
         }
 
-        router.visit(LogController.show(auth.log));
+        router.visit(auth.log === null ? home() : LogController.show(auth.log));
     };
 
     const lastAncestor = ancestors.at(-1);
