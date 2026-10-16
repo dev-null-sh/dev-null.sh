@@ -285,6 +285,9 @@ A 14px circle (16px on the landing page) centered on a 2px vertical line. The se
 ### Empty States
 Centered in the feed: a mono `fatal: …` line in Muted Ink, then one or two plain sentences (15px, max 24rem) with a single Commit Blue link when there is somewhere to go.
 
+### Onboarding
+A standalone page (no app shell) after a new account's first sign-in, drawn as a short history on the rail: one row per step with a mono prompt (`$ whoami`, `$ export LANE=teal`, `$ who --should-i-follow`, `$ man devnull`) and a hollow `$ git log` row at the end. Done steps are filled nodes on a solid lane segment with a one-line summary, the current step's node pops in (`node-in`) above a dashed Rail Gray tail and expands into a 1.5rem heading, a muted sentence, its content, and a primary action with a ghost Back; later steps are hollow Rail Gray nodes. The whole rail takes the lane being picked, live. Steps reuse the settings profile list, the color preview and swatches, the suggested-developer rows, and the shortcut sheet. "Skip setup" with an `esc` cap sits top right; Esc skips from any step unless a dialog is open; focus moves to each step's heading.
+
 ### Error Pages
 403, 404, 429, 500 (outside debug), and 503 render one standalone `error` page, with no app shell, for guests and signed-in users alike. A broken rail: the wordmark sits on a node in the viewer's lane (Rail Gray for guests) whose segment fades out before reaching a hollow, dangling node. Beside it, a mono git-style line (`fatal: path '/x' does not exist in 'HEAD'`), a Headline sentence saying what happened, one muted sentence saying what to do, and a single primary button ("Back to your log", "Go to the home page", or "Try again" during maintenance). A 419 is not a page: it redirects back with an error toast.
 
