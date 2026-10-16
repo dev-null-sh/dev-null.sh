@@ -26,10 +26,14 @@ final class ListApiCommitRepliesRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * Newest first continues the next_cursor of a reply preview, as on the web.
+     *
+     * @return array<string, list<string>>
      */
     public function rules(): array
     {
-        return [];
+        return [
+            'newest' => ['sometimes', 'boolean'],
+        ];
     }
 }

@@ -111,6 +111,39 @@ it('lists replies 50 at a time with a cursor to the next page', function (): voi
         ->assertJsonPath('data.0.body', 'Reply 50');
 });
 
+it('continues the cursor of a reply preview newest first, as the web does', function (): void {
+    $parent = Commit::factory()->create();
+    $oldest = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(3)]);
+    $middle = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    $newest = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinute()]);
+
+    $preview = signedApiRequest($this->keyPair, 'GET', route('api-user-commit.index', $parent->user))
+        ->assertJsonPath('data.0.reply_preview.data.*.id', [$newest->id]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', [$parent, 'newest' => 1, 'cursor' => $preview->json('data.0.reply_preview.next_cursor')]))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$middle->id, $oldest->id]);
+});
+
+it('keeps listing newest first on the next page', function (): void {
+    $parent = Commit::factory()->create();
+
+    Commit::factory()->for($parent, 'parent')->count(52)
+        ->state(new Sequence(fn (Sequence $sequence): array => [
+            'body' => "Reply {$sequence->index}",
+            'created_at' => now()->subMinutes(100 - $sequence->index),
+        ]))
+        ->create();
+
+    $first = signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', [$parent, 'newest' => 1]));
+
+    $first->assertOk()->assertJsonPath('data.0.body', 'Reply 51');
+
+    signedApiRequest($this->keyPair, 'GET', (string) $first->json('links.next'))
+        ->assertOk()
+        ->assertJsonPath('data.*.body', ['Reply 1', 'Reply 0']);
+});
+
 it('hides the replies of commits the user may not see', function (): void {
     $parent = Commit::factory()->pending()->create();
     Commit::factory()->for($parent, 'parent')->create();

@@ -10,10 +10,11 @@ use App\Http\Resources\CommitResource;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LatestLogCommitsQuery;
+use App\Queries\ReplyPreviewsQuery;
 use App\Queries\SuggestedCommitsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Collection;
 
 final readonly class LogController
 {
@@ -22,11 +23,14 @@ final readonly class LogController
      * than that one, the way the web does: none on Trending, which is ranked rather than newest first. An empty
      * Following log suggests a few commits, as on the web.
      */
-    public function show(ShowLogRequest $request, #[CurrentUser] User $user, Log $log, LatestLogCommitsQuery $latest, SuggestedCommitsQuery $suggested): AnonymousResourceCollection
+    public function show(ShowLogRequest $request, #[CurrentUser] User $user, Log $log, LatestLogCommitsQuery $latest, SuggestedCommitsQuery $suggested, ReplyPreviewsQuery $replyPreviews): AnonymousResourceCollection
     {
         $since = $request->since();
+        $commits = $log->query()->builder($user)->cursorPaginate(20);
 
-        return CommitResource::collection($log->query()->builder($user)->cursorPaginate(20))->additional([
+        $replyPreviews->load($commits->items(), $user);
+
+        return CommitResource::collection($commits)->additional([
             'log' => $log,
             'is_ranked' => $log->isRanked(),
             ...$since instanceof Commit ? ['new_commits_count' => $latest->count($log, $user, $since)] : [],
