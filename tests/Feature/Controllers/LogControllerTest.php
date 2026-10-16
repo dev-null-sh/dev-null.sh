@@ -111,6 +111,31 @@ it('does not count the authenticated user relations when reloading only commits'
         ->each->not->toContain('count(*)');
 });
 
+it('remembers the last visited log', function (Log $log): void {
+    $user = User::factory()->create(['log' => $log === Log::Following ? Log::Everyone : Log::Following]);
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('auth.log', $log->value));
+
+    expect($user->refresh()->log)->toBe($log);
+})->with(Log::cases());
+
+it('does not update the user when the log is unchanged', function (): void {
+    $user = User::factory()->create(['log' => Log::Everyone]);
+    $updatedAt = $user->updated_at;
+
+    $this->travel(1)->minute();
+
+    $this->actingAs($user)
+        ->get(route('log.show', Log::Everyone))
+        ->assertOk();
+
+    expect($user->refresh()->updated_at->equalTo($updatedAt))->toBeTrue();
+});
+
 it('returns not found for unknown logs', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->get('/log/unknown');
@@ -154,6 +179,27 @@ it('counts new commits since a commit that was deleted, without deleted ones', f
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->create()->delete();
     $seen->delete();
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'newCommitsCount',
+        ])
+        ->get('/log/following?since='.$seen->id);
+
+    $response->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 1);
+});
+
+it('counts commits created in the same second after a given commit', function (): void {
+    $user = User::factory()->create();
+    $createdAt = now()->startOfSecond();
+
+    Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c7', 'created_at' => $createdAt]);
+    $seen = Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c8', 'created_at' => $createdAt]);
+    Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c9', 'created_at' => $createdAt]);
 
     $response = $this->actingAs($user)
         ->withHeaders([

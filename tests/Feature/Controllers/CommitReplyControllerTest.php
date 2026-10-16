@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
@@ -145,10 +147,24 @@ it('does not list replies of a commit that is not visible', function (): void {
     $response->assertNotFound();
 });
 
-it('requires authentication to list replies', function (): void {
-    $response = $this->getJson(route('commit-reply.index', Commit::factory()->create()));
+it('lists only approved replies to guests', function (): void {
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->create(['body' => 'Approved']);
+    Commit::factory()->for($parent, 'parent')->pending()->create(['body' => 'Pending']);
+    Commit::factory()->for($parent, 'parent')->rejected()->create(['body' => 'Rejected']);
 
-    $response->assertUnauthorized();
+    $response = $this->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.body', 'Approved')
+        ->assertJsonPath('data.0.is_saved', false);
+});
+
+it('returns not found to guests for the replies of a commit that is not approved', function (): void {
+    $response = $this->getJson(route('commit-reply.index', Commit::factory()->pending()->create()));
+
+    $response->assertNotFound();
 });
 
 it('includes the link previews of replies', function (): void {
@@ -161,4 +177,41 @@ it('includes the link previews of replies', function (): void {
     $response->assertOk()
         ->assertJsonPath('data.0.link_preview.title', 'Reply link')
         ->assertJsonMissingPath('data.0.link_preview.url_hash');
+});
+
+it('returns 404 to guests for replies of an unapproved tombstone after account deletion', function (CommitStatus $status): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($user)->for($root, 'parent')->create(['status' => $status]);
+    Commit::factory()->for($parent, 'parent')->create();
+    resolve(DeleteUser::class)->handle($user);
+
+    $response = $this->getJson(route('commit-reply.index', $parent));
+
+    $response->assertNotFound();
+})->with([
+    'pending' => [CommitStatus::Pending],
+    'rejected' => [CommitStatus::Rejected],
+]);
+
+it('keeps approved account deletion tombstones readable to guests without exposing the deleted author', function (): void {
+    $user = User::factory()->create(['username' => 'deletedauthor']);
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($user)->for($root, 'parent')->create(['body' => 'Deleted body']);
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    resolve(DeleteUser::class)->handle($user);
+
+    $response = $this->get(route('commit.show', [$reply->user, $reply]));
+
+    $response->assertOk()
+        ->assertDontSee('deletedauthor')
+        ->assertDontSee('Deleted body')
+        ->assertInertia(fn ($page) => $page
+            ->where('ancestors.1.id', $parent->id)
+            ->missing('ancestors.1.body')
+            ->missing('ancestors.1.user'));
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $reply->id);
 });

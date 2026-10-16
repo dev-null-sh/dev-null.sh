@@ -139,13 +139,17 @@ it('validates the profile tab', function (mixed $tab): void {
         ->assertJsonValidationErrors('tab');
 })->with(['unknown' => ['unknown'], 'array' => [['replies']]]);
 
-it('keeps replies behind sign in for guests', function (): void {
+it('shows guests the approved replies', function (): void {
     $reply = Commit::factory()->for(Commit::factory(), 'parent')->create();
+    $pending = Commit::factory()->for($reply->user)->for(Commit::factory(), 'parent')->pending()->create();
 
     $this->get(route('user.show', ['user' => $reply->user, 'tab' => 'replies']))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('welcome')->missing('commits'))
-        ->assertDontSee($reply->body);
+        ->assertInertia(fn ($page) => $page
+            ->component('user/show')
+            ->has('commits.data', 1)
+            ->where('commits.data.0.id', $reply->id))
+        ->assertDontSee($pending->body);
 
     expect(session('url.intended'))->toBe(route('user.show', ['user' => $reply->user, 'tab' => 'replies']));
 });
