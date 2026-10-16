@@ -23,6 +23,8 @@ it('redirects to github', function (): void {
 });
 
 it('creates a user and logs them in', function (): void {
+    fakeGitHubSponsorsListing(isPublic: true);
+
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',
         'nickname' => 'octocat',
@@ -37,7 +39,7 @@ it('creates a user and logs them in', function (): void {
 
     $response = $this->get(route('login.store'));
 
-    $response->assertRedirectToRoute('log.show', Log::Following);
+    $response->assertRedirectToRoute('onboarding.show');
 
     $user = User::query()->where('github_id', '583231')->sole();
 
@@ -49,12 +51,15 @@ it('creates a user and logs them in', function (): void {
         ->bio->toBe('I am the Octocat.')
         ->location->toBe('San Francisco')
         ->website->toBe('https://github.blog')
-        ->company->toBe('@github');
+        ->company->toBe('@github')
+        ->has_sponsors_listing->toBeTrue();
 
     $this->assertAuthenticatedAs($user);
 });
 
 it('updates an existing user on login', function (): void {
+    fakeGitHubSponsorsListing();
+
     $user = User::factory()->create([
         'github_id' => '583231',
         'username' => 'old-username',
@@ -75,7 +80,41 @@ it('updates an existing user on login', function (): void {
     $this->assertAuthenticatedAs($user);
 });
 
+it('redirects to the log the user visited last on login', function (): void {
+    fakeGitHubSponsorsListing();
+
+    User::factory()->create(['github_id' => '583231', 'log' => Log::Everyone]);
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $response = $this->get(route('login.store'));
+
+    $response->assertRedirectToRoute('log.show', Log::Everyone);
+});
+
+it('sends a returning user who never finished the onboarding back to it', function (): void {
+    fakeGitHubSponsorsListing();
+
+    $user = User::factory()->notOnboarded()->create(['github_id' => '583231']);
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $response = $this->get(route('login.store'));
+
+    $response->assertRedirectToRoute('onboarding.show');
+
+    $this->assertAuthenticatedAs($user);
+});
+
 it('queues a sync of the ssh keys of the user on login', function (): void {
+    fakeGitHubSponsorsListing();
+
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',
         'nickname' => 'octocat',
@@ -89,7 +128,10 @@ it('queues a sync of the ssh keys of the user on login', function (): void {
 });
 
 it('redirects to the intended url after login', function (): void {
+    fakeGitHubSponsorsListing();
+
     $user = User::factory()->create();
+    User::factory()->create(['github_id' => '583231']);
 
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',

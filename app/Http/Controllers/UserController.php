@@ -38,7 +38,7 @@ final readonly class UserController
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
                 ->withSavedState($currentUser)
-                ->with(['user', 'linkPreview'])
+                ->with(['user', 'linkPreview', 'images'])
                 ->withStarsFor($currentUser)
                 ->find($user->pinned_commit_id),
             'commits' => Inertia::scroll(fn () => $user->commits()
@@ -47,6 +47,7 @@ final readonly class UserController
                     $request->tab() === 'replies',
                     fn (CommitBuilder $query): CommitBuilder => $query
                         ->whereNotNull('parent_id')
+                        ->exceptSeriesContinuations()
                         ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
                             ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser))
                             ->with('user')]),
