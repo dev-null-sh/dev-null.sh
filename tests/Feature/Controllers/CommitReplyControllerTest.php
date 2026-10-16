@@ -631,3 +631,17 @@ it('keeps approved account deletion tombstones readable to guests without exposi
         ->assertOk()
         ->assertJsonPath('data.0.id', $reply->id);
 });
+
+it('keeps quotes out of the json reply endpoint', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('commit-reply.store', $parent), ['body' => 'Reply only', 'quoted_commit_id' => $quoted->id])
+        ->assertCreated();
+
+    expect($user->commits()->sole())
+        ->parent_id->toBe($parent->id)
+        ->quoted_commit_id->toBeNull();
+});

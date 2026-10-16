@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Actions\CreateCommitImages;
+use App\Models\Commit;
+use App\Models\User;
+use App\Rules\VisibleCommit;
 use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -28,8 +31,12 @@ final class CreateCommitRequest extends FormRequest
      */
     public function rules(): array
     {
+        $user = $this->user();
+        assert($user instanceof User);
+
         return [
             'body' => ['required', 'string', 'min:3', 'max:280'],
+            'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
             'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
@@ -96,5 +103,15 @@ final class CreateCommitRequest extends FormRequest
         $descriptions = $this->array('image_descriptions');
 
         return $descriptions;
+    }
+
+    public function quotedCommit(): ?Commit
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return $this->filled('quoted_commit_id')
+            ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
+            : null;
     }
 }

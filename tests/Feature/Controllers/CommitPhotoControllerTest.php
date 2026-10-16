@@ -137,3 +137,35 @@ it('does not show photos across a block in either direction', function (bool $vi
         ->get(route('commit-photo.show', [$commit->user, $commit, 1]))
         ->assertNotFound();
 })->with([true, false]);
+
+it('loads a photo commit quote without exposing moderation hints', function (): void {
+    $quoted = Commit::factory()->create(['body' => 'Quoted photo context']);
+    $commit = commitWithPhotos();
+    $commit->update(['quoted_commit_id' => $quoted->id, 'ai_decision' => CommitStatus::Rejected, 'ai_categories' => ['violence']]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('commit-photo.show', [$commit->user, $commit, 1]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit.body', 'Quoted photo context')
+            ->where('photo.commit.quoted_commit.id', $quoted->id)
+            ->missing('commit.ai_decision')
+            ->missing('photo.commit.ai_categories'));
+});
+
+it('hides quoted photo context across a block in either direction', function (bool $viewerBlocks): void {
+    $viewer = User::factory()->create();
+    $quoted = Commit::factory()->create(['body' => 'Blocked quote context']);
+    $commit = commitWithPhotos();
+    $commit->update(['quoted_commit_id' => $quoted->id]);
+
+    $viewerBlocks ? $viewer->blocking()->attach($quoted->user) : $quoted->user->blocking()->attach($viewer);
+
+    $this->actingAs($viewer)
+        ->get(route('commit-photo.show', [$commit->user, $commit, 1]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit', null)
+            ->where('photo.commit.quoted_commit', null))
+        ->assertDontSee('Blocked quote context');
+})->with([true, false]);

@@ -10,6 +10,7 @@ use App\Http\Requests\ShowUserRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
+use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
@@ -25,7 +26,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -36,13 +37,19 @@ final readonly class UserController
             ]);
         }
 
+        $streakData = null;
+        $getStreaks = function () use (&$streakData, $streaks, $user, $currentUser): array {
+            return $streakData ??= $streaks->get($user, $currentUser);
+        };
+
         return Inertia::render('user/show', [
             'user' => fn (): User => $currentUser instanceof User ? $user->loadCounts($currentUser) : $user->loadPublicCounts(),
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
             'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
             'activity' => fn (): array => $activity->get($user, $currentUser),
-            'streaks' => fn (): array => $streaks->get($user, $currentUser),
+            'streaks' => $getStreaks,
+            'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)
@@ -50,6 +57,7 @@ final readonly class UserController
                 ->withVisibleReplyCount($currentUser)
                 ->withSavedState($currentUser)
                 ->with(['user', 'linkPreview', 'images'])
+                ->withQuotedCommitFor($currentUser)
                 ->withStarsFor($currentUser)
                 ->find($user->pinned_commit_id),
             'commits' => Inertia::scroll(fn () => $user->commits()
@@ -68,6 +76,7 @@ final readonly class UserController
                 ->withVisibleReplyCount($currentUser)
                 ->withSavedState($currentUser)
                 ->with(['user', 'linkPreview', 'images'])
+                ->withQuotedCommitFor($currentUser)
                 ->withStarsFor($currentUser)
                 ->latest()
                 ->latest('id')

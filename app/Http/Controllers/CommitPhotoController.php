@@ -27,6 +27,7 @@ final readonly class CommitPhotoController
             ->withVisibleReplyCount($currentUser)
             ->withSavedState($currentUser)
             ->with(['user', 'linkPreview', 'images'])
+            ->withQuotedCommitFor($currentUser)
             ->withStarsFor($currentUser)
             ->findOrFail($commit->id);
 

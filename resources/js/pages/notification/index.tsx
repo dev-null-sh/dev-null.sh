@@ -3,6 +3,7 @@ import {
     AtSign,
     Check,
     MessageSquareReply,
+    Quote,
     Star,
     UserPlus,
     X,
@@ -36,8 +37,9 @@ export default function Index({
             {notifications.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command="$ cat /dev/notifications">
-                        Nothing here yet. Follows, stars, replies, mentions, and
-                        moderation updates for your commits will show up here.
+                        Nothing here yet. Follows, stars, replies, quotes,
+                        mentions, and moderation updates for your commits will
+                        show up here.
                     </EmptyFeed>
                 </div>
             ) : (
@@ -67,6 +69,7 @@ export default function Index({
 const verbs = {
     followed: 'followed you',
     replied: 'replied to your commit',
+    quoted: 'quoted your commit',
     mentioned: 'mentioned you',
     starred: 'starred your commit',
 } as const;
@@ -116,6 +119,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
     const Icon = {
         followed: UserPlus,
         replied: MessageSquareReply,
+        quoted: Quote,
         starred: Star,
         mentioned: AtSign,
         approved: Check,
