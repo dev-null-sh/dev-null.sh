@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteUser
 {
+    public function __construct(private UpdateCommitHotScores $updateCommitHotScores)
+    {
+        //
+    }
+
     /**
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author, so the replies under them keep their thread.
@@ -21,6 +26,8 @@ final readonly class DeleteUser
     public function handle(User $user): void
     {
         $imagePaths = DB::transaction(function () use ($user): array {
+            $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
+
             $topLevelIds = $user->commits()->withTrashed()->topLevel()->pluck('id')->all();
             $replyIds = $user->commits()->withTrashed()->whereNotNull('parent_id')->pluck('id')->all();
 
@@ -42,6 +49,25 @@ final readonly class DeleteUser
         });
 
         Storage::disk()->delete($imagePaths);
+    }
+
+    /**
+     * The commits the user starred, and their replies and quotes, whose threads rank lower once the user's stars,
+     * replies and quotes are gone.
+     *
+     * @return array<int, string>
+     */
+    private function engagedCommitIds(User $user): array
+    {
+        return [
+            ...$user->starredCommits()->get(['commits.id'])->map(fn (Commit $commit): string => $commit->id)->all(),
+            ...$user->commits()
+                ->withTrashed()
+                ->where(fn (CommitBuilder $query): CommitBuilder => $query->whereNotNull('root_id')->orWhereNotNull('quoted_commit_id'))
+                ->get(['id'])
+                ->map(fn (Commit $commit): string => $commit->id)
+                ->all(),
+        ];
     }
 
     /**

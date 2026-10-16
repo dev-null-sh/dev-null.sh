@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { CommitBodyExcerpt } from '@/components/commit-body';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
@@ -13,7 +14,6 @@ export function QuotedCommit({
     isPreview?: boolean;
 }) {
     const now = useNow();
-
     if (commit === null || isDeleted(commit)) {
         return (
             <p
@@ -66,9 +66,10 @@ export function QuotedCommit({
                     </span>
                 )}
             </span>
-            <span className="mt-1 line-clamp-6 block text-[15px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
-                {commit.body}
-            </span>
+            <CommitBodyExcerpt
+                segments={commit.body_segments}
+                className="mt-1 max-h-60"
+            />
         </>
     );
 

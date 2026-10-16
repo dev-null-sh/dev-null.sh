@@ -1,6 +1,6 @@
-import { Head, Link, router, usePoll } from '@inertiajs/react';
+import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
@@ -15,21 +15,37 @@ import { useLastVisit } from '@/hooks/use-last-visit';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
+import { readStorage, writeStorage } from '@/lib/storage';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
     log,
     commits,
+    isRanked,
+    newestCommitId,
+    latestCommits,
     newCommitsCount = 0,
     suggestions,
 }: {
     log: Log;
     commits: CursorPaginated<Commit>;
+    isRanked: boolean;
+    newestCommitId: string | null;
+    latestCommits: Commit[];
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
     const { user } = useUser();
-    const newestId = commits.data[0]?.id;
+    const { flash } = usePage();
+    const markerKey = `latest-marker:${user.id}:${log}`;
+    const [markerId, setMarkerId] = useState(
+        () =>
+            (flash.committed ? readStorage(markerKey) : '') ||
+            (newestCommitId ?? ''),
+    );
+    const newestId = isRanked ? markerId || undefined : commits.data[0]?.id;
+
+    useEffect(() => writeStorage(markerKey, markerId), [markerKey, markerId]);
     const firstSeenId = useLastVisit(user.id, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
@@ -58,6 +74,33 @@ export default function Show({
     );
 
     const showNewCommits = () =>
+        isRanked ? prependNewCommits() : reloadNewestFirst();
+
+    const prependNewCommits = () =>
+        router.reload({
+            only: ['latestCommits'],
+            data: { since: newestId },
+            preserveUrl: true,
+            onSuccess: (page) => {
+                const next =
+                    newestOf(
+                        (page.props.latestCommits as Commit[]).filter(
+                            (commit) => commit.user_id !== user.id,
+                        ),
+                    )?.id ?? markerId;
+
+                setMarkerId(next);
+                router.replaceProp('newCommitsCount', 0);
+                router.reload({
+                    only: ['newCommitsCount'],
+                    data: { since: next },
+                    preserveUrl: true,
+                });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            },
+        });
+
+    const reloadNewestFirst = () =>
         router.reload({
             only: ['commits', 'newCommitsCount'],
             reset: ['commits'],
@@ -68,12 +111,10 @@ export default function Show({
 
     return (
         <>
-            <Head title={log === 'following' ? 'Following' : 'Everyone'} />
+            <Head title={titles[log]} />
 
             <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]">
-                <h1 className="sr-only">
-                    {log === 'following' ? 'Following' : 'Everyone'}
-                </h1>
+                <h1 className="sr-only">{titles[log]}</h1>
                 <PageTabs
                     label="Logs"
                     prefetch={false}
@@ -84,9 +125,14 @@ export default function Show({
                             isActive: log === 'following',
                         },
                         {
-                            title: 'Everyone',
-                            href: LogController.show('everyone'),
-                            isActive: log === 'everyone',
+                            title: 'Latest',
+                            href: LogController.show('latest'),
+                            isActive: log === 'latest',
+                        },
+                        {
+                            title: 'Trending',
+                            href: LogController.show('trending'),
+                            isActive: log === 'trending',
                         },
                     ]}
                 />
@@ -115,6 +161,8 @@ export default function Show({
                     commits={commits}
                     firstLane="var(--rail)"
                     firstSeenId={firstSeenId}
+                    latestCommits={latestCommits}
+                    isRanked={isRanked}
                     end="That's the root commit. There's nothing before it."
                     interlude={(lane, isDimmed) => (
                         <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
@@ -131,11 +179,11 @@ export default function Show({
                                     <>
                                         <Link
                                             href={LogController.show(
-                                                'everyone',
+                                                'trending',
                                             )}
                                             className="font-medium text-primary underline"
                                         >
-                                            Everyone
+                                            Trending
                                         </Link>
                                         .
                                     </>
@@ -154,6 +202,27 @@ export default function Show({
                 />
             </div>
         </>
+    );
+}
+
+const titles: Record<Log, string> = {
+    following: 'Following',
+    latest: 'Latest',
+    trending: 'Trending',
+};
+
+/**
+ * Commits fetched earlier are older than the ones fetched last, so the newest of all is where the next fetch starts.
+ */
+function newestOf(commits: Commit[]): Commit | undefined {
+    return commits.reduce<Commit | undefined>(
+        (newest, commit) =>
+            newest === undefined ||
+            commit.created_at > newest.created_at ||
+            (commit.created_at === newest.created_at && commit.id > newest.id)
+                ? commit
+                : newest,
+        undefined,
     );
 }
 
@@ -197,10 +266,10 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
             <p className="mt-4 text-sm text-muted-foreground">
                 Or browse{' '}
                 <Link
-                    href={LogController.show('everyone')}
+                    href={LogController.show('trending')}
                     className="font-medium text-primary underline"
                 >
-                    Everyone
+                    Trending
                 </Link>{' '}
                 for more.
             </p>

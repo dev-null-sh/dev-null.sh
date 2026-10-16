@@ -6,7 +6,7 @@ import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
 import type { Log, User } from '@/types';
 
-function isTyping(target: EventTarget | null): boolean {
+export function isTyping(target: EventTarget | null): boolean {
     return (
         target instanceof HTMLElement &&
         (target.isContentEditable ||
@@ -102,7 +102,7 @@ export function useKeyboardShortcuts(
                 ? { l: signIn, e: signIn, p: signIn, s: signIn }
                 : {
                       l: () => router.visit(LogController.show(log)),
-                      e: () => router.visit(LogController.show('everyone')),
+                      e: () => router.visit(LogController.show('trending')),
                       p: () => router.visit(show(user)),
                       s: () => router.visit(edit()),
                   };
@@ -124,7 +124,9 @@ export function useKeyboardShortcuts(
                 event.ctrlKey ||
                 event.altKey ||
                 isTyping(event.target) ||
-                document.querySelector('[role="dialog"][data-state="open"]')
+                document.querySelector(
+                    '[role="dialog"][data-state="open"], [role="dialog"][aria-modal="true"]',
+                )
             ) {
                 return;
             }

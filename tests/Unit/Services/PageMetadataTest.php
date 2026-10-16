@@ -51,10 +51,21 @@ it('omits an authorless parent from the metadata of a surviving reply', function
 
     $metadata = resolve(PageMetadata::class)->commit($reply);
 
+    expect($metadata['title'])->toStartWith($reply->user->nameWithHandle().' on /dev/null: “');
     expect($metadata)->toMatchArray([
-        'title' => $reply->user->nameWithHandle().' on /dev/null',
         'url' => route('commit.show', [$reply->user, $reply]),
         'author' => route('user.show', $reply->user),
     ]);
     expect($metadata['structuredData'])->not->toHaveKey('isPartOf');
 });
+
+it('omits public metadata for unsaved or partial commits', function (Closure $factory): void {
+    $commit = $factory()->loadPublicPreview();
+
+    expect(resolve(PageMetadata::class)->commit($commit))->toBeNull()
+        ->and($commit->replies_count)->toBe(0)
+        ->and($commit->isDirty('replies_count'))->toBeFalse();
+})->with([
+    'unsaved' => fn (): Commit => Commit::factory()->make(['user_id' => null]),
+    'partial' => fn (): Commit => Commit::query()->findOrFail(Commit::factory()->pending()->create()->id, ['id', 'user_id', 'parent_id', 'status', 'deleted_at']),
+]);

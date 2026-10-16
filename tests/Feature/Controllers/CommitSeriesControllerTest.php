@@ -112,13 +112,17 @@ it('validates every part like a commit and posts nothing when one is invalid', f
     'too long' => [str_repeat('a', 281), 'The commit field must not be greater than 280 characters.'],
 ]);
 
-it('spends one of the 10 commits a minute on each part', function (): void {
+it('spends one of the 10 commits a minute on each part', function (bool $withPoll): void {
     $user = User::factory()->create();
 
     for ($i = 0; $i < 6; $i++) {
         $this->actingAs($user)
             ->fromRoute('log.show', Log::Following)
-            ->post(route('commit.store'), ['body' => "Commit {$i}"]);
+            ->post(route('commit.store'), [
+                'body' => "Commit {$i}",
+                ...($withPoll ? ['poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 1440]] : []),
+            ])
+            ->assertSessionHasNoErrors();
     }
 
     $this->actingAs($user)
@@ -147,25 +151,72 @@ it('spends one of the 10 commits a minute on each part', function (): void {
         ]);
 
     expect($user->commits()->count())->toBe(10);
-});
+})->with(['single commits' => false, 'poll commits' => true]);
 
 it('attaches images to the first part of the series', function (): void {
     Storage::fake();
+    Queue::fake([UnfurlLink::class]);
 
     $user = User::factory()->create();
 
     $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
         ->post(route('commit-series.store'), [
-            'bodies' => ['Look at this', 'And a second thought'],
+            'bodies' => ['Look at https://example.com/first and https://example.com/chosen', 'And a second thought at https://example.com/second'],
+            'link_preview_urls' => ['https://example.com/chosen', ''],
             'images' => [UploadedFile::fake()->image('first.jpg', 40, 30), UploadedFile::fake()->image('second.png', 10, 10)],
+            'image_descriptions' => ['The cabin at sunrise.', ''],
         ])
         ->assertSessionHasNoErrors();
 
     $parts = $user->commits()->with('images')->oldest('series_position')->get();
 
     expect($parts[0]->images)->toHaveCount(2)
-        ->and($parts[1]->images)->toBeEmpty();
+        ->and($parts[0]->images->pluck('description')->all())->toBe(['The cabin at sunrise.', null])
+        ->and($parts[1]->images)->toBeEmpty()
+        ->and($parts[0]->linkPreview?->url)->toBe('https://example.com/chosen')
+        ->and($parts[1]->link_preview_id)->toBeNull();
+
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($parts[0]->linkPreview));
+});
+
+it('validates series image descriptions before creating any parts', function (): void {
+    Storage::fake();
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('commit-series.store'), [
+            'bodies' => ['First part', 'Second part'],
+            'images' => [UploadedFile::fake()->image('first.jpg', 40, 30)],
+            'image_descriptions' => [str_repeat('a', 1001)],
+        ])
+        ->assertSessionHasErrors('image_descriptions.0');
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('shares the series and commit budget with json replies', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit-series.store'), ['bodies' => array_fill(0, 8, 'A part of the story')])
+        ->assertSessionHasNoErrors();
+
+    for ($i = 0; $i < 2; $i++) {
+        $this->postJson(route('commit-reply.store', $parent), ['body' => "Reply {$i}"])
+            ->assertCreated();
+    }
+
+    $this->postJson(route('commit-reply.store', $parent), ['body' => 'One too many'])
+        ->assertTooManyRequests()
+        ->assertHeader('Retry-After', '60')
+        ->assertExactJson(['message' => 'Slow down: 10 commits a minute. Even CI takes breaks.'])
+        ->assertInertiaFlashMissing('toast');
+
+    $this->post(route('commit.store'), ['body' => 'Another commit'])
+        ->assertInertiaFlash('toast.type', 'error');
+
+    expect($user->commits()->count())->toBe(10);
 });
 
 it('validates the images of a series like those of a commit', function (): void {

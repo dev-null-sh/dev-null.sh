@@ -63,6 +63,7 @@ it('groups replies per replied commit, counting each replier once', function ():
     replyAt($bob, $commit, 3);
     replyAt($carol, $commit, 2);
     $latest = replyAt($bob, $commit, 1);
+    Notification::query()->where('commit_id', $latest->id)->update(['read_at' => now()]);
 
     $groups = resolve(NotificationGroupsQuery::class)->paginate($commit->user);
 
@@ -72,11 +73,13 @@ it('groups replies per replied commit, counting each replier once', function ():
         ->and($group->type)->toBe(NotificationType::Replied)
         ->and($group->commit_id)->toBe($latest->id)
         ->and($group->subject_id)->toBe($commit->id)
+        ->and($group->event_count)->toBe(3)
+        ->and($group->unread_count)->toBe(2)
         ->and($group->actors_count)->toBe(2)
         ->and($group->actors->pluck('id')->all())->toBe([$bob->id, $carol->id]);
 });
 
-it('keeps commits, stars, replies, mentions, and follows apart', function (): void {
+it('keeps stars and conversations apart while grouping followers', function (): void {
     $user = User::factory()->create();
     [$first, $second] = Commit::factory()->for($user)->count(2)->create()->all();
     $other = User::factory()->create();
@@ -92,11 +95,11 @@ it('keeps commits, stars, replies, mentions, and follows apart', function (): vo
     $groups = resolve(NotificationGroupsQuery::class)->paginate($user)->items();
 
     expect(array_map(fn (Notification $group): string => $group->type->value, $groups))
-        ->toBe(['followed', 'followed', 'mentioned', 'mentioned', 'replied', 'starred', 'starred'])
+        ->toBe(['followed', 'mentioned', 'mentioned', 'replied', 'starred', 'starred'])
         ->and(array_map(fn (Notification $group): int => $group->actors_count, $groups))
-        ->toBe([1, 1, 1, 1, 1, 1, 1])
-        ->and($groups[6]->commit_id)->toBe($first->id)
-        ->and($groups[0]->actors->sole()->is($groups[0]->actor))->toBeTrue();
+        ->toBe([2, 1, 1, 1, 1, 1])
+        ->and($groups[5]->commit_id)->toBe($first->id)
+        ->and($groups[0]->actors->first()->is($groups[0]->actor))->toBeTrue();
 });
 
 it('orders groups by their newest notification', function (): void {
@@ -210,3 +213,34 @@ it('counts the unread groups', function (): void {
 
     expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(2);
 });
+
+it('compiles the grouping window for each database dialect with bound recipient and filter values', function (string $driver, string $gap): void {
+    $user = User::factory()->make(['id' => '019c1234-5678-7000-8000-123456789abc']);
+    $original = DB::getDefaultConnection();
+    $connection = 'notification_query_'.$driver;
+    config(['database.connections.'.$connection => [
+        'driver' => $driver,
+        'database' => ':memory:',
+        'prefix' => '',
+    ]]);
+    DB::setDefaultConnection($connection);
+
+    try {
+        $query = resolve(NotificationGroupsQuery::class)->events($user, 'mentions');
+        $sql = $query->toSql();
+        $bindings = $query->getBindings();
+
+        expect($sql)->toContain($gap)->not->toContain($user->id);
+        expect($bindings[0])->toBe($user->id);
+        expect(array_slice($bindings, -1))->toBe(['mentioned']);
+        expect(mb_substr_count($sql, '?'))->toBe(count($bindings));
+    } finally {
+        DB::setDefaultConnection($original);
+        DB::purge($connection);
+    }
+})->with([
+    'SQLite' => ['sqlite', 'unixepoch(created_at) - unixepoch(previous_match_at)'],
+    'MySQL' => ['mysql', 'TIMESTAMPDIFF(SECOND, previous_match_at, created_at)'],
+    'MariaDB' => ['mariadb', 'TIMESTAMPDIFF(SECOND, previous_match_at, created_at)'],
+    'PostgreSQL' => ['pgsql', 'EXTRACT(EPOCH FROM (created_at - previous_match_at))'],
+]);

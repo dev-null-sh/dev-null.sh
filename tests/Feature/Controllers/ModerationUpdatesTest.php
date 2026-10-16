@@ -77,7 +77,7 @@ it('stores a concise rejection reason privately and leaves repeated rejections u
     expect($notice->type->value)->toBe('rejected')
         ->and($notice->reason)->toBe('Please remove the access token.');
 
-    $this->actingAs($commit->user)->get(route('log.show', 'everyone'))
+    $this->actingAs($commit->user)->get(route('log.show', 'trending'))
         ->assertInertia(fn ($page) => $page->where('auth.unreadNotificationsCount', 1));
     $this->get(route('notification.index'))
         ->assertInertia(fn ($page) => $page
@@ -85,7 +85,7 @@ it('stores a concise rejection reason privately and leaves repeated rejections u
             ->where('notifications.data.0.type', 'rejected')
             ->where('notifications.data.0.reason', $notice->reason)
             ->where('notifications.data.0.commit.id', $commit->id)
-            ->where('notifications.data.0.read_at', null));
+            ->where('notifications.data.0.read_at', now()->startOfSecond()->toJSON()));
     expect($notice->fresh()->read_at)->not->toBeNull();
 
     $this->get(route('commit.show', [$commit->user, $commit]))
@@ -101,7 +101,7 @@ it('stores a concise rejection reason privately and leaves repeated rejections u
     $this->get(route('user.show', $commit->user))
         ->assertInertia(fn ($page) => $page->has('commits.data', 0))
         ->assertDontSee($notice->reason);
-    $this->get(route('log.show', 'everyone'))
+    $this->get(route('log.show', 'trending'))
         ->assertInertia(fn ($page) => $page->has('commits.data', 0))
         ->assertDontSee($notice->reason);
     auth()->logout();

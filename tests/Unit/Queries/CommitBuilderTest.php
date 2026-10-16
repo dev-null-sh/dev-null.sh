@@ -3,8 +3,24 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Poll;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+
+it('keeps id projections lightweight when poll eager loading is disabled', function (): void {
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+    $viewer = User::factory()->create();
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $commit = Commit::query()->withPollFor($viewer)->setEagerLoads([])->select('id')->findOrFail($poll->commit_id);
+
+    expect($commit->getAttributes())->toBe(['id' => $poll->commit_id])
+        ->and($commit->relationLoaded('poll'))->toBeFalse()
+        ->and(DB::getQueryLog())->toHaveCount(1);
+
+    DB::disableQueryLog();
+});
 
 it('scopes commits to those visible to a user', function (): void {
     $user = User::factory()->create();
@@ -17,6 +33,14 @@ it('scopes commits to those visible to a user', function (): void {
 
     expect(Commit::query()->visibleTo($user)->pluck('id')->sort()->values()->all())
         ->toBe(collect([$approved->id, $ownPending->id, $ownRejected->id])->sort()->values()->all());
+});
+
+it('scopes commits to the approved ones for guests', function (): void {
+    $approved = Commit::factory()->create();
+    Commit::factory()->pending()->create();
+    Commit::factory()->rejected()->create();
+
+    expect(Commit::query()->visibleTo(null)->pluck('id')->all())->toBe([$approved->id]);
 });
 
 it('loads the star count and whether the viewer starred', function (): void {
