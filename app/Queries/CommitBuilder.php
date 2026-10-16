@@ -177,11 +177,16 @@ final class CommitBuilder extends Builder
      */
     public function withSavedState(?User $user): self
     {
-        return $this->withExists([
-            'bookmarks as is_saved' => fn (Builder $query): Builder => $user instanceof User
-                ? $query->where('user_id', $user->id)
-                : $query->whereRaw('1 = 0'),
-        ]);
+        $bookmarks = $this->getModel()->bookmarks();
+
+        return $this
+            ->addSelect(['is_saved' => $this->whetherViewerHasRow(
+                $bookmarks->getRelated()->newQuery()->toBase(),
+                $bookmarks->getQualifiedForeignKeyName(),
+                $bookmarks->getRelated()->qualifyColumn('user_id'),
+                $user,
+            )])
+            ->withCasts(['is_saved' => 'bool']);
     }
 
     public function pending(): self
@@ -190,17 +195,26 @@ final class CommitBuilder extends Builder
     }
 
     /**
-     * Guests see how many stars a commit has, without having starred any.
+     * Guests see how many stars a commit has, without having starred any. Stars are counted on the pivot table alone:
+     * the relation would otherwise join the users table for every star.
      */
     public function withStarsFor(?User $viewer): self
     {
+        $stars = $this->getModel()->stars();
+
         return $this
-            ->withCount('stars')
-            ->withExists([
-                'stars as starred' => fn (Builder $query): Builder => $viewer instanceof User
-                    ? $query->whereKey($viewer->id)
-                    : $query->whereRaw('1 = 0'),
-            ]);
+            ->addSelect([
+                'stars_count' => $stars->newPivotStatement()
+                    ->selectRaw('count(*)')
+                    ->whereColumn($stars->getQualifiedForeignPivotKeyName(), $this->qualifyColumn('id')),
+                'starred' => $this->whetherViewerHasRow(
+                    $stars->newPivotStatement(),
+                    $stars->getQualifiedForeignPivotKeyName(),
+                    $stars->getQualifiedRelatedPivotKeyName(),
+                    $viewer,
+                ),
+            ])
+            ->withCasts(['starred' => 'bool']);
     }
 
     /**
@@ -235,6 +249,17 @@ final class CommitBuilder extends Builder
             ->withSavedState($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer);
+    }
+
+    /**
+     * Looked up commit by commit rather than with exists(), which the database answers by first gathering every row
+     * the viewer has, however many stars or saves that is.
+     */
+    private function whetherViewerHasRow(QueryBuilder $rows, string $commitColumn, string $userColumn, ?User $viewer): QueryBuilder
+    {
+        $rows->selectRaw('count(*) > 0')->whereColumn($commitColumn, $this->qualifyColumn('id'));
+
+        return $viewer instanceof User ? $rows->where($userColumn, $viewer->id) : $rows->whereRaw('1 = 0');
     }
 
     /**
