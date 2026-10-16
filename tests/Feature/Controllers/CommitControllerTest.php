@@ -446,21 +446,33 @@ it('does not show a commit under another username', function (): void {
     $response->assertNotFound();
 });
 
-it('shows guests the landing page with a link preview of the commit', function (): void {
+it('shows guests the commit with its approved replies and a link preview', function (): void {
     $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
     $commit = Commit::factory()->for($user)->create(['body' => "Shipped the new parser.\n\nIt is twice as fast."]);
-    Commit::factory()->for($commit, 'parent')->create(['body' => 'A reply only signed-in users may read']);
-    Commit::factory()->for($user)->create(['body' => 'Another commit only signed-in users may read']);
+    $commit->stars()->attach(User::factory()->create());
+    Commit::factory()->for($commit, 'parent')->create(['body' => 'A reply everyone may read']);
+    Commit::factory()->for($commit, 'parent')->pending()->create(['body' => 'A pending reply only its author may read']);
+    Commit::factory()->for($user)->create(['body' => 'Another commit, not part of this thread']);
 
     $response = $this->get(route('commit.show', [$user, $commit]));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->component('welcome')
-            ->missing('commit')
-            ->missing('ancestors')
-            ->missing('replies'))
+            ->component('commit/show')
+            ->where('commit.id', $commit->id)
+            ->where('commit.replies_count', 1)
+            ->where('commit.stars_count', 1)
+            ->where('commit.starred', false)
+            ->where('commit.is_saved', false)
+            ->has('ancestors', 0)
+            ->has('replies.data', 1)
+            ->where('replies.data.0.body', 'A reply everyone may read'))
         ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<link rel="canonical" href="'.route('commit.show', [$user, $commit]).'">', false)
+        ->assertSee('<meta name="twitter:title" content="The Octocat (@octocat) on /dev/null">', false)
+        ->assertSee('<meta property="article:published_time" content="'.$commit->created_at->toIso8601String().'">', false)
+        ->assertSee('"@type":"SocialMediaPosting"', false)
+        ->assertSee('"author":{"@type":"Person","name":"The Octocat","alternateName":"@octocat","url":"'.route('user.show', $user).'"}', false)
         ->assertSee('<meta property="og:type" content="article">', false)
         ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
         ->assertSee('<meta property="og:description" content="Shipped the new parser. It is twice as fast.">', false)
@@ -468,8 +480,8 @@ it('shows guests the landing page with a link preview of the commit', function (
         ->assertSee('<meta property="og:image" content="'.route('commit-open-graph-image.show', [$user, $commit]).'?v=', false)
         ->assertSee('<meta name="twitter:card" content="summary_large_image">', false)
         ->assertDontSee(url('/og.png'))
-        ->assertDontSee('A reply only signed-in users may read')
-        ->assertDontSee('Another commit only signed-in users may read');
+        ->assertDontSee('A pending reply only its author may read')
+        ->assertDontSee('Another commit, not part of this thread');
 
     $this->assertGuest();
 
@@ -515,7 +527,8 @@ it('mentions the approved parent of a reply in the link preview', function (): v
     $this->get(route('commit.show', [$reply->user, $reply]))
         ->assertOk()
         ->assertSee('<meta property="og:title" content="@octocat replying to @taylorotwell on /dev/null">', false)
-        ->assertDontSee('The parent commit');
+        ->assertSee('"isPartOf":"'.route('commit.show', [$parent->user, $parent]).'"', false)
+        ->assertInertia(fn ($page) => $page->where('ancestors.0.body', 'The parent commit'));
 });
 
 it('does not mention an unavailable parent in the link preview', function (Closure $state): void {
@@ -534,6 +547,15 @@ it('does not mention an unavailable parent in the link preview', function (Closu
     'rejected' => [fn (Commit $parent): bool => $parent->update(['status' => CommitStatus::Rejected])],
     'deleted' => [fn (Commit $parent): ?bool => $parent->delete()],
 ]);
+
+it('escapes the commit in the structured data', function (): void {
+    $commit = Commit::factory()->create(['body' => '</script><script>alert(1)</script>']);
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertDontSee('</script><script>alert(1)', false)
+        ->assertSee('"text":"\u003C/script\u003E\u003Cscript\u003Ealert(1)\u003C/script\u003E"', false);
+});
 
 it('returns not found to guests for deleted commits', function (): void {
     $commit = Commit::factory()->create();

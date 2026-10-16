@@ -1,5 +1,7 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { UserAvatar } from '@/components/user-avatar';
 import { cn } from '@/lib/utils';
+import type { User } from '@/types';
 
 type Props = {
     lane: string;
@@ -10,6 +12,7 @@ type Props = {
     hasTail?: boolean;
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
+    node?: ReactNode;
     onHoverChange?: (isHovering: boolean) => void;
 };
 
@@ -24,12 +27,13 @@ export function GraphRail({
     hasTail = true,
     isDimmed = false,
     isPreviousDimmed = false,
+    node,
     onHoverChange,
 }: Props) {
     return (
         <div
             aria-hidden
-            className="relative w-11 shrink-0 sm:w-14"
+            className="relative min-h-16 w-16 shrink-0 sm:w-18"
             style={{ '--lane': lane } as CSSProperties}
             onMouseEnter={onHoverChange && (() => onHoverChange(true))}
             onMouseLeave={onHoverChange && (() => onHoverChange(false))}
@@ -64,16 +68,54 @@ export function GraphRail({
 
             <span
                 className={cn(
-                    'absolute top-8 left-1/2 size-3.5 -translate-1/2 rounded-full border-[3px] border-card bg-(--lane) shadow-[0_0_0_2px_var(--lane)] transition-[background-color,opacity,scale] duration-200',
+                    'absolute top-8 left-1/2 flex -translate-1/2 rounded-full',
+                    dimmable,
                     {
-                        'bg-card': !isFilled || variant === 'root',
                         'motion-safe:animate-node-in': isFresh,
                         'opacity-30': isDimmed,
-                        'cursor-pointer hover:scale-125': onHoverChange,
                     },
                 )}
-            />
+            >
+                {node ?? <RailDot isHollow={!isFilled || variant === 'root'} />}
+            </span>
         </div>
+    );
+}
+
+export function RailDot({
+    isHollow = false,
+    className,
+}: {
+    isHollow?: boolean;
+    className?: string;
+}) {
+    return (
+        <span
+            className={cn(
+                'size-3.5 rounded-full border-[3px] border-card bg-(--lane) shadow-[0_0_0_2px_var(--lane)] transition-[background-color,scale] duration-200',
+                { 'bg-card': isHollow },
+                className,
+            )}
+        />
+    );
+}
+
+export function RailAvatar({
+    user,
+    isStaged = false,
+}: {
+    user: Pick<User, 'name' | 'avatar_url'>;
+    isStaged?: boolean;
+}) {
+    return (
+        <span
+            className={cn(
+                'flex rounded-full border-2 border-(--lane) bg-card p-0.5 transition-colors duration-200',
+                { 'border-dashed': isStaged },
+            )}
+        >
+            <UserAvatar user={user} className="size-10" />
+        </span>
     );
 }
 
@@ -85,7 +127,7 @@ export function RailSegment({
     isDimmed?: boolean;
 }) {
     return (
-        <div aria-hidden className="relative w-11 shrink-0 sm:w-14">
+        <div aria-hidden className="relative w-16 shrink-0 sm:w-18">
             {lane && (
                 <span
                     className={cn(
