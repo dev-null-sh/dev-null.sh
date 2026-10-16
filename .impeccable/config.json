@@ -37,6 +37,15 @@
         ],
         "createdAt": "2026-10-15T12:16:02.254Z",
         "reason": "agent decided: unchosen decision-round sketch, never shipped"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "resources/js/pages/moderation/show.tsx"
+        ],
+        "createdAt": "2026-10-16T09:34:35.341Z",
+        "reason": "agent decided: line 30 is the existing Keycap kbd, whose bottom border depicts a physical keyboard key; DESIGN.md specifies bordered mono keyboard caps and blame attributes it to 1a92590f before this repair"
       }
     ]
   }
