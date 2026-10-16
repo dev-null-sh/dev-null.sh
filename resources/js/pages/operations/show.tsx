@@ -39,6 +39,18 @@ const REFRESH_SECONDS = 15;
 
 const STALE_JOB_SECONDS = 300;
 
+const PAGE_PROPS = [
+    'queues',
+    'failedJobs',
+    'connectivity',
+    'linkPreviews',
+    'pendingModerationCount',
+    'volume',
+    'githubRateLimit',
+];
+
+const LEAVE_DELAY_MS = 700;
+
 function formatCount(count: number): string {
     return count.toLocaleString('en-US');
 }
@@ -93,7 +105,7 @@ function Section({
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
     return (
-        <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-3 px-4 py-2.5">
+        <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-3 px-4 py-2.5 leading-5">
             <dt className="font-mono text-[13px] text-muted-foreground">
                 {label}
             </dt>
@@ -107,14 +119,14 @@ function Status({ isUp, children }: { isUp: boolean; children: ReactNode }) {
 
     return (
         <span
-            className={cn('inline-flex items-center gap-1.5', {
+            className={cn('inline-flex h-5 items-center gap-1.5', {
                 'font-medium text-destructive': !isUp,
             })}
         >
             <Icon
                 aria-hidden
                 className={cn(
-                    'size-4 shrink-0 self-center',
+                    'size-4 shrink-0',
                     isUp && 'text-muted-foreground',
                 )}
             />
@@ -153,11 +165,9 @@ function GitHubRateLimitValue({
 
     return (
         <div className="space-y-2">
-            <p className="flex flex-wrap items-baseline gap-x-2">
+            <p className="flex flex-wrap items-baseline gap-x-2 font-mono text-[13px]">
                 <span
-                    className={cn('font-mono text-[13px] font-medium', {
-                        'text-destructive': isLow,
-                    })}
+                    className={cn('font-medium', { 'text-destructive': isLow })}
                 >
                     {formatCount(rateLimit.remaining)}
                     <span className="font-normal text-muted-foreground">
@@ -165,7 +175,7 @@ function GitHubRateLimitValue({
                         {formatCount(rateLimit.limit)} left
                     </span>
                 </span>
-                <span className="font-mono text-[13px] text-muted-foreground">
+                <span className="basis-full text-muted-foreground sm:basis-auto">
                     <span aria-hidden className="mr-2 hidden sm:inline">
                         ·
                     </span>
@@ -192,126 +202,196 @@ function GitHubRateLimitValue({
     );
 }
 
-function FailedJobRow({ failedJob }: { failedJob: FailedJob }) {
+function GitHubRateLimitSkeleton() {
+    return (
+        <div
+            aria-hidden
+            className="animate-in space-y-2 delay-300 duration-300 fill-mode-both fade-in"
+        >
+            <div className="flex flex-wrap gap-x-2">
+                <span className="flex h-5 items-center">
+                    <Skeleton className="h-3 w-36" />
+                </span>
+                <span className="flex h-5 basis-full items-center sm:basis-auto">
+                    <Skeleton className="h-3 w-24" />
+                </span>
+            </div>
+            <Skeleton className="h-1 max-w-56 rounded-full" />
+        </div>
+    );
+}
+
+function FailedJobRow({
+    failedJob,
+    hasReplacement,
+}: {
+    failedJob: FailedJob;
+    hasReplacement: boolean;
+}) {
     const now = useNow();
-    const [isConfirmingForget, setIsConfirmingForget] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
+    const [state, setState] = useState<
+        'idle' | 'confirming' | 'retrying' | 'forgetting'
+    >('idle');
     const name = classBasename(failedJob.name);
+    const isLeaving = state === 'retrying' || state === 'forgetting';
 
-    const retry = () =>
-        router.visit(FailedJobRetryController.store(failedJob.uuid), {
-            preserveScroll: true,
-            onStart: () => setIsProcessing(true),
-            onFinish: () => setIsProcessing(false),
-            onSuccess: () =>
-                toast(
-                    <span className="font-mono text-[13px]">
-                        Pushed {name} back onto {failedJob.queue}
-                    </span>,
-                ),
-            onError: () =>
-                toast.error(
-                    <span className="font-mono text-[13px]">
-                        fatal: could not retry {name}
-                    </span>,
-                ),
-        });
+    const leave = (next: 'retrying' | 'forgetting') => {
+        setState(next);
 
-    const forget = () =>
-        router.visit(FailedJobController.destroy(failedJob.uuid), {
-            preserveScroll: true,
-            onStart: () => setIsProcessing(true),
-            onFinish: () => setIsProcessing(false),
-            onSuccess: () =>
-                toast(
-                    <span className="font-mono text-[13px]">
-                        rm {name} → /dev/null
-                    </span>,
+        const prefersReducedMotion = window.matchMedia(
+            '(prefers-reduced-motion: reduce)',
+        ).matches;
+
+        window.setTimeout(
+            () =>
+                router.visit(
+                    next === 'retrying'
+                        ? FailedJobRetryController.store(failedJob.uuid)
+                        : FailedJobController.destroy(failedJob.uuid),
+                    {
+                        only: PAGE_PROPS,
+                        preserveState: true,
+                        preserveScroll: true,
+                        onFinish: () => setState('idle'),
+                        onSuccess: () =>
+                            toast(
+                                <span className="font-mono text-[13px]">
+                                    {next === 'retrying'
+                                        ? `Pushed ${name} back onto ${failedJob.queue}`
+                                        : `rm ${name} → /dev/null`}
+                                </span>,
+                            ),
+                        onError: () =>
+                            toast.error(
+                                <span className="font-mono text-[13px]">
+                                    fatal: could not{' '}
+                                    {next === 'retrying' ? 'retry' : 'forget'}{' '}
+                                    {name}
+                                </span>,
+                            ),
+                    },
                 ),
-            onError: () =>
-                toast.error(
-                    <span className="font-mono text-[13px]">
-                        fatal: could not forget {name}
-                    </span>,
-                ),
-        });
+            prefersReducedMotion ? 0 : LEAVE_DELAY_MS,
+        );
+    };
 
     return (
-        <li className="px-4 py-3" data-test="failed-job">
-            <p className="flex flex-wrap items-baseline gap-x-2">
-                <span className="font-medium" title={failedJob.name}>
-                    {name}
-                </span>
-                <span className="font-mono text-[13px] text-muted-foreground">
-                    {failedJob.queue} ·{' '}
-                    <time
-                        dateTime={failedJob.failed_at}
-                        title={formatFullDateTime(failedJob.failed_at)}
-                    >
-                        {formatRelativeTime(failedJob.failed_at, now)}
-                    </time>
-                </span>
-            </p>
-            <p
-                className="mt-1 line-clamp-2 font-mono text-xs leading-5 [overflow-wrap:anywhere] text-muted-foreground"
-                title={failedJob.exception}
-            >
-                {failedJob.exception}
-            </p>
-
-            {isConfirmingForget ? (
-                <div
-                    role="group"
-                    aria-label={`Forget ${name}`}
-                    className="mt-2.5 flex flex-wrap items-center gap-2 rounded-md bg-destructive/8 px-3 py-2"
-                >
-                    <p className="mr-auto text-sm">
-                        Forget this job? It won't run again.
-                    </p>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={isProcessing}
-                        onClick={() => setIsConfirmingForget(false)}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={isProcessing}
-                        onClick={forget}
-                        autoFocus
-                        data-test="confirm-forget-failed-job-button"
-                    >
-                        Forget
-                    </Button>
-                </div>
-            ) : (
-                <div className="mt-2.5 flex gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={isProcessing}
-                        onClick={retry}
-                        data-test="retry-failed-job-button"
-                    >
-                        <RotateCcw />
-                        {isProcessing ? 'Retrying…' : 'Retry'}
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={isProcessing}
-                        onClick={() => setIsConfirmingForget(true)}
-                        className="text-muted-foreground hover:text-destructive"
-                        data-test="forget-failed-job-button"
-                    >
-                        <Trash2 />
-                        Forget
-                    </Button>
-                </div>
+        <li
+            className={cn(
+                'grid transition-[grid-template-rows,opacity] duration-300 ease-out',
+                isLeaving && !hasReplacement
+                    ? 'grid-rows-[0fr] opacity-0 delay-400'
+                    : 'grid-rows-[1fr]',
             )}
+            data-test="failed-job"
+        >
+            <div className="min-h-0 overflow-hidden">
+                <div className="px-4 py-3">
+                    <p className="flex items-baseline gap-2">
+                        <span
+                            className="max-w-full shrink-0 truncate font-medium"
+                            title={failedJob.name}
+                        >
+                            {name}
+                        </span>
+                        <span className="flex min-w-0 items-baseline font-mono text-[13px] whitespace-nowrap text-muted-foreground">
+                            <span className="truncate" title={failedJob.queue}>
+                                {failedJob.queue}
+                            </span>
+                            <span aria-hidden className="shrink-0 px-1.5">
+                                ·
+                            </span>
+                            <time
+                                className="shrink-0"
+                                dateTime={failedJob.failed_at}
+                                title={formatFullDateTime(failedJob.failed_at)}
+                            >
+                                {formatRelativeTime(failedJob.failed_at, now)}
+                            </time>
+                        </span>
+                    </p>
+                    <p
+                        className="mt-1 line-clamp-2 min-h-10 font-mono text-xs leading-5 [overflow-wrap:anywhere] text-muted-foreground"
+                        title={failedJob.exception}
+                    >
+                        {failedJob.exception}
+                    </p>
+
+                    <div className="mt-2 flex h-9 items-center gap-2">
+                        {isLeaving && (
+                            <p
+                                role="status"
+                                className="truncate font-mono text-[13px] text-muted-foreground"
+                            >
+                                {state === 'retrying'
+                                    ? `retry ${name} → ${failedJob.queue}`
+                                    : `rm ${name} → /dev/null`}
+                            </p>
+                        )}
+                        {state === 'confirming' && (
+                            <div
+                                role="group"
+                                aria-label={`Forget ${name}`}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Escape') {
+                                        setState('idle');
+                                    }
+                                }}
+                                className="flex h-full min-w-0 flex-1 items-center gap-1 rounded-md bg-destructive/8 pr-1 pl-3"
+                            >
+                                <p className="mr-auto min-w-0 truncate text-sm">
+                                    Forget this job?
+                                    <span className="hidden sm:inline">
+                                        {' '}
+                                        It won't run again.
+                                    </span>
+                                </p>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7"
+                                    autoFocus
+                                    onClick={() => setState('idle')}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="h-7"
+                                    onClick={() => leave('forgetting')}
+                                    data-test="confirm-forget-failed-job-button"
+                                >
+                                    Forget
+                                </Button>
+                            </div>
+                        )}
+                        {state === 'idle' && (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => leave('retrying')}
+                                    data-test="retry-failed-job-button"
+                                >
+                                    <RotateCcw />
+                                    Retry
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setState('confirming')}
+                                    className="text-muted-foreground hover:text-destructive"
+                                    data-test="forget-failed-job-button"
+                                >
+                                    <Trash2 />
+                                    Forget
+                                </Button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
         </li>
     );
 }
@@ -336,13 +416,28 @@ export default function Show({
     const { deferredProps } = usePage();
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    usePoll(REFRESH_SECONDS * 1000);
+    usePoll(REFRESH_SECONDS * 1000, { only: PAGE_PROPS });
 
-    const refresh = () =>
+    const refresh = () => {
+        if (isRefreshing) {
+            return;
+        }
+
+        const startedAt = Date.now();
+
         router.reload({
+            only: PAGE_PROPS,
             onStart: () => setIsRefreshing(true),
-            onFinish: () => setIsRefreshing(false),
+            onFinish: () => {
+                const elapsed = Date.now() - startedAt;
+
+                window.setTimeout(
+                    () => setIsRefreshing(false),
+                    Math.ceil(elapsed / 1000) * 1000 - elapsed,
+                );
+            },
         });
+    };
 
     const tracksGitHub =
         githubRateLimit !== undefined ||
@@ -370,7 +465,7 @@ export default function Show({
                     size="icon"
                     className="-mr-2 size-8 text-muted-foreground"
                     onClick={refresh}
-                    disabled={isRefreshing}
+                    aria-disabled={isRefreshing}
                     aria-label="Refresh now"
                     title="Refresh now"
                     data-test="refresh-operations-button"
@@ -402,9 +497,7 @@ export default function Show({
                         <Field label="github api">
                             <Deferred
                                 data="githubRateLimit"
-                                fallback={
-                                    <Skeleton className="h-4 w-44 bg-muted" />
-                                }
+                                fallback={<GitHubRateLimitSkeleton />}
                             >
                                 <GitHubRateLimitValue
                                     rateLimit={githubRateLimit}
@@ -417,7 +510,7 @@ export default function Show({
 
             <Section title="Queues" meta="database">
                 <div className="rounded-lg border px-4">
-                    <table className="w-full text-sm">
+                    <table className="w-full table-fixed text-sm">
                         <thead>
                             <tr className="font-mono text-[13px] text-muted-foreground">
                                 <th
@@ -428,13 +521,13 @@ export default function Show({
                                 </th>
                                 <th
                                     scope="col"
-                                    className="py-2.5 text-right font-normal"
+                                    className="w-20 py-2.5 text-right font-normal sm:w-24"
                                 >
                                     waiting
                                 </th>
                                 <th
                                     scope="col"
-                                    className="w-24 py-2.5 text-right font-normal"
+                                    className="w-20 py-2.5 text-right font-normal sm:w-24"
                                 >
                                     oldest
                                 </th>
@@ -450,7 +543,8 @@ export default function Show({
                                     <tr key={queue.queue}>
                                         <th
                                             scope="row"
-                                            className="max-w-0 truncate py-2.5 pr-3 text-left font-mono text-[13px] font-normal"
+                                            className="truncate py-2.5 pr-3 text-left font-mono text-[13px] font-normal"
+                                            title={queue.queue}
                                         >
                                             {queue.queue}
                                         </th>
@@ -496,6 +590,10 @@ export default function Show({
                                 <FailedJobRow
                                     key={failedJob.uuid}
                                     failedJob={failedJob}
+                                    hasReplacement={
+                                        failedJobs.total >
+                                        failedJobs.recent.length
+                                    }
                                 />
                             ))}
                         </ul>
@@ -548,7 +646,7 @@ export default function Show({
 
             <Section title="Volume">
                 <div className="rounded-lg border px-4">
-                    <table className="w-full text-sm">
+                    <table className="w-full table-fixed text-sm">
                         <thead>
                             <tr className="font-mono text-[13px] text-muted-foreground">
                                 <th
@@ -559,13 +657,13 @@ export default function Show({
                                 </th>
                                 <th
                                     scope="col"
-                                    className="w-24 py-2.5 text-right font-normal"
+                                    className="w-20 py-2.5 text-right font-normal sm:w-24"
                                 >
                                     24h
                                 </th>
                                 <th
                                     scope="col"
-                                    className="w-24 py-2.5 text-right font-normal"
+                                    className="w-20 py-2.5 text-right font-normal sm:w-24"
                                 >
                                     7d
                                 </th>
