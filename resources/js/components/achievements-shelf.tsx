@@ -155,13 +155,13 @@ export function AchievementsShelf({
                                     side="top"
                                     className="max-w-xs font-mono text-xs"
                                 >
-                                    <p className="font-semibold text-foreground">
+                                    <p className="font-semibold">
                                         {badge.name}{' '}
                                         {badge.unlocked
                                             ? '✓'
                                             : `(${badge.progress}/${badge.target})`}
                                     </p>
-                                    <p className="mt-0.5 font-sans text-muted-foreground">
+                                    <p className="mt-0.5 font-sans">
                                         {badge.description}
                                     </p>
                                 </TooltipContent>
