@@ -6,6 +6,7 @@ declare module '@inertiajs/core' {
         flashDataType: {
             toast?: FlashToast;
             committed?: CommittedFlash;
+            scheduled?: boolean;
         };
         sharedPageProps: {
             name: string;
