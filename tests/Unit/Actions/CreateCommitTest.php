@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommit;
 use App\Enums\CommitStatus;
+use App\Enums\NotificationType;
+use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -73,6 +76,41 @@ it('does not notify about pending replies', function (): void {
     expect(Notification::query()->count())->toBe(0);
 });
 
+it('may quote a commit', function (): void {
+    $quoted = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $quote = $action->handle(User::factory()->create(), 'Worth a read', quotedCommit: $quoted);
+
+    expect($quote->quotedCommit->is($quoted))->toBeTrue()
+        ->and($quote->parent_id)->toBeNull();
+});
+
+it('notifies the quoted author about quotes of admins', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $quoted = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $quote = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $quoted);
+
+    expect($quoted->user->notifications()->sole())
+        ->type->toBe(NotificationType::Quoted)
+        ->commit_id->toBe($quote->id);
+});
+
+it('does not notify about pending quotes', function (): void {
+    $quoted = Commit::factory()->create();
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(), 'Worth a read', quotedCommit: $quoted);
+
+    expect(Notification::query()->count())->toBe(0);
+});
+
 it('notifies mentioned users about commits of admins', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
@@ -95,6 +133,64 @@ it('does not notify about pending mentions', function (): void {
     expect(Notification::query()->count())->toBe(0);
 });
 
+it('asks the ai for its decision on pending commits', function (): void {
+    config(['services.openai.key' => 'sk-test']);
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Initial commit');
+
+    Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($commit));
+});
+
+it('does not ask the ai about commits of admins', function (): void {
+    config(['services.openai.key' => 'sk-test', 'app.admins' => ['nunomaduro']]);
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Initial commit');
+
+    Queue::assertNotPushed(ModerateCommit::class);
+});
+
+it('queues ai review for a quote while preserving its images and chosen link card', function (): void {
+    config(['services.openai.key' => 'sk-test']);
+    Storage::fake();
+    Queue::fake([ModerateCommit::class, UnfurlLink::class]);
+
+    $quoted = Commit::factory()->create();
+
+    $quote = resolve(CreateCommit::class)->handle(
+        User::factory()->create(),
+        'Compare https://example.com/first and https://example.com/second',
+        quotedCommit: $quoted,
+        images: [UploadedFile::fake()->image('comparison.png', 10, 10)],
+        linkPreview: 'https://example.com/second',
+    );
+
+    expect($quote->status)->toBe(CommitStatus::Pending)
+        ->and($quote->quoted_commit_id)->toBe($quoted->id)
+        ->and($quote->images)->toHaveCount(1)
+        ->and($quote->linkPreview->url)->toBe('https://example.com/second')
+        ->and($quoted->user->notifications()->exists())->toBeFalse();
+
+    Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($quote));
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($quote->linkPreview));
+});
+
+it('does not ask the ai without an api key', function (): void {
+    config(['services.openai.key' => null]);
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(), 'Initial commit');
+
+    Queue::assertNotPushed(ModerateCommit::class);
+});
+
 it('attaches a link preview for the first url in the body', function (): void {
     Queue::fake();
 
@@ -108,6 +204,31 @@ it('attaches a link preview for the first url in the body', function (): void {
         ->fetched_at->toBeNull();
 
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+});
+
+it('attaches a link preview for the chosen url in the body', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Shipped https://example.com/first and https://example.com/second', linkPreview: 'https://example.com/second');
+
+    expect($commit->refresh()->linkPreview->url)->toBe('https://example.com/second');
+
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+});
+
+it('attaches no link preview when the author chose none', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Shipped https://example.com/first', linkPreview: false);
+
+    expect($commit->refresh()->link_preview_id)->toBeNull()
+        ->and(LinkPreview::query()->count())->toBe(0);
+
+    Queue::assertNothingPushed();
 });
 
 it('attaches a link preview for a bare domain', function (): void {
@@ -203,4 +324,24 @@ it('stores the images of a commit', function (): void {
 
     expect($commit->images()->count())->toBe(1)
         ->and($commit->status)->toBe(CommitStatus::Pending);
+});
+
+it('files replies under the top-level commit of their thread', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $nested = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Agreed', $reply);
+
+    expect($nested->root_id)->toBe($commit->id);
+});
+
+it('lifts the thread when an admin replies', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });

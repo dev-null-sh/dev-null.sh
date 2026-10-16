@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Queries\LatestLogCommitsQuery;
 use Illuminate\Support\Facades\DB;
 
 it('renders own commits and commits of followed users newest first', function (): void {
@@ -348,6 +350,53 @@ it('includes the link previews of commits', function (Log $log): void {
             ]));
 })->with(Log::cases());
 
+it('includes the quoted commits with their authors', function (Log $log): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subHour()]);
+    $hidden = Commit::factory()->create(['body' => 'A rejected quoted commit']);
+    $deleted = Commit::factory()->create(['body' => 'A deleted quoted commit']);
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create(['created_at' => now()->subMinutes(3)]);
+    Commit::factory()->for($user)->for($hidden, 'quotedCommit')->create(['created_at' => now()->subMinutes(2)]);
+    Commit::factory()->for($user)->for($deleted, 'quotedCommit')->create(['created_at' => now()->subMinute()]);
+    $hidden->update(['status' => CommitStatus::Rejected]);
+    $deleted->delete();
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.quoted_commit.id', $deleted->id)
+            ->missing('commits.data.0.quoted_commit.body')
+            ->where('commits.data.1.quoted_commit_id', $hidden->id)
+            ->where('commits.data.1.quoted_commit', null)
+            ->where('commits.data.2.quoted_commit.body', 'The quoted commit')
+            ->where('commits.data.2.quoted_commit.user.username', 'octocat'))
+        ->assertDontSee('A rejected quoted commit')
+        ->assertDontSee('A deleted quoted commit');
+})->with(Log::cases());
+
+it('loads the quoted commits of a log without a query per commit', function (Log $log): void {
+    $user = User::factory()->create(['log' => $log]);
+
+    $queries = function () use ($user, $log): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->actingAs($user)->get(route('log.show', $log))->assertOk();
+
+        return count(DB::getQueryLog());
+    };
+
+    Commit::factory()->for($user)->for(Commit::factory(), 'quotedCommit')->create();
+
+    $expected = $queries();
+
+    Commit::factory()->for($user)->for(Commit::factory(), 'quotedCommit')->count(5)->create();
+
+    expect($queries())->toBe($expected);
+})->with(Log::cases());
+
 it('defers suggested users to follow', function (): void {
     $user = User::factory()->create();
     $suggested = User::factory()->has(Commit::factory())->create();
@@ -401,4 +450,101 @@ it('does not suggest users to follow once they are hidden', function (): void {
             ->missing('suggestedUsers'));
 
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
+});
+
+it('offers the commits newer than a given one on top of the ranked log, newest first', function (): void {
+    $user = User::factory()->create();
+
+    $seen = Commit::factory()->create(['created_at' => now()->subMinutes(5)]);
+    $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    $newer = Commit::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('newestCommitId', $newer->id)
+            ->where('latestCommits', [])
+            ->reloadOnly(['latestCommits'], fn ($reload) => $reload->where('latestCommits', [])));
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'latestCommits',
+        ])
+        ->get('/log/everyone?since='.$seen->id);
+
+    $response->assertOk()
+        ->assertJsonPath('props.latestCommits.0.id', $newer->id)
+        ->assertJsonPath('props.latestCommits.1.id', $older->id)
+        ->assertJsonCount(2, 'props.latestCommits')
+        ->assertJsonPath('prependProps', ['latestCommits']);
+});
+
+it('offers the commit just committed on top of the ranked log', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $starred = Commit::factory()->create(['created_at' => now()->subHour()]);
+    $starred->stars()->attach(User::factory()->create());
+
+    $response = $this->actingAs($user)
+        ->from('/log/everyone')
+        ->followingRedirects()
+        ->post(route('commit.store'), ['body' => 'Initial commit']);
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('latestCommits', 1)
+            ->where('latestCommits.0.body', 'Initial commit'));
+});
+
+it('leaves the user own commits out of the newer commits of the ranked log', function (): void {
+    $user = User::factory()->create();
+
+    $seen = Commit::factory()->create(['created_at' => now()->subMinutes(5)]);
+    Commit::factory()->for($user)->create();
+    $other = Commit::factory()->create();
+
+    $headers = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+    ];
+
+    $this->actingAs($user)
+        ->withHeaders([...$headers, 'X-Inertia-Partial-Data' => 'newCommitsCount'])
+        ->get('/log/everyone?since='.$seen->id)
+        ->assertJsonPath('props.newCommitsCount', 1);
+
+    $this->actingAs($user)
+        ->withHeaders([...$headers, 'X-Inertia-Partial-Data' => 'latestCommits'])
+        ->get('/log/everyone?since='.$seen->id)
+        ->assertJsonCount(1, 'props.latestCommits')
+        ->assertJsonPath('props.latestCommits.0.id', $other->id);
+});
+
+it('offers the oldest of too many newer commits, so the rest are offered next', function (): void {
+    $user = User::factory()->create();
+
+    $seen = Commit::factory()->create(['created_at' => now()->subHour()]);
+    $commits = Commit::factory()->count(LatestLogCommitsQuery::LIMIT + 1)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subMinutes(50)->addSeconds($sequence->index)],
+    )->create();
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'latestCommits',
+        ])
+        ->get('/log/everyone?since='.$seen->id);
+
+    $response->assertJsonCount(LatestLogCommitsQuery::LIMIT, 'props.latestCommits')
+        ->assertJsonPath('props.latestCommits.0.id', $commits[LatestLogCommitsQuery::LIMIT - 1]->id)
+        ->assertJsonPath('props.latestCommits.'.(LatestLogCommitsQuery::LIMIT - 1).'.id', $commits[0]->id);
 });

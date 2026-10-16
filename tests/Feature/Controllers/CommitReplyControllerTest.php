@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
@@ -165,6 +167,40 @@ it('returns not found to guests for the replies of a commit that is not approved
     $response->assertNotFound();
 });
 
+it('leaves out replies by muted people and across blocks', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocker = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $viewer->muting()->attach($muted);
+    $blocker->blocking()->attach($viewer);
+
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    Commit::factory()->for($parent, 'parent')->for($muted)->create();
+    Commit::factory()->for($parent, 'parent')->for($blocker)->create();
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+});
+
+it('returns not found for replies to a commit across a block', function (): void {
+    $viewer = User::factory()->create();
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->create();
+
+    $viewer->blocking()->attach($parent->user);
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertNotFound();
+});
+
 it('includes the link previews of replies', function (): void {
     $parent = Commit::factory()->create();
     Commit::factory()->for($parent, 'parent')->for(LinkPreview::factory()->fetched()->state(['title' => 'Reply link']))->create();
@@ -175,4 +211,146 @@ it('includes the link previews of replies', function (): void {
     $response->assertOk()
         ->assertJsonPath('data.0.link_preview.title', 'Reply link')
         ->assertJsonMissingPath('data.0.link_preview.url_hash');
+});
+
+it('returns 404 to guests for replies of an unapproved tombstone after account deletion', function (CommitStatus $status): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($user)->for($root, 'parent')->create(['status' => $status]);
+    Commit::factory()->for($parent, 'parent')->create();
+    resolve(DeleteUser::class)->handle($user);
+
+    $response = $this->getJson(route('commit-reply.index', $parent));
+
+    $response->assertNotFound();
+})->with([
+    'pending' => [CommitStatus::Pending],
+    'rejected' => [CommitStatus::Rejected],
+]);
+
+it('keeps account deletion tombstones in threads while filtering silenced authors', function (string $relation, bool $viewerActs): void {
+    $viewer = User::factory()->create();
+    $silenced = User::factory()->create();
+    [$actor, $subject] = $viewerActs ? [$viewer, $silenced] : [$silenced, $viewer];
+    $actor->{$relation}()->attach($subject);
+
+    $author = User::factory()->create();
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($author)->for($root, 'parent')->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    Commit::factory()->for($silenced)->for($parent, 'parent')->create();
+    $hiddenParent = Commit::factory()->for($author)->for($root, 'parent')->create();
+    Commit::factory()->for($silenced)->for($hiddenParent, 'parent')->create();
+    resolve(DeleteUser::class)->handle($author);
+
+    $this->actingAs($viewer)->getJson(route('commit-reply.index', $root))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $parent->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.user')
+        ->assertJsonMissingPath('data.0.body');
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+})->with([
+    'muted author' => ['muting', true],
+    'blocked author' => ['blocking', true],
+    'blocking author' => ['blocking', false],
+]);
+
+it('keeps approved account deletion tombstones readable to guests without exposing the deleted author', function (): void {
+    $user = User::factory()->create(['username' => 'deletedauthor']);
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($user)->for($root, 'parent')->create(['body' => 'Deleted body']);
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    resolve(DeleteUser::class)->handle($user);
+
+    $response = $this->get(route('commit.show', [$reply->user, $reply]));
+
+    $response->assertOk()
+        ->assertSee('<meta property="og:title" content="'.e($reply->user->nameWithHandle()).' on /dev/null">', false)
+        ->assertSee('"@type":"SocialMediaPosting"', false)
+        ->assertDontSee('"isPartOf":', false)
+        ->assertDontSee('deletedauthor')
+        ->assertDontSee('Deleted body')
+        ->assertInertia(fn ($page) => $page
+            ->where('ancestors.1.id', $parent->id)
+            ->missing('ancestors.1.body')
+            ->missing('ancestors.1.user'));
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $reply->id);
+});
+
+it('lists quotes alongside replies without embedding the quoted commit', function (): void {
+    $parent = Commit::factory()->create();
+    $quote = Commit::factory()->for($parent, 'quotedCommit')->create(['created_at' => now()->subMinute()]);
+    $reply = Commit::factory()->for($parent, 'parent')->for($parent, 'quotedCommit')->create();
+    Commit::factory()->for($quote, 'quotedCommit')->create();
+    Commit::factory()->create();
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.id', $quote->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.quoted_commit')
+        ->assertJsonPath('data.1.id', $reply->id);
+
+    $this->get(route('commit.show', [$parent->user, $parent]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.replies_count', 2)
+            ->has('replies.data', 2)
+            ->missing('replies.data.0.quoted_commit'));
+
+    $this->get(route('commit.show', [$quote->user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.quoted_commit.id', $parent->id));
+});
+
+it('applies reply visibility rules to quotes and their counts', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $viewer->muting()->attach($muted);
+    $blocked->blocking()->attach($viewer);
+    $parent = Commit::factory()->create();
+    $quote = Commit::factory()->for($parent, 'quotedCommit')->create();
+    $ownPending = Commit::factory()->for($parent, 'quotedCommit')->for($viewer)->pending()->create();
+    Commit::factory()->for($parent, 'quotedCommit')->pending()->create();
+    Commit::factory()->for($parent, 'quotedCommit')->rejected()->create();
+    Commit::factory()->for($parent, 'quotedCommit')->for($muted)->create();
+    Commit::factory()->for($parent, 'quotedCommit')->for($blocked)->create();
+    Commit::factory()->for($parent, 'quotedCommit')->create()->delete();
+
+    $this->actingAs($viewer)->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.*.id', [$quote->id, $ownPending->id]);
+
+    expect(Commit::query()->withVisibleReplyCount($viewer)->findOrFail($parent->id)->replies_count)->toBe(2);
+});
+
+it('keeps a deleted reply as a tombstone when it has a visible quote', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    $quote = Commit::factory()->for($reply, 'quotedCommit')->create();
+    $reply->delete();
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.body');
+
+    $this->getJson(route('commit-reply.index', $reply))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $quote->id);
 });

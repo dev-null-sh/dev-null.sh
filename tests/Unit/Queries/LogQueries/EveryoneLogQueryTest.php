@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LogQueries\EveryoneLogQuery;
@@ -52,4 +53,35 @@ it('counts replies including deleted ones that still have replies', function ():
     $commits = resolve(EveryoneLogQuery::class)->builder(User::factory()->create())->get();
 
     expect($commits->sole()->replies_count)->toBe(2);
+});
+
+it('leaves out commits by muted people and across blocks', function (): void {
+    $user = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $blocker = User::factory()->create();
+
+    $user->muting()->attach($muted);
+    $user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($user);
+
+    $visible = Commit::factory()->create();
+    Commit::factory()->for($muted)->create();
+    Commit::factory()->for($blocked)->create();
+    Commit::factory()->for($blocker)->create();
+
+    $commits = resolve(EveryoneLogQuery::class)->builder($user)->get();
+
+    expect($commits->modelKeys())->toBe([$visible->id]);
+});
+
+it('ranks commits that draw stars and replies above newer ones', function (): void {
+    $starred = Commit::factory()->create(['created_at' => now()->subHours(3)]);
+    $starred->stars()->attach(User::factory()->create());
+    $newer = Commit::factory()->create();
+    resolve(UpdateCommitHotScores::class)->handle([$starred->id]);
+
+    $commits = resolve(EveryoneLogQuery::class)->builder(User::factory()->create())->get();
+
+    expect($commits->modelKeys())->toBe([$starred->id, $newer->id]);
 });

@@ -18,6 +18,7 @@ final class CommitBuilder extends Builder
 {
     /**
      * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
+     * A block hides each one's commits from the other.
      */
     public function visibleTo(?User $user): self
     {
@@ -27,19 +28,35 @@ final class CommitBuilder extends Builder
 
         return $this->where(fn (Builder $query): Builder => $query
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
-            ->orWhere($this->qualifyColumn('user_id'), $user->id));
+            ->orWhere($this->qualifyColumn('user_id'), $user->id))
+            ->where(fn (Builder $query): Builder => $query
+                ->whereNull($this->qualifyColumn('user_id'))
+                ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
+    }
+
+    /**
+     * Muting only quiets what the user comes across: the commits stay reachable from their author's profile and link.
+     */
+    public function withoutMutedAuthorsFor(?User $user): self
+    {
+        return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
+            ->whereNull($this->qualifyColumn('user_id'))
+            ->orWhereNotIn($this->qualifyColumn('user_id'), $user->mutedIds())) : $this;
     }
 
     /**
      * Deleted commits stay in a thread as tombstones while they still have replies the given user can see.
+     * Replies by muted people are left out along with the replies under them.
      */
     public function visibleInThreadTo(?User $user): self
     {
         return $this->withTrashed()
             ->visibleTo($user)
+            ->withoutMutedAuthorsFor($user)
             ->where(fn (self $query): self => $query
                 ->whereNull($query->getModel()->getQualifiedDeletedAtColumn())
-                ->orWhereHas('replies', fn (self $replies): self => $replies->withTrashed()->visibleTo($user)));
+                ->orWhereHas('replies', fn (self $replies): self => $replies->withTrashed()->visibleTo($user)->withoutMutedAuthorsFor($user))
+                ->orWhereHas('quotes', fn (self $quotes): self => $quotes->withTrashed()->visibleTo($user)->withoutMutedAuthorsFor($user)));
     }
 
     public function topLevel(): self
@@ -48,12 +65,49 @@ final class CommitBuilder extends Builder
     }
 
     /**
+     * Commits created after the given one, including those created in the same second with a later, time-ordered id.
+     */
+    public function newerThan(Commit $commit): self
+    {
+        return $this->where(fn (self $query): self => $query
+            ->where($this->qualifyColumn('created_at'), '>', $commit->created_at)
+            ->orWhere(fn (self $query): self => $query
+                ->where($this->qualifyColumn('created_at'), $commit->created_at)
+                ->where($this->qualifyColumn('id'), '>', $commit->id)));
+    }
+
+    public function newestFirst(): self
+    {
+        return $this->reorder()->latest()->latest('id');
+    }
+
+    /**
      * Counts only the replies the given user is allowed to see.
      */
     public function withVisibleReplyCount(?User $user): self
     {
-        return $this->withCount([
-            'replies' => fn (self $query): self => $query->visibleInThreadTo($user)->exceptSeriesContinuations(),
+        $replies = (new Commit)->setTable('thread_replies')->newQuery()
+            ->from((new Commit)->getTable().' as thread_replies')
+            ->selectRaw('count(*)')
+            ->where(fn (self $query): self => $query
+                ->whereColumn('thread_replies.parent_id', $this->qualifyColumn('id'))
+                ->orWhereColumn('thread_replies.quoted_commit_id', $this->qualifyColumn('id')))
+            ->visibleInThreadTo($user)
+            ->exceptSeriesContinuations();
+
+        return $this->addSelect([$this->qualifyColumn('*')])->selectSub($replies, 'replies_count');
+    }
+
+    /**
+     * Loads the quoted commit only when the given user may see it, and as a tombstone once deleted.
+     */
+    public function withQuotedCommitFor(?User $viewer): self
+    {
+        return $this->with([
+            'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
+                ->withTrashed()
+                ->where(fn (self $query): self => $query->visibleTo($viewer))
+                ->with('user'),
         ]);
     }
 
@@ -91,7 +145,8 @@ final class CommitBuilder extends Builder
     public function withPublicPreview(): self
     {
         return $this
-            ->withCount(['replies' => fn (self $query): self => $query->approved()->exceptSeriesContinuations(), 'stars'])
+            ->withVisibleReplyCount(null)
+            ->withCount('stars')
             ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 

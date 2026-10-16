@@ -7,7 +7,7 @@ type StarState = Pick<Commit, 'id' | 'stars_count' | 'starred'>;
 
 type Subscription = {
     id: string;
-    element: HTMLButtonElement;
+    element: HTMLElement;
     prepare: () => ((state: StarState) => void) | null;
 };
 

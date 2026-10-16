@@ -64,6 +64,36 @@ it('requires authentication', function (): void {
     $this->getJson(route('commit-star-count.index', ['ids' => [(string) Str::uuid()]]))->assertUnauthorized();
 });
 
+it('omits star state across blocks in either direction', function (bool $viewerBlocks): void {
+    $viewer = User::factory()->create();
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+
+    $viewerBlocks ? $viewer->blocking()->attach($author) : $author->blocking()->attach($viewer);
+
+    $this->actingAs($viewer)->getJson(route('commit-star-count.index', [
+        'ids' => [$commit->id],
+    ]))->assertOk()->assertExactJson(['commits' => []]);
+})->with([true, false]);
+
+it('refreshes directly visible muted commits and the authors own counts', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $own = Commit::factory()->for($viewer)->create();
+    $other = Commit::factory()->for($muted)->create();
+    $viewer->muting()->attach($muted);
+    $muted->starredCommits()->attach($own);
+
+    $response = $this->actingAs($viewer)->getJson(route('commit-star-count.index', [
+        'ids' => [$own->id, $other->id],
+    ]))->assertOk();
+
+    expect($response->json('commits'))->toEqualCanonicalizing([
+        ['id' => $own->id, 'stars_count' => 1, 'starred' => false],
+        ['id' => $other->id, 'stars_count' => 0, 'starred' => false],
+    ]);
+});
+
 it('rejects invalid polling batches', function (array $data, string $error): void {
     $this->actingAs(User::factory()->create())
         ->getJson(route('commit-star-count.index', $data))
