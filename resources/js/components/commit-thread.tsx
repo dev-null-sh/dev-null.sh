@@ -30,6 +30,8 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
+import { useUser } from '@/hooks/use-user';
+import { signIn } from '@/lib/auth';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, formatRelativeTime, isDeleted, laneOf } from '@/lib/utils';
@@ -215,7 +217,7 @@ export function ThreadActions({
 }) {
     const { auth } = usePage().props;
     const { commit } = thread;
-    const hasStash = useHasStash(auth.user.id, `reply-${commit.id}`);
+    const hasStash = useHasStash(auth.user?.id ?? null, `reply-${commit.id}`);
 
     return (
         <>
@@ -227,9 +229,11 @@ export function ThreadActions({
                         <button
                             type="button"
                             onClick={
-                                thread.isReplying
-                                    ? thread.cancelReply
-                                    : thread.startReply
+                                auth.user === null
+                                    ? signIn
+                                    : thread.isReplying
+                                      ? thread.cancelReply
+                                      : thread.startReply
                             }
                             aria-expanded={thread.isReplying}
                             aria-keyshortcuts={
@@ -595,7 +599,7 @@ function CommitReply({
 
     const avatarRef = useRef<HTMLAnchorElement>(null);
 
-    const isOwn = reply.user_id === auth.user.id;
+    const isOwn = reply.user_id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
 
     const deleteReply = () =>
@@ -759,9 +763,9 @@ function ReplyComposer({
     onCancel: () => void;
     onReplied: () => void;
 }) {
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const { body, isRestored, updateBody, drop } = useStash(
-        auth.user.id,
+        user.id,
         `reply-${parent.id}`,
     );
     const attachments = useImageAttachments();

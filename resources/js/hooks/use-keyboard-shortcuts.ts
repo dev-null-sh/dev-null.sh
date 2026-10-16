@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import { signIn } from '@/lib/auth';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
 import type { Log, User } from '@/types';
@@ -83,9 +84,12 @@ function focusComposer(log: Log): void {
     });
 }
 
+/**
+ * Guests have no log, profile, or settings to go to, nor a composer, so those shortcuts take them to sign in.
+ */
 export function useKeyboardShortcuts(
-    user: User,
-    log: Log,
+    user: User | null,
+    log: Log | null,
     onShowHelp: () => void,
     onSearch: () => void,
 ): void {
@@ -93,12 +97,15 @@ export function useKeyboardShortcuts(
         let awaitingGoTo = false;
         let goToTimeout: ReturnType<typeof setTimeout> | undefined;
 
-        const goTo: Record<string, () => void> = {
-            l: () => router.visit(LogController.show(log)),
-            e: () => router.visit(LogController.show('everyone')),
-            p: () => router.visit(show(user)),
-            s: () => router.visit(edit()),
-        };
+        const goTo: Record<string, () => void> =
+            user === null || log === null
+                ? { l: signIn, e: signIn, p: signIn, s: signIn }
+                : {
+                      l: () => router.visit(LogController.show(log)),
+                      e: () => router.visit(LogController.show('everyone')),
+                      p: () => router.visit(show(user)),
+                      s: () => router.visit(edit()),
+                  };
 
         const onKeyDown = (event: KeyboardEvent) => {
             if (
@@ -154,7 +161,7 @@ export function useKeyboardShortcuts(
             const actions: Record<string, () => void> = {
                 j: () => moveCommitFocus(1),
                 k: () => moveCommitFocus(-1),
-                c: () => focusComposer(log),
+                c: () => (log === null ? signIn() : focusComposer(log)),
                 '/': onSearch,
                 '?': onShowHelp,
                 g: () => {

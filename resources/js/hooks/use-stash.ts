@@ -87,12 +87,15 @@ export function clearStashes(userId: string): void {
     notify();
 }
 
-export function useHasStash(userId: string, name: string): boolean {
-    const key = keyFor(userId, name);
+/**
+ * Guests never stash anything, as they sign in before they write.
+ */
+export function useHasStash(userId: string | null, name: string): boolean {
+    const key = userId === null ? null : keyFor(userId, name);
 
     return useSyncExternalStore(
         subscribe,
-        () => read(key) !== '',
+        () => key !== null && read(key) !== '',
         () => false,
     );
 }
