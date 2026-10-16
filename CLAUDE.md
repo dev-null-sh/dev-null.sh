@@ -161,6 +161,40 @@ final class CreateBookmarkRequest extends FormRequest
 - Every time you create a new file, stage it immediately with `git add <path>`. Never commit; leave committing to the user.
 - Do not write browser tests (`tests/Browser`, Pest browser plugin, Playwright). Cover behavior with Feature and Unit tests only.
 
+=== .ai/resources.js rules ===
+
+# Frontend UI stability
+
+Every UI change keeps the layout still. Nothing may flash, jump, clip or reflow on first load, navigation, polling, or after an action.
+
+## Loading
+
+- A skeleton occupies exactly the loaded content's box: same height, line count and wrapping at every breakpoint, including the narrow aside. It is visible in light and dark mode, popovers included.
+- Delay skeletons by about 300ms so fast responses show nothing. Show one only while data is genuinely missing, never while refetching data you already have.
+- Shared props that persist across pages (aside, nav counts) use `Inertia::defer(...)->once()`, so client visits don't refetch them and flash.
+- Polling and refresh buttons use partial reloads (`only: [...]`) of the page's own props. Never reload the whole page, and keep showing the old data until the new data arrives.
+
+## Changing content
+
+- Numbers, counts and countdowns use `tabular-nums` in fixed-width slots.
+- Buttons whose label changes ("Following", "Committing…") get a `min-w`. Disabled, loading and enabled states are the same size.
+- Conditional UI (banners, "@x is reviewing", inline confirms, errors) reserves its space or overlays. An inline confirm fits in the slot of the control it replaces.
+- Removed list rows collapse with the existing commit-deletion animation, keeping scroll position and focus.
+- Right after an action, the control under the cursor must not flip to a destructive state, e.g. Follow → "Unfollow" before the pointer leaves.
+
+## Overflow
+
+- Dialogs and popovers are capped to the viewport (`dvh`) and scroll inside, with a sticky header and footer when actions would scroll away. No double scrollbars and no page scroll through the overlay. Scroll lock must not shift the page: keep `scrollbar-gutter: stable`.
+- Long usernames, URLs, reasons, queue names and messages use `min-w-0` with `truncate` or `line-clamp`, and the full text in `title`.
+- Auto-growing textareas are `overflow-x-hidden`. Inputs use at least 16px text below `md` so iOS doesn't zoom.
+- On mobile, toasts sit above the bottom nav.
+
+## Verify before calling it done
+
+- Check in a browser at 1440×900, 1366×650 and 390×844, in light and dark.
+- Measure layout shift (`PerformanceObserver` with `layout-shift`) for first load, navigation, a polling cycle and every action you added. The target is 0.
+- Compare side by side with `production` using the same demo data. Record before/after clips for any fix to motion or loading.
+
 === foundation rules ===
 
 # Laravel Boost Guidelines
@@ -313,6 +347,18 @@ Before relying on a package's API, confirm its installed version:
 - When creating models for tests, use the factories for the models. Check if the factory has custom states that can be used before manually setting up the model.
 - Faker: Use methods such as `$this->faker->word()` or `fake()->randomDigit()`. Follow existing conventions whether to use `$this->faker` or `fake()`.
 - When creating tests, make use of `php artisan make:test [options] {name}` to create a feature test, and pass `--unit` to create a unit test. Most tests should be feature tests.
+
+=== laravel-octane/core rules ===
+
+# Laravel Octane
+
+This application uses Laravel Octane, a long-running PHP server. The application bootstraps once and handles many requests within the same process.
+
+- Never store request-specific state in singletons or static properties, because it can leak across requests.
+- Use `config('octane.server')` to detect the active driver (`swoole`, `roadrunner`, or `frankenphp`).
+- Prefer scoped bindings (`$this->app->scoped()`) over singletons for per-request services.
+
+When working on Octane-specific features (concurrency, shared tables, memory, driver configuration, testing), invoke `octane-development` for detailed rules.
 
 === wayfinder/core rules ===
 

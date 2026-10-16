@@ -6,7 +6,8 @@ import { LinkifiedText } from '../../resources/js/components/linkified-text';
 
 void test('keeps stable mention links alongside shortened URLs and their full copyable text', () => {
     const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
-    const url = 'https://www.example.com/docs/a-very-long-path-that-is-shortened';
+    const url =
+        'https://www.example.com/docs/a-very-long-path-that-is-shortened';
     const text = `Thanks @ORIGINAL! See ${url} and @futuredev.`;
     const html = renderToStaticMarkup(
         <LinkifiedText text={text} mentions={{ original: id }} />,
