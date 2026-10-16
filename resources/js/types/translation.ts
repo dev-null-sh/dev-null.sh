@@ -1,6 +1,8 @@
 // The browser's own translation, the Web Translation API. Chrome and Edge ship
 // it, the models run on the device, and no text leaves the browser. Everywhere
-// else both globals stay undefined and the interface shows no control.
+// else the globals stay undefined and the interface shows no control. A browser
+// can also have the translator and no language detector, and then the reader
+// picks the languages instead.
 // https://developer.mozilla.org/docs/Web/API/Translator_and_Language_Detector_APIs
 
 /** Receives an event target that reports the model download. */
@@ -14,12 +16,16 @@ export type TranslatorSession = TranslationSession & {
     translate: (text: string) => Promise<string>;
 };
 
+export type LanguagePair = {
+    sourceLanguage: string;
+    targetLanguage: string;
+};
+
 export type TranslatorApi = {
-    create: (options: {
-        sourceLanguage: string;
-        targetLanguage: string;
-        monitor?: TranslationMonitor;
-    }) => Promise<TranslatorSession>;
+    availability: (pair: LanguagePair) => Promise<ModelAvailability>;
+    create: (
+        pair: LanguagePair & { monitor?: TranslationMonitor },
+    ) => Promise<TranslatorSession>;
 };
 
 export type LanguageDetection = {
@@ -31,7 +37,15 @@ export type LanguageDetectorSession = TranslationSession & {
     detect: (text: string) => Promise<LanguageDetection[]>;
 };
 
+/** What the browser says about a model before anything tries to use it. */
+export type ModelAvailability =
+    | 'unavailable'
+    | 'downloadable'
+    | 'downloading'
+    | 'available';
+
 export type LanguageDetectorApi = {
+    availability: () => Promise<ModelAvailability>;
     create: (options?: {
         monitor?: TranslationMonitor;
     }) => Promise<LanguageDetectorSession>;

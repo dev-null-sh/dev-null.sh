@@ -28,9 +28,194 @@ const minConfidence = 0.5;
 const sessions = new Map<string, Promise<TranslatorSession>>();
 
 export function isTranslationSupported(): boolean {
-    return (
-        globalThis.Translator !== undefined &&
-        globalThis.LanguageDetector !== undefined
+    return globalThis.Translator !== undefined;
+}
+
+/**
+ * What this browser can do with a commit body. The APIs are not enough: a
+ * browser that ships them can still have no language detection model for the
+ * device, and then the reader picks the languages instead.
+ */
+export type TranslationMode =
+    /** Nobody asked the browser yet. */
+    | 'unknown'
+    /** No translation at all: no control is shown. */
+    | 'unsupported'
+    /** The browser tells what language a text is written in. */
+    | 'automatic'
+    /** The browser translates, but not detects: the reader picks the languages. */
+    | 'manual';
+
+/**
+ * The languages offered when the browser cannot detect one. This is only a
+ * starting point: each one is checked against the browser before it is shown.
+ */
+const languageCandidates = [
+    'af',
+    'ar',
+    'bg',
+    'bn',
+    'ca',
+    'cs',
+    'da',
+    'de',
+    'el',
+    'en',
+    'es',
+    'et',
+    'fa',
+    'fi',
+    'fr',
+    'he',
+    'hi',
+    'hr',
+    'hu',
+    'id',
+    'it',
+    'ja',
+    'ko',
+    'lt',
+    'lv',
+    'ms',
+    'nl',
+    'no',
+    'pl',
+    'pt',
+    'ro',
+    'ru',
+    'sk',
+    'sl',
+    'sr',
+    'sv',
+    'sw',
+    'ta',
+    'th',
+    'tr',
+    'uk',
+    'ur',
+    'vi',
+    'zh',
+];
+
+const listeners = new Set<() => void>();
+
+/** The languages the browser offers, once they have been asked for. */
+const probes = new Map<string, Promise<string[]>>();
+
+let mode: TranslationMode = 'unknown';
+let languages: string[] | null = null;
+
+function publish(
+    nextMode: TranslationMode,
+    nextLanguages: string[] | null = null,
+): TranslationMode {
+    const changed = mode !== nextMode || languages !== nextLanguages;
+
+    mode = nextMode;
+    languages = nextLanguages;
+
+    if (changed) {
+        for (const listener of listeners) {
+            listener();
+        }
+    }
+
+    return nextMode;
+}
+
+export function subscribeTranslation(listener: () => void): () => void {
+    listeners.add(listener);
+
+    return () => {
+        listeners.delete(listener);
+    };
+}
+
+export function translationMode(): TranslationMode {
+    return mode;
+}
+
+/** The languages to pick from, or null while the browser detects them itself. */
+export function translationLanguages(): string[] | null {
+    return languages;
+}
+
+/**
+ * Ask the browser what it can do. It is cheap and downloads nothing, so it runs
+ * again on every call rather than being cached.
+ */
+export function checkTranslation(): Promise<TranslationMode> {
+    if (!isTranslationSupported()) {
+        return Promise.resolve(publish('unsupported'));
+    }
+
+    const detector = globalThis.LanguageDetector;
+
+    if (detector === undefined) {
+        return offerLanguages();
+    }
+
+    return detector
+        .availability()
+        .then((state) =>
+            state === 'unavailable' ? offerLanguages() : publish('automatic'),
+        )
+        .catch(() => offerLanguages());
+}
+
+/**
+ * Check every language the reader could pick. The result depends only on the
+ * language they read, so one round is shared by the whole page.
+ */
+function offerLanguages(): Promise<TranslationMode> {
+    const target = browserLanguage();
+    let probe = probes.get(target);
+
+    if (probe === undefined) {
+        probe = probeLanguages(target);
+        probes.set(target, probe);
+    }
+
+    return probe.then((found) =>
+        publish(found.length === 0 ? 'unsupported' : 'manual', found),
+    );
+}
+
+async function probeLanguages(target: string): Promise<string[]> {
+    const translator = globalThis.Translator;
+
+    if (translator === undefined) {
+        return [];
+    }
+
+    const checked = await Promise.all(
+        languageCandidates.map(async (tag) => {
+            // A language is never paired with itself, so the reader's own
+            // language is checked the other way around.
+            const pair =
+                tag === target
+                    ? { sourceLanguage: 'en', targetLanguage: tag }
+                    : { sourceLanguage: tag, targetLanguage: target };
+
+            if (pair.sourceLanguage === pair.targetLanguage) {
+                return tag;
+            }
+
+            try {
+                const state = await translator.availability(pair);
+
+                return state === 'unavailable' ? null : tag;
+            } catch {
+                return null;
+            }
+        }),
+    );
+
+    const found = checked.filter((tag): tag is string => tag !== null);
+    const collator = new Intl.Collator(browserLanguage());
+
+    return found.sort((left, right) =>
+        collator.compare(languageName(left), languageName(right)),
     );
 }
 
@@ -146,6 +331,25 @@ export function translatableTexts(segments: BodySegment[]): string[] {
     );
 }
 
+/**
+ * A translator trims what it returns. The space around an inline code span lives
+ * at the edge of the segments next to it, so it is put back: without it, "un
+ * `SELECT` par page" reads "aSELECTper page".
+ */
+function keepSurroundingSpace(original: string, translated: string): string {
+    if (original.trim() === '') {
+        return original;
+    }
+
+    const leading = original.slice(
+        0,
+        original.length - original.trimStart().length,
+    );
+    const trailing = original.slice(original.trimEnd().length);
+
+    return `${leading}${translated.trim()}${trailing}`;
+}
+
 /** The same segments with their text replaced, code left untouched. */
 export function replaceTexts(
     segments: BodySegment[],
@@ -165,6 +369,13 @@ export function replaceTexts(
     });
 }
 
+export type TranslationOptions = {
+    /** Report the download of a model, from 0 to 1. */
+    onProgress?: ProgressListener;
+    /** The language the text is written in, when the browser cannot tell. */
+    source?: string;
+};
+
 /**
  * Detect the language of a commit body and translate it, on the device, when it
  * is not already in the language of the reader.
@@ -172,8 +383,9 @@ export function replaceTexts(
 export async function translateBody(
     segments: BodySegment[],
     target: string,
-    onProgress?: ProgressListener,
+    options: TranslationOptions = {},
 ): Promise<TranslationOutcome> {
+    const { onProgress, source } = options;
     const texts = translatableTexts(segments);
     const body = texts.join('\n').trim();
 
@@ -182,7 +394,7 @@ export async function translateBody(
     }
 
     const language =
-        body === '' ? null : await detectLanguage(body, onProgress);
+        source ?? (body === '' ? null : await detectLanguage(body, onProgress));
 
     if (language === null) {
         return { status: 'unknown-language', language: null, texts };
@@ -198,7 +410,9 @@ export async function translateBody(
         status: 'translated',
         language,
         texts: await Promise.all(
-            texts.map((text) => translator.translate(text)),
+            texts.map(async (text) =>
+                keepSurroundingSpace(text, await translator.translate(text)),
+            ),
         ),
     };
 }

@@ -8,15 +8,37 @@ import {
 import { emojify } from '@/lib/emoji';
 import {
     browserLanguage,
+    checkTranslation,
     isTranslationSupported,
     replaceTexts,
+    subscribeTranslation,
     translateBody,
     translatableTexts,
+    translationLanguages,
+    translationMode,
 } from '@/lib/translation';
 import type { TranslationStatus } from '@/lib/translation';
 import type { BodySegment } from '@/types';
 
-const subscribe = () => () => undefined;
+/** The server has no translation APIs, so it never renders a control. */
+const noMode = () => 'unknown' as const;
+const noLanguages = () => null;
+
+/**
+ * The language to start from: the wanted one when the browser offers it, and
+ * otherwise the first one it does.
+ */
+function preferred(
+    languages: string[] | null,
+    wanted: string,
+    fallback: string,
+): string {
+    if (languages === null || languages.includes(wanted)) {
+        return wanted;
+    }
+
+    return languages.at(0) ?? fallback;
+}
 
 /**
  * Emoji shortcodes become emoji before the text is translated: a translator
@@ -50,15 +72,21 @@ const idle: TranslationState = {
 };
 
 export type CommitTranslation = {
-    /** True in browsers that ship the translation APIs, for a body with text. */
+    /** True in browsers that can translate this body, for a body with text. */
     readonly canTranslate: boolean;
     readonly phase: TranslationPhase;
     /** Download progress of the models, from 0 to 1, while one downloads. */
     readonly progress: number | null;
     /** Language the commit is written in, once the browser has detected it. */
     readonly language: string | null;
-    /** Language the reader's browser is in. */
+    /** Language the reader reads in, the one a commit is translated into. */
     readonly target: string;
+    /** Language a commit is translated from, when the reader picks it. */
+    readonly source: string;
+    /** The languages to pick from, or null while the browser detects them. */
+    readonly languages: string[] | null;
+    readonly setSource: (language: string) => void;
+    readonly setTarget: (language: string) => void;
     readonly isTranslated: boolean;
     /** The segments to render: the translation while it is being shown. */
     readonly segments: BodySegment[];
@@ -77,24 +105,48 @@ export function useCommitTranslation(
 ): CommitTranslation {
     const [state, setState] = useState(idle);
     const [isShowingOriginal, setIsShowingOriginal] = useState(false);
+    const [choice, setChoice] = useState<{
+        source: string;
+        target: string;
+    } | null>(null);
     const isMounted = useRef(true);
     const isWorking = useRef(false);
 
-    // The server has no translation APIs, so it renders no control and the
-    // client adds one after hydrating. A commit that is only a code block has
-    // nothing to translate.
+    // A browser can ship the APIs and still have no detection model, so the
+    // control waits for the browser's answer, and asks the reader for the
+    // languages when it cannot detect them. A commit that is only a code block
+    // has nothing to translate.
+    const mode = useSyncExternalStore(
+        subscribeTranslation,
+        translationMode,
+        noMode,
+    );
+    const languages = useSyncExternalStore(
+        subscribeTranslation,
+        translationLanguages,
+        noLanguages,
+    );
+
+    const browser = browserLanguage();
+    const source = choice?.source ?? preferred(languages, 'en', browser);
+    const target = choice?.target ?? preferred(languages, browser, browser);
+
     const canTranslate =
-        useSyncExternalStore(subscribe, isTranslationSupported, () => false) &&
         isEnabled &&
-        translatableTexts(segments).some((text) => text.trim() !== '');
+        translatableTexts(segments).some((text) => text.trim() !== '') &&
+        (mode === 'automatic' || (mode === 'manual' && languages !== null));
 
     useEffect(() => {
         isMounted.current = true;
 
+        if (isEnabled) {
+            void checkTranslation();
+        }
+
         return () => {
             isMounted.current = false;
         };
-    }, []);
+    }, [isEnabled]);
 
     const translate = useCallback(() => {
         if (isWorking.current || !isTranslationSupported()) {
@@ -105,15 +157,14 @@ export function useCommitTranslation(
         setIsShowingOriginal(false);
         setState({ ...idle, phase: 'working' });
 
-        void translateBody(
-            emojified(segments),
-            browserLanguage(),
-            (progress) => {
+        void translateBody(emojified(segments), target, {
+            source: languages === null ? undefined : source,
+            onProgress: (progress) => {
                 if (isMounted.current) {
                     setState((current) => ({ ...current, progress }));
                 }
             },
-        )
+        })
             .then((outcome) => {
                 if (!isMounted.current) {
                     return;
@@ -135,7 +186,7 @@ export function useCommitTranslation(
             .finally(() => {
                 isWorking.current = false;
             });
-    }, [segments]);
+    }, [segments, source, target, languages]);
 
     const isTranslated = state.texts !== null && !isShowingOriginal;
 
@@ -144,7 +195,11 @@ export function useCommitTranslation(
         phase: state.phase,
         progress: state.progress,
         language: state.language,
-        target: browserLanguage(),
+        target,
+        source,
+        languages,
+        setSource: (language) => setChoice({ source: language, target }),
+        setTarget: (language) => setChoice({ source, target: language }),
         isTranslated,
         segments: isTranslated
             ? replaceTexts(segments, state.texts ?? [])

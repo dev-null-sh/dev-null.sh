@@ -4,15 +4,19 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
     baseLanguage,
+    checkTranslation,
     languageName,
     replaceTexts,
     translateBody,
     translatableTexts,
+    translationLanguages,
+    translationMode,
 } from '../../resources/js/lib/translation.ts';
 import type { BodySegment } from '../../resources/js/types';
 import type {
     LanguageDetection,
     LanguageDetectorApi,
+    ModelAvailability,
     TranslationMonitor,
     TranslatorApi,
 } from '../../resources/js/types/translation.ts';
@@ -26,16 +30,30 @@ const french: LanguageDetection[] = [
     { detectedLanguage: 'fr-FR', confidence: 0.92 },
 ];
 
+/** The languages the stubbed browser can translate between. */
+const languages = ['fr', 'en', 'de', 'es', 'it', 'pt'];
+
+type Stub = {
+    /** What the language detector reports for a text. */
+    detections?: LanguageDetection[];
+    /** What the translator returns for a text. It trims, like a real one. */
+    translate?: (text: string) => string;
+    /** What the browser reports while it downloads a model. */
+    downloads?: TranslationMonitor;
+    /** What the language detector says about its own model. */
+    detector?: ModelAvailability;
+};
+
 /**
  * Answer every detection and translation with the given results, and record the
- * language pairs a session was created for. `downloads` is what the browser
- * reports while it downloads a model.
+ * language pairs a session was created for.
  */
-function stubBrowser(
-    detections: LanguageDetection[],
-    translate: (text: string) => string = (text) => text.toUpperCase(),
-    downloads: TranslationMonitor = () => undefined,
-): { pairs: string[] } {
+function stubBrowser({
+    detections = french,
+    translate = (text) => text.trim().toUpperCase(),
+    downloads = () => undefined,
+    detector = 'available',
+}: Stub = {}): { pairs: string[] } {
     const pairs: string[] = [];
     const reportDownload = (monitor: TranslationMonitor | undefined) => {
         if (monitor === undefined) {
@@ -47,7 +65,8 @@ function stubBrowser(
         downloads(target);
     };
 
-    const detector: LanguageDetectorApi = {
+    const languageDetector: LanguageDetectorApi = {
+        availability: () => Promise.resolve(detector),
         create: (options) => {
             reportDownload(options?.monitor);
 
@@ -59,6 +78,13 @@ function stubBrowser(
     };
 
     const translator: TranslatorApi = {
+        availability: ({ sourceLanguage, targetLanguage }) =>
+            Promise.resolve(
+                languages.includes(sourceLanguage) &&
+                    languages.includes(targetLanguage)
+                    ? 'downloadable'
+                    : 'unavailable',
+            ),
         create: (options) => {
             pairs.push(`${options.sourceLanguage}->${options.targetLanguage}`);
             reportDownload(options.monitor);
@@ -70,7 +96,7 @@ function stubBrowser(
         },
     };
 
-    globalThis.LanguageDetector = detector;
+    globalThis.LanguageDetector = languageDetector;
     globalThis.Translator = translator;
 
     return { pairs };
@@ -100,9 +126,26 @@ void test('keeps a segment when the translation is missing', () => {
     assert.deepEqual(replaceTexts(segments, []), segments);
 });
 
+void test('keeps the spaces around an inline code span', async (t) => {
+    t.after(clearBrowser);
+    // Its own language pair: a session is reused once a pair has been created.
+    stubBrowser({ detections: [{ detectedLanguage: 'it', confidence: 0.9 }] });
+
+    const outcome = await translateBody(
+        [
+            { type: 'text', text: 'un ' },
+            { type: 'code', code: 'SELECT' },
+            { type: 'text', text: ' par page' },
+        ],
+        'en',
+    );
+
+    assert.deepEqual(outcome.texts, ['UN ', ' PAR PAGE']);
+});
+
 void test('translates a body written in another language', async (t) => {
     t.after(clearBrowser);
-    const { pairs } = stubBrowser(french);
+    const { pairs } = stubBrowser();
 
     const outcome = await translateBody(segments, 'en');
 
@@ -112,33 +155,49 @@ void test('translates a body written in another language', async (t) => {
     assert.deepEqual(pairs, ['fr->en']);
 });
 
+void test('translates from the language the reader picked', async (t) => {
+    t.after(clearBrowser);
+    const { pairs } = stubBrowser({ detections: [] });
+
+    const outcome = await translateBody(segments, 'en', { source: 'de' });
+
+    assert.equal(outcome.status, 'translated');
+    assert.equal(outcome.language, 'de');
+    assert.deepEqual(outcome.texts, ['BONJOUR LE MONDE']);
+    assert.deepEqual(pairs, ['de->en']);
+});
+
 void test('creates one session per language pair', async (t) => {
     t.after(clearBrowser);
-    const { pairs } = stubBrowser([{ detectedLanguage: 'de', confidence: 0.8 }]);
+    // Its own language pair: a session is reused once a pair has been created.
+    const { pairs } = stubBrowser({
+        detections: [{ detectedLanguage: 'pt', confidence: 0.8 }],
+    });
 
     await translateBody(segments, 'en');
     await translateBody(segments, 'en');
 
-    assert.deepEqual(pairs, ['de->en']);
+    assert.deepEqual(pairs, ['pt->en']);
 });
 
 void test('reports the model downloads as they go', async (t) => {
     t.after(clearBrowser);
     const progress: number[] = [];
 
-    stubBrowser(
-        [{ detectedLanguage: 'es', confidence: 0.8 }],
-        undefined,
-        (monitor) => {
+    stubBrowser({
+        detections: [{ detectedLanguage: 'es', confidence: 0.8 }],
+        downloads: (monitor) => {
             for (const loaded of [0.25, 0.75]) {
                 monitor.dispatchEvent(
                     Object.assign(new Event('downloadprogress'), { loaded }),
                 );
             }
         },
-    );
+    });
 
-    await translateBody(segments, 'en', (value) => progress.push(value));
+    await translateBody(segments, 'en', {
+        onProgress: (value) => progress.push(value),
+    });
 
     // The detection model and the translation model report through one listener.
     assert.deepEqual(progress, [0.25, 0.75, 0.25, 0.75]);
@@ -146,7 +205,9 @@ void test('reports the model downloads as they go', async (t) => {
 
 void test('leaves a body already in the reader language alone', async (t) => {
     t.after(clearBrowser);
-    const { pairs } = stubBrowser([{ detectedLanguage: 'en', confidence: 0.9 }]);
+    const { pairs } = stubBrowser({
+        detections: [{ detectedLanguage: 'en', confidence: 0.9 }],
+    });
 
     const outcome = await translateBody(segments, 'en');
 
@@ -158,7 +219,9 @@ void test('leaves a body already in the reader language alone', async (t) => {
 
 void test('does not guess a language the browser is unsure about', async (t) => {
     t.after(clearBrowser);
-    const { pairs } = stubBrowser([{ detectedLanguage: 'fr', confidence: 0.3 }]);
+    const { pairs } = stubBrowser({
+        detections: [{ detectedLanguage: 'fr', confidence: 0.3 }],
+    });
 
     const outcome = await translateBody(segments, 'en');
 
@@ -176,4 +239,41 @@ void test('reports a browser without the APIs', async (t) => {
 
     assert.equal(outcome.status, 'unsupported');
     assert.equal(outcome.language, null);
+});
+
+void test('a browser that detects the language translates on its own', async (t) => {
+    t.after(clearBrowser);
+    stubBrowser();
+
+    assert.equal(await checkTranslation(), 'automatic');
+    assert.equal(translationMode(), 'automatic');
+    assert.equal(translationLanguages(), null);
+});
+
+void test('a browser with no detection model offers the languages it knows', async (t) => {
+    t.after(clearBrowser);
+    stubBrowser({ detector: 'unavailable' });
+
+    assert.equal(await checkTranslation(), 'manual');
+    assert.equal(translationMode(), 'manual');
+    // The reader's own language is checked the other way around, and the list
+    // is sorted by the name the reader sees: English, French, German, Italian,
+    // Portuguese, Spanish.
+    assert.deepEqual(translationLanguages(), [
+        'en',
+        'fr',
+        'de',
+        'it',
+        'pt',
+        'es',
+    ]);
+});
+
+void test('a browser that cannot translate at all offers nothing', async (t) => {
+    t.after(clearBrowser);
+    clearBrowser();
+
+    assert.equal(await checkTranslation(), 'unsupported');
+    assert.equal(translationMode(), 'unsupported');
+    assert.equal(translationLanguages(), null);
 });
