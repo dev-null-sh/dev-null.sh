@@ -70,6 +70,7 @@ export default function Show({
                 </h1>
                 <PageTabs
                     label="Logs"
+                    prefetch={false}
                     tabs={[
                         {
                             title: 'Following',
