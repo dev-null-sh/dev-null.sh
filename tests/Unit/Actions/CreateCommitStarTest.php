@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateCommitStar;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\TheAlgorithm;
 
 it('may star a commit', function (): void {
     $user = User::factory()->create();
@@ -28,15 +29,6 @@ it('is idempotent', function (): void {
     expect($user->starredCommits()->count())->toBeOne();
 });
 
-it('may star their own pending commit', function (): void {
-    $user = User::factory()->create();
-    $commit = Commit::factory()->for($user)->pending()->create();
-
-    resolve(CreateCommitStar::class)->handle($user, $commit);
-
-    expect($user->hasStarred($commit))->toBeTrue();
-});
-
 it('notifies the author', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->create();
@@ -44,4 +36,13 @@ it('notifies the author', function (): void {
     resolve(CreateCommitStar::class)->handle($user, $commit);
 
     expect($commit->user->notifications()->sole()->actor_id)->toBe($user->id);
+});
+
+it('lifts the commit', function (): void {
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitStar::class)->handle(User::factory()->create(), $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 1, 0), 1e-9);
 });

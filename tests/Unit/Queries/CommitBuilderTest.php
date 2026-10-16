@@ -3,8 +3,24 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Poll;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+
+it('keeps id projections lightweight when poll eager loading is disabled', function (): void {
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+    $viewer = User::factory()->create();
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $commit = Commit::query()->withPollFor($viewer)->setEagerLoads([])->select('id')->findOrFail($poll->commit_id);
+
+    expect($commit->getAttributes())->toBe(['id' => $poll->commit_id])
+        ->and($commit->relationLoaded('poll'))->toBeFalse()
+        ->and(DB::getQueryLog())->toHaveCount(1);
+
+    DB::disableQueryLog();
+});
 
 it('scopes commits to those visible to a user', function (): void {
     $user = User::factory()->create();

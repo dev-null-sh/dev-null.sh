@@ -27,6 +27,8 @@ test('to array', function (): void {
             'series_position',
             'series_size',
             'quoted_commit_id',
+            'root_id',
+            'hot_score',
             'body_segments',
         ]);
 });
