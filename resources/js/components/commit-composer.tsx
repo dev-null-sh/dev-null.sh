@@ -12,11 +12,13 @@ import {
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
+import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useLinkCards } from '@/hooks/use-link-card';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -68,6 +70,7 @@ export function CommitComposer() {
     const { bodies, isRestored, updateBody, insertPart, removePart, drop } =
         useSeriesStash(user.id, 'commit');
     const attachments = useImageAttachments();
+    const linkCards = useLinkCards(bodies);
     const textareas = useMemo(
         () =>
             Array.from({ length: maxParts }, () =>
@@ -92,11 +95,13 @@ export function CommitComposer() {
         }
 
         insertPart(index + 1);
+        linkCards.insertPart(index + 1);
         focusPart(index + 1);
     };
 
     const removePartAt = (index: number) => {
         removePart(index);
+        linkCards.removePart(index);
         focusPart(Math.max(index - 1, 0), true);
     };
 
@@ -157,6 +162,7 @@ export function CommitComposer() {
 
                 drop();
                 attachments.clear();
+                linkCards.reset();
                 focusPart(0);
             }}
             className="flex flex-col"
@@ -262,7 +268,17 @@ export function CommitComposer() {
                                             className="mt-1.5"
                                         />
 
-                                        <InputError message={error} />
+                                        <InputError
+                                            message={
+                                                error ??
+                                                errors[
+                                                    `link_preview_urls.${index}`
+                                                ] ??
+                                                (index === 0
+                                                    ? errors.link_preview_url
+                                                    : undefined)
+                                            }
+                                        />
                                         <SecretWarning
                                             body={body}
                                             findings={
@@ -308,6 +324,13 @@ export function CommitComposer() {
                                                 >
                                                     {index + 1}/{bodies.length}
                                                 </span>
+                                                <LinkCardPicker
+                                                    linkCard={
+                                                        linkCards.cards[index]
+                                                    }
+                                                    name={`link_preview_urls[${index}]`}
+                                                    disabled={processing}
+                                                />
                                                 <span className="ml-auto">
                                                     <RemainingCount
                                                         id={`${id}-count`}
@@ -351,6 +374,18 @@ export function CommitComposer() {
                                                             }
                                                             className="-ml-2"
                                                         />
+                                                        {!isSeries && (
+                                                            <LinkCardPicker
+                                                                linkCard={
+                                                                    linkCards
+                                                                        .cards[0]
+                                                                }
+                                                                disabled={
+                                                                    processing
+                                                                }
+                                                                className="-ml-3"
+                                                            />
+                                                        )}
                                                         <button
                                                             type="button"
                                                             onClick={() =>
@@ -376,6 +411,7 @@ export function CommitComposer() {
                                                             <StashLabel
                                                                 onDrop={() => {
                                                                     drop();
+                                                                    linkCards.reset();
                                                                     focusPart(
                                                                         0,
                                                                     );

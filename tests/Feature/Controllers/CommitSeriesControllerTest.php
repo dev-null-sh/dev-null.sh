@@ -5,9 +5,11 @@ declare(strict_types=1);
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Enums\NotificationType;
+use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 it('may post a series of commits', function (): void {
@@ -197,6 +199,87 @@ it('requires authentication to post a series', function (): void {
     $response = $this->post(route('commit-series.store'), ['bodies' => ['First part', 'Second part']]);
 
     $response->assertRedirectToRoute('home');
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('uses the chosen card or no card for each part and defaults unchosen parts to their first link', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit-series.store'), [
+            'bodies' => [
+                'First https://example.com/one and https://example.com/chosen',
+                'Second https://example.com/two',
+                'Third https://example.com/three and https://example.com/four',
+            ],
+            'link_preview_urls' => [0 => 'https://example.com/chosen', 1 => ''],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $parts = $user->commits()->with('linkPreview')->oldest('series_position')->get();
+
+    expect($parts)->toHaveCount(3)
+        ->and($parts[0]->linkPreview?->url)->toBe('https://example.com/chosen')
+        ->and($parts[1]->link_preview_id)->toBeNull()
+        ->and($parts[2]->linkPreview?->url)->toBe('https://example.com/three')
+        ->and($parts->pluck('series_position')->all())->toBe([1, 2, 3])
+        ->and($parts->pluck('status')->unique()->all())->toBe([CommitStatus::Pending]);
+
+    Queue::assertPushed(UnfurlLink::class, 2);
+});
+
+it('keeps a sparse card choice attached to its series part', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit-series.store'), [
+            'bodies' => ['First https://example.com/one', 'Second https://example.com/two and https://example.com/chosen'],
+            'link_preview_urls' => [1 => 'https://example.com/chosen'],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $parts = $user->commits()->with('linkPreview')->oldest('series_position')->get();
+
+    expect($parts[0]->linkPreview?->url)->toBe('https://example.com/one')
+        ->and($parts[1]->linkPreview?->url)->toBe('https://example.com/chosen');
+});
+
+it('rejects a series card that is not in that part without posting any parts', function (mixed $choice): void {
+    Queue::fake();
+
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit-series.store'), [
+            'bodies' => ['First https://example.com/one', 'Second https://example.com/two'],
+            'link_preview_urls' => [1 => $choice],
+        ])
+        ->assertSessionHasErrors('link_preview_urls.1');
+
+    expect(Commit::query()->count())->toBe(0);
+
+    Queue::assertNothingPushed();
+})->with([
+    'another part' => ['https://example.com/one'],
+    'outside the series' => ['https://example.com/other'],
+    'not a string' => [123],
+    'nested value' => [['https://example.com/two']],
+]);
+
+it('rejects a malformed series body when a card is supplied', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit-series.store'), [
+            'bodies' => ['First part', ['https://example.com/two']],
+            'link_preview_urls' => [1 => 'https://example.com/two'],
+        ])
+        ->assertSessionHasErrors('bodies.1');
 
     expect(Commit::query()->count())->toBe(0);
 });

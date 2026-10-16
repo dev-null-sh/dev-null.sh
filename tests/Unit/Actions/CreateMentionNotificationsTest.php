@@ -47,6 +47,15 @@ it('ignores usernames nobody has', function (): void {
     expect(Notification::query()->count())->toBe(0);
 });
 
+it('does not send mentions without an author identity', function (): void {
+    User::factory()->create(['username' => 'nunomaduro']);
+    $commit = Commit::factory()->create(['user_id' => null, 'body' => 'Hi @nunomaduro']);
+
+    resolve(CreateMentionNotifications::class)->handle($commit);
+
+    expect(Notification::query()->count())->toBe(0);
+});
+
 it('does not notify authors mentioning themselves', function (): void {
     $user = User::factory()->create(['username' => 'nunomaduro']);
 
@@ -80,6 +89,25 @@ it('is idempotent', function (): void {
 
     expect(Notification::query()->count())->toBeOne();
 });
+
+it('does not notify people who muted the author or are across a block', function (string $relation, bool $mentionedActs): void {
+    $mentioned = User::factory()->create(['username' => 'nunomaduro']);
+    $other = User::factory()->create(['username' => 'taylorotwell']);
+    $silenced = Commit::factory()->create(['body' => 'Hi @nunomaduro']);
+    $notified = Commit::factory()->create(['body' => 'Hi @nunomaduro and @taylorotwell']);
+
+    [$actor, $subject] = $mentionedActs ? [$mentioned, $silenced->user] : [$silenced->user, $mentioned];
+    $actor->{$relation}()->attach($subject);
+
+    resolve(CreateMentionNotifications::class)->handle($silenced, $notified);
+
+    expect($mentioned->notifications()->sole()->commit_id)->toBe($notified->id)
+        ->and($other->notifications()->sole()->commit_id)->toBe($notified->id);
+})->with([
+    'the mentioned user muted the author' => ['muting', true],
+    'the mentioned user blocked the author' => ['blocking', true],
+    'the author blocked the mentioned user' => ['blocking', false],
+]);
 
 it('does nothing without commits', function (): void {
     $action = resolve(CreateMentionNotifications::class);

@@ -21,14 +21,17 @@ use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\UserLaneController;
+use App\Http\Controllers\UserMuteController;
 use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
@@ -159,6 +162,9 @@ Route::middleware('auth')->group(function (): void {
     // Terminal...
     Route::get('settings/terminal', fn () => Inertia::render('terminal/show', ['url' => url('/')]))->name('terminal.show');
 
+    // Safety...
+    Route::get('settings/safety', [SafetyController::class, 'edit'])->name('safety.edit');
+
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
 
@@ -167,6 +173,18 @@ Route::middleware('auth')->group(function (): void {
         ->name('user-follow.store');
     Route::delete('@{user:username}/follow', [UserFollowController::class, 'destroy'])
         ->name('user-follow.destroy');
+
+    // User Mute...
+    Route::post('@{user:username}/mute', [UserMuteController::class, 'store'])
+        ->name('user-mute.store');
+    Route::delete('@{user:username}/mute', [UserMuteController::class, 'destroy'])
+        ->name('user-mute.destroy');
+
+    // User Block...
+    Route::post('@{user:username}/block', [UserBlockController::class, 'store'])
+        ->name('user-block.store');
+    Route::delete('@{user:username}/block', [UserBlockController::class, 'destroy'])
+        ->name('user-block.destroy');
 });
 
 Route::fallback(fn () => abort(404));

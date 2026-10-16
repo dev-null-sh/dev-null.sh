@@ -13,10 +13,14 @@ final readonly class CreateFollowNotification
 {
     /**
      * A follow notifies once per follower, ever: unfollowing and following again brings
-     * back the same notification instead of pinging the followed user again.
+     * back the same notification instead of pinging the followed user again. Nobody hears from people they mute.
      */
     public function handle(User $follower, User $followed): void
     {
+        if ($followed->isMuting($follower)) {
+            return;
+        }
+
         Notification::query()->insertOrIgnore([
             'id' => Str::uuid7()->toString(),
             'recipient_id' => $followed->id,

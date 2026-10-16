@@ -290,6 +290,67 @@ it('may not reply to a commit that does not exist', function (): void {
     $response->assertSessionHasErrors('parent_id');
 });
 
+it('may not reply across a block in either direction', function (bool $replierBlocks): void {
+    $replier = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $replierBlocks ? $replier->blocking()->attach($parent->user) : $parent->user->blocking()->attach($replier);
+
+    $response = $this->actingAs($replier)
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
+
+    $response->assertSessionHasErrors(['parent_id' => 'That commit is no longer available to reply to.']);
+
+    expect($parent->replies()->count())->toBe(0)
+        ->and($parent->user->notifications()->exists())->toBeFalse();
+})->with([true, false]);
+
+it('may reply to a muted user without them knowing', function (): void {
+    $replier = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $replier->muting()->attach($parent->user);
+
+    $this->actingAs($replier)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id])
+        ->assertSessionHasNoErrors();
+
+    expect($parent->replies()->count())->toBeOne();
+});
+
+it('does not show a commit across a block in either direction', function (bool $viewerBlocks): void {
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    $viewerBlocks ? $viewer->blocking()->attach($commit->user) : $commit->user->blocking()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertNotFound();
+})->with([true, false]);
+
+it('shows a muted user commit when opened directly, without their replies', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $commit = Commit::factory()->for($muted)->create();
+    Commit::factory()->for($commit, 'parent')->for($muted)->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $viewer->muting()->attach($muted);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$muted, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.id', $commit->id)
+            ->where('commit.replies_count', 1)
+            ->has('replies.data', 1)
+            ->where('replies.data.0.id', $reply->id));
+});
+
 it('shows a commit with its ancestors and reply count', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();
@@ -644,6 +705,64 @@ it('queues a link preview for a commit with a link', function (): void {
 
     Queue::assertPushed(UnfurlLink::class);
 });
+
+it('queues a link preview for the link the author chose', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Shipped https://example.com/first, docs at laravel.com',
+            'link_preview_url' => 'https://laravel.com',
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following);
+
+    expect($user->commits()->sole()->linkPreview->url)->toBe('https://laravel.com');
+
+    Queue::assertPushed(UnfurlLink::class);
+});
+
+it('attaches no link preview when the author chose none', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Shipped https://example.com/first',
+            'link_preview_url' => '',
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following);
+
+    expect($user->commits()->sole()->link_preview_id)->toBeNull();
+
+    Queue::assertNothingPushed();
+});
+
+it('may not choose a link preview for a url that is not in the body', function (string $url): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Shipped https://example.com/first and `https://example.com/code`',
+            'link_preview_url' => $url,
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasErrors(['link_preview_url' => 'The link card must be one of the links in the body.']);
+
+    expect(Commit::query()->count())->toBe(0);
+})->with([
+    'another url' => 'https://evil.example.com',
+    'a url in code' => 'https://example.com/code',
+    'part of a url' => 'https://example.com',
+]);
 
 it('includes the link previews of a commit, its ancestors and its replies', function (): void {
     $root = Commit::factory()->for(LinkPreview::factory()->fetched()->state(['title' => 'Root link']))->create();
