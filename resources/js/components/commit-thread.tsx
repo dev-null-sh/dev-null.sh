@@ -309,7 +309,10 @@ export function ThreadActions({
 
                 <div className="ml-auto flex items-center gap-0.5">
                     {!isDeleted(commit) && commit.is_saved !== undefined && (
-                        <BookmarkButton commit={commit} />
+                        <BookmarkButton
+                            commit={commit}
+                            keyShortcut={hasKeyboardShortcuts ? 'b' : undefined}
+                        />
                     )}
                     {!isDeleted(commit) && (
                         <CopyLinkButton

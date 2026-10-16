@@ -7,6 +7,7 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Queries\LatestLogCommitsQuery;
@@ -408,6 +409,26 @@ it('includes the quoted commits with their authors', function (Log $log): void {
             ->where('commits.data.2.quoted_commit.user.username', 'octocat'))
         ->assertDontSee('A rejected quoted commit')
         ->assertDontSee('A deleted quoted commit');
+})->with(Log::cases());
+
+it('includes the images of quoted commits, but never of deleted ones', function (Log $log): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->create(['created_at' => now()->subHour()]);
+    $image = CommitImage::factory()->for($quoted)->create();
+    $deleted = Commit::factory()->create(['created_at' => now()->subHour()]);
+    CommitImage::factory()->for($deleted)->create();
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create(['created_at' => now()->subMinutes(2)]);
+    Commit::factory()->for($user)->for($deleted, 'quotedCommit')->create(['created_at' => now()->subMinute()]);
+    $deleted->delete();
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->missing('commits.data.0.quoted_commit.images')
+            ->where('commits.data.1.quoted_commit.images.0.id', $image->id)
+            ->where('commits.data.1.quoted_commit.images.0.url', route('commit-image.show', $image)));
 })->with(Log::cases());
 
 it('loads the quoted commits of a log without a query per commit', function (Log $log): void {

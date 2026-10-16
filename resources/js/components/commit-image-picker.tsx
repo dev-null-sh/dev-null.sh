@@ -1,5 +1,6 @@
 import { ImagePlus, X } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ImageViewer } from '@/components/image-viewer';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -99,6 +100,7 @@ export function ImagePickerPreviews({
     images: File[];
     onRemove: (index: number) => void;
 }) {
+    const [viewing, setViewing] = useState<number | null>(null);
     const urls = useMemo(
         () => images.map((image) => URL.createObjectURL(image)),
         [images],
@@ -114,24 +116,61 @@ export function ImagePickerPreviews({
     }
 
     return (
-        <ul className="mt-2 flex gap-2" aria-label="Attached images">
-            {urls.map((url, index) => (
-                <li key={url} className="relative">
-                    <img
-                        src={url}
-                        alt={`Attached image ${index + 1}`}
-                        className="size-20 rounded-md border bg-muted object-cover"
-                    />
-                    <button
-                        type="button"
-                        onClick={() => onRemove(index)}
-                        aria-label={`Remove image ${index + 1}`}
-                        className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5 text-foreground backdrop-blur transition hover:bg-background"
-                    >
-                        <X className="size-3.5" />
-                    </button>
-                </li>
-            ))}
-        </ul>
+        <>
+            <ul className="mt-2 flex gap-2" aria-label="Attached images">
+                {urls.map((url, index) => (
+                    <li key={url} className="relative">
+                        <button
+                            type="button"
+                            onClick={() => setViewing(index)}
+                            aria-label={`Preview image ${index + 1}`}
+                            title="Preview"
+                            className="block cursor-zoom-in overflow-hidden rounded-md border bg-muted transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            data-test="attached-image-preview-button"
+                        >
+                            <img
+                                src={url}
+                                alt={`Attached image ${index + 1}`}
+                                className="size-20 object-cover transition-transform duration-200 motion-safe:hover:scale-105"
+                            />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onRemove(index)}
+                            aria-label={`Remove image ${index + 1}`}
+                            className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5 text-foreground backdrop-blur transition hover:bg-background"
+                        >
+                            <X className="size-3.5" />
+                        </button>
+                    </li>
+                ))}
+            </ul>
+
+            <ImageViewer
+                images={images.map((image, index) => ({
+                    url: urls[index],
+                    alt: `Attached image ${index + 1}`,
+                    details: `${image.name} · ${formatBytes(image.size)}`,
+                }))}
+                index={viewing}
+                onIndexChange={setViewing}
+                onRemove={(index) => {
+                    onRemove(index);
+                    setViewing(
+                        images.length <= 1
+                            ? null
+                            : Math.min(index, images.length - 2),
+                    );
+                }}
+            />
+        </>
     );
+}
+
+function formatBytes(bytes: number): string {
+    if (bytes < 1024 * 1024) {
+        return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    }
+
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

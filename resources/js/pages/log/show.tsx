@@ -15,6 +15,7 @@ import { useLastVisit } from '@/hooks/use-last-visit';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
+import { onScrollToTopRequest } from '@/lib/scroll-to-top';
 import { readStorage, writeStorage } from '@/lib/storage';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
@@ -108,6 +109,15 @@ export default function Show({
             preserveUrl: true,
             onSuccess: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
         });
+
+    // Clicking Log while already on it goes back to the top, picking up new commits on the way, like X.
+    useEffect(() =>
+        onScrollToTopRequest(() =>
+            newCommitsCount > 0
+                ? showNewCommits()
+                : window.scrollTo({ top: 0, behavior: 'smooth' }),
+        ),
+    );
 
     return (
         <>
