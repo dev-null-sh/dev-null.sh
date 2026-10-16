@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\User;
+use Illuminate\Filesystem\AwsS3V3Adapter;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -133,4 +134,36 @@ it('does not cache images publicly', function (): void {
     $response = $this->get(route('commit-image.show', $image));
 
     expect($response->headers->get('Cache-Control'))->toContain('private')->not->toContain('public');
+});
+
+it('redirects to a signed cloud storage url instead of streaming the image', function (): void {
+    $image = CommitImage::factory()->for(Commit::factory())->create();
+
+    $disk = Mockery::mock(AwsS3V3Adapter::class);
+    $disk->shouldNotReceive('exists');
+    $disk->shouldReceive('temporaryUrl')
+        ->once()
+        ->with($image->path, Mockery::type(DateTimeInterface::class), [
+            'ResponseContentType' => 'image/webp',
+            'ResponseContentDisposition' => 'inline',
+            'ResponseCacheControl' => 'private, max-age=3600',
+        ])
+        ->andReturn('https://bucket.example.com/'.$image->path.'?X-Amz-Signature=abc');
+    Storage::set(config('filesystems.default'), $disk);
+
+    $response = $this->get(route('commit-image.show', $image));
+
+    $response->assertRedirect('https://bucket.example.com/'.$image->path.'?X-Amz-Signature=abc');
+
+    expect($response->headers->get('Cache-Control'))->toContain('private')->not->toContain('public');
+});
+
+it('does not redirect to cloud storage for images the viewer may not see', function (): void {
+    $image = CommitImage::factory()->for(Commit::factory()->pending())->create();
+
+    $disk = Mockery::mock(AwsS3V3Adapter::class);
+    $disk->shouldNotReceive('temporaryUrl');
+    Storage::set(config('filesystems.default'), $disk);
+
+    $this->get(route('commit-image.show', $image))->assertNotFound();
 });
