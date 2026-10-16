@@ -7,6 +7,7 @@ import DeleteUser from '@/components/delete-user';
 import { GitHubProfile } from '@/components/github-profile';
 import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
+import { PasteisModeSetting } from '@/components/pasteis-mode-setting';
 import TimezonePicker from '@/components/timezone-picker';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -126,6 +127,8 @@ export default function Edit({
             />
 
             <TimezonePicker />
+
+            <PasteisModeSetting />
 
             <ActivityGraphEmbed
                 activityGraphUrl={activityGraphUrl}

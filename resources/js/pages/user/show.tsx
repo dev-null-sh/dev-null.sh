@@ -8,7 +8,7 @@ import {
     MapPin,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
@@ -24,7 +24,9 @@ import { PinCommitButton } from '@/components/pin-commit-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
+import { commitStateKey } from '@/lib/commit-state';
 import { laneColor } from '@/lib/utils';
 import type {
     Achievements,
@@ -41,6 +43,7 @@ function pluralize(count: number, singular: string, plural: string) {
 
 export default function Show({
     user,
+    pasteisReceived,
     isFollowing,
     followsYou,
     isMuting,
@@ -52,6 +55,7 @@ export default function Show({
     pinnedCommit,
 }: {
     user: Profile;
+    pasteisReceived: number | null;
     isFollowing: boolean;
     followsYou: boolean;
     isMuting: boolean;
@@ -69,6 +73,23 @@ export default function Show({
         null,
     );
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+    const [pasteisCount] = useSharedState(
+        commitStateKey('pasteis_received', user.id),
+        pasteisReceived ?? 0,
+    );
+
+    useEffect(() => {
+        if (pasteisReceived !== null) {
+            refreshSharedState(
+                new Map([
+                    [
+                        commitStateKey('pasteis_received', user.id),
+                        pasteisReceived,
+                    ],
+                ]),
+            );
+        }
+    }, [user.id, pasteisReceived]);
 
     return (
         <>
@@ -276,6 +297,27 @@ export default function Show({
                         </div>
                     ))}
                 </dl>
+                {auth.pasteis && pasteisReceived !== null && (
+                    <p
+                        className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground"
+                        data-test="profile-pasteis-count"
+                    >
+                        <img
+                            src="/pastel-de-nata.svg"
+                            alt=""
+                            width={20}
+                            height={20}
+                            className="size-5 shrink-0 object-contain"
+                        />
+                        <span
+                            className="inline-block w-[4ch] truncate font-mono font-medium text-foreground tabular-nums"
+                            title={String(pasteisCount)}
+                        >
+                            {pasteisCount}
+                        </span>{' '}
+                        pastéis received
+                    </p>
+                )}
             </header>
 
             <ActivityGraph
