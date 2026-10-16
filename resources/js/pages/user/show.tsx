@@ -55,7 +55,7 @@ export default function Show({
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
-    const isCurrentUser = auth.user.id === user.id;
+    const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,

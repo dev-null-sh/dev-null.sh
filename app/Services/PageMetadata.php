@@ -85,10 +85,10 @@ final readonly class PageMetadata
                     'identifier' => $user->id,
                     ...$user->bio !== null ? ['description' => $user->bio] : [],
                     ...$user->avatar_url !== null ? ['image' => $user->avatar_url] : [],
-                    'sameAs' => array_values(array_filter([
+                    'sameAs' => [
                         "https://github.com/{$user->username}",
-                        $user->website,
-                    ])),
+                        ...filled($user->website) ? [$user->website] : [],
+                    ],
                     'interactionStatistic' => [
                         $this->interactionCounter('FollowAction', $user->followers_count),
                         $this->interactionCounter('WriteAction', $user->commits_count),
