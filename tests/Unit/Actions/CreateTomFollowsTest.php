@@ -37,6 +37,7 @@ it('creates tom once, with a single welcome commit and no github account', funct
 it('does not make tom follow himself', function (): void {
     $action = resolve(CreateTomFollows::class);
     $action->handle(User::factory()->create());
+
     $tom = User::query()->where('username', 'tom')->sole();
 
     $action->handle($tom);
