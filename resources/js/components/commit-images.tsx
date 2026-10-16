@@ -64,6 +64,16 @@ export function CommitImages({ commit }: { commit: Commit }) {
                         width={image.width}
                         height={image.height}
                         loading="lazy"
+                        onError={(event) => {
+                            const image = event.currentTarget;
+                            if (image.getAttribute('src') !== '/favicon.svg') {
+                                image.src = '/favicon.svg';
+                                image.classList.replace(
+                                    'object-cover',
+                                    'object-contain',
+                                );
+                            }
+                        }}
                         className={cn(
                             'w-full object-cover',
                             hasMultipleImages ? 'h-full' : 'max-h-[32rem]',
