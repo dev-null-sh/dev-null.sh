@@ -1,3 +1,4 @@
+import { viewImages } from '@/components/image-viewer';
 import { cn } from '@/lib/utils';
 import type { CommitImage } from '@/types';
 
@@ -22,18 +23,34 @@ export function CommitImages({ images }: { images: CommitImage[] }) {
                     href={image.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={(event) => event.stopPropagation()}
-                    className={cn('block min-h-0 bg-muted', {
+                    onClick={(event) => {
+                        event.stopPropagation();
+
+                        if (
+                            event.metaKey ||
+                            event.ctrlKey ||
+                            event.shiftKey ||
+                            event.button !== 0
+                        ) {
+                            return;
+                        }
+
+                        event.preventDefault();
+                        viewImages(
+                            images.map((image, position) => ({
+                                url: image.url,
+                                alt: altFor(position, images.length),
+                            })),
+                            index,
+                        );
+                    }}
+                    className={cn('block min-h-0 cursor-zoom-in bg-muted', {
                         'row-span-2': images.length === 3 && index === 0,
                     })}
                 >
                     <img
                         src={image.url}
-                        alt={
-                            images.length === 1
-                                ? 'Attached image'
-                                : `Attached image ${index + 1} of ${images.length}`
-                        }
+                        alt={altFor(index, images.length)}
                         width={image.width}
                         height={image.height}
                         loading="lazy"
@@ -56,4 +73,10 @@ export function CommitImages({ images }: { images: CommitImage[] }) {
             ))}
         </div>
     );
+}
+
+function altFor(index: number, count: number): string {
+    return count === 1
+        ? 'Attached image'
+        : `Attached image ${index + 1} of ${count}`;
 }

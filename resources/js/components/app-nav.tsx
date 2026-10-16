@@ -27,6 +27,7 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { requestScrollToTop } from '@/lib/scroll-to-top';
 import { cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
@@ -134,6 +135,16 @@ function NavLink({
             prefetch={item.prefetch ?? true}
             viewTransition
             aria-current={item.isActive ? 'page' : undefined}
+            onClick={(event) => {
+                if (
+                    item.isActive &&
+                    item.title === 'Log' &&
+                    !(event.metaKey || event.ctrlKey || event.shiftKey)
+                ) {
+                    event.preventDefault();
+                    requestScrollToTop();
+                }
+            }}
             className={className}
         >
             {children}

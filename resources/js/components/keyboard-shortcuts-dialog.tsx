@@ -14,6 +14,8 @@ const shortcuts: Shortcut[] = [
     { keys: ['↵'], label: 'Open the focused commit' },
     { keys: ['r'], label: 'Reply to commit' },
     { keys: ['q'], label: 'Quote commit' },
+    { keys: ['s'], label: 'Star or unstar commit' },
+    { keys: ['b'], label: 'Save or unsave commit' },
     { keys: ['o'], label: 'Show or hide replies' },
     { keys: ['c'], label: 'Write a commit' },
     { keys: ['⌘', 'K'], label: 'Search developers' },

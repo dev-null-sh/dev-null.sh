@@ -328,6 +328,7 @@ export function CommitCard({
                                     <CommitStarButton
                                         key={`${commit.starred}-${commit.stars_count}`}
                                         commit={commit}
+                                        keyShortcut="s"
                                     />
                                     <CommitQuoteButton
                                         commit={commit}
@@ -344,6 +345,7 @@ export function CommitCard({
                                             <CommitStarButton
                                                 key={`${commit.starred}-${commit.stars_count}`}
                                                 commit={commit}
+                                                keyShortcut="s"
                                                 className="px-2 py-0.5"
                                             />
                                             <CommitQuoteButton
@@ -361,7 +363,10 @@ export function CommitCard({
                             {commit.replies_count === undefined &&
                                 commit.is_saved !== undefined && (
                                     <div className="mt-1 -ml-1.5">
-                                        <BookmarkButton commit={commit} />
+                                        <BookmarkButton
+                                            commit={commit}
+                                            keyShortcut="b"
+                                        />
                                     </div>
                                 )}
 

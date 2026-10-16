@@ -99,7 +99,8 @@ final class CommitBuilder extends Builder
     }
 
     /**
-     * Loads the quoted commit only when the given user may see it, and as a tombstone once deleted.
+     * Loads the quoted commit only when the given user may see it, and as a tombstone once deleted. Its images come
+     * along for the embed's thumbnail; a tombstone never serializes them.
      */
     public function withQuotedCommitFor(?User $viewer): self
     {
@@ -107,7 +108,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with('user'),
+                ->with(['user', 'images']),
         ]);
     }
 

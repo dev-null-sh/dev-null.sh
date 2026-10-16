@@ -3,6 +3,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { ComponentType } from 'react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { ImageViewerHost } from '@/components/image-viewer';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
@@ -25,6 +26,7 @@ void createInertiaApp({
                 <TooltipProvider delayDuration={0}>
                     <App {...props} />
                     <Toaster />
+                    <ImageViewerHost />
                 </TooltipProvider>
             </StrictMode>,
         );

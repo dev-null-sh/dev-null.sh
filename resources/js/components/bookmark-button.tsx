@@ -11,7 +11,13 @@ export const BookmarkRemovalContext = createContext<
     ((id: string) => void) | null
 >(null);
 
-export function BookmarkButton({ commit }: { commit: Commit }) {
+export function BookmarkButton({
+    commit,
+    keyShortcut,
+}: {
+    commit: Commit;
+    keyShortcut?: string;
+}) {
     const { auth } = usePage().props;
     const [isSaved, setIsSaved] = useState(commit.is_saved ?? false);
     const request = useHttp<Record<string, never>, { is_saved: boolean }>({});
@@ -57,7 +63,8 @@ export function BookmarkButton({ commit }: { commit: Commit }) {
             aria-disabled={request.processing}
             aria-label={isSaved ? 'Unsave commit' : 'Save commit'}
             aria-pressed={isSaved}
-            title={isSaved ? 'Unsave commit' : 'Save commit privately'}
+            aria-keyshortcuts={keyShortcut}
+            title={`${isSaved ? 'Unsave commit' : 'Save commit privately'}${keyShortcut ? ` (${keyShortcut})` : ''}`}
             className={cn(
                 'rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-disabled:pointer-events-none aria-disabled:opacity-50',
                 { 'text-primary hover:text-primary': isSaved },

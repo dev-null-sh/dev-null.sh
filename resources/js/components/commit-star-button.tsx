@@ -20,9 +20,11 @@ function starLabel(starred: boolean, count: number): string {
 
 export function CommitStarButton({
     commit,
+    keyShortcut,
     className,
 }: {
     commit: Commit;
+    keyShortcut?: string;
     className?: string;
 }) {
     const { auth } = usePage().props;
@@ -95,7 +97,8 @@ export function CommitStarButton({
             onClick={toggle}
             aria-pressed={starred}
             aria-label={starLabel(starred, count)}
-            title={starred ? 'Unstar' : 'Star'}
+            aria-keyshortcuts={keyShortcut}
+            title={`${starred ? 'Unstar' : 'Star'}${keyShortcut ? ` (${keyShortcut})` : ''}`}
             className={cn(
                 'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                 starred && 'text-primary hover:text-primary',

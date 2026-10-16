@@ -4,7 +4,11 @@ import { CommitBodyExcerpt } from '@/components/commit-body';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
-import type { DeletedCommit, QuotedCommit as QuotedCommitData } from '@/types';
+import type {
+    CommitImage,
+    DeletedCommit,
+    QuotedCommit as QuotedCommitData,
+} from '@/types';
 
 export function QuotedCommit({
     commit,
@@ -30,6 +34,7 @@ export function QuotedCommit({
         );
     }
 
+    const images = commit.images ?? [];
     const className = 'mt-2 block rounded-lg border px-3 py-2';
 
     const content = (
@@ -66,10 +71,13 @@ export function QuotedCommit({
                     </span>
                 )}
             </span>
-            <CommitBodyExcerpt
-                segments={commit.body_segments}
-                className="mt-1 max-h-60"
-            />
+            <div className="mt-1 flex items-start gap-3">
+                <CommitBodyExcerpt
+                    segments={commit.body_segments}
+                    className="max-h-60 min-w-0 flex-1"
+                />
+                {images.length > 0 && <QuotedMedia images={images} />}
+            </div>
         </>
     );
 
@@ -92,5 +100,44 @@ export function QuotedCommit({
         >
             {content}
         </Link>
+    );
+}
+
+/**
+ * A teaser of the quoted commit's images, not the gallery: one thumbnail on the side, dimmed by a gradient and
+ * counting the rest, so the full picture stays one click away on the original commit.
+ */
+function QuotedMedia({ images }: { images: CommitImage[] }) {
+    const [first] = images;
+
+    return (
+        <span
+            className="relative mt-0.5 block size-20 shrink-0 overflow-hidden rounded-md border bg-muted sm:size-24"
+            data-test="quoted-commit-media"
+        >
+            <img
+                src={first.url}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                width={first.width}
+                height={first.height}
+                className="size-full object-cover"
+            />
+            <span
+                aria-hidden
+                className="absolute inset-0 bg-linear-to-t from-black/60 via-black/15 to-transparent"
+            />
+            {images.length > 1 && (
+                <span className="absolute right-1.5 bottom-1 font-mono text-[11px] font-medium text-white tabular-nums">
+                    +{images.length - 1}
+                </span>
+            )}
+            <span className="sr-only">
+                {images.length === 1
+                    ? 'With 1 image'
+                    : `With ${images.length} images`}
+            </span>
+        </span>
     );
 }
