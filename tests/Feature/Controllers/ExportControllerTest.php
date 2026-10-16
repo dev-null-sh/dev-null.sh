@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
 use App\Enums\NotificationType;
 use App\Models\Bookmark;
 use App\Models\Commit;
@@ -13,6 +14,26 @@ use Illuminate\Support\Facades\DB;
 
 it('requires authentication to download personal data', function (): void {
     $this->get(route('export'))->assertRedirectToRoute('home');
+});
+
+it('exports a surviving quote reference without the deleted authors tombstone content', function (): void {
+    $user = User::factory()->create();
+    $deleted = User::factory()->create(['username' => 'deletedquoteauthor']);
+    $root = Commit::factory()->create();
+    $quoted = Commit::factory()->for($deleted)->for($root, 'parent')->create(['body' => 'Erased quoted words']);
+    $reply = Commit::factory()->for($user)->for($quoted, 'parent')->create();
+    $quote = Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+
+    resolve(DeleteUser::class)->handle($deleted);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+    $commits = collect($data['commits'])->keyBy('id');
+
+    expect($commits->keys()->sort()->values()->all())->toBe(collect([$reply->id, $quote->id])->sort()->values()->all())
+        ->and($commits[$quote->id]['quoted_commit_id'])->toBe($quoted->id)
+        ->and($commits[$reply->id]['parent_id'])->toBe($quoted->id)
+        ->and($response->streamedContent())->not->toContain('deletedquoteauthor', 'Erased quoted words');
 });
 
 it('downloads a versioned private JSON file with an explicit profile and empty lists', function (): void {
@@ -92,6 +113,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $pending = Commit::factory()->for($user)->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
     $reply = Commit::factory()->for($user)->create(['parent_id' => $parent->id]);
+    $quote = Commit::factory()->for($user)->create(['quoted_commit_id' => $parent->id]);
     $deleted = Commit::factory()->for($user)->create(['body' => 'Deleted content is still stored']);
     $deleted->delete();
 
@@ -103,11 +125,12 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $commits = collect($data['commits'])->keyBy('id');
 
     expect($commits->keys()->sort()->values()->all())->toBe(collect([
-        $approved->id, $pending->id, $rejected->id, $reply->id, $deleted->id,
+        $approved->id, $pending->id, $rejected->id, $reply->id, $quote->id, $deleted->id,
     ])->sort()->values()->all());
     expect($commits[$approved->id])->toBe([
         'id' => $approved->id,
         'parent_id' => null,
+        'quoted_commit_id' => null,
         'series_id' => null,
         'series_position' => null,
         'series_size' => null,
@@ -121,6 +144,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         ->and($commits[$pending->id]['status'])->toBe('pending')
         ->and($commits[$rejected->id]['status'])->toBe('rejected')
         ->and($commits[$reply->id]['parent_id'])->toBe($parent->id)
+        ->and($commits[$quote->id]['quoted_commit_id'])->toBe($parent->id)
         ->and($commits[$deleted->id]['body'])->toBe('Deleted content is still stored')
         ->and($commits[$deleted->id]['deleted_at'])->toBe(now()->toIso8601String())
         ->and($response->streamedContent())->not->toContain($parent->body, $otherReply->body);

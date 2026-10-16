@@ -64,6 +64,7 @@ final readonly class CreateExport
             yield [
                 'id' => $commit->id,
                 'parent_id' => $commit->parent_id,
+                'quoted_commit_id' => $commit->quoted_commit_id,
                 'series_id' => $commit->series_id,
                 'series_position' => $commit->series_position,
                 'series_size' => $commit->series_size,
