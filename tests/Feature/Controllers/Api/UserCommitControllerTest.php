@@ -44,6 +44,15 @@ it('lists the public replies of a user', function (): void {
         ->assertJsonPath('data.0.parent_id', $parent->id);
 });
 
+it('lists real replies without later parts of a series', function (): void {
+    $parts = commitSeries();
+    $reply = Commit::factory()->for($parts[0]->user)->for($parts[0], 'parent')->create();
+
+    $this->getJson(route('api-user-commit.index', [$parts[0]->user, 'replies' => 1]))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$reply->id]);
+});
+
 it('pages through commits with a cursor', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 

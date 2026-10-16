@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\ThrottleCommits;
 use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\RateLimiter;
 use Inertia\Support\SessionKey;
 
@@ -15,18 +17,13 @@ it('limits each user to 10 commits a minute', function (): void {
     $request = Request::create('/commits', 'POST');
     $request->setUserResolver(fn (): User => $user);
 
-    $limiter = RateLimiter::limiter('commits');
+    $middleware = new ThrottleCommits;
 
-    assert($limiter instanceof Closure);
+    for ($attempt = 0; $attempt < 10; $attempt++) {
+        expect($middleware->handle($request, fn (): Response => response('Committed'))->getContent())->toBe('Committed');
+    }
 
-    $limit = $limiter($request);
-
-    expect($limit)->toBeInstanceOf(Limit::class)
-        ->and($limit->key)->toBe($user->id)
-        ->and($limit->maxAttempts)->toBe(10)
-        ->and($limit->decaySeconds)->toBe(60);
-
-    $response = ($limit->responseCallback)();
+    $response = $middleware->handle($request, fn (): Response => response('Committed'));
 
     expect($response)->toBeInstanceOf(RedirectResponse::class)
         ->and(session(SessionKey::FLASH_DATA))->toBe([
