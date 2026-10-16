@@ -40,11 +40,12 @@ final readonly class CommitController
     }
 
     /**
-     * Answers with the new commit as its page shows it, pending review unless the user is an admin.
+     * Answers with the new commit as its page shows it, with the commit it quotes, pending review unless the user is an
+     * admin.
      */
     public function store(CreateApiCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CommitPageQuery $page): JsonResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit());
 
         return CommitResource::make($page->get($commit, $user))
             ->response()
