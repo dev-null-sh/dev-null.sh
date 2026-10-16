@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitRepliesQuery;
 use App\Services\Spoilers;
+use App\Services\Urls;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
@@ -91,10 +92,14 @@ final readonly class CommitController
             ? "{$user->nameWithHandle()} replying to @{$commit->parent->user->username} on /dev/null"
             : "{$user->nameWithHandle()} on /dev/null";
 
+        $body = $commit->content_warning === null
+            ? resolve(Urls::class)->withShortenedUrls(resolve(Spoilers::class)->mask($commit->body))
+            : "CW: {$commit->content_warning}";
+
         return Inertia::render('welcome')->withViewData(['preview' => [
             'type' => 'article',
             'title' => $title,
-            'description' => Str::limit(Str::squish($commit->content_warning === null ? resolve(Spoilers::class)->mask($commit->body) : "CW: {$commit->content_warning}"), 200, '…', preserveWords: true),
+            'description' => Str::limit(Str::squish($body), 200, '…', preserveWords: true),
             'url' => route('commit.show', [$user, $commit]),
             'image' => route('commit-open-graph-image.show', ['user' => $user, 'commit' => $commit, 'v' => $commit->openGraphImageVersion()]),
         ]]);

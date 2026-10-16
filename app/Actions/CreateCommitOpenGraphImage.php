@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Models\Commit;
 use App\Services\OpenGraphCanvas;
 use App\Services\Spoilers;
+use App\Services\Urls;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
@@ -31,7 +32,7 @@ final readonly class CreateCommitOpenGraphImage
      */
     private const array BODY_SIZES = [[56, 72], [48, 64], [40, 56], [34, 48], [32, 44]];
 
-    public function __construct(private Spoilers $spoilers)
+    public function __construct(private Spoilers $spoilers, private Urls $urls)
     {
         //
     }
@@ -89,7 +90,7 @@ final readonly class CreateCommitOpenGraphImage
      */
     private function publicBody(Commit $commit): string
     {
-        return $commit->content_warning === null ? $this->spoilers->mask($commit->body) : "CW: {$commit->content_warning}";
+        return $commit->content_warning === null ? $this->urls->withShortenedUrls($this->spoilers->mask($commit->body)) : "CW: {$commit->content_warning}";
     }
 
     /**

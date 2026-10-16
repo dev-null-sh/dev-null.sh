@@ -71,8 +71,8 @@ it('draws the content warning instead of the body', function (): void {
     expect($action->handle($commit->fresh()))->toBe($behindWarning);
 });
 
-it('draws spoilers hidden', function (): void {
-    $commit = Commit::factory()->for(User::factory()->withoutProfile())->create(['body' => 'The ending: ||the butler did it||']);
+it('draws spoilers hidden', function (string $body): void {
+    $commit = Commit::factory()->for(User::factory()->withoutProfile())->create(['body' => $body]);
     $action = resolve(CreateCommitOpenGraphImage::class);
 
     $hidden = $action->handle($commit);
@@ -81,4 +81,20 @@ it('draws spoilers hidden', function (): void {
     $commit->update(['body' => 'The ending: ||it was a dream all along||']);
 
     expect($action->handle($commit->fresh()))->toBe($hidden);
+})->with([
+    'text' => 'The ending: ||the butler did it||',
+    'url' => 'The ending: ||https://example.com/the-secret-ending||',
+]);
+
+it('shortens visible urls in the image', function (): void {
+    $commit = Commit::factory()->for(User::factory()->withoutProfile())->create([
+        'body' => 'Read https://github.com/nunomaduro/dev-null.sh/pulls',
+    ]);
+    $action = resolve(CreateCommitOpenGraphImage::class);
+    $image = $action->handle($commit);
+
+    Cache::flush();
+    $commit->update(['body' => 'Read github.com/nunomaduro/dev-nul…']);
+
+    expect($action->handle($commit->fresh()))->toBe($image);
 });
