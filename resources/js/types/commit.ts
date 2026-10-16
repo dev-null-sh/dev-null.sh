@@ -63,6 +63,7 @@ export type Commit = {
     updated_at: string;
     deleted_at?: null;
     stars_count: number;
+    pasteis_count: number;
     starred: boolean;
     user: User;
     replies_count?: number;

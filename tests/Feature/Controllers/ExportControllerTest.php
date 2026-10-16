@@ -48,6 +48,10 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'company' => null,
         'has_sponsors_listing' => true,
         'preferred_lane' => 3,
+        'pasteis_mode' => true,
+        'pasteis_received' => 17,
+        'pasteis_given_today' => 6,
+        'pasteis_given_on' => '2026-10-15',
         'remember_token' => 'never-export-this-token',
     ]);
     $original = $user->fresh()->getAttributes();
@@ -79,6 +83,10 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'company' => null,
             'has_sponsors_listing' => true,
             'preferred_lane' => 3,
+            'pasteis_mode' => true,
+            'pasteis_received' => 17,
+            'pasteis_given_today' => 6,
+            'pasteis_given_on' => '2026-10-15',
             'pinned_commit_id' => null,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
@@ -115,7 +123,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $user = User::factory()->create();
     $other = User::factory()->create();
     $parent = Commit::factory()->for($other)->rejected()->create(['body' => 'Another developer private parent body']);
-    $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs."]);
+    $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs.", 'pasteis_count' => 3]);
     $pending = Commit::factory()->for($user)->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
     $reply = Commit::factory()->for($user)->create(['parent_id' => $parent->id]);
@@ -139,6 +147,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         'quoted_commit_id' => null,
         'body' => $approved->body,
         'status' => 'approved',
+        'pasteis_count' => 3,
         'images' => [],
         'created_at' => $approved->created_at->toIso8601String(),
         'updated_at' => $approved->updated_at->toIso8601String(),

@@ -50,7 +50,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     const items: NavItem[] = [
         {
             title: 'Log',
-            href: hrefFor((_, log) => LogController.show(log)),
+            href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
             prefetch: false,
         },
