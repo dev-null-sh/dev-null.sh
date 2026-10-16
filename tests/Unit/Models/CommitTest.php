@@ -184,7 +184,10 @@ it('excludes series continuations from its public preview reply count', function
     Commit::factory()->for($parts[0], 'parent')->create();
     Commit::factory()->for($parts[0], 'parent')->pending()->create();
 
-    expect($parts[0]->loadPublicPreview()->replies_count)->toBe(1);
+    $preview = $parts[0]->loadPublicPreview();
+
+    expect($preview->replies_count)->toBe(1)
+        ->and($preview->isDirty('replies_count'))->toBeFalse();
 });
 
 it('may belong to a link preview', function (): void {
