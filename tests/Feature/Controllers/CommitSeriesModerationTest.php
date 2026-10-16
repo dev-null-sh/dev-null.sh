@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\DB;
 beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 
-    $this->admin = User::factory()->create(['username' => 'admin']);
+    // An already active admin adds no presence write to the query counts.
+    $this->admin = User::factory()->create(['username' => 'admin', 'last_activity_at' => now()]);
 });
 
 it('lists a pending series once in the queue with the rest of its parts in order', function (): void {

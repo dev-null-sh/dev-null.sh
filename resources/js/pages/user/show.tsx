@@ -23,6 +23,7 @@ import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPresence } from '@/components/user-presence';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
@@ -41,6 +42,8 @@ function pluralize(count: number, singular: string, plural: string) {
 
 export default function Show({
     user,
+    online,
+    lastActivityAt,
     isFollowing,
     followsYou,
     isMuting,
@@ -52,6 +55,8 @@ export default function Show({
     pinnedCommit,
 }: {
     user: Profile;
+    online: boolean;
+    lastActivityAt: string | null;
     isFollowing: boolean;
     followsYou: boolean;
     isMuting: boolean;
@@ -124,7 +129,7 @@ export default function Show({
                     {user.name}
                 </h1>
                 <div className="flex items-center gap-2">
-                    <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
+                    <p className="flex flex-wrap items-center gap-1.5 font-mono text-sm text-muted-foreground">
                         <span
                             aria-hidden
                             className="size-2 rounded-full"
@@ -141,6 +146,11 @@ export default function Show({
                                 Muted
                             </span>
                         )}
+                        <UserPresence
+                            online={online}
+                            lastActivityAt={lastActivityAt}
+                            className="ml-1"
+                        />
                     </p>
                     <button
                         type="button"

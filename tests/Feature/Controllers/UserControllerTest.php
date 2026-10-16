@@ -6,6 +6,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Services\Presence;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -35,6 +36,7 @@ it('renders a user profile', function (): void {
             ->where('user.has_sponsors_listing', false)
             ->missing('user.email')
             ->missing('user.github_id')
+            ->missing('user.last_activity_at')
             ->where('isFollowing', true)
             ->where('followsYou', false)
             ->has('achievements')
@@ -555,4 +557,79 @@ it('includes the link previews of the user commits', function (): void {
             ->where('commits.data.0.link_preview.title', 'Octocat links')
             ->missing('commits.data.0.link_preview.url_hash')
             ->missing('commits.data.0.link_preview.fetched_at'));
+});
+
+it('marks a recently active user as online', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'last_activity_at' => now()->subMinute()]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('online', true)
+            ->where('lastActivityAt', now()->subMinute()->toIso8601ZuluString()));
+});
+
+it('marks a user offline once their activity passed the online window', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'last_activity_at' => now()->subMinutes(Presence::ONLINE_WINDOW_MINUTES)]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('online', false)
+            ->where('lastActivityAt', now()->subMinutes(Presence::ONLINE_WINDOW_MINUTES)->toIso8601ZuluString()));
+});
+
+it('marks a user who was never active offline without a timestamp', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'last_activity_at' => null]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('online', false)
+            ->where('lastActivityAt', null));
+});
+
+it('marks a user inactive for more than a day offline with the last activity', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'last_activity_at' => now()->subDays(2)]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('online', false)
+            ->where('lastActivityAt', now()->subDays(2)->toIso8601ZuluString()));
+});
+
+it('shows the online status to guests', function (): void {
+    User::factory()->create(['username' => 'octocat', 'last_activity_at' => now()->subMinute()]);
+
+    $response = $this->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('online', true));
+});
+
+it('marks the viewer online on their own profile after being away', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'last_activity_at' => now()->subHours(3)]);
+
+    $response = $this->actingAs($user)
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('online', true));
+});
+
+it('refreshes the viewer activity on the request', function (): void {
+    $user = User::factory()->create(['last_activity_at' => now()->subHour()]);
+
+    $this->actingAs($user)->get(route('user.show', $user))->assertOk();
+
+    expect($user->refresh()->last_activity_at?->timestamp)->toBe(now()->timestamp);
 });

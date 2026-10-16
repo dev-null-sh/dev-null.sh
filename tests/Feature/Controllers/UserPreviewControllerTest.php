@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\Presence;
 use Illuminate\Support\Facades\DB;
 
 it('returns a summary of the user for the user preview', function (): void {
@@ -125,4 +126,49 @@ it('returns guests a summary of the user with only approved commits counted', fu
         ->assertJsonPath('isMuting', false)
         ->assertJsonPath('isBlocking', false)
         ->assertJsonPath('isUnavailable', false);
+});
+
+it('reports a recently active user as online', function (): void {
+    User::factory()->create(['username' => 'octocat', 'last_activity_at' => now()->subMinute()]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->getJson('/@octocat/preview');
+
+    $response->assertOk()
+        ->assertJsonPath('online', true)
+        ->assertJsonPath('lastActivityAt', now()->subMinute()->toIso8601ZuluString())
+        ->assertJsonMissingPath('user.last_activity_at');
+});
+
+it('reports a user offline once their activity passed the online window', function (): void {
+    User::factory()->create([
+        'username' => 'octocat',
+        'last_activity_at' => now()->subMinutes(Presence::ONLINE_WINDOW_MINUTES),
+    ]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->getJson('/@octocat/preview');
+
+    $response->assertOk()
+        ->assertJsonPath('online', false)
+        ->assertJsonPath('lastActivityAt', now()->subMinutes(Presence::ONLINE_WINDOW_MINUTES)->toIso8601ZuluString());
+});
+
+it('reports a user who was never active as offline without a timestamp', function (): void {
+    User::factory()->create(['username' => 'octocat', 'last_activity_at' => null]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->getJson('/@octocat/preview');
+
+    $response->assertOk()
+        ->assertJsonPath('online', false)
+        ->assertJsonPath('lastActivityAt', null);
+});
+
+it('reports the online status to guests', function (): void {
+    User::factory()->create(['username' => 'octocat', 'last_activity_at' => now()->subMinute()]);
+
+    $this->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('online', true);
 });

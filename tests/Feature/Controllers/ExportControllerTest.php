@@ -39,6 +39,7 @@ it('exports a surviving quote reference without the deleted authors tombstone co
 });
 
 it('downloads a versioned private JSON file with an explicit profile and empty lists', function (): void {
+    // The export request itself refreshes presence, so the user starts active to keep the export the only change.
     $user = User::factory()->create([
         'name' => 'Zoë Example',
         'bio' => "Building tools.\nKeeping them small.",
@@ -47,6 +48,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'has_sponsors_listing' => true,
         'preferred_lane' => 3,
         'remember_token' => 'never-export-this-token',
+        'last_activity_at' => now(),
     ]);
     $original = $user->fresh()->getAttributes();
 

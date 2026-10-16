@@ -9,6 +9,7 @@ import UserPreviewController from '@/actions/App/Http/Controllers/UserPreviewCon
 import { FollowLabel, useFollowHover } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPresence } from '@/components/user-presence';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -24,6 +25,12 @@ type PreviewData = {
     | { isUnavailable: true; user: User }
 );
 
+/** The online status, kept out of the cache so a preview reopened later never shows a stale one. */
+type Presence = {
+    online: boolean;
+    lastActivityAt: string | null;
+};
+
 type Position =
     | { left: number; top: number; bottom?: never }
     | { left: number; bottom: number; top?: never };
@@ -37,7 +44,9 @@ const viewportMargin = 8;
 const avatarCentre = 45;
 const cache = new Map<string, PreviewData>();
 
-async function fetchPreview(user: User): Promise<PreviewData> {
+async function fetchPreview(
+    user: User,
+): Promise<{ data: PreviewData; presence: Presence }> {
     const response = await fetch(UserPreviewController.show(user).url, {
         headers: {
             Accept: 'application/json',
@@ -49,10 +58,15 @@ async function fetchPreview(user: User): Promise<PreviewData> {
         throw new Error(`Unable to load @${user.username}`);
     }
 
-    const data = (await response.json()) as PreviewData;
+    const { online, lastActivityAt, ...data } =
+        (await response.json()) as PreviewData & Presence;
+
     cache.set(user.username, data);
 
-    return data;
+    return {
+        data,
+        presence: { online, lastActivityAt },
+    };
 }
 
 function positionFor(trigger: HTMLElement): Position {
@@ -104,6 +118,7 @@ export function UserPreview({
     const [data, setData] = useState<PreviewData | null>(
         () => cache.get(user.username) ?? null,
     );
+    const [presence, setPresence] = useState<Presence | null>(null);
 
     const close = () => setIsOpen(false);
 
@@ -126,7 +141,14 @@ export function UserPreview({
             );
             setIsOpen(true);
             setData(cache.get(user.username) ?? null);
-            fetchPreview(user).then(setData, () => undefined);
+            setPresence(null);
+            fetchPreview(user).then(
+                ({ data: next, presence: loaded }) => {
+                    setData(next);
+                    setPresence(loaded);
+                },
+                () => undefined,
+            );
         }, openDelay);
     };
 
@@ -247,6 +269,7 @@ export function UserPreview({
                         <UserPreviewContent
                             user={data?.user ?? user}
                             data={data}
+                            presence={presence}
                             onChange={(next) => {
                                 cache.set(user.username, next);
                                 setData(next);
@@ -266,11 +289,13 @@ export function UserPreview({
 function UserPreviewContent({
     user,
     data,
+    presence,
     onChange,
     onMenuOpenChange,
 }: {
     user: User | Profile;
     data: PreviewData | null;
+    presence: Presence | null;
     onChange: (data: PreviewData) => void;
     onMenuOpenChange: (isOpen: boolean) => void;
 }) {
@@ -383,6 +408,18 @@ function UserPreviewContent({
                 {data?.isMuting && (
                     <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Muted
+                    </span>
+                )}
+                {data?.isUnavailable ? null : (
+                    <span className="ml-1 flex w-24 shrink-0 items-center">
+                        {presence ? (
+                            <UserPresence
+                                online={presence.online}
+                                lastActivityAt={presence.lastActivityAt}
+                            />
+                        ) : (
+                            <span className="h-3 w-14 rounded bg-muted-foreground/15 motion-safe:animate-pulse" />
+                        )}
                     </span>
                 )}
             </p>
