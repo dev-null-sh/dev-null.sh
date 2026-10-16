@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateCommitHotScores;
+use App\Enums\Log;
 use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -198,10 +200,109 @@ it('does not query each commit or author', function (): void {
     expect($queries())->toBe($few);
 });
 
-it('returns not found for unknown logs', function (): void {
-    $response = signedApiRequest($this->keyPair, 'GET', 'api/v1/log/unknown');
+it('returns not found for unknown logs', function (string $log): void {
+    $response = signedApiRequest($this->keyPair, 'GET', "api/v1/log/{$log}");
 
     $response->assertNotFound();
+})->with(['unknown', 'everyone']);
+
+it('ranks the trending log like the web', function (): void {
+    $starred = Commit::factory()->create(['body' => 'Starred', 'created_at' => now()->subHour()]);
+    $starred->stars()->attach(User::factory()->create());
+    resolve(UpdateCommitHotScores::class)->handle([$starred->id]);
+    $newer = Commit::factory()->create(['body' => 'Newer']);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'trending'))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$starred->id, $newer->id])
+        ->assertJsonPath('log', 'trending')
+        ->assertJsonPath('is_ranked', true)
+        ->assertJsonMissingPath('new_commits_count');
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$newer->id, $starred->id])
+        ->assertJsonPath('log', 'latest')
+        ->assertJsonPath('is_ranked', false);
+});
+
+it('pages through the trending log in its ranking', function (): void {
+    $commits = Commit::factory()->count(22)
+        ->sequence(fn (Sequence $sequence): array => ['hot_score' => 100 - $sequence->index])
+        ->create();
+
+    $first = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'trending'));
+
+    $first->assertOk()->assertJsonPath('data.*.id', $commits->take(20)->pluck('id')->all());
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', ['trending', 'cursor' => $first->json('meta.next_cursor')]))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', $commits->slice(20)->pluck('id')->values()->all())
+        ->assertJsonPath('meta.next_cursor', null);
+});
+
+it('counts no newer commits on the trending log, like the web', function (): void {
+    $seen = Commit::factory()->create(['created_at' => now()->subMinute(), 'hot_score' => 10]);
+    Commit::factory()->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', ['trending', 'since' => $seen->id]))
+        ->assertOk()
+        ->assertJsonPath('new_commits_count', 0);
+});
+
+it('counts the commits newer than the one seen on a log in time order', function (string $log): void {
+    $this->user->following()->attach($followed = User::factory()->create());
+    $seen = Commit::factory()->for($followed)->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($followed)->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', [$log, 'since' => $seen->id]))
+        ->assertOk()
+        ->assertJsonPath('new_commits_count', 1);
+})->with(['following', 'latest']);
+
+it('validates the commit the user has seen', function (): void {
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', ['trending', 'since' => 'abc']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('since');
+});
+
+it('leaves out muted people and people across a block on every log, as the web does', function (Log $log): void {
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $blocker = User::factory()->create();
+    $this->user->following()->attach([$muted->id, $blocked->id, $blocker->id]);
+    $this->user->muting()->attach($muted);
+    $this->user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($this->user);
+
+    $mine = Commit::factory()->for($this->user)->create();
+    Commit::factory()->for($muted)->create();
+    Commit::factory()->for($blocked)->create();
+    Commit::factory()->for($blocker)->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', $log))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$mine->id]);
+})->with(Log::cases());
+
+it('suggests commits on an empty following log, as the web does', function (): void {
+    $suggested = Commit::factory()->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'following'))
+        ->assertOk()
+        ->assertJsonCount(0, 'data')
+        ->assertJsonPath('suggestions.*.id', [$suggested->id])
+        ->assertJsonPath('suggestions.0.author.id', $suggested->user_id);
+
+    $this->user->following()->attach($suggested->user);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'following'))
+        ->assertOk()
+        ->assertJsonPath('suggestions', []);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'))
+        ->assertOk()
+        ->assertJsonPath('suggestions', []);
 });
 
 it('rejects requests that are not signed', function (): void {
