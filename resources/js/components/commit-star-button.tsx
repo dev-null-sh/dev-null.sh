@@ -3,6 +3,7 @@ import { Star } from 'lucide-react';
 import { useState } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
 import { useSharedState } from '@/hooks/use-shared-state';
+import { signIn } from '@/lib/auth';
 import { commitStateKey } from '@/lib/commit-state';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -28,7 +29,7 @@ export function CommitStarButton({
 }) {
     const { auth } = usePage().props;
     const canStar =
-        commit.status === 'approved' || commit.user_id === auth.user.id;
+        commit.status === 'approved' || commit.user_id === auth.user?.id;
     const [starred, setStarred] = useSharedState(
         commitStateKey('starred', commit.id),
         commit.starred,
@@ -48,6 +49,12 @@ export function CommitStarButton({
     }
 
     const toggle = async () => {
+        if (auth.user === null) {
+            signIn();
+
+            return;
+        }
+
         if (request.processing) {
             return;
         }

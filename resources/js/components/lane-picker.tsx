@@ -1,4 +1,4 @@
-import { Form, usePage } from '@inertiajs/react';
+import { Form } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import UserLaneController from '@/actions/App/Http/Controllers/UserLaneController';
@@ -6,12 +6,13 @@ import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { useUser } from '@/hooks/use-user';
 import { cn, laneColor } from '@/lib/utils';
 
 const laneNames = ['Orange', 'Green', 'Violet', 'Teal', 'Rose', 'Ochre'];
 
 export function LanePreview({ lane }: { lane: string }) {
-    const { auth } = usePage().props;
+    const { user } = useUser();
 
     return (
         <div
@@ -23,14 +24,14 @@ export function LanePreview({ lane }: { lane: string }) {
             <GraphRail
                 lane={lane}
                 previousLane={lane}
-                node={<RailAvatar user={auth.user} />}
+                node={<RailAvatar user={user} />}
             />
             <div className="flex min-w-0 items-center pr-4">
                 <div className="min-w-0">
-                    <p className="truncate font-semibold">{auth.user.name}</p>
+                    <p className="truncate font-semibold">{user.name}</p>
                     <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
                         <span className="size-2 shrink-0 rounded-full bg-(--lane) transition-colors duration-200" />
-                        <span className="truncate">@{auth.user.username}</span>
+                        <span className="truncate">@{user.username}</span>
                     </p>
                 </div>
             </div>

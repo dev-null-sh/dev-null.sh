@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
+import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
 import { useEffect } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
@@ -12,6 +12,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useLastVisit } from '@/hooks/use-last-visit';
+import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
 import type { Commit, CursorPaginated, Log } from '@/types';
@@ -27,9 +28,9 @@ export default function Show({
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const newestId = commits.data[0]?.id;
-    const firstSeenId = useLastVisit(auth.user.id, log, commits.data);
+    const firstSeenId = useLastVisit(user.id, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
         30_000,

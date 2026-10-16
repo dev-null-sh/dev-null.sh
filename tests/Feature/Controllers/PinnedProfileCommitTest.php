@@ -199,19 +199,29 @@ it('does not expose a pin belonging to another user or a reply', function (bool 
             ->has('commits.data', 0));
 })->with([false, true]);
 
-it('keeps pinned data out of guest profile and user previews', function (): void {
+it('shows guests an approved pinned commit', function (): void {
     $user = User::factory()->create();
-    $pinned = Commit::factory()->for($user)->create(['body' => 'Signed-in readers only']);
+    $pinned = Commit::factory()->for($user)->create(['body' => 'Everyone may read this']);
+    $user->update(['pinned_commit_id' => $pinned->id]);
+
+    $this->get(route('user.show', $user))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/show')
+            ->where('pinnedCommit.id', $pinned->id)
+            ->where('pinnedCommit.is_saved', false)
+            ->has('commits.data', 0));
+});
+
+it('keeps a pending pinned commit away from guests and pinned data out of user previews', function (): void {
+    $user = User::factory()->create();
+    $pinned = Commit::factory()->for($user)->pending()->create(['body' => 'Only its author may read this']);
     $user->update(['pinned_commit_id' => $pinned->id]);
 
     $this->get(route('user.show', $user))->assertOk()
         ->assertDontSee($pinned->body)
-        ->assertDontSee($pinned->id)
         ->assertInertia(fn ($page) => $page
-            ->component('welcome')
-            ->missing('pinnedCommit')
-            ->missing('commits')
-            ->missing('user'));
+            ->where('pinnedCommit', null)
+            ->has('commits.data', 0));
 
     $this->actingAs(User::factory()->create())->getJson(route('user-preview.show', $user))
         ->assertOk()

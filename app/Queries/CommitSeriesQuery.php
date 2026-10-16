@@ -13,7 +13,7 @@ final readonly class CommitSeriesQuery
     /**
      * @return Collection<int, Commit>
      */
-    public function before(Commit $commit, User $user): Collection
+    public function before(Commit $commit, ?User $user): Collection
     {
         return $this->parts($commit, $user, '<');
     }
@@ -21,7 +21,7 @@ final readonly class CommitSeriesQuery
     /**
      * @return Collection<int, Commit>
      */
-    public function after(Commit $commit, User $user): Collection
+    public function after(Commit $commit, ?User $user): Collection
     {
         return $this->parts($commit, $user, '>');
     }
@@ -31,7 +31,7 @@ final readonly class CommitSeriesQuery
      *
      * @return Collection<int, Commit>
      */
-    private function parts(Commit $commit, User $user, string $operator): Collection
+    private function parts(Commit $commit, ?User $user, string $operator): Collection
     {
         if ($commit->series_id === null) {
             return new Collection;

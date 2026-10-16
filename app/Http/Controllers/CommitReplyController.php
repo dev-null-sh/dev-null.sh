@@ -19,7 +19,7 @@ use Illuminate\Http\Response;
 
 final readonly class CommitReplyController
 {
-    public function index(ListCommitRepliesRequest $request, #[CurrentUser] User $user, Commit $commit, CommitRepliesQuery $replies): JsonResponse
+    public function index(ListCommitRepliesRequest $request, #[CurrentUser] ?User $user, Commit $commit, CommitRepliesQuery $replies): JsonResponse
     {
         return response()->json($replies->paginate($commit, $user));
     }
