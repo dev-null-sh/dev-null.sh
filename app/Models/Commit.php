@@ -48,6 +48,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int $replies_count
  * @property-read int|null $repliers_count
  * @property-read bool $is_saved
+ * @property-read int|null $saved_order
  * @property-read LinkPreview|null $linkPreview
  * @property-read Poll|null $poll
  * @property-read Commit|null $quotedCommit

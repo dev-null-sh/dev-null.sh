@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Http\Controllers\BookmarkCollectionCommitController;
+use App\Http\Controllers\BookmarkCollectionController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
@@ -137,6 +139,19 @@ Route::middleware('auth')->group(function (): void {
     Route::get('saved', [BookmarkController::class, 'index'])->name('bookmark.index');
     Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])->name('bookmark.store');
     Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])->name('bookmark.destroy');
+
+    // Private collections of saved commits...
+    Route::post('saved/collections', [BookmarkCollectionController::class, 'store'])->name('bookmark-collection.store');
+    Route::get('saved/collections/{bookmarkCollection}', [BookmarkCollectionController::class, 'show'])
+        ->whereUuid('bookmarkCollection')->name('bookmark-collection.show');
+    Route::put('saved/collections/{bookmarkCollection}', [BookmarkCollectionController::class, 'update'])
+        ->whereUuid('bookmarkCollection')->name('bookmark-collection.update');
+    Route::delete('saved/collections/{bookmarkCollection}', [BookmarkCollectionController::class, 'destroy'])
+        ->whereUuid('bookmarkCollection')->name('bookmark-collection.destroy');
+    Route::put('saved/collections/{bookmarkCollection}/commits/{commit}', [BookmarkCollectionCommitController::class, 'store'])
+        ->whereUuid('bookmarkCollection')->name('bookmark-collection-commit.store');
+    Route::delete('saved/collections/{bookmarkCollection}/commits/{commit}', [BookmarkCollectionCommitController::class, 'destroy'])
+        ->whereUuid('bookmarkCollection')->name('bookmark-collection-commit.destroy');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
