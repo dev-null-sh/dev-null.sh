@@ -2,11 +2,10 @@ import { Form, usePage } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import UserLaneController from '@/actions/App/Http/Controllers/UserLaneController';
-import { GraphRail } from '@/components/graph-rail';
+import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/user-avatar';
 import { cn, laneColor } from '@/lib/utils';
 
 const laneNames = ['Orange', 'Green', 'Violet', 'Teal', 'Rose', 'Ochre'];
@@ -21,12 +20,12 @@ export function LanePreview({ lane }: { lane: string }) {
             style={{ '--lane': lane } as CSSProperties}
             data-test="lane-preview"
         >
-            <GraphRail lane={lane} previousLane={lane} />
-            <div className="flex min-w-0 items-center gap-3 py-4 pr-4">
-                <UserAvatar
-                    user={auth.user}
-                    className="size-12 ring-2 ring-(--lane) ring-offset-2 ring-offset-card transition-shadow duration-200"
-                />
+            <GraphRail
+                lane={lane}
+                previousLane={lane}
+                node={<RailAvatar user={auth.user} />}
+            />
+            <div className="flex min-w-0 items-center pr-4">
                 <div className="min-w-0">
                     <p className="truncate font-semibold">{auth.user.name}</p>
                     <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">

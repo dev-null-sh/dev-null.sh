@@ -79,7 +79,7 @@ export default function ErrorPage({ status }: { status: Status }) {
             : user
               ? {
                     label: 'Back to your log',
-                    href: LogController.show('following'),
+                    href: LogController.show(page.props.auth.log),
                 }
               : { label: 'Go to the home page', href: home() };
 
