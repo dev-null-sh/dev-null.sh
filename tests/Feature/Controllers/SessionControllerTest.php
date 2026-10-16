@@ -24,7 +24,7 @@ it('redirects to github', function (): void {
 });
 
 it('creates a user and logs them in', function (): void {
-    fakeGitHubSponsorsListing(isPublic: true);
+    fakeGitHubSponsorsListing(hasSponsorsListing: true);
 
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',
