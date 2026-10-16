@@ -140,6 +140,31 @@ it('only lists the current authors schedules and forbids canceling another autho
     expect($other->fresh()->canceled_at)->toBeNull();
 });
 
+it('keeps scheduled content private in the public API and feed until approved delivery', function (bool $admin): void {
+    $user = User::factory()->create(['username' => $admin ? 'admin' : 'octocat']);
+    $scheduled = ScheduledCommit::factory()->for($user)->create(['body' => 'Private future release :rocket:']);
+
+    $this->getJson(route('api-user-commit.index', $user))->assertOk()->assertJsonCount(0, 'data');
+    $this->getJson(route('api-commit.show', $scheduled->id))->assertNotFound();
+    $this->get(route('user-feed.show', $user))->assertOk()->assertDontSee('Private future release');
+
+    $this->travelTo($scheduled->scheduled_at);
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    $commit = Commit::query()->sole();
+    expect($commit->body)->toBe('Private future release 🚀');
+
+    if ($admin) {
+        $this->getJson(route('api-user-commit.index', $user))->assertOk()->assertJsonPath('data.0.id', $commit->id);
+        $this->getJson(route('api-commit.show', $commit))->assertOk()->assertJsonPath('data.body', $commit->body);
+        $this->get(route('user-feed.show', $user))->assertOk()->assertSee($commit->body);
+    } else {
+        $this->getJson(route('api-user-commit.index', $user))->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson(route('api-commit.show', $commit))->assertNotFound();
+        $this->get(route('user-feed.show', $user))->assertOk()->assertDontSee('Private future release');
+    }
+})->with([false, true]);
+
 it('submits once at the due time using the authors current approval privileges', function (bool $admin): void {
     $user = User::factory()->create();
     $scheduled = ScheduledCommit::factory()->for($user)->create();
