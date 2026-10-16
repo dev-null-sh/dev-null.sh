@@ -25,9 +25,30 @@ it('replaces shortcodes next to punctuation and the end of the text', function (
         ->toBe('one: ❤️, two: 👍!');
 });
 
+it('replaces shortcodes with an optional closing colon', function (): void {
+    $emoji = resolve(EmojiShortcodes::class);
+
+    expect($emoji->replace('shipped it :heart: :like: :rocket:!'))
+        ->toBe('shipped it ❤️ 👍 🚀!');
+});
+
+it('replaces adjacent shortcodes', function (): void {
+    $emoji = resolve(EmojiShortcodes::class);
+
+    expect($emoji->replace(':heart::like:'))
+        ->toBe('❤️👍');
+});
+
 it('does not modify text without shortcodes', function (): void {
     $emoji = resolve(EmojiShortcodes::class);
 
     expect($emoji->replace('plain text with a url https://example.com'))
         ->toBe('plain text with a url https://example.com');
+});
+
+it('leaves shortcodes in code untouched', function (): void {
+    $emoji = resolve(EmojiShortcodes::class);
+
+    expect($emoji->replace("ship :fire `a ? b :like` and\n```php\nx :heart\n```"))
+        ->toBe("ship 🔥 `a ? b :like` and\n```php\nx :heart\n```");
 });

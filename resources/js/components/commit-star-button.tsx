@@ -87,7 +87,7 @@ export function CommitStarButton({
             aria-label={starLabel(starred, count)}
             title={starred ? 'Unstar' : 'Star'}
             className={cn(
-                'group inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                 starred && 'text-primary hover:text-primary',
                 className,
             )}
@@ -96,12 +96,14 @@ export function CommitStarButton({
             <Star
                 onAnimationEnd={() => setIsAnimating(false)}
                 className={cn(
-                    'size-4 transition-transform group-hover:scale-110 active:scale-95',
+                    'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
                     starred && 'fill-current',
                     isAnimating && 'motion-safe:animate-star-pop',
                 )}
             />
-            {count > 0 && <span data-test="star-count">{count}</span>}
+            <span data-test="star-count" className="min-w-[1ch] text-left">
+                {count > 0 ? count : ''}
+            </span>
         </button>
     );
 }

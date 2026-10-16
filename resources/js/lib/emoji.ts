@@ -1,3 +1,5 @@
+import { mapTypedProse } from '@/lib/code';
+
 const shortcodeEmoji = {
     heart: '❤️',
     like: '👍',
@@ -18,7 +20,7 @@ const shortcodeNames = Object.keys(shortcodeEmoji).sort(
 );
 
 const shortcodePattern = new RegExp(
-    `:(${shortcodeNames.join('|')})(?![A-Za-z0-9_])`,
+    `:(${shortcodeNames.join('|')}):?(?![A-Za-z0-9_])`,
     'g',
 );
 
@@ -34,8 +36,10 @@ export function emojifyInput(
     text: string,
     caret: number,
 ): { text: string; caret: number } {
+    const emojifyTyped = (typed: string) => mapTypedProse(typed, emojify);
+
     return {
-        text: emojify(text),
-        caret: emojify(text.slice(0, caret)).length,
+        text: emojifyTyped(text),
+        caret: emojifyTyped(text.slice(0, caret)).length,
     };
 }

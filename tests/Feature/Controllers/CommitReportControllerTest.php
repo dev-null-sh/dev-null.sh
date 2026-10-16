@@ -33,6 +33,21 @@ it('privately reports an approved commit or reply without changing visibility', 
 
     $this->get(route('commit.show', [$commit->user, $commit]))->assertOk()
         ->assertInertia(fn ($page) => $page->where('commit.body', $commit->body)->missing('reports')->missing('commit.reports')->missing('commit.reports_count')->missing('commit.reporter_id'));
+
+    $this->getJson(route('api-commit.show', $commit))->assertOk()
+        ->assertJsonPath('data.body', $commit->body)
+        ->assertJsonMissingPath('data.reports')
+        ->assertJsonMissingPath('data.reports_count')
+        ->assertJsonMissingPath('data.reporter_id')
+        ->assertDontSee($report->details)
+        ->assertDontSee($report->id);
+
+    $this->getJson(route('api-user-commit.index', $commit->user))->assertOk()
+        ->assertDontSee($report->details)
+        ->assertDontSee($report->id);
+    $this->get(route('user-feed.show', $commit->user))->assertOk()
+        ->assertDontSee($report->details)
+        ->assertDontSee($report->id);
 })->with([false, true]);
 
 it('accepts each reason with optional trimmed details', function (string $reason): void {
@@ -223,6 +238,9 @@ it('rejects the original using existing moderation and removes all its reports f
     $this->get(route('reported-commit.index'))->assertInertia(fn ($page) => $page->has('reports.data', 0));
     $this->delete(route('commit-report.destroy', $report))->assertNotFound();
     $this->actingAs(User::factory()->create())->get(route('commit.show', [$report->commit->user, $report->commit]))->assertNotFound();
+    $this->getJson(route('api-commit.show', $report->commit))->assertNotFound();
+    $this->getJson(route('api-user-commit.index', $report->commit->user))->assertOk()->assertJsonCount(0, 'data');
+    $this->get(route('user-feed.show', $report->commit->user))->assertOk()->assertDontSee($report->commit->body);
     $this->actingAs($report->commit->user)->get(route('commit.show', [$report->commit->user, $report->commit]))->assertOk();
 });
 

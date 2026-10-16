@@ -24,13 +24,23 @@ final readonly class EmojiShortcodes
         'party' => '🎉',
     ];
 
+    public function __construct(private CodeSpans $codeSpans)
+    {
+        //
+    }
+
     /**
      * Replaces :heart, :like, and the rest with their emoji, leaving a shortcode inside a
-     * longer word (like :heartbeat) untouched. Mirrors the frontend's inline replacement.
+     * longer word (like :heartbeat) or in code untouched. Mirrors the frontend's inline replacement.
      */
     public function replace(string $text): string
     {
-        return (string) preg_replace_callback($this->pattern(), $this->replaceMatch(...), $text);
+        $pattern = $this->pattern();
+
+        return $this->codeSpans->mapProse(
+            $text,
+            fn (string $prose): string => (string) preg_replace_callback($pattern, $this->replaceMatch(...), $prose),
+        );
     }
 
     /**
@@ -42,7 +52,7 @@ final readonly class EmojiShortcodes
 
         usort($names, static fn (string $left, string $right): int => mb_strlen($right) <=> mb_strlen($left));
 
-        return '/:('.implode('|', $names).')(?![A-Za-z0-9_])/';
+        return '/:('.implode('|', $names).'):?(?![A-Za-z0-9_])/';
     }
 
     /**
