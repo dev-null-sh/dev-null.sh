@@ -172,6 +172,22 @@ it('does not update the user when the log is unchanged', function (): void {
     expect($user->refresh()->updated_at->equalTo($updatedAt))->toBeTrue();
 });
 
+it('remembers a new log without touching the user', function (): void {
+    $user = User::factory()->create(['log' => Log::Following]);
+    $updatedAt = $user->updated_at;
+
+    $this->travel(1)->minute();
+
+    $this->actingAs($user)
+        ->get(route('log.show', Log::Trending))
+        ->assertOk();
+
+    $user->refresh();
+
+    expect($user->log)->toBe(Log::Trending)
+        ->and($user->updated_at->equalTo($updatedAt))->toBeTrue();
+});
+
 it('returns not found for unknown logs', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->get('/log/unknown');
