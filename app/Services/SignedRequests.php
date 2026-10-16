@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Dto\SshPublicKey;
 use App\Models\User;
 use Illuminate\Http\Request;
+use InvalidArgumentException;
 
 /**
  * Verifies a request to the API, signed by the mobile app with an SSH key it keeps on the device.
@@ -40,6 +41,14 @@ final readonly class SignedRequests
      */
     public function verify(Request $request): array
     {
+        // Only the raw body is signed, so it has to be JSON. PHP hands a multipart body over as fields and files and
+        // keeps no raw body, and the same signed bytes read as a form would give the endpoint other fields...
+        throw_if(
+            $request->files->count() > 0 || ($request->getContent() === '' ? $request->request->count() > 0 : ! $request->isJson()),
+            InvalidArgumentException::class,
+            'Send the body of a signed request as JSON.',
+        );
+
         $timestamp = $request->headers->get('X-Devnull-Timestamp', '') ?? '';
         $nonce = $request->headers->get('X-Devnull-Nonce', '') ?? '';
 
