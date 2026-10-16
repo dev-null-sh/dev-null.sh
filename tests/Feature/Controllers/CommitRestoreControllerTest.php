@@ -38,10 +38,10 @@ it('restores only the deletion state within thirty seconds', function (CommitSta
 })->with(CommitStatus::cases());
 
 it('restores a commit with its images', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $image = CommitImage::factory()->create();
-    Storage::disk(CommitImage::DISK)->put($image->path, 'image');
+    Storage::disk()->put($image->path, 'image');
     $commit = $image->commit;
 
     $this->actingAs($commit->user)->delete(route('commit.destroy', $commit))->assertRedirect();

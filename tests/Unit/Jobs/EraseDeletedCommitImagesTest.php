@@ -10,17 +10,17 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 it('erases the images of its deleted commit once the undo window has closed', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $image = CommitImage::factory()->create();
-    Storage::disk(CommitImage::DISK)->put($image->path, 'image');
+    Storage::disk()->put($image->path, 'image');
     $job = serialize(new EraseDeletedCommitImages(resolve(DeleteCommit::class)->handle($image->commit)));
     $this->travel(30)->seconds();
 
     dispatch_sync(unserialize($job));
 
     $this->assertModelMissing($image);
-    Storage::disk(CommitImage::DISK)->assertMissing($image->path);
+    Storage::disk()->assertMissing($image->path);
 });
 
 it('is dropped when its commit is gone', function (): void {

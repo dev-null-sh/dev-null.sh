@@ -22,7 +22,17 @@ test('to array', function (): void {
             'parent_id',
             'deleted_at',
             'link_preview_id',
+            'body_segments',
         ]);
+});
+
+it('splits its body into segments', function (): void {
+    $commit = Commit::factory()->create(['body' => 'run `make`']);
+
+    expect($commit->toArray()['body_segments'])->toBe([
+        ['type' => 'text', 'text' => 'run '],
+        ['type' => 'code', 'code' => 'make'],
+    ]);
 });
 
 it('belongs to a user', function (): void {

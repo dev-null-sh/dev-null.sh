@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Commit;
-use App\Models\CommitImage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -32,6 +31,6 @@ final readonly class EraseCommitImages
             return $imagePaths;
         });
 
-        Storage::disk(CommitImage::DISK)->delete($imagePaths);
+        Storage::disk()->delete($imagePaths);
     }
 }

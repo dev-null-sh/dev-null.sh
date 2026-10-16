@@ -11,14 +11,14 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
     Queue::fake();
 });
 
 function deletedCommitWithImage(): CommitImage
 {
     $image = CommitImage::factory()->create();
-    Storage::disk(CommitImage::DISK)->put($image->path, 'image');
+    Storage::disk()->put($image->path, 'image');
 
     resolve(DeleteCommit::class)->handle($image->commit);
 
@@ -32,7 +32,7 @@ it('erases the images once the undo window has closed', function (): void {
     resolve(EraseCommitImages::class)->handle($image->commit);
 
     $this->assertModelMissing($image);
-    Storage::disk(CommitImage::DISK)->assertMissing($image->path);
+    Storage::disk()->assertMissing($image->path);
 });
 
 it('keeps the images while the commit can still be restored', function (): void {
@@ -42,7 +42,7 @@ it('keeps the images while the commit can still be restored', function (): void 
     resolve(EraseCommitImages::class)->handle($image->commit);
 
     $this->assertModelExists($image);
-    Storage::disk(CommitImage::DISK)->assertExists($image->path);
+    Storage::disk()->assertExists($image->path);
 });
 
 it('keeps the images of a restored commit', function (): void {
@@ -53,7 +53,7 @@ it('keeps the images of a restored commit', function (): void {
     resolve(EraseCommitImages::class)->handle($image->commit);
 
     $this->assertModelExists($image);
-    Storage::disk(CommitImage::DISK)->assertExists($image->path);
+    Storage::disk()->assertExists($image->path);
 });
 
 it('keeps the images of a commit deleted again within its new undo window', function (): void {
@@ -67,7 +67,7 @@ it('keeps the images of a commit deleted again within its new undo window', func
     resolve(EraseCommitImages::class)->handle($commit);
 
     $this->assertModelExists($image);
-    Storage::disk(CommitImage::DISK)->assertExists($image->path);
+    Storage::disk()->assertExists($image->path);
 });
 
 it('does nothing for a commit that is gone', function (): void {

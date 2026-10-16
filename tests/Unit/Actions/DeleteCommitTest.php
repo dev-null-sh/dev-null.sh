@@ -29,17 +29,17 @@ it('keeps the replies of a deleted commit', function (): void {
 });
 
 it('keeps the images of a deleted commit until the undo window closes', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
     Queue::fake();
 
     $commit = Commit::factory()->create();
     $image = CommitImage::factory()->for($commit)->create();
-    Storage::disk(CommitImage::DISK)->put($image->path, 'image');
+    Storage::disk()->put($image->path, 'image');
 
     resolve(DeleteCommit::class)->handle($commit);
 
     $this->assertModelExists($image);
-    Storage::disk(CommitImage::DISK)->assertExists($image->path);
+    Storage::disk()->assertExists($image->path);
 
     Queue::assertPushed(
         EraseDeletedCommitImages::class,
