@@ -8,6 +8,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 
 test('to array', function (): void {
     $commit = Commit::factory()->create()->refresh();
@@ -26,6 +27,9 @@ test('to array', function (): void {
             'series_id',
             'series_position',
             'series_size',
+            'quoted_commit_id',
+            'root_id',
+            'hot_score',
             'body_segments',
         ]);
 });
@@ -64,6 +68,15 @@ it('is visible when approved or owned', function (): void {
         ->and($pending->isVisibleTo($viewer))->toBeFalse()
         ->and($rejected->isVisibleTo($author))->toBeTrue()
         ->and($rejected->isVisibleTo($viewer))->toBeFalse();
+});
+
+it('continues a series from its second part on', function (): void {
+    $parts = commitSeries();
+
+    expect(Commit::factory()->create()->isSeriesContinuation())->toBeFalse()
+        ->and($parts[0]->isSeriesContinuation())->toBeFalse()
+        ->and($parts[1]->isSeriesContinuation())->toBeTrue()
+        ->and($parts[2]->isSeriesContinuation())->toBeTrue();
 });
 
 it('deletes stars with the commit', function (): void {
@@ -121,6 +134,46 @@ it('erases replies along with their parent when force deleted', function (): voi
     expect(Commit::withTrashed()->whereKey([$reply->id, $nested->id])->exists())->toBeFalse();
 });
 
+it('may quote another commit', function (): void {
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    expect($quote->quotedCommit->is($quoted))->toBeTrue()
+        ->and($quoted->quotes->sole()->is($quote))->toBeTrue()
+        ->and($quoted->quotedCommit)->toBeNull();
+});
+
+it('keeps quotes when the quoted commit is deleted', function (): void {
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    $quoted->delete();
+
+    $this->assertNotSoftDeleted($quote);
+
+    expect($quote->refresh()->quoted_commit_id)->toBe($quoted->id);
+});
+
+it('keeps quotes without the reference when the quoted commit is force deleted', function (): void {
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    $quoted->forceDelete();
+
+    $this->assertNotSoftDeleted($quote);
+
+    expect($quote->refresh()->quoted_commit_id)->toBeNull();
+});
+
+it('leaves the quoted commit out of a tombstone', function (): void {
+    $commit = Commit::factory()->for(Commit::factory(), 'quotedCommit')->create();
+    $commit->delete();
+
+    $tombstone = Commit::withTrashed()->with('quotedCommit')->findOrFail($commit->id);
+
+    expect($tombstone->toArray())->not->toHaveKeys(['quoted_commit_id', 'quoted_commit']);
+});
+
 it('serializes a deleted commit as a tombstone without its author or body', function (): void {
     $parent = Commit::factory()->create();
     $commit = Commit::factory()->for($parent, 'parent')->create();
@@ -135,6 +188,91 @@ it('serializes a deleted commit as a tombstone without its author or body', func
         'replies_count' => 0,
     ]);
 });
+
+it('excludes series continuations from its public preview reply count', function (): void {
+    $parts = commitSeries();
+    Commit::factory()->for($parts[0], 'parent')->create();
+    Commit::factory()->for($parts[0], 'parent')->pending()->create();
+
+    expect($parts[0]->loadPublicPreview()->replies_count)->toBe(1);
+});
+
+it('hydrates public preview counts without persisting them or clearing body edits', function (bool $deleted): void {
+    $parent = Commit::factory()->create();
+    $commit = Commit::factory()->for($parent, 'parent')->create()->refresh();
+    Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'quotedCommit')->create();
+    Commit::factory()->for($commit, 'parent')->pending()->create();
+    Commit::factory()->for($commit, 'parent')->rejected()->create();
+    $deletedReply = Commit::factory()->for($commit, 'parent')->create();
+    $deletedReply->delete();
+
+    $commit->load('images');
+    $images = $commit->images;
+    $author = $commit->user;
+
+    if ($deleted) {
+        $commit->delete();
+    }
+
+    $commit->fill(['body' => 'Edited after loading']);
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview)->toBe($commit)
+        ->and($preview->replies_count)->toBe(2)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->getDirty())->toBe(['body' => 'Edited after loading'])
+        ->and($preview->images)->toBe($images)
+        ->and($preview->user->is($author))->toBeTrue()
+        ->and($preview->parent->is($parent))->toBeTrue();
+
+    if ($deleted) {
+        expect($preview->toArray())->toBe([
+            'id' => $commit->id,
+            'parent_id' => $parent->id,
+            'deleted_at' => $commit->deleted_at?->toJSON(),
+            'replies_count' => 2,
+        ]);
+    }
+
+    $preview->save();
+
+    expect(Commit::withTrashed()->findOrFail($commit->id)->body)->toBe('Edited after loading')
+        ->and($preview->isDirty())->toBeFalse();
+})->with([false, true]);
+
+it('hydrates a zero public preview count when no persisted primary key is available', function (Closure $makeCommit): void {
+    $commit = $makeCommit();
+    $strict = Model::preventsAccessingMissingAttributes();
+    Model::preventAccessingMissingAttributes();
+
+    try {
+        $preview = $commit->loadPublicPreview();
+
+        expect($preview)->toBe($commit)
+            ->and($preview->replies_count)->toBe(0)
+            ->and($preview->isDirty('replies_count'))->toBeFalse()
+            ->and($preview->relationLoaded('user'))->toBeTrue()
+            ->and($preview->relationLoaded('parent'))->toBeTrue();
+    } finally {
+        Model::preventAccessingMissingAttributes($strict);
+    }
+})->with([
+    'unsaved' => [fn (): Commit => new Commit],
+    'unsaved with uuid' => [fn (): Commit => Commit::factory()->make(['id' => fake()->uuid()])],
+    'partial without id' => [function (): Commit {
+        Commit::factory()->create();
+
+        return Commit::query()->firstOrFail(['body', 'user_id', 'parent_id']);
+    }],
+    'removed row' => [function (): Commit {
+        $commit = Commit::factory()->create();
+        $commit->forceDelete();
+
+        return $commit;
+    }],
+]);
 
 it('may belong to a link preview', function (): void {
     $linkPreview = LinkPreview::factory()->create();

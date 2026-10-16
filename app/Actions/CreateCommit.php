@@ -12,6 +12,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Services\EmojiShortcodes;
+use App\Services\TheAlgorithm;
 use App\Services\Urls;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -20,9 +21,12 @@ final readonly class CreateCommit
 {
     public function __construct(
         private CreateReplyNotifications $createReplyNotifications,
+        private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
         private CreateCommitImages $createCommitImages,
         private CreateWorldReply $createWorldReply,
+        private UpdateCommitHotScores $updateCommitHotScores,
+        private TheAlgorithm $theAlgorithm,
         private EmojiShortcodes $emojiShortcodes,
         private Urls $urls,
     ) {
@@ -34,7 +38,7 @@ final readonly class CreateCommit
      *
      * @param  list<UploadedFile>  $images
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], bool|string $linkPreview = true, ?SeriesPosition $series = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], bool|string $linkPreview = true, ?SeriesPosition $series = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -42,22 +46,32 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $images, $url, $series): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $url, $series): Commit {
             $linkPreview = $this->linkPreviewFor($url);
+            $createdAt = now();
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
                 'parent_id' => $parent?->id,
+                'root_id' => $parent?->threadRootId(),
                 'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
+                'quoted_commit_id' => $quotedCommit?->id,
                 'series_id' => $series?->seriesId,
                 'series_position' => $series?->position,
                 'series_size' => $series?->size,
+                'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),
+                'created_at' => $createdAt,
             ]);
 
             $this->createCommitImages->handle($commit, $images);
 
+            if (($parent instanceof Commit || $quotedCommit instanceof Commit) && $commit->status === CommitStatus::Approved) {
+                $this->updateCommitHotScores->handle([$commit->id]);
+            }
+
             $this->createReplyNotifications->handle($commit);
+            $this->createQuoteNotifications->handle($commit);
             $this->createMentionNotifications->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {

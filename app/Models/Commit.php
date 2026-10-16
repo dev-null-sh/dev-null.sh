@@ -24,9 +24,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $id
  * @property-read string|null $user_id
  * @property-read string|null $parent_id
+ * @property-read string|null $root_id
+ * @property-read float $hot_score
  * @property-read string $body
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
+ * @property-read string|null $quoted_commit_id
  * @property-read string|null $series_id
  * @property-read int|null $series_position
  * @property-read int|null $series_size
@@ -42,8 +45,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
+ * @property-read int|null $repliers_count
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
+ * @property-read Commit|null $quotedCommit
+ * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
  * @property-read Collection<int, Commit> $seriesParts
  */
@@ -69,9 +75,12 @@ final class Commit extends Model
             'id' => 'string',
             'user_id' => 'string',
             'parent_id' => 'string',
+            'root_id' => 'string',
+            'hot_score' => 'float',
             'body' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
+            'quoted_commit_id' => 'string',
             'series_id' => 'string',
             'series_position' => 'integer',
             'series_size' => 'integer',
@@ -138,6 +147,14 @@ final class Commit extends Model
     }
 
     /**
+     * The top-level commit that started the thread the commit belongs to, which is the commit itself when it is top-level.
+     */
+    public function threadRootId(): string
+    {
+        return $this->root_id ?? $this->id;
+    }
+
+    /**
      * @return HasMany<Commit, $this>
      */
     public function replies(): HasMany
@@ -156,6 +173,14 @@ final class Commit extends Model
     }
 
     /**
+     * Later parts of a series are replies to the part before them, yet they read as part of it rather than as replies.
+     */
+    public function isSeriesContinuation(): bool
+    {
+        return $this->series_position !== null && $this->series_position > 1;
+    }
+
+    /**
      * @return HasMany<Bookmark, $this>
      */
     public function bookmarks(): HasMany
@@ -169,6 +194,22 @@ final class Commit extends Model
     public function linkPreview(): BelongsTo
     {
         return $this->belongsTo(LinkPreview::class);
+    }
+
+    /**
+     * @return BelongsTo<Commit, $this>
+     */
+    public function quotedCommit(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'quoted_commit_id');
+    }
+
+    /**
+     * @return HasMany<Commit, $this>
+     */
+    public function quotes(): HasMany
+    {
+        return $this->hasMany(self::class, 'quoted_commit_id');
     }
 
     /**
@@ -200,7 +241,12 @@ final class Commit extends Model
      */
     public function loadPublicPreview(): self
     {
-        return $this->loadCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()])
+        $this->forceFill([
+            'replies_count' => self::query()->withTrashed()->withVisibleReplyCount(null)
+                ->whereKey($this->getAttributeFromArray($this->getKeyName()))->first()->replies_count ?? 0,
+        ])->syncOriginalAttribute('replies_count');
+
+        return $this
             ->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
     }
 

@@ -13,8 +13,14 @@ use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteCommit
 {
+    public function __construct(private UpdateCommitHotScores $updateCommitHotScores)
+    {
+        //
+    }
+
     /**
-     * Soft deleting keeps the row for its replies, so its notifications, reply notifications, and images are removed here instead of by the foreign key.
+     * Soft deleting keeps the row for its replies and quotes, so its notifications, the notifications about its replies and
+     * quotes, and its images are removed here instead of by the foreign key.
      */
     public function handle(Commit $commit): void
     {
@@ -30,12 +36,17 @@ final readonly class DeleteCommit
                 ->orWhere(fn (NotificationBuilder $query): NotificationBuilder => $query
                     ->where('type', NotificationType::Replied)
                     ->whereIn('commit_id', $commit->replies()->select('id')))
+                ->orWhere(fn (NotificationBuilder $query): NotificationBuilder => $query
+                    ->where('type', NotificationType::Quoted)
+                    ->whereIn('commit_id', $commit->quotes()->select('id')))
                 ->delete();
 
             $imagePaths = $commit->images()->pluck('path')->all();
 
             $commit->images()->delete();
             $commit->delete();
+
+            $this->updateCommitHotScores->handle([$commit->id]);
 
             return $imagePaths;
         });

@@ -11,6 +11,7 @@ use App\Http\Requests\UpdateModerationRequest;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -30,9 +31,10 @@ final readonly class ModerationController
                     'parent.user',
                     'linkPreview',
                     'images',
+                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with('user'),
                     'seriesParts' => fn (HasMany $query): HasMany => $query
                         ->where('status', CommitStatus::Pending)
-                        ->with(['user', 'linkPreview', 'images'])
+                        ->with(['user', 'linkPreview', 'images', 'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with('user')])
                         ->oldest('series_position'),
                 ])
                 ->withStarsFor($user)

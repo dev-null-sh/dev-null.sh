@@ -13,7 +13,7 @@ import { show } from '@/routes/user';
 const rules = [
     'Everyone here signed in with GitHub.',
     'Commits are plain text, 280 characters max.',
-    'No reposts, no algorithm. Newest first.',
+    'No algorithm. Newest first.',
     'Profiles mirror GitHub. Edit yours there.',
 ];
 
