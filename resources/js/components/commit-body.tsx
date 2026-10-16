@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { CodeBlock } from '@/components/code-block';
+import { CommitTranslationHint } from '@/components/commit-translation-hint';
 import { LinkifiedText } from '@/components/linkified-text';
+import { useCommitTranslation } from '@/hooks/use-commit-translation';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
 import type { BodySegment } from '@/types';
@@ -9,19 +11,31 @@ export function CommitBody({
     segments,
     className,
     isStatic = false,
+    isTranslatable = false,
 }: {
     segments: BodySegment[];
     className?: string;
     isStatic?: boolean;
+    isTranslatable?: boolean;
 }) {
+    const translation = useCommitTranslation(
+        segments,
+        isTranslatable && !isStatic,
+    );
+
     return (
         <div
+            lang={
+                translation.isTranslated
+                    ? translation.target
+                    : (translation.language ?? undefined)
+            }
             className={cn(
                 'leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap',
                 className,
             )}
         >
-            {segments.map((segment, index) => {
+            {translation.segments.map((segment, index) => {
                 switch (segment.type) {
                     case 'text':
                         return isStatic ? (
@@ -52,6 +66,10 @@ export function CommitBody({
                         );
                 }
             })}
+
+            {translation.canTranslate && (
+                <CommitTranslationHint translation={translation} />
+            )}
         </div>
     );
 }

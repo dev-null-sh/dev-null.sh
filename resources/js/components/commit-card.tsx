@@ -311,6 +311,7 @@ export function CommitCard({
                             )}
                             <CommitBody
                                 segments={commit.body_segments}
+                                isTranslatable
                                 className={cn(
                                     'mt-0.5',
                                     isFocused ? 'text-[17px]' : 'text-[15px]',

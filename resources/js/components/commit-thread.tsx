@@ -858,6 +858,7 @@ function CommitReply({
 
                     <CommitBody
                         segments={reply.body_segments}
+                        isTranslatable
                         className="text-[15px]"
                     />
                     <CommitImages commit={reply} />
