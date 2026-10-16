@@ -191,6 +191,37 @@ it('excludes series continuations from its public preview reply count', function
         ->and($preview->isDirty('replies_count'))->toBeFalse();
 });
 
+it('counts public replies and quotes in a deleted commit preview without dirtying its count', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'quotedCommit')->create();
+    Commit::factory()->for($commit, 'parent')->pending()->create();
+    Commit::factory()->for($commit, 'quotedCommit')->pending()->create();
+    $commit->delete();
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview->replies_count)->toBe(2)
+        ->and($preview->isDirty('replies_count'))->toBeFalse();
+});
+
+it('loads a public preview without a persisted primary key', function (bool $partial): void {
+    $author = User::factory()->create();
+    $commit = $partial
+        ? Commit::query()->select(['user_id', 'parent_id'])->findOrFail(Commit::factory()->for($author)->create()->id)
+        : Commit::factory()->for($author)->make(['id' => fake()->uuid()]);
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview)->toBe($commit)
+        ->and($preview->replies_count)->toBe(0)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->user?->is($author))->toBeTrue();
+})->with([
+    'unsaved commit' => false,
+    'partial commit without its primary key' => true,
+]);
+
 it('may belong to a link preview', function (): void {
     $linkPreview = LinkPreview::factory()->create();
     $commit = Commit::factory()->for($linkPreview)->create();
