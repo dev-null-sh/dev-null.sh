@@ -1,8 +1,11 @@
 import type { InertiaLinkProps } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import type { ClassValue } from 'clsx';
 import { clsx } from 'clsx';
+import type { MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
+import { cardClickAction } from '@/lib/card-click';
 import type { DeletedCommit, ThreadCommit } from '@/types';
 
 export function characterCount(value: string): number {
@@ -168,4 +171,52 @@ export function withViewTransition(
                 delete document.documentElement.dataset.viewTransition;
             }
         });
+}
+
+/**
+ * A click opens the commit or reply unless it lands on something interactive,
+ * inside a nested commit, reply or popover, or ends a text selection.
+ */
+function isClickOnCard(event: MouseEvent<HTMLElement>): boolean {
+    const target = event.target;
+
+    if (
+        event.defaultPrevented ||
+        !(target instanceof Element) ||
+        !event.currentTarget.contains(target)
+    ) {
+        return false;
+    }
+
+    if (
+        target.closest('a, button, input, textarea, select, label, [role]') ||
+        target.closest('[data-commit], [data-reply]') !== event.currentTarget
+    ) {
+        return false;
+    }
+
+    return !window.getSelection()?.toString();
+}
+
+/**
+ * Opens a commit or reply from a click on its card.
+ */
+export function openFromCardClick(
+    event: MouseEvent<HTMLElement>,
+    href: NonNullable<InertiaLinkProps['href']>,
+): void {
+    const action = cardClickAction({
+        button: event.button,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        isOnCard: isClickOnCard(event),
+    });
+
+    if (action === 'new-tab') {
+        window.open(toUrl(href), '_blank', 'noopener');
+    }
+
+    if (action === 'visit') {
+        router.visit(href);
+    }
 }

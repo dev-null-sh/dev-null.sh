@@ -5,7 +5,13 @@ import {
     MessageSquareReply,
     Trash2,
 } from 'lucide-react';
-import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
+import type {
+    CSSProperties,
+    FormEvent,
+    KeyboardEvent,
+    MouseEvent,
+    ReactNode,
+} from 'react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -45,6 +51,7 @@ import {
     characterCount,
     cn,
     formatRelativeTime,
+    openFromCardClick,
     isDeleted,
     laneOf,
 } from '@/lib/utils';
@@ -698,6 +705,14 @@ function CommitReply({
     const isOwn = reply.user_id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
 
+    const permalink = CommitController.show({
+        user: reply.user,
+        commit: reply,
+    });
+
+    const openReply = (event: MouseEvent<HTMLElement>) =>
+        openFromCardClick(event, permalink);
+
     const deleteReply = async () => {
         try {
             const response = await request.submit(
@@ -717,7 +732,9 @@ function CommitReply({
 
     return (
         <article
-            className="relative pt-2.5 pl-(--indent)"
+            onClick={openReply}
+            onAuxClick={openReply}
+            className="relative cursor-pointer pt-2.5 pl-(--indent)"
             data-reply
             data-test="reply"
         >
@@ -769,10 +786,7 @@ function CommitReply({
                             ·
                         </span>
                         <Link
-                            href={CommitController.show({
-                                user: reply.user,
-                                commit: reply,
-                            })}
+                            href={permalink}
                             className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
                         >
                             <time

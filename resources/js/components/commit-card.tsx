@@ -1,6 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, ListOrdered, Trash2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
@@ -28,6 +28,7 @@ import {
     isDeleted,
     isWithinSeconds,
     laneColor,
+    openFromCardClick,
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -110,11 +111,19 @@ export function CommitCard({
         );
     };
 
+    const openCommit = (event: MouseEvent<HTMLElement>) =>
+        openFromCardClick(event, permalink);
+
     return (
         <article
+            onClick={isFocused ? undefined : openCommit}
+            onAuxClick={isFocused ? undefined : openCommit}
             className={cn(
                 'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
-                { 'bg-primary-soft/60': isHighlighted },
+                {
+                    'cursor-pointer': !isFocused,
+                    'bg-primary-soft/60': isHighlighted,
+                },
                 deletion === 'deleting'
                     ? 'grid-rows-[0fr] opacity-0 delay-400'
                     : 'grid-rows-[1fr]',
