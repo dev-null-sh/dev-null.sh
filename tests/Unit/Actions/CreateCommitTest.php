@@ -69,6 +69,8 @@ it('uses current trust for quotes and ai review while preserving the selected li
     expect($published->status)->toBe(CommitStatus::Approved)
         ->and($published->quoted_commit_id)->toBe($quoted->id)
         ->and($published->linkPreview?->url)->toBe($expectedUrl);
+    expect($quoted->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($quoted->created_at, 0, 1), 1e-9);
     expect($quoted->user->notifications()->sole())
         ->type->toBe(NotificationType::Quoted)
         ->actor_id->toBe($author->id)
@@ -81,6 +83,8 @@ it('uses current trust for quotes and ai review while preserving the selected li
     expect($pending->status)->toBe(CommitStatus::Pending)
         ->and($pending->quoted_commit_id)->toBe($quoted->id)
         ->and($pending->linkPreview?->url)->toBe($expectedUrl);
+    expect($quoted->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($quoted->created_at, 0, 1), 1e-9);
     expect($quoted->user->notifications()->count())->toBe(1);
     Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($pending));
 })->with([
@@ -402,4 +406,15 @@ it('ranks trusted replies under their thread root and requires review after trus
 
     expect($pending)->status->toBe(CommitStatus::Pending)->root_id->toBe($root->id);
     expect($root->fresh()->hot_score)->toEqualWithDelta($algorithm->score($root->created_at, 0, 1), 1e-9);
+});
+
+it('lifts the quoted thread when an admin quotes', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });

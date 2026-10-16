@@ -70,7 +70,7 @@ final readonly class UpdateCommitStatuses
                 ])->values()->all());
             }
 
-            $this->updateCommitHotScores->handle($commits->map(fn (Commit $commit): string => $commit->threadRootId())->all());
+            $this->updateCommitHotScores->handle($commits->modelKeys());
 
             if ($status === CommitStatus::Approved) {
                 $this->createReplyNotifications->handle(...$commits);
