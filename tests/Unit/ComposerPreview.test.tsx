@@ -217,3 +217,19 @@ void test('retains the link card picker beside preview for a draft and every ser
         );
     }
 });
+
+for (const bodies of [['Draft commit'], ['First part', 'Second part']]) {
+    void test(`keeps scheduling ${bodies.length === 1 ? 'available for a draft' : 'disabled for a series'} beside preview`, () => {
+        const markup = renderComposer(bodies);
+        const schedule = markup.match(
+            /<button[^>]*aria-controls="commit-schedule"[^>]*>/,
+        )?.[0];
+
+        assert.ok(schedule);
+        assert.equal(/\sdisabled(?:=|\s|>)/.test(schedule), bodies.length > 1);
+        assert.equal(
+            (markup.match(/data-test="preview-toggle"/g) ?? []).length,
+            bodies.length,
+        );
+    });
+}

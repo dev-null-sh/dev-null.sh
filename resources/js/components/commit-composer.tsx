@@ -1,9 +1,10 @@
-import { Form } from '@inertiajs/react';
-import { Plus, X } from 'lucide-react';
+import { Form, Link, usePage } from '@inertiajs/react';
+import { Clock3, Plus, X } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitSeriesController from '@/actions/App/Http/Controllers/CommitSeriesController';
+import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import {
     ImagePickerButton,
     ImagePickerPreviews,
@@ -21,6 +22,7 @@ import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCards } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
@@ -71,13 +73,30 @@ function RemainingCount({ id, body }: { id: string; body: string }) {
     );
 }
 
+function useCommitSchedule() {
+    const [isScheduling, setIsScheduling] = useState(false);
+    const [scheduledAt, setScheduledAt] = useState('');
+    const [timezone, setTimezone] = useState('');
+
+    return {
+        isScheduling,
+        setIsScheduling,
+        scheduledAt,
+        setScheduledAt,
+        timezone,
+        setTimezone,
+    };
+}
+
 function CommitComposerPart({
     user,
     stash,
     attachments,
     linkCard,
+    schedule,
+    canAddPart,
     index,
-    isCommittable,
+    isSubmittable,
     processing,
     errors,
     onKeyDown,
@@ -89,8 +108,10 @@ function CommitComposerPart({
     stash: UseSeriesStashReturn;
     attachments: ReturnType<typeof useImageAttachments>;
     linkCard: UseLinkCardReturn;
+    schedule: ReturnType<typeof useCommitSchedule>;
+    canAddPart: boolean;
     index: number;
-    isCommittable: boolean;
+    isSubmittable: boolean;
     processing: boolean;
     errors: Record<string, string>;
     onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
@@ -103,7 +124,17 @@ function CommitComposerPart({
     const id = partId(index);
     const isSeries = bodies.length > 1;
     const isLast = index === bodies.length - 1;
-    const canAddPart = bodies.length < maxParts;
+    const { auth } = usePage().props;
+    const {
+        isScheduling,
+        scheduledAt,
+        setScheduledAt,
+        timezone,
+        setTimezone,
+        setIsScheduling,
+    } = schedule;
+    const hasImages = attachments.images.length > 0;
+    const isSchedulingImages = isScheduling && hasImages;
     const suggestion = suggestEmoji(body);
     const error =
         errors[`bodies.${index}`] ??
@@ -114,8 +145,8 @@ function CommitComposerPart({
     const preview = useComposerPreview({
         body,
         textareaRef,
-        isSubmittable: isCommittable,
-        onAddPart: addPartAfter,
+        isSubmittable: isSubmittable,
+        onAddPart: canAddPart ? addPartAfter : undefined,
     });
 
     return (
@@ -185,7 +216,11 @@ function CommitComposerPart({
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
-                                url={linkCard.link}
+                                url={
+                                    isScheduling
+                                        ? (linkCard.links[0] ?? null)
+                                        : linkCard.link
+                                }
                                 images={index === 0 ? attachments.images : []}
                                 className="col-start-1 row-start-1 py-1.5"
                             />
@@ -211,11 +246,75 @@ function CommitComposerPart({
                             )}
                             <InputError
                                 message={
-                                    attachments.error ?? imageErrorFrom(errors)
+                                    attachments.error ??
+                                    (isSchedulingImages
+                                        ? "Images can't be scheduled yet. Remove them to schedule this commit."
+                                        : imageErrorFrom(errors))
                                 }
                                 className="mt-1"
                             />
                         </>
+                    )}
+
+                    {isScheduling && (
+                        <div
+                            id="commit-schedule"
+                            className="mt-3 space-y-2 rounded-lg border bg-muted/30 p-3"
+                        >
+                            <label
+                                htmlFor="scheduled-at"
+                                className="text-sm font-medium"
+                            >
+                                Submit at
+                            </label>
+                            <Input
+                                id="scheduled-at"
+                                type="datetime-local"
+                                required
+                                value={scheduledAt}
+                                onChange={(event) => {
+                                    const value = event.target.value;
+                                    setScheduledAt(value);
+                                    const date = new Date(value);
+                                    const pad = (n: number) =>
+                                        String(n).padStart(2, '0');
+                                    const local = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+                                    event.target.setCustomValidity(
+                                        value && local !== value
+                                            ? 'This time does not exist in your timezone. Choose another time.'
+                                            : '',
+                                    );
+                                }}
+                                aria-describedby="schedule-help schedule-error"
+                                aria-invalid={
+                                    errors.scheduled_at ? true : undefined
+                                }
+                            />
+                            <p
+                                id="schedule-help"
+                                className="text-xs leading-relaxed text-muted-foreground"
+                            >
+                                {timezone}
+                                {scheduledAt &&
+                                !Number.isNaN(new Date(scheduledAt).getTime())
+                                    ? ` (${new Intl.DateTimeFormat(undefined, { timeZoneName: 'shortOffset' }).formatToParts(new Date(scheduledAt)).find((part) => part.type === 'timeZoneName')?.value})`
+                                    : ''}
+                                . Within 30 days. Private until submitted;{' '}
+                                {auth.isAdmin
+                                    ? 'your commit will be approved automatically.'
+                                    : 'then submitted for review, not published automatically.'}
+                            </p>
+                            <InputError
+                                id="schedule-error"
+                                message={errors.scheduled_at}
+                            />
+                            <Link
+                                href={ScheduledCommitController.index()}
+                                className="text-xs font-medium text-primary hover:underline"
+                            >
+                                Scheduled commits →
+                            </Link>
+                        </div>
                     )}
 
                     {isSeries && (
@@ -260,13 +359,15 @@ function CommitComposerPart({
 
                             <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
                                 <div className="mr-auto flex min-w-0 items-center gap-3">
-                                    <ImagePickerButton
-                                        count={attachments.images.length}
-                                        disabled={processing}
-                                        onPick={attachments.attach}
-                                        className="-ml-2"
-                                    />
-                                    {!isSeries && (
+                                    {!isScheduling && (
+                                        <ImagePickerButton
+                                            count={attachments.images.length}
+                                            disabled={processing}
+                                            onPick={attachments.attach}
+                                            className="-ml-2"
+                                        />
+                                    )}
+                                    {!isScheduling && !isSeries && (
                                         <LinkCardPicker
                                             linkCard={linkCard}
                                             disabled={processing}
@@ -284,9 +385,11 @@ function CommitComposerPart({
                                         onClick={addPartAfter}
                                         disabled={!canAddPart}
                                         title={
-                                            canAddPart
-                                                ? 'Add another commit (⌘/Ctrl + Shift + Enter)'
-                                                : `A series has at most ${maxParts} commits`
+                                            isScheduling
+                                                ? 'Series cannot be scheduled yet'
+                                                : canAddPart
+                                                  ? 'Add another commit (⌘/Ctrl + Shift + Enter)'
+                                                  : `A series has at most ${maxParts} commits`
                                         }
                                         className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                                         data-test="add-commit-part-button"
@@ -304,6 +407,39 @@ function CommitComposerPart({
                                         />
                                     )}
                                 </div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    aria-expanded={isScheduling}
+                                    aria-controls="commit-schedule"
+                                    disabled={
+                                        processing ||
+                                        (!isScheduling &&
+                                            (hasImages || isSeries))
+                                    }
+                                    title={
+                                        !isScheduling && isSeries
+                                            ? 'Series cannot be scheduled yet'
+                                            : !isScheduling && hasImages
+                                              ? "Images can't be scheduled yet"
+                                              : undefined
+                                    }
+                                    onClick={() => {
+                                        setTimezone(
+                                            Intl.DateTimeFormat().resolvedOptions()
+                                                .timeZone,
+                                        );
+                                        setIsScheduling(!isScheduling);
+                                    }}
+                                    className="gap-1.5 px-2 text-muted-foreground"
+                                >
+                                    <Clock3
+                                        className="size-3.5"
+                                        aria-hidden="true"
+                                    />
+                                    Schedule
+                                </Button>
                                 {!isSeries && (
                                     <RemainingCount
                                         id="body-count"
@@ -312,16 +448,24 @@ function CommitComposerPart({
                                 )}
                                 <Button
                                     type="submit"
-                                    disabled={processing || !isCommittable}
-                                    title="Commit (⌘/Ctrl + Enter)"
+                                    disabled={processing || !isSubmittable}
+                                    title={
+                                        isScheduling
+                                            ? 'Schedule commit (⌘/Ctrl + Enter)'
+                                            : 'Commit (⌘/Ctrl + Enter)'
+                                    }
                                     className="min-w-[7.5rem]"
                                     data-test="create-commit-button"
                                 >
-                                    {processing
-                                        ? 'Committing…'
-                                        : isSeries
-                                          ? `Commit ${bodies.length}`
-                                          : 'Commit'}
+                                    {isScheduling
+                                        ? processing
+                                            ? 'Scheduling…'
+                                            : 'Schedule commit'
+                                        : processing
+                                          ? 'Committing…'
+                                          : isSeries
+                                            ? `Commit ${bodies.length}`
+                                            : 'Commit'}
                                 </Button>
                             </div>
                         </>
@@ -333,6 +477,9 @@ function CommitComposerPart({
 }
 
 export function CommitComposer() {
+    const schedule = useCommitSchedule();
+    const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
+        schedule;
     const { user } = useUser();
     const stash = useSeriesStash(user.id, 'commit');
     const { bodies, updateBody, insertPart, removePart } = stash;
@@ -346,10 +493,12 @@ export function CommitComposer() {
     const attachments = useImageAttachments();
 
     const isSeries = bodies.length > 1;
-    const canAddPart = bodies.length < maxParts;
+    const canAddPart = !isScheduling && bodies.length < maxParts;
     const isCommittable = bodies.every(
         (body) => characterCount(body.trim()) >= minBodyLength,
     );
+    const hasImages = attachments.images.length > 0;
+    const isSubmittable = isCommittable && !(isScheduling && hasImages);
 
     const addPartAfter = (index: number) => {
         if (!canAddPart) {
@@ -394,7 +543,7 @@ export function CommitComposer() {
             return;
         }
 
-        if (isModEnter && isCommittable) {
+        if (isModEnter && isSubmittable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
 
@@ -409,13 +558,22 @@ export function CommitComposer() {
 
     return (
         <Form
-            {...(isSeries
-                ? CommitSeriesController.store.form()
-                : CommitController.store.form())}
+            {...(isScheduling
+                ? ScheduledCommitController.store.form()
+                : isSeries
+                  ? CommitSeriesController.store.form()
+                  : CommitController.store.form())}
             transform={(data) =>
-                attachments.images.length > 0
-                    ? { ...data, images: attachments.images }
-                    : data
+                isScheduling
+                    ? {
+                          ...data,
+                          scheduled_at: new Date(scheduledAt)
+                              .toISOString()
+                              .replace(/\.\d{3}Z$/, '+00:00'),
+                      }
+                    : hasImages
+                      ? { ...data, images: attachments.images }
+                      : data
             }
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
@@ -424,6 +582,8 @@ export function CommitComposer() {
                 }
 
                 drop();
+                setScheduledAt('');
+                setIsScheduling(false);
                 attachments.clear();
                 focusPart(0);
             }}
@@ -440,7 +600,9 @@ export function CommitComposer() {
                             attachments={attachments}
                             linkCard={linkCards.cards[index]}
                             index={index}
-                            isCommittable={isCommittable}
+                            isSubmittable={isSubmittable}
+                            schedule={schedule}
+                            canAddPart={canAddPart}
                             processing={processing}
                             errors={errors}
                             onKeyDown={(event) => onKeyDown(index, event)}

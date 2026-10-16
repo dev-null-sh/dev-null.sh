@@ -12,6 +12,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Services\EmojiShortcodes;
+use App\Services\TheAlgorithm;
 use App\Services\Urls;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,8 @@ final readonly class CreateCommit
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
         private CreateCommitImages $createCommitImages,
+        private UpdateCommitHotScores $updateCommitHotScores,
+        private TheAlgorithm $theAlgorithm,
         private EmojiShortcodes $emojiShortcodes,
         private Urls $urls,
     ) {
@@ -44,19 +47,27 @@ final readonly class CreateCommit
 
         return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $url, $series): Commit {
             $linkPreview = $this->linkPreviewFor($url);
+            $createdAt = now();
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
                 'parent_id' => $parent?->id,
+                'root_id' => $parent?->threadRootId(),
                 'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
                 'quoted_commit_id' => $quotedCommit?->id,
                 'series_id' => $series?->seriesId,
                 'series_position' => $series?->position,
                 'series_size' => $series?->size,
+                'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),
+                'created_at' => $createdAt,
             ]);
 
             $this->createCommitImages->handle($commit, $images);
+
+            if ($parent instanceof Commit && $commit->status === CommitStatus::Approved) {
+                $this->updateCommitHotScores->handle([$commit->threadRootId()]);
+            }
 
             $this->createReplyNotifications->handle($commit);
             $this->createQuoteNotifications->handle($commit);
