@@ -53,13 +53,21 @@ final class CommitBuilder extends Builder
      */
     public function visibleInThreadTo(?User $user): self
     {
+        $replies = (new Commit)->setTable('surviving_replies')->newQuery()
+            ->from((new Commit)->getTable().' as surviving_replies')
+            ->withTrashed()
+            ->visibleTo($user)
+            ->withoutMutedAuthorsFor($user)
+            ->where(fn (self $query): self => $query
+                ->whereColumn('surviving_replies.parent_id', $this->qualifyColumn('id'))
+                ->orWhereColumn('surviving_replies.quoted_commit_id', $this->qualifyColumn('id')));
+
         return $this->withTrashed()
             ->visibleTo($user)
             ->withoutMutedAuthorsFor($user)
             ->where(fn (self $query): self => $query
                 ->whereNull($query->getModel()->getQualifiedDeletedAtColumn())
-                ->orWhereHas('replies', fn (self $replies): self => $replies->withTrashed()->visibleTo($user)->withoutMutedAuthorsFor($user))
-                ->orWhereHas('quotes', fn (self $quotes): self => $quotes->withTrashed()->visibleTo($user)->withoutMutedAuthorsFor($user)));
+                ->orWhereExists($replies));
     }
 
     public function topLevel(): self
