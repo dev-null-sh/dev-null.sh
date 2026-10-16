@@ -1,6 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, ListOrdered, Trash2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
@@ -110,10 +110,19 @@ export function CommitCard({
         );
     };
 
+    const openCommit = (event: MouseEvent<HTMLElement>) => {
+        if (!isClickOnCard(event)) {
+            return;
+        }
+
+        router.visit(permalink);
+    };
+
     return (
         <article
+            onClick={openCommit}
             className={cn(
-                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
+                'grid cursor-pointer scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
                 { 'bg-primary-soft/60': isHighlighted },
                 deletion === 'deleting'
                     ? 'grid-rows-[0fr] opacity-0 delay-400'
@@ -477,4 +486,29 @@ export function CommitTombstone({
             </div>
         </article>
     );
+}
+
+/**
+ * A click opens the commit unless it lands on something interactive, inside a
+ * nested commit or a popover, or ends a text selection.
+ */
+function isClickOnCard(event: MouseEvent<HTMLElement>): boolean {
+    const target = event.target;
+
+    if (
+        event.defaultPrevented ||
+        !(target instanceof Element) ||
+        !event.currentTarget.contains(target)
+    ) {
+        return false;
+    }
+
+    if (
+        target.closest('a, button, input, textarea, select, label, [role]') ||
+        target.closest('[data-commit]') !== event.currentTarget
+    ) {
+        return false;
+    }
+
+    return !window.getSelection()?.toString();
 }
