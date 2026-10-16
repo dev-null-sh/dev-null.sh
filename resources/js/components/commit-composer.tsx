@@ -187,7 +187,7 @@ export function CommitComposer() {
             }
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
-                if (!page.flash.committed) {
+                if (!page.flash.committed && !page.flash.scheduled) {
                     return;
                 }
 

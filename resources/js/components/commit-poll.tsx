@@ -38,9 +38,11 @@ function percentage(votes: number, total: number): number {
 export function CommitPoll({
     commit,
     poll: initialPoll,
+    isStatic = false,
 }: {
-    commit: Commit;
+    commit: Pick<Commit, 'id' | 'user_id' | 'status'>;
     poll: Poll;
+    isStatic?: boolean;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
@@ -100,7 +102,23 @@ export function CommitPoll({
 
     return (
         <div className="mt-3" data-test="commit-poll">
-            {poll.total_votes === null ? (
+            {poll.total_votes === null && isStatic ? (
+                <div role="group" aria-label="Poll options">
+                    <ul className="space-y-2">
+                        {poll.options.map((option) => (
+                            <li
+                                key={option.id}
+                                className="rounded-md border px-3 py-2 text-[15px] [overflow-wrap:anywhere]"
+                            >
+                                {emojify(option.label)}
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="mt-2 font-mono text-[13px] text-muted-foreground">
+                        {status}
+                    </p>
+                </div>
+            ) : poll.total_votes === null ? (
                 <fieldset disabled={!canVote || request.processing}>
                     <legend className="sr-only">Poll options</legend>
                     <div className="space-y-2">

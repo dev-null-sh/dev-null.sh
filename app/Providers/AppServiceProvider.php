@@ -25,6 +25,7 @@ final class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->bootRateLimitingDefaults();
+
         $this->bootExceptionHandling();
     }
 
@@ -61,6 +62,21 @@ final class AppServiceProvider extends ServiceProvider
 
     private function bootRateLimitingDefaults(): void
     {
+        // Every sync costs four GitHub API requests, out of a shared hourly budget...
+        RateLimiter::for('profile-syncs', function (Request $request): Limit {
+            $user = $request->user();
+            assert($user instanceof User);
+
+            return Limit::perMinute(1)->by($user->id)->response(function (): RedirectResponse {
+                Inertia::flash('toast', [
+                    'type' => 'error',
+                    'message' => __('You just synced. Try again in a minute.'),
+                ]);
+
+                return back();
+            });
+        });
+
         RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
 
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...

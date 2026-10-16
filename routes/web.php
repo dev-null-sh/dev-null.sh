@@ -213,6 +213,9 @@ Route::middleware('auth')->group(function (): void {
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
+    Route::put('settings/profile', [UserProfileController::class, 'update'])
+        ->middleware('throttle:profile-syncs')
+        ->name('user-profile.update');
     Route::get('settings/export', ExportController::class)
         ->middleware(['throttle:exports', 'throttle:5,1'])
         ->name('export');

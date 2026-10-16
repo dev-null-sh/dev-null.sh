@@ -16,11 +16,11 @@ devnull is a social network for developers: sign in with GitHub, get a profile m
 
 ## Positioning
 
-Identity is GitHub. Every account is a real GitHub user, and the profile (avatar, name, username, bio, company, location, website) is mirrored from GitHub on every login and cannot be edited on devnull. A general-purpose network cannot truthfully claim that every account is a developer with a public GitHub identity.
+Identity is GitHub. Every account is a real GitHub user, and the profile (avatar, name, username, bio, company, location, website) is mirrored from GitHub on every login, or on demand with "Sync from GitHub" in settings, and cannot be edited on devnull. A general-purpose network cannot truthfully claim that every account is a developer with a public GitHub identity.
 
 ## Operating Context
 
-- Sign-in is GitHub OAuth only. Profile changes happen on GitHub ("Edit on GitHub"), then sync at next login.
+- Sign-in is GitHub OAuth only. Profile changes happen on GitHub ("Edit on GitHub"), then sync at next login or with "Sync from GitHub" (once a minute).
 - Everything except the landing page, the public read API, and profile feeds requires login.
 - Public read API: read-only JSON under `/api/v1`, no authentication, for public profiles (with counts), a user's commits or replies, and single commits. It returns exactly what a guest's link preview may show: approved, non-deleted commits only (with their images), approved reply counts, and a parent only while it is approved. Never emails or other hidden profile fields. 60 requests a minute per IP.
 - Profile feeds: every profile has an Atom feed of its latest 50 approved top-level commits at `/@{username}/feed.atom`, their images as enclosures, advertised with `<link rel="alternate">` on the profile's guest preview.
