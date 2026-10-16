@@ -8,6 +8,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Models\UserTrustChange;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 it('lets an administrator grant and revoke trust with a decision history', function (): void {
@@ -168,6 +169,52 @@ it('ignores attempts to gain trust by submitting a commit', function (): void {
 
     expect($author->fresh()->is_trusted)->toBeFalse();
     expect($author->commits()->sole()->status)->toBe(CommitStatus::Pending);
+});
+
+it('publishes trusted commits to the public api and atom feed and hides new commits after revocation', function (): void {
+    $moderator = User::factory()->create();
+    $author = User::factory()->create(['has_sponsors_listing' => true]);
+    config(['app.admins' => [$moderator->username]]);
+
+    $this->actingAs($moderator)->put(route('user-trust.update', $author), ['is_trusted' => true])
+        ->assertRedirect();
+    $this->actingAs($author)->post(route('commit.store'), ['body' => 'Shipped it :rocket:'])
+        ->assertRedirect();
+
+    $published = $author->commits()->sole();
+    expect($published->status)->toBe(CommitStatus::Approved);
+
+    Auth::logout();
+
+    $this->getJson(route('api-commit.show', $published))->assertOk()
+        ->assertJsonPath('data.body', 'Shipped it 🚀')
+        ->assertJsonMissingPath('data.author.is_trusted')
+        ->assertJsonMissingPath('data.author.trust_changes');
+    $this->getJson(route('api-user.show', $author))->assertOk()
+        ->assertJsonPath('data.commits_count', 1)
+        ->assertJsonMissingPath('data.is_trusted')
+        ->assertJsonMissingPath('data.trust_changes');
+    $this->get(route('user-feed.show', $author))->assertOk()->assertSee('Shipped it 🚀');
+
+    $this->actingAs($moderator)->put(route('user-trust.update', $author), ['is_trusted' => false])
+        ->assertRedirect();
+    $this->actingAs($author)->post(route('commit.store'), ['body' => 'Waiting after revocation'])
+        ->assertRedirect();
+
+    $pending = $author->commits()->whereKeyNot($published->id)->sole();
+    expect($pending->status)->toBe(CommitStatus::Pending);
+    expect($author->fresh()->has_sponsors_listing)->toBeTrue();
+
+    Auth::logout();
+
+    $this->getJson(route('api-commit.show', $pending))->assertNotFound();
+    $this->getJson(route('api-commit.show', $published))->assertOk();
+    $this->getJson(route('api-user-commit.index', $author))
+        ->assertOk()->assertJsonPath('data.*.id', [$published->id]);
+    $this->getJson(route('api-user.show', $author))
+        ->assertOk()->assertJsonPath('data.commits_count', 1);
+    $this->get(route('user-feed.show', $author))->assertOk()
+        ->assertSee('Shipped it 🚀')->assertDontSee('Waiting after revocation');
 });
 
 it('rolls back trust if recording the decision fails', function (): void {

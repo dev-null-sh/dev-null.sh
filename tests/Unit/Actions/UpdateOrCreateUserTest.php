@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 use App\Actions\UpdateOrCreateUser;
 use App\Models\User;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Laravel\Socialite\Two\User as GitHubUser;
 
 it('creates a user from github', function (): void {
+    fakeGitHubSponsorsListing();
+
     $action = resolve(UpdateOrCreateUser::class);
 
     $user = $action->handle(GitHubUser::fake([
@@ -36,6 +40,8 @@ it('creates a user from github', function (): void {
 });
 
 it('updates an existing user from github', function (): void {
+    fakeGitHubSponsorsListing();
+
     $existing = User::factory()->trusted()->create([
         'github_id' => '583231',
         'username' => 'old-username',
@@ -58,6 +64,8 @@ it('updates an existing user from github', function (): void {
 });
 
 it('falls back to the username when the name is blank', function (): void {
+    fakeGitHubSponsorsListing();
+
     $action = resolve(UpdateOrCreateUser::class);
 
     $user = $action->handle(GitHubUser::fake([
@@ -69,6 +77,8 @@ it('falls back to the username when the name is blank', function (): void {
 });
 
 it('stores blank profile fields as null', function (): void {
+    fakeGitHubSponsorsListing();
+
     $action = resolve(UpdateOrCreateUser::class);
 
     $user = $action->handle(GitHubUser::fake([
@@ -88,6 +98,8 @@ it('stores blank profile fields as null', function (): void {
 });
 
 it('adds a scheme to websites without one', function (): void {
+    fakeGitHubSponsorsListing();
+
     $action = resolve(UpdateOrCreateUser::class);
 
     $user = $action->handle(GitHubUser::fake([
@@ -98,6 +110,8 @@ it('adds a scheme to websites without one', function (): void {
 });
 
 it('keeps http websites as they are', function (): void {
+    fakeGitHubSponsorsListing();
+
     $action = resolve(UpdateOrCreateUser::class);
 
     $user = $action->handle(GitHubUser::fake([
@@ -105,4 +119,82 @@ it('keeps http websites as they are', function (): void {
     ]));
 
     expect($user->website)->toBe('http://example.com');
+});
+
+it('marks users with a public sponsors listing', function (): void {
+    fakeGitHubSponsorsListing(isPublic: true);
+
+    $action = resolve(UpdateOrCreateUser::class);
+
+    $user = $action->handle(GitHubUser::fake([
+        'token' => 'gho_octocat',
+    ]));
+
+    expect($user->has_sponsors_listing)->toBeTrue()
+        ->and($user->is_trusted)->toBeFalse();
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/graphql'
+        && $request->hasHeader('Authorization', 'Bearer gho_octocat')
+        && $request['query'] === 'query { viewer { sponsorsListing { isPublic } } }');
+});
+
+it('unmarks users without a public sponsors listing', function (?bool $isPublic): void {
+    $existing = User::factory()->trusted()->create([
+        'github_id' => '583231',
+        'has_sponsors_listing' => true,
+    ]);
+
+    fakeGitHubSponsorsListing($isPublic);
+
+    $action = resolve(UpdateOrCreateUser::class);
+
+    $action->handle(GitHubUser::fake([
+        'id' => '583231',
+    ]));
+
+    expect($existing->refresh())
+        ->has_sponsors_listing->toBeFalse()
+        ->is_trusted->toBeTrue();
+})->with([
+    'no listing' => null,
+    'private listing' => false,
+]);
+
+it('keeps the last known sponsors listing when github cannot say', function (Closure $response): void {
+    $existing = User::factory()->trusted()->create([
+        'github_id' => '583231',
+        'has_sponsors_listing' => true,
+    ]);
+
+    Http::fake([
+        'api.github.com/graphql' => $response,
+    ]);
+
+    $action = resolve(UpdateOrCreateUser::class);
+
+    $action->handle(GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    expect($existing->refresh())
+        ->username->toBe('octocat')
+        ->has_sponsors_listing->toBeTrue()
+        ->is_trusted->toBeTrue();
+})->with([
+    'server error' => fn () => Http::response(status: 502),
+    'graphql error' => fn () => Http::response(['errors' => [['message' => 'API rate limit exceeded']]]),
+    'connection failure' => fn () => Http::failedConnection(),
+]);
+
+it('creates users without a sponsors listing when github cannot say', function (): void {
+    Http::fake([
+        'api.github.com/graphql' => Http::response(status: 502),
+    ]);
+
+    $action = resolve(UpdateOrCreateUser::class);
+
+    $user = $action->handle(GitHubUser::fake());
+
+    expect($user->refresh()->has_sponsors_listing)->toBeFalse();
 });
