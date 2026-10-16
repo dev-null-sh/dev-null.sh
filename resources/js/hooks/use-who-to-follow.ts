@@ -13,7 +13,10 @@ export function useWhoToFollow() {
 
     const setShowsWhoToFollow = (shows: boolean): void => {
         rememberShowsWhoToFollow(shows);
-        router.reload({ only: ['showsWhoToFollow', 'suggestedUsers'] });
+        router.reload({
+            only: ['showsWhoToFollow', 'suggestedUsers'],
+            viewTransition: true,
+        });
     };
 
     return {
