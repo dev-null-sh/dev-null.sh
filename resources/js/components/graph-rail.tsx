@@ -18,6 +18,9 @@ type Props = {
 
 const dimmable = 'transition-opacity duration-200';
 
+// Nodes fade inside an opaque backdrop so the lane line behind them stays hidden.
+const dimmedNode = 'group-data-dimmed/rail-node:opacity-30';
+
 export function GraphRail({
     lane,
     previousLane,
@@ -67,13 +70,10 @@ export function GraphRail({
                 ))}
 
             <span
+                data-dimmed={isDimmed || undefined}
                 className={cn(
-                    'absolute top-8 left-1/2 flex -translate-1/2 rounded-full',
-                    dimmable,
-                    {
-                        'motion-safe:animate-node-in': isFresh,
-                        'opacity-30': isDimmed,
-                    },
+                    'group/rail-node absolute top-8 left-1/2 flex -translate-1/2 rounded-full',
+                    { 'motion-safe:animate-node-in': isFresh },
                 )}
             >
                 {node ?? <RailDot isHollow={!isFilled || variant === 'root'} />}
@@ -90,13 +90,16 @@ export function RailDot({
     className?: string;
 }) {
     return (
-        <span
-            className={cn(
-                'size-3.5 rounded-full border-[3px] border-card bg-(--lane) shadow-[0_0_0_2px_var(--lane)] transition-[background-color,scale] duration-200',
-                { 'bg-card': isHollow },
-                className,
-            )}
-        />
+        <span className="flex rounded-full bg-card">
+            <span
+                className={cn(
+                    'size-3.5 rounded-full border-[3px] border-card bg-(--lane) shadow-[0_0_0_2px_var(--lane)] transition-[background-color,scale,opacity] duration-200',
+                    dimmedNode,
+                    { 'bg-card': isHollow },
+                    className,
+                )}
+            />
+        </span>
     );
 }
 
@@ -108,13 +111,16 @@ export function RailAvatar({
     isStaged?: boolean;
 }) {
     return (
-        <span
-            className={cn(
-                'flex rounded-full border-2 border-(--lane) bg-card p-0.5 transition-colors duration-200',
-                { 'border-dashed': isStaged },
-            )}
-        >
-            <UserAvatar user={user} className="size-10" />
+        <span className="flex rounded-full bg-card">
+            <span
+                className={cn(
+                    'flex rounded-full border-2 border-(--lane) p-0.5 transition-[border-color,opacity] duration-200',
+                    dimmedNode,
+                    { 'border-dashed': isStaged },
+                )}
+            >
+                <UserAvatar user={user} className="size-10" />
+            </span>
         </span>
     );
 }

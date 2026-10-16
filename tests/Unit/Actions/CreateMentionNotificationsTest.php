@@ -47,6 +47,15 @@ it('ignores usernames nobody has', function (): void {
     expect(Notification::query()->count())->toBe(0);
 });
 
+it('does not send mentions without an author identity', function (): void {
+    User::factory()->create(['username' => 'nunomaduro']);
+    $commit = Commit::factory()->create(['user_id' => null, 'body' => 'Hi @nunomaduro']);
+
+    resolve(CreateMentionNotifications::class)->handle($commit);
+
+    expect(Notification::query()->count())->toBe(0);
+});
+
 it('does not notify authors mentioning themselves', function (): void {
     $user = User::factory()->create(['username' => 'nunomaduro']);
 
@@ -65,6 +74,18 @@ it('leaves the parent author of a reply to the reply notification', function ():
     $action = resolve(CreateMentionNotifications::class);
 
     $action->handle($reply);
+
+    expect(Notification::query()->sole()->recipient_id)->toBe($other->id);
+});
+
+it('leaves the quoted author of a quote to the quote notification', function (): void {
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'nunomaduro']))->create();
+    $other = User::factory()->create(['username' => 'taylorotwell']);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create(['body' => '@nunomaduro @taylorotwell look']);
+
+    $action = resolve(CreateMentionNotifications::class);
+
+    $action->handle($quote);
 
     expect(Notification::query()->sole()->recipient_id)->toBe($other->id);
 });
