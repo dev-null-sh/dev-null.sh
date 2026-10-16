@@ -231,7 +231,7 @@ function UserPreviewContent({
     onChange: (data: PreviewData) => void;
 }) {
     const { auth } = usePage().props;
-    const isCurrentUser = auth.user.id === user.id;
+    const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();

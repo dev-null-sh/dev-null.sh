@@ -15,20 +15,20 @@ use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitRepliesQuery;
 use App\Queries\CommitSeriesQuery;
-use App\Services\Urls;
+use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final readonly class CommitController
 {
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, CommitSeriesQuery $series): RedirectResponse|Response
+    /**
+     * Commits are public, so guests and crawlers read the same page, with the commit's link preview.
+     */
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, CommitSeriesQuery $series, PageMetadata $metadata): Response
     {
-        if (! $currentUser instanceof User) {
-            return $this->preview($user, $commit);
-        }
+        $preview = $currentUser instanceof User ? null : $metadata->commit($commit->loadPublicPreview()->loadCount('stars'));
 
         $commit = Commit::query()
             ->withVisibleReplyCount($currentUser)
@@ -45,7 +45,7 @@ final readonly class CommitController
             'series' => $series->after($commit, $currentUser),
             // A series reads in order, so the replies to a part stay folded until asked for...
             'replies' => $isInSeries ? null : $replies->paginate($commit, $currentUser),
-        ]);
+        ])->withViewData(['preview' => $preview]);
     }
 
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): RedirectResponse
@@ -76,31 +76,5 @@ final readonly class CommitController
         }
 
         return back();
-    }
-
-    /**
-     * Guests only get the landing page, with the commit's link preview for crawlers.
-     */
-    private function preview(User $user, Commit $commit): RedirectResponse|Response
-    {
-        redirect()->setIntendedUrl(route('commit.show', [$user, $commit]));
-
-        if (app()->isLocal() && config('app.auto_login')) {
-            return to_route('home');
-        }
-
-        $commit->loadPublicPreview();
-
-        $title = $commit->parent instanceof Commit
-            ? "{$user->nameWithHandle()} replying to @{$commit->parent->user->username} on /dev/null"
-            : "{$user->nameWithHandle()} on /dev/null";
-
-        return Inertia::render('welcome')->withViewData(['preview' => [
-            'type' => 'article',
-            'title' => $title,
-            'description' => Str::limit(Str::squish(resolve(Urls::class)->withShortenedUrls($commit->body)), 200, '…', preserveWords: true),
-            'url' => route('commit.show', [$user, $commit]),
-            'image' => route('commit-open-graph-image.show', ['user' => $user, 'commit' => $commit, 'v' => $commit->openGraphImageVersion()]),
-        ]]);
     }
 }

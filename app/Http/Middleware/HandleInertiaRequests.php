@@ -40,7 +40,7 @@ final class HandleInertiaRequests extends Middleware
     {
         $isAdmin = $request->user()?->isAdmin() ?? false;
         $user = $request->user();
-        $showsWhoToFollow = $request->cookie('who_to_follow') !== 'false';
+        $showsWhoToFollow = $user instanceof User && $request->cookie('who_to_follow') !== 'false';
 
         return [
             ...parent::share($request),
