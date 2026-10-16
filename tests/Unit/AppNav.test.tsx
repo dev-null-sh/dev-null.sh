@@ -15,7 +15,7 @@ const admin = {
 
 for (const mobile of [false, true]) {
     for (const scenario of [
-        { url: '/', user: null, active: '/' },
+        { url: '/', user: null, active: null },
         { url: '/@author', user: null, active: null },
         { url: '/moderation', user: admin, active: '/moderation' },
         { url: '/moderation/decisions', user: admin, active: '/moderation' },

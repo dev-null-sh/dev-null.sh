@@ -19,7 +19,6 @@ use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitReportController;
 use App\Http\Controllers\CommitRestorationController;
-use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
@@ -39,7 +38,6 @@ use App\Http\Controllers\RejectionReasonController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
-use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\UserActivityGraphController;
@@ -130,16 +128,8 @@ Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
 
 // User Search...
 Route::get('search/users', [UserSearchController::class, 'index'])
-    ->middleware(['throttle:user-search', 'throttle:people'])
+    ->middleware('throttle:people')
     ->name('user-search.index');
-
-// Search...
-Route::get('search', [SearchController::class, 'index'])->name('search.index');
-
-// Commit Search...
-Route::get('search/commits', [CommitSearchController::class, 'index'])
-    ->middleware('throttle:commit-search')
-    ->name('commit-search.index');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -239,7 +229,7 @@ Route::middleware('auth')->group(function (): void {
 
     // Mention Suggestions...
     Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
-        ->middleware(['throttle:mention-suggestions', 'throttle:people'])
+        ->middleware('throttle:people')
         ->name('mention-suggestion.index');
 
     // User Profile...

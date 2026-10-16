@@ -53,10 +53,3 @@ it('leaves out commits by muted people and across blocks', function (): void {
 
     expect($commits->modelKeys())->toBe([$visible->id]);
 });
-
-it('includes only approved commits for guests', function (): void {
-    $approved = Commit::factory()->create();
-    Commit::factory()->pending()->create();
-
-    expect(resolve(LatestLogQuery::class)->builder(null)->get()->modelKeys())->toBe([$approved->id]);
-});

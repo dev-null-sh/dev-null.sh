@@ -6,7 +6,7 @@ import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LiveStreamBanner } from '@/components/live-stream';
-import { SearchDialog } from '@/components/search-dialog';
+import { UserSearchDialog } from '@/components/user-search-dialog';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import type { AppLayoutProps } from '@/types';
@@ -41,7 +41,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
             <CommitImageViewer />
 
-            <SearchDialog open={isSearching} onOpenChange={setIsSearching} />
+            <UserSearchDialog
+                open={isSearching}
+                onOpenChange={setIsSearching}
+            />
 
             <KeyboardShortcutsDialog
                 open={isShowingShortcuts}
