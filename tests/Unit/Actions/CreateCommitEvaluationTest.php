@@ -255,6 +255,41 @@ it('judges every part of a series together and records the decision under its fi
     'uncertain' => [0.1, CommitStatus::Pending],
 ]);
 
+it('does not evaluate a series that was decided after its pending part was loaded', function (CommitStatus $status): void {
+    $parts = commitSeries(status: CommitStatus::Pending);
+    $spam = ModerationRule::factory()->create();
+    Commit::query()->whereKey($parts->modelKeys())->update(['status' => $status]);
+
+    fakeJev(["rule_{$spam->id}" => 0.99]);
+
+    expect(resolve(CreateCommitEvaluation::class)->handle($parts[1]))->toBeNull()
+        ->and($parts->fresh()->pluck('status')->unique()->all())->toBe([$status])
+        ->and(CommitEvaluation::query()->count())->toBe(0)
+        ->and(Notification::query()->count())->toBe(0);
+
+    Http::assertNothingSent();
+})->with([
+    'approved' => CommitStatus::Approved,
+    'rejected' => CommitStatus::Rejected,
+]);
+
+it('does not evaluate a series whose parts were deleted after its pending part was loaded', function (): void {
+    $parts = commitSeries(status: CommitStatus::Pending);
+    $spam = ModerationRule::factory()->create();
+    Commit::query()->whereKey($parts->modelKeys())->delete();
+
+    fakeJev(["rule_{$spam->id}" => 0.99]);
+
+    expect(resolve(CreateCommitEvaluation::class)->handle($parts[1]))->toBeNull()
+        ->and(Commit::query()->count())->toBe(0)
+        ->and(Commit::withTrashed()->count())->toBe($parts->count())
+        ->and(Commit::withTrashed()->pluck('status')->unique()->all())->toBe([CommitStatus::Pending])
+        ->and(CommitEvaluation::query()->count())->toBe(0)
+        ->and(Notification::query()->count())->toBe(0);
+
+    Http::assertNothingSent();
+});
+
 it('rejects the whole series when a later part matches a live reject rule', function (): void {
     $parts = commitSeries(status: CommitStatus::Pending);
     $parts[2]->update(['body' => 'Buy 1,000 GitHub stars for $5']);
