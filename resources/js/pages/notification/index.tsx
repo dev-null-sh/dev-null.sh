@@ -1,5 +1,12 @@
-import { Head, InfiniteScroll, Link } from '@inertiajs/react';
-import { AtSign, Check, MessageSquareReply, UserPlus, X } from 'lucide-react';
+import { Head, InfiniteScroll, Link, usePage } from '@inertiajs/react';
+import {
+    AtSign,
+    Check,
+    MessageSquareReply,
+    Star,
+    UserPlus,
+    X,
+} from 'lucide-react';
 import type { CSSProperties } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -10,7 +17,7 @@ import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { CursorPaginated, Notification } from '@/types';
+import type { CursorPaginated, Notification, User } from '@/types';
 
 export default function Index({
     notifications,
@@ -28,7 +35,7 @@ export default function Index({
             {notifications.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command="$ cat /dev/notifications">
-                        Nothing here yet. Follows, replies, mentions, and
+                        Nothing here yet. Follows, stars, replies, mentions, and
                         moderation updates for your commits will show up here.
                     </EmptyFeed>
                 </div>
@@ -56,15 +63,59 @@ export default function Index({
     );
 }
 
+const verbs = {
+    followed: 'followed you',
+    replied: 'replied to your commit',
+    mentioned: 'mentioned you',
+    starred: 'starred your commit',
+} as const;
+
+function others(count: number): string {
+    if (count === 0) {
+        return '';
+    }
+
+    return ` and ${count} ${count === 1 ? 'other' : 'others'}`;
+}
+
+function notificationHref(notification: Notification, recipient: User) {
+    switch (notification.type) {
+        case 'followed':
+            return show(notification.actor);
+        case 'starred':
+            return CommitController.show({
+                user: recipient,
+                commit: notification.commit,
+            });
+        case 'replied':
+            return notification.actors_count > 1
+                ? CommitController.show({
+                      user: recipient,
+                      commit: notification.subject_id,
+                  })
+                : CommitController.show({
+                      user: notification.actor,
+                      commit: notification.commit,
+                  });
+        default:
+            return CommitController.show({
+                user: notification.actor,
+                commit: notification.commit,
+            });
+    }
+}
+
 function NotificationItem({ notification }: { notification: Notification }) {
     const now = useNow();
+    const { auth } = usePage().props;
     const { actor } = notification;
-    const isUnread = notification.read_at === null;
+    const isUnread = notification.unread_count > 0;
     const isModeration =
         notification.type === 'approved' || notification.type === 'rejected';
     const Icon = {
         followed: UserPlus,
         replied: MessageSquareReply,
+        starred: Star,
         mentioned: AtSign,
         approved: Check,
         rejected: X,
@@ -72,14 +123,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
 
     return (
         <Link
-            href={
-                notification.type === 'followed'
-                    ? show(actor)
-                    : CommitController.show({
-                          user: actor,
-                          commit: notification.commit,
-                      })
-            }
+            href={notificationHref(notification, auth.user)}
             className={cn(
                 'flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 sm:px-6',
                 { 'bg-primary-soft/50': isUnread },
@@ -89,6 +133,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
                 className={cn(
                     'mt-2 size-5 shrink-0',
                     isModeration ? 'text-muted-foreground' : 'text-(--lane)',
+                    { 'fill-current': notification.type === 'starred' },
                 )}
                 style={
                     isModeration
@@ -105,7 +150,19 @@ function NotificationItem({ notification }: { notification: Notification }) {
                             Moderation update
                         </span>
                     ) : (
-                        <UserAvatar user={actor} className="size-8" />
+                        <div className="flex -space-x-2" aria-hidden>
+                            {notification.actors.map((stacked, index) => (
+                                <UserAvatar
+                                    key={stacked.id}
+                                    user={stacked}
+                                    className="relative size-8 ring-2 ring-card"
+                                    style={{
+                                        zIndex:
+                                            notification.actors.length - index,
+                                    }}
+                                />
+                            ))}
+                        </div>
                     )}
                     {isUnread && (
                         <span className="ml-auto size-2 shrink-0 rounded-full bg-primary">
@@ -115,16 +172,14 @@ function NotificationItem({ notification }: { notification: Notification }) {
                 </div>
 
                 <p className="mt-2 text-[15px]">
-                    {isModeration ? (
+                    {notification.type === 'approved' ||
+                    notification.type === 'rejected' ? (
                         `Your commit was ${notification.type}`
                     ) : (
                         <>
-                            <span className="font-medium">{actor.name}</span>{' '}
-                            {notification.type === 'followed'
-                                ? 'followed you'
-                                : notification.type === 'mentioned'
-                                  ? 'mentioned you'
-                                  : 'replied to your commit'}
+                            <span className="font-medium">{actor.name}</span>
+                            {others(notification.actors_count - 1)}{' '}
+                            {verbs[notification.type]}
                         </>
                     )}
                     <span className="text-muted-foreground">

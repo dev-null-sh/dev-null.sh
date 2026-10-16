@@ -29,3 +29,27 @@ it('keeps when notifications were first read', function (): void {
 
     expect($notification->refresh()->read_at->toDateTimeString())->toBe(now()->subDay()->toDateTimeString());
 });
+
+it('marks every notification grouped with the given ones as read', function (): void {
+    $starred = Notification::factory()->starred()->create();
+    $sameCommit = Notification::factory()->for($starred->recipient, 'recipient')->starred($starred->commit)->create();
+    $replied = Notification::factory()->replied()->create();
+    $sameParent = Notification::factory()->for($replied->recipient, 'recipient')->replied($replied->commit->parent)->create();
+    $otherCommit = Notification::factory()->for($starred->recipient, 'recipient')->starred()->create();
+    $follow = Notification::factory()->for($starred->recipient, 'recipient')->create();
+
+    resolve(UpdateNotificationsReadAt::class)->handle($starred, $replied);
+
+    expect($sameCommit->refresh()->read_at)->not->toBeNull()
+        ->and($sameParent->refresh()->read_at)->not->toBeNull()
+        ->and($otherCommit->refresh()->read_at)->toBeNull()
+        ->and($follow->refresh()->read_at)->toBeNull();
+});
+
+it('marks nothing without notifications', function (): void {
+    $notification = Notification::factory()->create();
+
+    resolve(UpdateNotificationsReadAt::class)->handle();
+
+    expect($notification->refresh()->read_at)->toBeNull();
+});
