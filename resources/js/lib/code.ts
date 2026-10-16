@@ -33,16 +33,31 @@ function block(part: string): BodySegment {
 }
 
 /**
- * Applies the callback to the prose being typed only, leaving the code as written.
+ * Applies the callback to the prose being typed only, leaving the code as written. The callback also gets where the
+ * prose starts in the text.
  */
 export function mapTypedProse(
     text: string,
-    callback: (prose: string) => string,
+    callback: (prose: string, offset: number) => string,
 ): string {
+    let offset = 0;
+
     return text
         .split(typedCodePattern)
-        .map((part, index) => (index % 2 === 0 ? callback(part) : part))
+        .map((part, index) => {
+            const start = offset;
+            offset += part.length;
+
+            return index % 2 === 0 ? callback(part, start) : part;
+        })
         .join('');
+}
+
+/**
+ * The prose typed after the last code, or nothing while the text still ends inside code.
+ */
+export function trailingTypedProse(text: string): string {
+    return text.split(typedCodePattern).at(-1) ?? '';
 }
 
 /**

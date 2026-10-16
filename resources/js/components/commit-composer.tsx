@@ -15,7 +15,6 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
-import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -38,7 +37,6 @@ import {
 } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
-import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn, laneColor } from '@/lib/utils';
 import type { User } from '@/types';
@@ -105,7 +103,6 @@ function CommitComposerBody({
     const hasImages = attachments.images.length > 0;
     const isSchedulingImages = isScheduling && hasImages;
     const isFilled = characterCount(body.trim()) >= minBodyLength;
-    const suggestion = suggestEmoji(body);
     const error = errors.body ?? errors.link_preview_url;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
@@ -174,13 +171,6 @@ function CommitComposerBody({
                             />
                         )}
                     </div>
-
-                    {!preview.isPreviewing && (
-                        <EmojiSuggestionHint
-                            suggestion={suggestion}
-                            className="mt-1.5"
-                        />
-                    )}
 
                     <SecretWarning
                         body={body}
@@ -413,7 +403,7 @@ export function CommitComposer() {
         schedule;
     const { user } = useUser();
     const stash = useStash(user.id, 'commit');
-    const { body, updateBody } = stash;
+    const { body } = stash;
     const linkCard = useLinkCard(body);
     const [draftVersion, setDraftVersion] = useState(0);
     const drop = () => {
@@ -442,17 +432,6 @@ export function CommitComposer() {
     useEffect(() => discardSeriesStash(user.id), [user.id]);
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (event.key === 'Tab' && suggestEmoji(body) !== null) {
-            const completed = completeEmoji(body);
-
-            if (completed !== null) {
-                event.preventDefault();
-                updateBody(completed);
-            }
-
-            return;
-        }
-
         if (event.key === 'Enter' && hasModKey(event) && isSubmittable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();

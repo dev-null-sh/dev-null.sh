@@ -1,4 +1,4 @@
-import { mapTypedProse } from '@/lib/code';
+import { mapTypedProse, trailingTypedProse } from '@/lib/code';
 import emojiShortcodes from '@/lib/emoji-shortcodes.json?raw';
 
 const shortcodeEmoji = JSON.parse(emojiShortcodes) as Record<string, string>;
@@ -15,6 +15,15 @@ const shortcodePattern = new RegExp(
     'g',
 );
 
+// The shortcode still being typed right before the caret, like ":eye" on the way to ":eyes".
+const typingPattern = /:[A-Za-z0-9_+-]+$/;
+
+// What the emoji suggestions open for: ":" at the start of a word and at least two characters, like Slack, so
+// "10:30", "std::vec" and emoticons like ":D" stay quiet.
+const queryPattern = /(?<![A-Za-z0-9_:]):([A-Za-z0-9_+-]{2,})$/;
+
+const suggestionLimit = 8;
+
 export function emojify(text: string): string {
     return text.replace(
         shortcodePattern,
@@ -22,11 +31,36 @@ export function emojify(text: string): string {
     );
 }
 
+/**
+ * Turns the typed shortcodes into emoji, except the one at the caret: ":eye" may still become ":eyes", so it waits
+ * for a closing ":", a space, or a pick from the suggestions.
+ */
 export function emojifyInput(
     text: string,
     caret: number,
 ): { text: string; caret: number } {
-    const emojifyTyped = (typed: string) => mapTypedProse(typed, emojify);
+    const typingAt = typingPattern.exec(text.slice(0, caret))?.index ?? -1;
+
+    const emojifyTyped = (typed: string) =>
+        mapTypedProse(typed, (prose, offset) =>
+            prose.replace(
+                shortcodePattern,
+                (match: string, name: string, index: number) => {
+                    const start = offset + index;
+
+                    if (start === typingAt) {
+                        return match;
+                    }
+
+                    // ":heart:eyes" keeps the second colon for the shortcode being typed.
+                    if (start + match.length - 1 === typingAt) {
+                        return `${shortcodeEmoji[name]}:`;
+                    }
+
+                    return shortcodeEmoji[name];
+                },
+            ),
+        );
 
     return {
         text: emojifyTyped(text),
@@ -39,35 +73,48 @@ export type EmojiSuggestion = {
     emoji: string;
 };
 
-export function suggestEmoji(text: string): EmojiSuggestion | null {
-    const match = /:([A-Za-z0-9_+-]*)$/.exec(text);
+export type EmojiQuery = {
+    start: number;
+    query: string;
+};
 
-    if (match === null || match[1] === '') {
+/**
+ * The ":shortcode" being typed at the end of the text, outside code.
+ */
+export function emojiQueryBefore(text: string): EmojiQuery | null {
+    const match = queryPattern.exec(trailingTypedProse(text));
+
+    if (match === null) {
         return null;
     }
 
-    const partial = match[1].toLowerCase();
-
-    let best: { name: string; emoji: string } | null = null;
-
-    for (const [name, emoji] of Object.entries(shortcodeEmoji)) {
-        if (
-            name.startsWith(partial) &&
-            (best === null || name.length < best.name.length)
-        ) {
-            best = { name, emoji };
-        }
-    }
-
-    return best;
+    return { start: text.length - match[0].length, query: match[1] };
 }
 
-export function completeEmoji(text: string): string | null {
-    const suggestion = suggestEmoji(text);
+/**
+ * Names starting with the query first, then names with a word starting with it (":eyes" also finds "roll_eyes"),
+ * shortest first.
+ */
+export function suggestEmojis(query: string): EmojiSuggestion[] {
+    const partial = query.toLowerCase();
 
-    if (suggestion === null) {
-        return null;
-    }
+    const rank = (name: string): number => {
+        if (name.startsWith(partial)) {
+            return 0;
+        }
 
-    return text.replace(/:([A-Za-z0-9_+-]*)$/, suggestion.emoji);
+        return name.includes(`_${partial}`) ? 1 : -1;
+    };
+
+    return Object.entries(shortcodeEmoji)
+        .map(([name, emoji]) => ({ name, emoji, rank: rank(name) }))
+        .filter((suggestion) => suggestion.rank !== -1)
+        .sort(
+            (left, right) =>
+                left.rank - right.rank ||
+                left.name.length - right.name.length ||
+                left.name.localeCompare(right.name),
+        )
+        .slice(0, suggestionLimit)
+        .map(({ name, emoji }) => ({ name, emoji }));
 }
