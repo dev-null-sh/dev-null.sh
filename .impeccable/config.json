@@ -37,6 +37,15 @@
         ],
         "createdAt": "2026-10-15T12:16:02.254Z",
         "reason": "agent decided: unchosen decision-round sketch, never shipped"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "resources/js/pages/moderation/show.tsx"
+        ],
+        "createdAt": "2026-10-16T09:35:52.703Z",
+        "reason": "Agent decided: unchanged production Keycap renders a literal keyboard key with a thicker bottom edge; this is not an accent border on a card."
       }
     ]
   }
