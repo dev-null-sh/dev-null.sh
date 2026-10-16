@@ -19,6 +19,8 @@ use Illuminate\Validation\Rules\In;
 
 final class CreateCommitRequest extends FormRequest
 {
+    public const array BODY_RULES = ['required', 'string', 'min:3', 'max:280'];
+
     public function authorize(): bool
     {
         return true;
@@ -35,7 +37,7 @@ final class CreateCommitRequest extends FormRequest
         assert($user instanceof User);
 
         return [
-            'body' => ['required', 'string', 'min:3', 'max:280'],
+            'body' => self::BODY_RULES,
             'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
             'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],

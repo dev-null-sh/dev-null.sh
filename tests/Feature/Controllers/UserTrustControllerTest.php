@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use App\Actions\UpdateUserTrust;
 use App\Enums\CommitStatus;
+use App\Jobs\ModerateCommit;
 use App\Models\Commit;
+use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Models\UserTrustChange;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 it('lets an administrator grant and revoke trust with a decision history', function (): void {
@@ -294,6 +297,38 @@ it('keeps trusted series publication and public visibility subject to moderation
         ->assertDontSee('Shipped it 🚀')->assertDontSee('Celebrated it 🎉')
         ->assertDontSee('Waiting first part')->assertDontSee('Waiting second part');
 });
+
+it('uses trust at delivery after it changes for an already scheduled commit', function (bool $trusted): void {
+    $moderator = User::factory()->create();
+    $author = User::factory()->create(['is_trusted' => ! $trusted]);
+    config(['app.admins' => [$moderator->username], 'services.openai.key' => 'sk-test']);
+    Queue::fake([ModerateCommit::class]);
+
+    $this->actingAs($author)->post(route('scheduled-commit.store'), [
+        'body' => 'A scheduled release update',
+        'scheduled_at' => now()->addDay()->toIso8601String(),
+    ])->assertSessionHasNoErrors()->assertRedirect();
+    $scheduled = ScheduledCommit::query()->sole();
+    expect($author->commits()->count())->toBe(0);
+
+    $this->actingAs($moderator)->put(route('user-trust.update', $author), ['is_trusted' => $trusted])
+        ->assertRedirect();
+    $this->travelTo($scheduled->scheduled_at);
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    $commit = $author->commits()->sole();
+    expect($commit->status)->toBe($trusted ? CommitStatus::Approved : CommitStatus::Pending)
+        ->and($scheduled->fresh()->commit_id)->toBe($commit->id)
+        ->and($scheduled->fresh()->body)->toBeNull();
+    $this->getJson(route('api-user-commit.index', $author))->assertOk()->assertJsonCount($trusted ? 1 : 0, 'data');
+
+    if ($trusted) {
+        Queue::assertNotPushed(ModerateCommit::class);
+    } else {
+        Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($commit));
+    }
+})->with(['granted before delivery' => true, 'revoked before delivery' => false]);
 
 it('rolls back trust if recording the decision fails', function (): void {
     $author = User::factory()->create();
