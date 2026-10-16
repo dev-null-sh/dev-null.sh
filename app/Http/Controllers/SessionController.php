@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\BefriendTom;
+use App\Actions\CreateTomFollows;
 use App\Actions\UpdateOrCreateUser;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
@@ -24,7 +24,7 @@ final readonly class SessionController
         return Socialite::driver('github')->redirect();
     }
 
-    public function store(Request $request, UpdateOrCreateUser $action, BefriendTom $befriendTom): RedirectResponse
+    public function store(Request $request, UpdateOrCreateUser $action, CreateTomFollows $createTomFollows): RedirectResponse
     {
         if ($request->has('error')) {
             return $this->failed();
@@ -41,7 +41,7 @@ final readonly class SessionController
         $user = $action->handle($githubUser);
 
         if ($user->wasRecentlyCreated) {
-            $befriendTom->handle($user);
+            $createTomFollows->handle($user);
         }
 
         dispatch(new SyncGitHubSshKeysJob($user));
