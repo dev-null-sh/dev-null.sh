@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
@@ -46,6 +47,26 @@ it('keeps going when the follows of a user cannot be imported', function (): voi
         ->and($user->refresh()->github_follows_imported_at)->not->toBeNull();
 
     Exceptions::assertReported(RequestException::class);
+});
+
+it('keeps going when github cannot be reached for a user', function (): void {
+    Exceptions::fake();
+
+    $unreachable = User::factory()->create(['username' => 'unreachable']);
+    $user = User::factory()->create();
+
+    Http::fake(["api.github.com/user/{$unreachable->github_id}" => Http::failedConnection()]);
+    fakeGitHubFollows($user);
+
+    $this->artisan('follows:import')
+        ->expectsOutputToContain('Could not import the GitHub follows of @unreachable.')
+        ->expectsOutputToContain('Imported the GitHub follows of 1 users.')
+        ->assertFailed();
+
+    expect($unreachable->refresh()->github_follows_imported_at)->toBeNull()
+        ->and($user->refresh()->github_follows_imported_at)->not->toBeNull();
+
+    Exceptions::assertReported(ConnectionException::class);
 });
 
 it('stops when github rate limits the requests', function (int $status): void {
