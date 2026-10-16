@@ -16,6 +16,7 @@ final readonly class UpdateCommitStatuses
 {
     public function __construct(
         private CreateReplyNotifications $createReplyNotifications,
+        private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
     ) {
         //
@@ -52,22 +53,25 @@ final readonly class UpdateCommitStatuses
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
                 ->delete();
 
-            $notified = $commits->sortBy('series_position')->unique(fn (Commit $commit): string => $commit->series_id ?? $commit->id);
+            if ($status === CommitStatus::Rejected) {
+                $notified = $commits->sortBy('series_position')->unique(fn (Commit $commit): string => $commit->series_id ?? $commit->id);
 
-            Notification::query()->insert($notified->map(fn (Commit $commit): array => [
-                'id' => Str::uuid7()->toString(),
-                'recipient_id' => $commit->user_id,
-                'actor_id' => $commit->user_id,
-                'type' => $status === CommitStatus::Approved ? NotificationType::Approved->value : NotificationType::Rejected->value,
-                'commit_id' => $commit->id,
-                'key' => 'moderated:'.$commit->id,
-                'reason' => $status === CommitStatus::Rejected ? $reason : null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ])->values()->all());
+                Notification::query()->insert($notified->map(fn (Commit $commit): array => [
+                    'id' => Str::uuid7()->toString(),
+                    'recipient_id' => $commit->user_id,
+                    'actor_id' => $commit->user_id,
+                    'type' => NotificationType::Rejected->value,
+                    'commit_id' => $commit->id,
+                    'key' => 'moderated:'.$commit->id,
+                    'reason' => $reason,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ])->values()->all());
+            }
 
             if ($status === CommitStatus::Approved) {
                 $this->createReplyNotifications->handle(...$commits);
+                $this->createQuoteNotifications->handle(...$commits);
                 $this->createMentionNotifications->handle(...$commits);
             }
         });

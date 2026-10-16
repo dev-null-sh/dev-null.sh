@@ -69,8 +69,30 @@ it('rejects overly long queries', function (): void {
     $response->assertUnprocessable();
 });
 
-it('requires authentication to search', function (): void {
+it('lets guests search', function (): void {
+    User::factory()->create(['username' => 'nunomaduro']);
+
     $response = $this->getJson('/search/users?q=nuno');
 
-    $response->assertUnauthorized();
+    $response->assertOk()
+        ->assertJsonPath('users.0.username', 'nunomaduro');
+});
+
+it('leaves out muted people and people across a block', function (): void {
+    $viewer = User::factory()->create(['username' => 'viewer', 'name' => 'Viewer']);
+    $muted = User::factory()->create(['username' => 'taylor_muted']);
+    $blocked = User::factory()->create(['username' => 'taylor_blocked']);
+    $blocker = User::factory()->create(['username' => 'taylor_blocker']);
+    User::factory()->create(['username' => 'taylor']);
+
+    $viewer->muting()->attach($muted);
+    $viewer->blocking()->attach($blocked);
+    $blocker->blocking()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->getJson('/search/users?q=taylor');
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'users')
+        ->assertJsonPath('users.0.username', 'taylor');
 });

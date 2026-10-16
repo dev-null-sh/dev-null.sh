@@ -81,6 +81,21 @@ final class NotificationFactory extends Factory
     }
 
     /**
+     * An approved quote from the actor of one of the recipient's commits.
+     */
+    public function quoted(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'type' => NotificationType::Quoted,
+            'commit_id' => fn (array $attributes): string => Commit::factory()
+                ->for(User::query()->whereKey($attributes['actor_id'])->sole())
+                ->for(Commit::factory()->for(User::query()->whereKey($attributes['recipient_id'])->sole()), 'quotedCommit')
+                ->create()
+                ->id,
+        ]);
+    }
+
+    /**
      * An approved commit of the actor that mentions the recipient.
      */
     public function mentioned(): self

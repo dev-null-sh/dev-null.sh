@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
@@ -111,6 +112,31 @@ it('does not count the authenticated user relations when reloading only commits'
         ->each->not->toContain('count(*)');
 });
 
+it('remembers the last visited log', function (Log $log): void {
+    $user = User::factory()->create(['log' => $log === Log::Following ? Log::Everyone : Log::Following]);
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('auth.log', $log->value));
+
+    expect($user->refresh()->log)->toBe($log);
+})->with(Log::cases());
+
+it('does not update the user when the log is unchanged', function (): void {
+    $user = User::factory()->create(['log' => Log::Everyone]);
+    $updatedAt = $user->updated_at;
+
+    $this->travel(1)->minute();
+
+    $this->actingAs($user)
+        ->get(route('log.show', Log::Everyone))
+        ->assertOk();
+
+    expect($user->refresh()->updated_at->equalTo($updatedAt))->toBeTrue();
+});
+
 it('returns not found for unknown logs', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->get('/log/unknown');
@@ -154,6 +180,27 @@ it('counts new commits since a commit that was deleted, without deleted ones', f
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->create()->delete();
     $seen->delete();
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'newCommitsCount',
+        ])
+        ->get('/log/following?since='.$seen->id);
+
+    $response->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 1);
+});
+
+it('counts commits created in the same second after a given commit', function (): void {
+    $user = User::factory()->create();
+    $createdAt = now()->startOfSecond();
+
+    Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c7', 'created_at' => $createdAt]);
+    $seen = Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c8', 'created_at' => $createdAt]);
+    Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c9', 'created_at' => $createdAt]);
 
     $response = $this->actingAs($user)
         ->withHeaders([
@@ -300,6 +347,53 @@ it('includes the link previews of commits', function (Log $log): void {
                 'image_url' => 'https://laravel.com/og.png',
                 'site_name' => 'Laravel',
             ]));
+})->with(Log::cases());
+
+it('includes the quoted commits with their authors', function (Log $log): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subHour()]);
+    $hidden = Commit::factory()->create(['body' => 'A rejected quoted commit']);
+    $deleted = Commit::factory()->create(['body' => 'A deleted quoted commit']);
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create(['created_at' => now()->subMinutes(3)]);
+    Commit::factory()->for($user)->for($hidden, 'quotedCommit')->create(['created_at' => now()->subMinutes(2)]);
+    Commit::factory()->for($user)->for($deleted, 'quotedCommit')->create(['created_at' => now()->subMinute()]);
+    $hidden->update(['status' => CommitStatus::Rejected]);
+    $deleted->delete();
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.quoted_commit.id', $deleted->id)
+            ->missing('commits.data.0.quoted_commit.body')
+            ->where('commits.data.1.quoted_commit_id', $hidden->id)
+            ->where('commits.data.1.quoted_commit', null)
+            ->where('commits.data.2.quoted_commit.body', 'The quoted commit')
+            ->where('commits.data.2.quoted_commit.user.username', 'octocat'))
+        ->assertDontSee('A rejected quoted commit')
+        ->assertDontSee('A deleted quoted commit');
+})->with(Log::cases());
+
+it('loads the quoted commits of a log without a query per commit', function (Log $log): void {
+    $user = User::factory()->create(['log' => $log]);
+
+    $queries = function () use ($user, $log): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->actingAs($user)->get(route('log.show', $log))->assertOk();
+
+        return count(DB::getQueryLog());
+    };
+
+    Commit::factory()->for($user)->for(Commit::factory(), 'quotedCommit')->create();
+
+    $expected = $queries();
+
+    Commit::factory()->for($user)->for(Commit::factory(), 'quotedCommit')->count(5)->create();
+
+    expect($queries())->toBe($expected);
 })->with(Log::cases());
 
 it('defers suggested users to follow', function (): void {

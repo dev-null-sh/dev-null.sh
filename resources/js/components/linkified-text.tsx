@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import { typedProse } from '@/lib/code';
 import { shortenUrl } from '@/lib/urls';
 import { show } from '@/routes/user';
 
@@ -61,6 +62,35 @@ function withoutTrailingPunctuation(candidate: string): string {
     return url;
 }
 
+function hrefFor(linkText: string): string | null {
+    const href = schemePattern.test(linkText)
+        ? linkText
+        : `https://${linkText}`;
+
+    return href.endsWith('://') || Array.from(href).length > maxUrlLength
+        ? null
+        : href;
+}
+
+/**
+ * Every link in the prose being typed, in order and once each, as the server finds them for the link card.
+ */
+export function typedLinks(text: string): string[] {
+    const links = new Set<string>();
+
+    for (const prose of typedProse(text)) {
+        for (const match of prose.matchAll(urlPattern)) {
+            const href = hrefFor(withoutTrailingPunctuation(match[0]));
+
+            if (href !== null) {
+                links.add(href);
+            }
+        }
+    }
+
+    return [...links];
+}
+
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.
 function ShortenedUrl({ url }: { url: string }) {
     const { hiddenStart, shown, hiddenEnd } = shortenUrl(url);
@@ -119,11 +149,9 @@ export function LinkifiedText({ text }: { text: string }) {
 
     for (const match of text.matchAll(urlPattern)) {
         const linkText = withoutTrailingPunctuation(match[0]);
-        const href = schemePattern.test(linkText)
-            ? linkText
-            : `https://${linkText}`;
+        const href = hrefFor(linkText);
 
-        if (href.endsWith('://') || Array.from(href).length > maxUrlLength) {
+        if (href === null) {
             continue;
         }
 

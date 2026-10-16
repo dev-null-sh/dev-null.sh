@@ -1,8 +1,9 @@
-import { Head, InfiniteScroll, Link, usePage } from '@inertiajs/react';
+import { Head, InfiniteScroll, Link } from '@inertiajs/react';
 import {
     AtSign,
     Check,
     MessageSquareReply,
+    Quote,
     Star,
     UserPlus,
     X,
@@ -13,6 +14,7 @@ import { EmptyFeed } from '@/components/commit-feed';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
+import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
@@ -35,8 +37,9 @@ export default function Index({
             {notifications.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command="$ cat /dev/notifications">
-                        Nothing here yet. Follows, stars, replies, mentions, and
-                        moderation updates for your commits will show up here.
+                        Nothing here yet. Follows, stars, replies, quotes,
+                        mentions, and moderation updates for your commits will
+                        show up here.
                     </EmptyFeed>
                 </div>
             ) : (
@@ -66,6 +69,7 @@ export default function Index({
 const verbs = {
     followed: 'followed you',
     replied: 'replied to your commit',
+    quoted: 'quoted your commit',
     mentioned: 'mentioned you',
     starred: 'starred your commit',
 } as const;
@@ -107,7 +111,7 @@ function notificationHref(notification: Notification, recipient: User) {
 
 function NotificationItem({ notification }: { notification: Notification }) {
     const now = useNow();
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const { actor } = notification;
     const isUnread = notification.unread_count > 0;
     const isModeration =
@@ -115,6 +119,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
     const Icon = {
         followed: UserPlus,
         replied: MessageSquareReply,
+        quoted: Quote,
         starred: Star,
         mentioned: AtSign,
         approved: Check,
@@ -123,7 +128,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
 
     return (
         <Link
-            href={notificationHref(notification, auth.user)}
+            href={notificationHref(notification, user)}
             className={cn(
                 'flex gap-3 px-4 py-3 transition-colors hover:bg-muted/50 sm:px-6',
                 { 'bg-primary-soft/50': isUnread },

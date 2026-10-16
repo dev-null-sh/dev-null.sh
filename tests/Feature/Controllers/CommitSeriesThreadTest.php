@@ -95,6 +95,32 @@ it('shows the first part of a series with the rest of the series after it', func
             ->where('replies', null));
 });
 
+it('loads visible quotes and deleted quote tombstones around the focused series part', function (CommitStatus $hiddenStatus, bool $signedIn): void {
+    $parts = commitSeries(size: 4);
+    $visible = Commit::factory()->create();
+    $hidden = Commit::factory()->create(['status' => $hiddenStatus]);
+    $deleted = Commit::factory()->create();
+    $deleted->delete();
+    $parts[0]->update(['quoted_commit_id' => $visible->id]);
+    $parts[2]->update(['quoted_commit_id' => $hidden->id]);
+    $parts[3]->update(['quoted_commit_id' => $deleted->id]);
+
+    if ($signedIn) {
+        $this->actingAs(User::factory()->create());
+    }
+
+    $this->get(route('commit.show', [$parts[1]->user, $parts[1]]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('ancestors.0.quoted_commit.body', $visible->body)
+            ->where('ancestors.0.quoted_commit.user.id', $visible->user_id)
+            ->where('series.0.quoted_commit', null)
+            ->where('series.1.quoted_commit.id', $deleted->id)
+            ->whereNot('series.1.quoted_commit.deleted_at', null)
+            ->missing('series.1.quoted_commit.body')
+            ->missing('series.1.quoted_commit.user'));
+})->with([CommitStatus::Pending, CommitStatus::Rejected])->with(['guest' => false, 'signed in' => true]);
+
 it('shows a middle part of a series between the parts around it', function (): void {
     $viewer = User::factory()->create();
     $parts = commitSeries(size: 4);
@@ -110,6 +136,87 @@ it('shows a middle part of a series between the parts around it', function (): v
             ->has('ancestors', 2)
             ->where('series.0.id', $parts[3]->id)
             ->has('series', 1));
+});
+
+it('hides muted series from logs but keeps every part reachable directly', function (Log $log): void {
+    $viewer = User::factory()->create();
+    $parts = commitSeries();
+    $viewer->following()->attach($parts[0]->user);
+    $viewer->muting()->attach($parts[0]->user);
+
+    $this->actingAs($viewer)
+        ->get(route('log.show', $log))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->has('commits.data', 0));
+
+    $this->get(route('commit.show', [$parts[1]->user, $parts[1]]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.id', $parts[1]->id)
+            ->has('ancestors', 1)
+            ->where('ancestors.0.id', $parts[0]->id)
+            ->has('series', 1)
+            ->where('series.0.id', $parts[2]->id));
+})->with(Log::cases());
+
+it('hides every part of a series across a block in either direction', function (bool $viewerBlocks): void {
+    $viewer = User::factory()->create();
+    $parts = commitSeries();
+
+    $viewerBlocks ? $viewer->blocking()->attach($parts[0]->user) : $parts[0]->user->blocking()->attach($viewer);
+
+    foreach ($parts as $part) {
+        $this->actingAs($viewer)
+            ->get(route('commit.show', [$part->user, $part]))
+            ->assertNotFound();
+    }
+})->with([true, false]);
+
+it('excludes muted and blocked replies along with series continuations from reply counts', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $parts = commitSeries();
+    $viewer->muting()->attach($muted);
+    $blocked->blocking()->attach($viewer);
+
+    Commit::factory()->for($parts[0], 'parent')->for($muted)->create();
+    Commit::factory()->for($parts[0], 'parent')->for($blocked)->create();
+    $reply = Commit::factory()->for($parts[0], 'parent')->create();
+
+    $this->actingAs($viewer)
+        ->get(route('commit.show', [$parts[0]->user, $parts[0]]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.replies_count', 1));
+
+    $this->getJson(route('commit-reply.index', $parts[0]))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+});
+
+it('checks moderation visibility separately for each surrounding part', function (): void {
+    $viewer = User::factory()->create();
+    $parts = commitSeries(size: 4);
+    $parts[0]->update(['status' => CommitStatus::Pending]);
+    $parts[2]->update(['status' => CommitStatus::Rejected]);
+
+    $this->actingAs($viewer)
+        ->get(route('commit.show', [$parts[1]->user, $parts[1]]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('ancestors', 0)
+            ->has('series', 1)
+            ->where('series.0.id', $parts[3]->id));
+
+    $this->actingAs($parts[0]->user)
+        ->get(route('commit.show', [$parts[1]->user, $parts[1]]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('ancestors', 1)
+            ->where('ancestors.0.id', $parts[0]->id)
+            ->has('series', 2)
+            ->where('series.0.id', $parts[2]->id));
 });
 
 it('keeps deleted parts of a series as tombstones with their position', function (): void {

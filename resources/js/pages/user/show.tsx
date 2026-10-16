@@ -12,6 +12,8 @@ import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import { AchievementsDialog } from '@/components/achievements-dialog';
+import { AchievementsShelf } from '@/components/achievements-shelf';
 import { ActivityGraph } from '@/components/activity-graph';
 import { ActivityStreaks } from '@/components/activity-streaks';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
@@ -21,9 +23,11 @@ import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserSafetyMenu } from '@/components/user-safety-menu';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
 import type {
+    Achievements,
     Activity,
     Commit,
     CursorPaginated,
@@ -38,26 +42,33 @@ function pluralize(count: number, singular: string, plural: string) {
 export default function Show({
     user,
     isFollowing,
+    followsYou,
+    isMuting,
     activity,
     streaks,
+    achievements,
     commits,
     tab,
     pinnedCommit,
 }: {
     user: Profile;
     isFollowing: boolean;
+    followsYou: boolean;
+    isMuting: boolean;
     activity: Activity;
     streaks: Streaks;
+    achievements: Achievements;
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies';
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
-    const isCurrentUser = auth.user.id === user.id;
+    const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
     );
+    const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
 
     return (
         <>
@@ -91,26 +102,62 @@ export default function Show({
                             </a>
                         </Button>
                     ) : (
-                        <FollowButton
-                            user={user}
-                            isFollowing={isFollowing}
-                            className="min-w-28"
-                            onSuccess={() => router.flushAll()}
-                        />
+                        <div className="flex gap-2">
+                            {auth.user && (
+                                <UserSafetyMenu
+                                    user={user}
+                                    isMuting={isMuting}
+                                    isBlocking={false}
+                                />
+                            )}
+                            <FollowButton
+                                user={user}
+                                isFollowing={isFollowing}
+                                className="min-w-28"
+                                onSuccess={() => router.flushAll()}
+                            />
+                        </div>
                     )}
                 </div>
 
                 <h1 className="mt-4 text-2xl font-semibold tracking-tight text-balance">
                     {user.name}
                 </h1>
-                <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
-                    <span
-                        aria-hidden
-                        className="size-2 rounded-full"
-                        style={{ background: lane }}
-                    />
-                    @{user.username}
-                </p>
+                <div className="flex items-center gap-2">
+                    <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
+                        <span
+                            aria-hidden
+                            className="size-2 rounded-full"
+                            style={{ background: lane }}
+                        />
+                        @{user.username}
+                        {followsYou && (
+                            <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                                Follows you
+                            </span>
+                        )}
+                        {isMuting && (
+                            <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                                Muted
+                            </span>
+                        )}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => setIsAchievementsOpen(true)}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] font-medium transition hover:brightness-110"
+                        style={{
+                            borderColor: `${lane}40`,
+                            backgroundColor: `${lane}15`,
+                            color: lane,
+                        }}
+                        title="View achievements and Unix rank"
+                    >
+                        <span>
+                            Lv. {achievements.level} · {achievements.rank}
+                        </span>
+                    </button>
+                </div>
 
                 {user.bio && (
                     <p className="mt-3 max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-wrap">
@@ -236,6 +283,20 @@ export default function Show({
             />
 
             <ActivityStreaks streaks={streaks} lane={lane} />
+
+            <AchievementsShelf
+                achievements={achievements}
+                lane={lane}
+                onInspect={() => setIsAchievementsOpen(true)}
+            />
+
+            <AchievementsDialog
+                open={isAchievementsOpen}
+                onOpenChange={setIsAchievementsOpen}
+                achievements={achievements}
+                user={user}
+                lane={lane}
+            />
 
             <PageTabs
                 label="Profile feed"

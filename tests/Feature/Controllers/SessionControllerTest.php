@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
@@ -23,7 +24,7 @@ it('redirects to github', function (): void {
 });
 
 it('creates a user and logs them in', function (): void {
-    fakeGitHubSponsorsListing(isPublic: true);
+    fakeGitHubSponsorsListing(hasSponsorsListing: true);
 
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',
@@ -80,6 +81,21 @@ it('updates an existing user on login', function (): void {
     $this->assertAuthenticatedAs($user);
 });
 
+it('redirects to the log the user visited last on login', function (): void {
+    fakeGitHubSponsorsListing();
+
+    User::factory()->create(['github_id' => '583231', 'log' => Log::Everyone]);
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $response = $this->get(route('login.store'));
+
+    $response->assertRedirectToRoute('log.show', Log::Everyone);
+});
+
 it('sends a returning user who never finished the onboarding back to it', function (): void {
     fakeGitHubSponsorsListing();
 
@@ -111,6 +127,28 @@ it('queues a sync of the ssh keys of the user on login', function (): void {
 
     Queue::assertPushed(SyncGitHubSshKeysJob::class, fn (SyncGitHubSshKeysJob $job): bool => $job->user->is($user));
 });
+
+it('queues an import of the github follows of the user on login, notifying only for new users', function (bool $exists, bool $notify): void {
+    fakeGitHubSponsorsListing();
+
+    if ($exists) {
+        User::factory()->create(['github_id' => '583231']);
+    }
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $this->get(route('login.store'));
+
+    $user = User::query()->where('github_id', '583231')->sole();
+
+    Queue::assertPushed(ImportGitHubFollowsJob::class, fn (ImportGitHubFollowsJob $job): bool => $job->user->is($user) && $job->notify === $notify);
+})->with([
+    'new user' => [false, true],
+    'existing user' => [true, false],
+]);
 
 it('redirects to the intended url after login', function (): void {
     fakeGitHubSponsorsListing();

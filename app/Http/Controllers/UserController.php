@@ -10,8 +10,10 @@ use App\Http\Requests\ShowUserRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
+use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
+use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
@@ -21,17 +23,33 @@ use Inertia\Response;
 
 final readonly class UserController
 {
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks): RedirectResponse|Response
+    /**
+     * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
+     */
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PageMetadata $metadata): Response
     {
-        if (! $currentUser instanceof User) {
-            return $this->preview($request, $user);
+        $blockerId = $currentUser?->blockerIdWith($user);
+
+        if ($blockerId !== null) {
+            return Inertia::render('user/unavailable', [
+                'username' => $user->username,
+                'blockedUser' => $blockerId === $currentUser->id ? $user : null,
+            ]);
         }
 
+        $streakData = null;
+        $getStreaks = function () use (&$streakData, $streaks, $user, $currentUser): array {
+            return $streakData ??= $streaks->get($user, $currentUser);
+        };
+
         return Inertia::render('user/show', [
-            'user' => fn (): User => $user->loadCounts($currentUser),
-            'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
+            'user' => fn (): User => $currentUser instanceof User ? $user->loadCounts($currentUser) : $user->loadPublicCounts(),
+            'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
+            'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
+            'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
             'activity' => fn (): array => $activity->get($user, $currentUser),
-            'streaks' => fn (): array => $streaks->get($user, $currentUser),
+            'streaks' => $getStreaks,
+            'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)
@@ -39,6 +57,7 @@ final readonly class UserController
                 ->withVisibleReplyCount($currentUser)
                 ->withSavedState($currentUser)
                 ->with(['user', 'linkPreview', 'images'])
+                ->withQuotedCommitFor($currentUser)
                 ->withStarsFor($currentUser)
                 ->find($user->pinned_commit_id),
             'commits' => Inertia::scroll(fn () => $user->commits()
@@ -57,12 +76,13 @@ final readonly class UserController
                 ->withVisibleReplyCount($currentUser)
                 ->withSavedState($currentUser)
                 ->with(['user', 'linkPreview', 'images'])
+                ->withQuotedCommitFor($currentUser)
                 ->withStarsFor($currentUser)
                 ->latest()
                 ->latest('id')
                 ->cursorPaginate(20)
                 ->appends(['tab' => $request->tab()])),
-        ]);
+        ])->withViewData(['preview' => $currentUser instanceof User ? null : $metadata->user($user->loadPublicCounts())]);
     }
 
     public function destroy(DeleteUserRequest $request, #[CurrentUser] User $user, DeleteUser $action): RedirectResponse
@@ -75,31 +95,5 @@ final readonly class UserController
         $request->session()->regenerateToken();
 
         return to_route('home');
-    }
-
-    /**
-     * Guests only get the landing page, with the profile's link preview for crawlers.
-     */
-    private function preview(ShowUserRequest $request, User $user): RedirectResponse|Response
-    {
-        redirect()->setIntendedUrl(route('user.show', [
-            'user' => $user,
-            ...($request->tab() === 'replies' ? ['tab' => 'replies'] : []),
-        ]));
-
-        if (app()->isLocal() && config('app.auto_login')) {
-            return to_route('home');
-        }
-
-        $user->loadPublicCounts();
-
-        return Inertia::render('welcome')->withViewData(['preview' => [
-            'type' => 'profile',
-            'title' => "{$user->nameWithHandle()} on /dev/null",
-            'description' => $user->bio ?? __("Sign in with GitHub to read @:username's commits on /dev/null.", ['username' => $user->username]),
-            'url' => route('user.show', $user),
-            'image' => route('user-open-graph-image.show', ['user' => $user, 'v' => $user->openGraphImageVersion()]),
-            'feed' => route('user-feed.show', $user),
-        ]]);
     }
 }

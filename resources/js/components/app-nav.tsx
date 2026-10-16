@@ -3,18 +3,20 @@ import {
     Bell,
     Bookmark,
     GitCommitVertical,
-    Globe,
     Search,
     Settings2,
     ShieldCheck,
     UserRound,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
+import { GitHubIcon } from '@/components/github-icon';
+import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -23,41 +25,47 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
-import { cn } from '@/lib/utils';
+import { cn, toUrl } from '@/lib/utils';
+import { home, login } from '@/routes';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
-import type { NavItem } from '@/types';
+import type { Log, NavItem, Profile } from '@/types';
 
+/**
+ * Guests see the same items, each taking them to sign in.
+ */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
     const { auth, hasUnmoderatedCommits } = usePage().props;
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
+    const { user, log } = auth;
+
+    const hrefFor = (
+        href: (user: Profile, log: Log) => NavItem['href'],
+    ): NavItem['href'] =>
+        user === null || log === null ? login() : href(user, log);
 
     const items: NavItem[] = [
         {
             title: 'Log',
-            href: LogController.show('following'),
+            href: hrefFor((_, log) => LogController.show(log)),
             icon: GitCommitVertical,
-        },
-        {
-            title: 'Everyone',
-            href: LogController.show('everyone'),
-            icon: Globe,
+            prefetch: false,
         },
         {
             title: 'Notifications',
-            href: NotificationController.index(),
+            href: hrefFor(() => NotificationController.index()),
             icon: Bell,
             badge: auth.unreadNotificationsCount,
             prefetch: false,
         },
         {
             title: 'Profile',
-            href: show(auth.user),
+            href: hrefFor((user) => show(user)),
             icon: UserRound,
         },
         {
             title: 'Saved',
-            href: BookmarkController.index(),
+            href: hrefFor(() => BookmarkController.index()),
             icon: Bookmark,
             prefetch: false,
         },
@@ -73,7 +81,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             : []),
         {
             title: 'Settings',
-            href: edit(),
+            href: hrefFor(() => edit()),
             icon: Settings2,
         },
     ];
@@ -81,10 +89,61 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     return items.map((item) => ({
         ...item,
         isActive:
-            item.title === 'Settings'
+            user !== null &&
+            (item.title === 'Settings'
                 ? isCurrentOrParentUrl('/settings')
-                : isCurrentUrl(item.href),
+                : item.title === 'Log'
+                  ? isCurrentOrParentUrl('/log')
+                  : isCurrentUrl(item.href)),
     }));
+}
+
+/**
+ * Signing in leaves for GitHub, which an Inertia visit cannot follow, so guests get a plain link instead.
+ */
+function NavLink({
+    item,
+    className,
+    children,
+}: {
+    item: NavItem & { isActive: boolean };
+    className: string;
+    children: ReactNode;
+}) {
+    const { auth } = usePage().props;
+
+    if (auth.user === null) {
+        return (
+            <a href={toUrl(item.href)} className={className}>
+                {children}
+            </a>
+        );
+    }
+
+    return (
+        <Link
+            href={item.href}
+            prefetch={item.prefetch ?? true}
+            viewTransition
+            aria-current={item.isActive ? 'page' : undefined}
+            className={className}
+        >
+            {children}
+        </Link>
+    );
+}
+
+function SignInButton({ className }: { className?: string }) {
+    return (
+        <Button asChild className={className}>
+            <a href={login().url} data-test="nav-login-button">
+                <GitHubIcon className="size-4" />
+                <span className="sr-only lg:not-sr-only">
+                    Sign in with GitHub
+                </span>
+            </a>
+        </Button>
+    );
 }
 
 function NavIcon({
@@ -129,10 +188,14 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
     return (
         <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
             <Link
-                href={LogController.show('following')}
+                href={auth.log === null ? home() : LogController.show(auth.log)}
                 viewTransition
                 className="mb-8 rounded-md px-3 lg:px-3"
-                aria-label="devnull, go to your log"
+                aria-label={
+                    auth.log === null
+                        ? 'devnull, go to the home page'
+                        : 'devnull, go to your log'
+                }
             >
                 <AppLogoIcon className="size-7 fill-current lg:hidden" />
                 <AppLogo className="hidden text-[1.75rem] font-bold tracking-[-0.03em] lg:inline-flex" />
@@ -143,12 +206,9 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
 
             <nav aria-label="Main" className="flex flex-col gap-1">
                 {items.map((item) => (
-                    <Link
+                    <NavLink
                         key={item.title}
-                        href={item.href}
-                        prefetch={item.prefetch ?? true}
-                        viewTransition
-                        aria-current={item.isActive ? 'page' : undefined}
+                        item={item}
                         className={cn(
                             'relative isolate block rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                             {
@@ -183,7 +243,7 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                                 />
                             )}
                         </span>
-                    </Link>
+                    </NavLink>
                 ))}
                 <button
                     type="button"
@@ -198,25 +258,33 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                 </button>
             </nav>
 
-            <DropdownMenu>
-                <DropdownMenuTrigger
-                    className="mt-auto flex items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-accent data-[state=open]:bg-accent"
-                    data-test="user-menu-button"
-                >
-                    <UserAvatar user={auth.user} className="size-9" />
-                    <span className="hidden min-w-0 flex-1 lg:block">
-                        <span className="block truncate text-sm font-medium">
-                            {auth.user.name}
+            {auth.user === null ? (
+                <SignInButton className="mt-auto h-[52px] w-[52px] rounded-lg lg:w-auto" />
+            ) : (
+                <DropdownMenu>
+                    <DropdownMenuTrigger
+                        className="mt-auto flex items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-accent data-[state=open]:bg-accent"
+                        data-test="user-menu-button"
+                    >
+                        <UserAvatar user={auth.user} className="size-9" />
+                        <span className="hidden min-w-0 flex-1 lg:block">
+                            <span className="block truncate text-sm font-medium">
+                                {auth.user.name}
+                            </span>
+                            <span className="block truncate font-mono text-xs text-muted-foreground">
+                                @{auth.user.username}
+                            </span>
                         </span>
-                        <span className="block truncate font-mono text-xs text-muted-foreground">
-                            @{auth.user.username}
-                        </span>
-                    </span>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-60" side="top" align="start">
-                    <UserMenuContent user={auth.user} />
-                </DropdownMenuContent>
-            </DropdownMenu>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                        className="w-60"
+                        side="top"
+                        align="start"
+                    >
+                        <UserMenuContent user={auth.user} />
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
         </header>
     );
 }
@@ -227,9 +295,13 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     return (
         <div className="flex h-14 items-center justify-between border-b px-4 md:hidden">
             <Link
-                href={LogController.show('following')}
+                href={auth.log === null ? home() : LogController.show(auth.log)}
                 viewTransition
-                aria-label="devnull, go to your log"
+                aria-label={
+                    auth.log === null
+                        ? 'devnull, go to the home page'
+                        : 'devnull, go to your log'
+                }
             >
                 <AppLogo className="text-lg" />
             </Link>
@@ -243,17 +315,26 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                 >
                     <Search className="size-5" />
                 </button>
-                <DropdownMenu>
-                    <DropdownMenuTrigger
-                        className="rounded-full"
-                        aria-label="Account menu"
-                    >
-                        <UserAvatar user={auth.user} className="size-8" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-60" align="end">
-                        <UserMenuContent user={auth.user} />
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                {auth.user === null ? (
+                    <Button size="sm" className="h-8" asChild>
+                        <a href={login().url} data-test="nav-login-button">
+                            <GitHubIcon className="size-4" />
+                            Sign in
+                        </a>
+                    </Button>
+                ) : (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger
+                            className="rounded-full"
+                            aria-label="Account menu"
+                        >
+                            <UserAvatar user={auth.user} className="size-8" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-60" align="end">
+                            <UserMenuContent user={auth.user} />
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
             </div>
         </div>
     );
@@ -268,12 +349,9 @@ export function MobileNav() {
             className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden"
         >
             {items.map((item) => (
-                <Link
+                <NavLink
                     key={item.title}
-                    href={item.href}
-                    prefetch={item.prefetch ?? true}
-                    viewTransition
-                    aria-current={item.isActive ? 'page' : undefined}
+                    item={item}
                     className={cn(
                         'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
                         { 'text-primary': item.isActive },
@@ -296,7 +374,7 @@ export function MobileNav() {
                         </span>
                     </span>
                     <span className="max-w-full truncate">{item.title}</span>
-                </Link>
+                </NavLink>
             ))}
         </nav>
     );
