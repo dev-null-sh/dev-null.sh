@@ -322,6 +322,25 @@ it('defers suggested users to follow', function (): void {
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
 });
 
+it('keeps the suggested users the client already loaded when navigating', function (): void {
+    $user = User::factory()->create();
+    User::factory()->has(Commit::factory())->create();
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Except-Once-Props' => 'suggestedUsers',
+        ])
+        ->get('/log/everyone');
+
+    $response->assertOk()
+        ->assertJsonMissingPath('props.suggestedUsers')
+        ->assertJsonPath('onceProps.suggestedUsers.prop', 'suggestedUsers');
+
+    expect(collect($response->json('deferredProps') ?? [])->flatten())->not->toContain('suggestedUsers');
+});
+
 it('does not suggest users to follow once they are hidden', function (): void {
     $user = User::factory()->create();
     User::factory()->has(Commit::factory())->create();
