@@ -8,6 +8,7 @@ use App\Models\Commit;
 use App\Models\CommitClaim;
 use App\Models\CommitDecision;
 use App\Models\User;
+use App\Services\TheAlgorithm;
 
 it('may approve many commits', function (): void {
     $commits = Commit::factory()->pending()->count(2)->create();
@@ -104,4 +105,14 @@ it('notifies the quoted authors of the approved quotes', function (): void {
 
     expect($quoted->user->notifications()->pluck('commit_id')->all())
         ->toEqualCanonicalizing($quotes->modelKeys());
+});
+
+it('lifts the thread when a reply is approved', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->pending()->for($commit, 'parent')->create();
+
+    resolve(UpdateCommitStatuses::class)->handle(User::factory()->create(), [$reply->id], CommitStatus::Approved);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });

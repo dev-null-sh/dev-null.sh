@@ -21,6 +21,7 @@ final readonly class UpdateCommitStatuses
         private CreateReplyNotifications $createReplyNotifications,
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
+        private UpdateCommitHotScores $updateCommitHotScores,
     ) {
         //
     }
@@ -84,6 +85,8 @@ final readonly class UpdateCommitStatuses
                     'updated_at' => now(),
                 ])->values()->all());
             }
+
+            $this->updateCommitHotScores->handle($commits->map(fn (Commit $commit): string => $commit->threadRootId())->all());
 
             if ($status === CommitStatus::Approved) {
                 $this->createReplyNotifications->handle(...$commits);
