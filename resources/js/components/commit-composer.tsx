@@ -40,7 +40,12 @@ import { useUser } from '@/hooks/use-user';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
-import { characterCount, cn, laneColor } from '@/lib/utils';
+import {
+    characterCount,
+    cn,
+    isRejectedSubmission,
+    laneColor,
+} from '@/lib/utils';
 import type { User } from '@/types';
 
 function focusBody(): void {
@@ -483,7 +488,7 @@ export function CommitComposer() {
             }
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
-                if (!page.flash.committed && !page.flash.scheduled) {
+                if (isRejectedSubmission(page.flash)) {
                     return;
                 }
 

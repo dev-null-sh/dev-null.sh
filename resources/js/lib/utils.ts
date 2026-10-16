@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
 import type { DeletedCommit, ThreadCommit } from '@/types';
+import type { FlashToast } from '@/types/ui';
 
 export function characterCount(value: string): number {
     return Array.from(value).length;
@@ -73,6 +74,19 @@ export function isDeleted(commit: {
     deleted_at?: string | null;
 }): commit is DeletedCommit {
     return typeof commit.deleted_at === 'string';
+}
+
+/**
+ * Whether a commit submission came back without creating a commit.
+ *
+ * The `committed` and `scheduled` flashes can't be relied on for success:
+ * they live in the session, so any other request in between (a poll, another
+ * tab) can consume them. The paths that reject a submission while still
+ * redirecting back (page expired, rate limited) always flash an error toast
+ * instead.
+ */
+export function isRejectedSubmission(flash: { toast?: FlashToast }): boolean {
+    return flash.toast?.type === 'error';
 }
 
 export function laneOf(commit: ThreadCommit): string {
