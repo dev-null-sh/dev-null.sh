@@ -30,7 +30,11 @@ export function CommitReportButton({ commit }: { commit: Commit }) {
     const id = useId();
     const form = useForm({ reason: '', details: '' });
 
-    if (commit.status !== 'approved' || commit.user_id === auth.user.id) {
+    if (
+        auth.user === null ||
+        commit.status !== 'approved' ||
+        commit.user_id === auth.user.id
+    ) {
         return null;
     }
 

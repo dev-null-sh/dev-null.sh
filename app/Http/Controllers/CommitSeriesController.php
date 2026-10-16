@@ -17,7 +17,7 @@ final readonly class CommitSeriesController
 {
     public function store(CreateCommitSeriesRequest $request, #[CurrentUser] User $user, CreateCommitSeries $action): RedirectResponse
     {
-        $first = $action->handle($user, $request->bodies(), $request->images())->first();
+        $first = $action->handle($user, $request->bodies(), $request->images(), $request->linkPreviews())->first();
 
         assert($first instanceof Commit);
 

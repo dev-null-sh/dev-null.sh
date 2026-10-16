@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\UpdateUserLog;
 use App\Enums\Log;
 use App\Http\Requests\ShowLogRequest;
 use App\Models\Commit;
@@ -17,8 +18,12 @@ use Inertia\Response;
 
 final readonly class LogController
 {
-    public function show(ShowLogRequest $request, #[CurrentUser] User $user, Log $log, SuggestedCommitsQuery $suggested): Response
+    public function show(ShowLogRequest $request, #[CurrentUser] User $user, Log $log, SuggestedCommitsQuery $suggested, UpdateUserLog $action): Response
     {
+        if ($user->log !== $log) {
+            $action->handle($user, $log);
+        }
+
         return Inertia::render('log/show', [
             'log' => $log,
             'commits' => Inertia::scroll(fn () => $log->query()

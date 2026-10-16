@@ -21,6 +21,7 @@ import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserSafetyMenu } from '@/components/user-safety-menu';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
 import type {
@@ -38,6 +39,8 @@ function pluralize(count: number, singular: string, plural: string) {
 export default function Show({
     user,
     isFollowing,
+    followsYou,
+    isMuting,
     activity,
     streaks,
     commits,
@@ -46,6 +49,8 @@ export default function Show({
 }: {
     user: Profile;
     isFollowing: boolean;
+    followsYou: boolean;
+    isMuting: boolean;
     activity: Activity;
     streaks: Streaks;
     commits: CursorPaginated<Commit>;
@@ -53,7 +58,7 @@ export default function Show({
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
-    const isCurrentUser = auth.user.id === user.id;
+    const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
@@ -91,12 +96,21 @@ export default function Show({
                             </a>
                         </Button>
                     ) : (
-                        <FollowButton
-                            user={user}
-                            isFollowing={isFollowing}
-                            className="min-w-28"
-                            onSuccess={() => router.flushAll()}
-                        />
+                        <div className="flex gap-2">
+                            {auth.user && (
+                                <UserSafetyMenu
+                                    user={user}
+                                    isMuting={isMuting}
+                                    isBlocking={false}
+                                />
+                            )}
+                            <FollowButton
+                                user={user}
+                                isFollowing={isFollowing}
+                                className="min-w-28"
+                                onSuccess={() => router.flushAll()}
+                            />
+                        </div>
                     )}
                 </div>
 
@@ -110,6 +124,16 @@ export default function Show({
                         style={{ background: lane }}
                     />
                     @{user.username}
+                    {followsYou && (
+                        <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                            Follows you
+                        </span>
+                    )}
+                    {isMuting && (
+                        <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                            Muted
+                        </span>
+                    )}
                 </p>
 
                 {user.bio && (

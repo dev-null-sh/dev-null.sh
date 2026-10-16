@@ -52,6 +52,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         ],
         'commits' => [],
         'following' => [],
+        'muting' => [],
+        'blocking' => [],
     ]);
     expect($user->fresh()->getAttributes())->toBe($original);
 });
@@ -138,4 +140,24 @@ it('exports all records across chunk boundaries without omissions or duplicates'
 
     expect(collect($data['commits'])->pluck('id')->sort()->values()->all())->toBe($commits->pluck('id')->sort()->values()->all())
         ->and(collect($data['following'])->pluck('username')->sort()->values()->all())->toBe($following->pluck('username')->sort()->values()->all());
+});
+
+it('exports who the user mutes and blocks, but never who mutes or blocks them', function (): void {
+    $user = User::factory()->create();
+    $muted = User::factory()->create(['username' => 'muted-developer']);
+    $blocked = User::factory()->create(['username' => 'blocked-developer']);
+    $muter = User::factory()->create(['username' => 'secret-muter']);
+    $blocker = User::factory()->create(['username' => 'secret-blocker']);
+
+    $user->muting()->attach($muted);
+    $user->blocking()->attach($blocked);
+    $muter->muting()->attach($user);
+    $blocker->blocking()->attach($user);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['muting'])->toBe([['username' => 'muted-developer']])
+        ->and($data['blocking'])->toBe([['username' => 'blocked-developer']])
+        ->and($response->streamedContent())->not->toContain('secret-muter', 'secret-blocker', $muted->id, $blocked->id);
 });

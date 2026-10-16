@@ -145,10 +145,58 @@ it('does not list replies of a commit that is not visible', function (): void {
     $response->assertNotFound();
 });
 
-it('requires authentication to list replies', function (): void {
-    $response = $this->getJson(route('commit-reply.index', Commit::factory()->create()));
+it('lists only approved replies to guests', function (): void {
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->create(['body' => 'Approved']);
+    Commit::factory()->for($parent, 'parent')->pending()->create(['body' => 'Pending']);
+    Commit::factory()->for($parent, 'parent')->rejected()->create(['body' => 'Rejected']);
 
-    $response->assertUnauthorized();
+    $response = $this->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.body', 'Approved')
+        ->assertJsonPath('data.0.is_saved', false);
+});
+
+it('returns not found to guests for the replies of a commit that is not approved', function (): void {
+    $response = $this->getJson(route('commit-reply.index', Commit::factory()->pending()->create()));
+
+    $response->assertNotFound();
+});
+
+it('leaves out replies by muted people and across blocks', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocker = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $viewer->muting()->attach($muted);
+    $blocker->blocking()->attach($viewer);
+
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    Commit::factory()->for($parent, 'parent')->for($muted)->create();
+    Commit::factory()->for($parent, 'parent')->for($blocker)->create();
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+});
+
+it('returns not found for replies to a commit across a block', function (): void {
+    $viewer = User::factory()->create();
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->create();
+
+    $viewer->blocking()->attach($parent->user);
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('commit-reply.index', $parent));
+
+    $response->assertNotFound();
 });
 
 it('includes the link previews of replies', function (): void {

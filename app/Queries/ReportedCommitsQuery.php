@@ -21,7 +21,10 @@ final readonly class ReportedCommitsQuery
             ->whereNull('dismissed_at')
             ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->approved()->visibleTo($viewer))
             ->with(['commit' => fn (BelongsTo $query): BelongsTo => $query
-                ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $parent): BelongsTo => $parent->where('status', CommitStatus::Approved)->with('user')])
+                ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $parent): BelongsTo => $parent
+                    ->where('status', CommitStatus::Approved)
+                    ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
+                    ->with('user')])
                 ->withCount('stars')
                 ->withExists(['stars as starred' => fn (Builder $stars): Builder => $stars->whereKey($viewer->id)])])
             ->oldest()->oldest('id')

@@ -117,6 +117,51 @@ it('rejects self reports', function (): void {
     expect(CommitReport::query()->count())->toBe(0);
 });
 
+it('does not report commits across a block in either direction', function (bool $reporterBlocks): void {
+    $reporter = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    if ($reporterBlocks) {
+        $reporter->blocking()->attach($commit->user);
+    } else {
+        $commit->user->blocking()->attach($reporter);
+    }
+
+    $this->actingAs($reporter)->post(route('commit-report.store', $commit), ['reason' => 'spam'])->assertNotFound();
+
+    expect(CommitReport::query()->count())->toBe(0);
+})->with([true, false]);
+
+it('can report a muted author from their directly accessible commit', function (): void {
+    $reporter = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $reporter->muting()->attach($commit->user);
+
+    $this->actingAs($reporter)->post(route('commit-report.store', $commit), ['reason' => 'spam'])->assertRedirect();
+
+    expect(CommitReport::query()->sole()->commit_id)->toBe($commit->id);
+});
+
+it('hides blocked parent context in the reports queue in either direction', function (bool $moderatorBlocks): void {
+    $moderator = User::factory()->create(['username' => 'moderator-demo']);
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    CommitReport::factory()->for($reply)->create();
+    CommitReport::factory()->for($parent)->create();
+
+    if ($moderatorBlocks) {
+        $moderator->blocking()->attach($parent->user);
+    } else {
+        $parent->user->blocking()->attach($moderator);
+    }
+
+    $this->actingAs($moderator)->get(route('reported-commit.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page->has('reports.data', 1)
+            ->where('reports.data.0.commit.id', $reply->id)
+            ->where('reports.data.0.commit.parent', null)
+            ->missing('reports.data.0.reporter_id'));
+})->with([true, false]);
+
 it('validates reasons and short details', function (array $data, string $field): void {
     $this->actingAs(User::factory()->create())->post(route('commit-report.store', Commit::factory()->create()), $data)->assertSessionHasErrors($field);
     expect(CommitReport::query()->count())->toBe(0);

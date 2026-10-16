@@ -8,13 +8,15 @@ use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Queries\SilencedActorQuery;
 use Illuminate\Support\Str;
 
 final readonly class CreateReplyNotifications
 {
     /**
      * Notifies the author of each reply's parent, but only once the reply is approved, so
-     * nobody hears about a reply they cannot see yet. Safe to call more than once.
+     * nobody hears about a reply they cannot see yet. Nobody hears from people they mute or
+     * from across a block either. Safe to call more than once.
      */
     public function handle(Commit ...$commits): void
     {
@@ -27,9 +29,15 @@ final readonly class CreateReplyNotifications
             return;
         }
 
+        $silenced = new SilencedActorQuery('parents.user_id', 'commits.user_id');
+
         $replies = Commit::query()
+            ->select('commits.*')
+            ->join('commits as parents', 'parents.id', '=', 'commits.parent_id')
             ->whereKey($replyIds)
-            ->where('status', CommitStatus::Approved)
+            ->where('commits.status', CommitStatus::Approved)
+            ->whereNotExists($silenced->mutes(...))
+            ->whereNotExists($silenced->blocks(...))
             ->with('parent')
             ->get();
 

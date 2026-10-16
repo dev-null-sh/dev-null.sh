@@ -111,6 +111,31 @@ it('does not count the authenticated user relations when reloading only commits'
         ->each->not->toContain('count(*)');
 });
 
+it('remembers the last visited log', function (Log $log): void {
+    $user = User::factory()->create(['log' => $log === Log::Following ? Log::Everyone : Log::Following]);
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('auth.log', $log->value));
+
+    expect($user->refresh()->log)->toBe($log);
+})->with(Log::cases());
+
+it('does not update the user when the log is unchanged', function (): void {
+    $user = User::factory()->create(['log' => Log::Everyone]);
+    $updatedAt = $user->updated_at;
+
+    $this->travel(1)->minute();
+
+    $this->actingAs($user)
+        ->get(route('log.show', Log::Everyone))
+        ->assertOk();
+
+    expect($user->refresh()->updated_at->equalTo($updatedAt))->toBeTrue();
+});
+
 it('returns not found for unknown logs', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->get('/log/unknown');
