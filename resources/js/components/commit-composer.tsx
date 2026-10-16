@@ -8,6 +8,7 @@ import {
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
@@ -16,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
+import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
@@ -88,6 +90,17 @@ export function CommitComposer() {
         index: number,
         event: KeyboardEvent<HTMLTextAreaElement>,
     ) => {
+        if (event.key === 'Tab' && suggestEmoji(bodies[index]) !== null) {
+            const completed = completeEmoji(bodies[index]);
+
+            if (completed !== null) {
+                event.preventDefault();
+                updateBody(index, completed);
+            }
+
+            return;
+        }
+
         const isModEnter =
             event.key === 'Enter' && (event.metaKey || event.ctrlKey);
 
@@ -139,6 +152,7 @@ export function CommitComposer() {
                     {bodies.map((body, index) => {
                         const id = partId(index);
                         const isLast = index === bodies.length - 1;
+                        const suggestion = suggestEmoji(body);
                         const error =
                             errors[`bodies.${index}`] ??
                             (index === 0 ? errors.body : undefined);
@@ -229,6 +243,11 @@ export function CommitComposer() {
                                             }
                                             aria-describedby={`${id}-count`}
                                             className="block field-sizing-content min-h-10 w-full resize-none overflow-x-hidden bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                                        />
+
+                                        <EmojiSuggestionHint
+                                            suggestion={suggestion}
+                                            className="mt-1.5"
                                         />
 
                                         <InputError message={error} />
