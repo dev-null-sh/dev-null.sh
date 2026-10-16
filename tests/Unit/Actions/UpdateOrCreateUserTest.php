@@ -6,6 +6,7 @@ use App\Actions\UpdateOrCreateUser;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Two\User as GitHubUser;
 
 it('creates a user from github', function (): void {
@@ -118,8 +119,10 @@ it('keeps http websites as they are', function (): void {
     expect($user->website)->toBe('http://example.com');
 });
 
-it('marks users with a public sponsors listing', function (): void {
-    fakeGitHubSponsorsListing(isPublic: true);
+it('marks users with a sponsors listing', function (): void {
+    Log::spy();
+
+    fakeGitHubSponsorsListing(hasSponsorsListing: true);
 
     $action = resolve(UpdateOrCreateUser::class);
 
@@ -131,16 +134,18 @@ it('marks users with a public sponsors listing', function (): void {
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/graphql'
         && $request->hasHeader('Authorization', 'Bearer gho_octocat')
-        && $request['query'] === 'query { viewer { sponsorsListing { isPublic } } }');
+        && $request['query'] === 'query { viewer { hasSponsorsListing } }');
+
+    Log::shouldNotHaveReceived('warning');
 });
 
-it('unmarks users without a public sponsors listing', function (?bool $isPublic): void {
+it('unmarks users without a sponsors listing', function (): void {
     $existing = User::factory()->create([
         'github_id' => '583231',
         'has_sponsors_listing' => true,
     ]);
 
-    fakeGitHubSponsorsListing($isPublic);
+    fakeGitHubSponsorsListing();
 
     $action = resolve(UpdateOrCreateUser::class);
 
@@ -149,12 +154,11 @@ it('unmarks users without a public sponsors listing', function (?bool $isPublic)
     ]));
 
     expect($existing->refresh()->has_sponsors_listing)->toBeFalse();
-})->with([
-    'no listing' => null,
-    'private listing' => false,
-]);
+});
 
 it('keeps the last known sponsors listing when github cannot say', function (Closure $response): void {
+    Log::spy();
+
     $stale = User::factory()->create([
         'github_id' => '1',
         'username' => 'octocat',
@@ -181,11 +185,42 @@ it('keeps the last known sponsors listing when github cannot say', function (Clo
         ->has_sponsors_listing->toBeTrue();
 
     expect($stale->refresh()->username)->toBe('_renamed-1');
+
+    Log::shouldHaveReceived('warning')
+        ->once()
+        ->with('Could not check the GitHub Sponsors listing.', Mockery::on(fn (array $context): bool => $context['username'] === 'octocat'));
 })->with([
     'server error' => fn () => Http::response(status: 502),
     'graphql error' => fn () => Http::response(['errors' => [['message' => 'API rate limit exceeded']]]),
     'connection failure' => fn () => Http::failedConnection(),
 ]);
+
+it('logs why github could not say', function (): void {
+    Log::spy();
+
+    $errors = [[
+        'type' => 'INSUFFICIENT_SCOPES',
+        'message' => "The 'isPublic' field requires one of the following scopes: ['read:user', 'read:org'].",
+    ]];
+
+    Http::fake([
+        'api.github.com/graphql' => Http::response(['errors' => $errors]),
+    ]);
+
+    $action = resolve(UpdateOrCreateUser::class);
+
+    $action->handle(GitHubUser::fake([
+        'nickname' => 'octocat',
+    ]));
+
+    Log::shouldHaveReceived('warning')
+        ->once()
+        ->with('Could not check the GitHub Sponsors listing.', [
+            'username' => 'octocat',
+            'status' => 200,
+            'errors' => $errors,
+        ]);
+});
 
 it('creates users without a sponsors listing when github cannot say', function (): void {
     Http::fake([
@@ -200,7 +235,7 @@ it('creates users without a sponsors listing when github cannot say', function (
 });
 
 it('frees a username still held by a stale user who renamed on github', function (string $staleUsername): void {
-    fakeGitHubSponsorsListing(isPublic: true);
+    fakeGitHubSponsorsListing(hasSponsorsListing: true);
 
     $stale = User::factory()->create([
         'github_id' => '1',
