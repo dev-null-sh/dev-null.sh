@@ -180,4 +180,17 @@ final class CommitBuilder extends Builder
                     : $query->whereRaw('1 = 0'),
             ]);
     }
+
+    /**
+     * Everything a commit card shows for the given viewer, so every list renders its commits the same way.
+     * The reply count is left out, as its presence is what gives a card its thread actions.
+     */
+    public function withCardDataFor(?User $viewer): self
+    {
+        return $this
+            ->with(['user', 'linkPreview', 'images'])
+            ->withQuotedCommitFor($viewer)
+            ->withSavedState($viewer)
+            ->withStarsFor($viewer);
+    }
 }

@@ -24,28 +24,30 @@ use Inertia\Response;
 final readonly class CommitController
 {
     /**
-     * Commits are public, so guests and crawlers read the same page, with the commit's link preview.
+     * Commits are public, so guests and crawlers read the same page, with the commit's link preview and the replies shown under it as structured data.
      */
     public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, CommitSeriesQuery $series, PageMetadata $metadata): Response
     {
-        $preview = $currentUser instanceof User ? null : $metadata->commit($commit->loadPublicPreview()->loadCount('stars'));
+        $isInSeries = $commit->series_id !== null;
+
+        // A series reads in order, so the replies to a part stay folded until asked for...
+        $threadReplies = $isInSeries ? null : $replies->paginate($commit, $currentUser);
+
+        $preview = $currentUser instanceof User ? null : $metadata->commit(
+            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.user']),
+            $threadReplies?->items() ?? [],
+        );
 
         $commit = Commit::query()
             ->withVisibleReplyCount($currentUser)
-            ->withSavedState($currentUser)
-            ->with(['user', 'linkPreview', 'images'])
-            ->withQuotedCommitFor($currentUser)
-            ->withStarsFor($currentUser)
+            ->withCardDataFor($currentUser)
             ->findOrFail($commit->id);
-
-        $isInSeries = $commit->series_id !== null;
 
         return Inertia::render('commit/show', [
             'commit' => $commit,
             'ancestors' => $isInSeries ? $series->before($commit, $currentUser) : $ancestors->get($commit, $currentUser),
             'series' => $series->after($commit, $currentUser),
-            // A series reads in order, so the replies to a part stay folded until asked for...
-            'replies' => $isInSeries ? null : $replies->paginate($commit, $currentUser),
+            'replies' => $threadReplies,
         ])->withViewData(['preview' => $preview]);
     }
 

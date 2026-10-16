@@ -19,17 +19,12 @@ final readonly class SavedCommitsQuery
             ->addSelect('bookmarks.id as saved_order')
             ->visibleTo($user)
             ->withVisibleReplyCount($user)
-            ->withSavedState($user)
-            ->withStarsFor($user)
+            ->withCardDataFor($user)
             ->with([
-                'user',
-                'linkPreview',
-                'images',
                 'parent' => function (BelongsTo $parent) use ($user): void {
                     $parent->getQuery()->withTrashed()->visibleTo($user)->with('user');
                 },
             ])
-            ->withQuotedCommitFor($user)
             ->orderByDesc('saved_order');
     }
 }
