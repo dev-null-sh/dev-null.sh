@@ -26,6 +26,7 @@ import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
+import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -108,16 +109,13 @@ function QuoteComposer({
     const attachments = useImageAttachments();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
+    const keys = useKeyLabels();
 
     const remaining = maxBodyLength - characterCount(body);
     const isQuotable = characterCount(body.trim()) >= minBodyLength;
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (
-            event.key === 'Enter' &&
-            (event.metaKey || event.ctrlKey) &&
-            isQuotable
-        ) {
+        if (event.key === 'Enter' && hasModKey(event) && isQuotable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
         }
@@ -287,7 +285,7 @@ function QuoteComposer({
                                 <Button
                                     type="submit"
                                     disabled={processing || !isQuotable}
-                                    title="Quote (⌘/Ctrl + Enter)"
+                                    title={`Quote (${keys.combo(keys.mod, keys.enter)})`}
                                     data-test="submit-quote-button"
                                 >
                                     {processing ? 'Quoting…' : 'Quote'}

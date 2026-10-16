@@ -34,6 +34,7 @@ import type { UseSeriesStashReturn } from '@/hooks/use-stash';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
+import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn, laneColor } from '@/lib/utils';
 import type { User } from '@/types';
 
@@ -131,6 +132,7 @@ function CommitComposerPart({
     removePartAt: () => void;
     drop: () => void;
 }) {
+    const keys = useKeyLabels();
     const { bodies, isRestored, updateBody } = stash;
     const body = bodies[index];
     const id = partId(index);
@@ -479,7 +481,7 @@ function CommitComposerPart({
                                                 : poll !== null
                                                   ? 'Remove the poll to start a series'
                                                   : canAddPart
-                                                    ? 'Add another commit (⌘/Ctrl + Shift + Enter)'
+                                                    ? `Add another commit (${keys.combo(keys.mod, keys.shift, keys.enter)})`
                                                     : `A series has at most ${maxParts} commits`
                                         }
                                         className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
@@ -546,8 +548,8 @@ function CommitComposerPart({
                                     disabled={processing || !isSubmittable}
                                     title={
                                         isScheduling
-                                            ? 'Schedule commit (⌘/Ctrl + Enter)'
-                                            : 'Commit (⌘/Ctrl + Enter)'
+                                            ? `Schedule commit (${keys.combo(keys.mod, keys.enter)})`
+                                            : `Commit (${keys.combo(keys.mod, keys.enter)})`
                                     }
                                     className="min-w-[7.5rem]"
                                     data-test="create-commit-button"
@@ -638,8 +640,7 @@ export function CommitComposer() {
             return;
         }
 
-        const isModEnter =
-            event.key === 'Enter' && (event.metaKey || event.ctrlKey);
+        const isModEnter = event.key === 'Enter' && hasModKey(event);
 
         if (isModEnter && event.shiftKey) {
             event.preventDefault();
@@ -687,7 +688,7 @@ export function CommitComposer() {
             }
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
-                if (!page.flash.committed) {
+                if (!page.flash.committed && !page.flash.scheduled) {
                     return;
                 }
 

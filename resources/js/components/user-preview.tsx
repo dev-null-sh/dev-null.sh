@@ -37,7 +37,9 @@ const viewportMargin = 8;
 const avatarCentre = 45;
 const cache = new Map<string, PreviewData>();
 
-async function fetchPreview(user: User): Promise<PreviewData> {
+async function fetchPreview(
+    user: Pick<User, 'username'>,
+): Promise<PreviewData> {
     const response = await fetch(UserPreviewController.show(user).url, {
         headers: {
             Accept: 'application/json',
@@ -89,7 +91,7 @@ export function UserPreview({
     anchor,
     onHoverChange,
 }: {
-    user: User;
+    user: User | Pick<User, 'username'>;
     children: ReactNode;
     className?: string;
     anchor?: RefObject<HTMLElement | null>;
@@ -104,8 +106,15 @@ export function UserPreview({
     const [data, setData] = useState<PreviewData | null>(
         () => cache.get(user.username) ?? null,
     );
+    const previewUser = data?.user ?? ('id' in user ? user : null);
 
-    const close = () => setIsOpen(false);
+    const close = () => {
+        setIsOpen(false);
+
+        if (!previewRef.current) {
+            setPosition(null);
+        }
+    };
 
     const scheduleOpen = () => {
         clearTimeout(timer.current);
@@ -221,6 +230,7 @@ export function UserPreview({
             </span>
 
             {position &&
+                previewUser &&
                 createPortal(
                     <div
                         ref={previewRef}
@@ -245,7 +255,7 @@ export function UserPreview({
                         data-test="user-preview"
                     >
                         <UserPreviewContent
-                            user={data?.user ?? user}
+                            user={previewUser}
                             data={data}
                             onChange={(next) => {
                                 cache.set(user.username, next);

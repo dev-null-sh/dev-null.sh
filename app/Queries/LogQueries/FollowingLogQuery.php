@@ -24,6 +24,7 @@ final readonly class FollowingLogQuery implements LogQuery
             ->withoutMutedAuthorsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)
+            ->withReplyPreviews($user)
             ->withCardDataFor($user)
             ->latest()
             ->latest('id');

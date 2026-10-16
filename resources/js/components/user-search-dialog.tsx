@@ -7,6 +7,7 @@ import UserSearchController from '@/actions/App/Http/Controllers/UserSearchContr
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { useKeyLabels } from '@/lib/keyboard';
 import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { User } from '@/types';
@@ -20,6 +21,7 @@ export function UserSearchDialog({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
+    const keys = useKeyLabels();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<User[]>([]);
     const [searched, setSearched] = useState('');
@@ -243,7 +245,10 @@ export function UserSearchDialog({
                             <kbd className="font-mono">↵</kbd> to open
                         </span>
                         <span className="ml-auto flex items-center gap-1.5">
-                            <kbd className="font-mono">⌘K</kbd> anywhere
+                            <kbd className="font-mono">
+                                {keys.combo(keys.mod, 'K')}
+                            </kbd>{' '}
+                            anywhere
                         </span>
                     </div>
                 </DialogPrimitive.Content>

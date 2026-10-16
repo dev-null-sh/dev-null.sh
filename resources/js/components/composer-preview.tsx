@@ -8,18 +8,17 @@ import { objectUrlFor } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { Button } from '@/components/ui/button';
 import { bodySegments, hasCodeBlock } from '@/lib/code';
+import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
 import type { BodySegment } from '@/types';
 
 type Highlighted = { body: string; segments: BodySegment[] };
 
 const isModifierEnter = (event: KeyboardEvent) =>
-    event.key === 'Enter' && (event.metaKey || event.ctrlKey);
+    event.key === 'Enter' && hasModKey(event);
 
 const isPreviewShortcut = (event: KeyboardEvent) =>
-    event.key.toLowerCase() === 'p' &&
-    event.shiftKey &&
-    (event.metaKey || event.ctrlKey);
+    event.key.toLowerCase() === 'p' && event.shiftKey && hasModKey(event);
 
 export type ComposerPreview = ReturnType<typeof useComposerPreview>;
 
@@ -135,6 +134,8 @@ export function PreviewToggle({
     preview: ComposerPreview;
     className?: string;
 }) {
+    const keys = useKeyLabels();
+
     return (
         <Button
             type="button"
@@ -144,7 +145,7 @@ export function PreviewToggle({
             aria-pressed={preview.isPreviewing}
             aria-label="Preview"
             aria-keyshortcuts="Meta+Shift+P Control+Shift+P"
-            title="Preview (⌘/Ctrl + Shift + P)"
+            title={`Preview (${keys.combo(keys.mod, keys.shift, 'P')})`}
             className={cn(
                 'text-muted-foreground aria-pressed:bg-primary-soft aria-pressed:text-primary aria-pressed:hover:bg-primary-soft aria-pressed:hover:text-primary',
                 className,
