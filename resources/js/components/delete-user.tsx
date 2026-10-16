@@ -17,7 +17,7 @@ export default function DeleteUser() {
         <section className="px-4 py-6 sm:px-6">
             <Heading
                 title="Delete account"
-                description="Removes your devnull account, every commit and reply you've made, and everyone you follow. Replies others left under your commits go too. Replies under your replies stay, hanging off a [deleted] tombstone. Your GitHub account is not touched."
+                description="Removes your /dev/null account, every commit and reply you've made, and everyone you follow. Replies others left under your commits go too. Replies under your replies stay, hanging off a [deleted] tombstone. Your GitHub account is not touched."
             />
 
             <Dialog>

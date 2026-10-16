@@ -26,8 +26,6 @@ final readonly class UpdateCommitStatuses
     }
 
     /**
-     * A series is moderated as a whole, so no part is left hanging off a part nobody else can see. Its author hears about it once.
-     *
      * @param  array<int, string>  $commitIds
      */
     public function handle(array $commitIds, CommitStatus $status, ?string $reason = null, bool $onlyPending = false): void
@@ -36,9 +34,7 @@ final readonly class UpdateCommitStatuses
 
         DB::transaction(function () use ($commitIds, $status, $reason, $onlyPending): void {
             $commits = Commit::query()
-                ->where(fn (CommitBuilder $query): CommitBuilder => $query
-                    ->whereKey($commitIds)
-                    ->orWhereIn('series_id', Commit::query()->whereKey($commitIds)->whereNotNull('series_id')->select('series_id')))
+                ->whereKey($commitIds)
                 ->when($onlyPending, fn (CommitBuilder $query): CommitBuilder => $query->pending())
                 ->orderBy('id')
                 ->lockForUpdate()
@@ -57,9 +53,7 @@ final readonly class UpdateCommitStatuses
                 ->delete();
 
             if ($status === CommitStatus::Rejected) {
-                $notified = $commits->sortBy('series_position')->unique(fn (Commit $commit): string => $commit->series_id ?? $commit->id);
-
-                Notification::query()->insert($notified->map(fn (Commit $commit): array => [
+                Notification::query()->insert($commits->map(fn (Commit $commit): array => [
                     'id' => Str::uuid7()->toString(),
                     'recipient_id' => $commit->user_id,
                     'actor_id' => $commit->user_id,

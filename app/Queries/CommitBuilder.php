@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Pagination\Cursor;
 
 /**
@@ -95,8 +94,7 @@ final class CommitBuilder extends Builder
             ->where(fn (self $query): self => $query
                 ->whereColumn('thread_replies.parent_id', $this->qualifyColumn('id'))
                 ->orWhereColumn('thread_replies.quoted_commit_id', $this->qualifyColumn('id')))
-            ->visibleInThreadTo($user)
-            ->exceptSeriesContinuations();
+            ->visibleInThreadTo($user);
 
         return $this->addSelect([$this->qualifyColumn('*')])->selectSub($replies, 'replies_count');
     }
@@ -121,29 +119,6 @@ final class CommitBuilder extends Builder
                 ->with('user')
                 ->withPollFor($viewer),
         ]);
-    }
-
-    /**
-     * Later parts of a series are replies to the part before them, yet they read as part of it rather than as replies.
-     */
-    public function exceptSeriesContinuations(): self
-    {
-        return $this->where(fn (self $query): self => $query
-            ->whereNull($this->qualifyColumn('series_position'))
-            ->orWhere($this->qualifyColumn('series_position'), 1));
-    }
-
-    /**
-     * A series is moderated as a whole, so the queue lists it once: under its first pending part.
-     */
-    public function exceptLaterPendingSeriesParts(): self
-    {
-        return $this->whereNotExists(fn (QueryBuilder $query): QueryBuilder => $query
-            ->from($this->getModel()->getTable(), 'earlier')
-            ->whereColumn('earlier.series_id', $this->qualifyColumn('series_id'))
-            ->whereColumn('earlier.series_position', '<', $this->qualifyColumn('series_position'))
-            ->where('earlier.status', CommitStatus::Pending)
-            ->whereNull('earlier.deleted_at'));
     }
 
     public function approved(): self
@@ -235,7 +210,6 @@ final class CommitBuilder extends Builder
     {
         return $relation
             ->visibleInThreadTo($user)
-            ->exceptSeriesContinuations()
             ->withVisibleReplyCount($user)
             ->withCardDataFor($user)
             ->without('quotedCommit')

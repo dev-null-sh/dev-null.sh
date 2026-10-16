@@ -18,7 +18,7 @@ final readonly class UserCommitController
             ->approved()
             ->when(
                 $request->replies(),
-                fn (CommitBuilder $query): CommitBuilder => $query->whereNotNull('parent_id')->exceptSeriesContinuations(),
+                fn (CommitBuilder $query): CommitBuilder => $query->whereNotNull('parent_id'),
                 fn (CommitBuilder $query): CommitBuilder => $query->topLevel(),
             )
             ->withPublicPreview()

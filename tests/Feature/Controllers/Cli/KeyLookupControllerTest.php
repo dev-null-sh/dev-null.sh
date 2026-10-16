@@ -33,7 +33,7 @@ it('fails when none of the keys are on the github account of a user', function (
 
     $response->assertNotFound()
         ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
-        ->assertSee('None of your SSH keys are on the GitHub account of a devnull user.');
+        ->assertSee('None of your SSH keys are on the GitHub account of a /dev/null user.');
 });
 
 it('only considers the first 20 keys', function (): void {

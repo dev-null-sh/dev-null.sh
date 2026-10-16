@@ -28,7 +28,6 @@ final readonly class RecentVolumeQuery
 
         /** @var object{commits_day: int, commits_week: int, replies_day: int, replies_week: int} $commits */
         $commits = Commit::withTrashed()
-            ->exceptSeriesContinuations()
             ->where('created_at', '>=', $week)
             ->toBase()
             ->selectRaw(

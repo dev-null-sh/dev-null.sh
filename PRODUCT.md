@@ -12,11 +12,11 @@ Any developer with a GitHub account. They come to post short text updates, follo
 
 ## Product Purpose
 
-devnull is a social network for developers: sign in with GitHub, get a profile mirrored from GitHub, follow people, post short text, and read a timeline. Success is developers choosing to post and read here because the people on it are verifiably developers.
+/dev/null is a social network for developers: sign in with GitHub, get a profile mirrored from GitHub, follow people, post short text, and read a timeline. Success is developers choosing to post and read here because the people on it are verifiably developers.
 
 ## Positioning
 
-Identity is GitHub. Every account is a real GitHub user, and the profile (avatar, name, username, bio, company, location, website) is mirrored from GitHub on every login, or on demand with "Sync from GitHub" in settings, and cannot be edited on devnull. A general-purpose network cannot truthfully claim that every account is a developer with a public GitHub identity.
+Identity is GitHub. Every account is a real GitHub user, and the profile (avatar, name, username, bio, company, location, website) is mirrored from GitHub on every login, or on demand with "Sync from GitHub" in settings, and cannot be edited on /dev/null. A general-purpose network cannot truthfully claim that every account is a developer with a public GitHub identity.
 
 ## Operating Context
 
@@ -30,8 +30,8 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 - Two logs: **Following** (my commits plus people I follow) and **Everyone** (all commits), newest first, infinite scroll.
 - Profiles live at `/@{username}` with commit, following, and follower counts, a commit activity graph with longest and current streaks, and Commits and Replies tabs. Commits is the default and lists the user's top-level commits; `?tab=replies` lists their authored replies with visible parent context. Both feeds use infinite scroll.
 - Operations (`/operations`, admins only; a 404 for everyone else): database and cache connectivity, the GitHub API rate limit when GitHub credentials are configured, the database queue backlog per queue with the age of its oldest job, the most recent failed jobs (each can be retried or forgotten), pending moderation and link previews, link previews that came back without metadata in the last 24 hours, and signups, commits, and replies over the last 24 hours and 7 days. It refreshes every 15 seconds.
-- Settings: read-only profile, color (pick one of the six graph lanes or keep the automatic one; the only devnull-owned profile setting), appearance (light/dark/system), delete account.
-- Settings: read-only profile, color (pick one of the six graph lanes or keep the automatic one; the only devnull-owned profile setting), the Markdown snippet and live preview to embed the activity graph SVG, appearance (light/dark/system), delete account.
+- Settings: read-only profile, color (pick one of the six graph lanes or keep the automatic one; the only profile setting /dev/null owns), appearance (light/dark/system), delete account.
+- Settings: read-only profile, color (pick one of the six graph lanes or keep the automatic one; the only profile setting /dev/null owns), the Markdown snippet and live preview to embed the activity graph SVG, appearance (light/dark/system), delete account.
 
 ## Capabilities and Constraints
 
@@ -56,7 +56,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 
 ## Brand Commitments
 
-- Name: **devnull** (lowercase), a nod to `/dev/null`.
+- Name: **/dev/null**, written exactly like the path (lowercase, both slashes). The domain is `dev-null.sh`. `devnull` (no slashes) is only for identifiers where a slash cannot go: the database, file names, env vars, the SSH signature namespace.
 - Voice: dry, terminal-literate humor. Understated wit; copy may wink at Unix and `/dev/null`, but stays clear and never obscures what an action does.
 - Current tagline in use: "A social network for developers."
 - Vocabulary: a post is a **commit** and a timeline is a **log**, in the UI and in code (`Commit` model, `LogController`, `/log/{log}`). The git metaphor stops at those two nouns: no branches, forks, pushes, diffs, or PRs. **Star** is the engagement verb, not a git ref.
@@ -68,7 +68,7 @@ Identity is GitHub. Every account is a real GitHub user, and the profile (avatar
 
 ## Product Principles
 
-1. **GitHub is the source of truth for identity.** Never add devnull-side profile editing or alternate sign-in.
+1. **GitHub is the source of truth for identity.** Never add profile editing on /dev/null or alternate sign-in.
 2. **Keep it stupidly simple.** Text posts, follows, stars, timelines. Every addition must justify itself against the "not now" list.
 3. **Words over mechanics.** The post body is the content; chrome and metadata stay subordinate to it.
 4. **Wit in the copy, clarity in the action.** Humor lives in tone, never in labels a user needs to understand.

@@ -25,6 +25,7 @@ test('to array', function (): void {
             'has_sponsors_listing',
             'timezone',
             'lane',
+            'has_github_account',
         ]);
 });
 

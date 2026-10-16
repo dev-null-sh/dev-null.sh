@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 #
-# devnull commit: commit to devnull from your terminal.
+# /dev/null commit: commit to /dev/null from your terminal.
 #
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- 'Hello world!'
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --reply 0be0130 'Agreed!'
 #
-# `--reply` takes the hash of a commit (as shown on devnull) or its link.
+# `--reply` takes the hash of a commit (as shown on /dev/null) or its link.
 #
 # There is no login: your commit is signed locally with an SSH key that is on your GitHub
-# account, and devnull checks the signature against the public keys GitHub publishes for you.
+# account, and /dev/null checks the signature against the public keys GitHub publishes for you.
 #
 # What this script does, and nothing else:
-#   1. Lists your public keys (`ssh-add -L` and ~/.ssh/*.pub) and asks devnull which one is
+#   1. Lists your public keys (`ssh-add -L` and ~/.ssh/*.pub) and asks /dev/null which one is
 #      on your GitHub account. Public keys are public: GitHub publishes them too.
 #   2. Signs your message with that key, using `ssh-keygen -Y sign` with the "devnull-commit"
-#      namespace: the signature is only valid for devnull commits, it can't be used to sign
+#      namespace: the signature is only valid for /dev/null commits, it can't be used to sign
 #      git commits or to log in anywhere.
-#   3. Sends the message and its signature to devnull.
+#   3. Sends the message and its signature to /dev/null.
 #
 # It never reads or sends private keys (ssh-keygen or your SSH agent uses them), never changes
 # ~/.ssh or your SSH agent, never overwrites a file, and only writes a few files in a private
@@ -78,7 +78,7 @@ main() {
   trap cleanup EXIT
   trap 'exit 130' HUP INT TERM
 
-  # 1. Find a local key that is on the GitHub account of a devnull user.
+  # 1. Find a local key that is on the GitHub account of a /dev/null user.
   local public_key
   {
     agent_keys
@@ -91,7 +91,7 @@ main() {
 
   request --data-binary @"$TMP_DIR/candidates" "$DEVNULL_URL/api/cli/key-lookups"
 
-  # Only ever sign with one of our own keys, whatever devnull answers.
+  # Only ever sign with one of our own keys, whatever /dev/null answers.
   local key
   key="$(key_id < "$TMP_DIR/response")"
   grep -qxF -- "$key" "$TMP_DIR/candidates" || fail "Unexpected answer from $DEVNULL_URL."
@@ -163,7 +163,7 @@ sanitize() {
   LC_ALL=C tr -d '\000-\010\013-\037\177'
 }
 
-# Sends a request to devnull and fails with its answer (always plain text) unless it succeeded.
+# Sends a request to /dev/null and fails with its answer (always plain text) unless it succeeded.
 # `--disable` (first) ignores ~/.curlrc, so no local curl config can relax these options, and
 # redirects are never followed.
 request() {
