@@ -2,7 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Jobs\RevokeAppleToken;
 use App\Models\User;
+use App\Services\AppleTokens;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\Support\AppleTokenIssuer;
 
 beforeEach(function (): void {
@@ -43,6 +48,40 @@ it('links the same apple id again, or replaces the one linked before', function 
     expect($this->user->refresh()->apple_id)->toBe($sub);
 })->with(['001234.0a1b2c3d4e5f.1234', '009999.ffffffffffff.9999']);
 
+it('keeps a refresh token for the authorization code that comes with the token', function (): void {
+    configureAppleKey();
+    Http::fake([AppleTokens::TokenUrl => Http::response(['refresh_token' => 'the-refresh-token', 'id_token' => $this->issuer->token()])]);
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-apple-account.update'), [
+        'identity_token' => $this->issuer->token(),
+        'nonce' => 'raw-nonce',
+        'authorization_code' => 'the-code',
+    ])->assertOk()
+        ->assertJsonPath('apple_linked', true)
+        ->assertJsonMissingPath('data.apple_refresh_token');
+
+    expect($this->user->refresh()->apple_refresh_token)->toBe('the-refresh-token');
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === AppleTokens::TokenUrl && $request['code'] === 'the-code');
+});
+
+it('links the apple id anyway when apple does not swap the authorization code, or no key is configured', function (bool $configured): void {
+    if ($configured) {
+        configureAppleKey();
+    }
+
+    Http::fake([AppleTokens::TokenUrl => Http::response(['error' => 'invalid_grant'], 400)]);
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-apple-account.update'), [
+        'identity_token' => $this->issuer->token(),
+        'nonce' => 'raw-nonce',
+        'authorization_code' => 'the-code',
+    ])->assertOk()->assertJsonPath('apple_linked', true);
+
+    expect($this->user->refresh()->apple_id)->toBe('001234.0a1b2c3d4e5f.1234')
+        ->and($this->user->apple_refresh_token)->toBeNull();
+})->with(['apple turns the code down' => true, 'no key' => false]);
+
 it('refuses a token apple did not make for the app and the nonce', function (Closure $data): void {
     signedApiRequest($this->keyPair, 'PUT', route('api-apple-account.update'), $data($this->issuer))
         ->assertUnprocessable()
@@ -72,24 +111,31 @@ it('refuses an apple id linked to someone else', function (): void {
         ->and($other->refresh()->apple_id)->toBe('001234.0a1b2c3d4e5f.1234');
 });
 
-it('validates the token and the nonce', function (array $data, string $field): void {
+it('validates the token, the nonce and the authorization code', function (array $data, string $field): void {
     signedApiRequest($this->keyPair, 'PUT', route('api-apple-account.update'), $data)
         ->assertUnprocessable()
         ->assertJsonValidationErrors($field);
 })->with([
     'no token' => [['nonce' => 'raw-nonce'], 'identity_token'],
     'no nonce' => [['identity_token' => 'token'], 'nonce'],
+    'a code that is not a string' => [['identity_token' => 'token', 'nonce' => 'raw-nonce', 'authorization_code' => ['the-code']], 'authorization_code'],
+    'a long code' => [['identity_token' => 'token', 'nonce' => 'raw-nonce', 'authorization_code' => str_repeat('a', 1025)], 'authorization_code'],
 ]);
 
-it('unlinks the apple id of the user', function (): void {
-    $this->user->forceFill(['apple_id' => '001234.0a1b2c3d4e5f.1234'])->save();
+it('unlinks the apple id of the user, and has apple revoke its refresh token', function (): void {
+    Queue::fake();
+
+    $this->user->forceFill(['apple_id' => '001234.0a1b2c3d4e5f.1234', 'apple_refresh_token' => 'the-refresh-token'])->save();
 
     signedApiRequest($this->keyPair, 'DELETE', route('api-apple-account.destroy'))
         ->assertOk()
         ->assertJsonPath('data.id', $this->user->id)
         ->assertJsonPath('apple_linked', false);
 
-    expect($this->user->refresh()->apple_id)->toBeNull();
+    expect($this->user->refresh()->apple_id)->toBeNull()
+        ->and($this->user->apple_refresh_token)->toBeNull();
+
+    Queue::assertPushed(RevokeAppleToken::class, fn (RevokeAppleToken $job): bool => $job->refreshToken === 'the-refresh-token');
 
     signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'))
         ->assertOk()

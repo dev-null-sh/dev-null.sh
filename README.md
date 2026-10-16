@@ -172,11 +172,13 @@ Apple's `sub` is only the same across apps of one developer team. Links keep wor
 
 | Request | Body | Answer |
 |---|---|---|
-| `PUT /api/v1/me/apple`, signed | `{"identity_token": "…", "nonce": "…"}` | `200` with `{"data": user, "apple_linked": true}` |
+| `PUT /api/v1/me/apple`, signed | `{"identity_token": "…", "nonce": "…", "authorization_code": "…"}`, the code optional | `200` with `{"data": user, "apple_linked": true}` |
 | `DELETE /api/v1/me/apple`, signed | | `200` with `{"data": user, "apple_linked": false}` |
 | `POST /api/v1/devices`, signed with the new key | `{"apple_identity_token": "…", "nonce": "…", "device_name": "devnull on iPad"}` | `200` with the user, like `GET /api/v1/me`, once the key is approved as a device |
 
-`GET /api/v1/me` says `apple_linked`. Linking and unlinking are limited to 10 a minute per user, and signing in with Apple counts against the same limits as redeeming a code. The user can also unlink Apple under Settings → Devices.
+`GET /api/v1/me` says `apple_linked`. Linking the Apple ID that is already linked answers the same `200`. Linking and unlinking are limited to 10 a minute per user, and signing in with Apple counts against the same limits as redeeming a code. The user can also unlink Apple under Settings → Devices.
+
+Apple asks apps to revoke the user's tokens when they unlink Sign in with Apple or delete their account. With the app's Sign in with Apple key configured (`APPLE_CLIENT_ID`, `com.simonhamp.devnull` by default, `APPLE_TEAM_ID`, `APPLE_KEY_ID` and the .p8 key in `APPLE_PRIVATE_KEY`), linking swaps the `authorization_code` for a refresh token at `https://appleid.apple.com/auth/token`, with an ES256 client secret, and keeps it encrypted. Unlinking, linking another Apple ID and deleting the account queue a job that revokes it at `https://appleid.apple.com/auth/revoke`, and tries again for a while if Apple can't be reached. Linking never fails over the code: if Apple turns it down, the Apple ID is linked without a refresh token, and why is logged. Without the key, nothing is swapped or revoked, and that is logged once.
 
 | Status | `code` | Means |
 |---|---|---|

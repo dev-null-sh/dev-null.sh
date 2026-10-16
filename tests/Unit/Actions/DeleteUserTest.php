@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
+use App\Jobs\RevokeAppleToken;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
@@ -15,6 +16,7 @@ use App\Models\PollVote;
 use App\Models\User;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 it('may delete a user', function (): void {
@@ -25,6 +27,26 @@ it('may delete a user', function (): void {
     $action->handle($user);
 
     expect($user->exists)->toBeFalse();
+});
+
+it('has apple revoke the refresh token of a linked apple id', function (): void {
+    Queue::fake();
+
+    $user = User::factory()->create(['apple_id' => '001234.0a1b2c3d4e5f.1234', 'apple_refresh_token' => 'the-refresh-token']);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($user->exists)->toBeFalse();
+
+    Queue::assertPushed(RevokeAppleToken::class, fn (RevokeAppleToken $job): bool => $job->refreshToken === 'the-refresh-token');
+});
+
+it('revokes nothing for a user without a refresh token', function (): void {
+    Queue::fake();
+
+    resolve(DeleteUser::class)->handle(User::factory()->create(['apple_id' => '001234.0a1b2c3d4e5f.1234']));
+
+    Queue::assertNotPushed(RevokeAppleToken::class);
 });
 
 it('erases the commits of a deleted user along with the replies under them', function (): void {

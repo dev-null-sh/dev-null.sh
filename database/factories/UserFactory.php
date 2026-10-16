@@ -40,6 +40,7 @@ final class UserFactory extends Factory
             'remember_token' => Str::random(10),
             'github_synced_at' => null,
             'apple_id' => null,
+            'apple_refresh_token' => null,
         ];
     }
 

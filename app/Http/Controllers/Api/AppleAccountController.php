@@ -19,7 +19,7 @@ final readonly class AppleAccountController
      */
     public function update(UpdateApiAppleAccountRequest $request, #[CurrentUser] User $user, UpdateUserAppleId $action): UserResource
     {
-        $action->handle($user, $request->appleId());
+        $action->handle($user, $request->appleId(), $request->authorizationCode());
 
         return UserResource::make($user->loadCounts())->additional(['apple_linked' => true]);
     }

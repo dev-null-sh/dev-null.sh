@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Jobs\RevokeAppleToken;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -26,10 +27,13 @@ final readonly class DeleteUser
     /**
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author, so the replies under them keep their thread.
-     * The database cascades the image rows of erased commits and the user's scheduled commits, but the image files are erased here.
+     * The database cascades the image rows of erased commits and the user's scheduled commits, but the image files are
+     * erased here, and Apple is asked to revoke the refresh token of a linked Apple ID.
      */
     public function handle(User $user): void
     {
+        $appleRefreshToken = $user->apple_refresh_token;
+
         $imagePaths = DB::transaction(function () use ($user): array {
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
@@ -52,6 +56,10 @@ final readonly class DeleteUser
         });
 
         Storage::disk()->delete($imagePaths);
+
+        if ($appleRefreshToken !== null) {
+            dispatch(new RevokeAppleToken($appleRefreshToken));
+        }
     }
 
     /**

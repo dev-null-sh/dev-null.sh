@@ -48,6 +48,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read string|null $remember_token
  * @property-read CarbonInterface|null $github_synced_at
  * @property-read string|null $apple_id
+ * @property-read string|null $apple_refresh_token
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -85,6 +86,7 @@ use Illuminate\Support\Facades\DB;
     'onboarded_at',
     'github_follows_imported_at',
     'apple_id',
+    'apple_refresh_token',
 ])]
 final class User extends Authenticatable
 {
@@ -143,6 +145,7 @@ final class User extends Authenticatable
             'remember_token' => 'string',
             'github_synced_at' => 'datetime',
             'apple_id' => 'string',
+            'apple_refresh_token' => 'encrypted',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

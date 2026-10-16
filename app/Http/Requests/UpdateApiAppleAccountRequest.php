@@ -13,7 +13,8 @@ use InvalidArgumentException;
 
 /**
  * Links the Apple ID the user signed in with on the device to their account. An Apple ID can only be linked to one
- * account.
+ * account. The authorization code Apple handed the app along with the token is optional, and only swapped for a
+ * refresh token, so the link can be revoked at Apple later.
  */
 final class UpdateApiAppleAccountRequest extends FormRequest
 {
@@ -32,12 +33,18 @@ final class UpdateApiAppleAccountRequest extends FormRequest
         return [
             'identity_token' => ['required', 'string', 'max:4096'],
             'nonce' => ['required', 'string', 'max:255'],
+            'authorization_code' => ['nullable', 'string', 'max:1024'],
         ];
     }
 
     public function appleId(): string
     {
         return $this->appleId;
+    }
+
+    public function authorizationCode(): ?string
+    {
+        return $this->filled('authorization_code') ? $this->string('authorization_code')->value() : null;
     }
 
     public function passedValidation(): void
