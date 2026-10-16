@@ -48,6 +48,7 @@ final readonly class CreateReplyNotifications
                 'actor_id' => $reply->user_id,
                 'type' => NotificationType::Replied->value,
                 'commit_id' => $reply->id,
+                'subject_id' => $parent->id,
                 'key' => 'replied:'.$reply->id,
                 'created_at' => now(),
                 'updated_at' => now(),
