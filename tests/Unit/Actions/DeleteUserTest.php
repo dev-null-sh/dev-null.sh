@@ -30,6 +30,22 @@ it('erases the commits of a deleted user along with the replies under them', fun
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
 });
 
+it('erases the mutes and blocks of a deleted user in both directions', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+
+    $user->muting()->attach($other);
+    $other->muting()->attach($user);
+    $user->blocking()->attach($other);
+    $other->blocking()->attach($user);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($other->muting()->count())->toBe(0)
+        ->and($other->blocking()->count())->toBe(0)
+        ->and($other->blockers()->count())->toBe(0);
+});
+
 it('erases the images of a deleted user and of the replies under their commits', function (): void {
     Storage::fake();
 

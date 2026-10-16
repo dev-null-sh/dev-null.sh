@@ -57,3 +57,21 @@ it('limits the suggested commits', function (?int $limit, int $count): void {
     'default' => [null, 3],
     'custom' => [1, 1],
 ]);
+
+it('does not suggest commits by muted people or across blocks', function (): void {
+    $user = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $blocker = User::factory()->create();
+
+    $user->muting()->attach($muted);
+    $user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($user);
+
+    $visible = Commit::factory()->create();
+    Commit::factory()->for($muted)->create();
+    Commit::factory()->for($blocked)->create();
+    Commit::factory()->for($blocker)->create();
+
+    expect(resolve(SuggestedCommitsQuery::class)->get($user)->pluck('id')->all())->toBe([$visible->id]);
+});

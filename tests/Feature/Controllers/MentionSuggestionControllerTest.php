@@ -51,6 +51,25 @@ it('never suggests the user themselves', function (): void {
         ->assertJsonCount(0, 'users');
 });
 
+it('never suggests muted people or people across a block', function (string $term): void {
+    $user = User::factory()->create(['username' => 'viewer', 'name' => 'Viewer']);
+    $muted = User::factory()->create(['username' => 'taylor_muted']);
+    $blocked = User::factory()->create(['username' => 'taylor_blocked']);
+    $blocker = User::factory()->create(['username' => 'taylor_blocker']);
+    $visible = User::factory()->create(['username' => 'taylor']);
+
+    $user->following()->attach([$muted->id, $visible->id]);
+    $user->muting()->attach($muted);
+    $user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($user);
+
+    $response = $this->actingAs($user)->getJson('/search/mentions?q='.$term);
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'users')
+        ->assertJsonPath('users.0.id', $visible->id);
+})->with(['', 'taylor']);
+
 it('limits the number of suggestions', function (): void {
     User::factory()->count(10)->sequence(fn ($sequence): array => ['username' => "dev{$sequence->index}"])->create();
 
