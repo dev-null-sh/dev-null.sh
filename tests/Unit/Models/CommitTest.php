@@ -237,6 +237,16 @@ it('loads public preview counts onto a partially selected commit with its id', f
         ->and($partial->getAttributes())->not->toHaveKey('body');
 });
 
+it('loads an unsaved public preview without dirtying its computed count', function (): void {
+    $commit = Commit::factory()->make();
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview->replies_count)->toBe(0)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->exists)->toBeFalse();
+});
+
 it('hydrates public preview counts without persisting them or clearing body edits', function (bool $deleted): void {
     $parent = Commit::factory()->create();
     $commit = Commit::factory()->for($parent, 'parent')->create()->refresh();
