@@ -127,7 +127,7 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
     const items = useNavItems();
 
     return (
-        <header className="sticky top-0 hidden h-svh w-20 shrink-0 flex-col items-center py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
+        <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
             <Link
                 href={LogController.show('following')}
                 className="mb-8 rounded-md px-3 lg:px-3"
@@ -255,12 +255,12 @@ export function MobileNav() {
                     prefetch={item.prefetch ?? true}
                     aria-current={item.isActive ? 'page' : undefined}
                     className={cn(
-                        'flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-medium text-muted-foreground',
+                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium tracking-tight text-muted-foreground',
                         { 'text-primary': item.isActive },
                     )}
                 >
                     <NavIcon item={item} />
-                    {item.title}
+                    <span className="max-w-full truncate">{item.title}</span>
                 </Link>
             ))}
         </nav>
