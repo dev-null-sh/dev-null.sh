@@ -55,6 +55,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
+ * @property-read Collection<int, CommitTip> $tips
+ * @property-read int|null $tips_count
+ * @property-read int|null $tips_total_bytes
  */
 #[Hidden([
     'ai_decision',
@@ -270,6 +273,14 @@ final class Commit extends Model
     public function images(): HasMany
     {
         return $this->hasMany(CommitImage::class)->orderBy('position');
+    }
+
+    /**
+     * @return HasMany<CommitTip, $this>
+     */
+    public function tips(): HasMany
+    {
+        return $this->hasMany(CommitTip::class);
     }
 
     /**

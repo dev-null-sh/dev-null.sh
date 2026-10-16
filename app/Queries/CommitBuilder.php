@@ -213,7 +213,18 @@ final class CommitBuilder extends Builder
         return $this
             ->withVisibleReplyCount(null)
             ->withCount('stars')
+            ->withTips()
             ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+    }
+
+    /**
+     * Loads tips count and total bytes gifted on the commit.
+     */
+    public function withTips(): self
+    {
+        return $this
+            ->withCount('tips')
+            ->withSum('tips as tips_total_bytes', 'amount');
     }
 
     /**
@@ -288,11 +299,12 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
-            ->with(['user', 'linkPreview', 'images'])
+            ->with(['user.shadow', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)
             ->withSavedState($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)
+            ->withTips()
             ->afterQuery(fn (Collection $commits) => resolve(CommitTranslations::class)->attach($commits));
     }
 

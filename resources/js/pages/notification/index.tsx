@@ -6,6 +6,7 @@ import {
     Check,
     ChevronDown,
     ChevronsUp,
+    Coins,
     MessageSquareReply,
     Quote,
     Star,
@@ -829,7 +830,10 @@ export function NotificationContent({
             ('event_count' in notification && notification.event_count > 1));
     const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
-    const isOwnCommit = notification.type === 'starred' || moderation;
+    const isOwnCommit =
+        notification.type === 'starred' ||
+        notification.type === 'tipped' ||
+        moderation;
     const starredImages =
         notification.type === 'starred'
             ? (notification.commit.images ?? [])
@@ -848,6 +852,7 @@ export function NotificationContent({
         replied: MessageSquareReply,
         quoted: Quote,
         starred: Star,
+        tipped: Coins,
         mentioned: AtSign,
         approved: Check,
         rejected: X,
@@ -887,6 +892,7 @@ export function NotificationContent({
         starred: isImageOnly
             ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
             : 'starred your commit',
+        tipped: 'sent Bytes to your commit',
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',

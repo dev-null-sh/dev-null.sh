@@ -18,6 +18,7 @@ import {
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
+import { CommitTipButton } from '@/components/commit-tip-button';
 import { useCommitTranslation } from '@/components/commit-translation';
 import {
     GraphRail,
@@ -28,6 +29,7 @@ import {
 import { LinkPreview } from '@/components/link-preview';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
 import { QuotedCommit } from '@/components/quoted-commit';
+import { ShadowSprite } from '@/components/shadow-sprite';
 import {
     ThreadPositionBadge,
     type ThreadPosition,
@@ -317,6 +319,22 @@ export function CommitCard({
                                         @{commit.user.username}
                                     </Link>
                                 </UserPreview>
+                                <Link
+                                    href={show(commit.user)}
+                                    className="shrink-0"
+                                    title={`View @${commit.user.username}'s Shadow companion and Unix rank`}
+                                    aria-label={`View @${commit.user.username}'s Shadow companion and rank`}
+                                >
+                                    <ShadowSprite
+                                        compact
+                                        level={1}
+                                        glyph={commit.user.shadow?.glyph ?? 'λ'}
+                                        skin={
+                                            commit.user.shadow?.skin ??
+                                            'classic-green'
+                                        }
+                                    />
+                                </Link>
                                 <span
                                     aria-hidden
                                     className="text-muted-foreground"
@@ -487,6 +505,10 @@ export function CommitCard({
                                             commit={commit}
                                             className="px-2 py-0.5"
                                         />
+                                        <CommitTipButton
+                                            commit={commit}
+                                            className="px-2 py-0.5"
+                                        />
                                         <CommitQuoteButton
                                             commit={commit}
                                             keyShortcut="q"
@@ -506,6 +528,10 @@ export function CommitCard({
                                                 className="px-2 py-0.5"
                                             />
                                             <CommitPastelButton
+                                                commit={commit}
+                                                className="px-2 py-0.5"
+                                            />
+                                            <CommitTipButton
                                                 commit={commit}
                                                 className="px-2 py-0.5"
                                             />

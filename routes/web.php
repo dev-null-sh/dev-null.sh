@@ -28,6 +28,7 @@ use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\CommitStatusController;
+use App\Http\Controllers\CommitTipController;
 use App\Http\Controllers\CommitTranslationController;
 use App\Http\Controllers\ConversationArchiveController;
 use App\Http\Controllers\ConversationController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\ConversationMergeController;
 use App\Http\Controllers\ConversationMessageController;
 use App\Http\Controllers\ConversationReadController;
 use App\Http\Controllers\ConversationTypingController;
+use App\Http\Controllers\DailyClaimController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
@@ -43,6 +45,7 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
+use App\Http\Controllers\LevelRewardController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
@@ -70,6 +73,8 @@ use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\ShadowController;
+use App\Http\Controllers\ShadowSkinController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TermsController;
@@ -289,6 +294,24 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-reply.destroy');
     Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
         ->name('commit-poll-vote.store');
+    Route::post('commits/{commit}/tips', [CommitTipController::class, 'store'])
+        ->name('commit-tip.store');
+
+    // Claimable milestone rewards, authenticated and idempotent.
+    Route::post('levels/{level}/reward', [LevelRewardController::class, 'store'])
+        ->whereNumber('level')
+        ->middleware('throttle:20,1')
+        ->name('level-reward.store');
+
+    // Wallet & Daily Claims...
+    Route::post('wallet/claim', [DailyClaimController::class, 'store'])
+        ->name('wallet-claim.store');
+
+    // Shadow Companion...
+    Route::patch('shadow', [ShadowController::class, 'update'])
+        ->name('shadow.update');
+    Route::post('shadow/skins/{skin}/unlock', [ShadowSkinController::class, 'store'])
+        ->name('shadow-skin.store');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');

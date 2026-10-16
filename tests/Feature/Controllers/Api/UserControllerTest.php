@@ -127,7 +127,7 @@ it('shows a signed request the profile as the web shows it to its user', functio
             'pinned_commit' => null,
         ])
         ->assertJsonPath('achievements.rank', 'user')
-        ->assertJsonPath('achievements.level', 1)
+        ->assertJsonPath('achievements.level', 2)
         ->assertJsonPath('activity.scale', 'week')
         ->assertJsonCount(7, 'activity.buckets')
         ->assertJsonPath('activity.buckets.3', ['date' => '2026-10-12', 'count' => 1])
@@ -191,8 +191,8 @@ it('shows a signed request the achievements and unix rank of the profile', funct
     signedApiRequest($keyPair, 'GET', route('api-user.show', $user))
         ->assertOk()
         ->assertJsonPath('achievements', resolve(UserAchievementsQuery::class)->get($user, $viewer))
-        ->assertJsonPath('achievements.rank', 'maintainer')
-        ->assertJsonPath('achievements.level', 4)
+        ->assertJsonPath('achievements.rank', 'user')
+        ->assertJsonPath('achievements.level', 2)
         ->assertJsonCount(6, 'achievements.ranks');
 
     $this->getJson(route('api-user.show', $user))

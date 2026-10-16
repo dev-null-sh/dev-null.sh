@@ -5,6 +5,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { DailyClaimBanner } from '@/components/daily-claim-banner';
 import { FollowButton } from '@/components/follow-button';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
@@ -153,6 +154,8 @@ export default function Show({
                     </button>
                 </div>
             )}
+
+            <DailyClaimBanner />
 
             <div
                 ref={feedRef}
