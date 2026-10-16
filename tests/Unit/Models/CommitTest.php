@@ -184,8 +184,50 @@ it('excludes series continuations from its public preview reply count', function
     Commit::factory()->for($parts[0], 'parent')->create();
     Commit::factory()->for($parts[0], 'parent')->pending()->create();
 
-    expect($parts[0]->loadPublicPreview()->replies_count)->toBe(1);
+    $preview = $parts[0]->loadPublicPreview();
+
+    expect($preview->replies_count)->toBe(1)
+        ->and($preview->isDirty('replies_count'))->toBeFalse();
 });
+
+it('keeps existing edits when loading a public preview and saves without its computed count', function (): void {
+    $commit = Commit::factory()->create();
+    $commit->fill(['body' => 'An edited commit']);
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview->isDirty('body'))->toBeTrue()
+        ->and($preview->isDirty('replies_count'))->toBeFalse();
+
+    $preview->save();
+
+    expect($commit->fresh()->body)->toBe('An edited commit');
+});
+
+it('loads an unsaved public preview without making its computed count dirty', function (): void {
+    $commit = Commit::factory()->make();
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview)->toBe($commit)
+        ->and($preview->exists)->toBeFalse()
+        ->and($preview->replies_count)->toBe(0)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->isDirty('body'))->toBeTrue();
+});
+
+it('loads the public reply count on a partially selected commit', function (bool $withId): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'parent')->pending()->create();
+    $partial = Commit::query()->select($withId ? ['id', 'user_id', 'parent_id'] : ['user_id', 'parent_id'])->findOrFail($commit->id);
+
+    $preview = $partial->loadPublicPreview();
+
+    expect($preview)->toBe($partial)
+        ->and($preview->replies_count)->toBe($withId ? 1 : 0)
+        ->and($preview->isDirty('replies_count'))->toBeFalse();
+})->with(['with primary key' => true, 'without primary key' => false]);
 
 it('may belong to a link preview', function (): void {
     $linkPreview = LinkPreview::factory()->create();
