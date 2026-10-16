@@ -29,7 +29,9 @@ final class CommitBuilder extends Builder
         return $this->where(fn (Builder $query): Builder => $query
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
             ->orWhere($this->qualifyColumn('user_id'), $user->id))
-            ->whereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks());
+            ->where(fn (Builder $query): Builder => $query
+                ->whereNull($this->qualifyColumn('user_id'))
+                ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
     }
 
     /**
@@ -37,7 +39,9 @@ final class CommitBuilder extends Builder
      */
     public function withoutMutedAuthorsFor(?User $user): self
     {
-        return $user instanceof User ? $this->whereNotIn($this->qualifyColumn('user_id'), $user->mutedIds()) : $this;
+        return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
+            ->whereNull($this->qualifyColumn('user_id'))
+            ->orWhereNotIn($this->qualifyColumn('user_id'), $user->mutedIds())) : $this;
     }
 
     /**

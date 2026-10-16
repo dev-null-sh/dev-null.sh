@@ -48,17 +48,23 @@ final readonly class CreateMentionNotifications
         $notifications = [];
 
         foreach ($commits as $commit) {
+            $authorId = $commit->user_id;
+
+            if ($authorId === null) {
+                continue;
+            }
+
             foreach ($recipientsByCommit->get($commit->id, []) as $id) {
                 $user = $users->get($id);
 
-                if (! $user instanceof User || $user->id === $commit->user_id || $user->id === $commit->parent?->user_id || $this->isSilenced($user, $commit->user_id)) {
+                if (! $user instanceof User || $user->id === $authorId || $user->id === $commit->parent?->user_id || $this->isSilenced($user, $authorId)) {
                     continue;
                 }
 
                 $notifications[] = [
                     'id' => Str::uuid7()->toString(),
                     'recipient_id' => $user->id,
-                    'actor_id' => $commit->user_id,
+                    'actor_id' => $authorId,
                     'type' => NotificationType::Mentioned->value,
                     'commit_id' => $commit->id,
                     'key' => 'mentioned:'.$commit->id,
