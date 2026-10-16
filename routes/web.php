@@ -9,7 +9,9 @@ use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
+use App\Http\Controllers\CommitPhotoController;
 use App\Http\Controllers\CommitPinController;
+use App\Http\Controllers\CommitPollVoteController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitRestorationController;
@@ -25,6 +27,7 @@ use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\SafetyController;
@@ -74,6 +77,10 @@ Route::middleware(RememberIntendedUrl::class)->group(function (): void {
     Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
         ->scopeBindings()
         ->name('commit.show');
+    Route::get('@{user:username}/commits/{commit}/photos/{photo}', [CommitPhotoController::class, 'show'])
+        ->scopeBindings()
+        ->whereNumber('photo')
+        ->name('commit-photo.show');
 });
 
 // Sitemaps...
@@ -156,9 +163,18 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-star.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
         ->name('commit-star.destroy');
+    Route::post('commits/{commit}/replies', [CommitReplyController::class, 'store'])
+        ->middleware(ThrottleCommits::class)
+        ->name('commit-reply.store');
+    Route::delete('commits/{commit}/replies/{reply}', [CommitReplyController::class, 'destroy'])
+        ->withTrashed()
+        ->name('commit-reply.destroy');
+    Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
+        ->name('commit-poll-vote.store');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
+    Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('notification-group.show');
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');

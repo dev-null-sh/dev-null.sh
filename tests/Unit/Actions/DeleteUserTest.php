@@ -6,6 +6,9 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Poll;
+use App\Models\PollOption;
+use App\Models\PollVote;
 use App\Models\User;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\Storage;
@@ -89,6 +92,23 @@ it('erases the mutes and blocks of a deleted user in both directions', function 
         ->and($other->blocking()->count())->toBe(0)
         ->and($other->blockers()->count())->toBe(0);
 
+});
+
+it('erases authored polls and the users votes while keeping other polls and voters', function (): void {
+    $user = User::factory()->create();
+    $poll = Poll::factory()->for(Commit::factory()->for($user))->withOptions('Tabs', 'Spaces')->create();
+    $deletedPoll = Poll::factory()->for(Commit::factory()->for($user)->state(['deleted_at' => now()]))->withOptions('Vim', 'Emacs')->create();
+    $other = Poll::factory()->withOptions('PHP', 'TypeScript')->create();
+    PollVote::factory()->for($poll->options[0], 'option')->create();
+    PollVote::factory()->for($deletedPoll->options[0], 'option')->create();
+    PollVote::factory()->for($other->options[0], 'option')->for($user)->create();
+    $keptVote = PollVote::factory()->for($other->options[1], 'option')->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Poll::query()->sole()->is($other))->toBeTrue()
+        ->and(PollOption::query()->pluck('id')->sort()->values()->all())->toBe($other->options->pluck('id')->sort()->values()->all())
+        ->and(PollVote::query()->sole()->is($keptVote))->toBeTrue();
 });
 
 it('erases the images of a deleted user and of the replies under their commits', function (): void {

@@ -3,13 +3,51 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { ReactElement, SyntheticEvent } from 'react';
 import { CommitImages } from '../../resources/js/components/commit-images';
+import type { Commit } from '../../resources/js/types/commit';
+
+const commit: Commit = {
+    id: 'commit-1',
+    user_id: 'user-1',
+    parent_id: null,
+    hot_score: 41484.833333,
+    quoted_commit_id: null,
+    body: 'Photo from the build',
+    body_segments: [],
+    status: 'approved',
+    series_id: null,
+    series_position: null,
+    series_size: null,
+    created_at: '2026-10-16T10:00:00Z',
+    updated_at: '2026-10-16T10:00:00Z',
+    stars_count: 0,
+    starred: false,
+    user: {
+        id: 'user-1',
+        username: 'octocat',
+        name: 'Octocat',
+        avatar_url: null,
+        bio: null,
+        location: null,
+        website: null,
+        company: null,
+        has_sponsors_listing: false,
+        lane: 0,
+        created_at: '2026-10-16T10:00:00Z',
+        updated_at: '2026-10-16T10:00:00Z',
+    },
+    images: [
+        {
+            id: 'image-1',
+            url: '/images/missing.webp',
+            width: 100,
+            height: 100,
+            description: null,
+        },
+    ],
+};
 
 function renderedImage() {
-    const gallery = CommitImages({
-        images: [
-            { id: 1, url: '/images/missing.webp', width: 100, height: 100 },
-        ],
-    });
+    const gallery = CommitImages({ commit });
     const link = gallery!.props.children[0];
 
     return link.props.children as ReactElement<{
@@ -51,5 +89,5 @@ void test('replaces a failed image with the site logo without retrying the fallb
 });
 
 void test('renders nothing when there are no uploaded images', () => {
-    assert.equal(CommitImages({ images: [] }), null);
+    assert.equal(CommitImages({ commit: { ...commit, images: [] } }), null);
 });

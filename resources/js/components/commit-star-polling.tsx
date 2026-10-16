@@ -1,6 +1,14 @@
-import { createContext, useCallback, useEffect, useRef } from 'react';
+import {
+    createContext,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import type { ReactNode } from 'react';
 import { index } from '@/actions/App/Http/Controllers/CommitStarCountController';
+import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import type { Commit } from '@/types';
 
 type StarState = Pick<Commit, 'id' | 'stars_count' | 'starred'>;
@@ -11,11 +19,13 @@ type Subscription = {
     prepare: () => ((state: StarState) => void) | null;
 };
 
-export const CommitStarPollingContext = createContext<
-    ((subscription: Subscription) => () => void) | null
->(null);
+export const CommitStarPollingContext = createContext<{
+    subscribe: (subscription: Subscription) => () => void;
+    mutations: ReturnType<typeof createCommitStarMutations>;
+} | null>(null);
 
 export function CommitStarPolling({ children }: { children: ReactNode }) {
+    const [mutations] = useState(createCommitStarMutations);
     const subscriptions = useRef(new Set<Subscription>());
     const subscribe = useCallback((subscription: Subscription) => {
         subscriptions.current.add(subscription);
@@ -24,6 +34,11 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
             subscriptions.current.delete(subscription);
         };
     }, []);
+
+    const context = useMemo(
+        () => ({ subscribe, mutations }),
+        [subscribe, mutations],
+    );
 
     useEffect(() => {
         const controller = new AbortController();
@@ -116,7 +131,7 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
     }, []);
 
     return (
-        <CommitStarPollingContext value={subscribe}>
+        <CommitStarPollingContext value={context}>
             {children}
         </CommitStarPollingContext>
     );

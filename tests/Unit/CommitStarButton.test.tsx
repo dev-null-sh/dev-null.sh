@@ -86,3 +86,16 @@ for (const status of ['pending', 'rejected'] as const) {
         );
     });
 }
+
+for (const status of ['approved', 'pending', 'rejected'] as const) {
+    void test(`authors see their ${status} reply's read-only star count`, async () => {
+        const body = await render(
+            { id: 'author' },
+            { status, parent_id: 'parent' },
+        );
+
+        assert.match(body, /data-test="star-count-readonly"/);
+        assert.match(body, /aria-label="2 stars"/);
+        assert.doesNotMatch(body, /<button\b/);
+    });
+}

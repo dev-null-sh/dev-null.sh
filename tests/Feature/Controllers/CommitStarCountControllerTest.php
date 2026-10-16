@@ -118,3 +118,28 @@ it('bounds polling batches to one hundred commits', function (): void {
     $this->getJson(route('commit-star-count.index', ['ids' => $ids]))
         ->assertUnprocessable()->assertJsonValidationErrors('ids');
 });
+
+it('polls an own reply after another viewer stars and unstars it through JSON', function (): void {
+    $author = User::factory()->create();
+    $viewer = User::factory()->create();
+    $reply = Commit::factory()->for($author)->create([
+        'parent_id' => Commit::factory()->create()->id,
+    ]);
+    $url = route('commit-star-count.index', ['ids' => [$reply->id]]);
+
+    $this->actingAs($author)->postJson(route('commit-star.store', $reply))->assertForbidden();
+    $this->actingAs($viewer)->postJson(route('commit-star.store', $reply))
+        ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1]);
+    $this->getJson($url)->assertExactJson(['commits' => [
+        ['id' => $reply->id, 'starred' => true, 'stars_count' => 1],
+    ]]);
+    $this->actingAs($author)->getJson($url)->assertExactJson(['commits' => [
+        ['id' => $reply->id, 'starred' => false, 'stars_count' => 1],
+    ]]);
+
+    $this->actingAs($viewer)->deleteJson(route('commit-star.destroy', $reply))
+        ->assertOk()->assertExactJson(['starred' => false, 'stars_count' => 0]);
+    $this->actingAs($author)->getJson($url)->assertExactJson(['commits' => [
+        ['id' => $reply->id, 'starred' => false, 'stars_count' => 0],
+    ]]);
+});

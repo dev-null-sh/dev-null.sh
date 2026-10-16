@@ -1,10 +1,13 @@
-import { router, usePage } from '@inertiajs/react';
+import { router, useHttp, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Ref } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
+import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
+import { createCommitStarMutations } from '@/lib/commit-star-mutations';
+import { commitStateKey } from '@/lib/commit-state';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -29,46 +32,54 @@ export function CommitStarButton({
 }) {
     const { auth } = usePage().props;
     const isOwn = commit.user_id === auth.user?.id;
+    const [starred, setStarred] = useSharedState(
+        commitStateKey('starred', commit.id),
+        commit.starred,
+    );
+    const [count, setCount] = useSharedState(
+        commitStateKey('stars_count', commit.id),
+        commit.stars_count,
+    );
+    const request = useHttp<
+        Record<string, never>,
+        { starred: boolean; stars_count: number }
+    >({});
+    const [isAnimating, setIsAnimating] = useState(false);
+    const [localMutations] = useState(createCommitStarMutations);
+    const polling = useContext(CommitStarPollingContext);
+    const mutations = polling?.mutations ?? localMutations;
     const canPoll =
         (isOwn || commit.status === 'approved') && auth.user !== null;
-    const [starred, setStarred] = useState(commit.starred);
-    const [count, setCount] = useState(commit.stars_count);
-    const [pending, setPending] = useState(false);
-    const [isAnimating, setIsAnimating] = useState(false);
     const element = useRef<HTMLElement>(null);
     const setElement = useCallback((node: HTMLElement | null) => {
         element.current = node;
     }, []);
-    const mutation = useRef({ version: 0, pending: false });
-    const subscribe = useContext(CommitStarPollingContext);
 
     useEffect(() => {
-        if (!subscribe || !canPoll || !element.current) {
+        if (!polling || !canPoll || !element.current) {
             return;
         }
 
-        const state = mutation.current;
-
-        return subscribe({
+        return polling.subscribe({
             id: commit.id,
             element: element.current,
-            prepare: () => {
-                if (state.pending) {
-                    return null;
-                }
-
-                const version = state.version;
-
-                return (stars) => {
-                    // A poll that started before a click must not undo it.
-                    if (state.version === version) {
-                        setStarred(stars.starred);
-                        setCount(stars.stars_count);
-                    }
-                };
-            },
+            prepare: () =>
+                mutations.prepare(commit.id, (stars) => {
+                    refreshSharedState(
+                        new Map<string, boolean | number>([
+                            [
+                                commitStateKey('starred', commit.id),
+                                stars.starred,
+                            ],
+                            [
+                                commitStateKey('stars_count', commit.id),
+                                stars.stars_count,
+                            ],
+                        ]),
+                    );
+                }),
         });
-    }, [subscribe, canPoll, commit.id, isOwn]);
+    }, [polling, mutations, canPoll, commit.id, isOwn]);
 
     if (isOwn) {
         return (
@@ -80,65 +91,54 @@ export function CommitStarButton({
         return null;
     }
 
-    const toggle = () => {
+    const toggle = async () => {
         if (auth.user === null) {
             signIn();
 
             return;
         }
 
-        if (mutation.current.pending) {
+        if (request.processing) {
+            return;
+        }
+
+        const finishMutation = mutations.begin(commit.id);
+
+        if (!finishMutation) {
             return;
         }
 
         const next = !starred;
-        mutation.current.version++;
-        mutation.current.pending = true;
 
         setStarred(next);
         setCount((current) => Math.max(0, current + (next ? 1 : -1)));
         if (next) {
             setIsAnimating(true);
         }
-        setPending(true);
 
-        const revert = () => {
+        try {
+            const response = await request.submit(
+                next
+                    ? CommitStarController.store(commit)
+                    : CommitStarController.destroy(commit),
+            );
+
+            setStarred(response.starred);
+            setCount(response.stars_count);
+            router.flushAll();
+        } catch {
             setStarred(!next);
             setCount((current) => Math.max(0, current + (next ? -1 : 1)));
-        };
-
-        router.visit(
-            next
-                ? CommitStarController.store(commit)
-                : CommitStarController.destroy(commit),
-            {
-                preserveScroll: true,
-                preserveState: true,
-                except: ['commits'],
-                showProgress: false,
-                onHttpException: () => {
-                    revert();
-
-                    return false;
-                },
-                onNetworkError: () => {
-                    revert();
-
-                    return false;
-                },
-                onFinish: () => {
-                    mutation.current.pending = false;
-                    setPending(false);
-                },
-            },
-        );
+        } finally {
+            finishMutation();
+        }
     };
 
     return (
         <button
             ref={setElement}
+            aria-disabled={request.processing}
             type="button"
-            aria-disabled={pending}
             onClick={toggle}
             aria-pressed={starred}
             aria-label={starLabel(starred, count)}

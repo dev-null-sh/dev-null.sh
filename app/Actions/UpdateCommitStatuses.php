@@ -8,6 +8,7 @@ use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Models\Poll;
 use App\Queries\CommitBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -74,6 +75,11 @@ final readonly class UpdateCommitStatuses
             $this->updateCommitHotScores->handle($commits->modelKeys());
 
             if ($status === CommitStatus::Approved) {
+                Poll::query()
+                    ->whereIn('commit_id', $commits->modelKeys())
+                    ->whereNull('opened_at')
+                    ->update(['opened_at' => now()]);
+
                 $this->createReplyNotifications->handle(...$commits);
                 $this->createQuoteNotifications->handle(...$commits);
                 $this->createMentionNotifications->handle(...$commits);
