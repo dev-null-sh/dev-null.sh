@@ -52,7 +52,7 @@ export default function Connections({
             <Head title={`${title} · @${user.username}`} />
 
             <div className="sticky top-0 z-10 bg-card">
-                <div className="flex h-14 items-center gap-3 border-b px-4">
+                <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
                     <Link
                         href={show(user)}
                         aria-label={`Back to @${user.username}`}
