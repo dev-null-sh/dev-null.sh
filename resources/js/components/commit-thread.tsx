@@ -26,7 +26,6 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
-import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -48,7 +47,6 @@ import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
-import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { hasModKey } from '@/lib/keyboard';
 import {
     characterCount,
@@ -951,7 +949,6 @@ function ReplyComposer({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
     const isReplyable = characterCount(body.trim()) >= minBodyLength;
-    const suggestion = suggestEmoji(body);
     const preview = useComposerPreview({
         body,
         textareaRef,
@@ -972,17 +969,6 @@ function ReplyComposer({
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (preview.handleShortcut(event)) {
-            return;
-        }
-
-        if (event.key === 'Tab' && suggestion !== null) {
-            const completed = completeEmoji(body);
-
-            if (completed !== null) {
-                event.preventDefault();
-                updateBody(completed);
-            }
-
             return;
         }
 
@@ -1083,12 +1069,6 @@ function ReplyComposer({
                     />
                 )}
             </div>
-            {!preview.isPreviewing && (
-                <EmojiSuggestionHint
-                    suggestion={suggestion}
-                    className="mt-1 px-1"
-                />
-            )}
             <InputError
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
