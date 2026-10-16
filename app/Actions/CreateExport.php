@@ -7,7 +7,10 @@ namespace App\Actions;
 use App\Enums\NotificationType;
 use App\Models\Bookmark;
 use App\Models\CommitImage;
+use App\Models\Poll;
+use App\Models\PollOption;
 use App\Models\User;
+use App\Queries\CommitBuilder;
 use Generator;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
@@ -19,7 +22,7 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
@@ -43,6 +46,8 @@ final readonly class CreateExport
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
             'commits' => $this->commits($user),
+            'polls' => $this->polls($user),
+            'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
             'bookmarks' => $this->bookmarks($user),
             'following' => $this->usernames($user->following()),
@@ -74,6 +79,43 @@ final readonly class CreateExport
                 'created_at' => $commit->created_at->toIso8601String(),
                 'updated_at' => $commit->updated_at->toIso8601String(),
                 'deleted_at' => $commit->deleted_at?->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * @return Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>
+     */
+    private function polls(User $user): Generator
+    {
+        $polls = Poll::query()
+            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id))
+            ->with('options')
+            ->lazyById(500);
+
+        foreach ($polls as $poll) {
+            yield [
+                'commit_id' => $poll->commit_id,
+                'duration_minutes' => $poll->duration->value,
+                'opened_at' => $poll->opened_at?->toIso8601String(),
+                'options' => array_values($poll->options->map(fn (PollOption $option): string => $option->label)->all()),
+                'created_at' => $poll->created_at->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * Only the user's own choices: never who else voted.
+     *
+     * @return Generator<int, array{commit_id: string, option: string, created_at: string}>
+     */
+    private function pollVotes(User $user): Generator
+    {
+        foreach ($user->pollVotes()->with(['poll', 'option'])->lazyById(500) as $vote) {
+            yield [
+                'commit_id' => $vote->poll->commit_id,
+                'option' => $vote->option->label,
+                'created_at' => $vote->created_at->toIso8601String(),
             ];
         }
     }

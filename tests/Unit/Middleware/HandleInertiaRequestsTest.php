@@ -199,9 +199,10 @@ it('shares hasUnmoderatedCommits as false for non admins', function (): void {
     expect(value($shared['hasUnmoderatedCommits']))->toBeFalse();
 });
 
-it('shares the count of unread notifications that still hold', function (): void {
+it('shares the count of unread notification groups that still hold', function (): void {
     $user = User::factory()->create();
     Notification::factory()->for($user, 'recipient')->count(2)->create();
+    Notification::factory()->for($user, 'recipient')->starred()->create();
     Notification::factory()->for($user, 'recipient')->read()->create();
     Notification::factory()->for($user, 'recipient')->replied()->create()->commit->update(['status' => CommitStatus::Rejected]);
 

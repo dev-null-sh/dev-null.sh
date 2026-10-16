@@ -20,6 +20,20 @@ beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 });
 
+it('rejects polls instead of silently scheduling only their question', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->from(route('log.show', 'following'))
+        ->post(route('scheduled-commit.store'), [
+            'body' => 'Tabs or spaces?',
+            'scheduled_at' => now()->addHour()->toIso8601String(),
+            'poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 1440],
+        ])
+        ->assertSessionHasErrors('poll');
+
+    expect(ScheduledCommit::query()->count())->toBe(0)
+        ->and(Commit::query()->count())->toBe(0);
+});
+
 it('stores an offset timestamp as UTC without creating a commit', function (): void {
     $user = User::factory()->create();
     $this->actingAs($user)->from(route('log.show', 'following'))

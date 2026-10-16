@@ -26,6 +26,7 @@ final class CreateScheduledCommitRequest extends FormRequest
             'body' => CreateCommitRequest::BODY_RULES,
             'scheduled_at' => ['required', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
             'parent_id' => ['prohibited'],
+            'poll' => ['prohibited'],
         ];
     }
 }

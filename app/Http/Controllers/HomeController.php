@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\PageMetadata;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -13,10 +14,10 @@ use Inertia\Response;
 
 final readonly class HomeController
 {
-    public function show(Request $request): RedirectResponse|Response
+    public function show(Request $request, PageMetadata $metadata): RedirectResponse|Response
     {
         if (! app()->isLocal() || ! config('app.auto_login')) {
-            return Inertia::render('welcome');
+            return Inertia::render('welcome')->withViewData(['preview' => $metadata->home()]);
         }
 
         $user = User::query()->firstOrCreate(
