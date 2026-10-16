@@ -39,9 +39,15 @@ final readonly class CreateWorldReply
                 return;
             }
 
+            $author = $commit->user;
+
+            if (! $author instanceof User) {
+                return;
+            }
+
             $world = $this->world();
 
-            if (! $world instanceof User || $commit->user->is($world)) {
+            if (! $world instanceof User || $author->is($world)) {
                 return;
             }
 
@@ -50,7 +56,7 @@ final readonly class CreateWorldReply
             }
 
             $reply = $world->commits()->create([
-                'body' => "Hello, {$commit->user->name}.",
+                'body' => "Hello, {$author->name}.",
                 'parent_id' => $commit->id,
                 'status' => CommitStatus::Approved,
             ]);

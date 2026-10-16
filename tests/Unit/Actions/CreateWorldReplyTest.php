@@ -70,6 +70,15 @@ it('does not answer itself', function (): void {
     expect($commit->replies()->count())->toBe(0);
 });
 
+it('stays quiet when the author is gone', function (): void {
+    $commit = Commit::factory()->create(['body' => 'hello world', 'user_id' => null]);
+
+    resolve(CreateWorldReply::class)->handle($commit);
+
+    expect($commit->replies()->count())->toBe(0)
+        ->and(User::query()->where('username', 'world')->exists())->toBeFalse();
+});
+
 it('stays quiet when someone already has the name', function (): void {
     User::factory()->create(['username' => 'world']);
     $commit = Commit::factory()->create(['body' => 'hello world']);
