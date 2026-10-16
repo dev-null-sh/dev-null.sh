@@ -179,7 +179,64 @@ it('renders whether the viewer is not following the user', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('isFollowing', false)
+            ->where('isMuting', false)
             ->has('commits.data', 0));
+});
+
+it('still shows the commits of a muted user on their profile', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->has(Commit::factory())->create();
+
+    $viewer->muting()->attach($user);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/show')
+            ->where('isMuting', true)
+            ->has('commits.data', 1));
+});
+
+it('shows the blocker who they blocked, without any of their commits', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat', 'pinned_commit_id' => null]);
+
+    $viewer->blocking()->attach($user);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', $user));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/unavailable')
+            ->where('username', 'octocat')
+            ->where('blockedUser.id', $user->id)
+            ->where('blockedUser.lane', $user->lane())
+            ->missing('blockedUser.email')
+            ->missing('commits')
+            ->missing('activity'));
+});
+
+it('shows a neutral unavailable profile to someone the user blocked', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat', 'bio' => 'Private bio']);
+
+    $user->blocking()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('user.show', ['user' => $user, 'tab' => 'replies']));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('user/unavailable')
+            ->where('username', 'octocat')
+            ->where('blockedUser', null)
+            ->missing('commits')
+            ->missing('user'));
+
+    expect($response->getContent())->not->toContain('Private bio');
 });
 
 it('renders whether the user follows the viewer', function (): void {
@@ -221,6 +278,7 @@ it('shows guests the profile with its approved commits and a link preview', func
             ->component('user/show')
             ->where('user.commits_count', 1)
             ->where('isFollowing', false)
+            ->where('isMuting', false)
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'A commit everyone may read')
             ->where('commits.data.0.is_saved', false)
@@ -345,6 +403,54 @@ it('may delete user account', function (): void {
         ->and(Commit::query()->count())->toBe(0);
 
     $this->assertGuest();
+});
+
+it('keeps the replies other people left under the replies of a deleted account', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($root, 'parent')->create();
+    $otherReply = Commit::factory()->for($reply, 'parent')->create();
+
+    $this->actingAs($user)->delete(route('user.destroy'));
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$otherReply->user, $otherReply]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('ancestors', 2)
+            ->where('ancestors.0.id', $root->id)
+            ->where('ancestors.1.id', $reply->id)
+            ->missing('ancestors.1.body')
+            ->missing('ancestors.1.user'));
+
+    $this->actingAs($root->user)
+        ->getJson(route('commit-reply.index', $root))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.user');
+
+    $this->getJson(route('api-commit.show', $reply))->assertNotFound();
+
+    $this->getJson(route('api-commit.show', $otherReply))
+        ->assertOk()
+        ->assertJsonPath('data.id', $otherReply->id)
+        ->assertJsonPath('data.parent_id', null)
+        ->assertJsonPath('data.author.id', $otherReply->user_id);
+
+    $this->getJson(route('api-user-commit.index', $otherReply->user).'?replies=1')
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$otherReply->id]);
+
+    $this->get(route('user-feed.show', $root->user))
+        ->assertOk()
+        ->assertSee("urn:uuid:{$root->id}")
+        ->assertDontSee("urn:uuid:{$reply->id}");
+
+    $this->getJson(route('api-user.show', $user))->assertNotFound();
+    $this->get(route('user-feed.show', $user))->assertNotFound();
 });
 
 it('hides pending and rejected commits from other users', function (): void {

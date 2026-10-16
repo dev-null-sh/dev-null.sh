@@ -6,11 +6,13 @@ use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Jobs\UnfurlLink;
 use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -336,3 +338,78 @@ it('retains the moderation status of a deleted part when the rest of the series 
             ->where('commits.data.0.id', $parts[1]->id)
             ->has('commits.data.0.series_parts', 1));
 });
+
+it('restores a reply beneath an authorless account deletion tombstone', function (): void {
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($root, 'parent')->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    $owner = $reply->user;
+    resolve(DeleteCommit::class)->handle($reply);
+    resolve(DeleteUser::class)->handle($parent->user);
+
+    $this->actingAs($owner)->post(route('commit-restoration.store', $reply))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.parent.id', $parent->id)
+        ->assertInertiaFlashMissing('restored.parent.body')
+        ->assertInertiaFlashMissing('restored.parent.user_id')
+        ->assertInertiaFlashMissing('restored.parent.user');
+
+    $this->assertSoftDeleted($parent);
+    $this->assertNotSoftDeleted($reply);
+    expect($parent->refresh()->user_id)->toBeNull();
+});
+
+it('keeps a blocked parent out of the restoration payload', function (bool $ownerBlocks): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    $owner = $reply->user;
+    resolve(DeleteCommit::class)->handle($reply);
+
+    $ownerBlocks ? $owner->blocking()->attach($parent->user) : $parent->user->blocking()->attach($owner);
+
+    $this->actingAs($owner)->post(route('commit-restoration.store', $reply))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.id', $reply->id)
+        ->assertInertiaFlash('restored.parent', null);
+})->with([true, false]);
+
+it('counts only visible replies after undo', function (bool $muting): void {
+    $commit = Commit::factory()->create();
+    $owner = $commit->user;
+    Commit::factory()->for($commit, 'parent')->create();
+    $hidden = Commit::factory()->for($commit, 'parent')->create();
+    resolve(DeleteCommit::class)->handle($commit);
+
+    $muting ? $owner->muting()->attach($hidden->user) : $hidden->user->blocking()->attach($owner);
+
+    $this->actingAs($owner)->post(route('commit-restoration.store', $commit))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.replies_count', 1);
+})->with([true, false]);
+
+it('retains the chosen link card through deletion and undo without queuing it again', function (bool $hasCard): void {
+    $user = User::factory()->create();
+    Queue::fake([UnfurlLink::class]);
+    $url = 'https://example.com/selected';
+
+    $this->actingAs($user)->post(route('commit.store'), [
+        'body' => "https://example.com/first {$url}",
+        'link_preview_url' => $hasCard ? $url : '',
+    ])->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+    $previewId = $commit->link_preview_id;
+    $this->delete(route('commit.destroy', $commit))->assertRedirect();
+    $response = $this->post(route('commit-restoration.store', $commit))->assertSessionHasNoErrors();
+
+    expect($commit->refresh()->link_preview_id)->toBe($previewId);
+
+    if ($hasCard) {
+        $response->assertInertiaFlash('restored.link_preview.url', $url);
+        Queue::assertPushed(UnfurlLink::class, 1);
+        Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+    } else {
+        $response->assertInertiaFlash('restored.link_preview', null);
+        Queue::assertNotPushed(UnfurlLink::class);
+    }
+})->with([true, false]);

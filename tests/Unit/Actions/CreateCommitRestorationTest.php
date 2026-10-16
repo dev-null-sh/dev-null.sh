@@ -49,3 +49,18 @@ it('cannot restore with stale models after deleting the account', function (): v
     expect(fn () => resolve(CreateCommitRestoration::class)->handle($deleted))->toThrow(ModelNotFoundException::class);
     expect(Commit::withTrashed()->count())->toBe(0);
 });
+
+it('cannot restore an authorless reply left by account deletion from a stale model', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    Commit::factory()->for($reply, 'parent')->create();
+    $owner = $reply->user;
+    $deleted = resolve(DeleteCommit::class)->handle($reply);
+
+    resolve(DeleteUser::class)->handle($owner);
+    resolve(CreateCommitRestoration::class)->handle($deleted);
+
+    $this->assertSoftDeleted($reply);
+    expect($reply->refresh()->user_id)->toBeNull()
+        ->and($reply->toArray())->not->toHaveKeys(['body', 'user', 'user_id']);
+});

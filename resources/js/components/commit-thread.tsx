@@ -20,6 +20,7 @@ import { CommitImages } from '@/components/commit-images';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import InputError from '@/components/input-error';
+import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { StashLabel } from '@/components/stash-label';
@@ -28,6 +29,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -775,6 +777,7 @@ function ReplyComposer({
         `reply-${parent.id}`,
     );
     const attachments = useImageAttachments();
+    const linkCard = useLinkCard(body);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const remaining = maxBodyLength - characterCount(body);
     const isReplyable = characterCount(body.trim()) >= 3;
@@ -833,6 +836,7 @@ function ReplyComposer({
                 if (page.flash.committed) {
                     drop();
                     attachments.clear();
+                    linkCard.reset();
                     returnFocusToCommit();
                     onReplied();
                 }
@@ -868,7 +872,11 @@ function ReplyComposer({
                         className="mt-1 px-1"
                     />
                     <InputError
-                        message={errors.body ?? errors.parent_id}
+                        message={
+                            errors.body ??
+                            errors.parent_id ??
+                            errors.link_preview_url
+                        }
                         className="px-1"
                     />
                     <ImagePickerPreviews
@@ -886,6 +894,12 @@ function ReplyComposer({
                                 disabled={processing}
                                 onPick={attachments.attach}
                                 className="size-8"
+                            />
+                            <LinkCardPicker
+                                linkCard={linkCard}
+                                disabled={processing}
+                                className="-ml-1"
+                                labelClassName="max-sm:sr-only"
                             />
                             {isRestored && (
                                 <StashLabel

@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property-read string $id
- * @property-read string $user_id
+ * @property-read string|null $user_id
  * @property-read string|null $parent_id
  * @property-read string $body
  * @property-read CommitStatus $status
@@ -34,7 +34,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CarbonInterface|null $deleted_at
  * @property-read int $stars_count
  * @property-read bool $starred
- * @property-read User $user
+ * @property-read User|null $user
  * @property-read Collection<int, User> $stars
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
@@ -110,16 +110,21 @@ final class Commit extends Model
     }
 
     /**
-     * Approved commits are visible to everyone. Authors can also see their own.
+     * Approved commits are visible to everyone but people across a block. Authors can also see their own.
      */
     public function isVisibleTo(?User $user): bool
     {
-        return $this->status === CommitStatus::Approved || $this->user_id === $user?->id;
+        if ($user instanceof User && $this->user_id === $user->id) {
+            return true;
+        }
+
+        return $this->status === CommitStatus::Approved
+            && (! $user instanceof User || ! $this->user instanceof User || ! $user->hasBlockWith($this->user));
     }
 
     public function isRestorable(): bool
     {
-        return $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
+        return $this->user_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
     }
 
     /**
@@ -205,8 +210,8 @@ final class Commit extends Model
         return hash('xxh3', implode(':', [
             $this->updated_at->getTimestamp(),
             $this->replies_count,
-            $this->user->updated_at->getTimestamp(),
-            $this->parent?->user->username,
+            $this->user?->updated_at->getTimestamp(),
+            $this->parent?->user?->username,
         ]));
     }
 }
