@@ -7,6 +7,7 @@ import {
     MessageSquareReply,
     Quote,
     Star,
+    TriangleAlert,
     UserPlus,
     X,
 } from 'lucide-react';
@@ -318,7 +319,9 @@ function NotificationContent({
             ? notification.actors_count - 1
             : 0;
     const moderation =
-        notification.type === 'approved' || notification.type === 'rejected';
+        notification.type === 'approved' ||
+        notification.type === 'rejected' ||
+        notification.type === 'warned';
     const Icon = {
         followed: UserPlus,
         replied: MessageSquareReply,
@@ -327,6 +330,7 @@ function NotificationContent({
         mentioned: AtSign,
         approved: Check,
         rejected: X,
+        warned: TriangleAlert,
     }[notification.type];
 
     return (
@@ -379,7 +383,9 @@ function NotificationContent({
                         )}
                     </div>
                     <p className="mt-2 text-[15px] wrap-anywhere">
-                        {moderation ? (
+                        {notification.type === 'warned' ? (
+                            'Your commit claims PHP is worse than another language, so a community note was added'
+                        ) : moderation ? (
                             `Your commit was ${notification.type}`
                         ) : (
                             <>

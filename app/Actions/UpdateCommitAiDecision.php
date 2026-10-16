@@ -20,6 +20,7 @@ final readonly class UpdateCommitAiDecision
     public function __construct(
         private OpenAI $openAI,
         private UpdateCommitStatuses $updateCommitStatuses,
+        private CreateWarnedNotification $createWarnedNotification,
     ) {
         //
     }
@@ -27,7 +28,8 @@ final readonly class UpdateCommitAiDecision
     /**
      * Asks the AI whether the commit, images included, should be approved. The decision is mostly a hint for
      * moderators: the commit is never approved on its own, but it is rejected, without a reason, when the AI is all
-     * but certain. Failures, such as timeouts or rate limits, are thrown, so the caller can try again later.
+     * but certain. A commit claiming another language beats PHP is not rejected for it: it gets a community note, and
+     * its author a warning. Failures, such as timeouts or rate limits, are thrown, so the caller can try again later.
      */
     public function handle(Commit $commit): void
     {
@@ -47,10 +49,17 @@ final readonly class UpdateCommitAiDecision
             $categories[] = 'minor-in-image';
         }
 
+        $disparagesPhp = $this->openAI->disparagesPhp($commit->body);
+
         $commit->update([
             'ai_decision' => $categories === [] ? CommitStatus::Approved : CommitStatus::Rejected,
             'ai_categories' => $categories,
+            'disparages_php' => $disparagesPhp,
         ]);
+
+        if ($disparagesPhp) {
+            $this->createWarnedNotification->handle($commit);
+        }
 
         if ($scores !== [] && max($scores) >= self::AUTO_REJECT_THRESHOLD) {
             $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Rejected, onlyPending: true);

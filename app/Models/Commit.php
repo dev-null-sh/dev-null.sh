@@ -36,6 +36,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int|null $series_size
  * @property-read CommitStatus|null $ai_decision
  * @property-read list<string>|null $ai_categories
+ * @property-read bool $disparages_php
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -90,6 +91,7 @@ final class Commit extends Model
             'series_size' => 'integer',
             'ai_decision' => CommitStatus::class,
             'ai_categories' => 'array',
+            'disparages_php' => 'boolean',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',

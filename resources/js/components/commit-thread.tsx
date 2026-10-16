@@ -19,6 +19,7 @@ import {
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitStarButton } from '@/components/commit-star-button';
+import { CommunityNote } from '@/components/community-note';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import InputError from '@/components/input-error';
@@ -828,6 +829,7 @@ function CommitReply({
                     {reply.link_preview?.title && (
                         <LinkPreview preview={reply.link_preview} />
                     )}
+                    {reply.disparages_php && <CommunityNote />}
 
                     {isConfirming ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-destructive/8 px-3 py-1.5 text-sm">

@@ -45,6 +45,9 @@ function AiDecision({ commit }: { commit: Commit }) {
             : commit.ai_decision === 'rejected'
               ? `AI suggests rejecting${categories ? `: ${categories}` : ''}`
               : 'No AI decision yet';
+    const warning = commit.disparages_php
+        ? ' · Disparages PHP, gets a community note'
+        : '';
 
     return (
         <p
@@ -54,11 +57,11 @@ function AiDecision({ commit }: { commit: Commit }) {
                     ? 'text-destructive'
                     : 'text-muted-foreground',
             )}
-            title={label}
+            title={label + warning}
             data-test="ai-decision"
         >
             <Bot aria-hidden className="size-4 shrink-0" />
-            <span className="truncate">{label}</span>
+            <span className="truncate">{label + warning}</span>
         </p>
     );
 }

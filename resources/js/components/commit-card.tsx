@@ -14,6 +14,7 @@ import {
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
+import { CommunityNote } from '@/components/community-note';
 import { GraphRail, RailAvatar, RailDot } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
@@ -306,6 +307,7 @@ export function CommitCard({
                             {commit.link_preview?.title && (
                                 <LinkPreview preview={commit.link_preview} />
                             )}
+                            {commit.disparages_php && <CommunityNote />}
                             {laterParts > 0 && !isSeriesExpanded && (
                                 <Link
                                     href={permalink}

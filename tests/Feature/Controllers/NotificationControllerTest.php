@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitStar;
+use App\Actions\CreateWarnedNotification;
 use App\Actions\DeleteUserFollow;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -61,6 +62,34 @@ it('lists mentions of the user', function (): void {
             ->where('notifications.data.0.type', 'mentioned')
             ->where('notifications.data.0.actor.id', $mentioned->actor_id)
             ->where('notifications.data.0.commit.id', $mentioned->commit_id));
+});
+
+it('lists warnings about the users own commits', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create(['disparages_php' => true]);
+
+    resolve(CreateWarnedNotification::class)->handle($commit);
+
+    $response = $this->actingAs($user)->get(route('notification.index'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 1)
+            ->where('notifications.data.0.type', 'warned')
+            ->where('notifications.data.0.commit.id', $commit->id)
+            ->where('notifications.data.0.commit.disparages_php', true));
+});
+
+it('hides warnings about deleted commits', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create(['disparages_php' => true]);
+
+    resolve(CreateWarnedNotification::class)->handle($commit);
+    $commit->delete();
+
+    $response = $this->actingAs($user)->get(route('notification.index'));
+
+    $response->assertInertia(fn ($page) => $page->has('notifications.data', 0));
 });
 
 it('hides notifications that no longer hold', function (): void {

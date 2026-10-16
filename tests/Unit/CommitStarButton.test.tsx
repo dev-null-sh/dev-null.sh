@@ -59,6 +59,7 @@ for (const scenario of cases) {
             parent_id: null,
             hot_score: 41487,
             quoted_commit_id: null,
+            disparages_php: false,
             body: 'Shipped a repair',
             body_segments: [],
             status: scenario.status,

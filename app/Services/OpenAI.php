@@ -40,6 +40,14 @@ final readonly class OpenAI
         is not harmful either. When unsure, answer true.
         TEXT;
 
+    private const string PHP_INSTRUCTIONS = <<<'TEXT'
+        You review posts on devnull, a social network for developers, before they are published.
+        Answer whether the post claims that PHP is dead, dying, obsolete or worse than another programming language,
+        such as "JavaScript is better than PHP" or "nobody uses PHP anymore". Praising another language without
+        comparing it to PHP, criticizing a single PHP feature, or asking a question about PHP is not such a claim.
+        When unsure, answer false.
+        TEXT;
+
     public function request(): PendingRequest
     {
         return Http::baseUrl('https://api.openai.com/v1')
@@ -118,12 +126,21 @@ final readonly class OpenAI
     }
 
     /**
-     * Asks the reasoning model a yes or no question about the content. Anything but a clear no, such as a refusal or an
-     * answer that can't be read, counts as a yes.
+     * Whether the text claims another language is better than PHP, or that PHP is dead. Unlike the other questions, a
+     * wrong yes puts a note under someone's commit, so anything but a clear yes counts as a no.
+     */
+    public function disparagesPhp(string $text): bool
+    {
+        return $this->ask('disparages_php', self::PHP_INSTRUCTIONS, [['type' => 'input_text', 'text' => $text]], whenUnclear: false);
+    }
+
+    /**
+     * Asks the reasoning model a yes or no question about the content. A refusal, or an answer that can't be read,
+     * counts as the given fallback.
      *
      * @param  list<array<string, string>>  $content
      */
-    private function ask(string $question, string $instructions, array $content): bool
+    private function ask(string $question, string $instructions, array $content, bool $whenUnclear = true): bool
     {
         /** @var list<array{type: string, content?: list<array{type: string, text?: string}>}> $output */
         $output = $this->request()
@@ -154,11 +171,13 @@ final readonly class OpenAI
                 if ($part['type'] === 'output_text') {
                     $answer = json_decode($part['text'] ?? '', true);
 
-                    return ! is_array($answer) || ($answer[$question] ?? null) !== false;
+                    $answer = is_array($answer) ? ($answer[$question] ?? null) : null;
+
+                    return is_bool($answer) ? $answer : $whenUnclear;
                 }
             }
         }
 
-        return true;
+        return $whenUnclear;
     }
 }

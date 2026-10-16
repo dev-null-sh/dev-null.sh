@@ -11,6 +11,7 @@ const commit: Commit = {
     parent_id: null,
     hot_score: 41484.833333,
     quoted_commit_id: null,
+    disparages_php: false,
     body: 'Photo from the build',
     body_segments: [],
     status: 'approved',

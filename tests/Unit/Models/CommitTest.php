@@ -30,6 +30,7 @@ test('to array', function (): void {
             'quoted_commit_id',
             'root_id',
             'hot_score',
+            'disparages_php',
             'body_segments',
         ]);
 });

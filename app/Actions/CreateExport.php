@@ -159,7 +159,7 @@ final readonly class CreateExport
     private function notifications(User $user): Generator
     {
         foreach ($user->notifications()->with('actor')->lazyById(500) as $notification) {
-            $isModeration = in_array($notification->type, [NotificationType::Approved, NotificationType::Rejected], true);
+            $isModeration = in_array($notification->type, [NotificationType::Approved, NotificationType::Rejected, NotificationType::Warned], true);
 
             yield [
                 'type' => $notification->type->value,
