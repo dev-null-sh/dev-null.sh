@@ -31,3 +31,24 @@ export function LiveStreamBanner() {
         </a>
     );
 }
+
+export function LiveStreamPlayer({ className }: { className?: string }) {
+    return (
+        <div className={className}>
+            <p className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <LiveDot />
+                Watch us build it, live
+            </p>
+            <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted">
+                <iframe
+                    src={`https://www.youtube-nocookie.com/embed/${videoId}`}
+                    title="Watch us build devnull live on YouTube"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                    className="size-full"
+                />
+            </div>
+        </div>
+    );
+}
