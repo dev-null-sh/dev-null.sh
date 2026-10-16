@@ -36,6 +36,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Log',
             href: LogController.show(auth.log),
             icon: GitCommitVertical,
+            prefetch: false,
         },
         {
             title: 'Notifications',

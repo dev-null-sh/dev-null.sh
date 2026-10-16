@@ -79,7 +79,8 @@ function useCommitsCountUpdate(): (change: number) => void {
     return (change) => setCommitsCount((count) => count + change);
 }
 const threadLayouts = {
-    root: '[--indent:52px] [--spine:20px]',
+    // Root replies line up with the commit text, and their elbow branches off the rail.
+    root: '[--indent:0px] [--spine:-32px] sm:[--spine:-36px]',
     nested: '[--indent:32px] [--spine:12px] sm:[--indent:38px] sm:[--spine:14px]',
     flattened: '[--indent:0px]',
 };
@@ -645,6 +646,8 @@ function CommitReply({
     const request = useHttp({});
     const updateCommitsCount = useCommitsCountUpdate();
 
+    const avatarRef = useRef<HTMLAnchorElement>(null);
+
     const isOwn = reply.user_id === auth.user.id;
     const isFlattened = depth > maxIndentDepth;
 
@@ -673,8 +676,9 @@ function CommitReply({
             {links}
             <div className="flex gap-2 sm:gap-2.5">
                 <div className="relative shrink-0">
-                    <UserPreview user={reply.user}>
+                    <UserPreview user={reply.user} anchor={avatarRef}>
                         <Link
+                            ref={avatarRef}
                             href={show(reply.user)}
                             className="block rounded-full"
                         >
@@ -696,6 +700,7 @@ function CommitReply({
                     <div className="flex items-baseline gap-1.5 text-sm">
                         <UserPreview
                             user={reply.user}
+                            anchor={avatarRef}
                             className="flex min-w-0 items-baseline gap-1.5"
                         >
                             <Link

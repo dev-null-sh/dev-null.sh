@@ -60,8 +60,8 @@ export default function Show({
             </div>
 
             {ancestors.map((ancestor, index) => {
-                const previousLane =
-                    index > 0 ? laneOf(ancestors[index - 1]) : undefined;
+                const previous = ancestors[index - 1];
+                const previousLane = previous ? laneOf(previous) : undefined;
 
                 return isDeleted(ancestor) ? (
                     <CommitTombstone
@@ -74,6 +74,7 @@ export default function Show({
                         key={ancestor.id}
                         commit={ancestor}
                         previousLane={previousLane}
+                        isGroupedWithPrevious={isSameAuthor(previous, ancestor)}
                         canDelete={isSeries}
                         isSeriesExpanded
                     />
@@ -84,13 +85,15 @@ export default function Show({
                 key={commit.id}
                 commit={commit}
                 previousLane={lastAncestor ? laneOf(lastAncestor) : undefined}
+                isGroupedWithPrevious={isSameAuthor(lastAncestor, commit)}
                 initialReplies={replies ?? undefined}
                 isFocused
                 isSeriesExpanded
             />
 
             {series.map((part, index) => {
-                const previousLane = laneOf(series[index - 1] ?? commit);
+                const previous = series[index - 1] ?? commit;
+                const previousLane = laneOf(previous);
 
                 return isDeleted(part) ? (
                     <CommitTombstone
@@ -103,11 +106,23 @@ export default function Show({
                         key={part.id}
                         commit={part}
                         previousLane={previousLane}
+                        isGroupedWithPrevious={isSameAuthor(previous, part)}
                         isSeriesExpanded
                     />
                 );
             })}
         </>
+    );
+}
+
+function isSameAuthor(
+    previous: ThreadCommit | undefined,
+    commit: Commit,
+): boolean {
+    return (
+        previous !== undefined &&
+        !isDeleted(previous) &&
+        previous.user_id === commit.user_id
     );
 }
 
