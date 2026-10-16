@@ -105,8 +105,16 @@ function QuoteComposer({
 }) {
     const { user } = useUser();
     const id = `quote-${commit.id}`;
-    const { body, isRestored, updateBody, drop } = useStash(user.id, id);
-    const attachments = useImageAttachments();
+    const {
+        body,
+        images,
+        descriptions,
+        isRestored,
+        updateBody,
+        updateImages,
+        drop,
+    } = useStash(user.id, id);
+    const attachments = useImageAttachments(images, descriptions, updateImages);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
     const keys = useKeyLabels();
@@ -151,19 +159,19 @@ function QuoteComposer({
                 errorBag="quote"
                 onBefore={secrets.beforeSubmit}
                 transform={(data) =>
-                    attachments.images.length > 0
+                    images.length > 0
                         ? {
                               ...data,
-                              images: attachments.images,
-                              image_descriptions: attachments.descriptions,
+                              images,
+                              image_descriptions: descriptions,
                           }
                         : data
                 }
                 options={{ preserveScroll: true }}
                 onSuccess={(page) => {
                     if (page.flash.committed) {
-                        drop();
                         attachments.clear();
+                        drop();
                         onClose();
                     }
                 }}
@@ -227,8 +235,8 @@ function QuoteComposer({
                             />
 
                             <ImagePickerPreviews
-                                images={attachments.images}
-                                descriptions={attachments.descriptions}
+                                images={images}
+                                descriptions={descriptions}
                                 onDescribe={attachments.describe}
                                 onRemove={attachments.remove}
                             />
@@ -244,7 +252,7 @@ function QuoteComposer({
                             <div className="mt-3 flex items-center justify-end gap-3">
                                 <div className="mr-auto flex items-center gap-2">
                                     <ImagePickerButton
-                                        count={attachments.images.length}
+                                        count={images.length}
                                         disabled={processing}
                                         onPick={attachments.attach}
                                         className="size-8"
@@ -252,6 +260,7 @@ function QuoteComposer({
                                     {isRestored && (
                                         <StashLabel
                                             onDrop={() => {
+                                                attachments.clear();
                                                 drop();
                                                 document
                                                     .getElementById(id)

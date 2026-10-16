@@ -256,6 +256,7 @@ it('requires authentication to post a series', function (): void {
 
 it('uses the chosen card or no card for each part and defaults unchosen parts to their first link', function (): void {
     Queue::fake();
+    Storage::fake();
 
     $user = User::factory()->create();
 
@@ -268,6 +269,8 @@ it('uses the chosen card or no card for each part and defaults unchosen parts to
                 'Third https://example.com/three and https://example.com/four',
             ],
             'link_preview_urls' => [0 => 'https://example.com/chosen', 1 => ''],
+            'images' => [UploadedFile::fake()->image('draft.png', 10, 10)],
+            'image_descriptions' => ['The first part screenshot.'],
         ])
         ->assertSessionHasNoErrors();
 
@@ -275,6 +278,9 @@ it('uses the chosen card or no card for each part and defaults unchosen parts to
 
     expect($parts)->toHaveCount(3)
         ->and($parts[0]->linkPreview?->url)->toBe('https://example.com/chosen')
+        ->and($parts[0]->images->sole()->description)->toBe('The first part screenshot.')
+        ->and($parts[1]->images)->toBeEmpty()
+        ->and($parts[2]->images)->toBeEmpty()
         ->and($parts[1]->link_preview_id)->toBeNull()
         ->and($parts[2]->linkPreview?->url)->toBe('https://example.com/three')
         ->and($parts->pluck('series_position')->all())->toBe([1, 2, 3])

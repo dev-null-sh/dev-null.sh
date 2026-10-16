@@ -916,11 +916,16 @@ function ReplyComposer({
     onReplied: () => void;
 }) {
     const { user } = useUser();
-    const { body, isRestored, updateBody, drop } = useStash(
-        user.id,
-        `reply-${parent.id}`,
-    );
-    const attachments = useImageAttachments();
+    const {
+        body,
+        images,
+        descriptions,
+        isRestored,
+        updateBody,
+        updateImages,
+        drop,
+    } = useStash(user.id, `reply-${parent.id}`);
+    const attachments = useImageAttachments(images, descriptions, updateImages);
     const linkCard = useLinkCard(body);
     const updateCommitsCount = useCommitsCountUpdate();
     const request = useHttp<
@@ -995,8 +1000,8 @@ function ReplyComposer({
 
         request.setData(() => ({
             body,
-            images: attachments.images,
-            image_descriptions: attachments.descriptions,
+            images,
+            image_descriptions: descriptions,
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
@@ -1005,8 +1010,8 @@ function ReplyComposer({
         request
             .submit(CommitReplyController.store(parent), {
                 onSuccess: (reply) => {
-                    drop();
                     attachments.clear();
+                    drop();
                     linkCard.reset();
                     returnFocusToCommit();
                     router.flash(() => reply);
@@ -1107,7 +1112,7 @@ function ReplyComposer({
             <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                 <div className="mr-auto flex min-w-0 items-center gap-2">
                     <ImagePickerButton
-                        count={attachments.images.length}
+                        count={images.length}
                         disabled={processing}
                         onPick={attachments.attach}
                         className="size-8"
@@ -1122,6 +1127,7 @@ function ReplyComposer({
                     {isRestored && (
                         <StashLabel
                             onDrop={() => {
+                                attachments.clear();
                                 drop();
                                 document
                                     .getElementById(`reply-${parent.id}`)

@@ -970,8 +970,9 @@ it('queues a link preview for a commit with a link', function (): void {
     Queue::assertPushed(UnfurlLink::class);
 });
 
-it('queues a link preview for the link the author chose', function (): void {
+it('keeps attached images with the link card the author chose', function (): void {
     Queue::fake();
+    Storage::fake();
 
     $user = User::factory()->create();
 
@@ -980,11 +981,18 @@ it('queues a link preview for the link the author chose', function (): void {
         ->post(route('commit.store'), [
             'body' => 'Shipped https://example.com/first, docs at laravel.com',
             'link_preview_url' => 'https://laravel.com',
+            'images' => [UploadedFile::fake()->image('draft.png', 10, 10)],
+            'image_descriptions' => ['The shipped feature.'],
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following);
 
-    expect($user->commits()->sole()->linkPreview->url)->toBe('https://laravel.com');
+    $commit = $user->commits()->sole();
+
+    expect($commit->linkPreview->url)->toBe('https://laravel.com')
+        ->and($commit->images->sole()->description)->toBe('The shipped feature.')
+        ->and($commit->images)->toHaveCount(1)
+        ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(1);
 
     Queue::assertPushed(UnfurlLink::class);
 });
