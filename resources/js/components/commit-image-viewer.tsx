@@ -87,7 +87,7 @@ export function CommitImageViewer() {
             className={cn(
                 '[--commit-panel-height:0px] [--commit-panel-width:0px]',
                 isPanelOpen &&
-                    'max-lg:[--commit-panel-height:45svh] lg:[--commit-panel-width:26rem]',
+                    'max-lg:[--commit-panel-height:45svh] lg:[--commit-panel-width:28rem] xl:[--commit-panel-width:32rem]',
             )}
             styles={{
                 root: { '--yarl__portal_zindex': 50 },
