@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it('renders the onboarding for a new user', function (): void {
     $user = User::factory()->notOnboarded()->create([
@@ -38,6 +40,24 @@ it('suggests developers to follow', function (): void {
                 ->pluck('id')
                 ->diff($authors->modelKeys())
                 ->isEmpty()));
+});
+
+it('leaves the suggestions out of the deferred props it loads afterwards', function (): void {
+    $user = User::factory()->notOnboarded()->create();
+    User::factory()->count(6)->has(Commit::factory())->create();
+
+    DB::enableQueryLog();
+
+    $this->actingAs($user)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'onboarding/show',
+        'X-Inertia-Partial-Data' => 'suggestedUsers',
+    ])->get(route('onboarding.show'))->assertOk()
+        ->assertJsonCount(3, 'props.suggestedUsers')
+        ->assertJsonMissingPath('props.suggestions');
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'as "followed_by_following_count"')))->toHaveCount(2);
 });
 
 it('is not found once the user has onboarded', function (): void {
