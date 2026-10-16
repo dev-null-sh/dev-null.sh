@@ -7,6 +7,7 @@ type Props = {
     lane: string;
     previousLane?: string;
     variant?: 'commit' | 'staged' | 'root';
+    isFilled?: boolean;
     isFresh?: boolean;
     hasTail?: boolean;
     isDimmed?: boolean;
@@ -21,6 +22,7 @@ export function GraphRail({
     lane,
     previousLane,
     variant = 'commit',
+    isFilled = true,
     isFresh = false,
     hasTail = true,
     isDimmed = false,
@@ -36,7 +38,11 @@ export function GraphRail({
             onMouseEnter={onHoverChange && (() => onHoverChange(true))}
             onMouseLeave={onHoverChange && (() => onHoverChange(false))}
         >
-            {previousLane && (
+            {previousLane && variant === 'staged' && (
+                <span className="absolute top-0 left-1/2 h-8 -translate-x-1/2 border-l-2 border-dashed border-rail" />
+            )}
+
+            {previousLane && variant !== 'staged' && (
                 <span
                     className={cn(
                         'absolute top-0 left-1/2 h-8 w-0.5 -translate-x-1/2',
@@ -70,7 +76,7 @@ export function GraphRail({
                     },
                 )}
             >
-                {node ?? <RailDot isHollow={variant === 'root'} />}
+                {node ?? <RailDot isHollow={!isFilled || variant === 'root'} />}
             </span>
         </div>
     );

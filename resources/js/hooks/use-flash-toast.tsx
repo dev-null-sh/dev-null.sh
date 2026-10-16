@@ -14,6 +14,8 @@ export function useFlashToast(): void {
                     <span className="font-mono text-[13px]">
                         [log {shortHash(committed.id)}]{' '}
                         {emojify(committed.body)}
+                        {committed.series_size !== undefined &&
+                            ` (1/${committed.series_size})`}
                     </span>,
                 );
             }

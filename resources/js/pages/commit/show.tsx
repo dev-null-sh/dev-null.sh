@@ -12,11 +12,13 @@ const titleLength = 60;
 export default function Show({
     commit,
     ancestors,
+    series,
     replies,
 }: {
     commit: Commit;
     ancestors: ThreadCommit[];
-    replies: CursorPaginated<ThreadCommit>;
+    series: ThreadCommit[];
+    replies: CursorPaginated<ThreadCommit> | null;
 }) {
     const excerpt =
         commit.body.length > titleLength
@@ -34,6 +36,7 @@ export default function Show({
     };
 
     const lastAncestor = ancestors.at(-1);
+    const isSeries = commit.series_id !== null;
 
     return (
         <>
@@ -62,6 +65,7 @@ export default function Show({
                 return isDeleted(ancestor) ? (
                     <CommitTombstone
                         key={ancestor.id}
+                        commit={ancestor}
                         previousLane={previousLane}
                     />
                 ) : (
@@ -70,7 +74,8 @@ export default function Show({
                         commit={ancestor}
                         previousLane={previousLane}
                         isGroupedWithPrevious={isSameAuthor(previous, ancestor)}
-                        canDelete={false}
+                        canDelete={isSeries}
+                        isSeriesExpanded
                     />
                 );
             })}
@@ -80,9 +85,31 @@ export default function Show({
                 commit={commit}
                 previousLane={lastAncestor ? laneOf(lastAncestor) : undefined}
                 isGroupedWithPrevious={isSameAuthor(lastAncestor, commit)}
-                initialReplies={replies}
+                initialReplies={replies ?? undefined}
                 isFocused
+                isSeriesExpanded
             />
+
+            {series.map((part, index) => {
+                const previous = series[index - 1] ?? commit;
+                const previousLane = laneOf(previous);
+
+                return isDeleted(part) ? (
+                    <CommitTombstone
+                        key={part.id}
+                        commit={part}
+                        previousLane={previousLane}
+                    />
+                ) : (
+                    <CommitCard
+                        key={part.id}
+                        commit={part}
+                        previousLane={previousLane}
+                        isGroupedWithPrevious={isSameAuthor(previous, part)}
+                        isSeriesExpanded
+                    />
+                );
+            })}
         </>
     );
 }

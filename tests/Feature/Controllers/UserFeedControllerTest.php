@@ -73,6 +73,18 @@ it('serves the public top-level commits of a user as an atom feed', function ():
         ->and((string) $feed->entry[1]->content['type'])->toBe('text');
 });
 
+it('includes only the first part of a public series', function (): void {
+    $parts = commitSeries();
+    commitSeries($parts[0]->user, status: App\Enums\CommitStatus::Pending);
+    commitSeries($parts[0]->user, status: App\Enums\CommitStatus::Rejected);
+
+    $feed = atomFeed($this->get(route('user-feed.show', $parts[0]->user))->assertOk());
+
+    expect($feed->entry)->toHaveCount(1)
+        ->and((string) $feed->entry[0]->id)->toBe("urn:uuid:{$parts[0]->id}")
+        ->and((string) $feed->entry[0]->content)->toBe($parts[0]->body);
+});
+
 it('attaches the images of commits as enclosures', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
     $commit = Commit::factory()->for($user)->create();
