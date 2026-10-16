@@ -35,7 +35,7 @@ final readonly class PageMetadata
             : null;
         $url = route('commit.show', [$user, $commit]);
 
-        $title = $parentUser instanceof User
+        $title = $parentUser instanceof User && ! $commit->isSeriesContinuation()
             ? "{$user->nameWithHandle()} replying to @{$parentUser->username} on /dev/null"
             : "{$user->nameWithHandle()} on /dev/null";
 
