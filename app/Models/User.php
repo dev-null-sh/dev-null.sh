@@ -7,9 +7,11 @@ namespace App\Models;
 use App\Actions\CreateTomFriendship;
 use App\Enums\Log;
 use App\Enums\RemotesFrom;
+use App\Models\Scopes\WithoutBannedUsers;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -83,6 +85,7 @@ use Illuminate\Support\Facades\DB;
     'onboarded_at',
     'github_follows_imported_at',
 ])]
+#[ScopedBy(WithoutBannedUsers::class)]
 final class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */

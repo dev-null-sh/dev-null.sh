@@ -8,6 +8,7 @@ use App\Actions\CreateTomFriendship;
 use App\Actions\UpdateOrCreateUser;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
+use App\Models\Ban;
 use App\Services\GitHubAccountScreening;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,6 +39,10 @@ final readonly class SessionController
         }
 
         assert($githubUser instanceof GitHubUser);
+
+        if (Ban::query()->where('github_id', (string) $githubUser->getId())->exists()) {
+            return $this->failed(__('This GitHub account is banned from /dev/null.'));
+        }
 
         $refusal = $screening->refusal($githubUser);
 

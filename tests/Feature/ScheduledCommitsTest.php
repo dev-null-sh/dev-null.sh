@@ -10,6 +10,7 @@ use App\Enums\CommitStatus;
 use App\Enums\PollDuration;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
+use App\Models\Ban;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Notification;
@@ -320,6 +321,24 @@ it('submits once at the due time using the authors current approval privileges',
         ->where('scheduledCommits.data.0.status', $admin ? 'approved' : 'pending')
         ->where('scheduledCommits.data.0.body', null));
 })->with([false, true]);
+
+it('holds back what banned users scheduled until the ban is lifted', function (): void {
+    $user = User::factory()->create();
+    $scheduled = ScheduledCommit::factory()->for($user)->create();
+    Ban::factory()->create(['github_id' => $user->github_id]);
+    $this->travelTo($scheduled->scheduled_at);
+
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    expect(Commit::query()->withoutGlobalScopes()->exists())->toBeFalse()
+        ->and($scheduled->fresh()->submitted_at)->toBeNull();
+
+    Ban::query()->delete();
+
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    expect(Commit::query()->sole()->user_id)->toBe($user->id);
+});
 
 it('keeps the first link as the scheduled delivery preview', function (): void {
     $user = User::factory()->create();
