@@ -20,7 +20,7 @@ final readonly class CommitRestorationController
     {
         $commit = $action->handle($commit);
 
-        $restored = Commit::query()->withVisibleReplyCount($user)->withStarsFor($user)->withSavedState($user)->withMax([
+        $restored = Commit::query()->withVisibleReplyCount($user)->withReplyPreviews($user)->withStarsFor($user)->withSavedState($user)->withMax([
             'bookmarks as saved_order' => fn (Builder $query): Builder => $query->where('user_id', $user->id),
         ], 'id')->with([
             'user',

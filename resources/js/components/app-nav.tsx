@@ -27,6 +27,7 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { useKeyLabels } from '@/lib/keyboard';
 import { cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
@@ -192,6 +193,7 @@ function NavIcon({
 export function AppNav({ onSearch }: { onSearch: () => void }) {
     const { auth } = usePage().props;
     const items = useNavItems();
+    const keys = useKeyLabels();
 
     return (
         <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
@@ -261,7 +263,7 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                     <Search className="size-5" />
                     <span className="sr-only lg:not-sr-only">Search</span>
                     <kbd className="ml-auto hidden rounded border border-b-2 bg-muted px-1.5 font-mono text-xs lg:block">
-                        ⌘K
+                        {keys.combo(keys.mod, 'K')}
                     </kbd>
                 </button>
             </nav>

@@ -1,5 +1,5 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
-import { Ellipsis, EyeOff } from 'lucide-react';
+import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { FollowLabel, useFollowHover } from '@/components/follow-button';
@@ -14,6 +14,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
 import { useWhoToFollow } from '@/hooks/use-who-to-follow';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { edit } from '@/routes/appearance';
 import { show } from '@/routes/user';
@@ -67,6 +68,7 @@ function FollowButton({
                     setIsFollowing(!isFollowing);
                     router.flushAll();
                 }}
+                onHttpException={(response) => !toastWhenThrottled(response)}
                 aria-label={
                     isFollowing
                         ? `Unfollow @${user.username}`
@@ -159,6 +161,44 @@ function SuggestedUsersSkeleton({
                 </li>
             ))}
         </>
+    );
+}
+
+function WhoToFollowRefreshButton() {
+    const { isRefreshing, refreshSuggestedUsers } = useWhoToFollow();
+
+    return (
+        <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 text-muted-foreground"
+            onClick={refreshSuggestedUsers}
+            aria-disabled={isRefreshing}
+            aria-label="Suggest other people"
+            title="Suggest other people"
+            data-test="who-to-follow-refresh"
+        >
+            <RefreshCw
+                className={cn(
+                    isRefreshing && 'animate-spin motion-reduce:animate-none',
+                )}
+            />
+        </Button>
+    );
+}
+
+function WhoToFollowActions({
+    hasSuggestions,
+    onHide,
+}: {
+    hasSuggestions: boolean;
+    onHide: () => void;
+}) {
+    return (
+        <div className="flex items-center gap-1">
+            {hasSuggestions && <WhoToFollowRefreshButton />}
+            <WhoToFollowMenu onHide={onHide} />
+        </div>
     );
 }
 
@@ -261,7 +301,12 @@ export function WhoToFollow() {
                 <h2 id="aside-who-to-follow" className="text-sm font-semibold">
                     Who to follow
                 </h2>
-                {!isHidden && <WhoToFollowMenu onHide={hide} />}
+                {!isHidden && (
+                    <WhoToFollowActions
+                        hasSuggestions={suggestedUsers !== undefined}
+                        onHide={hide}
+                    />
+                )}
             </div>
             {isHidden ? (
                 <WhoToFollowHidden onUndo={undo} />
@@ -314,7 +359,12 @@ export function WhoToFollowInLog({
                     >
                         $ who --should-i-follow
                     </h2>
-                    {!isHidden && <WhoToFollowMenu onHide={hide} />}
+                    {!isHidden && (
+                        <WhoToFollowActions
+                            hasSuggestions={suggestedUsers !== undefined}
+                            onHide={hide}
+                        />
+                    )}
                 </div>
                 {isHidden ? (
                     <WhoToFollowHidden onUndo={undo} />

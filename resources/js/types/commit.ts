@@ -58,6 +58,7 @@ export type Commit = {
     starred: boolean;
     user: User;
     replies_count?: number;
+    reply_preview?: CursorPaginated<ThreadCommit>;
     is_saved?: boolean;
     saved_order?: number | null;
     is_pinned?: boolean;

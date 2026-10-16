@@ -1,6 +1,6 @@
 import type { ClipboardEvent, DragEvent } from 'react';
 import { useState } from 'react';
-import { pickImages } from '@/components/commit-image-picker';
+import { pickImages, revokeObjectUrls } from '@/components/commit-image-picker';
 
 export type UseImageAttachmentsReturn = {
     readonly images: File[];
@@ -53,6 +53,7 @@ export function useImageAttachments(): UseImageAttachmentsReturn {
             );
         },
         remove: (index) => {
+            revokeObjectUrls([images[index]]);
             setImages(images.filter((_, position) => position !== index));
             setDescriptions(
                 descriptions.filter((_, position) => position !== index),
@@ -60,6 +61,7 @@ export function useImageAttachments(): UseImageAttachmentsReturn {
             setError(null);
         },
         clear: () => {
+            revokeObjectUrls(images);
             setImages([]);
             setDescriptions([]);
             setError(null);

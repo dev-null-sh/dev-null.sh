@@ -9,6 +9,7 @@ import { FollowLabel, useFollowHover } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
@@ -47,6 +48,8 @@ async function fetchPreview(url: string): Promise<PreviewData> {
     });
 
     if (!response.ok) {
+        toastWhenThrottled(response);
+
         throw new Error(`Unable to load ${url}`);
     }
 
@@ -318,6 +321,11 @@ function UserPreviewContent({
                 preserveScroll: true,
                 preserveState: true,
                 onError: () => onChange(previous),
+                onHttpException: (response) => {
+                    onChange(previous);
+
+                    return !toastWhenThrottled(response);
+                },
             },
         );
     };
