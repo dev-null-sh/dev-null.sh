@@ -83,7 +83,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
         isActive:
             item.title === 'Settings'
                 ? isCurrentOrParentUrl('/settings')
-                : isCurrentUrl(item.href),
+                : item.title === 'Moderation'
+                  ? isCurrentOrParentUrl('/moderation')
+                  : isCurrentUrl(item.href),
     }));
 }
 

@@ -32,6 +32,7 @@ export function CommitCard({
     isDimmed = false,
     isPreviousDimmed = false,
     isHighlighted = false,
+    isRemoving = false,
     onAuthorHover,
     actions,
     isFocused = false,
@@ -44,6 +45,7 @@ export function CommitCard({
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
     isHighlighted?: boolean;
+    isRemoving?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
     actions?: ReactNode;
     isFocused?: boolean;
@@ -86,7 +88,9 @@ export function CommitCard({
                 { 'bg-primary-soft/60': isHighlighted },
                 deletion === 'deleting'
                     ? 'grid-rows-[0fr] opacity-0 delay-400'
-                    : 'grid-rows-[1fr]',
+                    : isRemoving
+                      ? 'grid-rows-[0fr] opacity-0 ease-in-out'
+                      : 'grid-rows-[1fr]',
             )}
             tabIndex={-1}
             data-commit={commit.id}

@@ -21,6 +21,7 @@ export function CommitFeed({
     threadActions,
     pinnedCommit = null,
     interlude,
+    removingIds,
 }: {
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
@@ -32,6 +33,7 @@ export function CommitFeed({
     threadActions?: (commit: Commit) => ReactNode;
     pinnedCommit?: Commit | null;
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
+    removingIds?: ReadonlySet<string>;
 }) {
     const now = useNow();
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
@@ -128,6 +130,7 @@ export function CommitFeed({
                                         highlightedPeriod,
                                     )
                                 }
+                                isRemoving={removingIds?.has(commit.id)}
                                 actions={actions?.(commit)}
                                 threadActions={threadActions?.(commit)}
                                 onAuthorHover={(isHovering) =>

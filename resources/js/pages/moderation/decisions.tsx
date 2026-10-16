@@ -1,9 +1,11 @@
 import { Head, InfiniteScroll, Link } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
-import { CommitDecisionItem } from '@/components/commit-decision-item';
+import {
+    CommitDecisionItem,
+    CommitDecisionSkeleton,
+} from '@/components/commit-decision-item';
 import { EmptyFeed } from '@/components/commit-feed';
-import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import type { CursorPaginated, LoggedCommitDecision } from '@/types';
 
@@ -20,7 +22,7 @@ export default function Decisions({
                 <Link
                     href={ModerationController.show()}
                     aria-label="Back to the queue"
-                    className="text-muted-foreground hover:text-foreground"
+                    className="-m-1.5 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
                 >
                     <ArrowLeft className="size-4" />
                 </Link>
@@ -42,8 +44,13 @@ export default function Decisions({
                     onlyNext
                     preserveUrl
                     loading={
-                        <div className="flex justify-center py-6">
-                            <Spinner className="text-muted-foreground" />
+                        <div
+                            role="status"
+                            aria-label="Loading more decisions"
+                            className="divide-y border-t"
+                        >
+                            <CommitDecisionSkeleton />
+                            <CommitDecisionSkeleton />
                         </div>
                     }
                 >
