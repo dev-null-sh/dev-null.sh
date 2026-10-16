@@ -17,7 +17,10 @@ final readonly class CommitRepliesQuery
      */
     public function paginate(Commit $commit, ?User $user): CursorPaginator
     {
-        return $commit->replies()
+        return Commit::query()
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query
+                ->where('parent_id', $commit->id)
+                ->orWhere('quoted_commit_id', $commit->id))
             ->visibleInThreadTo($user)
             ->exceptSeriesContinuations()
             ->withVisibleReplyCount($user)

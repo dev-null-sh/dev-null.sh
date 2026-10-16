@@ -1,5 +1,7 @@
 import { Link } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { CommitBody } from '@/components/commit-body';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
@@ -13,6 +15,23 @@ export function QuotedCommit({
     isPreview?: boolean;
 }) {
     const now = useNow();
+    const bodyRef = useRef<HTMLDivElement>(null);
+    const [isClamped, setIsClamped] = useState(false);
+
+    useEffect(() => {
+        const body = bodyRef.current;
+
+        if (!body) {
+            return;
+        }
+
+        const observer = new ResizeObserver(() =>
+            setIsClamped(body.scrollHeight > body.clientHeight),
+        );
+        observer.observe(body);
+
+        return () => observer.disconnect();
+    }, []);
 
     if (commit === null || isDeleted(commit)) {
         return (
@@ -66,9 +85,19 @@ export function QuotedCommit({
                     </span>
                 )}
             </span>
-            <span className="mt-1 line-clamp-6 block text-[15px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
-                {commit.body}
-            </span>
+            <div
+                ref={bodyRef}
+                className={cn(
+                    'mt-1 max-h-60 overflow-hidden',
+                    isClamped && 'mask-b-from-60%',
+                )}
+            >
+                <CommitBody
+                    segments={commit.body_segments}
+                    className="text-[15px]"
+                    isStatic
+                />
+            </div>
         </>
     );
 

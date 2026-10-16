@@ -77,6 +77,40 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
 
+    --ease-spring: linear(
+        0,
+        0.058,
+        0.2,
+        0.38,
+        0.567,
+        0.738,
+        0.88,
+        0.986,
+        1.058,
+        1.099,
+        1.116,
+        1.114,
+        1.1,
+        1.08,
+        1.058,
+        1.038,
+        1.02,
+        1.006,
+        0.996,
+        0.99,
+        0.987,
+        0.986,
+        0.988,
+        0.99,
+        0.992,
+        0.995,
+        0.997,
+        0.999,
+        1,
+        1.001,
+        1
+    );
+
     --animate-node-in: node-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-rail-draw: rail-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-star-pop: star-pop 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275)
