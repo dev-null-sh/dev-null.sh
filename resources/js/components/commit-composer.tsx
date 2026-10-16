@@ -6,6 +6,7 @@ import {
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { GraphRail } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -16,6 +17,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
+import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { cn, laneColor } from '@/lib/utils';
 
 const minBodyLength = 3;
@@ -32,8 +34,20 @@ export function CommitComposer() {
 
     const remaining = maxBodyLength - body.length;
     const isCommittable = body.trim().length >= minBodyLength;
+    const suggestion = suggestEmoji(body);
 
-    const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.key === 'Tab' && suggestion !== null) {
+            const completed = completeEmoji(body);
+
+            if (completed !== null) {
+                event.preventDefault();
+                updateBody(completed);
+            }
+
+            return;
+        }
+
         if (
             event.key === 'Enter' &&
             (event.metaKey || event.ctrlKey) &&
@@ -91,7 +105,7 @@ export function CommitComposer() {
                                 rows={1}
                                 value={body}
                                 onValueChange={updateBody}
-                                onKeyDown={submitOnModEnter}
+                                onKeyDown={onKeyDown}
                                 onPaste={attachments.onPaste}
                                 onDragOver={attachments.onDragOver}
                                 onDrop={attachments.onDrop}
@@ -104,6 +118,11 @@ export function CommitComposer() {
                                 aria-invalid={errors.body ? true : undefined}
                                 aria-describedby="body-count"
                                 className="block field-sizing-content min-h-10 w-full resize-none overflow-x-hidden bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
+                            />
+
+                            <EmojiSuggestionHint
+                                suggestion={suggestion}
+                                className="mt-1.5"
                             />
 
                             <InputError
