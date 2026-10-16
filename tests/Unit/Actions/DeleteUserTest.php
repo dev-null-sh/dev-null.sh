@@ -42,7 +42,7 @@ it('keeps the quotes of others when erasing the quoted commits of a deleted user
 });
 
 it('erases the images of a deleted user and of the replies under their commits', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
@@ -51,9 +51,9 @@ it('erases the images of a deleted user and of the replies under their commits',
 
     $images = collect([$commit, $reply, $nestedReply, Commit::factory()->create()])
         ->map(fn (Commit $commit): CommitImage => CommitImage::factory()->for($commit)->create())
-        ->each(fn (CommitImage $image): bool => Storage::disk(CommitImage::DISK)->put($image->path, 'image'));
+        ->each(fn (CommitImage $image): bool => Storage::disk()->put($image->path, 'image'));
 
     resolve(DeleteUser::class)->handle($user);
 
-    expect(Storage::disk(CommitImage::DISK)->allFiles('commit-images'))->toBe([$images->last()->path]);
+    expect(Storage::disk()->allFiles('commit-images'))->toBe([$images->last()->path]);
 });
