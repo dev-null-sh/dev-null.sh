@@ -41,7 +41,7 @@ export function SlashRain({ className }: { className?: string }) {
                     }
                 >
                     <span
-                        className="inline-block animate-slash-spin"
+                        className="inline-block animate-slash-spin tracking-[-0.35em]"
                         style={
                             {
                                 '--spin': drop.spin,
