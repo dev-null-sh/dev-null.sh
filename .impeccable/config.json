@@ -37,15 +37,6 @@
         ],
         "createdAt": "2026-10-15T12:16:02.254Z",
         "reason": "agent decided: unchosen decision-round sketch, never shipped"
-      },
-      {
-        "rule": "border-accent-on-rounded",
-        "value": "*",
-        "files": [
-          "resources/js/pages/moderation/show.tsx"
-        ],
-        "createdAt": "2026-10-16T11:55:17.695Z",
-        "reason": "Agent decided: Keycap renders a semantic kbd shortcut with a heavier bottom edge to depict a physical key; the same styling exists in production d011993b."
       }
     ]
   }
