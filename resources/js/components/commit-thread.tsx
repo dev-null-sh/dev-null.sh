@@ -39,6 +39,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import {
     graphDash,
     graphStrokeWidth,
@@ -67,6 +68,7 @@ import {
     useCommitNotFound,
     useIsCommitDeleted,
 } from '@/hooks/use-deleted-resources';
+import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
@@ -1363,6 +1365,13 @@ function ReplyComposer({
         isSubmittable: isReplyable,
     });
 
+    const insertEmoji = useEmojiInsertion({
+        body,
+        updateBody,
+        textareaRef,
+        maxLength: maxRawBodyLength,
+    });
+
     const returnFocusToCommit = () => {
         const commit =
             textareaRef.current?.closest<HTMLElement>('[data-commit]');
@@ -1515,6 +1524,11 @@ function ReplyComposer({
                         reading={attachments.reading}
                         onPick={attachments.pick}
                         className="size-8"
+                    />
+                    <EmojiPickerButton
+                        disabled={processing}
+                        onPick={insertEmoji}
+                        className="-ml-2 size-8"
                     />
                     <PreviewToggle preview={preview} className="-ml-2 size-8" />
                     <LinkCardPicker
