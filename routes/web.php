@@ -15,10 +15,13 @@ use App\Http\Controllers\CommitPollVoteController;
 use App\Http\Controllers\CommitPreviewController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
+use App\Http\Controllers\CommitReportController;
 use App\Http\Controllers\CommitRestorationController;
+use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
+use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
@@ -31,8 +34,10 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\UserActivityGraphController;
@@ -130,8 +135,16 @@ Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
 
 // User Search...
 Route::get('search/users', [UserSearchController::class, 'index'])
-    ->middleware('throttle:people')
+    ->middleware(['throttle:user-search', 'throttle:people'])
     ->name('user-search.index');
+
+// Search...
+Route::get('search', [SearchController::class, 'index'])->name('search.index');
+
+// Commit Search...
+Route::get('search/commits', [CommitSearchController::class, 'index'])
+    ->middleware('throttle:commit-search')
+    ->name('commit-search.index');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -161,6 +174,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware(ThrottleCommits::class)->name('scheduled-commit.store');
     Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
 
+    Route::get('commit-stars', [CommitStarCountController::class, 'index'])->name('commit-star-count.index');
     Route::post('commits', [CommitController::class, 'store'])
         ->middleware(ThrottleCommits::class)
         ->name('commit.store');
@@ -183,6 +197,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->middleware('throttle:stars')
         ->name('commit-star.store');
+    Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
+        ->middleware('throttle:commit-reports')
+        ->name('commit-report.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
         ->middleware('throttle:stars')
         ->name('commit-star.destroy');
@@ -201,6 +218,8 @@ Route::middleware('auth')->group(function (): void {
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+    Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
+    Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
     Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
         ->name('commit-approval.store');
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
@@ -218,7 +237,7 @@ Route::middleware('auth')->group(function (): void {
 
     // Mention Suggestions...
     Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
-        ->middleware('throttle:people')
+        ->middleware(['throttle:mention-suggestions', 'throttle:people'])
         ->name('mention-suggestion.index');
 
     // User Profile...

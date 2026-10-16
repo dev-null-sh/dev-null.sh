@@ -1,6 +1,6 @@
 import type { ClipboardEvent, DragEvent } from 'react';
 import { useState } from 'react';
-import { pickImages, revokeObjectUrls } from '@/components/commit-image-picker';
+import { pickImages } from '@/components/commit-image-picker';
 
 export type UseImageAttachmentsReturn = {
     readonly images: File[];
@@ -21,9 +21,11 @@ const hasFiles = (dataTransfer: DataTransfer): boolean =>
 /**
  * Keeps the images attached to a commit being written, picked, pasted, or dropped, and the description written for each.
  */
-export function useImageAttachments(): UseImageAttachmentsReturn {
-    const [images, setImages] = useState<File[]>([]);
-    const [descriptions, setDescriptions] = useState<string[]>([]);
+export function useImageAttachments(
+    images: File[],
+    descriptions: string[],
+    onChange: (images: File[], descriptions: string[]) => void,
+): UseImageAttachmentsReturn {
     const [error, setError] = useState<string | null>(null);
 
     const attach = (files: File[]) => {
@@ -33,8 +35,8 @@ export function useImageAttachments(): UseImageAttachmentsReturn {
 
         const picked = pickImages(images, files);
 
-        setImages(picked.images);
-        setDescriptions(
+        onChange(
+            picked.images,
             picked.images.map((_, index) => descriptions[index] ?? ''),
         );
         setError(picked.error);
@@ -46,24 +48,24 @@ export function useImageAttachments(): UseImageAttachmentsReturn {
         error,
         attach,
         describe: (index, description) => {
-            setDescriptions(
-                descriptions.map((current, position) =>
-                    position === index ? description : current,
+            onChange(
+                images,
+                images.map((_, position) =>
+                    position === index
+                        ? description
+                        : (descriptions[position] ?? ''),
                 ),
             );
         },
         remove: (index) => {
-            revokeObjectUrls([images[index]]);
-            setImages(images.filter((_, position) => position !== index));
-            setDescriptions(
+            onChange(
+                images.filter((_, position) => position !== index),
                 descriptions.filter((_, position) => position !== index),
             );
             setError(null);
         },
         clear: () => {
-            revokeObjectUrls(images);
-            setImages([]);
-            setDescriptions([]);
+            onChange([], []);
             setError(null);
         },
         onPaste: (event) => {

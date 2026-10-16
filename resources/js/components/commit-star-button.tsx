@@ -1,9 +1,12 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import type { Ref } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
-import { useSharedState } from '@/hooks/use-shared-state';
+import { CommitStarPollingContext } from '@/components/commit-star-polling';
+import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
+import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
@@ -43,9 +46,46 @@ export function CommitStarButton({
         { starred: boolean; stars_count: number }
     >({});
     const [isAnimating, setIsAnimating] = useState(false);
+    const [localMutations] = useState(createCommitStarMutations);
+    const polling = useContext(CommitStarPollingContext);
+    const mutations = polling?.mutations ?? localMutations;
+    const canPoll =
+        (isOwn || commit.status === 'approved') && auth.user !== null;
+    const element = useRef<HTMLElement>(null);
+    const setElement = useCallback((node: HTMLElement | null) => {
+        element.current = node;
+    }, []);
+
+    useEffect(() => {
+        if (!polling || !canPoll || !element.current) {
+            return;
+        }
+
+        return polling.subscribe({
+            id: commit.id,
+            element: element.current,
+            prepare: () =>
+                mutations.prepare(commit.id, (stars) => {
+                    refreshSharedState(
+                        new Map<string, boolean | number>([
+                            [
+                                commitStateKey('starred', commit.id),
+                                stars.starred,
+                            ],
+                            [
+                                commitStateKey('stars_count', commit.id),
+                                stars.stars_count,
+                            ],
+                        ]),
+                    );
+                }),
+        });
+    }, [polling, mutations, canPoll, commit.id, isOwn]);
 
     if (isOwn) {
-        return <StarCount count={count} className={className} />;
+        return (
+            <StarCount ref={setElement} count={count} className={className} />
+        );
     }
 
     if (commit.status !== 'approved') {
@@ -60,6 +100,12 @@ export function CommitStarButton({
         }
 
         if (request.processing) {
+            return;
+        }
+
+        const finishMutation = mutations.begin(commit.id);
+
+        if (!finishMutation) {
             return;
         }
 
@@ -89,11 +135,15 @@ export function CommitStarButton({
         } catch {
             setStarred(!next);
             setCount((current) => Math.max(0, current + (next ? -1 : 1)));
+        } finally {
+            finishMutation();
         }
     };
 
     return (
         <button
+            ref={setElement}
+            aria-disabled={request.processing}
             type="button"
             onClick={toggle}
             aria-pressed={starred}
@@ -125,9 +175,11 @@ export function CommitStarButton({
  * Authors can't star their own commits, so they only see how many stars others gave.
  */
 function StarCount({
+    ref,
     count,
     className,
 }: {
+    ref?: Ref<HTMLSpanElement>;
     count: number;
     className?: string;
 }) {
@@ -138,6 +190,7 @@ function StarCount({
 
     return (
         <span
+            ref={ref}
             role="img"
             aria-label={label}
             title={label}

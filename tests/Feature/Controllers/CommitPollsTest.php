@@ -17,6 +17,7 @@ use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -309,6 +310,7 @@ it('loads the polls of the log with a bounded number of queries', function (): v
     Poll::factory()->count(19)->withOptions('Vim', 'Emacs', 'Nano')->create();
     PollVote::factory()->count(5)->create();
     DB::flushQueryLog();
+    Cache::flush();
 
     $this->get(route('log.show', Log::Trending))->assertOk()->assertInertia(fn ($page) => $page->has('commits.data', 20));
     expect(count(DB::getQueryLog()))->toBe($singleCount);

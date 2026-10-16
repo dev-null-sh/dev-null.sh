@@ -34,3 +34,11 @@ export function shortenUrl(url: string): ShortenedUrl {
         hiddenEnd: rest.slice(host.length + kept.length),
     };
 }
+
+export function hostname(url: string): string {
+    try {
+        return new URL(url).hostname.replace(/^www\./, '');
+    } catch {
+        return url;
+    }
+}

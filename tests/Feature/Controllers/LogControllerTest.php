@@ -10,6 +10,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Queries\LatestLogCommitsQuery;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 it('renders own commits and commits of followed users newest first', function (): void {
@@ -381,6 +382,7 @@ it('includes the link previews of commits', function (Log $log): void {
                 'description' => 'The PHP framework for web artisans.',
                 'image_url' => 'https://laravel.com/og.png',
                 'site_name' => 'Laravel',
+                'embed' => null,
             ]));
 })->with(Log::cases());
 
@@ -415,6 +417,7 @@ it('loads the quoted commits of a log without a query per commit', function (Log
 
     $queries = function () use ($user, $log): int {
         DB::flushQueryLog();
+        Cache::flush();
         DB::enableQueryLog();
 
         $this->actingAs($user)->get(route('log.show', $log))->assertOk();

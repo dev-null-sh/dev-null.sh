@@ -8,6 +8,7 @@ import { CommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
+import { CommitReportButton } from '@/components/commit-report-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ThreadActions,
@@ -329,7 +330,7 @@ export function CommitCard({
                                     commit={commit.quoted_commit ?? null}
                                 />
                             )}
-                            {commit.link_preview?.title && (
+                            {commit.link_preview && (
                                 <LinkPreview preview={commit.link_preview} />
                             )}
                             {laterParts > 0 && !isSeriesExpanded && (
@@ -367,6 +368,7 @@ export function CommitCard({
                                         keyShortcut="q"
                                         className="px-1.5 py-1"
                                     />
+                                    <CommitReportButton commit={commit} />
                                 </div>
                             ) : (
                                 <ThreadActions
@@ -487,15 +489,18 @@ export function SeriesPosition({
 export function CommitTombstone({
     commit,
     previousLane,
+    endsWithDot = false,
 }: {
     commit?: DeletedCommit;
     previousLane?: string;
+    endsWithDot?: boolean;
 }) {
     return (
         <article className="flex" data-test="commit-tombstone">
             <GraphRail
                 lane="var(--rail)"
                 previousLane={previousLane}
+                endsWithDot={endsWithDot}
                 node={
                     <span className="size-12 rounded-full border-2 border-dashed border-rail bg-card" />
                 }

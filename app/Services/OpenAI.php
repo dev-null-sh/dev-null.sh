@@ -6,17 +6,35 @@ namespace App\Services;
 
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use UnexpectedValueException;
 
 final readonly class OpenAI
 {
+    /**
+     * The width of text-embedding-3-small's vectors, and so of the commits.embedding column.
+     */
+    public const int EMBEDDING_DIMENSIONS = 1536;
+
     private const string MODERATION_MODEL = 'omni-moderation-latest';
 
     private const string REVIEW_MODEL = 'gpt-6-astra';
 
     /**
+     * The only model the decisions endpoint takes, answering typed questions far faster than the responses endpoint.
+     */
+    private const string DECISION_MODEL = 'gpt-6-luna';
+
+    private const string EMBEDDING_MODEL = 'text-embedding-3-small';
+
+    /**
      * Far stricter than OpenAI's own cut-off: any category scoring this much is flagged.
      */
     private const float STRICT_THRESHOLD = 0.2;
+
+    /**
+     * The decisions endpoint answers with a probability, not a verdict: only a post scoring below this is irrelevant.
+     */
+    private const float RELEVANCE_THRESHOLD = 0.5;
 
     /**
      * @var array<string, float>
@@ -40,6 +58,12 @@ final readonly class OpenAI
         is not harmful either. When unsure, answer true.
         TEXT;
 
+    private const string RELEVANCE_INSTRUCTIONS = <<<'TEXT'
+        You review search results for devnull, a social network for developers.
+        You are given a query and a numbered list of posts, and asked, for each post, whether it is actually about what
+        the query asks for. A post that merely shares a word with the query, or is about something else, is not relevant.
+        TEXT;
+
     public function request(): PendingRequest
     {
         return Http::baseUrl('https://api.openai.com/v1')
@@ -47,6 +71,45 @@ final readonly class OpenAI
             ->acceptJson()
             ->connectTimeout(3)
             ->timeout(15);
+    }
+
+    /**
+     * The vector for a single text, for the one-off embeds a commit gets when it is created or searched for.
+     *
+     * @return list<float>
+     */
+    public function embed(string $text): array
+    {
+        $embeddings = $this->embedMany([$text]);
+
+        throw_if($embeddings === [], UnexpectedValueException::class, 'OpenAI returned no embedding.');
+
+        return $embeddings[0];
+    }
+
+    /**
+     * The vectors for several texts in one request, in the order they were given, for backfills. The API caps a
+     * request at 2048 inputs, so callers send them in batches well under that.
+     *
+     * @param  list<string>  $texts
+     * @return list<list<float>>
+     */
+    public function embedMany(array $texts): array
+    {
+        if ($texts === []) {
+            return [];
+        }
+
+        /** @var list<array{index: int, embedding: list<float>}> $data */
+        $data = $this->request()
+            ->timeout(30)
+            ->post('embeddings', ['model' => self::EMBEDDING_MODEL, 'input' => $texts])
+            ->throw()
+            ->json('data');
+
+        usort($data, fn (array $result, array $other): int => $result['index'] <=> $other['index']);
+
+        return array_map(fn (array $result): array => array_map(floatval(...), $result['embedding']), $data);
     }
 
     /**
@@ -118,6 +181,40 @@ final readonly class OpenAI
     }
 
     /**
+     * Whether each body is actually about the query, in the order they were given. The vector search returns the
+     * nearest by meaning, which can include posts that merely share a word; the decision model reads the term against
+     * each one. Anything but a clear no, such as a refusal or an answer that can't be read or doesn't line up, counts
+     * as relevant, so a flaky model never hides a post.
+     *
+     * @param  list<string>  $bodies
+     * @return list<bool>
+     */
+    public function decideRelevance(string $query, array $bodies): array
+    {
+        if ($bodies === []) {
+            return [];
+        }
+
+        $questions = array_map(fn (int $index): array => [
+            'type' => 'predicate',
+            'name' => $this->postName($index),
+            'instructions' => 'Is post '.($index + 1).' actually about what the query asks for?',
+        ], array_keys($bodies));
+
+        $answers = $this->request()
+            ->timeout(60)
+            ->post('decisions', [
+                'model' => self::DECISION_MODEL,
+                'input' => self::RELEVANCE_INSTRUCTIONS."\n\n".$this->relevancePrompt($query, $bodies),
+                'questions' => $questions,
+            ])
+            ->throw()
+            ->json('answers', []);
+
+        return $this->relevanceVerdicts($answers, count($bodies));
+    }
+
+    /**
      * Asks the reasoning model a yes or no question about the content. Anything but a clear no, such as a refusal or an
      * answer that can't be read, counts as a yes.
      *
@@ -160,5 +257,55 @@ final readonly class OpenAI
         }
 
         return true;
+    }
+
+    /**
+     * @param  list<string>  $bodies
+     */
+    private function relevancePrompt(string $query, array $bodies): string
+    {
+        $posts = [];
+
+        foreach ($bodies as $index => $body) {
+            $posts[] = ($index + 1).'. '.$body;
+        }
+
+        return "Query: {$query}\n\nPosts:\n".implode("\n", $posts);
+    }
+
+    /**
+     * The answers come back by name, one per post. A post the answers skip, refuse or give anything but a probability
+     * below the threshold counts as relevant.
+     *
+     * @return list<bool>
+     */
+    private function relevanceVerdicts(mixed $answers, int $count): array
+    {
+        $probabilities = [];
+
+        foreach (is_array($answers) ? $answers : [] as $answer) {
+            if (is_array($answer)
+                && ($answer['type'] ?? null) === 'predicate'
+                && is_string($answer['name'] ?? null)
+                && is_numeric($answer['probability'] ?? null)) {
+                $probabilities[$answer['name']] = (float) $answer['probability'];
+            }
+        }
+
+        $verdicts = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $verdicts[] = ($probabilities[$this->postName($index)] ?? 1.0) >= self::RELEVANCE_THRESHOLD;
+        }
+
+        return $verdicts;
+    }
+
+    /**
+     * The name of the question asked about a post, which the decisions endpoint echoes back with its answer.
+     */
+    private function postName(int $index): string
+    {
+        return 'post_'.($index + 1);
     }
 }

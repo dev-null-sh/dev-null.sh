@@ -43,7 +43,7 @@ export function AppAside({
                 data-test="search-button"
             >
                 <Search className="size-4" />
-                Search developers
+                Search
                 <kbd className="ml-auto rounded border border-b-2 bg-muted px-1.5 font-mono text-xs">
                     {keys.combo(keys.mod, 'K')}
                 </kbd>
