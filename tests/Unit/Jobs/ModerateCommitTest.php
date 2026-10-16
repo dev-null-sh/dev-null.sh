@@ -94,6 +94,58 @@ it('stores that the ai would approve a commit it does not flag', function (): vo
     Http::assertSentCount(2);
 });
 
+it('auto-approves clean commits only for authors with an approved commit', function (CommitStatus $previousStatus, bool $sameAuthor, bool $deleted, bool $anonymous, CommitStatus $expected): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $previous = Commit::factory()->create(['status' => $previousStatus]);
+
+    if ($deleted) {
+        $previous->delete();
+    }
+
+    $attributes = $sameAuthor ? ['user_id' => $previous->user_id] : [];
+
+    if ($anonymous) {
+        $attributes['user_id'] = null;
+        $previous->update(['user_id' => null]);
+    }
+
+    $commit = Commit::factory()->pending()->create($attributes);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_decision->toBe(CommitStatus::Approved)
+        ->ai_categories->toBe([])
+        ->status->toBe($expected);
+})->with([
+    'approved history' => [CommitStatus::Approved, true, false, false, CommitStatus::Approved],
+    'pending history' => [CommitStatus::Pending, true, false, false, CommitStatus::Pending],
+    'rejected history' => [CommitStatus::Rejected, true, false, false, CommitStatus::Pending],
+    'another author' => [CommitStatus::Approved, false, false, false, CommitStatus::Pending],
+    'deleted history' => [CommitStatus::Approved, true, true, false, CommitStatus::Pending],
+    'anonymous author' => [CommitStatus::Approved, true, false, true, CommitStatus::Pending],
+]);
+
+it('keeps flagged commits pending even when the author has an approved commit', function (bool $harmful): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response($harmful ? moderationResponse() : moderationResponse(['harassment'])),
+        'api.openai.com/v1/responses' => reviewResponses(['harmful' => reviewResponse('harmful', $harmful)]),
+    ]);
+
+    $previous = Commit::factory()->create();
+    $commit = Commit::factory()->pending()->create(['user_id' => $previous->user_id]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_decision->toBe(CommitStatus::Rejected)
+        ->status->toBe(CommitStatus::Pending);
+})->with([true, false]);
+
 it('stores that the ai would reject a commit it flags, and why', function (): void {
     Http::fake([
         'api.openai.com/v1/moderations' => Http::response(moderationResponse(['harassment', 'violence'])),

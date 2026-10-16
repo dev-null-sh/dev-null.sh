@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-use App\Actions\BefriendTom;
+use App\Actions\CreateTomFriendship;
 use App\Enums\CommitStatus;
 use App\Models\User;
 
 it('makes tom and the user follow each other', function (): void {
     $user = User::factory()->create();
 
-    resolve(BefriendTom::class)->handle($user);
+    resolve(CreateTomFriendship::class)->handle($user);
 
     $tom = User::query()->where('username', 'tom')->sole();
 
@@ -20,7 +20,7 @@ it('makes tom and the user follow each other', function (): void {
 });
 
 it('creates tom once, with a single welcome commit and no github account', function (): void {
-    $action = resolve(BefriendTom::class);
+    $action = resolve(CreateTomFriendship::class);
 
     $action->handle(User::factory()->create());
     $action->handle(User::factory()->create());
@@ -32,6 +32,23 @@ it('creates tom once, with a single welcome commit and no github account', funct
         ->and($commit->status)->toBe(CommitStatus::Approved)
         ->and($tom->hasGitHubAccount())->toBeFalse()
         ->and($tom->following()->count())->toBe(2);
+});
+
+it('does not make tom follow himself or change his existing friendships', function (): void {
+    $user = User::factory()->create();
+    $action = resolve(CreateTomFriendship::class);
+
+    $action->handle($user);
+
+    $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->sole();
+
+    $action->handle($tom);
+
+    expect($tom->isFollowing($tom))->toBeFalse()
+        ->and($tom->following()->sole()->is($user))->toBeTrue()
+        ->and($tom->followers()->sole()->is($user))->toBeTrue()
+        ->and($tom->commits()->count())->toBe(1)
+        ->and($tom->notifications()->count())->toBe(0);
 });
 
 it('befriends every existing user', function (): void {
@@ -47,7 +64,7 @@ it('befriends every existing user', function (): void {
 });
 
 it('renders tom on his profile without a github link', function (): void {
-    resolve(BefriendTom::class)->handle(User::factory()->create());
+    resolve(CreateTomFriendship::class)->handle(User::factory()->create());
 
     $this->get('/@tom')
         ->assertOk()

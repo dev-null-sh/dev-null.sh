@@ -30,6 +30,7 @@ export type Auth = {
     isAdmin: boolean;
     log: Log | null;
     unreadNotificationsCount: number;
+    pasteis: { remaining: number; day: string } | null;
 };
 
 export type SuggestedUser = User & {
