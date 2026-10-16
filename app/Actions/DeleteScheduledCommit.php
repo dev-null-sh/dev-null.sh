@@ -7,7 +7,7 @@ namespace App\Actions;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 
-final readonly class CancelScheduledCommit
+final readonly class DeleteScheduledCommit
 {
     public function handle(User $user, ScheduledCommit $scheduled): bool
     {

@@ -7,7 +7,7 @@ namespace App\Actions;
 use App\Models\ScheduledCommit;
 use Illuminate\Support\Facades\DB;
 
-final readonly class SubmitScheduledCommit
+final readonly class UpdateScheduledCommitSubmittedAt
 {
     public function __construct(private CreateCommit $createCommit)
     {

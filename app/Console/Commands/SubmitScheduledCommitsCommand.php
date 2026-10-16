@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Actions\SubmitScheduledCommit;
+use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Models\ScheduledCommit;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -15,7 +15,7 @@ use Throwable;
 #[Description('Submit up to 100 due scheduled commits through the normal review process')]
 final class SubmitScheduledCommitsCommand extends Command
 {
-    public function handle(SubmitScheduledCommit $action): int
+    public function handle(UpdateScheduledCommitSubmittedAt $action): int
     {
         $failed = false;
         $scheduledCommits = ScheduledCommit::query()->whereNull('submitted_at')->whereNull('canceled_at')

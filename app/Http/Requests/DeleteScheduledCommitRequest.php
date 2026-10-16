@@ -7,7 +7,7 @@ namespace App\Http\Requests;
 use App\Models\ScheduledCommit;
 use Illuminate\Foundation\Http\FormRequest;
 
-final class CancelScheduledCommitRequest extends FormRequest
+final class DeleteScheduledCommitRequest extends FormRequest
 {
     public function authorize(): bool
     {

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\CancelScheduledCommit;
-use App\Actions\ScheduleCommit;
-use App\Http\Requests\CancelScheduledCommitRequest;
-use App\Http\Requests\ScheduleCommitRequest;
+use App\Actions\CreateScheduledCommit;
+use App\Actions\DeleteScheduledCommit;
+use App\Http\Requests\CreateScheduledCommitRequest;
+use App\Http\Requests\DeleteScheduledCommitRequest;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -34,7 +34,7 @@ final readonly class ScheduledCommitController
         ]);
     }
 
-    public function store(ScheduleCommitRequest $request, #[CurrentUser] User $user, ScheduleCommit $action): RedirectResponse
+    public function store(CreateScheduledCommitRequest $request, #[CurrentUser] User $user, CreateScheduledCommit $action): RedirectResponse
     {
         $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc());
 
@@ -44,7 +44,7 @@ final readonly class ScheduledCommitController
         return back();
     }
 
-    public function destroy(CancelScheduledCommitRequest $request, #[CurrentUser] User $user, ScheduledCommit $scheduledCommit, CancelScheduledCommit $action): RedirectResponse
+    public function destroy(DeleteScheduledCommitRequest $request, #[CurrentUser] User $user, ScheduledCommit $scheduledCommit, DeleteScheduledCommit $action): RedirectResponse
     {
         $canceled = $action->handle($user, $scheduledCommit);
 

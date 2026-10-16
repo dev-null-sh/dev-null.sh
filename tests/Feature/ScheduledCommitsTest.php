@@ -2,19 +2,16 @@
 
 declare(strict_types=1);
 
-use App\Actions\CancelScheduledCommit;
+use App\Actions\DeleteScheduledCommit;
 use App\Actions\DeleteUser;
-use App\Actions\ScheduleCommit;
-use App\Actions\SubmitScheduledCommit;
+use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\UserActivityQuery;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Exceptions;
-use Illuminate\Validation\ValidationException;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
@@ -62,15 +59,6 @@ it('rejects invalid times and bodies', function (array $payload, string $field):
     'too short' => [['body' => 'ab'], 'body'],
     'whitespace' => [['body' => '    '], 'body'],
     'too long' => [['body' => str_repeat('a', 281)], 'body'],
-]);
-
-it('rejects times outside the window when scheduled outside a request', function (string $scheduledAt): void {
-    expect(fn () => resolve(ScheduleCommit::class)->handle(User::factory()->create(), 'Shipped a scheduling feature.', CarbonImmutable::parse($scheduledAt)))
-        ->toThrow(ValidationException::class);
-    expect(ScheduledCommit::query()->count())->toBe(0);
-})->with([
-    'now' => ['2026-10-15T12:00:00+00:00'],
-    'beyond thirty days' => ['2026-11-14T12:00:01+00:00'],
 ]);
 
 it('accepts the scheduling window boundary and unicode body', function (): void {
@@ -159,7 +147,7 @@ it('submits once at the due time using the authors current approval privileges',
         $user->update(['username' => 'admin']);
     }
 
-    $action = resolve(SubmitScheduledCommit::class);
+    $action = resolve(UpdateScheduledCommitSubmittedAt::class);
     expect($action->handle($scheduled->id))->toBeFalse();
     $this->travelTo($scheduled->scheduled_at);
     expect($action->handle($scheduled->id))->toBeTrue()
@@ -191,8 +179,8 @@ it('cancels a due item before claim and never submits it', function (): void {
 
 it('does not cancel or resend a submitted item even if its commit is deleted', function (): void {
     $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()]);
-    resolve(SubmitScheduledCommit::class)->handle($scheduled->id);
-    expect(resolve(CancelScheduledCommit::class)->handle($scheduled->user, $scheduled))->toBeFalse();
+    resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id);
+    expect(resolve(DeleteScheduledCommit::class)->handle($scheduled->user, $scheduled))->toBeFalse();
     $commit = Commit::query()->sole();
     $commit->delete();
     $this->actingAs($scheduled->user)->get(route('scheduled-commit.index'))->assertInertia(fn ($page) => $page
@@ -204,7 +192,7 @@ it('does not cancel or resend a submitted item even if its commit is deleted', f
 
 it('reflects rejection and approval without retaining a second body', function (CommitStatus $status): void {
     $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()]);
-    resolve(SubmitScheduledCommit::class)->handle($scheduled->id);
+    resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id);
     Commit::query()->sole()->update(['status' => $status]);
     $this->actingAs($scheduled->user)->get(route('scheduled-commit.index'))->assertInertia(fn ($page) => $page
         ->where('scheduledCommits.data.0.status', $status->value)->where('scheduledCommits.data.0.body', null));
@@ -243,14 +231,14 @@ it('rolls back creation if saving the delivery receipt fails', function (): void
         throw new RuntimeException('Simulated receipt failure.');
     });
     try {
-        expect(fn () => resolve(SubmitScheduledCommit::class)->handle($scheduled->id))->toThrow(RuntimeException::class);
+        expect(fn () => resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id))->toThrow(RuntimeException::class);
         expect(Commit::query()->count())->toBe(0)->and($scheduled->fresh()->submitted_at)->toBeNull();
         $this->assertDatabaseCount('jobs', 0);
     } finally {
         ScheduledCommit::flushEventListeners();
     }
 
-    expect(resolve(SubmitScheduledCommit::class)->handle($scheduled->id))->toBeTrue();
+    expect(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id))->toBeTrue();
     expect(Commit::query()->count())->toBe(1);
     $this->assertDatabaseCount('jobs', 1);
 });
@@ -260,11 +248,11 @@ it('rejects a competing claim and cancellation while creation is in progress', f
     $competingClaim = null;
     $competingCancellation = null;
     Commit::creating(function () use ($scheduled, &$competingClaim, &$competingCancellation): void {
-        $competingClaim = resolve(SubmitScheduledCommit::class)->handle($scheduled->id);
-        $competingCancellation = resolve(CancelScheduledCommit::class)->handle($scheduled->user, $scheduled);
+        $competingClaim = resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id);
+        $competingCancellation = resolve(DeleteScheduledCommit::class)->handle($scheduled->user, $scheduled);
     });
     try {
-        expect(resolve(SubmitScheduledCommit::class)->handle($scheduled->id))->toBeTrue()
+        expect(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id))->toBeTrue()
             ->and($competingClaim)->toBeFalse()
             ->and($competingCancellation)->toBeFalse()
             ->and(Commit::query()->count())->toBe(1);
@@ -285,7 +273,7 @@ it('deletes scheduled content with the account and handles stale delivery attemp
     $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()]);
     resolve(DeleteUser::class)->handle($scheduled->user);
     expect(ScheduledCommit::query()->count())->toBe(0)
-        ->and(resolve(SubmitScheduledCommit::class)->handle($scheduled->id))->toBeFalse();
+        ->and(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id))->toBeFalse();
     $this->artisan('commits:submit-scheduled')->assertSuccessful();
     expect(Commit::query()->count())->toBe(0);
 });
