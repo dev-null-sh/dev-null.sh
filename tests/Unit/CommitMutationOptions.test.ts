@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import {
     restoreFeedCommit,
     updateQuotedCommits,
-} from '../../resources/js/lib/commit-mutation-options';
+} from '../../resources/js/lib/commit-mutation-options.ts';
 import type { Commit, DeletedCommit } from '../../resources/js/types';
 
 const target = {
