@@ -104,9 +104,16 @@ function QuoteComposer({
 }) {
     const { user } = useUser();
     const id = `quote-${commit.id}`;
-    const { body, images, isRestored, updateBody, updateImages, drop } =
-        useStash(user.id, id);
-    const attachments = useImageAttachments(images, updateImages);
+    const {
+        body,
+        images,
+        descriptions,
+        isRestored,
+        updateBody,
+        updateImages,
+        drop,
+    } = useStash(user.id, id);
+    const attachments = useImageAttachments(images, descriptions, updateImages);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
 
@@ -154,7 +161,13 @@ function QuoteComposer({
                 errorBag="quote"
                 onBefore={secrets.beforeSubmit}
                 transform={(data) =>
-                    images.length > 0 ? { ...data, images } : data
+                    images.length > 0
+                        ? {
+                              ...data,
+                              images,
+                              image_descriptions: descriptions,
+                          }
+                        : data
                 }
                 options={{ preserveScroll: true }}
                 onSuccess={(page) => {
@@ -225,6 +238,8 @@ function QuoteComposer({
 
                             <ImagePickerPreviews
                                 images={images}
+                                descriptions={descriptions}
+                                onDescribe={attachments.describe}
                                 onRemove={attachments.remove}
                             />
                             <InputError

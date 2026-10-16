@@ -12,6 +12,7 @@ const user = { id: 'viewer', username: 'viewer' };
 const draft = {
     body: 'A restored quote',
     images: [image],
+    descriptions: ['A restored screenshot'],
     isRestored: true,
     updateBody: vi.fn(),
     updateImages,
@@ -94,6 +95,7 @@ test('quotes submit restored images and clear the complete draft only on success
             body: draft.body,
             quoted_commit_id: commit.id,
             images: [image],
+            image_descriptions: ['A restored screenshot'],
         },
     );
 
@@ -123,7 +125,10 @@ test('quotes submit restored images and clear the complete draft only on success
     assert.equal(picker.props.count, 1);
     const added = new File(['new'], 'new.png', { type: 'image/png' });
     (picker.props.onPick as (files: File[]) => void)([added]);
-    assert.deepEqual(updateImages.mock.lastCall, [[image, added]]);
+    assert.deepEqual(updateImages.mock.lastCall, [
+        [image, added],
+        ['A restored screenshot', ''],
+    ]);
 
     const onSuccess = form.props.onSuccess as (page: {
         flash: { committed?: object };
@@ -134,7 +139,7 @@ test('quotes submit restored images and clear the complete draft only on success
     assert.equal(drop.mock.calls.length, 0);
 
     onSuccess({ flash: { committed: { id: 'created' } } });
-    assert.deepEqual(updateImages.mock.lastCall, [[]]);
+    assert.deepEqual(updateImages.mock.lastCall, [[], []]);
     assert.equal(drop.mock.calls.length, 1);
 
     vi.stubGlobal('document', { getElementById: () => null });
@@ -142,7 +147,7 @@ test('quotes submit restored images and clear the complete draft only on success
         const stash = fields.find((element) => element.type === StashLabel)!;
         updateImages.mockClear();
         (stash.props.onDrop as () => void)();
-        assert.deepEqual(updateImages.mock.lastCall, [[]]);
+        assert.deepEqual(updateImages.mock.lastCall, [[], []]);
         assert.equal(drop.mock.calls.length, 2);
     } finally {
         vi.unstubAllGlobals();

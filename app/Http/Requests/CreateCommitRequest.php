@@ -41,7 +41,6 @@ final class CreateCommitRequest extends FormRequest
 
         return [
             'body' => self::BODY_RULES,
-            'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
             'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
             'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],
@@ -57,6 +56,18 @@ final class CreateCommitRequest extends FormRequest
                     ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
                     ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
             ],
+            'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
+            'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'image_descriptions.*' => 'image description',
         ];
     }
 
@@ -104,14 +115,15 @@ final class CreateCommitRequest extends FormRequest
         return is_array($images) ? array_values($images) : [];
     }
 
-    public function parent(): ?Commit
+    /**
+     * @return list<string|null>
+     */
+    public function imageDescriptions(): array
     {
-        $user = $this->user();
-        assert($user instanceof User);
+        /** @var list<string|null> $descriptions */
+        $descriptions = $this->array('image_descriptions');
 
-        return $this->filled('parent_id')
-            ? Commit::query()->visibleTo($user)->find($this->string('parent_id')->value())
-            : null;
+        return $descriptions;
     }
 
     public function quotedCommit(): ?Commit

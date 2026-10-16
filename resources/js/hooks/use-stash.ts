@@ -1,6 +1,7 @@
 import type { FocusEvent } from 'react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { pickImages } from '@/components/commit-image-picker';
+import { maxImages, pickImages } from '@/components/commit-image-picker';
+import type { StoredImages } from '@/lib/image-storage';
 import {
     deleteStoredImages,
     readStoredImages,
@@ -12,18 +13,20 @@ import { readStorage, storedKeys, writeStorage } from '@/lib/storage';
 export type UseStashReturn = {
     readonly body: string;
     readonly images: File[];
+    readonly descriptions: string[];
     readonly isRestored: boolean;
     readonly updateBody: (body: string) => void;
-    readonly updateImages: (images: File[]) => void;
+    readonly updateImages: (images: File[], descriptions?: string[]) => void;
     readonly drop: () => void;
 };
 
 export type UseSeriesStashReturn = {
     readonly bodies: string[];
     readonly images: File[];
+    readonly descriptions: string[];
     readonly isRestored: boolean;
     readonly updateBody: (index: number, body: string) => void;
-    readonly updateImages: (images: File[]) => void;
+    readonly updateImages: (images: File[], descriptions?: string[]) => void;
     readonly insertPart: (index: number) => void;
     readonly removePart: (index: number) => void;
     readonly drop: () => void;
@@ -31,9 +34,9 @@ export type UseSeriesStashReturn = {
 
 const listeners = new Set<() => void>();
 const pending = new Map<string, string>();
-const images = new Map<string, File[]>();
+const images = new Map<string, StoredImages>();
 const restoredImageKeys = new Set<string>();
-const noImages: File[] = [];
+const noImages: StoredImages = { images: [], descriptions: [] };
 let timeout: ReturnType<typeof setTimeout> | undefined;
 let isListeningForPageHide = false;
 let isLoadingImages = false;
@@ -46,7 +49,7 @@ const keyFor = (userId: string, name: string): string =>
 const read = (key: string): string =>
     pending.has(key) ? (pending.get(key) ?? '') : readStorage(key);
 
-const imagesFor = (key: string): File[] => images.get(key) ?? noImages;
+const imagesFor = (key: string): StoredImages => images.get(key) ?? noImages;
 
 const useDraftImages = (key: string) => {
     const draftImages = useSyncExternalStore(
@@ -60,7 +63,11 @@ const useDraftImages = (key: string) => {
         () => false,
     );
 
-    return { draftImages, isImagesRestored };
+    return {
+        draftImages: draftImages.images,
+        descriptions: draftImages.descriptions,
+        isImagesRestored,
+    };
 };
 
 const notify = (): void => listeners.forEach((listener) => listener());
@@ -73,11 +80,20 @@ const loadImages = (): void => {
     isLoadingImages = true;
 
     void readStoredImages().then((stored) => {
-        stored.forEach((files, key) => {
-            const restored = pickImages([], files).images;
+        stored.forEach((draft, key) => {
+            const restored = draft.images
+                .map((file, index) => ({
+                    file,
+                    description: draft.descriptions[index] ?? '',
+                }))
+                .filter(({ file }) => pickImages([], [file]).images.length > 0)
+                .slice(0, maxImages);
 
             if (!images.has(key) && restored.length > 0) {
-                images.set(key, restored);
+                images.set(key, {
+                    images: restored.map((entry) => entry.file),
+                    descriptions: restored.map((entry) => entry.description),
+                });
                 restoredImageKeys.add(key);
             }
         });
@@ -117,17 +133,22 @@ const discardBody = (key: string): void => {
     notify();
 };
 
-const storeImages = (key: string, next: File[]): void => {
+const storeImages = (
+    key: string,
+    next: File[],
+    descriptions: string[] = [],
+): void => {
     if (next.length === 0) {
         restoredImageKeys.delete(key);
     }
 
-    if (next.length === 0 && images.get(key)?.length === 0) {
+    if (next.length === 0 && images.get(key)?.images.length === 0) {
         return;
     }
 
-    images.set(key, next);
-    writeStoredImages(key, next);
+    const nextDescriptions = next.map((_, index) => descriptions[index] ?? '');
+    images.set(key, { images: next, descriptions: nextDescriptions });
+    writeStoredImages(key, next, nextDescriptions);
     notify();
 };
 
@@ -171,7 +192,9 @@ export function useHasStash(userId: string | null, name: string): boolean {
 
     return useSyncExternalStore(
         subscribe,
-        () => key !== null && (read(key) !== '' || imagesFor(key).length > 0),
+        () =>
+            key !== null &&
+            (read(key) !== '' || imagesFor(key).images.length > 0),
         () => false,
     );
 }
@@ -179,7 +202,7 @@ export function useHasStash(userId: string | null, name: string): boolean {
 export function useStash(userId: string, name: string): UseStashReturn {
     const key = keyFor(userId, name);
     const [body, setBody] = useState(() => read(key));
-    const { draftImages, isImagesRestored } = useDraftImages(key);
+    const { draftImages, descriptions, isImagesRestored } = useDraftImages(key);
     const [isDraftRestored, setIsDraftRestored] = useState(
         () => body !== '' || draftImages.length > 0,
     );
@@ -210,12 +233,12 @@ export function useStash(userId: string, name: string): UseStashReturn {
         }
     };
 
-    const updateImages = (next: File[]): void => {
+    const updateImages = (next: File[], descriptions: string[] = []): void => {
         if (next.length === 0 && body === '') {
             setIsDraftRestored(false);
         }
 
-        storeImages(key, next);
+        storeImages(key, next, descriptions);
     };
 
     const drop = (): void => {
@@ -228,6 +251,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
     return {
         body,
         images: draftImages,
+        descriptions,
         isRestored:
             (isDraftRestored || isImagesRestored) &&
             (body !== '' || draftImages.length > 0),
@@ -259,7 +283,7 @@ export function useSeriesStash(
         read(key),
         ...readLaterBodies(laterKey),
     ]);
-    const { draftImages, isImagesRestored } = useDraftImages(key);
+    const { draftImages, descriptions, isImagesRestored } = useDraftImages(key);
     const [isDraftRestored, setIsDraftRestored] = useState(
         () => bodies.some((body) => body !== '') || draftImages.length > 0,
     );
@@ -303,17 +327,18 @@ export function useSeriesStash(
     return {
         bodies,
         images: draftImages,
+        descriptions,
         isRestored:
             (isDraftRestored || isImagesRestored) &&
             (bodies.some((body) => body !== '') || draftImages.length > 0),
         updateBody: (index, body) =>
             store(bodies.map((current, at) => (at === index ? body : current))),
-        updateImages: (next) => {
+        updateImages: (next, descriptions = []) => {
             if (next.length === 0 && bodies.every((body) => body === '')) {
                 setIsDraftRestored(false);
             }
 
-            storeImages(key, next);
+            storeImages(key, next, descriptions);
         },
         insertPart: (index) =>
             store([...bodies.slice(0, index), '', ...bodies.slice(index)]),

@@ -78,6 +78,7 @@ export function CommitComposer() {
     const {
         bodies,
         images,
+        descriptions,
         isRestored,
         updateBody,
         updateImages,
@@ -85,8 +86,9 @@ export function CommitComposer() {
         removePart,
         drop,
     } = useSeriesStash(user.id, 'commit');
-    const attachments = useImageAttachments(images, updateImages);
+    const attachments = useImageAttachments(images, descriptions, updateImages);
     const [poll, setPoll] = useState<PollDraft | null>(null);
+    const hasImages = images.length > 0;
     const linkCards = useLinkCards(bodies);
     const textareas = useMemo(
         () =>
@@ -108,7 +110,6 @@ export function CommitComposer() {
         (poll === null ||
             poll.options.every((option) => option.trim().length > 0));
 
-    const hasImages = images.length > 0;
     const isSchedulingImages = isScheduling && hasImages;
     const isSubmittable =
         isCommittable &&
@@ -186,7 +187,11 @@ export function CommitComposer() {
                               .replace(/\.\d{3}Z$/, '+00:00'),
                       }
                     : hasImages
-                      ? { ...data, images }
+                      ? {
+                            ...data,
+                            images,
+                            image_descriptions: descriptions,
+                        }
                       : data
             }
             options={{ preserveScroll: true }}
@@ -342,6 +347,10 @@ export function CommitComposer() {
                                             <>
                                                 <ImagePickerPreviews
                                                     images={images}
+                                                    descriptions={descriptions}
+                                                    onDescribe={
+                                                        attachments.describe
+                                                    }
                                                     onRemove={
                                                         attachments.remove
                                                     }

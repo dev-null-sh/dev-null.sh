@@ -8,10 +8,22 @@ const bodies = new Map<string, string>([
     ['stash:author:commit:later', JSON.stringify(['Second part'])],
 ]);
 const image = new File(['image'], 'draft.png', { type: 'image/png' });
-const storedImages = new Map<string, File[]>([
-    ['stash:author:commit', [image]],
-    ['stash:author:reply-parent', [image]],
-    ['stash:another:commit', [image]],
+const storedImages = new Map<
+    string,
+    { images: File[]; descriptions: string[] }
+>([
+    [
+        'stash:author:commit',
+        { images: [image], descriptions: ['A saved screenshot'] },
+    ],
+    [
+        'stash:author:reply-parent',
+        { images: [image], descriptions: ['A saved screenshot'] },
+    ],
+    [
+        'stash:another:commit',
+        { images: [image], descriptions: ['A saved screenshot'] },
+    ],
 ]);
 
 let state: unknown[] = [];
@@ -56,11 +68,15 @@ vi.doMock('../../resources/js/lib/storage', () => ({
 
 vi.doMock('../../resources/js/lib/image-storage', () => ({
     readStoredImages: async () => new Map(storedImages),
-    writeStoredImages: (key: string, images: File[]) => {
+    writeStoredImages: (
+        key: string,
+        images: File[],
+        descriptions: string[],
+    ) => {
         if (images.length === 0) {
             storedImages.delete(key);
         } else {
-            storedImages.set(key, images);
+            storedImages.set(key, { images, descriptions });
         }
     },
     deleteStoredImages: (prefix: string) => {
@@ -93,6 +109,7 @@ test('restores series images, preserves them through part edits, and drops the c
         let draft = render();
         assert.deepEqual(draft.bodies, ['First part', 'Second part']);
         assert.deepEqual(draft.images, [image]);
+        assert.deepEqual(draft.descriptions, ['A saved screenshot']);
         assert.equal(draft.isRestored, true);
 
         draft.insertPart(1);
@@ -122,7 +139,10 @@ test('restores series images, preserves them through part edits, and drops the c
         assert.deepEqual(draft.images, []);
 
         draft.updateImages([image]);
-        assert.deepEqual(storedImages.get('stash:author:commit'), [image]);
+        assert.deepEqual(storedImages.get('stash:author:commit'), {
+            images: [image],
+            descriptions: [''],
+        });
         draft = render();
         draft.drop();
         draft = render();
@@ -195,7 +215,10 @@ test.each(['single', 'series'])(
 
             assert.equal(text(draft), token);
             assert.deepEqual(draft.images, [image]);
-            assert.deepEqual(storedImages.get(key), [image]);
+            assert.deepEqual(storedImages.get(key), {
+                images: [image],
+                descriptions: [''],
+            });
             assert.equal(bodies.has(key), false);
             assert.equal(bodies.has(`${key}:later`), false);
             assert.equal(useHasStash('author', name), true);
@@ -208,6 +231,93 @@ test.each(['single', 'series'])(
             assert.equal(useHasStash('author', name), false);
         } finally {
             clearStashes('author');
+            vi.unstubAllGlobals();
+        }
+    },
+);
+
+test.each(['single', 'series'])(
+    '%s drafts keep descriptions paired with repeated files through filtering, removal, restoration and clearing',
+    async (kind) => {
+        vi.resetModules();
+        const name = `described-${kind}`;
+        const key = `stash:described:${name}`;
+        const invalid = new File(['text'], 'invalid.txt', {
+            type: 'text/plain',
+        });
+        const second = image;
+        storedImages.set(key, {
+            images: [invalid, image, second],
+            descriptions: [
+                'Invalid file',
+                'First screenshot',
+                'Second screenshot',
+            ],
+        });
+        const hooks = await import('../../resources/js/hooks/use-stash');
+        const { useImageAttachments } =
+            await import('../../resources/js/hooks/use-image-attachments');
+        state = [];
+        vi.stubGlobal('window', { addEventListener() {} });
+        const render = () => {
+            cursor = 0;
+            const draft =
+                kind === 'series'
+                    ? hooks.useSeriesStash('described', name)
+                    : hooks.useStash('described', name);
+            const attachments = useImageAttachments(
+                draft.images,
+                draft.descriptions,
+                draft.updateImages,
+            );
+            return { draft, attachments };
+        };
+        try {
+            render();
+            await Promise.resolve();
+            let view = render();
+            assert.deepEqual(view.draft.images, [image, second]);
+            assert.deepEqual(view.draft.descriptions, [
+                'First screenshot',
+                'Second screenshot',
+            ]);
+            view.attachments.describe(1, 'Edited second screenshot');
+            view = render();
+            view.attachments.remove(0);
+            view = render();
+            assert.deepEqual(view.draft.images, [second]);
+            assert.deepEqual(view.draft.descriptions, [
+                'Edited second screenshot',
+            ]);
+            assert.deepEqual(storedImages.get(key), {
+                images: [second],
+                descriptions: ['Edited second screenshot'],
+            });
+            vi.resetModules();
+            const restoredHooks =
+                await import('../../resources/js/hooks/use-stash');
+            state = [];
+            const restore = () => {
+                cursor = 0;
+                return kind === 'series'
+                    ? restoredHooks.useSeriesStash('described', name)
+                    : restoredHooks.useStash('described', name);
+            };
+            restore();
+            await Promise.resolve();
+            let restored = restore();
+            assert.deepEqual(restored.images, [second]);
+            assert.deepEqual(restored.descriptions, [
+                'Edited second screenshot',
+            ]);
+            assert.equal(restored.isRestored, true);
+            restored.drop();
+            restored = restore();
+            assert.deepEqual(restored.images, []);
+            assert.deepEqual(restored.descriptions, []);
+            assert.equal(storedImages.has(key), false);
+        } finally {
+            hooks.clearStashes('described');
             vi.unstubAllGlobals();
         }
     },

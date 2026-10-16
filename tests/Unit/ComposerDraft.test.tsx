@@ -10,10 +10,12 @@ let cursor = 0;
 const draft = {
     bodies: ['A restored draft https://example.com'],
     images: [] as File[],
+    descriptions: [] as string[],
     isRestored: true,
     updateBody: vi.fn(),
-    updateImages: vi.fn((images: File[]) => {
+    updateImages: vi.fn((images: File[], descriptions: string[]) => {
         draft.images = images;
+        draft.descriptions = descriptions;
     }),
     insertPart: vi.fn(),
     removePart: vi.fn(),
@@ -97,12 +99,14 @@ beforeEach(() => {
     state = [];
     draft.bodies = ['A restored draft https://example.com'];
     draft.images = [];
+    draft.descriptions = [];
 });
 
 test.each([1, 2])(
     'preserves restored images and link cards for %i draft parts while preventing scheduling',
     (parts) => {
         draft.images = [image];
+        draft.descriptions = ['A restored screenshot'];
         if (parts === 2) {
             draft.bodies.push('The second part https://example.org');
         }
@@ -114,6 +118,7 @@ test.each([1, 2])(
         assert.deepEqual(form.props.transform(data), {
             ...data,
             images: [image],
+            image_descriptions: ['A restored screenshot'],
         });
         const preview = fields.find(
             (element) => element.type === ImagePickerPreviews,
@@ -158,6 +163,7 @@ test.each([1, 2])(
 
 test('removing restored images enables polls and successful posting resets the poll', () => {
     draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
     let view = render();
     const preview = view.fields.find(
         (element) => element.type === ImagePickerPreviews,
@@ -314,6 +320,7 @@ test('retains restored images while sensitive series text requires explicit appr
     const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
     draft.bodies = ['First part', token];
     draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
     const { form, fields } = render();
     const warning = fields.find(
         (element) => (element.props.findings as unknown[] | undefined)?.length,
@@ -328,5 +335,6 @@ test('retains restored images while sensitive series text requires explicit appr
     assert.deepEqual(form.props.transform({ bodies: draft.bodies }), {
         bodies: draft.bodies,
         images: [image],
+        image_descriptions: ['A restored screenshot'],
     });
 });

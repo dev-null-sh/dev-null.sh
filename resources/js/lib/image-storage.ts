@@ -1,3 +1,8 @@
+export type StoredImages = {
+    images: File[];
+    descriptions: string[];
+};
+
 const databaseName = 'devnull';
 const storeName = 'images';
 
@@ -49,8 +54,8 @@ const transact = async (
     });
 };
 
-export async function readStoredImages(): Promise<Map<string, File[]>> {
-    const stored = new Map<string, File[]>();
+export async function readStoredImages(): Promise<Map<string, StoredImages>> {
+    const stored = new Map<string, StoredImages>();
 
     await transact('readonly', (store) => {
         const request = store.openCursor();
@@ -63,10 +68,36 @@ export async function readStoredImages(): Promise<Map<string, File[]>> {
             }
 
             if (typeof cursor.key === 'string' && Array.isArray(cursor.value)) {
-                stored.set(
-                    cursor.key,
-                    cursor.value.filter((file) => file instanceof File),
-                );
+                const entries = cursor.value.flatMap((value: unknown) => {
+                    if (value instanceof File) {
+                        return [{ file: value, description: '' }];
+                    }
+
+                    if (
+                        typeof value === 'object' &&
+                        value !== null &&
+                        'file' in value &&
+                        value.file instanceof File
+                    ) {
+                        return [
+                            {
+                                file: value.file,
+                                description:
+                                    'description' in value &&
+                                    typeof value.description === 'string'
+                                        ? value.description
+                                        : '',
+                            },
+                        ];
+                    }
+
+                    return [];
+                });
+
+                stored.set(cursor.key, {
+                    images: entries.map((entry) => entry.file),
+                    descriptions: entries.map((entry) => entry.description),
+                });
             }
 
             cursor.continue();
@@ -76,12 +107,22 @@ export async function readStoredImages(): Promise<Map<string, File[]>> {
     return stored;
 }
 
-export function writeStoredImages(key: string, images: File[]): void {
+export function writeStoredImages(
+    key: string,
+    images: File[],
+    descriptions: string[],
+): void {
     void transact('readwrite', (store) => {
         if (images.length === 0) {
             store.delete(key);
         } else {
-            store.put(images, key);
+            store.put(
+                images.map((file, index) => ({
+                    file,
+                    description: descriptions[index] ?? '',
+                })),
+                key,
+            );
         }
     });
 }

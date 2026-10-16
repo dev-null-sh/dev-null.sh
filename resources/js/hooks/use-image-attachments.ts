@@ -5,6 +5,7 @@ import { pickImages } from '@/components/commit-image-picker';
 export type UseImageAttachmentsReturn = {
     readonly error: string | null;
     readonly attach: (files: File[]) => void;
+    readonly describe: (index: number, description: string) => void;
     readonly remove: (index: number) => void;
     readonly clear: () => void;
     readonly onPaste: (event: ClipboardEvent<HTMLElement>) => void;
@@ -16,11 +17,12 @@ const hasFiles = (dataTransfer: DataTransfer): boolean =>
     Array.from(dataTransfer.types).includes('Files');
 
 /**
- * Attaches images to a commit being written, picked, pasted, or dropped.
+ * Keeps the images attached to a commit being written, picked, pasted, or dropped, and the description written for each.
  */
 export function useImageAttachments(
     images: File[],
-    onChange: (images: File[]) => void,
+    descriptions: string[],
+    onChange: (images: File[], descriptions: string[]) => void,
 ): UseImageAttachmentsReturn {
     const [error, setError] = useState<string | null>(null);
 
@@ -31,19 +33,35 @@ export function useImageAttachments(
 
         const picked = pickImages(images, files);
 
-        onChange(picked.images);
+        onChange(
+            picked.images,
+            picked.images.map((_, index) => descriptions[index] ?? ''),
+        );
         setError(picked.error);
     };
 
     return {
         error,
         attach,
+        describe: (index, description) => {
+            onChange(
+                images,
+                images.map((_, position) =>
+                    position === index
+                        ? description
+                        : (descriptions[position] ?? ''),
+                ),
+            );
+        },
         remove: (index) => {
-            onChange(images.filter((_, position) => position !== index));
+            onChange(
+                images.filter((_, position) => position !== index),
+                descriptions.filter((_, position) => position !== index),
+            );
             setError(null);
         },
         clear: () => {
-            onChange([]);
+            onChange([], []);
             setError(null);
         },
         onPaste: (event) => {

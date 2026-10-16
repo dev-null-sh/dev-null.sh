@@ -11,21 +11,27 @@ use App\Http\Requests\DeleteCommitStarRequest;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 
 final readonly class CommitStarController
 {
-    public function store(CreateCommitStarRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitStar $action): RedirectResponse
+    public function store(CreateCommitStarRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitStar $action): JsonResponse
     {
         $action->handle($user, $commit);
 
-        return back();
+        return response()->json([
+            'starred' => true,
+            'stars_count' => $commit->stars()->count(),
+        ]);
     }
 
-    public function destroy(DeleteCommitStarRequest $request, #[CurrentUser] User $user, Commit $commit, DeleteCommitStar $action): RedirectResponse
+    public function destroy(DeleteCommitStarRequest $request, #[CurrentUser] User $user, Commit $commit, DeleteCommitStar $action): JsonResponse
     {
         $action->handle($user, $commit);
 
-        return back();
+        return response()->json([
+            'starred' => false,
+            'stars_count' => $commit->stars()->count(),
+        ]);
     }
 }
