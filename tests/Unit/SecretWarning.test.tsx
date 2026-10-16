@@ -1,7 +1,7 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vite-plus/test';
 import { createElement, useState } from 'react';
 import { renderToString } from 'react-dom/server';
 import { useSecretWarning } from '../../resources/js/hooks/use-secret-warning';
@@ -31,7 +31,7 @@ function run(steps: Step[]): void {
     renderToString(createElement(Scenario));
 }
 
-void test('allows ordinary text without asking for confirmation', () => {
+test('allows ordinary text without asking for confirmation', () => {
     run([
         {
             body: 'Shipped a quote with https://example.com/release',
@@ -43,7 +43,7 @@ void test('allows ordinary text without asking for confirmation', () => {
     ]);
 });
 
-void test('requires confirmation and consumes approval for a single submission', () => {
+test('requires confirmation and consumes approval for a single submission', () => {
     run([
         {
             body: token,
@@ -70,7 +70,7 @@ void test('requires confirmation and consumes approval for a single submission',
     ]);
 });
 
-void test('keeping editing does not approve the detected secret', () => {
+test('keeping editing does not approve the detected secret', () => {
     run([
         {
             body: token,

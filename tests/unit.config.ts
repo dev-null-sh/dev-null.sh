@@ -8,10 +8,6 @@ export default defineConfig({
         },
     },
     test: {
-        include: [
-            'tests/Unit/DraftStash.test.tsx',
-            'tests/Unit/ComposerDraft.test.tsx',
-            'tests/Unit/QuoteDraft.test.tsx',
-        ],
+        include: ['tests/Unit/**/*.test.{ts,tsx}'],
     },
 });

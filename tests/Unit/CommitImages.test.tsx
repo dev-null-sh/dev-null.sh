@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vite-plus/test';
 import type { ReactElement, SyntheticEvent } from 'react';
 import { CommitImages } from '../../resources/js/components/commit-images';
 import type { Commit } from '../../resources/js/types/commit';
@@ -56,11 +56,11 @@ function renderedImage() {
     }>;
 }
 
-void test('keeps the uploaded image until it fails to load', () => {
+test('keeps the uploaded image until it fails to load', () => {
     assert.equal(renderedImage().props.src, '/images/missing.webp');
 });
 
-void test('replaces a failed image with the site logo without retrying the fallback', () => {
+test('replaces a failed image with the site logo without retrying the fallback', () => {
     let replacements = 0;
     let source = '/images/missing.webp';
     const target = {
@@ -88,6 +88,6 @@ void test('replaces a failed image with the site logo without retrying the fallb
     assert.equal(replacements, 1);
 });
 
-void test('renders nothing when there are no uploaded images', () => {
+test('renders nothing when there are no uploaded images', () => {
     assert.equal(CommitImages({ commit: { ...commit, images: [] } }), null);
 });

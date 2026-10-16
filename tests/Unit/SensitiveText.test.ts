@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vite-plus/test';
 import {
     findSecrets,
     removeSecrets,
@@ -8,7 +8,7 @@ import {
 
 const githubToken = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
 
-await test('finds a pasted token and returns the exact selection after Unicode text', () => {
+test('finds a pasted token and returns the exact selection after Unicode text', () => {
     const body = `My key 🔑: ${githubToken}`;
     const findings = findSecrets(body);
     assert.equal(findings.length, 1);
@@ -16,7 +16,7 @@ await test('finds a pasted token and returns the exact selection after Unicode t
     assert.equal(stashableBody(body), '');
 });
 
-await test('removes multiple secrets without changing surrounding prose', () => {
+test('removes multiple secrets without changing surrounding prose', () => {
     const body = `Token ${githubToken}; database postgres://demo:LocalOnly7z9@localhost/demo`;
     const cleaned = removeSecrets(body);
     assert.equal(cleaned, 'Token [REDACTED]; database [REDACTED]');
@@ -24,14 +24,14 @@ await test('removes multiple secrets without changing surrounding prose', () => 
     assert.equal(stashableBody(cleaned), cleaned);
 });
 
-await test('detects a complete private key block', () => {
+test('detects a complete private key block', () => {
     const body =
         '-----BEGIN PRIVATE KEY-----\nAbCdEfGhIjKlMnOp1234567890\n-----END PRIVATE KEY-----';
     assert.ok(findSecrets(body).length > 0);
     assert.equal(stashableBody(body), '');
 });
 
-await test('preserves ordinary code and obvious placeholder examples', () => {
+test('preserves ordinary code and obvious placeholder examples', () => {
     for (const body of [
         '',
         'const id = "a1b2c3d4"; // hello world',

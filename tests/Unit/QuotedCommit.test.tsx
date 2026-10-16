@@ -1,7 +1,7 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vite-plus/test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import { QuotedCommit } from '../../resources/js/components/quoted-commit';
@@ -46,7 +46,16 @@ async function render(
     const result = await createInertiaApp({
         page: {
             component: 'quote',
-            props: { errors: {} },
+            props: {
+                errors: {},
+                auth: {
+                    user: null,
+                    isAdmin: false,
+                    log: null,
+                    unreadNotificationsCount: 0,
+                    pasteis: null,
+                },
+            },
             url: '/@author/quote',
             version: null,
             clearHistory: false,
@@ -68,7 +77,7 @@ async function render(
 }
 
 for (const isPreview of [false, true]) {
-    void test(`renders a quoted code block highlighted ${isPreview ? 'in the composer' : 'in the log'}`, async () => {
+    test(`renders a quoted code block highlighted ${isPreview ? 'in the composer' : 'in the log'}`, async () => {
         const body = await render(isPreview);
 
         assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
@@ -76,14 +85,14 @@ for (const isPreview of [false, true]) {
     });
 }
 
-void test('keeps the quote a single link', async () => {
+test('keeps the quote a single link', async () => {
     const body = await render(false);
 
     assert.equal(body.match(/<a\b/g)?.length, 1);
     assert.doesNotMatch(body, /<button\b/);
 });
 
-void test('shows the options of a quoted poll without letting anyone vote inside the quote', async () => {
+test('shows the options of a quoted poll without letting anyone vote inside the quote', async () => {
     const body = await render(false, { ...commit, poll });
 
     assert.match(body, /data-test="commit-poll"/);
@@ -93,7 +102,7 @@ void test('shows the options of a quoted poll without letting anyone vote inside
     assert.doesNotMatch(body, /<(input|button|fieldset|label)\b/);
 });
 
-void test('shows the results of a quoted poll once the viewer may see them', async () => {
+test('shows the results of a quoted poll once the viewer may see them', async () => {
     const body = await render(true, {
         ...commit,
         poll: {
