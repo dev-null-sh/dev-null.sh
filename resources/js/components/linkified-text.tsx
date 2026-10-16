@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import { UserPreview } from '@/components/user-preview';
 import { typedProse } from '@/lib/code';
 import { shortenUrl } from '@/lib/urls';
 import { show } from '@/routes/user';
@@ -125,14 +126,18 @@ function withMentions(text: string, offset: number): ReactNode[] {
     for (const match of text.matchAll(mentionPattern)) {
         parts.push(
             text.slice(position, match.index),
-            <Link
+            <UserPreview
                 key={`mention-${offset + match.index}`}
-                href={show({ username: match[1] })}
-                className="font-medium text-primary hover:underline"
-                data-test="mention"
+                user={{ username: match[1] }}
             >
-                {match[0]}
-            </Link>,
+                <Link
+                    href={show({ username: match[1] })}
+                    className="font-medium text-primary hover:underline"
+                    data-test="mention"
+                >
+                    {match[0]}
+                </Link>
+            </UserPreview>,
         );
 
         position = match.index + match[0].length;

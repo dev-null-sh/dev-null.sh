@@ -70,10 +70,15 @@ it('shows the ai decision on commits and their series parts', function (): void 
 
 it('keeps ai suggestions private and notifies the quoted author only after moderator approval', function (): void {
     config(['services.openai.key' => 'sk-test']);
-    Http::fake(['api.openai.com/v1/moderations' => Http::response(['results' => [[
-        'categories' => ['harassment' => true],
-        'category_scores' => ['harassment' => 0.9],
-    ]]])]);
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(['results' => [[
+            'categories' => ['harassment' => true],
+            'category_scores' => ['harassment' => 0.9],
+        ]]]),
+        'api.openai.com/v1/responses' => Http::response(['output' => [['content' => [
+            ['type' => 'output_text', 'text' => json_encode(['harmful' => false])],
+        ]]]]),
+    ]);
 
     $admin = User::factory()->create(['username' => 'admin']);
     $quoted = Commit::factory()->create([

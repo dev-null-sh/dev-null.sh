@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Pagination\Cursor;
 
 /**
  * @extends Builder<Commit>
@@ -98,6 +99,14 @@ final class CommitBuilder extends Builder
             ->exceptSeriesContinuations();
 
         return $this->addSelect([$this->qualifyColumn('*')])->selectSub($replies, 'replies_count');
+    }
+
+    public function withReplyPreviews(?User $user): self
+    {
+        $preview = fn (HasMany $relation): HasMany => $this->configureReplyPreview($relation, $user);
+
+        return $this->with(['replies' => $preview, 'quotes' => $preview])
+            ->afterQuery($this->attachReplyPreviews(...));
     }
 
     /**
@@ -216,5 +225,52 @@ final class CommitBuilder extends Builder
             ->withSavedState($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer);
+    }
+
+    /**
+     * @param  HasMany<Commit, Commit>  $relation
+     * @return HasMany<Commit, Commit>
+     */
+    private function configureReplyPreview(HasMany $relation, ?User $user): HasMany
+    {
+        return $relation
+            ->visibleInThreadTo($user)
+            ->exceptSeriesContinuations()
+            ->withVisibleReplyCount($user)
+            ->withCardDataFor($user)
+            ->without('quotedCommit')
+            ->newestFirst()
+            ->limit(1);
+    }
+
+    /**
+     * @param  Collection<int, Commit>  $commits
+     * @return Collection<int, Commit>
+     */
+    private function attachReplyPreviews(Collection $commits): Collection
+    {
+        foreach ($commits as $commit) {
+            if (! $commit->relationLoaded('replies') || ! $commit->relationLoaded('quotes')) {
+                continue;
+            }
+
+            $replies = $commit->replies->merge($commit->quotes)
+                ->sortByDesc(fn (Commit $reply): string => $reply->created_at->format('Y-m-d H:i:s.u').$reply->id)
+                ->take(1)
+                ->values();
+            $last = $replies->last();
+            $cursor = $last instanceof Commit && $commit->replies_count > $replies->count()
+                ? (new Cursor(['created_at' => $last->getRawOriginal('created_at'), 'id' => $last->id]))->encode()
+                : null;
+
+            $commit->setAttribute('reply_preview', [
+                'data' => $replies->map(fn (Commit $reply): array => $reply->toArray())->all(),
+                'next_cursor' => $cursor,
+                'prev_cursor' => null,
+            ]);
+            $commit->unsetRelation('replies')->unsetRelation('quotes');
+        }
+
+        return $commits;
     }
 }

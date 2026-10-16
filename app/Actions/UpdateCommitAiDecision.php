@@ -12,15 +12,22 @@ use Illuminate\Support\Facades\Storage;
 
 final readonly class UpdateCommitAiDecision
 {
-    public function __construct(private OpenAI $openAI)
-    {
+    /**
+     * A category scoring this much leaves no doubt, so the commit is rejected without waiting for a moderator.
+     */
+    private const float AUTO_REJECT_THRESHOLD = 0.95;
+
+    public function __construct(
+        private OpenAI $openAI,
+        private UpdateCommitStatuses $updateCommitStatuses,
+    ) {
         //
     }
 
     /**
-     * Asks the AI whether the commit, images included, should be approved. The decision is only a hint for
-     * moderators: the commit's status is left alone. Failures, such as timeouts or rate limits, are thrown, so the
-     * caller can try again later.
+     * Asks the AI whether the commit, images included, should be approved. The decision is mostly a hint for
+     * moderators: the commit is never approved on its own, but it is rejected, without a reason, when the AI is all
+     * but certain. Failures, such as timeouts or rate limits, are thrown, so the caller can try again later.
      */
     public function handle(Commit $commit): void
     {
@@ -28,7 +35,13 @@ final readonly class UpdateCommitAiDecision
             fn (CommitImage $image): string => 'data:image/webp;base64,'.base64_encode((string) Storage::get($image->path)),
         )->all());
 
-        $categories = $this->openAI->moderate($commit->body, $images);
+        $scores = $this->openAI->moderate($commit->body, $images);
+
+        $categories = array_keys($scores);
+
+        if ($this->openAI->isHarmful($commit->body)) {
+            $categories[] = 'harmful-text';
+        }
 
         if ($images !== [] && $this->openAI->showsMinors($images)) {
             $categories[] = 'minor-in-image';
@@ -38,5 +51,9 @@ final readonly class UpdateCommitAiDecision
             'ai_decision' => $categories === [] ? CommitStatus::Approved : CommitStatus::Rejected,
             'ai_categories' => $categories,
         ]);
+
+        if ($scores !== [] && max($scores) >= self::AUTO_REJECT_THRESHOLD) {
+            $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Rejected, onlyPending: true);
+        }
     }
 }
