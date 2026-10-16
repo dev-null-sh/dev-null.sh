@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateQuoteNotifications;
+use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
@@ -405,6 +408,48 @@ it('shows a deleted quoted commit as a tombstone', function (bool $signedIn): vo
             ->missing('commit.quoted_commit.user'))
         ->assertDontSee('Deleted words');
 })->with(['guest' => false, 'signed in' => true]);
+
+it('keeps account deletion quote tombstones private and removes their notifications', function (CommitStatus $status, bool $signedIn): void {
+    $author = User::factory()->create(['username' => 'deletedquoteauthor']);
+    $root = Commit::factory()->create();
+    $quoted = Commit::factory()->for($author)->for($root, 'parent')->create(['body' => 'Erased quoted words']);
+    Commit::factory()->for($quoted, 'parent')->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    $notifications = resolve(CreateQuoteNotifications::class);
+    $notifications->handle($quote);
+
+    expect($author->notifications()->sole()->commit_id)->toBe($quote->id);
+
+    $quoted->update(['status' => $status]);
+    resolve(DeleteUser::class)->handle($author);
+    $notifications->handle($quote);
+
+    expect(Notification::query()->exists())->toBeFalse()
+        ->and($quote->refresh()->quoted_commit_id)->toBe($quoted->id);
+
+    if ($signedIn) {
+        $this->actingAs(User::factory()->create());
+    }
+
+    $response = $this->get(route('commit.show', [$quote->user, $quote]));
+
+    $response->assertOk()
+        ->assertDontSee('deletedquoteauthor')
+        ->assertDontSee('Erased quoted words')
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit_id', $quoted->id)
+            ->missing('commit.quoted_commit.body')
+            ->missing('commit.quoted_commit.user'));
+
+    if ($status === CommitStatus::Approved) {
+        $response->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit.id', $quoted->id)
+            ->where('commit.quoted_commit.deleted_at', fn (string $deletedAt): bool => $deletedAt !== ''));
+    } else {
+        $response->assertInertia(fn ($page) => $page->where('commit.quoted_commit', null));
+    }
+})->with(CommitStatus::cases())->with(['guest' => false, 'signed in' => true]);
 
 it('never shows a quoted commit that is no longer visible to the viewer', function (CommitStatus $status, bool $signedIn): void {
     $quoted = Commit::factory()->create(['body' => 'Words under review']);

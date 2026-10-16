@@ -2,11 +2,32 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
 use App\Models\Commit;
 use App\Models\User;
 
 it('requires authentication to download personal data', function (): void {
     $this->get(route('export'))->assertRedirectToRoute('home');
+});
+
+it('exports a surviving quote reference without the deleted authors tombstone content', function (): void {
+    $user = User::factory()->create();
+    $deleted = User::factory()->create(['username' => 'deletedquoteauthor']);
+    $root = Commit::factory()->create();
+    $quoted = Commit::factory()->for($deleted)->for($root, 'parent')->create(['body' => 'Erased quoted words']);
+    $reply = Commit::factory()->for($user)->for($quoted, 'parent')->create();
+    $quote = Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+
+    resolve(DeleteUser::class)->handle($deleted);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+    $commits = collect($data['commits'])->keyBy('id');
+
+    expect($commits->keys()->sort()->values()->all())->toBe(collect([$reply->id, $quote->id])->sort()->values()->all())
+        ->and($commits[$quote->id]['quoted_commit_id'])->toBe($quoted->id)
+        ->and($commits[$reply->id]['parent_id'])->toBe($quoted->id)
+        ->and($response->streamedContent())->not->toContain('deletedquoteauthor', 'Erased quoted words');
 });
 
 it('downloads a versioned private JSON file with an explicit profile and empty lists', function (): void {
