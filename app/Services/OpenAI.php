@@ -99,6 +99,6 @@ final readonly class OpenAI
     {
         [$header, $base64] = explode(',', $imageDataUrl, 2);
 
-        return Image::fromBase64($base64, substr($header, 5, (int) strpos($header, ';') - 5));
+        return Image::fromBase64($base64, mb_substr($header, 5, (int) mb_strpos($header, ';') - 5));
     }
 }
