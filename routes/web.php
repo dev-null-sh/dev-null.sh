@@ -22,6 +22,7 @@ use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SafetyController;
+use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\UserBlockController;
@@ -119,6 +120,11 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])->name('bookmark.destroy');
 
     // Commit...
+    Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
+    Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
+        ->middleware(ThrottleCommits::class)->name('scheduled-commit.store');
+    Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
+
     Route::post('commits', [CommitController::class, 'store'])
         ->middleware(ThrottleCommits::class)
         ->name('commit.store');

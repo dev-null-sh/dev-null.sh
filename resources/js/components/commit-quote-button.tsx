@@ -159,7 +159,7 @@ function QuoteComposer({
                         onClose();
                     }
                 }}
-                className="flex gap-3"
+                className="flex min-w-0 gap-3"
             >
                 {({ processing, errors }) => (
                     <>

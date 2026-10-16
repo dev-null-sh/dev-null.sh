@@ -1,0 +1,208 @@
+/// <reference types="node" />
+import assert from 'node:assert/strict';
+import * as React from 'react';
+import type { ReactElement, ReactNode } from 'react';
+import { beforeEach, test, vi } from 'vite-plus/test';
+
+const image = new File(['restored'], 'draft.png', { type: 'image/png' });
+let state: unknown[] = [];
+let cursor = 0;
+const draft = {
+    bodies: ['A restored draft https://example.com'],
+    images: [] as File[],
+    isRestored: true,
+    updateBody: vi.fn(),
+    updateImages: vi.fn((images: File[]) => {
+        draft.images = images;
+    }),
+    insertPart: vi.fn(),
+    removePart: vi.fn(),
+    drop: vi.fn(),
+};
+const user = { id: 'viewer', username: 'viewer', lane: 1 };
+
+vi.doMock('react', () => ({
+    ...React,
+    useState: (initial: unknown) => {
+        const index = cursor++;
+        if (!(index in state)) {
+            state[index] = typeof initial === 'function' ? initial() : initial;
+        }
+        return [
+            state[index],
+            (value: unknown) => {
+                state[index] =
+                    typeof value === 'function' ? value(state[index]) : value;
+            },
+        ];
+    },
+}));
+vi.doMock('@inertiajs/react', async () => ({
+    ...(await vi.importActual('@inertiajs/react')),
+    usePage: () => ({ props: { auth: { user, isAdmin: false } } }),
+}));
+vi.doMock('../../resources/js/hooks/use-user', () => ({
+    useUser: () => ({ user }),
+}));
+vi.doMock('../../resources/js/hooks/use-stash', () => ({
+    useSeriesStash: () => draft,
+    moveCaretToEnd: vi.fn(),
+}));
+
+const { CommitComposer } =
+    await import('../../resources/js/components/commit-composer');
+const { ImagePickerButton, ImagePickerPreviews } =
+    await import('../../resources/js/components/commit-image-picker');
+const { MentionTextarea } =
+    await import('../../resources/js/components/mention-textarea');
+const { LinkCardPicker } =
+    await import('../../resources/js/components/link-card-picker');
+
+type Element = ReactElement<Record<string, unknown>>;
+
+function elements(node: ReactNode): Element[] {
+    if (!React.isValidElement(node)) {
+        return [];
+    }
+    const element = node as Element;
+    return [
+        element,
+        ...React.Children.toArray(element.props.children as ReactNode).flatMap(
+            elements,
+        ),
+    ];
+}
+
+function render() {
+    cursor = 0;
+    const form = CommitComposer();
+    const fields = elements(
+        form.props.children({ processing: false, errors: {} }),
+    );
+    return { form, fields };
+}
+
+beforeEach(() => {
+    vi.clearAllMocks();
+    state = [];
+    draft.bodies = ['A restored draft https://example.com'];
+    draft.images = [];
+});
+
+test.each([1, 2])(
+    'preserves restored images and link cards for %i draft parts while preventing scheduling',
+    (parts) => {
+        draft.images = [image];
+        if (parts === 2) {
+            draft.bodies.push('The second part https://example.org');
+        }
+        const { form, fields } = render();
+        const data = {
+            body: draft.bodies[0],
+            link_preview_url: 'https://example.com',
+        };
+        assert.deepEqual(form.props.transform(data), {
+            ...data,
+            images: [image],
+        });
+        const preview = fields.find(
+            (element) => element.type === ImagePickerPreviews,
+        )!;
+        assert.deepEqual(preview.props.images, [image]);
+        const picker = fields.find(
+            (element) => element.type === ImagePickerButton,
+        )!;
+        assert.equal(picker.props.count, 1);
+        const schedule = fields.find(
+            (element) => element.props['aria-controls'] === 'commit-schedule',
+        )!;
+        assert.equal(schedule.props.disabled, true);
+        if (parts === 2) {
+            assert.deepEqual(
+                fields
+                    .filter((element) => element.type === LinkCardPicker)
+                    .map((element) => element.props.name),
+                ['link_preview_urls[0]', 'link_preview_urls[1]'],
+            );
+        }
+
+        form.props.onSuccess({ flash: {} });
+        assert.equal(draft.drop.mock.calls.length, 0);
+        assert.deepEqual(draft.images, [image]);
+        vi.stubGlobal('requestAnimationFrame', vi.fn());
+        try {
+            form.props.onSuccess({ flash: { committed: { id: 'created' } } });
+            assert.deepEqual(draft.images, []);
+            assert.equal(draft.drop.mock.calls.length, 1);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    },
+);
+
+test('schedules plain text in UTC and keeps pasted images visible until removed before scheduling', () => {
+    let view = render();
+    const schedule = view.fields.find(
+        (element) => element.props['aria-controls'] === 'commit-schedule',
+    )!;
+    assert.equal(schedule.props.disabled, false);
+    (schedule.props.onClick as () => void)();
+    view = render();
+    const date = '2026-10-17T10:30';
+    const dateInput = view.fields.find(
+        (element) => element.props.id === 'scheduled-at',
+    )!;
+    const setCustomValidity = vi.fn();
+    (dateInput.props.onChange as (event: unknown) => void)({
+        target: { value: date, setCustomValidity },
+    });
+    assert.deepEqual(setCustomValidity.mock.lastCall, ['']);
+    view = render();
+    assert.deepEqual(view.form.props.transform({ body: draft.bodies[0] }), {
+        body: draft.bodies[0],
+        scheduled_at: new Date(date)
+            .toISOString()
+            .replace(/\.\d{3}Z$/, '+00:00'),
+    });
+    assert.equal(
+        view.fields.some((element) => element.type === ImagePickerButton),
+        false,
+    );
+    assert.equal(
+        view.fields.some((element) => element.type === LinkCardPicker),
+        false,
+    );
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    const preventDefault = vi.fn();
+    (textarea.props.onPaste as (event: unknown) => void)({
+        clipboardData: { files: [image] },
+        preventDefault,
+    });
+    assert.equal(preventDefault.mock.calls.length, 1);
+    view = render();
+    const submit = view.fields.find(
+        (element) => element.props['data-test'] === 'create-commit-button',
+    )!;
+    assert.equal(submit.props.disabled, true);
+    const preview = view.fields.find(
+        (element) => element.type === ImagePickerPreviews,
+    )!;
+    assert.deepEqual(preview.props.images, [image]);
+    assert.ok(
+        view.fields.some(
+            (element) =>
+                element.props.message ===
+                "Images can't be scheduled yet. Remove them to schedule this commit.",
+        ),
+    );
+    (preview.props.onRemove as (index: number) => void)(0);
+    view = render();
+    assert.equal(
+        view.fields.find(
+            (element) => element.props['data-test'] === 'create-commit-button',
+        )!.props.disabled,
+        false,
+    );
+});
