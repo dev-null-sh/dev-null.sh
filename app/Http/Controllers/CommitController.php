@@ -14,6 +14,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitRepliesQuery;
+use App\Services\Urls;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
@@ -92,7 +93,7 @@ final readonly class CommitController
         return Inertia::render('welcome')->withViewData(['preview' => [
             'type' => 'article',
             'title' => $title,
-            'description' => Str::limit(Str::squish($commit->body), 200, '…', preserveWords: true),
+            'description' => Str::limit(Str::squish(resolve(Urls::class)->withShortenedUrls($commit->body)), 200, '…', preserveWords: true),
             'url' => route('commit.show', [$user, $commit]),
             'image' => route('commit-open-graph-image.show', ['user' => $user, 'commit' => $commit, 'v' => $commit->openGraphImageVersion()]),
         ]]);
