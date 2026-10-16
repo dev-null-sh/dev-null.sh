@@ -7,6 +7,7 @@ use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
@@ -85,6 +86,7 @@ it('commits with the key from the secret, signed so devnull accepts it', functio
     $user = User::factory()->create();
     SshKey::factory()->for($user)->withPublicKey($this->publicKey)->create();
     fakeGitHubSshKeys($user, signingKeys: [$this->publicKey]);
+    Http::fake(['github.com/nunomaduro/pest/releases/*' => Http::response(status: 404)]);
 
     $this->call('POST', route('cli-commit.store'), server: [
         'CONTENT_TYPE' => 'text/plain; charset=utf-8',
