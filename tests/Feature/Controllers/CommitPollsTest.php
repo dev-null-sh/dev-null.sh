@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
 use App\Enums\Log;
 use App\Enums\PollDuration;
 use App\Jobs\UnfurlLink;
@@ -252,6 +253,34 @@ it('shows public polls to guests while hiding open results and voter identities'
         ->assertDontSee('private-voter')
         ->assertDontSee($voter->id);
 })->with(['commit', 'ancestor', 'profile', 'pinned'])->with([false, true]);
+
+it('keeps guest poll results private around an authorless account deletion tombstone', function (): void {
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+    $voter = User::factory()->create(['username' => 'private-voter']);
+    PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
+    $deleted = User::factory()->create(['username' => 'deleted-author']);
+    $parent = Commit::factory()->for($deleted)->for($poll->commit, 'parent')->create(['body' => 'Deleted reply body']);
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+
+    resolve(DeleteUser::class)->handle($deleted);
+
+    $this->get(route('commit.show', [$reply->user, $reply]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('auth.user', null)
+            ->has('ancestors', 2)
+            ->where('ancestors.0.poll.has_voted', false)
+            ->where('ancestors.0.poll.total_votes', null)
+            ->where('ancestors.0.poll.options.0.votes_count', null)
+            ->where('ancestors.1.id', $parent->id)
+            ->missing('ancestors.1.user')
+            ->missing('ancestors.1.body')
+            ->missing('ancestors.1.poll'))
+        ->assertDontSee('deleted-author')
+        ->assertDontSee('Deleted reply body')
+        ->assertDontSee('private-voter')
+        ->assertDontSee($voter->id);
+});
 
 it('keeps poll details out of public read endpoints', function (string $endpoint): void {
     $poll = Poll::factory()

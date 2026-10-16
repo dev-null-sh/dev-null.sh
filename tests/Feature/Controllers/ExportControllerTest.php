@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
 use App\Models\Commit;
 use App\Models\Poll;
 use App\Models\PollVote;
@@ -143,6 +144,27 @@ it('exports where each commit sits in its series', function (): void {
         ->series_id->toBe($parts[0]->series_id)
         ->series_position->toBe(2)
         ->series_size->toBe(2);
+});
+
+it('exports surviving replies and polls after another account is deleted', function (): void {
+    $user = User::factory()->create();
+    $deleted = User::factory()->create();
+    $removed = Poll::factory()->for(Commit::factory()->for($deleted))->withOptions('Removed A', 'Removed B')->create();
+    PollVote::factory()->for($removed->options[0], 'option')->for($user)->create();
+    $kept = Poll::factory()->for(Commit::factory()->for($user))->withOptions('Kept A', 'Kept B')->create();
+    $parent = Commit::factory()->for($deleted)->for(Commit::factory(), 'parent')->create();
+    $reply = Commit::factory()->for($user)->for($parent, 'parent')->create();
+
+    resolve(DeleteUser::class)->handle($deleted);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect(collect($data['commits'])->keyBy('id')->get($reply->id)['parent_id'])->toBe($parent->id)
+        ->and(array_column($data['polls'], 'commit_id'))->toBe([$kept->commit_id])
+        ->and($data['polls'][0]['options'])->toBe(['Kept A', 'Kept B'])
+        ->and($data['poll_votes'])->toBe([])
+        ->and($response->streamedContent())->not->toContain('Removed A', 'Removed B', $deleted->username);
 });
 
 it('exports following usernames without private identity fields or followers', function (): void {
