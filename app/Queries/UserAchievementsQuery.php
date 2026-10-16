@@ -50,7 +50,7 @@ final readonly class UserAchievementsQuery
      *     }>
      * }
      */
-    public function get(User $user, User $viewer, ?array $streaks = null): array
+    public function get(User $user, ?User $viewer, ?array $streaks = null): array
     {
         $visibleCommitsQuery = $user->commits()->visibleTo($viewer);
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Log;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -12,7 +13,9 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property-read string $id
@@ -25,8 +28,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read string|null $location
  * @property-read string|null $website
  * @property-read string|null $company
+ * @property-read bool $has_sponsors_listing
  * @property-read int|null $preferred_lane
  * @property-read string|null $pinned_commit_id
+ * @property-read Log $log
+ * @property-read CarbonInterface|null $onboarded_at
+ * @property-read CarbonInterface|null $github_follows_imported_at
  * @property-read string|null $remember_token
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -34,6 +41,10 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read Collection<int, Commit> $starredCommits
  * @property-read Collection<int, User> $following
  * @property-read Collection<int, User> $followers
+ * @property-read Collection<int, User> $muting
+ * @property-read Collection<int, User> $mutedBy
+ * @property-read Collection<int, User> $blocking
+ * @property-read Collection<int, User> $blockers
  * @property-read Collection<int, Notification> $notifications
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read int $commits_count
@@ -46,6 +57,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
     'remember_token',
     'preferred_lane',
     'pinned_commit_id',
+    'log',
+    'onboarded_at',
+    'github_follows_imported_at',
 ])]
 final class User extends Authenticatable
 {
@@ -53,6 +67,13 @@ final class User extends Authenticatable
     use HasFactory;
 
     use HasUuids;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'log' => Log::Following->value,
+    ];
 
     /**
      * @return array<string, string>
@@ -70,8 +91,12 @@ final class User extends Authenticatable
             'location' => 'string',
             'website' => 'string',
             'company' => 'string',
+            'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
             'pinned_commit_id' => 'string',
+            'log' => Log::class,
+            'onboarded_at' => 'datetime',
+            'github_follows_imported_at' => 'datetime',
             'remember_token' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -124,6 +149,38 @@ final class User extends Authenticatable
     }
 
     /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function muting(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'mutes', 'muter_id', 'muted_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function mutedBy(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'mutes', 'muted_id', 'muter_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function blocking(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'blocks', 'blocker_id', 'blocked_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function blockers(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'blocks', 'blocked_id', 'blocker_id')->withTimestamps();
+    }
+
+    /**
      * @return HasMany<Notification, $this>
      */
     public function notifications(): HasMany
@@ -137,6 +194,11 @@ final class User extends Authenticatable
     public function getAuthPassword(): string
     {
         return '';
+    }
+
+    public function isOnboarded(): bool
+    {
+        return $this->onboarded_at !== null;
     }
 
     public function isAdmin(): bool
@@ -189,6 +251,54 @@ final class User extends Authenticatable
     public function isFollowing(self $user): bool
     {
         return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
+    }
+
+    public function isMuting(self $user): bool
+    {
+        return $this->muting()->newPivotQuery()->where('muted_id', $user->id)->exists();
+    }
+
+    public function isBlocking(self $user): bool
+    {
+        return $this->blocking()->newPivotQuery()->where('blocked_id', $user->id)->exists();
+    }
+
+    /**
+     * A block works both ways, so either one blocking the other keeps them apart.
+     */
+    public function hasBlockWith(self $user): bool
+    {
+        return $this->blockerIdWith($user) !== null;
+    }
+
+    /**
+     * Which of the two blocked the other, if either did.
+     */
+    public function blockerIdWith(self $user): ?string
+    {
+        $blockerId = DB::table('blocks')
+            ->where(fn (QueryBuilder $query): QueryBuilder => $query->where('blocker_id', $this->id)->where('blocked_id', $user->id))
+            ->orWhere(fn (QueryBuilder $query): QueryBuilder => $query->where('blocker_id', $user->id)->where('blocked_id', $this->id))
+            ->value('blocker_id');
+
+        return is_string($blockerId) ? $blockerId : null;
+    }
+
+    /**
+     * The ids of everyone the user blocks or is blocked by, as a subquery.
+     */
+    public function idsAcrossBlocks(): QueryBuilder
+    {
+        return $this->blocking()->newPivotQuery()->select('blocked_id')
+            ->union($this->blockers()->newPivotQuery()->select('blocker_id'));
+    }
+
+    /**
+     * The ids of everyone the user mutes, as a subquery.
+     */
+    public function mutedIds(): QueryBuilder
+    {
+        return $this->muting()->newPivotQuery()->select('muted_id');
     }
 
     public function lane(): int

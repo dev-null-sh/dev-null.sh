@@ -1,2 +1,14 @@
 User-agent: *
-Disallow:
+Disallow: /log/
+Disallow: /notifications
+Disallow: /saved
+Disallow: /moderation
+Disallow: /onboarding
+Disallow: /settings
+Disallow: /search/
+Disallow: /commits/
+Disallow: /login
+Disallow: /auth/
+Disallow: /*/preview$
+
+Sitemap: https://dev-null.sh/sitemap.xml

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Commit;
+use App\Models\User;
 use App\Services\OpenGraphCanvas;
+use App\Services\Urls;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
@@ -30,26 +32,30 @@ final readonly class CreateCommitOpenGraphImage
      */
     private const array BODY_SIZES = [[56, 72], [48, 64], [40, 56], [34, 48], [32, 44]];
 
-    public function handle(Commit $commit): string
+    public function __construct(private Urls $urls)
+    {
+        //
+    }
+
+    public function handle(User $user, Commit $commit): string
     {
         $commit->loadPublicPreview();
 
         return Cache::remember(
             "open-graph-image:commit:{$commit->id}:{$commit->openGraphImageVersion()}",
             now()->addHour(),
-            fn (): string => $this->render($commit),
+            fn (): string => $this->render($user, $commit),
         );
     }
 
-    private function render(Commit $commit): string
+    private function render(User $user, Commit $commit): string
     {
         $canvas = new OpenGraphCanvas;
-        $user = $commit->user;
         $lane = $canvas->lane($user);
-        $replyingTo = $commit->parent?->user->username;
+        $replyingTo = $commit->parent?->user?->username;
 
         $headerHeight = self::AVATAR_SIZE + ($replyingTo === null ? 0 : self::REPLYING_TO_HEIGHT) + self::BODY_GAP;
-        [$size, $lineHeight, $body] = $this->fit($canvas, $commit->body, OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);
+        [$size, $lineHeight, $body] = $this->fit($canvas, $this->urls->withShortenedUrls($commit->body), OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);
 
         $top = max(self::MIN_TOP, intdiv(OpenGraphCanvas::FOOTER_RULE_Y - $headerHeight - count($body) * $lineHeight, 2));
 

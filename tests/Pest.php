@@ -2,8 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitSeries;
 use App\Dto\SshPublicKey;
+use App\Enums\CommitStatus;
+use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
@@ -56,6 +60,33 @@ function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []
 }
 
 /**
+ * @param  list<User>  $following
+ * @param  list<User>  $followers
+ */
+function fakeGitHubFollows(User $user, array $following = [], array $followers = []): void
+{
+    $toResponse = fn (array $users): array => array_map(
+        fn (User $user): array => ['id' => (int) $user->github_id, 'login' => $user->username],
+        $users,
+    );
+
+    Http::fake([
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
+        "api.github.com/users/{$user->username}/following*" => Http::response($toResponse($following)),
+        "api.github.com/users/{$user->username}/followers*" => Http::response($toResponse($followers)),
+    ]);
+}
+
+function fakeGitHubSponsorsListing(bool $hasSponsorsListing = false): void
+{
+    Http::fake([
+        'api.github.com/graphql' => Http::response(['data' => ['viewer' => [
+            'hasSponsorsListing' => $hasSponsorsListing,
+        ]]]),
+    ]);
+}
+
+/**
  * @return array{payload: string, signature: string}
  */
 function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = ''): array
@@ -79,4 +110,19 @@ function fakeAvatar(): string
     imagepng($image);
 
     return (string) ob_get_clean();
+}
+
+/**
+ * @return Collection<int, Commit>
+ */
+function commitSeries(?User $user = null, int $size = 3, CommitStatus $status = CommitStatus::Approved): Collection
+{
+    $parts = resolve(CreateCommitSeries::class)->handle(
+        $user ?? User::factory()->create(),
+        array_map(fn (int $position): string => "Part {$position} of the series", range(1, $size)),
+    );
+
+    Commit::query()->whereKey($parts->modelKeys())->update(['status' => $status]);
+
+    return $parts->fresh();
 }
