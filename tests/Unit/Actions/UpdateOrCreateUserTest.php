@@ -161,6 +161,11 @@ it('unmarks users without a public sponsors listing', function (?bool $isPublic)
 ]);
 
 it('keeps the last known sponsors listing when github cannot say', function (Closure $response): void {
+    $stale = User::factory()->create([
+        'github_id' => '1',
+        'username' => 'octocat',
+    ]);
+
     $existing = User::factory()->trusted()->create([
         'github_id' => '583231',
         'has_sponsors_listing' => true,
@@ -181,6 +186,8 @@ it('keeps the last known sponsors listing when github cannot say', function (Clo
         ->username->toBe('octocat')
         ->has_sponsors_listing->toBeTrue()
         ->is_trusted->toBeTrue();
+
+    expect($stale->refresh()->username)->toBe('_renamed-1');
 })->with([
     'server error' => fn () => Http::response(status: 502),
     'graphql error' => fn () => Http::response(['errors' => [['message' => 'API rate limit exceeded']]]),
@@ -198,3 +205,31 @@ it('creates users without a sponsors listing when github cannot say', function (
 
     expect($user->refresh()->has_sponsors_listing)->toBeFalse();
 });
+
+it('frees a username still held by a stale user who renamed on github', function (string $staleUsername): void {
+    fakeGitHubSponsorsListing(isPublic: true);
+
+    $stale = User::factory()->trusted()->create([
+        'github_id' => '1',
+        'username' => $staleUsername,
+        'bio' => 'Renamed away',
+    ]);
+
+    $action = resolve(UpdateOrCreateUser::class);
+
+    $user = $action->handle(GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    expect($user->username)->toBe('octocat')
+        ->and($user->github_id)->toBe('583231')
+        ->and($user->has_sponsors_listing)->toBeTrue()
+        ->and($user->is_trusted)->toBeFalse()
+        ->and($user->is($stale))->toBeFalse()
+        ->and(User::query()->count())->toBe(2)
+        ->and($stale->refresh()->username)->toBe('_renamed-1')
+        ->and($stale->github_id)->toBe('1')
+        ->and($stale->bio)->toBe('Renamed away')
+        ->and($stale->is_trusted)->toBeTrue();
+})->with(['octocat', 'OctoCat']);
