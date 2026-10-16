@@ -1,4 +1,5 @@
 import type { InertiaLinkProps } from '@inertiajs/react';
+import { router } from '@inertiajs/react';
 import type { ClassValue } from 'clsx';
 import { clsx } from 'clsx';
 import type { MouseEvent } from 'react';
@@ -175,7 +176,7 @@ export function withViewTransition(
  * A click opens the commit or reply unless it lands on something interactive,
  * inside a nested commit, reply or popover, or ends a text selection.
  */
-export function isClickOnCard(event: MouseEvent<HTMLElement>): boolean {
+function isClickOnCard(event: MouseEvent<HTMLElement>): boolean {
     const target = event.target;
 
     if (
@@ -194,4 +195,27 @@ export function isClickOnCard(event: MouseEvent<HTMLElement>): boolean {
     }
 
     return !window.getSelection()?.toString();
+}
+
+/**
+ * Opens a commit or reply from a click on its card, in a new tab on a
+ * Cmd/Ctrl-click or middle-click like a regular link.
+ */
+export function openFromCardClick(
+    event: MouseEvent<HTMLElement>,
+    href: NonNullable<InertiaLinkProps['href']>,
+): void {
+    if (!isClickOnCard(event)) {
+        return;
+    }
+
+    if (event.metaKey || event.ctrlKey || event.button === 1) {
+        window.open(toUrl(href), '_blank', 'noopener');
+
+        return;
+    }
+
+    if (event.button === 0) {
+        router.visit(href);
+    }
 }

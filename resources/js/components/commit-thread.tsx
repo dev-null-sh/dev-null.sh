@@ -51,7 +51,7 @@ import {
     characterCount,
     cn,
     formatRelativeTime,
-    isClickOnCard,
+    openFromCardClick,
     isDeleted,
     laneOf,
 } from '@/lib/utils';
@@ -710,13 +710,8 @@ function CommitReply({
         commit: reply,
     });
 
-    const openReply = (event: MouseEvent<HTMLElement>) => {
-        if (!isClickOnCard(event)) {
-            return;
-        }
-
-        router.visit(permalink);
-    };
+    const openReply = (event: MouseEvent<HTMLElement>) =>
+        openFromCardClick(event, permalink);
 
     const deleteReply = async () => {
         try {
@@ -738,6 +733,7 @@ function CommitReply({
     return (
         <article
             onClick={openReply}
+            onAuxClick={openReply}
             className="relative cursor-pointer pt-2.5 pl-(--indent)"
             data-reply
             data-test="reply"

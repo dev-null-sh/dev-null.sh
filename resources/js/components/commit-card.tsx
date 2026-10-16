@@ -25,10 +25,10 @@ import {
     cn,
     formatFullDateTime,
     formatRelativeTime,
-    isClickOnCard,
     isDeleted,
     isWithinSeconds,
     laneColor,
+    openFromCardClick,
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -111,17 +111,13 @@ export function CommitCard({
         );
     };
 
-    const openCommit = (event: MouseEvent<HTMLElement>) => {
-        if (!isClickOnCard(event)) {
-            return;
-        }
-
-        router.visit(permalink);
-    };
+    const openCommit = (event: MouseEvent<HTMLElement>) =>
+        openFromCardClick(event, permalink);
 
     return (
         <article
             onClick={openCommit}
+            onAuxClick={openCommit}
             className={cn(
                 'grid cursor-pointer scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
                 { 'bg-primary-soft/60': isHighlighted },
