@@ -1,5 +1,6 @@
 import type { FocusEvent } from 'react';
-import { useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { stashableBody } from '@/lib/sensitive-text';
 import { readStorage, storedKeys, writeStorage } from '@/lib/storage';
 
 export type UseStashReturn = {
@@ -41,7 +42,7 @@ const notify = (): void => listeners.forEach((listener) => listener());
 
 const flush = (): void => {
     clearTimeout(timeout);
-    pending.forEach((body, key) => writeStorage(key, body));
+    pending.forEach((body, key) => writeStorage(key, stashableBody(body)));
     pending.clear();
     notify();
 };
@@ -105,6 +106,12 @@ export function useStash(userId: string, name: string): UseStashReturn {
     const [body, setBody] = useState(() => read(key));
     const [isRestored, setIsRestored] = useState(() => body !== '');
 
+    useEffect(() => {
+        if (body !== '' && stashableBody(body) === '') {
+            discard(key);
+        }
+    }, [body, key]);
+
     const updateBody = (next: string): void => {
         setBody(next);
 
@@ -115,7 +122,11 @@ export function useStash(userId: string, name: string): UseStashReturn {
             return;
         }
 
-        schedule(key, next);
+        if (stashableBody(next) === '') {
+            discard(key);
+        } else {
+            schedule(key, next);
+        }
     };
 
     const drop = (): void => {
@@ -153,10 +164,24 @@ export function useSeriesStash(
         bodies.some((body) => body !== ''),
     );
 
+    useEffect(() => {
+        if (stashableBody(bodies) === '') {
+            discard(key);
+            discard(laterKey);
+        }
+    }, [bodies, key, laterKey]);
+
     const store = (next: string[]): void => {
         const [first = '', ...later] = next;
 
         setBodies(next);
+
+        if (stashableBody(next) === '') {
+            discard(key);
+            discard(laterKey);
+
+            return;
+        }
 
         if (first === '') {
             discard(key);
