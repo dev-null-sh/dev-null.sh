@@ -6,7 +6,6 @@ namespace App\Queries;
 
 use App\Models\Notification;
 use App\Models\User;
-use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -20,14 +19,11 @@ final readonly class NotificationGroupsQuery
     private const int STACKED_ACTORS = 3;
 
     /** @return CursorPaginator<int, Notification> */
-    public function paginate(User $user, string $type = 'all', ?CarbonImmutable $through = null): CursorPaginator
+    public function paginate(User $user, string $type = 'all'): CursorPaginator
     {
-        $query = $this->groupRepresentatives($user, $type);
-        $perPage = $through instanceof CarbonImmutable
-            ? max(self::PER_PAGE, (clone $query)->where('created_at', '>=', $through)->count())
-            : self::PER_PAGE;
-
-        $groups = $query->cursorPaginate($perPage)->appends(request()->except('through'));
+        $groups = $this->groupRepresentatives($user, $type)
+            ->cursorPaginate(self::PER_PAGE)
+            ->appends(request()->only('type'));
 
         $this->loadGroupRelations($user, $type, array_values($groups->items()));
 
