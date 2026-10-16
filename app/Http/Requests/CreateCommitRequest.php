@@ -10,6 +10,7 @@ use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
+use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -17,6 +18,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\File;
+use Illuminate\Validation\Rules\In;
 
 final class CreateCommitRequest extends FormRequest
 {
@@ -28,7 +30,7 @@ final class CreateCommitRequest extends FormRequest
     /**
      * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
      *
-     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum>>
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>>
      */
     public function rules(): array
     {
@@ -38,6 +40,7 @@ final class CreateCommitRequest extends FormRequest
         return [
             'body' => ['required', 'string', 'min:3', 'max:280'],
             'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
+            'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
             'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],
             'poll.options' => ['required_with:poll', 'list', 'min:'.NewPoll::MinOptions, 'max:'.NewPoll::MaxOptions],
             'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
@@ -64,6 +67,28 @@ final class CreateCommitRequest extends FormRequest
         $options = $this->array('poll.options');
 
         return new NewPoll($options, PollDuration::from($this->integer('poll.duration')));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'link_preview_url.in' => __('The link card must be one of the links in the body.'),
+        ];
+    }
+
+    /**
+     * The first link in the body gets the link preview, unless the author chose another link or none at all.
+     */
+    public function linkPreview(): bool|string
+    {
+        if (! $this->has('link_preview_url')) {
+            return true;
+        }
+
+        return $this->filled('link_preview_url') ? $this->string('link_preview_url')->value() : false;
     }
 
     /**

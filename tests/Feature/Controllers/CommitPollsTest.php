@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Enums\PollDuration;
+use App\Jobs\UnfurlLink;
 use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\Poll;
@@ -11,6 +12,7 @@ use App\Models\PollVote;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 it('may attach a poll to a commit', function (): void {
@@ -29,6 +31,49 @@ it('may attach a poll to a commit', function (): void {
 
     expect($poll->duration)->toBe(PollDuration::SevenDays)
         ->and($poll->options->pluck('label')->all())->toBe(['Tabs', 'Spaces']);
+});
+
+it('keeps a poll when its link card is chosen or removed', function (?string $linkPreviewUrl): void {
+    Queue::fake([UnfurlLink::class]);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Compare https://example.com/first and https://example.com/second',
+            'link_preview_url' => $linkPreviewUrl,
+            'poll' => ['options' => ['First', 'Second'], 'duration' => PollDuration::OneDay->value],
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirectToRoute('log.show', Log::Following);
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->poll->options->pluck('label')->all())->toBe(['First', 'Second'])
+        ->and($commit->linkPreview?->url)->toBe($linkPreviewUrl);
+
+    if ($linkPreviewUrl === null) {
+        Queue::assertNotPushed(UnfurlLink::class);
+    } else {
+        Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+    }
+})->with(['chosen' => 'https://example.com/second', 'removed' => null]);
+
+it('does not create a poll when its chosen link card is outside the body', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Choose https://example.com/first',
+            'link_preview_url' => 'https://example.com/second',
+            'poll' => ['options' => ['First', 'Second'], 'duration' => PollDuration::OneDay->value],
+        ])
+        ->assertSessionHasErrors('link_preview_url');
+
+    expect($user->commits()->count())->toBe(0)
+        ->and(Poll::query()->count())->toBe(0);
 });
 
 it('validates the poll', function (array $poll, array|string $errors): void {
