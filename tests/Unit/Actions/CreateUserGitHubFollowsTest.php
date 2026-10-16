@@ -142,3 +142,24 @@ it('leaves the follows to import again when github fails', function (): void {
     expect(fn () => resolve(CreateUserGitHubFollows::class)->handle($user))->toThrow(RequestException::class)
         ->and($user->refresh()->github_follows_imported_at)->toBeNull();
 });
+
+it('keeps github imports from following across a block in either direction', function (): void {
+    $user = User::factory()->create();
+    $blocked = User::factory()->create();
+    $blocker = User::factory()->create();
+    $allowed = User::factory()->create();
+
+    $user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($user);
+
+    fakeGitHubFollows($user, following: [$blocked, $blocker, $allowed], followers: [$blocked, $blocker, $allowed]);
+
+    resolve(CreateUserGitHubFollows::class)->handle($user);
+
+    expect($user->following()->pluck('users.id')->all())->toBe([$allowed->id]);
+    expect($user->followers()->pluck('users.id')->all())->toBe([$allowed->id]);
+    expect(Notification::query()->where('actor_id', $blocked->id)->orWhere('recipient_id', $blocked->id)->exists())->toBeFalse();
+    expect(Notification::query()->where('actor_id', $blocker->id)->orWhere('recipient_id', $blocker->id)->exists())->toBeFalse();
+    expect(Notification::query()->count())->toBe(2);
+    expect($user->refresh()->github_follows_imported_at)->not->toBeNull();
+});

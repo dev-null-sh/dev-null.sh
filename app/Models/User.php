@@ -13,7 +13,9 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property-read string $id
@@ -39,6 +41,10 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read Collection<int, Commit> $starredCommits
  * @property-read Collection<int, User> $following
  * @property-read Collection<int, User> $followers
+ * @property-read Collection<int, User> $muting
+ * @property-read Collection<int, User> $mutedBy
+ * @property-read Collection<int, User> $blocking
+ * @property-read Collection<int, User> $blockers
  * @property-read Collection<int, Notification> $notifications
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read int $commits_count
@@ -143,6 +149,38 @@ final class User extends Authenticatable
     }
 
     /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function muting(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'mutes', 'muter_id', 'muted_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function mutedBy(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'mutes', 'muted_id', 'muter_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function blocking(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'blocks', 'blocker_id', 'blocked_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function blockers(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'blocks', 'blocked_id', 'blocker_id')->withTimestamps();
+    }
+
+    /**
      * @return HasMany<Notification, $this>
      */
     public function notifications(): HasMany
@@ -213,6 +251,54 @@ final class User extends Authenticatable
     public function isFollowing(self $user): bool
     {
         return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
+    }
+
+    public function isMuting(self $user): bool
+    {
+        return $this->muting()->newPivotQuery()->where('muted_id', $user->id)->exists();
+    }
+
+    public function isBlocking(self $user): bool
+    {
+        return $this->blocking()->newPivotQuery()->where('blocked_id', $user->id)->exists();
+    }
+
+    /**
+     * A block works both ways, so either one blocking the other keeps them apart.
+     */
+    public function hasBlockWith(self $user): bool
+    {
+        return $this->blockerIdWith($user) !== null;
+    }
+
+    /**
+     * Which of the two blocked the other, if either did.
+     */
+    public function blockerIdWith(self $user): ?string
+    {
+        $blockerId = DB::table('blocks')
+            ->where(fn (QueryBuilder $query): QueryBuilder => $query->where('blocker_id', $this->id)->where('blocked_id', $user->id))
+            ->orWhere(fn (QueryBuilder $query): QueryBuilder => $query->where('blocker_id', $user->id)->where('blocked_id', $this->id))
+            ->value('blocker_id');
+
+        return is_string($blockerId) ? $blockerId : null;
+    }
+
+    /**
+     * The ids of everyone the user blocks or is blocked by, as a subquery.
+     */
+    public function idsAcrossBlocks(): QueryBuilder
+    {
+        return $this->blocking()->newPivotQuery()->select('blocked_id')
+            ->union($this->blockers()->newPivotQuery()->select('blocker_id'));
+    }
+
+    /**
+     * The ids of everyone the user mutes, as a subquery.
+     */
+    public function mutedIds(): QueryBuilder
+    {
+        return $this->muting()->newPivotQuery()->select('muted_id');
     }
 
     public function lane(): int
