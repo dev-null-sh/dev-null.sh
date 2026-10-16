@@ -17,7 +17,9 @@ use App\Queries\CommitRepliesQuery;
 use App\Queries\CommitSeriesQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -31,24 +33,25 @@ final readonly class CommitController
     {
         $isInSeries = $commit->series_id !== null;
 
+        $threadReplies = null;
         // A series reads in order, so the replies to a part stay folded until asked for...
-        $threadReplies = $isInSeries ? null : $replies->paginate($commit, $currentUser);
+        $getReplies = function () use (&$threadReplies, $isInSeries, $replies, $commit, $currentUser): ?CursorPaginator {
+            return $isInSeries ? null : $threadReplies ??= $replies->paginate($commit, $currentUser);
+        };
 
-        $preview = $currentUser instanceof User ? null : $metadata->commit(
+        $preview = $currentUser instanceof User || $request->inertia() ? null : $metadata->commit(
             $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.user']),
-            $threadReplies?->items() ?? [],
+            $getReplies()?->items() ?? [],
         );
 
-        $commit = Commit::query()
-            ->withVisibleReplyCount($currentUser)
-            ->withCardDataFor($currentUser)
-            ->findOrFail($commit->id);
-
         return Inertia::render('commit/show', [
-            'commit' => $commit,
-            'ancestors' => $isInSeries ? $series->before($commit, $currentUser) : $ancestors->get($commit, $currentUser),
-            'series' => $series->after($commit, $currentUser),
-            'replies' => $threadReplies,
+            'commit' => fn (): Commit => Commit::query()
+                ->withVisibleReplyCount($currentUser)
+                ->withCardDataFor($currentUser)
+                ->findOrFail($commit->id),
+            'ancestors' => fn (): Collection => $isInSeries ? $series->before($commit, $currentUser) : $ancestors->get($commit, $currentUser),
+            'series' => fn (): Collection => $series->after($commit, $currentUser),
+            'replies' => $getReplies,
         ])->withViewData(['preview' => $preview]);
     }
 

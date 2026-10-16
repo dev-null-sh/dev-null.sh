@@ -11,7 +11,9 @@ use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitRepliesQuery;
 use App\Queries\CommitSeriesQuery;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,23 +25,26 @@ final readonly class CommitPhotoController
             return to_route('commit.show', [$user, $commit]);
         }
 
-        $commit = Commit::query()
-            ->withVisibleReplyCount($currentUser)
-            ->withSavedState($currentUser)
-            ->with(['user', 'linkPreview', 'images'])
-            ->withQuotedCommitFor($currentUser)
-            ->withStarsFor($currentUser)
-            ->findOrFail($commit->id);
-
         $isInSeries = $commit->series_id !== null;
 
+        $focusedCommit = null;
+        $getCommit = function () use (&$focusedCommit, $commit, $currentUser): Commit {
+            return $focusedCommit ??= Commit::query()
+                ->withVisibleReplyCount($currentUser)
+                ->withSavedState($currentUser)
+                ->with(['user', 'linkPreview', 'images'])
+                ->withQuotedCommitFor($currentUser)
+                ->withStarsFor($currentUser)
+                ->findOrFail($commit->id);
+        };
+
         return Inertia::render('commit/show', [
-            'commit' => $commit,
-            'ancestors' => $isInSeries ? $series->before($commit, $currentUser) : $ancestors->get($commit, $currentUser),
-            'series' => $series->after($commit, $currentUser),
-            'replies' => $isInSeries ? null : $replies->paginate($commit, $currentUser),
-            'photo' => [
-                'commit' => $commit,
+            'commit' => $getCommit,
+            'ancestors' => fn (): Collection => $isInSeries ? $series->before($commit, $currentUser) : $ancestors->get($commit, $currentUser),
+            'series' => fn (): Collection => $series->after($commit, $currentUser),
+            'replies' => fn (): ?CursorPaginator => $isInSeries ? null : $replies->paginate($commit, $currentUser),
+            'photo' => fn (): array => [
+                'commit' => $getCommit(),
                 'index' => $photo - 1,
             ],
         ]);
