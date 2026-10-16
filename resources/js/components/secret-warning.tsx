@@ -20,6 +20,7 @@ export function SecretWarning({
     confirming,
     onConfirmingChange,
     onApprove,
+    onEdit,
 }: {
     body: string;
     findings: Secret[];
@@ -28,10 +29,12 @@ export function SecretWarning({
     confirming: boolean;
     onConfirmingChange: (open: boolean) => void;
     onApprove: () => void;
+    onEdit?: () => void;
 }) {
     if (findings.length === 0) return null;
 
     const remove = () => {
+        onEdit?.();
         onChange(removeSecrets(body));
         onConfirmingChange(false);
         requestAnimationFrame(() => textarea.current?.focus());
@@ -62,11 +65,14 @@ export function SecretWarning({
                                 type="button"
                                 className="rounded text-left text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                                 onClick={() => {
-                                    textarea.current?.focus();
-                                    textarea.current?.setSelectionRange(
-                                        finding.start,
-                                        finding.end,
-                                    );
+                                    onEdit?.();
+                                    requestAnimationFrame(() => {
+                                        textarea.current?.focus();
+                                        textarea.current?.setSelectionRange(
+                                            finding.start,
+                                            finding.end,
+                                        );
+                                    });
                                 }}
                             >
                                 Select possible secret{' '}

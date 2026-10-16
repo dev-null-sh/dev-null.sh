@@ -5,6 +5,7 @@ import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionS
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { emojifyInput } from '@/lib/emoji';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
 import type { User } from '@/types';
 
@@ -143,6 +144,8 @@ async function fetchSuggestions(
     );
 
     if (!response.ok) {
+        toastWhenThrottled(response);
+
         throw new Error('Unable to load suggestions');
     }
 

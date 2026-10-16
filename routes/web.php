@@ -12,12 +12,16 @@ use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPhotoController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitPollVoteController;
+use App\Http\Controllers\CommitPreviewController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
+use App\Http\Controllers\CommitReportController;
 use App\Http\Controllers\CommitRestorationController;
+use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
+use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
@@ -29,8 +33,10 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\UserActivityGraphController;
@@ -94,7 +100,9 @@ Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): 
 });
 
 // User...
-Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])->name('user-preview.show');
+Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])
+    ->middleware('throttle:people')
+    ->name('user-preview.show');
 Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
 Route::get('@{user:username}/feed.atom', [UserFeedController::class, 'show'])
@@ -117,8 +125,22 @@ Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');
 
+// Search...
+Route::get('search', [SearchController::class, 'index'])
+    ->name('search.index');
+
 // User Search...
-Route::get('search/users', [UserSearchController::class, 'index'])->name('user-search.index');
+Route::get('search/users', [UserSearchController::class, 'index'])
+    ->middleware('throttle:people')
+    ->name('user-search.index');
+
+// Search...
+Route::get('search', [SearchController::class, 'index'])->name('search.index');
+
+// Commit Search...
+Route::get('search/commits', [CommitSearchController::class, 'index'])
+    ->middleware('throttle:search')
+    ->name('commit-search.index');
 
 Route::middleware('auth')->group(function (): void {
     // Session...
@@ -135,8 +157,12 @@ Route::middleware('auth')->group(function (): void {
 
     // Private saved commits...
     Route::get('saved', [BookmarkController::class, 'index'])->name('bookmark.index');
-    Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])->name('bookmark.store');
-    Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])->name('bookmark.destroy');
+    Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])
+        ->middleware('throttle:bookmarks')
+        ->name('bookmark.store');
+    Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])
+        ->middleware('throttle:bookmarks')
+        ->name('bookmark.destroy');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
@@ -144,9 +170,12 @@ Route::middleware('auth')->group(function (): void {
         ->middleware(ThrottleCommits::class)->name('scheduled-commit.store');
     Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
 
+    Route::get('commit-stars', [CommitStarCountController::class, 'index'])->name('commit-star-count.index');
     Route::post('commits', [CommitController::class, 'store'])
         ->middleware(ThrottleCommits::class)
         ->name('commit.store');
+    Route::post('commits/preview', [CommitPreviewController::class, 'store'])
+        ->name('commit-preview.store');
     Route::post('commits/series', [CommitSeriesController::class, 'store'])
         ->middleware(ThrottleCommits::class)
         ->name('commit-series.store');
@@ -155,11 +184,20 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits/{commit}/restoration', [CommitRestorationController::class, 'store'])
         ->withTrashed()
         ->name('commit-restoration.store');
-    Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])->name('commit-pin.update');
-    Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])->name('commit-pin.destroy');
+    Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])
+        ->middleware('throttle:pins')
+        ->name('commit-pin.update');
+    Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])
+        ->middleware('throttle:pins')
+        ->name('commit-pin.destroy');
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
+        ->middleware('throttle:stars')
         ->name('commit-star.store');
+    Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
+        ->middleware('throttle:commit-reports')
+        ->name('commit-report.store');
     Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
+        ->middleware('throttle:stars')
         ->name('commit-star.destroy');
     Route::post('commits/{commit}/replies', [CommitReplyController::class, 'store'])
         ->middleware(ThrottleCommits::class)
@@ -176,6 +214,8 @@ Route::middleware('auth')->group(function (): void {
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
+    Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
+    Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
     Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
         ->name('commit-approval.store');
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
@@ -192,7 +232,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('failed-job.destroy');
 
     // Mention Suggestions...
-    Route::get('search/mentions', [MentionSuggestionController::class, 'index'])->name('mention-suggestion.index');
+    Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
+        ->middleware('throttle:people')
+        ->name('mention-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
@@ -201,7 +243,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:profile-syncs')
         ->name('user-profile.update');
     Route::get('settings/export', ExportController::class)
-        ->middleware('throttle:5,1')
+        ->middleware(['throttle:exports', 'throttle:5,1'])
         ->name('export');
 
     // User Lane...
@@ -221,8 +263,10 @@ Route::middleware('auth')->group(function (): void {
 
     // User Follow...
     Route::post('@{user:username}/follow', [UserFollowController::class, 'store'])
+        ->middleware('throttle:follows')
         ->name('user-follow.store');
     Route::delete('@{user:username}/follow', [UserFollowController::class, 'destroy'])
+        ->middleware('throttle:follows')
         ->name('user-follow.destroy');
 
     // User Mute...

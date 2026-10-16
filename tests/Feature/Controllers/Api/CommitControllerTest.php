@@ -111,6 +111,22 @@ it('includes the link preview without internal fields', function (): void {
             'description' => $preview->description,
             'image_url' => $preview->image_url,
             'site_name' => $preview->site_name,
+            'embed' => null,
+        ]);
+});
+
+it('includes the embed of the link preview', function (): void {
+    $preview = LinkPreview::factory()->fetched()->create(['url' => 'https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT']);
+    $commit = Commit::factory()->create(['link_preview_id' => $preview->id]);
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.link_preview.embed', [
+            'provider' => 'Spotify',
+            'kind' => 'audio',
+            'src' => 'https://open.spotify.com/embed/track/4cOdK2wGLETKBW3PvgPWqT',
+            'aspect_ratio' => null,
+            'height' => 152,
         ]);
 });
 

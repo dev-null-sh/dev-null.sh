@@ -16,7 +16,16 @@ test('to array', function (): void {
             'description',
             'image_url',
             'site_name',
+            'embed',
         ]);
+});
+
+it('has an embed when its link can be played in place', function (): void {
+    expect(LinkPreview::factory()->create(['url' => 'https://youtu.be/dQw4w9WgXcQ'])->toArray()['embed'])->toMatchArray([
+        'provider' => 'YouTube',
+        'src' => 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1',
+    ])
+        ->and(LinkPreview::factory()->create(['url' => 'https://example.com'])->toArray()['embed'])->toBeNull();
 });
 
 it('hashes its url', function (): void {

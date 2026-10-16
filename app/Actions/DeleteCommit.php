@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\NotificationType;
 use App\Jobs\EraseDeletedCommitImages;
 use App\Models\Commit;
+use App\Models\CommitReport;
 use App\Models\Notification;
 use App\Queries\NotificationBuilder;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +20,8 @@ final readonly class DeleteCommit
     }
 
     /**
-     * Soft deleting keeps the row for its replies and quotes, so its notifications and the notifications about its replies and quotes are removed here instead of by the foreign key.
+     * Soft deleting keeps the row for its replies and quotes, so its notifications, the notifications about its replies and
+     * quotes, and reports are removed here instead of by the foreign key.
      * Its images are kept until the undo window closes, so undoing the deletion brings them back too.
      */
     public function handle(Commit $commit): Commit
@@ -40,6 +42,8 @@ final readonly class DeleteCommit
                     ->where('type', NotificationType::Quoted)
                     ->whereIn('commit_id', $commit->quotes()->select('id')))
                 ->delete();
+
+            CommitReport::query()->where('commit_id', $commit->id)->delete();
 
             $commit->delete();
 
