@@ -110,9 +110,9 @@ final class Commit extends Model
     /**
      * Approved commits are visible to everyone. Authors can also see their own.
      */
-    public function isVisibleTo(User $user): bool
+    public function isVisibleTo(?User $user): bool
     {
-        return $this->status === CommitStatus::Approved || $this->user_id === $user->id;
+        return $this->status === CommitStatus::Approved || $this->user_id === $user?->id;
     }
 
     /**

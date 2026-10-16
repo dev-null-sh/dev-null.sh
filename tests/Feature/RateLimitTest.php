@@ -98,3 +98,30 @@ it('renders the too many requests page when exporting too often', function (): v
             ->component('error')
             ->where('status', 429));
 });
+
+it('shares a people lookup limit per guest IP without limiting other visitors', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $search = route('user-search.index', ['q' => 'octo']);
+    $preview = route('user-preview.show', $user);
+    $requests = [$search, $preview];
+
+    $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.1']);
+
+    foreach (range(1, 120) as $attempt) {
+        $this->getJson($requests[$attempt % count($requests)])->assertOk();
+    }
+
+    $this->getJson($search)->assertTooManyRequests();
+    $this->getJson($preview)->assertTooManyRequests();
+
+    $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.2']);
+
+    $this->getJson($search)->assertOk();
+    $this->getJson($preview)->assertOk();
+
+    $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.1']);
+    $this->actingAs($user);
+
+    $this->getJson($search)->assertOk();
+    $this->getJson($preview)->assertOk();
+});

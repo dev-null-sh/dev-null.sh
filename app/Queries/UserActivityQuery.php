@@ -18,7 +18,7 @@ final readonly class UserActivityQuery
      *
      * @return array{scale: ActivityScale, buckets: list<array{date: string, count: int}>}
      */
-    public function get(User $user, User $viewer): array
+    public function get(User $user, ?User $viewer): array
     {
         $now = CarbonImmutable::now();
 

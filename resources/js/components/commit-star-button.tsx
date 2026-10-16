@@ -2,6 +2,7 @@ import { router, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
 import { useState } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
+import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -27,7 +28,7 @@ export function CommitStarButton({
 }) {
     const { auth } = usePage().props;
     const canStar =
-        commit.status === 'approved' || commit.user_id === auth.user.id;
+        commit.status === 'approved' || commit.user_id === auth.user?.id;
     const [starred, setStarred] = useState(commit.starred);
     const [count, setCount] = useState(commit.stars_count);
     const [pending, setPending] = useState(false);
@@ -38,6 +39,12 @@ export function CommitStarButton({
     }
 
     const toggle = () => {
+        if (auth.user === null) {
+            signIn();
+
+            return;
+        }
+
         if (pending) {
             return;
         }

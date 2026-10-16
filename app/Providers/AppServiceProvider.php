@@ -72,7 +72,9 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('follows', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));
 
         // People search, mention suggestions, and hover cards share one bucket...
-        RateLimiter::for('people', fn (Request $request): Limit => Limit::perMinute(120)->by($this->userId($request)));
+        RateLimiter::for('people', fn (Request $request): Limit => Limit::perMinute(120)->by(
+            $request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip(),
+        ));
 
         // Exports stream every commit a user ever made...
         RateLimiter::for('exports', fn (Request $request): Limit => Limit::perHour(3)->by($this->userId($request)));
