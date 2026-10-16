@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
+use App\Queries\UserStarsCountQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -26,7 +27,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, UserStarsCountQuery $stars, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -47,6 +48,7 @@ final readonly class UserController
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
             'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
+            'starsCount' => fn (): int => $stars->get($user, $currentUser),
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),

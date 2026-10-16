@@ -44,6 +44,7 @@ export default function Show({
     isFollowing,
     followsYou,
     isMuting,
+    starsCount,
     activity,
     streaks,
     achievements,
@@ -55,6 +56,7 @@ export default function Show({
     isFollowing: boolean;
     followsYou: boolean;
     isMuting: boolean;
+    starsCount: number;
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
@@ -252,26 +254,39 @@ export default function Show({
                             ),
                             href: UserFollowersController.index(user),
                         },
+                        {
+                            count: starsCount,
+                            label: pluralize(starsCount, 'star', 'stars'),
+                            href: null,
+                        },
                     ].map((stat) => (
                         <div
                             key={stat.label}
                             className="group flex flex-row-reverse gap-1.5"
                         >
                             <dt className="text-muted-foreground">
-                                <Link
-                                    href={stat.href}
-                                    className="group-hover:underline"
-                                >
-                                    {stat.label}
-                                </Link>
+                                {stat.href ? (
+                                    <Link
+                                        href={stat.href}
+                                        className="group-hover:underline"
+                                    >
+                                        {stat.label}
+                                    </Link>
+                                ) : (
+                                    stat.label
+                                )}
                             </dt>
-                            <dd className="font-mono font-medium">
-                                <Link
-                                    href={stat.href}
-                                    className="group-hover:underline"
-                                >
-                                    {stat.count}
-                                </Link>
+                            <dd className="font-mono font-medium tabular-nums">
+                                {stat.href ? (
+                                    <Link
+                                        href={stat.href}
+                                        className="group-hover:underline"
+                                    >
+                                        {stat.count}
+                                    </Link>
+                                ) : (
+                                    stat.count
+                                )}
                             </dd>
                         </div>
                     ))}
