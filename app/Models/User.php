@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Actions\BefriendTom;
+use App\Actions\CreateTomFriendship;
 use App\Enums\Log;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
@@ -350,7 +350,7 @@ final class User extends Authenticatable
      */
     public function hasGitHubAccount(): bool
     {
-        return $this->github_id !== BefriendTom::GITHUB_ID;
+        return $this->github_id !== CreateTomFriendship::GITHUB_ID;
     }
 
     private function fillCounts(int $commits): self
