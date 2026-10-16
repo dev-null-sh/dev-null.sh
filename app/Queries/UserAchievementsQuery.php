@@ -54,13 +54,9 @@ final readonly class UserAchievementsQuery
     {
         $visibleCommitsQuery = $user->commits()->visibleTo($viewer);
 
-        $charLengthExpr = DB::connection()->getDriverName() === 'mysql'
-            ? 'char_length(body)'
-            : 'length(body)';
-
         /** @var object{total_commits: int|string, has_max_payload: int|string|null, has_syntax: int|string|null} $commitStats */
         $commitStats = (clone $visibleCommitsQuery)
-            ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN {$charLengthExpr} = 280 THEN 1 ELSE 0 END) as has_max_payload, MAX(CASE WHEN body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax")
+            ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN length(body) = 280 THEN 1 ELSE 0 END) as has_max_payload, MAX(CASE WHEN body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax")
             ->first();
 
         $commitsCount = (int) ($commitStats->total_commits ?? 0);
