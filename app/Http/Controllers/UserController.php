@@ -38,7 +38,7 @@ final readonly class UserController
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
                 ->withSavedState($currentUser)
-                ->with(['user', 'linkPreview'])
+                ->with(['user', 'linkPreview', 'images'])
                 ->withStarsFor($currentUser)
                 ->withPollFor($currentUser)
                 ->find($user->pinned_commit_id),

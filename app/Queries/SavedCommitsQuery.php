@@ -25,6 +25,7 @@ final readonly class SavedCommitsQuery
             ->with([
                 'user',
                 'linkPreview',
+                'images',
                 'parent' => function (BelongsTo $parent) use ($user): void {
                     $parent->getQuery()->withTrashed()->visibleTo($user)->with('user');
                 },

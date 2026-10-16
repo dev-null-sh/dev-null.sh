@@ -156,7 +156,7 @@ it('shows the poll of a pending commit to moderators', function (): void {
 });
 
 it('loads the polls of the log with a bounded number of queries', function (): void {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['log' => Log::Everyone]);
     Poll::factory()->withOptions('Tabs', 'Spaces')->create();
     $this->actingAs($user);
     DB::enableQueryLog();
