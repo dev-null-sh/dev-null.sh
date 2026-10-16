@@ -6,12 +6,14 @@ use App\Actions\DeleteScheduledCommit;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Enums\CommitStatus;
+use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\UserActivityQuery;
 use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
@@ -222,6 +224,25 @@ it('submits once at the due time using the authors current approval privileges',
         ->where('scheduledCommits.data.0.status', $admin ? 'approved' : 'pending')
         ->where('scheduledCommits.data.0.body', null));
 })->with([false, true]);
+
+it('keeps the first link as the scheduled delivery preview', function (): void {
+    $user = User::factory()->create();
+    Queue::fake([UnfurlLink::class]);
+
+    $this->actingAs($user)->post(route('scheduled-commit.store'), [
+        'body' => 'Shipped https://example.com/first and https://example.com/second',
+        'scheduled_at' => now()->addDay()->toIso8601String(),
+    ])->assertSessionHasNoErrors();
+
+    $scheduled = ScheduledCommit::query()->sole();
+    $this->travelTo($scheduled->scheduled_at);
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    $commit = Commit::query()->sole();
+    expect($commit->linkPreview->url)->toBe('https://example.com/first');
+
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+});
 
 it('cancels a due item before claim and never submits it', function (): void {
     $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()]);
