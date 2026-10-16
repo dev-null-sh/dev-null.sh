@@ -8,7 +8,9 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
@@ -182,6 +184,26 @@ final class CommitBuilder extends Builder
     }
 
     /**
+     * Loads the poll with each option's vote count and whether the viewer chose it, in two queries for any number of commits.
+     */
+    public function withPollFor(?User $viewer): self
+    {
+        return $this
+            ->with(['poll.options' => fn (HasMany $options): HasMany => $options
+                ->withCount('votes')
+                ->withExists(['votes as voted' => fn (Builder $query): Builder => $viewer instanceof User
+                    ? $query->where('user_id', $viewer->id)
+                    : $query->whereRaw('1 = 0')])])
+            ->afterQuery(function (Collection $commits) use ($viewer): void {
+                foreach ($commits->whereInstanceOf(Commit::class) as $commit) {
+                    if ($commit->relationLoaded('poll')) {
+                        $commit->poll?->forceFill(['is_own' => $commit->user_id === $viewer?->id]);
+                    }
+                }
+            });
+    }
+
+    /**
      * Everything a commit card shows for the given viewer, so every list renders its commits the same way.
      * The reply count is left out, as its presence is what gives a card its thread actions.
      */
@@ -191,6 +213,7 @@ final class CommitBuilder extends Builder
             ->with(['user', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)
             ->withSavedState($viewer)
-            ->withStarsFor($viewer);
+            ->withStarsFor($viewer)
+            ->withPollFor($viewer);
     }
 }

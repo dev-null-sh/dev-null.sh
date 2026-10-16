@@ -8,6 +8,8 @@ use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Notification;
+use App\Models\Poll;
+use App\Models\PollVote;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -80,6 +82,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
         'commits' => [],
+        'polls' => [],
+        'poll_votes' => [],
         'stars' => [],
         'bookmarks' => [],
         'following' => [],
@@ -186,6 +190,33 @@ it('exports starred and saved commit ids, including deleted commits, but not oth
         ->and($response->streamedContent())->not->toContain($otherStarred->id, $saved->body, $starred->body);
 });
 
+it('exports the polls of live commits and votes without other voters', function (): void {
+    $user = User::factory()->create();
+    $poll = Poll::factory()->for(Commit::factory()->for($user))->withOptions('Tabs', 'Spaces')->create();
+    $deleted = Poll::factory()->for(Commit::factory()->for($user)->state(['deleted_at' => now()]))->withOptions('Never', 'Exported')->create();
+    $other = Poll::factory()->withOptions('Vim', 'Emacs')->create();
+    $vote = PollVote::factory()->for($other->options[1], 'option')->for($user)->create();
+    $voter = User::factory()->create();
+    PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['polls'])->toBe([[
+        'commit_id' => $poll->commit_id,
+        'duration_minutes' => 1440,
+        'opened_at' => $poll->opened_at?->toIso8601String(),
+        'options' => ['Tabs', 'Spaces'],
+        'created_at' => $poll->created_at->toIso8601String(),
+    ]])
+        ->and($data['poll_votes'])->toBe([[
+            'commit_id' => $other->commit_id,
+            'option' => 'Emacs',
+            'created_at' => $vote->created_at->toIso8601String(),
+        ]])
+        ->and($response->streamedContent())->not->toContain($voter->id, $voter->username, $deleted->options[0]->label);
+});
+
 it('exports where each commit sits in its series', function (): void {
     $user = User::factory()->create();
     $parts = commitSeries($user, size: 2);
@@ -198,6 +229,27 @@ it('exports where each commit sits in its series', function (): void {
         ->series_id->toBe($parts[0]->series_id)
         ->series_position->toBe(2)
         ->series_size->toBe(2);
+});
+
+it('exports surviving replies and polls after another account is deleted', function (): void {
+    $user = User::factory()->create();
+    $deleted = User::factory()->create();
+    $removed = Poll::factory()->for(Commit::factory()->for($deleted))->withOptions('Removed A', 'Removed B')->create();
+    PollVote::factory()->for($removed->options[0], 'option')->for($user)->create();
+    $kept = Poll::factory()->for(Commit::factory()->for($user))->withOptions('Kept A', 'Kept B')->create();
+    $parent = Commit::factory()->for($deleted)->for(Commit::factory(), 'parent')->create();
+    $reply = Commit::factory()->for($user)->for($parent, 'parent')->create();
+
+    resolve(DeleteUser::class)->handle($deleted);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect(collect($data['commits'])->keyBy('id')->get($reply->id)['parent_id'])->toBe($parent->id)
+        ->and(array_column($data['polls'], 'commit_id'))->toBe([$kept->commit_id])
+        ->and($data['polls'][0]['options'])->toBe(['Kept A', 'Kept B'])
+        ->and($data['poll_votes'])->toBe([])
+        ->and($response->streamedContent())->not->toContain('Removed A', 'Removed B', $deleted->username);
 });
 
 it('exports following and follower usernames without private identity fields', function (): void {
