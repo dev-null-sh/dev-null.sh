@@ -6,6 +6,7 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { LiveStreamBanner } from '@/components/live-stream';
 import { UserSearchDialog } from '@/components/user-search-dialog';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useTabSlide } from '@/hooks/use-tab-slide';
 import type { AppLayoutProps } from '@/types';
 
 export default function AppLayout({ children }: AppLayoutProps) {
@@ -16,6 +17,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const openSearch = useCallback(() => setIsSearching(true), []);
 
     useKeyboardShortcuts(auth.user, auth.log, showShortcuts, openSearch);
+    useTabSlide();
 
     return (
         <>

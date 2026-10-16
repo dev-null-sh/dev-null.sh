@@ -1,6 +1,7 @@
 import type { InertiaLinkProps } from '@inertiajs/react';
 import type { ClassValue } from 'clsx';
 import { clsx } from 'clsx';
+import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
 import type { DeletedCommit, ThreadCommit } from '@/types';
 
@@ -126,4 +127,45 @@ export function formatDayLabel(date: string, now: Date = new Date()): string {
         day: 'numeric',
         year: day.getFullYear() === now.getFullYear() ? undefined : 'numeric',
     });
+}
+
+/**
+ * Stops the content under the tabs from sliding in the next view transition.
+ */
+export function clearTabSlide(): void {
+    delete document.documentElement.dataset.tabSlide;
+}
+
+let currentTransition: ViewTransition | undefined;
+
+/**
+ * Applies a state change inside a view transition, so the page animates to it like it does between pages. The `kind`
+ * is set on the root element while the transition runs: the `in-place:` variant names the parts that move on their
+ * own only then, so they still slide with their tab between pages.
+ */
+export function withViewTransition(
+    update: () => void,
+    kind: 'in-place' | 'theme' = 'in-place',
+): Promise<void> {
+    if (typeof document.startViewTransition !== 'function') {
+        update();
+
+        return Promise.resolve();
+    }
+
+    clearTabSlide();
+    document.documentElement.dataset.viewTransition = kind;
+
+    const transition = document.startViewTransition(() => flushSync(update));
+    currentTransition = transition;
+
+    return transition.finished
+        .catch(() => undefined)
+        .finally(() => {
+            // A newer transition skips this one: leave its kind in place...
+            if (currentTransition === transition) {
+                currentTransition = undefined;
+                delete document.documentElement.dataset.viewTransition;
+            }
+        });
 }
