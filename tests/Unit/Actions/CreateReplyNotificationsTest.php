@@ -71,6 +71,26 @@ it('is idempotent', function (): void {
     expect(Notification::query()->count())->toBeOne();
 });
 
+it('does not notify authors who muted the replier or are across a block', function (string $relation, bool $parentAuthorActs): void {
+    $parent = Commit::factory()->create();
+    $silenced = Commit::factory()->for($parent, 'parent')->create();
+    $notified = Commit::factory()->for($parent, 'parent')->create();
+
+    [$actor, $subject] = $parentAuthorActs ? [$parent->user, $silenced->user] : [$silenced->user, $parent->user];
+    $actor->{$relation}()->attach($subject);
+
+    resolve(CreateReplyNotifications::class)->handle($silenced, $notified);
+
+    $notification = Notification::query()->sole();
+
+    expect($notification->actor_id)->toBe($notified->user_id)
+        ->and($notification->commit_id)->toBe($notified->id);
+})->with([
+    'the author muted the replier' => ['muting', true],
+    'the author blocked the replier' => ['blocking', true],
+    'the replier blocked the author' => ['blocking', false],
+]);
+
 it('does nothing without commits', function (): void {
     $action = resolve(CreateReplyNotifications::class);
 

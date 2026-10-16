@@ -54,6 +54,7 @@ final readonly class NotificationGroupsQuery
             ->join('identified', 'identified.id', '=', 'visible.id')
             ->when($type !== 'all', fn (NotificationBuilder $query): NotificationBuilder => $query->whereIn('type', match ($type) {
                 'replies' => ['replied'],
+                'quotes' => ['quoted'],
                 'stars' => ['starred'],
                 'mentions' => ['mentioned'],
                 'follows' => ['followed'],

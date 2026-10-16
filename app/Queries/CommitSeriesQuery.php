@@ -45,6 +45,7 @@ final readonly class CommitSeriesQuery
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
             ->with(['user', 'linkPreview', 'images'])
+            ->withQuotedCommitFor($user)
             ->withStarsFor($user)
             ->oldest('series_position')
             ->get();

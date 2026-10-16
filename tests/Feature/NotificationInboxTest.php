@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -417,4 +418,78 @@ it('validates notification type filters', function (): void {
     expect($notification->refresh()->read_at)->toBeNull();
     $this->getJson(route('notification-group.show', [$notification, 'type' => 'secret']))->assertUnprocessable()->assertJsonValidationErrors('type');
     $this->get(route('notification.index', ['type' => '']))->assertOk();
+});
+
+it('includes quotes in the inbox and filters their history without reading hidden quotes', function (): void {
+    $user = User::factory()->create();
+    $quote = Notification::factory()->for($user, 'recipient')->quoted()->create();
+    $hidden = Notification::factory()->for($user, 'recipient')->quoted()->create();
+    $hidden->commit->update(['status' => CommitStatus::Pending]);
+    Notification::factory()->for($user, 'recipient')->replied()->create();
+
+    expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(2);
+
+    $this->actingAs($user)->get(route('notification.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 2));
+    $this->get(route('notification.index', ['type' => 'quotes']))->assertOk()
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
+            ->where('filters.type', 'quotes')
+            ->where('notifications.data.0.id', $quote->id)
+            ->where('notifications.data.0.type', 'quoted')
+            ->where('notifications.data.0.commit.id', $quote->commit_id)
+            ->where('auth.unreadNotificationsCount', 0));
+    $this->getJson(route('notification-group.show', [$quote, 'type' => 'quotes']))->assertOk()
+        ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $quote->id);
+    $this->getJson(route('notification-group.show', $hidden))->assertNotFound();
+
+    expect($quote->refresh()->read_at)->not->toBeNull()
+        ->and($hidden->refresh()->read_at)->toBeNull();
+});
+
+it('excludes silenced actors from groups, history and read acknowledgements', function (string $relation, bool $recipientActs): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->for($user)->create();
+    $visible = Notification::factory()->for($user, 'recipient')->replied($root)->create();
+    $hidden = Notification::factory()->for($user, 'recipient')->replied($root)->create();
+    [$actor, $subject] = $recipientActs ? [$user, $hidden->actor] : [$hidden->actor, $user];
+    $actor->{$relation}()->attach($subject);
+
+    expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(1);
+
+    $this->actingAs($user)->get(route('notification.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
+            ->where('notifications.data.0.id', $visible->id)
+            ->where('notifications.data.0.event_count', 1)
+            ->where('notifications.data.0.actors_count', 1)
+            ->where('auth.unreadNotificationsCount', 0));
+    $this->getJson(route('notification-group.show', $visible))->assertOk()
+        ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $visible->id);
+    $this->getJson(route('notification-group.show', $hidden))->assertNotFound();
+
+    expect($visible->refresh()->read_at)->not->toBeNull()
+        ->and($hidden->refresh()->read_at)->toBeNull();
+})->with([
+    'recipient muted the actor' => ['muting', true],
+    'recipient blocked the actor' => ['blocking', true],
+    'actor blocked the recipient' => ['blocking', false],
+]);
+
+it('groups surviving activity through an authorless ancestor without exposing its content', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $parent = Commit::factory()->for($root, 'parent')->create(['body' => 'Deleted private ancestor']);
+    $first = Notification::factory()->for($user, 'recipient')->replied($parent)->create();
+    $latest = Notification::factory()->for($user, 'recipient')->replied($parent)->create();
+
+    resolve(DeleteUser::class)->handle($parent->user);
+
+    expect($parent->withTrashed()->findOrFail($parent->id)->user_id)->toBeNull();
+
+    $this->actingAs($user)->get(route('notification.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
+            ->where('notifications.data.0.id', $latest->id)
+            ->where('notifications.data.0.group_id', $first->id)
+            ->where('notifications.data.0.event_count', 2));
+    $this->getJson(route('notification-group.show', $latest))->assertOk()
+        ->assertJsonCount(2, 'data')->assertDontSee('Deleted private ancestor');
 });

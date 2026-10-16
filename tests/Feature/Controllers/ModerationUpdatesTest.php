@@ -17,21 +17,17 @@ beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 });
 
-it('notifies an author only once when approving a pending commit using stale models', function (): void {
+it('does not notify an author when approving a pending commit', function (): void {
     $commit = Commit::factory()->pending()->create();
     $stale = $commit->fresh();
 
     resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);
     resolve(UpdateCommitStatus::class)->handle($stale, CommitStatus::Approved);
 
-    $notice = $commit->user->notifications()->sole();
-
-    expect($notice->type->value)->toBe('approved')
-        ->and($notice->commit_id)->toBe($commit->id)
-        ->and($notice->reason)->toBeNull();
+    expect($commit->user->notifications()->count())->toBe(0);
 });
 
-it('notifies each author in a bulk approval and preserves reply notifications', function (): void {
+it('does not notify authors in a bulk approval and preserves reply notifications', function (): void {
     $parent = Commit::factory()->create();
     $reply = Commit::factory()->pending()->for($parent, 'parent')->create();
     $commit = Commit::factory()->pending()->create();
@@ -44,8 +40,8 @@ it('notifies each author in a bulk approval and preserves reply notifications', 
     resolve(UpdateCommitStatuses::class)->handle($ids, CommitStatus::Approved, onlyPending: true);
     resolve(UpdateCommitStatuses::class)->handle($ids, CommitStatus::Approved, onlyPending: true);
 
-    expect($reply->user->notifications()->sole()->type->value)->toBe('approved')
-        ->and($commit->user->notifications()->sole()->type->value)->toBe('approved')
+    expect($reply->user->notifications()->count())->toBe(0)
+        ->and($commit->user->notifications()->count())->toBe(0)
         ->and($parent->user->notifications()->sole()->type->value)->toBe('replied')
         ->and($rejected->fresh()->status)->toBe(CommitStatus::Rejected)
         ->and($rejected->user->notifications()->count())->toBe(0)
@@ -165,12 +161,12 @@ it('does not send moderation notices for initial autoapproval or unchanged appro
     expect($admin->notifications()->count())->toBe(0);
 });
 
-it('keeps only the current moderation decision relevant and notifies real reversals', function (): void {
+it('keeps only the current moderation decision relevant and notifies rejections but not approvals', function (): void {
     $commit = Commit::factory()->pending()->create();
     resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Rejected, 'Please add context.');
     resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);
 
-    expect($commit->user->notifications()->relevant()->sole()->type->value)->toBe('approved');
+    expect($commit->user->notifications()->relevant()->count())->toBe(0);
     resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Rejected, 'Please remove the token.');
     expect($commit->user->notifications()->relevant()->sole()->type->value)->toBe('rejected')
         ->and($commit->user->notifications()->relevant()->sole()->reason)->toBe('Please remove the token.');
@@ -200,7 +196,7 @@ it('keeps a read notice read when the same status is submitted again', function 
         ->and($commit->user->notifications()->relevant()->unread()->count())->toBe(0);
 });
 
-it('keeps moderation notices for a surviving reply when its parent is soft deleted', function (): void {
+it('keeps a surviving reply visible when its parent is soft deleted', function (): void {
     $parent = Commit::factory()->create();
     $reply = Commit::factory()->pending()->for($parent, 'parent')->create();
     resolve(UpdateCommitStatus::class)->handle($reply, CommitStatus::Approved);
@@ -209,7 +205,7 @@ it('keeps moderation notices for a surviving reply when its parent is soft delet
     resolve(DeleteCommit::class)->handle($parent);
 
     expect($parent->user->notifications()->count())->toBe(0)
-        ->and($reply->user->notifications()->relevant()->sole()->type->value)->toBe('approved');
+        ->and($reply->user->notifications()->count())->toBe(0);
     $this->actingAs($reply->user)->get(route('commit.show', [$reply->user, $reply]))->assertOk();
 });
 

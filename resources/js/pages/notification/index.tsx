@@ -5,6 +5,7 @@ import {
     Check,
     ChevronDown,
     MessageSquareReply,
+    Quote,
     Star,
     UserPlus,
     X,
@@ -26,7 +27,14 @@ import { show } from '@/routes/user';
 import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
 
 type Filters = {
-    type: 'all' | 'replies' | 'stars' | 'mentions' | 'follows' | 'moderation';
+    type:
+        | 'all'
+        | 'replies'
+        | 'quotes'
+        | 'stars'
+        | 'mentions'
+        | 'follows'
+        | 'moderation';
 };
 
 export default function Index({
@@ -95,6 +103,7 @@ export default function Index({
                         >
                             <option value="all">All activity</option>
                             <option value="replies">Replies</option>
+                            <option value="quotes">Quotes</option>
                             <option value="stars">Stars</option>
                             <option value="mentions">Mentions</option>
                             <option value="follows">Follows</option>
@@ -112,7 +121,7 @@ export default function Index({
                     <EmptyFeed command="$ cat /dev/notifications">
                         {filters.type !== 'all'
                             ? 'No activity of this type yet.'
-                            : 'Nothing here yet. Follows, stars, replies, mentions, and moderation updates will show up here.'}
+                            : 'Nothing here yet. Follows, stars, replies, quotes, mentions, and moderation updates for your commits will show up here.'}
                     </EmptyFeed>
                 </div>
             ) : (
@@ -293,6 +302,7 @@ function NotificationContent({
     const Icon = {
         followed: UserPlus,
         replied: MessageSquareReply,
+        quoted: Quote,
         starred: Star,
         mentioned: AtSign,
         approved: Check,
@@ -351,7 +361,9 @@ function NotificationContent({
                                   ? 'starred your commit'
                                   : notification.type === 'mentioned'
                                     ? 'mentioned you'
-                                    : 'replied to your commit'}
+                                    : notification.type === 'quoted'
+                                      ? 'quoted your commit'
+                                      : 'replied to your commit'}
                         </>
                     )}
                     <span className="text-muted-foreground">
