@@ -111,20 +111,36 @@ it('includes the link preview without internal fields', function (): void {
             'description' => $preview->description,
             'image_url' => $preview->image_url,
             'site_name' => $preview->site_name,
+            'embed' => null,
+        ]);
+});
+
+it('includes the embed of the link preview', function (): void {
+    $preview = LinkPreview::factory()->fetched()->create(['url' => 'https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT']);
+    $commit = Commit::factory()->create(['link_preview_id' => $preview->id]);
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.link_preview.embed', [
+            'provider' => 'Spotify',
+            'kind' => 'audio',
+            'src' => 'https://open.spotify.com/embed/track/4cOdK2wGLETKBW3PvgPWqT',
+            'aspect_ratio' => null,
+            'height' => 152,
         ]);
 });
 
 it('includes the images of the commit in order', function (): void {
     $commit = Commit::factory()->create();
     $second = CommitImage::factory()->for($commit)->create(['position' => 1, 'width' => 640, 'height' => 480]);
-    $first = CommitImage::factory()->for($commit)->create(['position' => 0]);
+    $first = CommitImage::factory()->for($commit)->create(['position' => 0, 'description' => 'A terminal showing a successful build.']);
 
     $this->getJson(route('api-commit.show', $commit))
         ->assertOk()
         ->assertDontSee($first->path)
         ->assertJsonPath('data.images', [
-            ['id' => $first->id, 'width' => 1200, 'height' => 800, 'url' => route('commit-image.show', $first)],
-            ['id' => $second->id, 'width' => 640, 'height' => 480, 'url' => route('commit-image.show', $second)],
+            ['id' => $first->id, 'width' => 1200, 'height' => 800, 'description' => 'A terminal showing a successful build.', 'url' => route('commit-image.show', $first)],
+            ['id' => $second->id, 'width' => 640, 'height' => 480, 'description' => null, 'url' => route('commit-image.show', $second)],
         ]);
 });
 

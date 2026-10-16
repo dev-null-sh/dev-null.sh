@@ -135,7 +135,8 @@ final readonly class UpdateLinkPreview
      * Connects to the address that was checked rather than resolving the host again, so DNS rebinding can't swap in a
      * private address. The empty host and port in CURLOPT_CONNECT_TO match every request, so the pin holds even if
      * cURL were to read the URL differently than we do. Bodies are cut off after 1 MB, and a body that was cut off
-     * (by that limit or by the timeout) is still used, as metadata lives at the top of the page.
+     * (by that limit or by the timeout) is still used, as metadata lives at the top of the page. English is asked for
+     * explicitly, as sites such as YouTube otherwise pick the language from the server's location.
      */
     private function get(Url $url, string $address): Response
     {
@@ -143,6 +144,7 @@ final readonly class UpdateLinkPreview
 
         $request = Http::withUserAgent(sprintf('Mozilla/5.0 (compatible; devnull-linkpreview/1.0; +%s)', config()->string('app.url')))
             ->accept('text/html')
+            ->withHeaders(['Accept-Language' => 'en-US,en;q=0.9'])
             ->connectTimeout(3)
             ->timeout(5)
             ->withoutRedirecting()

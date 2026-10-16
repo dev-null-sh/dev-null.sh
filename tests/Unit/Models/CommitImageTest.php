@@ -12,6 +12,7 @@ test('to array', function (): void {
         'id' => $image->id,
         'width' => 1200,
         'height' => 800,
+        'description' => null,
         'url' => route('commit-image.show', $image),
     ]);
 });

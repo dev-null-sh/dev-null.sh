@@ -10,6 +10,7 @@ import { FollowLabel, useFollowHover } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Profile, User } from '@/types';
@@ -37,7 +38,9 @@ const viewportMargin = 8;
 const avatarCentre = 45;
 const cache = new Map<string, PreviewData>();
 
-async function fetchPreview(user: User): Promise<PreviewData> {
+async function fetchPreview(
+    user: Pick<User, 'username'>,
+): Promise<PreviewData> {
     const response = await fetch(UserPreviewController.show(user).url, {
         headers: {
             Accept: 'application/json',
@@ -46,6 +49,8 @@ async function fetchPreview(user: User): Promise<PreviewData> {
     });
 
     if (!response.ok) {
+        toastWhenThrottled(response);
+
         throw new Error(`Unable to load @${user.username}`);
     }
 
@@ -89,7 +94,7 @@ export function UserPreview({
     anchor,
     onHoverChange,
 }: {
-    user: User;
+    user: User | Pick<User, 'username'>;
     children: ReactNode;
     className?: string;
     anchor?: RefObject<HTMLElement | null>;
@@ -100,11 +105,19 @@ export function UserPreview({
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const isMenuOpen = useRef(false);
     const [position, setPosition] = useState<Position | null>(null);
+    const [isOpen, setIsOpen] = useState(false);
     const [data, setData] = useState<PreviewData | null>(
         () => cache.get(user.username) ?? null,
     );
+    const previewUser = data?.user ?? ('id' in user ? user : null);
 
-    const close = () => setPosition(null);
+    const close = () => {
+        setIsOpen(false);
+
+        if (!previewRef.current) {
+            setPosition(null);
+        }
+    };
 
     const scheduleOpen = () => {
         clearTimeout(timer.current);
@@ -123,6 +136,7 @@ export function UserPreview({
                     ? positionAround(anchor.current)
                     : positionFor(triggerRef.current),
             );
+            setIsOpen(true);
             setData(cache.get(user.username) ?? null);
             fetchPreview(user).then(setData, () => undefined);
         }, openDelay);
@@ -138,7 +152,10 @@ export function UserPreview({
         timer.current = setTimeout(close, closeDelay);
     };
 
-    const keepOpen = () => clearTimeout(timer.current);
+    const keepOpen = () => {
+        clearTimeout(timer.current);
+        setIsOpen(true);
+    };
 
     useEffect(() => {
         if (!position) {
@@ -159,6 +176,27 @@ export function UserPreview({
             window.removeEventListener('keydown', onKeyDown);
         };
     }, [position]);
+
+    useEffect(() => {
+        const preview = previewRef.current;
+
+        if (isOpen || !preview) {
+            return;
+        }
+
+        let isClosing = true;
+
+        Promise.all(
+            preview.getAnimations().map((animation) => animation.finished),
+        ).then(
+            () => isClosing && setPosition(null),
+            () => undefined,
+        );
+
+        return () => {
+            isClosing = false;
+        };
+    }, [isOpen]);
 
     useLayoutEffect(() => {
         if (!previewRef.current || position?.top === undefined) {
@@ -195,6 +233,7 @@ export function UserPreview({
             </span>
 
             {position &&
+                previewUser &&
                 createPortal(
                     <div
                         ref={previewRef}
@@ -208,17 +247,18 @@ export function UserPreview({
                             onHoverChange?.(false);
                             scheduleClose();
                         }}
-                        className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
+                        data-state={isOpen ? 'open' : 'closed'}
+                        className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
                         style={{
                             ...position,
                             transformOrigin: anchor
                                 ? `${avatarCentre}px ${avatarCentre}px`
-                                : undefined,
+                                : `left ${position.top === undefined ? 'bottom' : 'top'}`,
                         }}
                         data-test="user-preview"
                     >
                         <UserPreviewContent
-                            user={data?.user ?? user}
+                            user={previewUser}
                             data={data}
                             onChange={(next) => {
                                 cache.set(user.username, next);
@@ -279,6 +319,11 @@ function UserPreviewContent({
                 preserveScroll: true,
                 preserveState: true,
                 onError: () => onChange(previous),
+                onHttpException: (response) => {
+                    onChange(previous);
+
+                    return !toastWhenThrottled(response);
+                },
             },
         );
     };

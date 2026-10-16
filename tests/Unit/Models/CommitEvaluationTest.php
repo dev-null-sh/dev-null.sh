@@ -41,17 +41,24 @@ it('may have failed without a test decision', function (): void {
         ->error->toBe('Connection timed out.');
 });
 
-it('is the latest evaluation of its commit', function (): void {
+it('is the latest evaluation of its commit', function (bool $sameTime): void {
     $commit = Commit::factory()->pending()->create();
 
-    CommitEvaluation::factory()->for($commit)->failed()->create();
+    CommitEvaluation::factory()->for($commit)->failed()->create([
+        'id' => '00000000-0000-4000-8000-000000000001',
+    ]);
 
-    $this->travel(1)->minute();
+    if (! $sameTime) {
+        $this->travel(1)->minute();
+    }
 
-    $latest = CommitEvaluation::factory()->for($commit)->create();
+    $latest = CommitEvaluation::factory()->for($commit)->create([
+        'id' => '00000000-0000-4000-8000-000000000002',
+    ]);
 
-    expect($commit->refresh()->evaluation->id)->toBe($latest->id);
-});
+    expect($commit->refresh()->evaluation->id)->toBe($latest->id)
+        ->and($commit->fresh('evaluation')->evaluation->id)->toBe($latest->id);
+})->with([false, true]);
 
 it('is deleted with its commit', function (): void {
     $evaluation = CommitEvaluation::factory()->create();

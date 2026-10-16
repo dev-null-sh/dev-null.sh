@@ -11,6 +11,7 @@ use App\Http\Requests\UpdateModerationRequest;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -31,15 +32,18 @@ final readonly class ModerationController
                     'linkPreview',
                     'images',
                     'evaluation',
+                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with('user')->withPollFor($user),
                     'seriesParts' => fn (HasMany $query): HasMany => $query
                         ->where('status', CommitStatus::Pending)
-                        ->with(['user', 'linkPreview', 'images'])
+                        ->with(['user', 'linkPreview', 'images', 'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with('user')->withPollFor($user)])
                         ->oldest('series_position'),
                 ])
                 ->withStarsFor($user)
+                ->withPollFor($user)
                 ->oldest()
                 ->oldest('id')
-                ->cursorPaginate(20)),
+                ->cursorPaginate(20)
+                ->through($this->withAiDecision(...))),
         ]);
     }
 
@@ -54,5 +58,15 @@ final readonly class ModerationController
         $action->handle($commitIds, CommitStatus::Approved, onlyPending: true);
 
         return back();
+    }
+
+    /**
+     * The AI's decision is hidden everywhere else, but moderators see it, for each part of a series too.
+     */
+    private function withAiDecision(Commit $commit): Commit
+    {
+        $commit->seriesParts->makeVisible(['ai_decision', 'ai_categories']);
+
+        return $commit->makeVisible(['ai_decision', 'ai_categories']);
     }
 }

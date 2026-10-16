@@ -67,3 +67,24 @@ it('lists them to guests, without anyone marked as followed', function (): void 
             ->has('users.data', 1)
             ->where('users.data.0.is_followed', false));
 });
+
+it('previews the list to guests without letting search engines index it', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+
+    $this->get(route('user-following.index', $user))
+        ->assertOk()
+        ->assertSee('<title>People followed by The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<meta name="robots" content="noindex, follow">', false)
+        ->assertSee('<link rel="canonical" href="'.route('user-following.index', $user).'">', false)
+        ->assertSee('<meta property="og:image" content="'.route('user-open-graph-image.show', $user).'?v=', false);
+});
+
+it('keeps the default link preview of the list for signed-in users', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('user-following.index', $user))
+        ->assertOk()
+        ->assertDontSee('<meta name="robots"', false)
+        ->assertDontSee('og:url', false);
+});

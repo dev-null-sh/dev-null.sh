@@ -9,7 +9,9 @@ use App\Queries\CommitBuilder;
 use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
+use Illuminate\Database\Eloquent\Casts\AsVector;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,30 +24,45 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property-read string $id
- * @property-read string $user_id
+ * @property-read string|null $user_id
  * @property-read string|null $parent_id
+ * @property-read string|null $root_id
+ * @property-read float $hot_score
  * @property-read string $body
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
+ * @property-read string|null $quoted_commit_id
  * @property-read string|null $series_id
  * @property-read int|null $series_position
  * @property-read int|null $series_size
+ * @property-read CommitStatus|null $ai_decision
+ * @property-read list<string>|null $ai_categories
+ * @property-read list<float>|null $embedding
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
  * @property-read int $stars_count
  * @property-read bool $starred
- * @property-read User $user
+ * @property-read User|null $user
  * @property-read Collection<int, User> $stars
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
+ * @property-read int|null $repliers_count
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
+ * @property-read Poll|null $poll
+ * @property-read Commit|null $quotedCommit
+ * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
  * @property-read CommitEvaluation|null $evaluation
  * @property-read Collection<int, Commit> $seriesParts
  */
+#[Hidden([
+    'ai_decision',
+    'ai_categories',
+    'embedding',
+])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
 {
@@ -54,6 +71,8 @@ final class Commit extends Model
 
     use HasUuids;
     use SoftDeletes;
+
+    public const int RESTORABLE_SECONDS = 30;
 
     /**
      * @return array<string, string>
@@ -64,12 +83,18 @@ final class Commit extends Model
             'id' => 'string',
             'user_id' => 'string',
             'parent_id' => 'string',
+            'root_id' => 'string',
+            'hot_score' => 'float',
             'body' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
+            'quoted_commit_id' => 'string',
             'series_id' => 'string',
             'series_position' => 'integer',
             'series_size' => 'integer',
+            'ai_decision' => CommitStatus::class,
+            'ai_categories' => 'array',
+            'embedding' => AsVector::class,
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -114,11 +139,17 @@ final class Commit extends Model
      */
     public function isVisibleTo(?User $user): bool
     {
-        if ($this->user_id === $user?->id) {
+        if ($user instanceof User && $this->user_id === $user->id) {
             return true;
         }
 
-        return $this->status === CommitStatus::Approved && (! $user instanceof User || ! $user->hasBlockWith($this->user));
+        return $this->status === CommitStatus::Approved
+            && (! $user instanceof User || ! $this->user instanceof User || ! $user->hasBlockWith($this->user));
+    }
+
+    public function isRestorable(): bool
+    {
+        return $this->user_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
     }
 
     /**
@@ -127,6 +158,14 @@ final class Commit extends Model
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    /**
+     * The top-level commit that started the thread the commit belongs to, which is the commit itself when it is top-level.
+     */
+    public function threadRootId(): string
+    {
+        return $this->root_id ?? $this->id;
     }
 
     /**
@@ -148,6 +187,14 @@ final class Commit extends Model
     }
 
     /**
+     * Later parts of a series are replies to the part before them, yet they read as part of it rather than as replies.
+     */
+    public function isSeriesContinuation(): bool
+    {
+        return $this->series_position !== null && $this->series_position > 1;
+    }
+
+    /**
      * @return HasMany<Bookmark, $this>
      */
     public function bookmarks(): HasMany
@@ -161,6 +208,30 @@ final class Commit extends Model
     public function linkPreview(): BelongsTo
     {
         return $this->belongsTo(LinkPreview::class);
+    }
+
+    /**
+     * @return HasOne<Poll, $this>
+     */
+    public function poll(): HasOne
+    {
+        return $this->hasOne(Poll::class);
+    }
+
+    /**
+     * @return BelongsTo<Commit, $this>
+     */
+    public function quotedCommit(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'quoted_commit_id');
+    }
+
+    /**
+     * @return HasMany<Commit, $this>
+     */
+    public function quotes(): HasMany
+    {
+        return $this->hasMany(self::class, 'quoted_commit_id');
     }
 
     /**
@@ -178,7 +249,14 @@ final class Commit extends Model
      */
     public function evaluation(): HasOne
     {
-        return $this->hasOne(CommitEvaluation::class)->latestOfMany('created_at');
+        return $this->hasOne(CommitEvaluation::class)
+            ->where('commit_evaluations.id', CommitEvaluation::query()
+                ->from('commit_evaluations as latest_evaluations')
+                ->select('latest_evaluations.id')
+                ->whereColumn('latest_evaluations.commit_id', 'commit_evaluations.commit_id')
+                ->latest('latest_evaluations.created_at')
+                ->latest('latest_evaluations.id')
+                ->limit(1));
     }
 
     /**
@@ -202,8 +280,12 @@ final class Commit extends Model
      */
     public function loadPublicPreview(): self
     {
-        return $this->loadCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()])
-            ->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
+        $this->forceFill([
+            'replies_count' => self::query()->withTrashed()->withVisibleReplyCount(null)
+                ->whereKey($this->getAttributeFromArray($this->getKeyName()))->first()->replies_count ?? 0,
+        ])->syncOriginalAttribute('replies_count');
+
+        return $this->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
     }
 
     /**
@@ -214,8 +296,8 @@ final class Commit extends Model
         return hash('xxh3', implode(':', [
             $this->updated_at->getTimestamp(),
             $this->replies_count,
-            $this->user->updated_at->getTimestamp(),
-            $this->parent?->user->username,
+            $this->user?->updated_at->getTimestamp(),
+            $this->parent?->user?->username,
         ]));
     }
 }

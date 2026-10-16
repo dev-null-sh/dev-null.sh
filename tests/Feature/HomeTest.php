@@ -2,15 +2,97 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateCommitHotScores;
 use App\Enums\Log;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\Commit;
 use App\Models\User;
 
-it('renders the landing page for guests', function (): void {
+it('renders the trending log for guests', function (): void {
+    $older = Commit::factory()->create(['body' => 'Starred', 'created_at' => now()->subMinute()]);
+    $older->stars()->attach(User::factory()->create());
+    resolve(UpdateCommitHotScores::class)->handle([$older->id]);
+    Commit::factory()->create(['body' => 'Newer']);
+    Commit::factory()->pending()->create(['body' => 'Pending']);
+    Commit::factory()->create(['parent_id' => $older->id, 'body' => 'Reply']);
+
     $response = $this->get(route('home'));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->component('welcome'));
+            ->component('log/show')
+            ->where('log', 'trending')
+            ->where('isRanked', true)
+            ->where('newestCommitId', fn (string $id): bool => $id !== $older->id)
+            ->has('commits.data', 2)
+            ->where('commits.data.0.body', 'Starred')
+            ->where('commits.data.0.starred', false)
+            ->where('commits.data.0.replies_count', 1)
+            ->where('commits.data.1.body', 'Newer')
+            ->where('suggestions', [])
+            ->where('auth.user', null));
+
+    $this->assertGuest();
+});
+
+it('renders the latest log for guests who ask for it', function (): void {
+    Commit::factory()->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
+    Commit::factory()->create(['body' => 'Newer']);
+
+    $this->get(route('home', ['log' => 'latest']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('log/show')
+            ->where('log', 'latest')
+            ->where('isRanked', false)
+            ->where('newestCommitId', null)
+            ->where('commits.data.0.body', 'Newer')
+            ->where('commits.data.1.body', 'Older'));
+});
+
+it('keeps the latest log when guests scroll further', function (): void {
+    Commit::factory()->count(21)->create();
+
+    $this->get(route('home', ['log' => 'latest']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.next_page_url', fn (string $url): bool => str_contains($url, 'log=latest')));
+});
+
+it('shows guests the trending log for logs they do not have', function (string $log): void {
+    $this->get(route('home', ['log' => $log]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('log', 'trending'));
+})->with(['following', 'everyone']);
+
+it('counts new commits for guests', function (): void {
+    $seen = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->count(2)->create();
+    Commit::factory()->pending()->create();
+
+    $this->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount,latestCommits',
+    ])
+        ->get(route('home', ['since' => $seen->id]))
+        ->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 2)
+        ->assertJsonCount(2, 'props.latestCommits');
+});
+
+it('describes the landing page to search engines and link previews', function (): void {
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertSee('<title>/dev/null: a social network for developers</title>', false)
+        ->assertSee('<link rel="canonical" href="'.route('home').'">', false)
+        ->assertSee('<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">', false)
+        ->assertSee('<meta property="og:type" content="website">', false)
+        ->assertSee('<meta property="og:url" content="'.route('home').'">', false)
+        ->assertSee('<meta property="og:image" content="'.url('/og.png').'">', false)
+        ->assertSee('"@type":"WebSite"', false)
+        ->assertSee('"@type":"Organization"', false);
 });
 
 it('redirects authenticated users to the log', function (): void {
@@ -21,10 +103,10 @@ it('redirects authenticated users to the log', function (): void {
 });
 
 it('redirects authenticated users to the log they visited last', function (): void {
-    $response = $this->actingAs(User::factory()->create(['log' => Log::Everyone]))
+    $response = $this->actingAs(User::factory()->create(['log' => Log::Trending]))
         ->get(route('home'));
 
-    $response->assertRedirectToRoute('log.show', Log::Everyone);
+    $response->assertRedirectToRoute('log.show', Log::Trending);
 });
 
 it('automatically signs in a local developer without GitHub', function (): void {
@@ -81,7 +163,7 @@ it('does not automatically sign in locally when AUTO_LOGIN is disabled', functio
 
     $this->get(route('home'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('welcome'));
+        ->assertInertia(fn ($page) => $page->component('log/show'));
 
     $this->assertGuest();
 
@@ -94,7 +176,7 @@ it('does not automatically sign in outside the local environment', function (): 
 
     $this->get(route('home'))
         ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('welcome'));
+        ->assertInertia(fn ($page) => $page->component('log/show'));
 
     $this->assertGuest();
 

@@ -4,7 +4,7 @@ A social network for developers. Sign in with GitHub, follow developers, and sha
 
 ## Getting Started
 
-Requires PHP 8.5+, Composer, Bun, and SQLite (the default database) or another configured database.
+Requires PHP 8.5+, Composer, Bun, and PostgreSQL 17+ with the [pgvector](https://github.com/pgvector/pgvector) and `pg_trgm` extensions available. [Laravel Herd](https://herd.laravel.com)'s PostgreSQL service ships with both. Create a `devnull` database for the app and a `testing` database for the test suite.
 
 ```bash
 git clone https://github.com/nunomaduro/devnull.com.git
@@ -39,6 +39,30 @@ TYPESAFE_MODERATION_ENABLED=true
 ```
 
 Evaluations run on the queue, so keep a worker running (`composer dev` starts one). `TYPESAFE_MODEL` pins the model (default `jev-1.13.0`). Set `TYPESAFE_MODERATION_ENABLED=false` to turn it off again: commits then wait for a moderator as before.
+### Embeds
+
+A link card for a video, song or pen becomes a player that loads when clicked. The player URL is built on the server from the link, so only the sites below can be framed. None of them need an API key.
+
+| Key | Links |
+|---|---|
+| `youtube` | `youtube.com/watch`, `youtu.be`, `/shorts`, `/live`, `/playlist` (with `t=` start times) |
+| `vimeo` | `vimeo.com/{id}`, unlisted `vimeo.com/{id}/{hash}`, channels and groups |
+| `loom` | `loom.com/share/{id}` |
+| `twitch` | channels, `/videos/{id}` and clips |
+| `suno` | `suno.com/song/{id}` |
+| `spotify` | tracks, albums, playlists, artists, episodes and shows |
+| `soundcloud` | tracks and sets |
+| `apple_music` | albums, playlists and songs |
+| `codepen` | pens |
+| `asciinema` | recordings |
+
+| Variable | Default | |
+|---|---|---|
+| `EMBEDS_ENABLED` | `true` | `false` turns every link back into a plain link card |
+| `EMBEDS_PROVIDERS` | empty (all) | Comma-separated keys from the table above, such as `youtube,suno,spotify` |
+| `EMBEDS_YOUTUBE_PRIVACY_ENHANCED` | `true` | Plays YouTube from `youtube-nocookie.com` |
+
+Twitch requires the embedding site's host, which is taken from `APP_URL`. To add a site, implement `App\Contracts\Services\EmbedProvider` and register it in `config/embeds.php`.
 
 ### Verify installation
 
@@ -52,7 +76,7 @@ Read-only, no authentication, JSON, versioned under `/api/v1`. Only approved com
 |---|---|
 | `GET /api/v1/users/{username}` | A public profile with commit, follower, and following counts |
 | `GET /api/v1/users/{username}/commits` | The user's top-level commits, newest first, 20 per page (`?replies=1` for their replies instead) |
-| `GET /api/v1/commits/{id}` | One commit with its author, public parent id, star and reply counts, link preview, and images (`id`, `url`, `width`, `height`) |
+| `GET /api/v1/commits/{id}` | One commit with its author, public parent id, star and reply counts, link preview (with its `embed` player, if any), and images (`id`, `url`, `width`, `height`) |
 
 Lists are cursor-paginated: follow `links.next` (or pass `meta.next_cursor` as `?cursor=`) until it is `null`.
 
@@ -79,6 +103,7 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ### Maintenance
 - `composer update:requirements` - Updates the PHP and frontend dependency version constraints
+- `php artisan commits:embed` - Embeds the body of every commit missing an embedding, for semantic search (`--all` re-embeds everything)
 
 ## License
 

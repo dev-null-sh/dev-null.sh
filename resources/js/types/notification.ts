@@ -8,11 +8,16 @@ type BaseNotification = {
     read_at: string | null;
     created_at: string;
     updated_at: string;
-    actor: User;
+    actor: User & { is_followed: boolean };
+    reason: string | null;
+};
+
+export type NotificationGroup = Notification & {
+    group_id: string;
+    event_count: number;
     actors: User[];
     actors_count: number;
     unread_count: number;
-    reason: string | null;
 };
 
 export type Notification =
@@ -29,7 +34,7 @@ export type Notification =
           commit: Omit<Commit, 'user'>;
       })
     | (BaseNotification & {
-          type: 'mentioned' | 'approved' | 'rejected';
+          type: 'quoted' | 'mentioned' | 'approved' | 'rejected';
           commit_id: string;
           subject_id: null;
           commit: Omit<Commit, 'user'>;

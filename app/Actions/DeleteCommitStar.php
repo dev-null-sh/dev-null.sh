@@ -10,8 +10,10 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class DeleteCommitStar
 {
-    public function __construct(private DeleteStarNotification $deleteStarNotification)
-    {
+    public function __construct(
+        private DeleteStarNotification $deleteStarNotification,
+        private UpdateCommitHotScores $updateCommitHotScores,
+    ) {
         //
     }
 
@@ -21,6 +23,8 @@ final readonly class DeleteCommitStar
             $user->starredCommits()->detach($commit->id);
 
             $this->deleteStarNotification->handle($user, $commit);
+
+            $this->updateCommitHotScores->handle([$commit->id]);
         });
     }
 }

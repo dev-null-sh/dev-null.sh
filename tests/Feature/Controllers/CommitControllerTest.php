@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateQuoteNotifications;
+use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
@@ -201,6 +204,19 @@ it('may delete own commit from its page', function (): void {
     $this->assertSoftDeleted($commit);
 });
 
+it('may delete own commit while viewing one of its photos', function (): void {
+    $commit = Commit::factory()->create();
+    CommitImage::factory()->for($commit)->create();
+
+    $response = $this->actingAs($commit->user)
+        ->from(route('commit-photo.show', [$commit->user, $commit, 1]))
+        ->delete(route('commit.destroy', $commit));
+
+    $response->assertRedirectToRoute('user.show', $commit->user);
+
+    $this->assertSoftDeleted($commit);
+});
+
 it('tells users their commit is pending review', function (): void {
     $user = User::factory()->create();
 
@@ -229,95 +245,232 @@ it('publishes commits of admins right away', function (): void {
     expect($user->commits()->sole()->status)->toBe(CommitStatus::Approved);
 });
 
-it('may reply to a commit', function (): void {
+it('does not create replies', function (): void {
     $user = User::factory()->create();
     $parent = Commit::factory()->create();
 
-    $response = $this->actingAs($user)
-        ->fromRoute('log.show', Log::Everyone)
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Trending)
         ->post(route('commit.store'), [
             'body' => 'Agreed, ship it.',
             'parent_id' => $parent->id,
-        ]);
+        ])
+        ->assertRedirectToRoute('log.show', Log::Trending);
 
-    $response->assertRedirectToRoute('log.show', Log::Everyone);
-
-    expect($user->commits()->sole()->parent_id)->toBe($parent->id);
+    expect($user->commits()->sole()->parent_id)->toBeNull()
+        ->and($parent->replies()->count())->toBe(0);
 });
 
-it('may reply to own pending commit', function (): void {
+it('may quote a commit', function (): void {
     $user = User::factory()->create();
-    $parent = Commit::factory()->for($user)->pending()->create();
+    $quoted = Commit::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Trending)
+        ->post(route('commit.store'), [
+            'body' => 'Required reading.',
+            'quoted_commit_id' => $quoted->id,
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Trending)
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole())
+        ->quoted_commit_id->toBe($quoted->id)
+        ->parent_id->toBeNull();
+});
+
+it('may quote own pending commit', function (): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->for($user)->pending()->create();
 
     $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
-        ->post(route('commit.store'), ['body' => 'Follow-up', 'parent_id' => $parent->id])
+        ->post(route('commit.store'), ['body' => 'Follow-up', 'quoted_commit_id' => $quoted->id])
         ->assertSessionHasNoErrors();
 
-    expect($parent->replies()->count())->toBe(1);
+    expect(Commit::query()->where('quoted_commit_id', $quoted->id)->count())->toBe(1);
 });
 
-it('may not reply to a commit that is not visible', function (): void {
-    $parent = Commit::factory()->pending()->create();
+it('may not quote a commit that is not available', function (Closure $factory): void {
+    $quoted = $factory();
 
     $response = $this->actingAs(User::factory()->create())
-        ->fromRoute('log.show', Log::Everyone)
-        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
+        ->fromRoute('log.show', Log::Trending)
+        ->post(route('commit.store'), ['body' => 'Required reading.', 'quoted_commit_id' => $quoted->id]);
 
-    $response->assertSessionHasErrors('parent_id');
+    $response->assertSessionHasErrors(['quoted_commit_id' => 'That commit is no longer available to quote.']);
 
-    expect($parent->replies()->count())->toBe(0);
+    expect(Commit::query()->whereNotNull('quoted_commit_id')->count())->toBe(0);
+})->with([
+    'pending' => [fn (): Commit => Commit::factory()->pending()->create()],
+    'rejected' => [fn (): Commit => Commit::factory()->rejected()->create()],
+    'deleted' => [function (): Commit {
+        $commit = Commit::factory()->create();
+        $commit->delete();
+
+        return $commit;
+    }],
+]);
+
+it('may not quote a commit that does not exist', function (): void {
+    $response = $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Trending)
+        ->post(route('commit.store'), ['body' => 'Hello', 'quoted_commit_id' => '01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3']);
+
+    $response->assertSessionHasErrors('quoted_commit_id');
 });
 
-it('may not reply to a deleted commit', function (): void {
-    $parent = Commit::factory()->create();
-    $parent->delete();
+it('may not quote a commit in a reply', function (): void {
+    $commit = Commit::factory()->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->fromRoute('log.show', Log::Everyone)
-        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
+        ->fromRoute('log.show', Log::Trending)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $commit->id, 'quoted_commit_id' => $commit->id]);
 
-    $response->assertSessionHasErrors('parent_id');
+    $response->assertSessionHasErrors('quoted_commit_id');
 
-    expect(Commit::query()->count())->toBe(0);
+    expect(Commit::query()->count())->toBe(1);
 });
 
-it('may not reply to a commit that does not exist', function (): void {
-    $response = $this->actingAs(User::factory()->create())
-        ->fromRoute('log.show', Log::Everyone)
-        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => '01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3']);
+it('shows the quoted commits of a commit and its ancestors with their authors', function (bool $signedIn): void {
+    if ($signedIn) {
+        $this->actingAs(User::factory()->create());
+    }
 
-    $response->assertSessionHasErrors('parent_id');
-});
+    $root = Commit::factory()->for(Commit::factory()->state(['body' => 'Quoted by the root']), 'quotedCommit')->create();
+    $commit = Commit::factory()->for($root, 'parent')->create();
+    $focused = Commit::factory()->for(Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->state(['body' => 'Quoted by the focused commit']), 'quotedCommit')->create();
 
-it('may not reply across a block in either direction', function (bool $replierBlocks): void {
-    $replier = User::factory()->create();
-    $parent = Commit::factory()->create();
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit', null)
+            ->where('ancestors.0.quoted_commit.body', 'Quoted by the root')
+            ->where('ancestors.0.quoted_commit.user.username', $root->quotedCommit->user->username));
 
-    $replierBlocks ? $replier->blocking()->attach($parent->user) : $parent->user->blocking()->attach($replier);
+    $this->get(route('commit.show', [$focused->user, $focused]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit_id', $focused->quoted_commit_id)
+            ->where('commit.quoted_commit.body', 'Quoted by the focused commit')
+            ->where('commit.quoted_commit.user.username', 'octocat')
+            ->missing('commit.quoted_commit.user.email'));
+})->with(['guest' => false, 'signed in' => true]);
 
-    $response = $this->actingAs($replier)
-        ->fromRoute('log.show', Log::Everyone)
-        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
+it('shows a deleted quoted commit as a tombstone', function (bool $signedIn): void {
+    $quoted = Commit::factory()->create(['body' => 'Deleted words']);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    $quoted->delete();
 
-    $response->assertSessionHasErrors(['parent_id' => 'That commit is no longer available to reply to.']);
+    if ($signedIn) {
+        $this->actingAs(User::factory()->create());
+    }
 
-    expect($parent->replies()->count())->toBe(0)
-        ->and($parent->user->notifications()->exists())->toBeFalse();
+    $this->get(route('commit.show', [$quote->user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit.id', $quoted->id)
+            ->where('commit.quoted_commit.deleted_at', fn (string $deletedAt): bool => $deletedAt !== '')
+            ->missing('commit.quoted_commit.body')
+            ->missing('commit.quoted_commit.user'))
+        ->assertDontSee('Deleted words');
+})->with(['guest' => false, 'signed in' => true]);
+
+it('keeps account deletion quote tombstones private and removes their notifications', function (CommitStatus $status, bool $signedIn): void {
+    $author = User::factory()->create(['username' => 'deletedquoteauthor']);
+    $root = Commit::factory()->create();
+    $quoted = Commit::factory()->for($author)->for($root, 'parent')->create(['body' => 'Erased quoted words']);
+    Commit::factory()->for($quoted, 'parent')->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    $notifications = resolve(CreateQuoteNotifications::class);
+    $notifications->handle($quote);
+
+    expect($author->notifications()->sole()->commit_id)->toBe($quote->id);
+
+    $quoted->update(['status' => $status]);
+    resolve(DeleteUser::class)->handle($author);
+    $notifications->handle($quote);
+
+    expect(Notification::query()->exists())->toBeFalse()
+        ->and($quote->refresh()->quoted_commit_id)->toBe($quoted->id);
+
+    if ($signedIn) {
+        $this->actingAs(User::factory()->create());
+    }
+
+    $response = $this->get(route('commit.show', [$quote->user, $quote]));
+
+    $response->assertOk()
+        ->assertDontSee('deletedquoteauthor')
+        ->assertDontSee('Erased quoted words')
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit_id', $quoted->id)
+            ->missing('commit.quoted_commit.body')
+            ->missing('commit.quoted_commit.user'));
+
+    if ($status === CommitStatus::Approved) {
+        $response->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit.id', $quoted->id)
+            ->where('commit.quoted_commit.deleted_at', fn (string $deletedAt): bool => $deletedAt !== ''));
+    } else {
+        $response->assertInertia(fn ($page) => $page->where('commit.quoted_commit', null));
+    }
+})->with(CommitStatus::cases())->with(['guest' => false, 'signed in' => true]);
+
+it('never shows a quoted commit that is no longer visible to the viewer', function (CommitStatus $status, bool $signedIn): void {
+    $quoted = Commit::factory()->create(['body' => 'Words under review']);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    $quoted->update(['status' => $status]);
+
+    if ($signedIn) {
+        $this->actingAs(User::factory()->create());
+    }
+
+    $this->get(route('commit.show', [$quote->user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit_id', $quoted->id)
+            ->where('commit.quoted_commit', null))
+        ->assertDontSee('Words under review');
+
+    $this->actingAs($quoted->user)
+        ->get(route('commit.show', [$quote->user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.quoted_commit.body', 'Words under review'));
+})->with([CommitStatus::Pending, CommitStatus::Rejected])->with(['guest' => false, 'signed in' => true]);
+
+it('may not quote across a block in either direction', function (bool $quoterBlocks): void {
+    $quoter = User::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $quoterBlocks ? $quoter->blocking()->attach($quoted->user) : $quoted->user->blocking()->attach($quoter);
+
+    $this->actingAs($quoter)
+        ->fromRoute('log.show', Log::Trending)
+        ->post(route('commit.store'), ['body' => 'Hello', 'quoted_commit_id' => $quoted->id])
+        ->assertSessionHasErrors(['quoted_commit_id' => 'That commit is no longer available to quote.']);
+
+    expect($quoted->quotes()->count())->toBe(0)
+        ->and($quoted->user->notifications()->exists())->toBeFalse();
 })->with([true, false]);
 
-it('may reply to a muted user without them knowing', function (): void {
-    $replier = User::factory()->create();
-    $parent = Commit::factory()->create();
+it('hides the quoted commit across a block in either direction', function (bool $viewerBlocks): void {
+    $viewer = User::factory()->create();
+    $quoted = Commit::factory()->create(['body' => 'Blocked words']);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
 
-    $replier->muting()->attach($parent->user);
+    $viewerBlocks ? $viewer->blocking()->attach($quoted->user) : $quoted->user->blocking()->attach($viewer);
 
-    $this->actingAs($replier)
-        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id])
-        ->assertSessionHasNoErrors();
-
-    expect($parent->replies()->count())->toBeOne();
-});
+    $this->actingAs($viewer)
+        ->get(route('commit.show', [$quote->user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit_id', $quoted->id)
+            ->where('commit.quoted_commit', null))
+        ->assertDontSee('Blocked words');
+})->with([true, false]);
 
 it('does not show a commit across a block in either direction', function (bool $viewerBlocks): void {
     $viewer = User::factory()->create();
@@ -413,6 +566,23 @@ it('shows the star count and whether the viewer starred the commit and its ances
             ->where('commit.starred', false)
             ->where('ancestors.0.stars_count', 2)
             ->where('ancestors.0.starred', true));
+});
+
+it('shows the star count and whether the viewer starred each reply', function (): void {
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $viewer->starredCommits()->attach($reply);
+    User::factory()->create()->starredCommits()->attach($reply);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('replies.data.0.stars_count', 2)
+            ->where('replies.data.0.starred', true));
 });
 
 it('shows the first 50 replies of a commit with a cursor to the rest', function (): void {
@@ -528,14 +698,14 @@ it('shows guests the commit with its approved replies and a link preview', funct
             ->has('ancestors', 0)
             ->has('replies.data', 1)
             ->where('replies.data.0.body', 'A reply everyone may read'))
-        ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<title>The Octocat (@octocat) on /dev/null: “Shipped the new parser. It is twice as fast.”</title>', false)
         ->assertSee('<link rel="canonical" href="'.route('commit.show', [$user, $commit]).'">', false)
-        ->assertSee('<meta name="twitter:title" content="The Octocat (@octocat) on /dev/null">', false)
+        ->assertSee('<meta name="twitter:title" content="The Octocat (@octocat) on /dev/null: “Shipped the new parser. It is twice as fast.”">', false)
         ->assertSee('<meta property="article:published_time" content="'.$commit->created_at->toIso8601String().'">', false)
         ->assertSee('"@type":"SocialMediaPosting"', false)
         ->assertSee('"author":{"@type":"Person","name":"The Octocat","alternateName":"@octocat","url":"'.route('user.show', $user).'"}', false)
         ->assertSee('<meta property="og:type" content="article">', false)
-        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null">', false)
+        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null: “Shipped the new parser. It is twice as fast.”">', false)
         ->assertSee('<meta property="og:description" content="Shipped the new parser. It is twice as fast.">', false)
         ->assertSee('<meta property="og:url" content="'.route('commit.show', [$user, $commit]).'">', false)
         ->assertSee('<meta property="og:image" content="'.route('commit-open-graph-image.show', [$user, $commit]).'?v=', false)
@@ -547,6 +717,17 @@ it('shows guests the commit with its approved replies and a link preview', funct
     $this->assertGuest();
 
     expect(session('url.intended'))->toBe(route('commit.show', [$user, $commit]));
+});
+
+it('does not show a later part of a series as a reply in the link preview', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $parts = commitSeries($user);
+
+    $response = $this->get(route('commit.show', [$user, $parts[1]]));
+
+    $response->assertOk()
+        ->assertSee('<meta property="og:title" content="The Octocat (@octocat) on /dev/null: “', false)
+        ->assertDontSee('(@octocat) replying to', false);
 });
 
 it('trims long commits in the link preview description', function (): void {
@@ -587,7 +768,7 @@ it('mentions the approved parent of a reply in the link preview', function (): v
 
     $this->get(route('commit.show', [$reply->user, $reply]))
         ->assertOk()
-        ->assertSee('<meta property="og:title" content="@octocat replying to @taylorotwell on /dev/null">', false)
+        ->assertSee('<meta property="og:title" content="@octocat replying to @taylorotwell on /dev/null: “', false)
         ->assertSee('"isPartOf":"'.route('commit.show', [$parent->user, $parent]).'"', false)
         ->assertInertia(fn ($page) => $page->where('ancestors.0.body', 'The parent commit'));
 });
@@ -599,7 +780,7 @@ it('does not mention an unavailable parent in the link preview', function (Closu
 
     $this->get(route('commit.show', [$reply->user, $reply]))
         ->assertOk()
-        ->assertSee('<meta property="og:title" content="@octocat on /dev/null">', false)
+        ->assertSee('<meta property="og:title" content="@octocat on /dev/null: “', false)
         ->assertDontSee('replying to')
         ->assertDontSee('taylorotwell')
         ->assertDontSee('The parent commit');
@@ -617,6 +798,89 @@ it('escapes the commit in the structured data', function (): void {
         ->assertDontSee('</script><script>alert(1)', false)
         ->assertSee('"text":"\u003C/script\u003E\u003Cscript\u003Ealert(1)\u003C/script\u003E"', false);
 });
+
+it('previews the images of a commit before its drawn card', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $commit = Commit::factory()->for($user)->create(['body' => 'The new terminal theme']);
+    $first = CommitImage::factory()->for($commit)->create(['width' => 1600, 'height' => 900, 'position' => 0]);
+    $second = CommitImage::factory()->for($commit)->create(['position' => 1]);
+
+    $content = (string) $this->get(route('commit.show', [$user, $commit]))->assertOk()->getContent();
+
+    expect($content)
+        ->toContain('<meta property="og:image" content="'.$first->url().'">
+                <meta property="og:image:type" content="image/webp">
+                <meta property="og:image:width" content="1600">
+                <meta property="og:image:height" content="900">
+                <meta property="og:image:alt" content="Image 1 of 2 attached to the commit of The Octocat (@octocat)">')
+        ->toContain('<meta name="twitter:image" content="'.$first->url().'">')
+        ->toContain('"image":["'.$first->url().'","'.$second->url().'","'.route('commit-open-graph-image.show', [$user, $commit]).'?v=')
+        ->and(mb_strpos($content, $second->url()))->toBeLessThan(mb_strpos($content, route('commit-open-graph-image.show', [$user, $commit])));
+});
+
+it('previews the drawn card of a commit without images', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('<meta name="twitter:image" content="'.route('commit-open-graph-image.show', [$commit->user, $commit]).'?v=', false)
+        ->assertSee('<meta property="og:image:type" content="image/png">', false)
+        ->assertSee('<meta property="og:image:width" content="1200">', false)
+        ->assertSee('<meta property="og:image:height" content="630">', false);
+});
+
+it('trims long commits in the link preview title', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'octocat']);
+    $commit = Commit::factory()->for($user)->create(['body' => str_repeat('Writing PHP on purpose. ', 4).'The end is not in the title.']);
+
+    $title = Str::betweenFirst((string) $this->get(route('commit.show', [$user, $commit]))->getContent(), '<meta property="og:title" content="', '"');
+
+    expect($title)->toStartWith('@octocat on /dev/null: “Writing PHP on purpose.')
+        ->toEndWith('…”')
+        ->not->toContain('The end');
+});
+
+it('lets search engines show large image previews of a commit', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">', false)
+        ->assertSee('<link rel="alternate" type="application/atom+xml" title="'.e($commit->user->nameWithHandle()).' on /dev/null" href="'.route('user-feed.show', $commit->user).'">', false);
+});
+
+it('lists the approved replies of a commit as comments in the structured data', function (): void {
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($commit, 'parent')->for(User::factory()->state(['username' => 'taylorotwell', 'name' => 'Taylor Otwell']))->create(['body' => 'A reply everyone may read']);
+    Commit::factory()->for($commit, 'parent')->pending()->create(['body' => 'A pending reply only its author may read']);
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('"comment":[{"@type":"Comment","url":"'.route('commit.show', [$reply->user, $reply]).'","text":"A reply everyone may read","datePublished":"'.$reply->created_at->toIso8601String().'","author":{"@type":"Person","name":"Taylor Otwell","alternateName":"@taylorotwell","url":"'.route('user.show', $reply->user).'"}}]', false)
+        ->assertDontSee('A pending reply only its author may read');
+});
+
+it('shares the link of a commit in the structured data', function (): void {
+    $commit = Commit::factory()->for(LinkPreview::factory()->fetched()->state(['url' => 'https://laravel.com', 'title' => 'Laravel']))->create();
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertSee('"sharedContent":{"@type":"WebPage","url":"https://laravel.com","name":"Laravel"', false);
+});
+
+it('shares the quoted commit in the structured data only while it is approved', function (bool $isApproved): void {
+    $quoted = Commit::factory()->create(['status' => $isApproved ? CommitStatus::Approved : CommitStatus::Pending]);
+    $commit = Commit::factory()->create(['quoted_commit_id' => $quoted->id]);
+
+    $response = $this->get(route('commit.show', [$commit->user, $commit]))->assertOk();
+
+    $isApproved
+        ? $response->assertSee('"sharedContent":{"@type":"SocialMediaPosting","url":"'.route('commit.show', [$quoted->user, $quoted]).'"', false)
+        : $response->assertDontSee('sharedContent', false);
+})->with([
+    'approved' => [true],
+    'pending' => [false],
+]);
 
 it('returns not found to guests for deleted commits', function (): void {
     $commit = Commit::factory()->create();
@@ -706,8 +970,9 @@ it('queues a link preview for a commit with a link', function (): void {
     Queue::assertPushed(UnfurlLink::class);
 });
 
-it('queues a link preview for the link the author chose', function (): void {
+it('keeps attached images with the link card the author chose', function (): void {
     Queue::fake();
+    Storage::fake();
 
     $user = User::factory()->create();
 
@@ -716,11 +981,18 @@ it('queues a link preview for the link the author chose', function (): void {
         ->post(route('commit.store'), [
             'body' => 'Shipped https://example.com/first, docs at laravel.com',
             'link_preview_url' => 'https://laravel.com',
+            'images' => [UploadedFile::fake()->image('draft.png', 10, 10)],
+            'image_descriptions' => ['The shipped feature.'],
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following);
 
-    expect($user->commits()->sole()->linkPreview->url)->toBe('https://laravel.com');
+    $commit = $user->commits()->sole();
+
+    expect($commit->linkPreview->url)->toBe('https://laravel.com')
+        ->and($commit->images->sole()->description)->toBe('The shipped feature.')
+        ->and($commit->images)->toHaveCount(1)
+        ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(1);
 
     Queue::assertPushed(UnfurlLink::class);
 });
@@ -804,6 +1076,81 @@ it('may attach images to a commit', function (): void {
         ->and($commit->images)->toHaveCount(3)
         ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
 });
+
+it('may describe the images attached to a commit', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Offsite photo dump',
+        'images' => [
+            UploadedFile::fake()->image('cabin.jpg', 40, 30),
+            UploadedFile::fake()->image('hike.jpg', 40, 30),
+        ],
+        'image_descriptions' => ['The cabin at sunrise, fog over the lake.', ''],
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->images->pluck('description')->all())->toBe([
+        'The cabin at sunrise, fog over the lake.',
+        null,
+    ]);
+});
+
+it('may not describe an image in more than a thousand characters', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Too long a description',
+        'images' => [UploadedFile::fake()->image('photo.jpg', 10, 10)],
+        'image_descriptions' => [str_repeat('a', 1001)],
+    ]);
+
+    $response->assertSessionHasErrors('image_descriptions.0');
+
+    expect($user->commits()->count())->toBe(0);
+});
+
+it('may attach images to a quote with the chosen link card', function (?string $linkPreviewUrl, ?string $expectedUrl): void {
+    Storage::fake();
+    Queue::fake([UnfurlLink::class]);
+
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Compare https://example.com/first and https://example.com/second',
+            'quoted_commit_id' => $quoted->id,
+            'images' => [UploadedFile::fake()->image('trace.png', 40, 30)],
+            'image_descriptions' => ['Trace showing the regression.'],
+            ...($linkPreviewUrl === null ? [] : ['link_preview_url' => $linkPreviewUrl]),
+        ])
+        ->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->quoted_commit_id)->toBe($quoted->id)
+        ->and($commit->images)->toHaveCount(1)
+        ->and($commit->images->sole()->description)->toBe('Trace showing the regression.')
+        ->and($commit->linkPreview?->url)->toBe($expectedUrl);
+
+    if ($expectedUrl === null) {
+        Queue::assertNotPushed(UnfurlLink::class);
+    } else {
+        Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+    }
+})->with([
+    'default card' => [null, 'https://example.com/first'],
+    'chosen card' => ['https://example.com/second', 'https://example.com/second'],
+    'no card' => ['', null],
+]);
 
 it('may not attach more than three images to a commit', function (): void {
     Storage::fake();

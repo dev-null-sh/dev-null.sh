@@ -1,0 +1,12 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "types": ["node"],
+        "allowImportingTsExtensions": true
+    },
+    "include": [
+        "Unit/**/*.test.ts",
+        "Unit/SeriesStash.test.tsx",
+        "draft-images.config.ts"
+    ]
+}

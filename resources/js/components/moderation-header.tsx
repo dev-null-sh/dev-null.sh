@@ -1,8 +1,5 @@
 import type { ReactNode } from 'react';
-import AutoModeratedCommitController from '@/actions/App/Http/Controllers/AutoModeratedCommitController';
-import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
-import ModerationRuleController from '@/actions/App/Http/Controllers/ModerationRuleController';
-import { PageTabs } from '@/components/page-tabs';
+import { ModerationTabs } from '@/components/moderation-tabs';
 
 export function ModerationHeader({
     active,
@@ -23,26 +20,7 @@ export function ModerationHeader({
                     </div>
                 )}
             </div>
-            <PageTabs
-                label="Moderation"
-                tabs={[
-                    {
-                        title: 'Queue',
-                        href: ModerationController.show(),
-                        isActive: active === 'queue',
-                    },
-                    {
-                        title: 'Auto-moderated',
-                        href: AutoModeratedCommitController.index(),
-                        isActive: active === 'automated',
-                    },
-                    {
-                        title: 'Rules',
-                        href: ModerationRuleController.index(),
-                        isActive: active === 'rules',
-                    },
-                ]}
-            />
+            <ModerationTabs active={active === 'queue' ? 'pending' : active} />
             {children}
         </div>
     );

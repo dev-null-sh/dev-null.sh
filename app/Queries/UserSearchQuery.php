@@ -20,8 +20,9 @@ final readonly class UserSearchQuery
             ->trim()
             ->ltrim('@')
             ->lower()
-            ->remove(['%', '_', '\\'])
             ->value();
+
+        $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
 
         if ($term === '') {
             return new Collection();
@@ -29,14 +30,14 @@ final readonly class UserSearchQuery
 
         return User::query()
             ->where(fn (Builder $query): Builder => $query
-                ->whereRaw('LOWER(username) LIKE ?', ["%{$term}%"])
-                ->orWhereRaw('LOWER(name) LIKE ?', ["%{$term}%"]))
+                ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+                ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
             ->when($viewer, fn (Builder $query, User $viewer): Builder => $query
                 ->whereNotIn('id', $viewer->mutedIds())
                 ->whereNotIn('id', $viewer->idsAcrossBlocks()))
             ->orderByRaw(
-                'CASE WHEN LOWER(username) = ? THEN 0 WHEN LOWER(username) LIKE ? THEN 1 WHEN LOWER(name) LIKE ? THEN 2 ELSE 3 END',
-                [$term, "{$term}%", "{$term}%"],
+                "CASE WHEN LOWER(username) = ? THEN 0 WHEN LOWER(username) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
+                [$term, "{$escaped}%", "{$escaped}%"],
             )
             ->orderBy('username')
             ->limit($limit)

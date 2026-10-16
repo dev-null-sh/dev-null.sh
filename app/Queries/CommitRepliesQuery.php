@@ -13,18 +13,24 @@ final readonly class CommitRepliesQuery
     public const int PER_PAGE = 50;
 
     /**
+     * Quotes are listed under the commit they quote, so they don't embed it again.
+     *
      * @return CursorPaginator<int, Commit>
      */
-    public function paginate(Commit $commit, ?User $user): CursorPaginator
+    public function paginate(Commit $commit, ?User $user, bool $newest = false, int $limit = self::PER_PAGE): CursorPaginator
     {
-        return $commit->replies()
+        return Commit::query()
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query
+                ->where('parent_id', $commit->id)
+                ->orWhere('quoted_commit_id', $commit->id))
             ->visibleInThreadTo($user)
             ->exceptSeriesContinuations()
             ->withVisibleReplyCount($user)
-            ->withSavedState($user)
-            ->with(['user', 'linkPreview', 'images'])
-            ->oldest()
-            ->oldest('id')
-            ->cursorPaginate(self::PER_PAGE);
+            ->withCardDataFor($user)
+            ->without('quotedCommit')
+            ->when($newest,
+                fn (CommitBuilder $query): CommitBuilder => $query->newestFirst(),
+                fn (CommitBuilder $query): CommitBuilder => $query->oldest()->oldest('id'))
+            ->cursorPaginate($limit);
     }
 }

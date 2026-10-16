@@ -57,7 +57,7 @@ it('rejects a commit a live reject rule is sure about, telling the author why', 
         ->reason->toBe('This looks like spam or self-promotion.');
 });
 
-it('approves a commit every live approve rule is sure about, telling the author', function (): void {
+it('approves a commit every live approve rule is sure about', function (): void {
     $spam = ModerationRule::factory()->create();
     $friendly = ModerationRule::factory()->approving()->create();
     $commit = Commit::factory()->pending()->create(['body' => 'Upgraded from Laravel 10 to 13 this weekend.']);
@@ -68,9 +68,7 @@ it('approves a commit every live approve rule is sure about, telling the author'
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Approved)
         ->and($evaluation->decision)->toBe(EvaluationDecision::Approved)
-        ->and(Notification::query()->sole())
-        ->type->toBe(NotificationType::Approved)
-        ->reason->toBeNull();
+        ->and(Notification::query()->count())->toBe(0);
 });
 
 it('leaves a commit it is unsure about to the moderators', function (): void {
@@ -243,7 +241,7 @@ it('judges every part of a series together and records the decision under its fi
     expect($evaluation->commit_id)->toBe($parts[0]->id)
         ->and(Commit::query()->whereKey($parts->modelKeys())->pluck('status')->unique()->all())->toBe([$status])
         ->and(CommitEvaluation::query()->count())->toBe(1)
-        ->and(Notification::query()->count())->toBe($status === CommitStatus::Approved ? 1 : 0);
+        ->and(Notification::query()->count())->toBe(0);
 
     Http::assertSent(fn (Request $request): bool => $request['state'] === ['commit' => ['parts' => [
         ['body' => $parts[0]->body],
@@ -337,5 +335,5 @@ it('preserves a moderator decision on a series while jev is thinking', function 
     expect($evaluation)->toBeNull()
         ->and($parts->fresh()->pluck('status')->unique()->all())->toBe([CommitStatus::Approved])
         ->and(CommitEvaluation::query()->count())->toBe(0)
-        ->and(Notification::query()->sole()->type)->toBe(NotificationType::Approved);
+        ->and(Notification::query()->count())->toBe(0);
 });

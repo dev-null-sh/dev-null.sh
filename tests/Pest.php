@@ -5,10 +5,14 @@ declare(strict_types=1);
 use App\Actions\CreateCommitSeries;
 use App\Dto\SshPublicKey;
 use App\Enums\CommitStatus;
+use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\OpenAI;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
@@ -39,6 +43,88 @@ function something(): void
 function sshFixture(string $name): string
 {
     return (string) file_get_contents(__DIR__.'/Fixtures/ssh/'.$name);
+}
+
+/**
+ * @param  array<string, mixed>  $account
+ */
+function fakeGitHubAccount(User $user, array $account = []): void
+{
+    $account = [
+        'id' => (int) $user->github_id,
+        'login' => 'octocat',
+        'name' => 'The Octocat',
+        'email' => 'octocat@github.com',
+        'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4',
+        'bio' => 'I am the Octocat.',
+        'company' => '@github',
+        'location' => 'San Francisco',
+        'blog' => 'https://github.blog',
+        ...$account,
+    ];
+
+    Http::fake([
+        "api.github.com/user/{$user->github_id}" => Http::response($account),
+    ]);
+
+    fakeGitHubSshKeys(User::factory()->make(['github_id' => $user->github_id, 'username' => $account['login']]));
+}
+
+/**
+ * A unit vector in one dimension and zero elsewhere, so two of them differ only in direction and their cosine
+ * distance is exact: 0 for the same dimension, 1 for any other.
+ *
+ * @return list<float>
+ */
+function embeddingVector(int $dimension): array
+{
+    $vector = array_fill(0, OpenAI::EMBEDDING_DIMENSIONS, 0.0);
+    $vector[$dimension] = 1.0;
+
+    return $vector;
+}
+
+/**
+ * @param  list<list<float>>  $embeddings
+ * @return array{data: list<array{index: int, embedding: list<float>}>}
+ */
+function embeddingsResponse(array $embeddings): array
+{
+    return ['data' => array_map(
+        fn (array $embedding, int $index): array => ['index' => $index, 'embedding' => $embedding],
+        $embeddings,
+        array_keys($embeddings),
+    )];
+}
+
+/**
+ * The decision model's verdicts, one per candidate in the order given, as a certain yes or no. Anything past the last
+ * verdict, and everything when the list is empty, counts as relevant.
+ *
+ * @param  list<bool>  $verdicts
+ * @return array{answers: list<array{type: string, name: string, probability: float}>}
+ */
+function relevanceResponse(array $verdicts): array
+{
+    return ['answers' => array_map(
+        fn (bool $verdict, int $index): array => ['type' => 'predicate', 'name' => 'post_'.($index + 1), 'probability' => $verdict ? 1.0 : 0.0],
+        $verdicts,
+        array_keys($verdicts),
+    )];
+}
+
+/**
+ * The two requests a commit search makes: embedding the term, and the decision model's verdicts on the candidates. By
+ * default every candidate is relevant, so only the filtering tests pass verdicts.
+ *
+ * @param  list<bool>  $verdicts
+ */
+function fakeSearch(array $verdicts = []): void
+{
+    Http::fake([
+        'api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(0)])),
+        'api.openai.com/v1/decisions' => Http::response(relevanceResponse($verdicts)),
+    ]);
 }
 
 /**
@@ -123,6 +209,36 @@ function jevAnswers(array $nouls, int $inputTokens = 1646): array
         'answers' => array_map(fn (float $noul): array => ['type' => 'noul', 'noul' => $noul], $nouls),
         'usage' => ['input_tokens' => $inputTokens, 'output_tokens' => 153],
     ];
+}
+
+/**
+ * @param  array<string, mixed>|null  $payload
+ */
+function failedJob(string $queue = 'default', ?CarbonInterface $failedAt = null, string $exception = "RuntimeException: Something broke\nStack trace:\n#0 {main}", ?array $payload = null): string
+{
+    $uuid = (string) Str::uuid();
+
+    DB::table('failed_jobs')->insert([
+        'uuid' => $uuid,
+        'connection' => 'database',
+        'queue' => $queue,
+        'payload' => json_encode($payload ?? ['uuid' => $uuid, 'displayName' => UnfurlLink::class, 'attempts' => 1]),
+        'exception' => $exception,
+        'failed_at' => $failedAt ?? now(),
+    ]);
+
+    return $uuid;
+}
+
+function queuedJob(string $queue, CarbonInterface $createdAt): void
+{
+    DB::table('jobs')->insert([
+        'queue' => $queue,
+        'payload' => json_encode(['uuid' => (string) Str::uuid(), 'displayName' => UnfurlLink::class]),
+        'attempts' => 0,
+        'available_at' => $createdAt->getTimestamp(),
+        'created_at' => $createdAt->getTimestamp(),
+    ]);
 }
 
 /**

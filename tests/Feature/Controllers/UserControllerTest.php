@@ -37,6 +37,7 @@ it('renders a user profile', function (): void {
             ->missing('user.github_id')
             ->where('isFollowing', true)
             ->where('followsYou', false)
+            ->has('achievements')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
@@ -74,12 +75,13 @@ it('does not count the user relations or activity when reloading only commits', 
                 ->missing('isFollowing')
                 ->missing('followsYou')
                 ->missing('tab')
-                ->missing('activity'));
+                ->missing('activity')
+                ->missing('achievements'));
         });
 
     expect(collect(DB::getQueryLog())
         ->pluck('query')
-        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*'))
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*') || str_starts_with($query, 'select * from (select "commits".*'))
         ->all())
         ->not->toBeEmpty()
         ->each(fn ($query) => $query->not->toContain('count(*)')->not->toContain('exists'));
@@ -302,6 +304,40 @@ it('shows guests the profile with its approved commits and a link preview', func
     $this->assertGuest();
 });
 
+it('gives guests the stats of a profile a few minutes late', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    Commit::factory()->for($user)->create();
+
+    $this->get('/@octocat')->assertOk();
+
+    Commit::factory()->for($user)->create(['created_at' => now()->subDay()]);
+
+    $this->get('/@octocat')
+        ->assertInertia(fn ($page) => $page
+            ->where('user.commits_count', 2)
+            ->where('streaks.longest', 1)
+            ->where('achievements.xp_breakdown.commits.count', 1));
+
+    $this->travel(6)->minutes();
+
+    $this->get('/@octocat')
+        ->assertInertia(fn ($page) => $page
+            ->where('streaks.longest', 2)
+            ->where('achievements.xp_breakdown.commits.count', 2));
+});
+
+it('counts the public profile of guests once for the page and its link preview', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    DB::enableQueryLog();
+
+    $this->get('/@octocat')->assertOk();
+
+    $followerCounts = array_filter(DB::getQueryLog(), fn (array $query): bool => str_contains($query['query'], 'from "follows"') && str_contains($query['query'], 'count(*)'));
+
+    expect($followerCounts)->toHaveCount(2);
+});
+
 it('describes guests a profile without a bio', function (): void {
     User::factory()->create(['username' => 'octocat', 'name' => 'octocat', 'bio' => null]);
 
@@ -405,6 +441,54 @@ it('may delete user account', function (): void {
     $this->assertGuest();
 });
 
+it('keeps the replies other people left under the replies of a deleted account', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($root, 'parent')->create();
+    $otherReply = Commit::factory()->for($reply, 'parent')->create();
+
+    $this->actingAs($user)->delete(route('user.destroy'));
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$otherReply->user, $otherReply]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('ancestors', 2)
+            ->where('ancestors.0.id', $root->id)
+            ->where('ancestors.1.id', $reply->id)
+            ->missing('ancestors.1.body')
+            ->missing('ancestors.1.user'));
+
+    $this->actingAs($root->user)
+        ->getJson(route('commit-reply.index', $root))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id)
+        ->assertJsonPath('data.0.replies_count', 1)
+        ->assertJsonMissingPath('data.0.user');
+
+    $this->getJson(route('api-commit.show', $reply))->assertNotFound();
+
+    $this->getJson(route('api-commit.show', $otherReply))
+        ->assertOk()
+        ->assertJsonPath('data.id', $otherReply->id)
+        ->assertJsonPath('data.parent_id', null)
+        ->assertJsonPath('data.author.id', $otherReply->user_id);
+
+    $this->getJson(route('api-user-commit.index', $otherReply->user).'?replies=1')
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$otherReply->id]);
+
+    $this->get(route('user-feed.show', $root->user))
+        ->assertOk()
+        ->assertSee("urn:uuid:{$root->id}")
+        ->assertDontSee("urn:uuid:{$reply->id}");
+
+    $this->getJson(route('api-user.show', $user))->assertNotFound();
+    $this->get(route('user-feed.show', $user))->assertNotFound();
+});
+
 it('hides pending and rejected commits from other users', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 
@@ -474,6 +558,21 @@ it('only shows top-level commits on profiles', function (): void {
             ->where('commits.data.0.replies_count', 1));
 });
 
+it('includes the quoted commits of the user commits', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/@octocat');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('commits.data', 1)
+            ->where('commits.data.0.quoted_commit.body', 'The quoted commit')
+            ->where('commits.data.0.quoted_commit.user.username', 'taylorotwell'));
+});
+
 it('includes the link previews of the user commits', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 
@@ -490,4 +589,28 @@ it('includes the link previews of the user commits', function (): void {
             ->where('commits.data.0.link_preview.title', 'Octocat links')
             ->missing('commits.data.0.link_preview.url_hash')
             ->missing('commits.data.0.link_preview.fetched_at'));
+});
+
+it('preloads only replies visible to the profile visitor', function (): void {
+    $author = User::factory()->create();
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $viewer->muting()->attach($muted);
+    $blocked->blocking()->attach($viewer);
+    $parent = Commit::factory()->for($author)->create();
+    Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    $ownPending = Commit::factory()->for($parent, 'parent')->for($viewer)->pending()->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($parent, 'parent')->pending()->create();
+    Commit::factory()->for($parent, 'parent')->rejected()->create();
+    Commit::factory()->for($parent, 'parent')->create(['deleted_at' => now()]);
+    Commit::factory()->for($parent, 'quotedCommit')->for($muted)->create();
+    Commit::factory()->for($parent, 'quotedCommit')->for($blocked)->create();
+
+    $this->actingAs($viewer)->get(route('user.show', $author))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commits.data.0.replies_count', 2)
+        ->where('commits.data.0.reply_preview.data.0.id', $ownPending->id)
+        ->where('commits.data.0.reply_preview.next_cursor', fn (string $cursor): bool => $cursor !== '')
+        ->missing('commits.data.0.reply_preview.data.0.user.email'));
 });

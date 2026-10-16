@@ -15,7 +15,7 @@
         "laravel/framework": "^13.36.0",
         "laravel/octane": "^2.22",
         "laravel/socialite": "^5.31.0",
-        "laravel/wayfinder": "^0.1.21",
+        "laravel/wayfinder": "^0.1.22",
         "league/flysystem-aws-s3-v3": "^3.35.3",
         "nunomaduro/essentials": "^1.2.0",
         "phpseclib/phpseclib": "^4.0.2",
@@ -82,7 +82,6 @@
         ],
         "post-create-project-cmd": [
             "@php artisan key:generate --ansi",
-            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
             "@php artisan migrate --graceful --ansi"
         ],
         "update:requirements": [
@@ -102,7 +101,8 @@
         ],
         "test:unit": [
             "@putenv XDEBUG_MODE=coverage",
-            "@php -d memory_limit=-1 vendor/bin/pest --parallel --coverage --exactly=100.0 --passthru-php=\"'-d' 'memory_limit=-1'\""
+            "@php -d memory_limit=-1 vendor/bin/pest --parallel --coverage --exactly=100.0 --passthru-php=\"'-d' 'memory_limit=-1'\"",
+            "bun run test:unit"
         ],
         "test:types": [
             "phpstan --memory-limit=-1",

@@ -1,10 +1,11 @@
-import { Head, Link, router, usePoll } from '@inertiajs/react';
+import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { GuestComposer } from '@/components/guest-composer';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
@@ -12,25 +13,47 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useLastVisit } from '@/hooks/use-last-visit';
-import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
+import { readStorage, writeStorage } from '@/lib/storage';
+import { home } from '@/routes';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
     log,
     commits,
+    isRanked,
+    newestCommitId,
+    latestCommits,
     newCommitsCount = 0,
     suggestions,
 }: {
     log: Log;
     commits: CursorPaginated<Commit>;
+    isRanked: boolean;
+    newestCommitId: string | null;
+    latestCommits: Commit[];
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
-    const { user } = useUser();
-    const newestId = commits.data[0]?.id;
-    const firstSeenId = useLastVisit(user.id, log, commits.data);
+    const {
+        flash,
+        props: {
+            auth: { user },
+        },
+    } = usePage();
+    // Guests read the log at the home page, without a log of their own to remember...
+    const viewerId = user?.id ?? 'guest';
+    const markerKey = `latest-marker:${viewerId}:${log}`;
+    const [markerId, setMarkerId] = useState(
+        () =>
+            (flash.committed ? readStorage(markerKey) : '') ||
+            (newestCommitId ?? ''),
+    );
+    const newestId = isRanked ? markerId || undefined : commits.data[0]?.id;
+
+    useEffect(() => writeStorage(markerKey, markerId), [markerKey, markerId]);
+    const firstSeenId = useLastVisit(viewerId, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
         30_000,
@@ -58,6 +81,33 @@ export default function Show({
     );
 
     const showNewCommits = () =>
+        isRanked ? prependNewCommits() : reloadNewestFirst();
+
+    const prependNewCommits = () =>
+        router.reload({
+            only: ['latestCommits'],
+            data: { since: newestId },
+            preserveUrl: true,
+            onSuccess: (page) => {
+                const next =
+                    newestOf(
+                        (page.props.latestCommits as Commit[]).filter(
+                            (commit) => commit.user_id !== user?.id,
+                        ),
+                    )?.id ?? markerId;
+
+                setMarkerId(next);
+                router.replaceProp('newCommitsCount', 0);
+                router.reload({
+                    only: ['newCommitsCount'],
+                    data: { since: next },
+                    preserveUrl: true,
+                });
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            },
+        });
+
+    const reloadNewestFirst = () =>
         router.reload({
             only: ['commits', 'newCommitsCount'],
             reset: ['commits'],
@@ -68,27 +118,51 @@ export default function Show({
 
     return (
         <>
-            <Head title={log === 'following' ? 'Following' : 'Everyone'} />
+            <Head
+                title={
+                    user === null
+                        ? 'A social network for developers'
+                        : titles[log]
+                }
+            />
 
-            <div className="sticky top-0 z-10 bg-card">
-                <h1 className="sr-only">
-                    {log === 'following' ? 'Following' : 'Everyone'}
-                </h1>
+            <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]">
+                <h1 className="sr-only">{titles[log]}</h1>
                 <PageTabs
                     label="Logs"
                     prefetch={false}
-                    tabs={[
-                        {
-                            title: 'Following',
-                            href: LogController.show('following'),
-                            isActive: log === 'following',
-                        },
-                        {
-                            title: 'Everyone',
-                            href: LogController.show('everyone'),
-                            isActive: log === 'everyone',
-                        },
-                    ]}
+                    tabs={
+                        user === null
+                            ? [
+                                  {
+                                      title: 'Latest',
+                                      href: home({ query: { log: 'latest' } }),
+                                      isActive: log === 'latest',
+                                  },
+                                  {
+                                      title: 'Trending',
+                                      href: home(),
+                                      isActive: log === 'trending',
+                                  },
+                              ]
+                            : [
+                                  {
+                                      title: 'Following',
+                                      href: LogController.show('following'),
+                                      isActive: log === 'following',
+                                  },
+                                  {
+                                      title: 'Latest',
+                                      href: LogController.show('latest'),
+                                      isActive: log === 'latest',
+                                  },
+                                  {
+                                      title: 'Trending',
+                                      href: LogController.show('trending'),
+                                      isActive: log === 'trending',
+                                  },
+                              ]
+                    }
                 />
 
                 {newCommitsCount > 0 && (
@@ -108,48 +182,75 @@ export default function Show({
                 )}
             </div>
 
-            <CommitComposer />
+            {user === null ? <GuestComposer /> : <CommitComposer />}
 
-            <CommitFeed
-                commits={commits}
-                firstLane="var(--rail)"
-                firstSeenId={firstSeenId}
-                end="That's the root commit. There's nothing before it."
-                interlude={(lane, isDimmed) => (
-                    <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
-                )}
-                empty={
-                    log === 'following' ? (
-                        <EmptyFeed command="fatal: your log does not have any commits yet">
-                            Your log shows your commits and commits from people
-                            you follow.{' '}
-                            {suggestions.length > 0
-                                ? 'Here is what a few developers committed lately:'
-                                : 'Find someone worth following on '}
-                            {suggestions.length === 0 && (
-                                <>
-                                    <Link
-                                        href={LogController.show('everyone')}
-                                        className="font-medium text-primary underline"
-                                    >
-                                        Everyone
-                                    </Link>
-                                    .
-                                </>
-                            )}
-                            {suggestions.length > 0 && (
-                                <Suggestions suggestions={suggestions} />
-                            )}
-                        </EmptyFeed>
-                    ) : (
-                        <EmptyFeed command="fatal: no commits yet">
-                            Nobody has committed anything. Be the first. It's
-                            280 characters; you'll be fine.
-                        </EmptyFeed>
-                    )
-                }
-            />
+            <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
+                <CommitFeed
+                    commits={commits}
+                    firstLane="var(--rail)"
+                    firstSeenId={firstSeenId}
+                    latestCommits={latestCommits}
+                    isRanked={isRanked}
+                    end="That's the root commit. There's nothing before it."
+                    interlude={(lane, isDimmed) => (
+                        <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
+                    )}
+                    empty={
+                        log === 'following' ? (
+                            <EmptyFeed command="fatal: your log does not have any commits yet">
+                                Your log shows your commits and commits from
+                                people you follow.{' '}
+                                {suggestions.length > 0
+                                    ? 'Here is what a few developers committed lately:'
+                                    : 'Find someone worth following on '}
+                                {suggestions.length === 0 && (
+                                    <>
+                                        <Link
+                                            href={LogController.show(
+                                                'trending',
+                                            )}
+                                            className="font-medium text-primary underline"
+                                        >
+                                            Trending
+                                        </Link>
+                                        .
+                                    </>
+                                )}
+                                {suggestions.length > 0 && (
+                                    <Suggestions suggestions={suggestions} />
+                                )}
+                            </EmptyFeed>
+                        ) : (
+                            <EmptyFeed command="fatal: no commits yet">
+                                Nobody has committed anything. Be the first.
+                                It's 280 characters; you'll be fine.
+                            </EmptyFeed>
+                        )
+                    }
+                />
+            </div>
         </>
+    );
+}
+
+const titles: Record<Log, string> = {
+    following: 'Following',
+    latest: 'Latest',
+    trending: 'Trending',
+};
+
+/**
+ * Commits fetched earlier are older than the ones fetched last, so the newest of all is where the next fetch starts.
+ */
+function newestOf(commits: Commit[]): Commit | undefined {
+    return commits.reduce<Commit | undefined>(
+        (newest, commit) =>
+            newest === undefined ||
+            commit.created_at > newest.created_at ||
+            (commit.created_at === newest.created_at && commit.id > newest.id)
+                ? commit
+                : newest,
+        undefined,
     );
 }
 
@@ -193,10 +294,10 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
             <p className="mt-4 text-sm text-muted-foreground">
                 Or browse{' '}
                 <Link
-                    href={LogController.show('everyone')}
+                    href={LogController.show('trending')}
                     className="font-medium text-primary underline"
                 >
-                    Everyone
+                    Trending
                 </Link>{' '}
                 for more.
             </p>

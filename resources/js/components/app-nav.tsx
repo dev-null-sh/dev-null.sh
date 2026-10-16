@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    Activity,
     Bell,
     Bookmark,
     GitCommitVertical,
@@ -13,6 +14,7 @@ import BookmarkController from '@/actions/App/Http/Controllers/BookmarkControlle
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
+import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { GitHubIcon } from '@/components/github-icon';
@@ -25,6 +27,7 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { useKeyLabels } from '@/lib/keyboard';
 import { cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
@@ -32,7 +35,7 @@ import { edit } from '@/routes/user-profile';
 import type { Log, NavItem, Profile } from '@/types';
 
 /**
- * Guests see the same items, each taking them to sign in.
+ * Guests see the same items, each taking them to sign in, except the log, which they read at the home page.
  */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
     const { auth, hasUnmoderatedCommits } = usePage().props;
@@ -47,7 +50,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     const items: NavItem[] = [
         {
             title: 'Log',
-            href: hrefFor((_, log) => LogController.show(log)),
+            href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
             prefetch: false,
         },
@@ -77,6 +80,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                       icon: ShieldCheck,
                       hasIndicator: hasUnmoderatedCommits,
                   },
+                  {
+                      title: 'Operations',
+                      href: OperationsController.show(),
+                      icon: Activity,
+                      prefetch: false,
+                  },
               ]
             : []),
         {
@@ -89,12 +98,13 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     return items.map((item) => ({
         ...item,
         isActive:
-            user !== null &&
-            (item.title === 'Settings'
-                ? isCurrentOrParentUrl('/settings')
-                : item.title === 'Log'
-                  ? isCurrentOrParentUrl('/log')
-                  : isCurrentUrl(item.href)),
+            user === null
+                ? item.title === 'Log' && isCurrentUrl(home())
+                : item.title === 'Settings'
+                  ? isCurrentOrParentUrl('/settings')
+                  : item.title === 'Log'
+                    ? isCurrentOrParentUrl('/log')
+                    : isCurrentUrl(item.href),
     }));
 }
 
@@ -110,9 +120,7 @@ function NavLink({
     className: string;
     children: ReactNode;
 }) {
-    const { auth } = usePage().props;
-
-    if (auth.user === null) {
+    if (toUrl(item.href) === login().url) {
         return (
             <a href={toUrl(item.href)} className={className}>
                 {children}
@@ -124,6 +132,7 @@ function NavLink({
         <Link
             href={item.href}
             prefetch={item.prefetch ?? true}
+            viewTransition
             aria-current={item.isActive ? 'page' : undefined}
             className={className}
         >
@@ -183,11 +192,13 @@ function NavIcon({
 export function AppNav({ onSearch }: { onSearch: () => void }) {
     const { auth } = usePage().props;
     const items = useNavItems();
+    const keys = useKeyLabels();
 
     return (
         <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
             <Link
                 href={auth.log === null ? home() : LogController.show(auth.log)}
+                viewTransition
                 className="mb-8 rounded-md px-3 lg:px-3"
                 aria-label={
                     auth.log === null
@@ -208,23 +219,39 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                         key={item.title}
                         item={item}
                         className={cn(
-                            'flex items-center gap-3 rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                            'relative isolate block rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                             {
-                                'bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary':
+                                'text-primary hover:bg-transparent hover:text-primary':
                                     item.isActive,
                             },
                         )}
                     >
-                        <NavIcon item={item} indicatorClassName="lg:hidden" />
-                        <span className="sr-only lg:not-sr-only">
-                            {item.title}
-                        </span>
-                        {item.hasIndicator && (
+                        {item.isActive && (
                             <span
-                                className="ml-auto hidden size-2 rounded-full bg-primary lg:inline-block"
-                                data-test="notification-indicator"
+                                aria-hidden
+                                className="absolute inset-0 -z-10 rounded-lg bg-primary-soft [view-transition-name:nav-active-item]"
                             />
                         )}
+                        <span
+                            className="flex items-center gap-3 [view-transition-class:indicator-label]"
+                            style={{
+                                viewTransitionName: `nav-${item.title.toLowerCase()}`,
+                            }}
+                        >
+                            <NavIcon
+                                item={item}
+                                indicatorClassName="lg:hidden"
+                            />
+                            <span className="sr-only lg:not-sr-only">
+                                {item.title}
+                            </span>
+                            {item.hasIndicator && (
+                                <span
+                                    className="ml-auto hidden size-2 rounded-full bg-primary lg:inline-block"
+                                    data-test="notification-indicator"
+                                />
+                            )}
+                        </span>
                     </NavLink>
                 ))}
                 <button
@@ -235,7 +262,7 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                     <Search className="size-5" />
                     <span className="sr-only lg:not-sr-only">Search</span>
                     <kbd className="ml-auto hidden rounded border border-b-2 bg-muted px-1.5 font-mono text-xs lg:block">
-                        ⌘K
+                        {keys.combo(keys.mod, 'K')}
                     </kbd>
                 </button>
             </nav>
@@ -278,6 +305,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
         <div className="flex h-14 items-center justify-between border-b px-4 md:hidden">
             <Link
                 href={auth.log === null ? home() : LogController.show(auth.log)}
+                viewTransition
                 aria-label={
                     auth.log === null
                         ? 'devnull, go to the home page'
@@ -291,7 +319,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                 <button
                     type="button"
                     onClick={onSearch}
-                    aria-label="Search developers"
+                    aria-label="Search"
                     className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                     <Search className="size-5" />
@@ -322,23 +350,40 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
 }
 
 export function MobileNav() {
-    const items = useNavItems().filter((item) => item.title !== 'Saved');
+    const items = useNavItems().filter(
+        (item) => !['Saved', 'Operations'].includes(item.title),
+    );
 
     return (
         <nav
             aria-label="Main"
-            className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+            className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden"
         >
             {items.map((item) => (
                 <NavLink
                     key={item.title}
                     item={item}
                     className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium tracking-tight text-muted-foreground',
+                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
                         { 'text-primary': item.isActive },
                     )}
                 >
-                    <NavIcon item={item} />
+                    <span className="relative isolate flex h-8 w-14 max-w-full items-center justify-center">
+                        {item.isActive && (
+                            <span
+                                aria-hidden
+                                className="absolute inset-0 -z-10 rounded-full bg-primary-soft [view-transition-name:mobile-nav-active-item]"
+                            />
+                        )}
+                        <span
+                            className="flex [view-transition-class:mobile-nav-icon]"
+                            style={{
+                                viewTransitionName: `mobile-nav-${item.title.toLowerCase()}`,
+                            }}
+                        >
+                            <NavIcon item={item} />
+                        </span>
+                    </span>
                     <span className="max-w-full truncate">{item.title}</span>
                 </NavLink>
             ))}

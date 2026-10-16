@@ -12,6 +12,8 @@ import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import { AchievementsDialog } from '@/components/achievements-dialog';
+import { AchievementsShelf } from '@/components/achievements-shelf';
 import { ActivityGraph } from '@/components/activity-graph';
 import { ActivityStreaks } from '@/components/activity-streaks';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
@@ -25,6 +27,7 @@ import { UserSafetyMenu } from '@/components/user-safety-menu';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
 import type {
+    Achievements,
     Activity,
     Commit,
     CursorPaginated,
@@ -43,6 +46,7 @@ export default function Show({
     isMuting,
     activity,
     streaks,
+    achievements,
     commits,
     tab,
     pinnedCommit,
@@ -53,6 +57,7 @@ export default function Show({
     isMuting: boolean;
     activity: Activity;
     streaks: Streaks;
+    achievements: Achievements;
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies';
     pinnedCommit: Commit | null;
@@ -63,6 +68,7 @@ export default function Show({
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
     );
+    const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
 
     return (
         <>
@@ -117,24 +123,41 @@ export default function Show({
                 <h1 className="mt-4 text-2xl font-semibold tracking-tight text-balance">
                     {user.name}
                 </h1>
-                <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
-                    <span
-                        aria-hidden
-                        className="size-2 rounded-full"
-                        style={{ background: lane }}
-                    />
-                    @{user.username}
-                    {followsYou && (
-                        <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
-                            Follows you
+                <div className="flex items-center gap-2">
+                    <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
+                        <span
+                            aria-hidden
+                            className="size-2 rounded-full"
+                            style={{ background: lane }}
+                        />
+                        @{user.username}
+                        {followsYou && (
+                            <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                                Follows you
+                            </span>
+                        )}
+                        {isMuting && (
+                            <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                                Muted
+                            </span>
+                        )}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => setIsAchievementsOpen(true)}
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] font-medium transition hover:brightness-110"
+                        style={{
+                            borderColor: `${lane}40`,
+                            backgroundColor: `${lane}15`,
+                            color: lane,
+                        }}
+                        title="View achievements and Unix rank"
+                    >
+                        <span>
+                            Lv. {achievements.level} · {achievements.rank}
                         </span>
-                    )}
-                    {isMuting && (
-                        <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
-                            Muted
-                        </span>
-                    )}
-                </p>
+                    </button>
+                </div>
 
                 {user.bio && (
                     <p className="mt-3 max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-wrap">
@@ -260,6 +283,20 @@ export default function Show({
             />
 
             <ActivityStreaks streaks={streaks} lane={lane} />
+
+            <AchievementsShelf
+                achievements={achievements}
+                lane={lane}
+                onInspect={() => setIsAchievementsOpen(true)}
+            />
+
+            <AchievementsDialog
+                open={isAchievementsOpen}
+                onOpenChange={setIsAchievementsOpen}
+                achievements={achievements}
+                user={user}
+                lane={lane}
+            />
 
             <PageTabs
                 label="Profile feed"

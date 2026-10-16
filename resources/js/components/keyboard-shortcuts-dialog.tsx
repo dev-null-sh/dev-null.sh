@@ -4,27 +4,31 @@ import {
     DialogDescription,
     DialogTitle,
 } from '@/components/ui/dialog';
+import type { KeyLabels } from '@/lib/keyboard';
+import { useKeyLabels } from '@/lib/keyboard';
 
 type Shortcut = { keys: string[]; label: string };
 
-const shortcuts: Shortcut[] = [
+const shortcuts = (keys: KeyLabels): Shortcut[] => [
     { keys: ['j'], label: 'Next commit' },
     { keys: ['k'], label: 'Previous commit' },
     { keys: ['y'], label: 'Copy link to the focused commit' },
     { keys: ['↵'], label: 'Open the focused commit' },
     { keys: ['r'], label: 'Reply to commit' },
+    { keys: ['q'], label: 'Quote commit' },
     { keys: ['o'], label: 'Show or hide replies' },
     { keys: ['c'], label: 'Write a commit' },
-    { keys: ['⌘', 'K'], label: 'Search developers' },
-    { keys: ['/'], label: 'Search developers' },
-    { keys: ['⌘', '↵'], label: 'Commit (in the composer)' },
+    { keys: [keys.mod, 'K'], label: 'Search developers and commits' },
+    { keys: ['/'], label: 'Search developers and commits' },
+    { keys: [keys.mod, '↵'], label: 'Commit (in the composer)' },
+    { keys: [keys.mod, keys.shift, 'P'], label: 'Preview (in the composer)' },
     {
-        keys: ['⌘', '⇧', '↵'],
+        keys: [keys.mod, keys.shift, '↵'],
         label: 'Add another commit to the series (in the composer)',
     },
-    { keys: ['⌫'], label: 'Remove an empty commit from the series' },
+    { keys: [keys.backspace], label: 'Remove an empty commit from the series' },
     { keys: ['g', 'l'], label: 'Go to your log' },
-    { keys: ['g', 'e'], label: 'Go to everyone' },
+    { keys: ['g', 'e'], label: 'Go to trending' },
     { keys: ['g', 'p'], label: 'Go to your profile' },
     { keys: ['g', 's'], label: 'Go to settings' },
     { keys: ['?'], label: 'Show this list' },
@@ -69,6 +73,8 @@ export function KeyboardShortcutsDialog({
     onOpenChange: (open: boolean) => void;
     canModerate: boolean;
 }) {
+    const keys = useKeyLabels();
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-sm">
@@ -77,7 +83,7 @@ export function KeyboardShortcutsDialog({
                     They work anywhere except while you're typing.
                 </DialogDescription>
 
-                <ShortcutList shortcuts={shortcuts} />
+                <ShortcutList shortcuts={shortcuts(keys)} />
 
                 {canModerate && (
                     <section aria-labelledby="moderation-shortcuts">

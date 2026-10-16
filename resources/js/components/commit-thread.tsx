@@ -1,12 +1,13 @@
-import { Form, Link, router, usePage } from '@inertiajs/react';
+import { Link, router, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
     CornerDownRight,
     MessageSquareReply,
     Trash2,
 } from 'lucide-react';
-import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
-import { useRef, useState } from 'react';
+import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BookmarkButton } from '@/components/bookmark-button';
@@ -17,12 +18,21 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
+import { CommitReportButton } from '@/components/commit-report-button';
+import { CommitStarButton } from '@/components/commit-star-button';
+import {
+    ComposerPreviewBody,
+    PreviewToggle,
+    useComposerPreview,
+} from '@/components/composer-preview';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
+import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
+import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -31,10 +41,14 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
+import { useSecretWarning } from '@/hooks/use-secret-warning';
+import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
+import { commitStateKey } from '@/lib/commit-state';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
+import { hasModKey } from '@/lib/keyboard';
 import {
     characterCount,
     cn,
@@ -43,11 +57,49 @@ import {
     laneOf,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+import type {
+    Commit,
+    CommittedFlash,
+    CursorPaginated,
+    DeletedFlash,
+    FlashToast,
+    ThreadCommit,
+} from '@/types';
 
 const maxIndentDepth = 3;
 const maxBodyLength = 280;
 
+type CreatedReply = {
+    committed: CommittedFlash;
+    toast?: FlashToast;
+};
+
+const replyFailedMessage = 'Could not send your reply. Try again.';
+
+const parentUnavailableMessage =
+    'That commit is no longer available to reply to.';
+
+const changedThreadIds = new Set<string>();
+
+function replyFailureMessage(response: { status: number; data: string }) {
+    if (response.status !== 429) {
+        return replyFailedMessage;
+    }
+
+    const { message } = JSON.parse(response.data) as { message: string };
+
+    return message;
+}
+
+function useCommitsCountUpdate(): (change: number) => void {
+    const { auth } = usePage().props;
+    const [, setCommitsCount] = useSharedState(
+        commitStateKey('commits_count', auth.user?.id ?? ''),
+        auth.user?.commits_count ?? 0,
+    );
+
+    return (change) => setCommitsCount((count) => count + change);
+}
 const threadLayouts = {
     // Root replies line up with the commit text, and their elbow branches off the rail.
     root: '[--indent:0px] [--spine:-32px] sm:[--spine:-36px]',
@@ -61,6 +113,7 @@ type Thread = {
     replies: ThreadCommit[] | null;
     hasMore: boolean;
     isOpen: boolean;
+    isPreview: boolean;
     isLoading: boolean;
     isReplying: boolean;
     toggle: () => void;
@@ -72,11 +125,15 @@ type Thread = {
 };
 
 async function fetchReplies(
-    commit: ThreadCommit,
+    commit: Pick<ThreadCommit, 'id'>,
     cursor: string | null,
+    newest = false,
+    limit = 50,
 ): Promise<CursorPaginated<ThreadCommit>> {
     const response = await fetch(
-        CommitReplyController.index(commit, { query: { cursor } }).url,
+        CommitReplyController.index(commit, {
+            query: { cursor, newest: newest ? 1 : 0, limit },
+        }).url,
         {
             headers: {
                 Accept: 'application/json',
@@ -95,13 +152,14 @@ async function fetchReplies(
 async function fetchRepliesUntil(
     commit: ThreadCommit,
     minimum: number,
+    newest = false,
 ): Promise<CursorPaginated<ThreadCommit>> {
-    const page = await fetchReplies(commit, null);
+    const page = await fetchReplies(commit, null, newest, newest ? 1 : 50);
     let data = page.data;
     let cursor = page.next_cursor;
 
     while (cursor !== null && data.length < minimum) {
-        const next = await fetchReplies(commit, cursor);
+        const next = await fetchReplies(commit, cursor, newest);
         data = [...data, ...next.data];
         cursor = next.next_cursor;
     }
@@ -112,17 +170,39 @@ async function fetchRepliesUntil(
 export function useThread(
     commit: ThreadCommit,
     initialReplies?: CursorPaginated<ThreadCommit>,
+    loadsReplies = false,
 ): Thread {
+    const preview = !isDeleted(commit) ? commit.reply_preview : undefined;
+    const isPreview = preview !== undefined;
+    const initial = preview ?? initialReplies;
     const [replies, setReplies] = useState<ThreadCommit[] | null>(
-        initialReplies?.data ?? null,
+        initial?.data ?? null,
     );
     const [nextCursor, setNextCursor] = useState<string | null>(
-        initialReplies?.next_cursor ?? null,
+        initial?.next_cursor ?? null,
     );
-    const [count, setCount] = useState(commit.replies_count ?? 0);
-    const [isOpen, setIsOpen] = useState(initialReplies !== undefined);
+    const [count, setCount] = useSharedState(
+        commitStateKey('replies_count', commit.id),
+        commit.replies_count ?? 0,
+    );
+    const [shouldLoadReplies] = useState(
+        (loadsReplies && count > 0) ||
+            (initial !== undefined && changedThreadIds.has(commit.id)),
+    );
+    const [isOpen, setIsOpen] = useState(
+        initial !== undefined || shouldLoadReplies,
+    );
     const [isLoading, setIsLoading] = useState(false);
     const [isReplying, setIsReplying] = useState(false);
+
+    const [previousPreview, setPreviousPreview] = useState(preview);
+    if (preview !== previousPreview) {
+        setPreviousPreview(preview);
+        if (preview !== undefined && (replies?.length ?? 0) <= 1) {
+            setReplies(preview.data);
+            setNextCursor(preview.next_cursor);
+        }
+    }
 
     const applyPage = (loaded: ThreadCommit[], cursor: string | null) => {
         setReplies(loaded);
@@ -133,21 +213,75 @@ export function useThread(
         }
     };
 
-    const reload = () => {
+    const reload = (extra = 0) => {
         const minimum =
-            replies === null
-                ? 0
-                : nextCursor === null
-                  ? Infinity
-                  : replies.length;
+            isPreview && (replies?.length ?? 0) <= 1
+                ? 1
+                : replies === null
+                  ? 0
+                  : nextCursor === null
+                    ? Infinity
+                    : replies.length + extra;
 
         setIsLoading(true);
 
-        fetchRepliesUntil(commit, minimum)
+        fetchRepliesUntil(commit, minimum, isPreview)
             .then((page) => applyPage(page.data, page.next_cursor))
             .catch(() => undefined)
             .finally(() => setIsLoading(false));
     };
+
+    const commitId = commit.id;
+
+    useEffect(() => {
+        if (!shouldLoadReplies) {
+            return;
+        }
+
+        let isCurrent = true;
+
+        fetchReplies({ id: commitId }, null, isPreview, isPreview ? 1 : 50)
+            .then((page) => {
+                if (isCurrent) {
+                    setReplies(page.data);
+                    setNextCursor(page.next_cursor);
+                }
+            })
+            .catch(() => undefined);
+
+        return () => {
+            isCurrent = false;
+        };
+    }, [commitId, shouldLoadReplies, isPreview]);
+
+    const onRestored = useEffectEvent((restored: Commit) => {
+        changedThreadIds.add(commit.id);
+        const target =
+            restored.parent_id === commit.id
+                ? restored.parent
+                : restored.quoted_commit;
+        if (target?.replies_count !== undefined) {
+            setCount(target.replies_count);
+        }
+        if (replies !== null) {
+            reload(replies.some((reply) => reply.id === restored.id) ? 0 : 1);
+        }
+    });
+
+    useEffect(
+        () =>
+            router.on('flash', (event) => {
+                const restored = event.detail.flash.restored;
+                if (
+                    restored &&
+                    (restored.parent_id === commit.id ||
+                        restored.quoted_commit_id === commit.id)
+                ) {
+                    onRestored(restored);
+                }
+            }),
+        [commit.id],
+    );
 
     return {
         commit,
@@ -155,6 +289,7 @@ export function useThread(
         replies,
         hasMore: replies !== null && nextCursor !== null,
         isOpen,
+        isPreview,
         isLoading,
         isReplying,
         toggle: () => {
@@ -171,7 +306,7 @@ export function useThread(
 
             setIsLoading(true);
 
-            fetchReplies(commit, nextCursor)
+            fetchReplies(commit, nextCursor, isPreview)
                 .then((page) =>
                     applyPage([...replies, ...page.data], page.next_cursor),
                 )
@@ -181,12 +316,14 @@ export function useThread(
         startReply: () => setIsReplying(true),
         cancelReply: () => setIsReplying(false),
         onReplied: () => {
+            changedThreadIds.add(commit.id);
             setIsReplying(false);
             setIsOpen(true);
             setCount((current) => current + 1);
             reload();
         },
         onDeleted: () => {
+            changedThreadIds.add(commit.id);
             setCount((current) => Math.max(current - 1, 0));
             reload();
         },
@@ -248,7 +385,7 @@ export function ThreadActions({
                         </button>
                     )}
 
-                    {thread.count > 0 && (
+                    {thread.count > 0 && !thread.isPreview && (
                         <button
                             type="button"
                             onClick={thread.toggle}
@@ -285,6 +422,9 @@ export function ThreadActions({
                             commit={commit}
                             keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                         />
+                    )}
+                    {!isDeleted(commit) && (
+                        <CommitReportButton commit={commit} />
                     )}
                 </div>
             </div>
@@ -418,11 +558,14 @@ export function ThreadReplies({
                         />
                     ))}
                     {thread.hasMore && (
-                        <div className="relative pl-(--indent)">
+                        <div className="relative pt-1.5 pl-(--indent)">
                             {!isFlattened && thread.replies.length > 0 && (
                                 <span
                                     aria-hidden
-                                    className={cn(replyLink, 'top-0 h-1.5')}
+                                    className={cn(
+                                        replyLink,
+                                        'top-0 h-5 sm:h-5.5',
+                                    )}
                                     style={{
                                         borderColor: laneOf(
                                             thread.replies[
@@ -468,24 +611,25 @@ function MoreRepliesButton({
     thread: Thread;
     isFlattened: boolean;
 }) {
-    const remaining = thread.count - (thread.replies?.length ?? 0);
-
     return (
         <button
             type="button"
             onClick={thread.loadMore}
             aria-disabled={thread.isLoading}
-            className="mt-1.5 -ml-2 flex max-w-full items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none"
+            className="-ml-2 flex max-w-full items-center gap-2 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none sm:gap-2.5"
             data-test="more-replies-button"
         >
-            <ChevronDown className="size-4 shrink-0" />
+            <span
+                aria-hidden
+                className="relative flex size-6 shrink-0 items-center justify-center [--lane:var(--muted-foreground)] sm:size-7"
+            >
+                <RailDot />
+            </span>
             {thread.isLoading ? (
                 <span role="status">Loading replies…</span>
             ) : (
                 <span className="truncate">
-                    {remaining > 0
-                        ? `Show ${remaining} more ${remaining === 1 ? 'reply' : 'replies'}`
-                        : 'Show more replies'}
+                    Show more
                     {isFlattened && !isDeleted(thread.commit) && (
                         <>
                             {' to '}
@@ -580,18 +724,32 @@ function CommitReply({
     const { auth } = usePage().props;
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
+    const request = useHttp<Record<string, never>, { deleted: DeletedFlash }>(
+        {},
+    );
+    const updateCommitsCount = useCommitsCountUpdate();
 
     const avatarRef = useRef<HTMLAnchorElement>(null);
 
     const isOwn = reply.user_id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
 
-    const deleteReply = () =>
-        router.visit(CommitController.destroy(reply), {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: onDeleted,
-        });
+    const deleteReply = async () => {
+        try {
+            const response = await request.submit(
+                CommitReplyController.destroy({ commit: parent, reply }),
+            );
+
+            router.flushAll();
+            updateCommitsCount(-1);
+            onDeleted();
+            router.flash(() => response);
+        } catch {
+            toast.error('Could not delete your reply. Try again.');
+
+            return;
+        }
+    };
 
     return (
         <article
@@ -702,14 +860,16 @@ function CommitReply({
                         segments={reply.body_segments}
                         className="text-[15px]"
                     />
-                    {reply.images && <CommitImages images={reply.images} />}
-                    {reply.link_preview?.title && (
+                    <CommitImages commit={reply} />
+                    {reply.link_preview && (
                         <LinkPreview preview={reply.link_preview} />
                     )}
 
                     {isConfirming ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-destructive/8 px-3 py-1.5 text-sm">
-                            <span className="mr-auto">Delete this reply?</span>
+                            <span className="mr-auto">
+                                Delete this reply? You can undo for 30 seconds.
+                            </span>
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -721,13 +881,22 @@ function CommitReply({
                             <Button
                                 variant="destructive"
                                 size="sm"
+                                disabled={request.processing}
                                 onClick={deleteReply}
                             >
                                 Delete
                             </Button>
                         </div>
                     ) : (
-                        <ThreadActions thread={thread} />
+                        <ThreadActions
+                            thread={thread}
+                            actions={
+                                <CommitStarButton
+                                    commit={reply}
+                                    className="px-2 py-0.5"
+                                />
+                            }
+                        />
                     )}
                 </div>
             </div>
@@ -747,16 +916,41 @@ function ReplyComposer({
     onReplied: () => void;
 }) {
     const { user } = useUser();
-    const { body, isRestored, updateBody, drop } = useStash(
-        user.id,
-        `reply-${parent.id}`,
-    );
-    const attachments = useImageAttachments();
+    const {
+        body,
+        images,
+        descriptions,
+        isRestored,
+        updateBody,
+        updateImages,
+        drop,
+    } = useStash(user.id, `reply-${parent.id}`);
+    const attachments = useImageAttachments(images, descriptions, updateImages);
     const linkCard = useLinkCard(body);
+    const updateCommitsCount = useCommitsCountUpdate();
+    const request = useHttp<
+        {
+            body: string;
+            images: File[];
+            image_descriptions: string[];
+            link_preview_url?: string;
+        },
+        CreatedReply
+    >({
+        body: '',
+        images: [],
+        image_descriptions: [],
+    });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const secrets = useSecretWarning(body);
     const remaining = maxBodyLength - characterCount(body);
     const isReplyable = characterCount(body.trim()) >= 3;
     const suggestion = suggestEmoji(body);
+    const preview = useComposerPreview({
+        body,
+        textareaRef,
+        isSubmittable: isReplyable,
+    });
 
     const returnFocusToCommit = () => {
         const commit =
@@ -771,6 +965,10 @@ function ReplyComposer({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (preview.handleShortcut(event)) {
+            return;
+        }
+
         if (event.key === 'Tab' && suggestion !== null) {
             const completed = completeEmoji(body);
 
@@ -787,140 +985,187 @@ function ReplyComposer({
             onCancel();
         }
 
-        if (
-            event.key === 'Enter' &&
-            (event.metaKey || event.ctrlKey) &&
-            isReplyable
-        ) {
+        if (event.key === 'Enter' && hasModKey(event) && isReplyable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
         }
     };
 
-    return (
-        <Form
-            {...CommitController.store.form()}
-            errorBag="reply"
-            transform={(data) =>
-                attachments.images.length > 0
-                    ? { ...data, images: attachments.images }
-                    : data
-            }
-            options={{ preserveScroll: true, preserveState: true }}
-            onSuccess={(page) => {
-                if (page.flash.committed) {
-                    drop();
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (request.processing || !secrets.beforeSubmit()) {
+            return;
+        }
+
+        request.setData(() => ({
+            body,
+            images,
+            image_descriptions: descriptions,
+            ...(linkCard.isChosen
+                ? { link_preview_url: linkCard.link ?? '' }
+                : {}),
+        }));
+
+        request
+            .submit(CommitReplyController.store(parent), {
+                onSuccess: (reply) => {
                     attachments.clear();
+                    drop();
                     linkCard.reset();
                     returnFocusToCommit();
+                    router.flash(() => reply);
+                    router.flushAll();
+                    updateCommitsCount(1);
                     onReplied();
-                }
-            }}
+                },
+                onHttpException: (response) => {
+                    if (response.status === 404) {
+                        request.setError('body', parentUnavailableMessage);
+
+                        return;
+                    }
+
+                    toast.error(replyFailureMessage(response));
+                },
+                onNetworkError: () => {
+                    toast.error(replyFailedMessage);
+                },
+            })
+            .catch(() => undefined);
+    };
+
+    const { processing, errors } = request;
+
+    return (
+        <form
+            onSubmit={submit}
             className="mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
             data-test="reply-composer"
         >
-            {({ processing, errors }) => (
-                <>
-                    <input type="hidden" name="parent_id" value={parent.id} />
-                    <label htmlFor={`reply-${parent.id}`} className="sr-only">
-                        Reply to @{parent.user.username}
-                    </label>
-                    <MentionTextarea
-                        ref={textareaRef}
-                        id={`reply-${parent.id}`}
-                        name="body"
-                        rows={1}
-                        autoFocus
-                        value={body}
-                        onValueChange={updateBody}
-                        onKeyDown={onKeyDown}
-                        onPaste={attachments.onPaste}
-                        onDragOver={attachments.onDragOver}
-                        onDrop={attachments.onDrop}
-                        onFocus={isRestored ? moveCaretToEnd : undefined}
-                        maxLength={maxBodyLength}
-                        placeholder={`Reply to @${parent.user.username}`}
-                        className="block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]"
-                    />
-                    <EmojiSuggestionHint
-                        suggestion={suggestion}
-                        className="mt-1 px-1"
-                    />
-                    <InputError
-                        message={
-                            errors.body ??
-                            errors.parent_id ??
-                            errors.link_preview_url
-                        }
-                        className="px-1"
-                    />
-                    <ImagePickerPreviews
+            <label htmlFor={`reply-${parent.id}`} className="sr-only">
+                Reply to @{parent.user.username}
+            </label>
+            <div className="grid">
+                <MentionTextarea
+                    ref={textareaRef}
+                    id={`reply-${parent.id}`}
+                    name="body"
+                    rows={1}
+                    autoFocus
+                    value={body}
+                    onValueChange={updateBody}
+                    onKeyDown={onKeyDown}
+                    onPaste={attachments.onPaste}
+                    onDragOver={attachments.onDragOver}
+                    onDrop={attachments.onDrop}
+                    onFocus={isRestored ? moveCaretToEnd : undefined}
+                    maxLength={maxBodyLength}
+                    placeholder={`Reply to @${parent.user.username}`}
+                    className={cn(
+                        'col-start-1 row-start-1 block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
+                        { invisible: preview.isPreviewing },
+                    )}
+                />
+                {preview.isPreviewing && (
+                    <ComposerPreviewBody
+                        preview={preview}
+                        url={linkCard.link}
                         images={attachments.images}
-                        onRemove={attachments.remove}
+                        descriptions={attachments.descriptions}
+                        className="col-start-1 row-start-1 px-1"
                     />
-                    <InputError
-                        message={attachments.error ?? imageErrorFrom(errors)}
-                        className="mt-1 px-1"
-                    />
-                    <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
-                        <div className="mr-auto flex min-w-0 items-center gap-2">
-                            <ImagePickerButton
-                                count={attachments.images.length}
-                                disabled={processing}
-                                onPick={attachments.attach}
-                                className="size-8"
-                            />
-                            <LinkCardPicker
-                                linkCard={linkCard}
-                                disabled={processing}
-                                className="-ml-1"
-                                labelClassName="max-sm:sr-only"
-                            />
-                            {isRestored && (
-                                <StashLabel
-                                    onDrop={() => {
-                                        drop();
-                                        document
-                                            .getElementById(
-                                                `reply-${parent.id}`,
-                                            )
-                                            ?.focus();
-                                    }}
-                                    className="px-1 text-xs"
-                                />
-                            )}
-                        </div>
-                        <span
-                            className={cn(
-                                'mr-1 font-mono text-xs text-muted-foreground',
-                                {
-                                    'text-amber-700 dark:text-amber-400':
-                                        remaining <= 20,
-                                },
-                            )}
-                        >
-                            {remaining}
-                        </span>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={onCancel}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            size="sm"
-                            disabled={processing || !isReplyable}
-                            className="min-w-[4.75rem]"
-                            data-test="submit-reply-button"
-                        >
-                            {processing ? 'Replying…' : 'Reply'}
-                        </Button>
-                    </div>
-                </>
+                )}
+            </div>
+            {!preview.isPreviewing && (
+                <EmojiSuggestionHint
+                    suggestion={suggestion}
+                    className="mt-1 px-1"
+                />
             )}
-        </Form>
+            <InputError
+                message={errors.body ?? errors.link_preview_url}
+                className="px-1"
+            />
+            {!preview.isPreviewing && (
+                <ImagePickerPreviews
+                    images={attachments.images}
+                    descriptions={attachments.descriptions}
+                    onDescribe={attachments.describe}
+                    onRemove={attachments.remove}
+                />
+            )}
+            <SecretWarning
+                body={body}
+                findings={secrets.findings}
+                textarea={textareaRef}
+                onChange={updateBody}
+                confirming={secrets.confirming}
+                onConfirmingChange={secrets.setConfirming}
+                onApprove={secrets.approve}
+                onEdit={preview.close}
+            />
+            <InputError
+                message={attachments.error ?? imageErrorFrom(errors)}
+                className="mt-1 px-1"
+            />
+            <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+                <div className="mr-auto flex min-w-0 items-center gap-2">
+                    <ImagePickerButton
+                        count={images.length}
+                        disabled={processing}
+                        onPick={attachments.attach}
+                        className="size-8"
+                    />
+                    <PreviewToggle preview={preview} className="-ml-2 size-8" />
+                    <LinkCardPicker
+                        linkCard={linkCard}
+                        disabled={processing}
+                        className="-ml-1"
+                        labelClassName="max-sm:sr-only"
+                    />
+                    {isRestored && (
+                        <StashLabel
+                            onDrop={() => {
+                                attachments.clear();
+                                drop();
+                                document
+                                    .getElementById(`reply-${parent.id}`)
+                                    ?.focus();
+                            }}
+                            className="px-1 text-xs"
+                        />
+                    )}
+                </div>
+                <span
+                    className={cn(
+                        'mr-1 font-mono text-xs text-muted-foreground',
+                        {
+                            'text-amber-700 dark:text-amber-400':
+                                remaining <= 20,
+                        },
+                    )}
+                >
+                    {remaining}
+                </span>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onCancel}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    type="submit"
+                    size="sm"
+                    disabled={processing || !isReplyable}
+                    className="min-w-[4.75rem]"
+                    data-test="submit-reply-button"
+                >
+                    {processing ? 'Replying…' : 'Reply'}
+                </Button>
+            </div>
+        </form>
     );
 }

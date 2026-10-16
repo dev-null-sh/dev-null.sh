@@ -8,8 +8,11 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Pagination\Cursor;
 
 /**
  * @extends Builder<Commit>
@@ -29,7 +32,9 @@ final class CommitBuilder extends Builder
         return $this->where(fn (Builder $query): Builder => $query
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
             ->orWhere($this->qualifyColumn('user_id'), $user->id))
-            ->whereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks());
+            ->where(fn (Builder $query): Builder => $query
+                ->whereNull($this->qualifyColumn('user_id'))
+                ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
     }
 
     /**
@@ -37,7 +42,9 @@ final class CommitBuilder extends Builder
      */
     public function withoutMutedAuthorsFor(?User $user): self
     {
-        return $user instanceof User ? $this->whereNotIn($this->qualifyColumn('user_id'), $user->mutedIds()) : $this;
+        return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
+            ->whereNull($this->qualifyColumn('user_id'))
+            ->orWhereNotIn($this->qualifyColumn('user_id'), $user->mutedIds())) : $this;
     }
 
     /**
@@ -51,7 +58,8 @@ final class CommitBuilder extends Builder
             ->withoutMutedAuthorsFor($user)
             ->where(fn (self $query): self => $query
                 ->whereNull($query->getModel()->getQualifiedDeletedAtColumn())
-                ->orWhereHas('replies', fn (self $replies): self => $replies->withTrashed()->visibleTo($user)->withoutMutedAuthorsFor($user)));
+                ->orWhereHas('replies', fn (self $replies): self => $replies->withTrashed()->visibleTo($user)->withoutMutedAuthorsFor($user))
+                ->orWhereHas('quotes', fn (self $quotes): self => $quotes->withTrashed()->visibleTo($user)->withoutMutedAuthorsFor($user)));
     }
 
     public function topLevel(): self
@@ -60,12 +68,58 @@ final class CommitBuilder extends Builder
     }
 
     /**
+     * Commits created after the given one, including those created in the same second with a later, time-ordered id.
+     */
+    public function newerThan(Commit $commit): self
+    {
+        return $this->where(fn (self $query): self => $query
+            ->where($this->qualifyColumn('created_at'), '>', $commit->created_at)
+            ->orWhere(fn (self $query): self => $query
+                ->where($this->qualifyColumn('created_at'), $commit->created_at)
+                ->where($this->qualifyColumn('id'), '>', $commit->id)));
+    }
+
+    public function newestFirst(): self
+    {
+        return $this->reorder()->latest()->latest('id');
+    }
+
+    /**
      * Counts only the replies the given user is allowed to see.
      */
     public function withVisibleReplyCount(?User $user): self
     {
-        return $this->withCount([
-            'replies' => fn (self $query): self => $query->visibleInThreadTo($user)->exceptSeriesContinuations(),
+        $replies = (new Commit)->setTable('thread_replies')->newQuery()
+            ->from((new Commit)->getTable().' as thread_replies')
+            ->selectRaw('count(*)')
+            ->where(fn (self $query): self => $query
+                ->whereColumn('thread_replies.parent_id', $this->qualifyColumn('id'))
+                ->orWhereColumn('thread_replies.quoted_commit_id', $this->qualifyColumn('id')))
+            ->visibleInThreadTo($user)
+            ->exceptSeriesContinuations();
+
+        return $this->addSelect([$this->qualifyColumn('*')])->selectSub($replies, 'replies_count');
+    }
+
+    public function withReplyPreviews(?User $user): self
+    {
+        $preview = fn (HasMany $relation): HasMany => $this->configureReplyPreview($relation, $user);
+
+        return $this->with(['replies' => $preview, 'quotes' => $preview])
+            ->afterQuery($this->attachReplyPreviews(...));
+    }
+
+    /**
+     * Loads the quoted commit only when the given user may see it, and as a tombstone once deleted.
+     */
+    public function withQuotedCommitFor(?User $viewer): self
+    {
+        return $this->with([
+            'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
+                ->withTrashed()
+                ->where(fn (self $query): self => $query->visibleTo($viewer))
+                ->with('user')
+                ->withPollFor($viewer),
         ]);
     }
 
@@ -103,7 +157,8 @@ final class CommitBuilder extends Builder
     public function withPublicPreview(): self
     {
         return $this
-            ->withCount(['replies' => fn (self $query): self => $query->approved()->exceptSeriesContinuations(), 'stars'])
+            ->withVisibleReplyCount(null)
+            ->withCount('stars')
             ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
@@ -136,5 +191,86 @@ final class CommitBuilder extends Builder
                     ? $query->whereKey($viewer->id)
                     : $query->whereRaw('1 = 0'),
             ]);
+    }
+
+    /**
+     * Loads the poll with each option's vote count and whether the viewer chose it, in two queries for any number of commits.
+     */
+    public function withPollFor(?User $viewer): self
+    {
+        return $this
+            ->with(['poll.options' => fn (HasMany $options): HasMany => $options
+                ->withCount('votes')
+                ->withExists(['votes as voted' => fn (Builder $query): Builder => $viewer instanceof User
+                    ? $query->where('user_id', $viewer->id)
+                    : $query->whereRaw('1 = 0')])])
+            ->afterQuery(function (Collection $commits) use ($viewer): void {
+                foreach ($commits->whereInstanceOf(Commit::class) as $commit) {
+                    if ($commit->relationLoaded('poll')) {
+                        $commit->poll?->forceFill(['is_own' => $commit->user_id === $viewer?->id]);
+                    }
+                }
+            });
+    }
+
+    /**
+     * Everything a commit card shows for the given viewer, so every list renders its commits the same way.
+     * The reply count is left out, as its presence is what gives a card its thread actions.
+     */
+    public function withCardDataFor(?User $viewer): self
+    {
+        return $this
+            ->with(['user', 'linkPreview', 'images'])
+            ->withQuotedCommitFor($viewer)
+            ->withSavedState($viewer)
+            ->withStarsFor($viewer)
+            ->withPollFor($viewer);
+    }
+
+    /**
+     * @param  HasMany<Commit, Commit>  $relation
+     * @return HasMany<Commit, Commit>
+     */
+    private function configureReplyPreview(HasMany $relation, ?User $user): HasMany
+    {
+        return $relation
+            ->visibleInThreadTo($user)
+            ->exceptSeriesContinuations()
+            ->withVisibleReplyCount($user)
+            ->withCardDataFor($user)
+            ->without('quotedCommit')
+            ->newestFirst()
+            ->limit(1);
+    }
+
+    /**
+     * @param  Collection<int, Commit>  $commits
+     * @return Collection<int, Commit>
+     */
+    private function attachReplyPreviews(Collection $commits): Collection
+    {
+        foreach ($commits as $commit) {
+            if (! $commit->relationLoaded('replies') || ! $commit->relationLoaded('quotes')) {
+                continue;
+            }
+
+            $replies = $commit->replies->merge($commit->quotes)
+                ->sortByDesc(fn (Commit $reply): string => $reply->created_at->format('Y-m-d H:i:s.u').$reply->id)
+                ->take(1)
+                ->values();
+            $last = $replies->last();
+            $cursor = $last instanceof Commit && $commit->replies_count > $replies->count()
+                ? new Cursor(['created_at' => $last->getRawOriginal('created_at'), 'id' => $last->id])->encode()
+                : null;
+
+            $commit->setAttribute('reply_preview', [
+                'data' => $replies->map(fn (Commit $reply): array => $reply->toArray())->all(),
+                'next_cursor' => $cursor,
+                'prev_cursor' => null,
+            ]);
+            $commit->unsetRelation('replies')->unsetRelation('quotes');
+        }
+
+        return $commits;
     }
 }
