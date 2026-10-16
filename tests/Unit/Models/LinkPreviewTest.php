@@ -16,6 +16,7 @@ test('to array', function (): void {
             'description',
             'image_url',
             'site_name',
+            'github',
             'embed',
         ]);
 });
@@ -46,6 +47,27 @@ it('may have no title', function (): void {
 
     expect($linkPreview->title)->toBeNull()
         ->and($linkPreview->fetched_at)->not->toBeNull();
+});
+
+it('highlights lines of code from github when shown', function (): void {
+    $linkPreview = LinkPreview::factory()->fetched()->create([
+        'github' => ['type' => 'code', 'label' => 'acme/repo', 'state' => null, 'stars' => null, 'language' => 'php', 'lines' => ['<?php', 'echo "<script>alert(1)</script>";'], 'start' => 1],
+    ]);
+
+    $html = $linkPreview->toArray()['github']['html'] ?? '';
+
+    expect($html)
+        ->toContain('hl-keyword')
+        ->toContain('&lt;script&gt;')
+        ->not->toContain('<script>');
+});
+
+it('does not highlight github previews without code', function (): void {
+    $linkPreview = LinkPreview::factory()->fetched()->create([
+        'github' => ['type' => 'issue', 'label' => 'acme/repo#1', 'state' => 'open', 'stars' => null, 'language' => null],
+    ]);
+
+    expect($linkPreview->toArray()['github'])->not->toHaveKey('html');
 });
 
 it('is detached from its commits when deleted', function (): void {

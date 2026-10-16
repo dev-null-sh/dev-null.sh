@@ -19,12 +19,17 @@ const topLevelDomains = [
     .join(' ')
     .split(' ');
 
-// A URL with a scheme, or a bare domain: ASCII labels ending in an allowed TLD, optionally followed by a path, query or
-// fragment. A bare domain can't follow a letter, digit, "_", ".", "/", "@" or "-". Its TLD must be all lowercase or all
-// uppercase, and must end the word without a "(" or another label after it. There is no case-insensitive flag, so
-// that the TLD's case can be checked.
+// How GitHub writes an issue or pull request (laravel/framework#5123) or a commit (laravel/framework@42faad4). A plain
+// "owner/repo" is not one, because too many words look like it (and/or, client/server).
+const gitHubShorthand = String.raw`[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}(?:#[0-9]+|@[0-9a-f]{7,40})`;
+
+// A URL with a scheme, a GitHub shorthand, or a bare domain: ASCII labels ending in an allowed TLD, optionally followed
+// by a path, query or fragment. A shorthand or bare domain can't follow a letter, digit, "_", ".", "/", "@" or "-". A
+// bare domain's TLD must be all lowercase or all uppercase, and must end the word without a "(" or another label after
+// it. There is no case-insensitive flag, so that the TLD's case can be checked.
 const urlPattern = new RegExp(
     String.raw`\b[Hh][Tt][Tt][Pp][Ss]?:\/\/[^\s<>]+` +
+        String.raw`|(?<![\p{L}\p{N}_.\/@-])${gitHubShorthand}(?![\p{L}\p{N}_])` +
         String.raw`|(?<![\p{L}\p{N}_.\/@-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+` +
         String.raw`(?:${[...topLevelDomains, ...topLevelDomains.map((domain) => domain.toUpperCase())].join('|')})` +
         String.raw`(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?`,
@@ -35,6 +40,7 @@ const urlPattern = new RegExp(
 const mentionPattern =
     /(?<![\p{L}\p{N}_./@-])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})(?![A-Za-z0-9_@/-]|\.[A-Za-z0-9])/gu;
 const schemePattern = /^https?:\/\//i;
+const gitHubShorthandPattern = new RegExp(String.raw`^${gitHubShorthand}$`);
 const maxUrlLength = 2048;
 const brackets = [
     ['(', ')'],
@@ -63,10 +69,21 @@ function withoutTrailingPunctuation(candidate: string): string {
     return url;
 }
 
+// A bare domain gets an https scheme, and a GitHub shorthand becomes a link to the issue, pull request or commit.
+function toUrl(linkText: string): string {
+    if (schemePattern.test(linkText)) {
+        return linkText;
+    }
+
+    if (gitHubShorthandPattern.test(linkText)) {
+        return `https://github.com/${linkText.replace('#', '/issues/').replace('@', '/commit/')}`;
+    }
+
+    return `https://${linkText}`;
+}
+
 function hrefFor(linkText: string): string | null {
-    const href = schemePattern.test(linkText)
-        ? linkText
-        : `https://${linkText}`;
+    const href = toUrl(linkText);
 
     return href.endsWith('://') || Array.from(href).length > maxUrlLength
         ? null
@@ -170,7 +187,12 @@ export function LinkifiedText({ text }: { text: string }) {
                 title={href}
                 className="wrap-anywhere text-primary hover:underline"
             >
-                <ShortenedUrl url={linkText} />
+                {/* A GitHub shorthand is short already, and would lose its number. */}
+                {gitHubShorthandPattern.test(linkText) ? (
+                    linkText
+                ) : (
+                    <ShortenedUrl url={linkText} />
+                )}
             </a>,
         );
 

@@ -16,6 +16,20 @@ it('finds no url in plain text', function (string $text): void {
     'scheme and punctuation' => 'see https://. for details',
     'unsupported scheme' => 'ftp://files.example.com/release.tar.gz',
     'scheme glued to a word' => 'nothttps://example.com',
+    'words with a slash' => 'I like bananas/strawberries, and/or apples',
+    'repository without a number' => 'laravel/framework is great',
+    'repository with a word after the hash' => 'see laravel/framework#docs',
+    'commit hash that is too short' => 'pinned laravel/framework@42faad',
+]);
+
+it('finds github shorthands as links to github', function (string $text, string $url): void {
+    $urls = resolve(Urls::class);
+
+    expect($urls->first($text))->toBe($url);
+})->with([
+    'issue or pull request' => ['Merged laravel/framework#5123 today', 'https://github.com/laravel/framework/issues/5123'],
+    'commit' => ['Fixed in laravel/framework@42faad4.', 'https://github.com/laravel/framework/commit/42faad4'],
+    'repository with a dot' => ['(nunomaduro/devnull.com#14)', 'https://github.com/nunomaduro/devnull.com/issues/14'],
 ]);
 
 it('finds http and https urls', function (string $text, string $url): void {
@@ -235,6 +249,13 @@ it('shortens the urls in prose', function (): void {
 
     expect($urls->withShortenedUrls('A lot came! https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc. See https://laravel.com'))
         ->toBe('A lot came! github.com/nunomaduro/dev-nul…. See laravel.com');
+});
+
+it('keeps github shorthands as written', function (): void {
+    $urls = resolve(Urls::class);
+
+    expect($urls->withShortenedUrls('Fixed in spatie/laravel-permission#2345 and laravel/framework@42faad4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a.'))
+        ->toBe('Fixed in spatie/laravel-permission#2345 and laravel/framework@42faad4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a.');
 });
 
 it('does not shorten what it would not link', function (string $text): void {

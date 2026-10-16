@@ -28,13 +28,20 @@ final readonly class Urls
         'mx', 'ar', 'kr', 'cn', 'tw', 'hk', 'sg', 'vn', 'th',
     ];
 
+    /**
+     * How GitHub writes an issue or pull request (laravel/framework#5123) or a commit (laravel/framework@42faad4). A plain
+     * "owner/repo" is not one, because too many words look like it (and/or, client/server).
+     */
+    private const string GITHUB_SHORTHAND = '[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]{1,100}(?:#[0-9]+|@[0-9a-f]{7,40})';
+
     public function __construct(private CodeSpans $codeSpans)
     {
         //
     }
 
     /**
-     * Finds the first http(s) URL or bare domain in the text, whichever comes first, and returns it as a URL.
+     * Finds the first http(s) URL, GitHub shorthand or bare domain in the text, whichever comes first, and returns it as
+     * a URL.
      */
     public function first(string $text): ?string
     {
@@ -42,9 +49,9 @@ final readonly class Urls
     }
 
     /**
-     * Finds every http(s) URL and bare domain in the text, in order and once each, and returns them as URLs. A bare
-     * domain gets an https scheme. A URL in code doesn't count. Keep the rules in sync with
-     * resources/js/components/linkified-text.tsx.
+     * Finds every http(s) URL, GitHub shorthand and bare domain in the text, in order and once each, and returns them as
+     * URLs. A bare domain gets an https scheme, and a GitHub shorthand becomes a link to GitHub. A URL in code doesn't
+     * count. Keep the rules in sync with resources/js/components/linkified-text.tsx.
      *
      * @return list<string>
      */
@@ -55,8 +62,7 @@ final readonly class Urls
         $urls = [];
 
         foreach ($matches[0] as $candidate) {
-            $match = $this->withoutTrailingPunctuation($candidate);
-            $url = preg_match('/^https?:\/\//i', $match) === 1 ? $match : 'https://'.$match;
+            $url = $this->toUrl($this->withoutTrailingPunctuation($candidate));
 
             if (! str_ends_with($url, '://') && mb_strlen($url) <= self::MAX_LENGTH && ! in_array($url, $urls, true)) {
                 $urls[] = $url;
@@ -67,15 +73,16 @@ final readonly class Urls
     }
 
     /**
-     * Shortens every URL in the prose for display, leaving the code as written.
+     * Shortens every URL in the prose for display, leaving the code and GitHub shorthands, which are short already, as
+     * written.
      */
     public function withShortenedUrls(string $text): string
     {
         return $this->codeSpans->mapProse($text, fn (string $prose): string => (string) preg_replace_callback($this->pattern(), function (array $matches): string {
             $match = $this->withoutTrailingPunctuation($matches[0]);
-            $url = preg_match('/^https?:\/\//i', $match) === 1 ? $match : 'https://'.$match;
+            $url = $this->toUrl($match);
 
-            if (str_ends_with($url, '://') || mb_strlen($url) > self::MAX_LENGTH) {
+            if (str_ends_with($url, '://') || mb_strlen($url) > self::MAX_LENGTH || $this->isGitHubShorthand($match)) {
                 return $matches[0];
             }
 
@@ -104,19 +111,42 @@ final readonly class Urls
     }
 
     /**
-     * A URL with a scheme, or a bare domain: ASCII labels ending in an allowed TLD, optionally followed by a path,
-     * query or fragment. A bare domain can't follow a letter, digit, "_", ".", "/", "@" or "-" (so no email addresses,
-     * handles or the middle of a URL). Its TLD must be all lowercase or all uppercase (so not "bug.It"), and must end
-     * the word without a "(" or another label after it (so neither "nativephp.community", "array.at(-1)" nor
-     * "socket.io.js"). There is no case-insensitive flag, so that the TLD's case can be checked.
+     * A URL with a scheme, a GitHub shorthand, or a bare domain: ASCII labels ending in an allowed TLD, optionally
+     * followed by a path, query or fragment. A shorthand or bare domain can't follow a letter, digit, "_", ".", "/",
+     * "@" or "-" (so no email addresses, handles or the middle of a URL). A bare domain's TLD must be all lowercase or
+     * all uppercase (so not "bug.It"), and must end the word without a "(" or another label after it (so neither
+     * "nativephp.community", "array.at(-1)" nor "socket.io.js"). There is no case-insensitive flag, so that the TLD's
+     * case can be checked.
      */
     private function pattern(): string
     {
         $topLevelDomains = implode('|', [...self::TOP_LEVEL_DOMAINS, ...array_map(mb_strtoupper(...), self::TOP_LEVEL_DOMAINS)]);
 
         return '/\b[Hh][Tt][Tt][Pp][Ss]?:\/\/[^\s<>]+'
+            .'|(?<![\p{L}\p{N}_.\/@-])'.self::GITHUB_SHORTHAND.'(?![\p{L}\p{N}_])'
             .'|(?<![\p{L}\p{N}_.\/@-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+(?:'.$topLevelDomains.')'
             .'(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?/u';
+    }
+
+    /**
+     * A bare domain gets an https scheme, and a GitHub shorthand becomes a link to the issue, pull request or commit.
+     */
+    private function toUrl(string $match): string
+    {
+        if (preg_match('/^https?:\/\//i', $match) === 1) {
+            return $match;
+        }
+
+        if ($this->isGitHubShorthand($match)) {
+            return 'https://github.com/'.strtr($match, ['#' => '/issues/', '@' => '/commit/']);
+        }
+
+        return 'https://'.$match;
+    }
+
+    private function isGitHubShorthand(string $match): bool
+    {
+        return preg_match('/^'.self::GITHUB_SHORTHAND.'$/', $match) === 1;
     }
 
     /**

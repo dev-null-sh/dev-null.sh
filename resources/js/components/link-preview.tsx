@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { GitHubLinkPreview } from '@/components/github-link-preview';
 import { LinkEmbed } from '@/components/link-embed';
 import { hostname } from '@/lib/urls';
 import type { LinkPreview as LinkPreviewData } from '@/types';
@@ -9,6 +10,16 @@ export function LinkPreview({ preview }: { preview: LinkPreviewData }) {
 
     if (preview.embed) {
         return <LinkEmbed preview={preview} embed={preview.embed} />;
+    }
+
+    if (preview.github) {
+        return (
+            <GitHubLinkPreview
+                url={preview.url}
+                title={preview.title}
+                github={preview.github}
+            />
+        );
     }
 
     if (!preview.title) {

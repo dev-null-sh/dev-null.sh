@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Contracts\Services\DnsResolver;
+use App\Dto\GitHubReference;
 use App\Models\LinkPreview;
+use App\Services\GitHubPreviews;
 use Dom\HTMLDocument;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Psr7\Utils;
@@ -58,19 +60,26 @@ final readonly class UpdateLinkPreview
         'site_name' => null,
     ];
 
-    public function __construct(private DnsResolver $dns)
+    public function __construct(private DnsResolver $dns, private GitHubPreviews $gitHubPreviews)
     {
         //
     }
 
     /**
-     * Fetches the page behind the link and stores its Open Graph metadata. A page that can't or mustn't be fetched is
+     * Fetches the page behind the link and stores its Open Graph metadata, or asks GitHub's API about a link to a
+     * repository, issue, pull request, release, commit or lines of code. A page that can't or mustn't be fetched is
      * marked as fetched without metadata, so it is not tried again. Failures that may pass, such as connection errors,
      * timeouts, rate limits and server errors, are thrown instead, so the caller can try again later.
      */
     public function handle(LinkPreview $linkPreview): void
     {
-        $linkPreview->update([...$this->fetchMetadata($linkPreview->url), 'fetched_at' => now()]);
+        $reference = GitHubReference::tryFromUrl($linkPreview->url);
+
+        $metadata = $reference instanceof GitHubReference
+            ? $this->gitHubPreviews->describe($reference) ?? self::NO_METADATA
+            : $this->fetchMetadata($linkPreview->url);
+
+        $linkPreview->update([...$metadata, 'fetched_at' => now()]);
     }
 
     /**

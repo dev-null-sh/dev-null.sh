@@ -94,6 +94,15 @@ final readonly class CodeSpans
         return $segments;
     }
 
+    /**
+     * Highlights code as the given language, or as plain text when the language is unknown. The highlighter escapes the
+     * code, so the HTML is safe to render as is.
+     */
+    public function highlightBlock(string $code, ?string $language): string
+    {
+        return $this->highlighter->parse($code, $language === null ? null : mb_strtolower($language));
+    }
+
     private function isBlock(?string $part): bool
     {
         return $part !== null && str_starts_with($part, '```');
@@ -110,7 +119,7 @@ final readonly class CodeSpans
         return [
             'type' => 'block',
             'language' => $language,
-            'html' => $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === null ? null : mb_strtolower($language)),
+            'html' => $this->highlightBlock(implode("\n", array_slice($lines, 1, -1)), $language),
         ];
     }
 }

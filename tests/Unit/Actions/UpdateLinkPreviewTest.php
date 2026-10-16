@@ -430,3 +430,30 @@ it('throws unexpected errors without marking the link as fetched', function (): 
     expect(fn () => resolve(UpdateLinkPreview::class)->handle($linkPreview))->toThrow(RuntimeException::class, 'The resolver broke.')
         ->and($linkPreview->refresh()->fetched_at)->toBeNull();
 });
+
+it('asks the github api about links to github instead of fetching the page', function (): void {
+    Http::fake(['api.github.com/repos/nunomaduro/devnull.com/issues/21' => Http::response([
+        'title' => 'Add follower page',
+        'state' => 'open',
+    ])]);
+
+    $linkPreview = unfurl('https://github.com/nunomaduro/devnull.com/issues/21');
+
+    expect($linkPreview)
+        ->title->toBe('Add follower page')
+        ->site_name->toBe('GitHub')
+        ->github->toEqual(['type' => 'issue', 'label' => 'nunomaduro/devnull.com#21', 'state' => 'open', 'stars' => null, 'language' => null])
+        ->fetched_at->not->toBeNull();
+
+    Http::assertSentCount(1);
+});
+
+it('stores no metadata for links to github that github does not know', function (): void {
+    Http::fake(['api.github.com/repos/acme/does-not-exist/issues/1' => Http::response(['message' => 'Not Found'], 404)]);
+
+    $linkPreview = unfurl('https://github.com/acme/does-not-exist/issues/1');
+
+    expectNoMetadata($linkPreview);
+
+    expect($linkPreview->github)->toBeNull();
+});

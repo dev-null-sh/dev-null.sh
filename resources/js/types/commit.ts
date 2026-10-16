@@ -12,12 +12,35 @@ export type Embed = {
     height: number | null;
 };
 
+export type GitHubPreview = {
+    type:
+        | 'repository'
+        | 'issue'
+        | 'pull_request'
+        | 'release'
+        | 'commit'
+        | 'code';
+    label: string;
+    state: 'open' | 'closed' | 'merged' | 'released' | null;
+    stars: number | null;
+    language: string | null;
+    author?: string;
+    author_on_devnull?: boolean;
+    additions?: number;
+    deletions?: number;
+    files?: number;
+    lines?: string[];
+    start?: number;
+    html?: string;
+};
+
 export type LinkPreview = {
     url: string;
     title: string | null;
     description: string | null;
     image_url: string | null;
     site_name: string | null;
+    github: GitHubPreview | null;
     embed?: Embed | null;
 };
 
