@@ -22,23 +22,78 @@ final readonly class NotificationGroupsQuery
     /** @return CursorPaginator<int, Notification> */
     public function paginate(User $user, string $type = 'all', ?CarbonImmutable $through = null): CursorPaginator
     {
-        $query = $this->events($user, $type)
-            ->where('group_rank', 1)
-            ->with([
-                'actor' => fn (BelongsTo $query): BelongsTo => $query
-                    ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
-                'commit',
-            ])
-            ->latest()->latest('id');
+        $query = $this->groupRepresentatives($user, $type);
         $perPage = $through instanceof CarbonImmutable
             ? max(self::PER_PAGE, (clone $query)->where('created_at', '>=', $through)->count())
             : self::PER_PAGE;
 
         $groups = $query->cursorPaginate($perPage)->appends(request()->except('through'));
 
-        $this->loadStackedActors($user, $type, $groups->items());
+        $this->loadGroupRelations($user, $type, array_values($groups->items()));
 
         return $groups;
+    }
+
+    /**
+     * @param  list<string>  $visibleGroupIds
+     * @return array{
+     *     head: list<Notification>,
+     *     boundary: array{group_id: string, id: string}|null,
+     *     visible: list<Notification>,
+     *     missing_visible_group_ids: list<string>
+     * }
+     */
+    public function sync(User $user, string $type = 'all', array $visibleGroupIds = []): array
+    {
+        $visibleGroupIds = array_slice($visibleGroupIds, 0, self::PER_PAGE);
+        $ranked = $this->groupRepresentatives($user, $type)
+            ->reorder()
+            ->select('notifications.*')
+            ->selectRaw('ROW_NUMBER() OVER (ORDER BY created_at DESC, id DESC) AS sync_position');
+        $groups = Notification::query()
+            ->fromSub($ranked, 'notifications')
+            ->where(fn (NotificationBuilder $query): NotificationBuilder => $query
+                ->where('sync_position', '<=', self::PER_PAGE + 1)
+                ->when(
+                    $visibleGroupIds !== [],
+                    fn (NotificationBuilder $query): NotificationBuilder => $query
+                        ->orWhereIn('group_id', $visibleGroupIds),
+                ))
+            ->withCasts([
+                'event_count' => 'integer',
+                'sync_position' => 'integer',
+            ])
+            ->orderBy('sync_position')
+            ->get();
+        $headWithBoundary = $groups->take(self::PER_PAGE + 1)->values();
+        $boundary = $headWithBoundary->count() > self::PER_PAGE
+            ? $headWithBoundary->pop()
+            : null;
+        $head = array_values($headWithBoundary->all());
+        $headIds = array_map(fn (Notification $group): string => $group->group_id, $head);
+        $requestedVisibleIds = collect($visibleGroupIds)->diff($headIds)->values();
+        $visible = array_values($groups->whereIn('group_id', $requestedVisibleIds)->all());
+
+        $this->loadGroupRelations($user, $type, [...$head, ...$visible]);
+
+        foreach ([...$head, ...$visible] as $group) {
+            $group->makeHidden('sync_position');
+        }
+
+        $foundIds = [...$headIds, ...array_map(
+            fn (Notification $group): string => $group->group_id,
+            $visible,
+        )];
+
+        return [
+            'head' => $head,
+            'boundary' => $boundary instanceof Notification ? [
+                'group_id' => $boundary->group_id,
+                'id' => $boundary->id,
+            ] : null,
+            'visible' => $visible,
+            'missing_visible_group_ids' => array_values(array_diff($visibleGroupIds, $foundIds)),
+        ];
     }
 
     public function unreadCount(User $user): int
@@ -135,6 +190,26 @@ final readonly class NotificationGroupsQuery
         return Notification::query()->fromSub($sql, 'notifications')->addBinding($visible->getBindings(), 'from')
             ->addBinding($filtered->getBindings(), 'from')
             ->withCasts(['event_count' => 'integer']);
+    }
+
+    private function groupRepresentatives(User $user, string $type): NotificationBuilder
+    {
+        return $this->events($user, $type)
+            ->where('group_rank', 1)
+            ->latest()
+            ->latest('id');
+    }
+
+    /** @param list<Notification> $groups */
+    private function loadGroupRelations(User $user, string $type, array $groups): void
+    {
+        new Collection($groups)->load([
+            'actor' => fn (BelongsTo $query): BelongsTo => $query
+                ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
+            'commit',
+        ]);
+
+        $this->loadStackedActors($user, $type, $groups);
     }
 
     /** @param array<int, Notification> $groups */
