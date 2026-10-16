@@ -92,6 +92,53 @@ it('is idempotent', function (): void {
     expect($replacement->notifications()->count())->toBe(0);
 });
 
+it('does not notify people who muted the author or are across a block', function (string $relation, bool $mentionedActs, bool $renamed): void {
+    $mentioned = User::factory()->create(['username' => 'nunomaduro']);
+    $other = User::factory()->create(['username' => 'taylorotwell']);
+    $silenced = Commit::factory()->create([
+        'body' => 'Hi @nunomaduro',
+        'mentions' => ['nunomaduro' => $mentioned->id],
+    ]);
+    $notified = Commit::factory()->create([
+        'body' => 'Hi @nunomaduro and @taylorotwell',
+        'mentions' => ['nunomaduro' => $mentioned->id, 'taylorotwell' => $other->id],
+    ]);
+
+    [$actor, $subject] = $mentionedActs ? [$mentioned, $silenced->user] : [$silenced->user, $mentioned];
+    $actor->{$relation}()->attach($subject);
+
+    if ($renamed) {
+        $mentioned->update(['username' => 'renamed']);
+        $replacement = User::factory()->create(['username' => 'nunomaduro']);
+    }
+
+    resolve(CreateMentionNotifications::class)->handle($silenced, $notified);
+
+    if ($renamed) {
+        expect($replacement->notifications()->count())->toBe(0);
+    }
+
+    expect($mentioned->notifications()->sole()->commit_id)->toBe($notified->id)
+        ->and($other->notifications()->sole()->commit_id)->toBe($notified->id);
+})->with([
+    'the mentioned user muted the author' => ['muting', true],
+    'the mentioned user blocked the author' => ['blocking', true],
+    'the author blocked the mentioned user' => ['blocking', false],
+])->with([false, true]);
+
+it('still notifies a mentioned user when only the author muted them', function (): void {
+    $mentioned = User::factory()->create(['username' => 'nunomaduro']);
+    $commit = Commit::factory()->create([
+        'body' => 'Hi @nunomaduro',
+        'mentions' => ['nunomaduro' => $mentioned->id],
+    ]);
+    $commit->user->muting()->attach($mentioned);
+
+    resolve(CreateMentionNotifications::class)->handle($commit);
+
+    expect($mentioned->notifications()->sole()->commit_id)->toBe($commit->id);
+});
+
 it('does nothing without commits', function (): void {
     $action = resolve(CreateMentionNotifications::class);
 

@@ -78,3 +78,19 @@ it('excludes deleted commits', function (): void {
 
     expect($commits->modelKeys())->toBe([$commit->id]);
 });
+
+it('leaves out commits by followed people the user muted', function (): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $muted = User::factory()->create();
+
+    $user->following()->attach([$followed->id, $muted->id]);
+    $user->muting()->attach($muted);
+
+    $visible = Commit::factory()->for($followed)->create();
+    Commit::factory()->for($muted)->create();
+
+    $commits = resolve(FollowingLogQuery::class)->builder($user)->get();
+
+    expect($commits->modelKeys())->toBe([$visible->id]);
+});
