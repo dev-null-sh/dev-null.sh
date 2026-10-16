@@ -201,6 +201,16 @@ it('excludes series continuations from its public preview reply count', function
         ->and($preview->isDirty('replies_count'))->toBeFalse();
 });
 
+it('loads an unsaved public preview without dirtying its computed count', function (): void {
+    $commit = Commit::factory()->make();
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview->replies_count)->toBe(0)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->exists)->toBeFalse();
+});
+
 it('counts public replies and quotes in a deleted commit preview without dirtying its count', function (): void {
     $commit = Commit::factory()->create();
     Commit::factory()->for($commit, 'parent')->create();

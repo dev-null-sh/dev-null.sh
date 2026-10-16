@@ -67,6 +67,8 @@ final class Commit extends Model
     use HasUuids;
     use SoftDeletes;
 
+    public const int RESTORABLE_SECONDS = 30;
+
     /**
      * @return array<string, string>
      */
@@ -138,6 +140,11 @@ final class Commit extends Model
 
         return $this->status === CommitStatus::Approved
             && (! $user instanceof User || ! $this->user instanceof User || ! $user->hasBlockWith($this->user));
+    }
+
+    public function isRestorable(): bool
+    {
+        return $this->user_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
     }
 
     /**

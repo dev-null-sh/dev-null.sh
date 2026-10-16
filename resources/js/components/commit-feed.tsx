@@ -1,10 +1,14 @@
-import { InfiniteScroll } from '@inertiajs/react';
+import { InfiniteScroll, router, usePage } from '@inertiajs/react';
 import { Pin } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { useNow } from '@/hooks/use-now';
+import {
+    restoreFeedCommit,
+    updateQuotedCommits,
+} from '@/lib/commit-mutation-options';
 import { formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -38,8 +42,92 @@ export function CommitFeed({
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
 }) {
     const now = useNow();
+    const page = usePage();
+    const isModeration = page.component === 'moderation/show';
+    const isSaved = page.component === 'bookmark/index';
+    const isLog = page.component === 'log/show';
+    const deletedLatest = useRef(new Set<string>());
+    const profileUserId =
+        page.component === 'user/show'
+            ? (page.props.user as { id: string }).id
+            : null;
+    const isProfileReplies =
+        profileUserId !== null && page.props.tab === 'replies';
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
+    );
+
+    useEffect(
+        () =>
+            router.on('flash', (event) => {
+                if (isModeration) {
+                    return;
+                }
+
+                const { deleted, restored } = event.detail.flash;
+                if (deleted) {
+                    router.replaceProp('commits.data', (rows: Commit[]) =>
+                        updateQuotedCommits(
+                            rows.filter((commit) => commit.id !== deleted.id),
+                            deleted,
+                        ),
+                    );
+                }
+                if (deleted && isLog) {
+                    router.replaceProp('latestCommits', (rows: Commit[]) => {
+                        if (rows.some((commit) => commit.id === deleted.id)) {
+                            deletedLatest.current.add(deleted.id);
+                        }
+                        return updateQuotedCommits(
+                            rows.filter((commit) => commit.id !== deleted.id),
+                            deleted,
+                        );
+                    });
+                }
+                if (restored) {
+                    const wasLatest = deletedLatest.current.delete(restored.id);
+                    const belongsInFeed =
+                        (isSaved
+                            ? restored.is_saved === true
+                            : isProfileReplies
+                              ? restored.parent_id !== null &&
+                                (restored.series_position === null ||
+                                    restored.series_position === 1)
+                              : restored.parent_id === null) &&
+                        (profileUserId === null ||
+                            (restored.user_id === profileUserId &&
+                                !restored.is_pinned));
+
+                    router.replaceProp('commits.data', (rows: Commit[]) =>
+                        belongsInFeed && !(isRanked && wasLatest)
+                            ? restoreFeedCommit(
+                                  rows,
+                                  restored,
+                                  isSaved
+                                      ? 'saved'
+                                      : isRanked
+                                        ? 'ranked'
+                                        : 'latest',
+                              )
+                            : updateQuotedCommits(rows, restored),
+                    );
+                    if (isLog) {
+                        router.replaceProp('latestCommits', (rows: Commit[]) =>
+                            belongsInFeed && wasLatest
+                                ? restoreFeedCommit(rows, restored, 'latest')
+                                : updateQuotedCommits(rows, restored),
+                        );
+                    }
+                }
+            }),
+        [
+            profileUserId,
+            isModeration,
+            isProfileReplies,
+            isSaved,
+            isRanked,
+            isLog,
+        ],
     );
 
     // A ranked commit can move to a later page while the feed scrolls, so each one is only listed once.

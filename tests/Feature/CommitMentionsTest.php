@@ -169,3 +169,55 @@ it('backfills legacy mentions without changing captured identities or commit tex
     expect($captured->refresh()->mentions)->toBe(['previous' => $mentioned->id]);
     expect($unresolved->refresh()->mentions)->toBe([]);
 });
+
+it('keeps captured mention identities through deletion and undo after a rename and handle reuse', function (?string $relationship): void {
+    config(['app.admins' => ['moderator']]);
+
+    $author = User::factory()->create(['username' => 'moderator']);
+    $mentioned = User::factory()->create(['username' => 'original']);
+    User::factory()->create(['username' => 'codeuser']);
+    $body = "Thanks @ORIGINAL! `@codeuser`\n```php\n@codeuser\n```";
+    $target = Commit::factory()->create();
+    $payload = ['body' => $body];
+
+    if ($relationship !== null) {
+        $payload[$relationship] = $target->id;
+    }
+
+    $this->actingAs($author)->post(route('commit.store'), $payload)
+        ->assertRedirect()->assertSessionHasNoErrors();
+    $commit = $author->commits()->sole();
+    $segments = $commit->toArray()['body_segments'];
+
+    expect($commit->mentions)->toBe(['original' => $mentioned->id])
+        ->and($mentioned->notifications()->where('type', NotificationType::Mentioned)->count())->toBe(1);
+
+    $mentioned->update(['username' => 'renamed']);
+    $replacement = User::factory()->create(['username' => 'original']);
+
+    $this->delete(route('commit.destroy', $commit))->assertRedirect();
+
+    expect(Commit::withTrashed()->findOrFail($commit->id)->toArray())
+        ->not->toHaveKeys(['body', 'body_segments', 'mentions']);
+
+    $this->post(route('commit-restoration.store', $commit))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.mentions.original', $mentioned->id)
+        ->assertInertiaFlash('restored.body', $body)
+        ->assertInertiaFlash('restored.body_segments', $segments);
+
+    expect($commit->refresh()->mentions)->toBe(['original' => $mentioned->id])
+        ->and($mentioned->notifications()->where('type', NotificationType::Mentioned)->count())->toBe(0)
+        ->and($replacement->notifications()->count())->toBe(0);
+
+    $this->get(route('commit.show', [$author, $commit]))
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.mentions.original', $mentioned->id)
+            ->where('commit.body_segments', $segments));
+    $this->get(route('mention.show', $mentioned->id))
+        ->assertRedirect(route('user.show', $mentioned));
+})->with([
+    'commit' => null,
+    'reply' => 'parent_id',
+    'quote' => 'quoted_commit_id',
+]);
