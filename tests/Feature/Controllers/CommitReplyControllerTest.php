@@ -278,6 +278,47 @@ it('may attach images to a reply', function (): void {
         ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(2);
 });
 
+it('may describe the images attached to a reply', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit-reply.store', $parent), [
+            'body' => 'Offsite photo dump',
+            'images' => [
+                UploadedFile::fake()->image('cabin.jpg', 40, 30),
+                UploadedFile::fake()->image('hike.jpg', 40, 30),
+            ],
+            'image_descriptions' => ['The cabin at sunrise, fog over the lake.', ''],
+        ], ['Accept' => 'application/json'])
+        ->assertCreated();
+
+    expect($user->commits()->sole()->images->pluck('description')->all())->toBe([
+        'The cabin at sunrise, fog over the lake.',
+        null,
+    ]);
+});
+
+it('may not describe an image of a reply in more than a thousand characters', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit-reply.store', $parent), [
+            'body' => 'Too long a description',
+            'images' => [UploadedFile::fake()->image('photo.jpg', 10, 10)],
+            'image_descriptions' => [str_repeat('a', 1001)],
+        ], ['Accept' => 'application/json'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('image_descriptions.0');
+
+    expect($user->commits()->count())->toBe(0);
+});
+
 it('may only attach jpeg, png, gif or webp images to a reply', function (): void {
     Storage::fake();
 

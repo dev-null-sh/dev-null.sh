@@ -26,7 +26,7 @@ final readonly class CommitReplyController
 
     public function store(CreateCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action): JsonResponse
     {
-        $reply = $action->handle($user, $request->string('body')->value(), $commit, $request->images());
+        $reply = $action->handle($user, $request->string('body')->value(), $commit, $request->images(), $request->imageDescriptions());
 
         return response()->json([
             'committed' => [
