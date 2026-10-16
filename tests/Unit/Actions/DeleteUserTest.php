@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Actions\DeleteUser;
+use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\User;
+use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\Storage;
 
 it('may delete a user', function (): void {
@@ -28,6 +30,17 @@ it('erases the commits of a deleted user along with the replies under them', fun
     resolve(DeleteUser::class)->handle($user);
 
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
+});
+
+it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {
+    $user = User::factory()->create();
+    $quote = Commit::factory()->for(Commit::factory()->for($user), 'quotedCommit')->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $this->assertNotSoftDeleted($quote);
+
+    expect($quote->refresh()->quoted_commit_id)->toBeNull();
 });
 
 it('leaves a tombstone for a reply of a deleted user that other people replied to', function (): void {
@@ -58,6 +71,7 @@ it('erases the replies of a deleted user that only have their own replies under 
     resolve(DeleteUser::class)->handle($user);
 
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$commit->id]);
+
 });
 
 it('erases the mutes and blocks of a deleted user in both directions', function (): void {
@@ -74,6 +88,7 @@ it('erases the mutes and blocks of a deleted user in both directions', function 
     expect($other->muting()->count())->toBe(0)
         ->and($other->blocking()->count())->toBe(0)
         ->and($other->blockers()->count())->toBe(0);
+
 });
 
 it('erases the images of a deleted user and of the replies under their commits', function (): void {
@@ -97,4 +112,20 @@ it('erases the images of a deleted user and of the replies under their commits',
 
     expect(collect(Storage::disk()->allFiles('commit-images'))->sort()->values()->all())->toBe($kept)
         ->and(CommitImage::query()->pluck('path')->sort()->values()->all())->toBe($kept);
+});
+
+it('lowers the threads the deleted user starred or replied to', function (): void {
+    $user = User::factory()->create();
+    $starred = Commit::factory()->create();
+    $starred->stars()->attach($user);
+    $repliedTo = Commit::factory()->create();
+    Commit::factory()->for($user)->for(Commit::factory()->for($repliedTo, 'parent'), 'parent')->create();
+    resolve(UpdateCommitHotScores::class)->handle([$starred->id, $repliedTo->id]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($starred->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($starred->created_at, 0, 0), 1e-9)
+        ->and($repliedTo->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($repliedTo->created_at, 0, 1), 1e-9);
 });

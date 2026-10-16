@@ -9,6 +9,7 @@ use App\Queries\CommitBuilder;
 use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -23,12 +24,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $id
  * @property-read string|null $user_id
  * @property-read string|null $parent_id
+ * @property-read string|null $root_id
+ * @property-read float $hot_score
  * @property-read string $body
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
+ * @property-read string|null $quoted_commit_id
  * @property-read string|null $series_id
  * @property-read int|null $series_position
  * @property-read int|null $series_size
+ * @property-read CommitStatus|null $ai_decision
+ * @property-read list<string>|null $ai_categories
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -39,11 +45,18 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
+ * @property-read int|null $repliers_count
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
+ * @property-read Commit|null $quotedCommit
+ * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
  * @property-read Collection<int, Commit> $seriesParts
  */
+#[Hidden([
+    'ai_decision',
+    'ai_categories',
+])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
 {
@@ -62,12 +75,17 @@ final class Commit extends Model
             'id' => 'string',
             'user_id' => 'string',
             'parent_id' => 'string',
+            'root_id' => 'string',
+            'hot_score' => 'float',
             'body' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
+            'quoted_commit_id' => 'string',
             'series_id' => 'string',
             'series_position' => 'integer',
             'series_size' => 'integer',
+            'ai_decision' => CommitStatus::class,
+            'ai_categories' => 'array',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -129,6 +147,14 @@ final class Commit extends Model
     }
 
     /**
+     * The top-level commit that started the thread the commit belongs to, which is the commit itself when it is top-level.
+     */
+    public function threadRootId(): string
+    {
+        return $this->root_id ?? $this->id;
+    }
+
+    /**
      * @return HasMany<Commit, $this>
      */
     public function replies(): HasMany
@@ -163,6 +189,22 @@ final class Commit extends Model
     }
 
     /**
+     * @return BelongsTo<Commit, $this>
+     */
+    public function quotedCommit(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'quoted_commit_id');
+    }
+
+    /**
+     * @return HasMany<Commit, $this>
+     */
+    public function quotes(): HasMany
+    {
+        return $this->hasMany(self::class, 'quoted_commit_id');
+    }
+
+    /**
      * @return HasMany<CommitImage, $this>
      */
     public function images(): HasMany
@@ -191,7 +233,9 @@ final class Commit extends Model
      */
     public function loadPublicPreview(): self
     {
-        return $this->loadCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()])
+        $this->replies_count = self::query()->withVisibleReplyCount(null)->findOrFail($this->id)->replies_count;
+
+        return $this
             ->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
     }
 

@@ -75,6 +75,7 @@ it('replies to a commit', function (): void {
 });
 
 it('attaches a link preview for the first link', function (): void {
+    Http::fake(['example.com/first' => Http::response(status: 404)]);
     Queue::fake([UnfurlLink::class]);
 
     postSignedCommit(signedCommit($this->keyPair, 'Shipped https://example.com/first and https://example.com/second'))->assertCreated();
