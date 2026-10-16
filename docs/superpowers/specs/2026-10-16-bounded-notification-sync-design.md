@@ -65,11 +65,11 @@ The endpoint calls `UpdateNotificationsReadAt` before reading the result, matchi
 
 Add a dedicated sync controller and request object. The request validates the filter and UUID list before the query runs. Authentication comes from the existing notification route group, and every query is scoped to the current recipient.
 
-Extend `NotificationGroupsQuery` with bounded operations that:
+Extend `NotificationGroupsQuery` with bounded operations that select representative identity in one database statement. Rank current representatives globally, then retain rows whose position is at most 21 or whose group ID was requested in `visible[]`. Split that result in application code so the head, boundary, and visible representatives always describe the same statement snapshot. The operation:
 
 1. Read at most 21 ranked group representatives for the selected filter.
 2. Load actors and commits for the 20 returned head rows.
-3. Resolve at most 20 requested visible group IDs using the same grouping and filtering rules.
+3. Resolve at most 20 requested visible group IDs using the same grouping and filtering rules and the same representative snapshot.
 4. Load actors and commits for visible rows not already included in the head.
 5. Compute missing requested IDs from the returned head and visible IDs.
 
@@ -87,6 +87,7 @@ Replace the inbox's Inertia reload poll with the repository's existing bounded J
 - Pause while the document is hidden.
 - Never overlap requests.
 - Abort on unmount or filter navigation.
+- Discard a response if filter or page-one navigation changes before its queued client update executes.
 - Use a 10-second timeout and `cache: 'no-store'`.
 - On failure, keep the last good state and retry at the next interval.
 
@@ -98,7 +99,7 @@ Put reconciliation in a pure TypeScript function so ordering and fallback behavi
 
 Given the loaded list and a sync response:
 
-1. Treat the response as complete when `boundary` is null. Use `head` as the whole list and set `next_cursor` to null.
+1. Treat the response as complete when `boundary` is null. Use `head` as the whole list and set `next_cursor` to null. If Inertia's infinite-scroll manager still owns a non-null next-page token, perform an automatic page-one reset instead of only replacing the prop; this clears its separate internal cursor state.
 2. Otherwise, continuity is proven when a loaded row matches both boundary fields: its stable `group_id` and latest representative event `id`. Matching only `group_id` is unsafe because new activity can bump a loaded group while retaining that ID.
 3. An unchanged first page is also safe when the returned head representative pairs (`group_id` and latest event `id`) exactly match the loaded prefix. Comparing both IDs prevents a group with new activity from disguising an ambiguous burst merely because its stable `group_id` stayed in place. This avoids a false refresh when the 21st current group has never been loaded and nothing ahead of it changed.
 4. If neither continuity condition holds, do not change notification data. Set a `refreshRequired` state instead.
@@ -110,7 +111,7 @@ Given the loaded list and a sync response:
 
 This makes the head and visible rows exact while deliberately leaving other retained rows in their previous order. A group bumped from the retained tail into the head appears only once.
 
-Apply the reconciled paginator and unread count through Inertia's client-side prop replacement. The existing layout effect then restores the anchor and derives the arrival count from the anchor's new position.
+Apply the reconciled paginator and unread count together through one functional Inertia client-side prop replacement. The updater must reconcile against Inertia's current paginator when the queued replacement executes, not the React prop captured when the poll completed. This preserves a page and deeper cursor that `InfiniteScroll` may merge while the poll result is waiting in the client queue. Run post-swap decisions after either Inertia completion branch for client replacements, page-one resets, and filter visits, because non-empty resulting error props make Inertia use its error callback even when the swap succeeds. The existing layout effect then restores the anchor and derives the arrival count from the anchor's new position.
 
 ## Ambiguous Change Fallback
 
@@ -137,6 +138,7 @@ Feature tests must prove:
 - Unauthenticated requests are rejected, and successful responses carry `Cache-Control: private, no-store`.
 - Head and visible rows preserve current serialization, actor-stack, follow-state, and hidden-field behavior.
 - Activity inserted after read acknowledgement remains unread in the returned global count.
+- Head, boundary, and visible representatives remain from one statement snapshot when a requested tail group changes during synchronization.
 - An old Inertia asset version triggers the existing reload path instead of continuing the removed `through` contract.
 - The normal paginator no longer expands from a `through` value.
 
@@ -146,6 +148,8 @@ A directly discovered TypeScript unit suite must prove:
 - A bumped old group is deduplicated.
 - Visible replacements and tombstones are applied.
 - A null boundary clears stale tail data and the cursor.
+- A null boundary with an active infinite-scroll cursor requests a server-backed page-one reset; a list already known to be complete can update locally.
+- A page merged by infinite scroll after a poll starts remains loaded with its deeper cursor when that poll is applied.
 - A known boundary preserves the existing cursor.
 - An unchanged first-page representative prefix is accepted, while matching group IDs with changed representative IDs are not treated as proof of continuity.
 - A mixed burst of new groups and a bumped loaded group cannot use the bumped group as a false continuity boundary.
@@ -159,5 +163,7 @@ Run the repository's focused tests, complete unit suite, lint, static analysis, 
 - Loading additional pages does not change the sync request limit or response limit.
 - The loaded list never contains duplicate `group_id` values after synchronization.
 - The deepest pagination cursor remains unchanged during safe partial reconciliation.
+- A concurrent infinite-scroll merge cannot be overwritten by a poll response based on an older React render.
 - Within a sync snapshot, reconciliation never accepts a changed boundary representative or omits a group returned in the bounded head.
+- A complete response cannot leave Inertia's infinite-scroll manager with a stale next-page token.
 - No production behavior outside notification synchronization changes.
