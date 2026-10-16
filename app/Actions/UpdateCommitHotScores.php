@@ -7,12 +7,16 @@ namespace App\Actions;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Services\TheAlgorithm;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 final readonly class UpdateCommitHotScores
 {
+    private const int CHUNK_SIZE = 1000;
+
     public function __construct(private TheAlgorithm $theAlgorithm)
     {
         //
@@ -33,14 +37,17 @@ final readonly class UpdateCommitHotScores
      */
     public function handle(array $commitIds): void
     {
-        $rootIds = Commit::query()
-            ->withTrashed()
-            ->whereKey($commitIds)
-            ->with(['quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->select(['id', 'root_id'])])
-            ->get(['id', 'root_id', 'quoted_commit_id'])
+        $rootIds = collect($commitIds)
+            ->chunk(self::CHUNK_SIZE)
+            ->flatMap(fn (Collection $ids): EloquentCollection => Commit::query()
+                ->withTrashed()
+                ->whereKey($ids->all())
+                ->with(['quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->select(['id', 'root_id'])])
+                ->get(['id', 'root_id', 'quoted_commit_id']))
             ->flatMap(fn (Commit $commit): array => [$commit->threadRootId(), $commit->quotedCommit?->threadRootId()])
             ->filter()
             ->unique()
+            ->sort(SORT_STRING)
             ->values()
             ->all();
 
@@ -49,19 +56,40 @@ final readonly class UpdateCommitHotScores
         }
 
         DB::afterCommit(fn () => DB::transaction(function () use ($rootIds): void {
-            Commit::query()->whereKey($rootIds)->orderBy('id')->lockForUpdate()->get(['id']);
-
-            $commits = Commit::query()->whereKey($rootIds)->topLevel()->withCount('stars')->get(['id', 'user_id', 'created_at']);
-            $repliersByThread = $this->repliersByThread($commits->modelKeys());
-
-            foreach ($commits as $commit) {
-                $repliers = array_diff_key($repliersByThread[$commit->id] ?? [], $commit->user_id === null ? [] : [$commit->user_id => true]);
-
-                Commit::query()->whereKey($commit->id)->toBase()->update([
-                    'hot_score' => $this->theAlgorithm->score($commit->created_at, $commit->stars_count, count($repliers)),
-                ]);
+            foreach (array_chunk($rootIds, self::CHUNK_SIZE) as $chunk) {
+                $this->rescore($chunk);
             }
         }));
+    }
+
+    /**
+     * Each chunk of threads is locked in the order of their ids, as the chunks are, and rescored with a single update.
+     *
+     * @param  array<int, string>  $rootIds
+     */
+    private function rescore(array $rootIds): void
+    {
+        Commit::query()->whereKey($rootIds)->orderBy('id')->lockForUpdate()->get(['id']);
+
+        $commits = Commit::query()->whereKey($rootIds)->topLevel()->select(['id', 'user_id', 'created_at'])->withCount('stars')->get();
+
+        if ($commits->isEmpty()) {
+            return;
+        }
+
+        $repliersByThread = $this->repliersByThread($commits->modelKeys());
+
+        $scores = $commits->flatMap(function (Commit $commit) use ($repliersByThread): array {
+            $repliers = array_diff_key($repliersByThread[$commit->id] ?? [], $commit->user_id === null ? [] : [$commit->user_id => true]);
+
+            return [$commit->id, $this->theAlgorithm->score($commit->created_at, $commit->stars_count, count($repliers))];
+        });
+
+        DB::update(
+            'update commits set hot_score = cast(case id '.str_repeat('when ? then ? ', $commits->count()).'end as double precision)'
+            .' where id in ('.implode(', ', array_fill(0, $commits->count(), '?')).')',
+            [...$scores->all(), ...$commits->modelKeys()],
+        );
     }
 
     /**
