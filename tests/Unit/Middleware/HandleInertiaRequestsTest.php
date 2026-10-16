@@ -213,6 +213,19 @@ it('shares the count of unread notifications that still hold', function (): void
     expect($middleware->share($request)['auth']['unreadNotificationsCount']())->toBe(2);
 });
 
+it('counts grouped notifications once', function (): void {
+    $user = User::factory()->create();
+    $starred = Notification::factory()->for($user, 'recipient')->starred()->create();
+    Notification::factory()->for($user, 'recipient')->starred($starred->commit)->create();
+
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    expect($middleware->share($request)['auth']['unreadNotificationsCount']())->toBeOne();
+});
+
 it('shares no unread notifications for guests', function (): void {
     $middleware = new HandleInertiaRequests();
 

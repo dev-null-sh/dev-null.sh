@@ -5,7 +5,7 @@ import {
     MessageSquareReply,
     Trash2,
 } from 'lucide-react';
-import type { KeyboardEvent, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
@@ -31,12 +31,18 @@ import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useNow } from '@/hooks/use-now';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
-import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
+import { cn, formatRelativeTime, isDeleted, laneOf } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 const maxIndentDepth = 3;
 const maxBodyLength = 280;
+
+const threadLayouts = {
+    root: '[--indent:52px] [--spine:20px]',
+    nested: '[--indent:32px] [--spine:12px] sm:[--indent:38px] sm:[--spine:14px]',
+    flattened: '[--indent:0px]',
+};
 
 type Thread = {
     commit: ThreadCommit;
@@ -92,7 +98,7 @@ async function fetchRepliesUntil(
     return { ...page, data, next_cursor: cursor };
 }
 
-function useThread(
+export function useThread(
     commit: ThreadCommit,
     initialReplies?: CursorPaginated<ThreadCommit>,
 ): Thread {
@@ -176,30 +182,7 @@ function useThread(
     };
 }
 
-export function CommitThread({
-    commit,
-    initialReplies,
-    actions,
-}: {
-    commit: Commit;
-    initialReplies?: CursorPaginated<ThreadCommit>;
-    actions?: ReactNode;
-}) {
-    const thread = useThread(commit, initialReplies);
-
-    return (
-        <>
-            <ThreadActions
-                thread={thread}
-                actions={actions}
-                hasKeyboardShortcuts
-            />
-            <ThreadReplies thread={thread} depth={0} />
-        </>
-    );
-}
-
-function ThreadActions({
+export function ThreadActions({
     thread,
     actions,
     hasKeyboardShortcuts = false,
@@ -304,37 +287,143 @@ function ThreadActions({
     );
 }
 
-function ThreadReplies({ thread, depth }: { thread: Thread; depth: number }) {
-    if (!thread.isOpen) {
+export function ThreadSpine({
+    thread,
+    className,
+}: {
+    thread: Thread;
+    className?: string;
+}) {
+    if (!thread.isOpen || !thread.replies?.length) {
         return null;
     }
 
     return (
+        <span
+            aria-hidden
+            className={cn(
+                'absolute bottom-0 left-1/2 border-l border-dashed',
+                className,
+            )}
+            style={{ borderColor: laneOf(thread.commit) }}
+            data-test="thread-spine"
+        />
+    );
+}
+
+const replyLink =
+    'absolute left-[calc(var(--indent)+12px)] border-l border-dashed sm:left-[calc(var(--indent)+14px)]';
+
+function ReplyLinks({
+    previousLane,
+    lane,
+    hasNext,
+}: {
+    previousLane: string | null;
+    lane: string;
+    hasNext: boolean;
+}) {
+    return (
+        <span aria-hidden>
+            {previousLane === null ? (
+                <span
+                    className="absolute top-0 left-[calc(var(--spine)-0.5px)] h-[22px] w-[calc(var(--indent)-var(--spine)-3px)] rounded-bl-xl border-b border-l border-dashed border-(--lane) sm:h-6"
+                    data-test="thread-elbow"
+                />
+            ) : (
+                <span
+                    className={cn(replyLink, 'top-0 h-1.5')}
+                    style={{ borderColor: previousLane }}
+                    data-test="reply-link"
+                />
+            )}
+            {hasNext && (
+                <span
+                    className={cn(
+                        replyLink,
+                        'top-[38px] bottom-0 sm:top-[42px]',
+                    )}
+                    style={{ borderColor: lane }}
+                />
+            )}
+        </span>
+    );
+}
+
+export function ThreadReplies({
+    thread,
+    depth,
+}: {
+    thread: Thread;
+    depth: number;
+}) {
+    if (!thread.isOpen) {
+        return null;
+    }
+
+    const isFlattened = depth >= maxIndentDepth;
+    const layout =
+        depth === 0
+            ? threadLayouts.root
+            : isFlattened
+              ? threadLayouts.flattened
+              : threadLayouts.nested;
+
+    return (
         <div
-            className={cn('mt-1', {
-                'ml-3 border-l border-rail pl-2 sm:ml-3.5 sm:pl-3':
-                    depth < maxIndentDepth && depth > 0,
-            })}
+            className={cn('relative', layout)}
+            style={{ '--lane': laneOf(thread.commit) } as CSSProperties}
             data-test="replies"
         >
             {thread.replies === null ? (
                 <ReplySkeleton />
             ) : (
                 <>
-                    {thread.replies.map((reply) => (
+                    {thread.replies.map((reply, index, replies) => (
                         <ReplyItem
                             key={reply.id}
                             reply={reply}
                             parent={thread.commit}
                             depth={depth + 1}
+                            links={
+                                isFlattened ? null : (
+                                    <ReplyLinks
+                                        previousLane={
+                                            index === 0
+                                                ? null
+                                                : laneOf(replies[index - 1])
+                                        }
+                                        lane={laneOf(reply)}
+                                        hasNext={
+                                            index < replies.length - 1 ||
+                                            thread.hasMore
+                                        }
+                                    />
+                                )
+                            }
                             onDeleted={thread.onDeleted}
                         />
                     ))}
                     {thread.hasMore && (
-                        <MoreRepliesButton
-                            thread={thread}
-                            isFlattened={depth + 1 > maxIndentDepth}
-                        />
+                        <div className="relative pl-(--indent)">
+                            {!isFlattened && thread.replies.length > 0 && (
+                                <span
+                                    aria-hidden
+                                    className={cn(replyLink, 'top-0 h-1.5')}
+                                    style={{
+                                        borderColor: laneOf(
+                                            thread.replies[
+                                                thread.replies.length - 1
+                                            ],
+                                        ),
+                                    }}
+                                />
+                            )}
+                            <MoreRepliesButton
+                                thread={thread}
+                                isFlattened={depth + 1 > maxIndentDepth}
+                            />
+                        </div>
                     )}
                 </>
             )}
@@ -347,7 +436,7 @@ function ReplySkeleton() {
         <div
             role="status"
             aria-label="Loading replies"
-            className="flex gap-2 pt-2.5 motion-safe:animate-pulse sm:gap-2.5"
+            className="flex gap-2 pt-2.5 pl-(--indent) motion-safe:animate-pulse sm:gap-2.5"
         >
             <span className="size-6 shrink-0 rounded-full bg-muted sm:size-7" />
             <span className="flex-1">
@@ -402,23 +491,38 @@ function ReplyItem({
     reply,
     parent,
     depth,
+    links,
     onDeleted,
 }: {
     reply: ThreadCommit;
     parent: ThreadCommit;
     depth: number;
+    links: ReactNode;
     onDeleted: () => void;
 }) {
     const thread = useThread(reply);
 
     if (isDeleted(reply)) {
         return (
-            <article className="pt-2.5" data-reply data-test="reply-tombstone">
+            <article
+                className="relative pt-2.5 pl-(--indent)"
+                data-reply
+                data-test="reply-tombstone"
+            >
+                {links}
                 <div className="flex gap-2 sm:gap-2.5">
-                    <span
-                        aria-hidden
-                        className="size-6 shrink-0 rounded-full border-2 border-dashed border-rail sm:size-7"
-                    />
+                    <div className="relative shrink-0">
+                        <span
+                            aria-hidden
+                            className="block size-6 rounded-full border-2 border-dashed border-rail sm:size-7"
+                        />
+                        {depth < maxIndentDepth && (
+                            <ThreadSpine
+                                thread={thread}
+                                className="top-7 sm:top-8"
+                            />
+                        )}
+                    </div>
                     <div className="min-w-0 flex-1">
                         <p className="flex min-h-6 items-center gap-1.5 text-sm text-muted-foreground sm:min-h-7">
                             <span className="font-mono text-xs">[deleted]</span>
@@ -438,6 +542,7 @@ function ReplyItem({
             reply={reply}
             parent={parent}
             depth={depth}
+            links={links}
             thread={thread}
             onDeleted={onDeleted}
         />
@@ -448,12 +553,14 @@ function CommitReply({
     reply,
     parent,
     depth,
+    links,
     thread,
     onDeleted,
 }: {
     reply: Commit;
     parent: ThreadCommit;
     depth: number;
+    links: ReactNode;
     thread: Thread;
     onDeleted: () => void;
 }) {
@@ -472,19 +579,32 @@ function CommitReply({
         });
 
     return (
-        <article className="pt-2.5" data-reply data-test="reply">
+        <article
+            className="relative pt-2.5 pl-(--indent)"
+            data-reply
+            data-test="reply"
+        >
+            {links}
             <div className="flex gap-2 sm:gap-2.5">
-                <UserPreview user={reply.user} className="shrink-0">
-                    <Link
-                        href={show(reply.user)}
-                        className="block rounded-full"
-                    >
-                        <UserAvatar
-                            user={reply.user}
-                            className="size-6 sm:size-7"
+                <div className="relative shrink-0">
+                    <UserPreview user={reply.user}>
+                        <Link
+                            href={show(reply.user)}
+                            className="block rounded-full"
+                        >
+                            <UserAvatar
+                                user={reply.user}
+                                className="size-6 sm:size-7"
+                            />
+                        </Link>
+                    </UserPreview>
+                    {depth < maxIndentDepth && (
+                        <ThreadSpine
+                            thread={thread}
+                            className="top-7 sm:top-8"
                         />
-                    </Link>
-                </UserPreview>
+                    )}
+                </div>
 
                 <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-1.5 text-sm">

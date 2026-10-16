@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
-import type { User } from '@/types';
+import type { Log, User } from '@/types';
 
 function isTyping(target: EventTarget | null): boolean {
     return (
@@ -66,7 +66,7 @@ function openFocusedCommit(): boolean {
     return true;
 }
 
-function focusComposer(): void {
+function focusComposer(log: Log): void {
     const body = document.getElementById('body');
 
     if (body) {
@@ -75,7 +75,7 @@ function focusComposer(): void {
         return;
     }
 
-    router.visit(LogController.show('following'), {
+    router.visit(LogController.show(log), {
         onFinish: () =>
             requestAnimationFrame(() =>
                 document.getElementById('body')?.focus(),
@@ -85,6 +85,7 @@ function focusComposer(): void {
 
 export function useKeyboardShortcuts(
     user: User,
+    log: Log,
     onShowHelp: () => void,
     onSearch: () => void,
 ): void {
@@ -93,7 +94,7 @@ export function useKeyboardShortcuts(
         let goToTimeout: ReturnType<typeof setTimeout> | undefined;
 
         const goTo: Record<string, () => void> = {
-            l: () => router.visit(LogController.show('following')),
+            l: () => router.visit(LogController.show(log)),
             e: () => router.visit(LogController.show('everyone')),
             p: () => router.visit(show(user)),
             s: () => router.visit(edit()),
@@ -153,7 +154,7 @@ export function useKeyboardShortcuts(
             const actions: Record<string, () => void> = {
                 j: () => moveCommitFocus(1),
                 k: () => moveCommitFocus(-1),
-                c: focusComposer,
+                c: () => focusComposer(log),
                 '/': onSearch,
                 '?': onShowHelp,
                 g: () => {
@@ -176,5 +177,5 @@ export function useKeyboardShortcuts(
             window.removeEventListener('keydown', onKeyDown);
             clearTimeout(goToTimeout);
         };
-    }, [user, onShowHelp, onSearch]);
+    }, [user, log, onShowHelp, onSearch]);
 }

@@ -62,17 +62,17 @@ export default function Show({
 
     return (
         <>
-            <Head title={log === 'following' ? 'Log' : 'Everyone'} />
+            <Head title={log === 'following' ? 'Following' : 'Everyone'} />
 
             <div className="sticky top-0 z-10 bg-card">
                 <h1 className="sr-only">
-                    {log === 'following' ? 'Log' : 'Everyone'}
+                    {log === 'following' ? 'Following' : 'Everyone'}
                 </h1>
                 <PageTabs
                     label="Logs"
                     tabs={[
                         {
-                            title: 'Log',
+                            title: 'Following',
                             href: LogController.show('following'),
                             isActive: log === 'following',
                         },
