@@ -345,3 +345,14 @@ it('lifts the thread when an admin replies', function (): void {
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
 });
+
+it('lifts the quoted thread when an admin quotes', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
+
+    expect($commit->fresh()->hot_score)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+});

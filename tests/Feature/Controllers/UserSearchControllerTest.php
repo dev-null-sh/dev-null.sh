@@ -42,6 +42,21 @@ it('treats like wildcards literally', function (): void {
         ->assertJsonCount(0, 'users');
 });
 
+it('matches literal wildcard characters in display names', function (string $name, string $query): void {
+    $match = User::factory()->create(['username' => 'matching', 'name' => $name]);
+    User::factory()->create(['username' => 'other', 'name' => 'JaneXDoe']);
+
+    $this->actingAs(User::factory()->create(['username' => 'viewer']))
+        ->getJson('/search/users?q='.rawurlencode($query))
+        ->assertOk()
+        ->assertJsonCount(1, 'users')
+        ->assertJsonPath('users.0.id', $match->id);
+})->with([
+    'underscore' => ['Jane_Doe', 'Jane_Doe'],
+    'percent' => ['Discount 50%', '50%'],
+    'escape character' => ['Bang!', 'Bang!'],
+]);
+
 it('returns nothing for an empty query', function (): void {
     User::factory()->create();
 

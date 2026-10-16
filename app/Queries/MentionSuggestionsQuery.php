@@ -25,8 +25,9 @@ final readonly class MentionSuggestionsQuery
             ->trim()
             ->ltrim('@')
             ->lower()
-            ->remove(['%', '_', '\\'])
             ->value();
+
+        $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
 
         if ($term === '') {
             return $user->following()
@@ -44,11 +45,11 @@ final readonly class MentionSuggestionsQuery
             ->whereNotIn('id', $user->mutedIds())
             ->whereNotIn('id', $user->idsAcrossBlocks())
             ->where(fn (Builder $query): Builder => $query
-                ->whereRaw('LOWER(username) LIKE ?', ["%{$term}%"])
-                ->orWhereRaw('LOWER(name) LIKE ?', ["%{$term}%"]))
+                ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+                ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
             ->orderByRaw(
-                'CASE WHEN LOWER(username) = ? THEN 0 WHEN LOWER(username) LIKE ? THEN 1 WHEN LOWER(name) LIKE ? THEN 2 ELSE 3 END',
-                [$term, "{$term}%", "{$term}%"],
+                "CASE WHEN LOWER(username) = ? THEN 0 WHEN LOWER(username) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
+                [$term, "{$escaped}%", "{$escaped}%"],
             )
             ->orderByDesc(fn (QueryBuilder $query): QueryBuilder => $query
                 ->selectRaw('COUNT(*)')

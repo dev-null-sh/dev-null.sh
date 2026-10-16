@@ -15,19 +15,15 @@ final readonly class UserActivityQuery
 {
     /**
      * Hourly buckets are keyed by their UTC start instant so the client can label them in local time, while daily buckets are UTC dates.
+     * Without a scale, it is the smallest one that fits all of the visible activity.
      *
      * @return array{scale: ActivityScale, buckets: list<array{date: string, count: int}>}
      */
-    public function get(User $user, ?User $viewer): array
+    public function get(User $user, ?User $viewer, ?ActivityScale $scale = null): array
     {
         $now = CarbonImmutable::now();
 
-        $firstCommitAt = $user->commits()->visibleTo($viewer)->min('created_at');
-
-        $scale = ActivityScale::since(
-            is_string($firstCommitAt) ? CarbonImmutable::parse($firstCommitAt) : $user->created_at,
-            $now,
-        );
+        $scale ??= $this->scale($user, $viewer, $now);
 
         $from = $scale->start($now);
 
@@ -60,5 +56,15 @@ final readonly class UserActivityQuery
                 $period->toArray(),
             )),
         ];
+    }
+
+    private function scale(User $user, ?User $viewer, CarbonImmutable $now): ActivityScale
+    {
+        $firstCommitAt = $user->commits()->visibleTo($viewer)->min('created_at');
+
+        return ActivityScale::since(
+            is_string($firstCommitAt) ? CarbonImmutable::parse($firstCommitAt) : $user->created_at,
+            $now,
+        );
     }
 }

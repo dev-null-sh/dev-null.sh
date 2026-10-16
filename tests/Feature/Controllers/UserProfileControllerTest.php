@@ -28,6 +28,18 @@ it('renders the chosen and automatic lanes', function (?int $preferredLane): voi
             ->where('auth.user.lane', $preferredLane ?? 4));
 })->with([null, 1]);
 
+it('renders the links to embed the activity graph', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    $response = $this->actingAs($user)
+        ->get(route('user-profile.edit'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('activityGraphUrl', url('/@octocat/graph.svg'))
+            ->where('profileUrl', url('/@octocat')));
+});
+
 it('redirects settings to profile settings', function (): void {
     $user = User::factory()->create();
 

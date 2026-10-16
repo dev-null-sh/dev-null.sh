@@ -91,3 +91,12 @@ it('does not extend streaks through deleted commits', function (): void {
     expect($query->get($user, $user))->toBe(['longest' => 1, 'current' => 1])
         ->and($query->get($user, User::factory()->create()))->toBe(['longest' => 1, 'current' => 1]);
 });
+
+it('only counts approved commits for guests', function (): void {
+    $user = User::factory()->create();
+
+    Commit::factory()->for($user)->create(['created_at' => now()->subDay()]);
+    Commit::factory()->for($user)->pending()->create();
+
+    expect(resolve(UserStreakQuery::class)->get($user, null))->toBe(['longest' => 1, 'current' => 1]);
+});
