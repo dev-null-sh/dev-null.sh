@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\UpdateOrCreateUser;
-use App\Enums\Log;
 use App\Jobs\SyncGitHubSshKeysJob;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -49,7 +48,7 @@ final readonly class SessionController
             return to_route('onboarding.show');
         }
 
-        return redirect()->intended(route('log.show', Log::Following, absolute: false));
+        return redirect()->intended(route('log.show', $user->log, absolute: false));
     }
 
     public function destroy(Request $request): RedirectResponse
