@@ -248,7 +248,6 @@ export default function Show({
 
             <AchievementsShelf
                 achievements={achievements}
-                user={user}
                 lane={lane}
                 onInspect={() => setIsAchievementsOpen(true)}
             />

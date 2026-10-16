@@ -28,12 +28,17 @@ final readonly class UserController
             return $this->preview($request, $user);
         }
 
+        $streakData = null;
+        $getStreaks = function () use (&$streakData, $streaks, $user, $currentUser): array {
+            return $streakData ??= $streaks->get($user, $currentUser);
+        };
+
         return Inertia::render('user/show', [
             'user' => fn (): User => $user->loadCounts($currentUser),
             'isFollowing' => fn (): bool => $currentUser->isFollowing($user),
             'activity' => fn (): array => $activity->get($user, $currentUser),
-            'streaks' => fn (): array => $streaks->get($user, $currentUser),
-            'achievements' => fn (): array => $achievements->get($user, $currentUser),
+            'streaks' => $getStreaks,
+            'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)
