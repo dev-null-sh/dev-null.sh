@@ -45,3 +45,16 @@ it('notifies the parent authors of the approved replies', function (): void {
     expect($parent->user->notifications()->pluck('commit_id')->all())
         ->toEqualCanonicalizing($replies->modelKeys());
 });
+
+it('notifies the quoted authors of the approved quotes', function (): void {
+    $quoted = Commit::factory()->create();
+    $quotes = Commit::factory()->pending()->for($quoted, 'quotedCommit')->count(2)->create();
+    $rejected = Commit::factory()->rejected()->for($quoted, 'quotedCommit')->create();
+
+    $action = resolve(UpdateCommitStatuses::class);
+
+    $action->handle([...$quotes->modelKeys(), $rejected->id], CommitStatus::Approved, onlyPending: true);
+
+    expect($quoted->user->notifications()->pluck('commit_id')->all())
+        ->toEqualCanonicalizing($quotes->modelKeys());
+});
