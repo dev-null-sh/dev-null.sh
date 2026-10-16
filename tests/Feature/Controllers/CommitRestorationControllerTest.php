@@ -544,7 +544,7 @@ it('preserves moderation decisions and released claims through deletion and undo
 
     $this->actingAs($author)->delete(route('commit.destroy', $commit))->assertRedirect();
     $this->actingAs($admin)->get(route('commit-decision.index'))
-        ->assertInertia(fn (Assert $page) => $page
+        ->assertInertia(fn (Assert $page): Assert => $page
             ->has('decisions.data', 1)
             ->where('decisions.data.0.reason', $reason)
             ->missing('decisions.data.0.commit.body')
@@ -561,7 +561,7 @@ it('preserves moderation decisions and released claims through deletion and undo
         ->and(CommitClaim::query()->count())->toBe(0);
 
     $this->actingAs($admin)->get(route('commit-decision.index'))
-        ->assertInertia(fn (Assert $page) => $page
+        ->assertInertia(fn (Assert $page): Assert => $page
             ->has('decisions.data', 1)
             ->where('decisions.data.0.commit.body', $commit->body)
             ->where('decisions.data.0.status', $status->value)
