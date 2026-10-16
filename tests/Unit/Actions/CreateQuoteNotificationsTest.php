@@ -78,3 +78,23 @@ it('does nothing without commits', function (): void {
 
     expect(Notification::query()->count())->toBe(0);
 });
+
+it('does not notify authors who muted the quoter or are across a block', function (string $relation, bool $quotedAuthorActs): void {
+    $quoted = Commit::factory()->create();
+    $silenced = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    $notified = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    [$actor, $subject] = $quotedAuthorActs ? [$quoted->user, $silenced->user] : [$silenced->user, $quoted->user];
+    $actor->{$relation}()->attach($subject);
+
+    resolve(CreateQuoteNotifications::class)->handle($silenced, $notified);
+
+    $notification = Notification::query()->sole();
+
+    expect($notification->actor_id)->toBe($notified->user_id)
+        ->and($notification->commit_id)->toBe($notified->id);
+})->with([
+    'the author muted the quoter' => ['muting', true],
+    'the author blocked the quoter' => ['blocking', true],
+    'the quoter blocked the author' => ['blocking', false],
+]);

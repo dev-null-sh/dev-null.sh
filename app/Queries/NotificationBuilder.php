@@ -32,7 +32,8 @@ final class NotificationBuilder extends Builder
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
                     ->whereColumn('commits.user_id', 'notifications.recipient_id')
-                    ->whereColumn('commits.status', 'notifications.type'))));
+                    ->whereColumn('commits.status', 'notifications.type'))))
+            ->withoutSilencedActors();
     }
 
     /**
@@ -52,5 +53,16 @@ final class NotificationBuilder extends Builder
     public function unread(): self
     {
         return $this->whereNull('read_at');
+    }
+
+    /**
+     * Leaves out what actors the recipient mutes did, and anything from across a block. Moderation
+     * notifications are their own actor, and nobody can mute or block themselves.
+     */
+    private function withoutSilencedActors(): self
+    {
+        $silenced = new SilencedActorQuery('notifications.recipient_id', 'notifications.actor_id');
+
+        return $this->whereNotExists($silenced->mutes(...))->whereNotExists($silenced->blocks(...));
     }
 }

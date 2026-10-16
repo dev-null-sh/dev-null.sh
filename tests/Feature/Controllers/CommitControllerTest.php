@@ -428,6 +428,98 @@ it('never shows a quoted commit that is no longer visible to the viewer', functi
         ->assertInertia(fn ($page) => $page->where('commit.quoted_commit.body', 'Words under review'));
 })->with([CommitStatus::Pending, CommitStatus::Rejected])->with(['guest' => false, 'signed in' => true]);
 
+it('may not quote across a block in either direction', function (bool $quoterBlocks): void {
+    $quoter = User::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $quoterBlocks ? $quoter->blocking()->attach($quoted->user) : $quoted->user->blocking()->attach($quoter);
+
+    $this->actingAs($quoter)
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), ['body' => 'Hello', 'quoted_commit_id' => $quoted->id])
+        ->assertSessionHasErrors(['quoted_commit_id' => 'That commit is no longer available to quote.']);
+
+    expect($quoted->quotes()->count())->toBe(0)
+        ->and($quoted->user->notifications()->exists())->toBeFalse();
+})->with([true, false]);
+
+it('hides the quoted commit across a block in either direction', function (bool $viewerBlocks): void {
+    $viewer = User::factory()->create();
+    $quoted = Commit::factory()->create(['body' => 'Blocked words']);
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+
+    $viewerBlocks ? $viewer->blocking()->attach($quoted->user) : $quoted->user->blocking()->attach($viewer);
+
+    $this->actingAs($viewer)
+        ->get(route('commit.show', [$quote->user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.quoted_commit_id', $quoted->id)
+            ->where('commit.quoted_commit', null))
+        ->assertDontSee('Blocked words');
+})->with([true, false]);
+
+it('may not reply across a block in either direction', function (bool $replierBlocks): void {
+    $replier = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $replierBlocks ? $replier->blocking()->attach($parent->user) : $parent->user->blocking()->attach($replier);
+
+    $response = $this->actingAs($replier)
+        ->fromRoute('log.show', Log::Everyone)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id]);
+
+    $response->assertSessionHasErrors(['parent_id' => 'That commit is no longer available to reply to.']);
+
+    expect($parent->replies()->count())->toBe(0)
+        ->and($parent->user->notifications()->exists())->toBeFalse();
+})->with([true, false]);
+
+it('may reply to a muted user without them knowing', function (): void {
+    $replier = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $replier->muting()->attach($parent->user);
+
+    $this->actingAs($replier)
+        ->post(route('commit.store'), ['body' => 'Hello', 'parent_id' => $parent->id])
+        ->assertSessionHasNoErrors();
+
+    expect($parent->replies()->count())->toBeOne();
+});
+
+it('does not show a commit across a block in either direction', function (bool $viewerBlocks): void {
+    $viewer = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    $viewerBlocks ? $viewer->blocking()->attach($commit->user) : $commit->user->blocking()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertNotFound();
+})->with([true, false]);
+
+it('shows a muted user commit when opened directly, without their replies', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $commit = Commit::factory()->for($muted)->create();
+    Commit::factory()->for($commit, 'parent')->for($muted)->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+
+    $viewer->muting()->attach($muted);
+
+    $response = $this->actingAs($viewer)
+        ->get(route('commit.show', [$muted, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.id', $commit->id)
+            ->where('commit.replies_count', 1)
+            ->has('replies.data', 1)
+            ->where('replies.data.0.id', $reply->id));
+});
+
 it('shows a commit with its ancestors and reply count', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();

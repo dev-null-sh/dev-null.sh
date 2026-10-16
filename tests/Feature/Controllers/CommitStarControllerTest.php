@@ -40,6 +40,19 @@ it('may star their own pending commit', function (): void {
     expect($user->hasStarred($commit))->toBeTrue();
 });
 
+it('may not star a commit across a block in either direction', function (bool $userBlocks): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    $userBlocks ? $user->blocking()->attach($commit->user) : $commit->user->blocking()->attach($user);
+
+    $this->actingAs($user)
+        ->post(route('commit-star.store', $commit))
+        ->assertForbidden();
+
+    expect($user->hasStarred($commit))->toBeFalse();
+})->with([true, false]);
+
 it('may not star a commit that is not visible', function (string $state): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->{$state}()->create();

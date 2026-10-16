@@ -8,13 +8,15 @@ use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Queries\SilencedActorQuery;
 use Illuminate\Support\Str;
 
 final readonly class CreateQuoteNotifications
 {
     /**
      * Notifies the author of each quoted commit, but only once the quote is approved, so
-     * nobody hears about a quote they cannot see yet. Safe to call more than once.
+     * nobody hears about a quote they cannot see yet. Nobody hears from people they mute or
+     * from across a block either. Safe to call more than once.
      */
     public function handle(Commit ...$commits): void
     {
@@ -27,9 +29,15 @@ final readonly class CreateQuoteNotifications
             return;
         }
 
+        $silenced = new SilencedActorQuery('quoted.user_id', 'commits.user_id');
+
         $quotes = Commit::query()
+            ->select('commits.*')
+            ->join('commits as quoted', 'quoted.id', '=', 'commits.quoted_commit_id')
             ->whereKey($quoteIds)
-            ->where('status', CommitStatus::Approved)
+            ->where('commits.status', CommitStatus::Approved)
+            ->whereNotExists($silenced->mutes(...))
+            ->whereNotExists($silenced->blocks(...))
             ->with('quotedCommit')
             ->get();
 

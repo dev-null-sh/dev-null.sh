@@ -32,3 +32,14 @@ it('is idempotent', function (): void {
 
     expect($user->notifications()->count())->toBeOne();
 });
+
+it('does not notify a user who muted the follower', function (): void {
+    $follower = User::factory()->create();
+    $user = User::factory()->create();
+
+    $user->muting()->attach($follower);
+
+    resolve(CreateFollowNotification::class)->handle($follower, $user);
+
+    expect($user->notifications()->exists())->toBeFalse();
+});

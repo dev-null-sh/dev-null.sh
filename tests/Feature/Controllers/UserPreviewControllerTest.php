@@ -69,6 +69,41 @@ it('reports when neither user follows the other', function (): void {
         ->assertJsonPath('followsYou', false);
 });
 
+it('reports whether the viewer mutes or blocks the user', function (string $relation, bool $isMuting, bool $isBlocking): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    $viewer->{$relation}()->attach($user);
+
+    $response = $this->actingAs($viewer)
+        ->getJson('/@octocat/preview');
+
+    $response->assertOk()
+        ->assertJsonPath('isMuting', $isMuting)
+        ->assertJsonPath('isBlocking', $isBlocking)
+        ->assertJsonPath('isUnavailable', $isBlocking);
+})->with([
+    'muting' => ['muting', true, false],
+    'blocking' => ['blocking', false, true],
+]);
+
+it('shows a neutral unavailable preview to someone the user blocked', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    $user->blocking()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->getJson('/@octocat/preview');
+
+    $response->assertOk()
+        ->assertJsonPath('isUnavailable', true)
+        ->assertJsonPath('isBlocking', false)
+        ->assertJsonPath('isMuting', false)
+        ->assertJsonMissingPath('user.commits_count')
+        ->assertJsonMissingPath('user.followers_count');
+});
+
 it('returns not found for unknown usernames', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->getJson('/@missing/preview');
@@ -86,5 +121,8 @@ it('returns guests a summary of the user with only approved commits counted', fu
     $response->assertOk()
         ->assertJsonPath('user.commits_count', 1)
         ->assertJsonPath('isFollowing', false)
-        ->assertJsonPath('followsYou', false);
+        ->assertJsonPath('followsYou', false)
+        ->assertJsonPath('isMuting', false)
+        ->assertJsonPath('isBlocking', false)
+        ->assertJsonPath('isUnavailable', false);
 });
