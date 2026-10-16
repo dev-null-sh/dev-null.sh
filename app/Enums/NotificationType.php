@@ -8,6 +8,8 @@ enum NotificationType: string
 {
     case Followed = 'followed';
     case Replied = 'replied';
+    case Mentioned = 'mentioned';
     case Approved = 'approved';
     case Rejected = 'rejected';
+    case Starred = 'starred';
 }

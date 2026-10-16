@@ -23,10 +23,11 @@ final readonly class FollowingLogQuery implements LogQuery
                 ->whereIn('user_id', $following->newPivotQuery()->select($following->getRelatedPivotKeyName()))
                 ->orWhere('user_id', $user->id))
             ->visibleTo($user)
+            ->withoutMutedAuthorsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)
             ->withSavedState($user)
-            ->with(['user', 'linkPreview'])
+            ->with(['user', 'linkPreview', 'images'])
             ->withStarsFor($user)
             ->latest()
             ->latest('id');

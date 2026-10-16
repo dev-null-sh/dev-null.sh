@@ -3,6 +3,7 @@ import {
     ArrowUpRight,
     Building2,
     CalendarDays,
+    Heart,
     Link2,
     MapPin,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ import { PinCommitButton } from '@/components/pin-commit-button';
 import { RssFeedButton } from '@/components/rss-feed-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserSafetyMenu } from '@/components/user-safety-menu';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
 import type {
@@ -38,6 +40,8 @@ function pluralize(count: number, singular: string, plural: string) {
 export default function Show({
     user,
     isFollowing,
+    followsYou,
+    isMuting,
     activity,
     streaks,
     feedUrl,
@@ -47,6 +51,8 @@ export default function Show({
 }: {
     user: Profile;
     isFollowing: boolean;
+    followsYou: boolean;
+    isMuting: boolean;
     activity: Activity;
     streaks: Streaks;
     feedUrl: string | null;
@@ -55,7 +61,7 @@ export default function Show({
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
-    const isCurrentUser = auth.user.id === user.id;
+    const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
@@ -74,7 +80,7 @@ export default function Show({
                 )}
             </Head>
 
-            <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4">
+            <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6">
                 <p className="min-w-0 truncate font-semibold">{user.name}</p>
                 <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
                     {user.commits_count}{' '}
@@ -105,12 +111,21 @@ export default function Show({
                             </Button>
                         </div>
                     ) : (
-                        <FollowButton
-                            user={user}
-                            isFollowing={isFollowing}
-                            className="min-w-28"
-                            onSuccess={() => router.flushAll()}
-                        />
+                        <div className="flex gap-2">
+                            {auth.user && (
+                                <UserSafetyMenu
+                                    user={user}
+                                    isMuting={isMuting}
+                                    isBlocking={false}
+                                />
+                            )}
+                            <FollowButton
+                                user={user}
+                                isFollowing={isFollowing}
+                                className="min-w-28"
+                                onSuccess={() => router.flushAll()}
+                            />
+                        </div>
                     )}
                 </div>
 
@@ -124,6 +139,16 @@ export default function Show({
                         style={{ background: lane }}
                     />
                     @{user.username}
+                    {followsYou && (
+                        <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                            Follows you
+                        </span>
+                    )}
+                    {isMuting && (
+                        <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                            Muted
+                        </span>
+                    )}
                 </p>
 
                 {user.bio && (
@@ -169,6 +194,19 @@ export default function Show({
                             github.com/{user.username}
                         </a>
                     </li>
+                    {user.has_sponsors_listing && (
+                        <li className="flex items-center gap-1.5">
+                            <Heart className="size-4" />
+                            <a
+                                href={`https://github.com/sponsors/${user.username}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
+                            >
+                                Sponsor on GitHub
+                            </a>
+                        </li>
+                    )}
                     <li className="flex items-center gap-1.5">
                         <CalendarDays className="size-4" />
                         Joined{' '}
@@ -188,6 +226,7 @@ export default function Show({
                                 'commit',
                                 'commits',
                             ),
+                            href: show(user),
                         },
                         {
                             count: user.following_count,
@@ -206,22 +245,23 @@ export default function Show({
                     ].map((stat) => (
                         <div
                             key={stat.label}
-                            className="flex flex-row-reverse gap-1.5"
+                            className="group flex flex-row-reverse gap-1.5"
                         >
                             <dt className="text-muted-foreground">
-                                {stat.href ? (
-                                    <Link
-                                        href={stat.href}
-                                        className="hover:underline"
-                                    >
-                                        {stat.label}
-                                    </Link>
-                                ) : (
-                                    stat.label
-                                )}
+                                <Link
+                                    href={stat.href}
+                                    className="group-hover:underline"
+                                >
+                                    {stat.label}
+                                </Link>
                             </dt>
                             <dd className="font-mono font-medium">
-                                {stat.count}
+                                <Link
+                                    href={stat.href}
+                                    className="group-hover:underline"
+                                >
+                                    {stat.count}
+                                </Link>
                             </dd>
                         </div>
                     ))}

@@ -9,7 +9,9 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 
 it('may create a commit', function (): void {
     $user = User::factory()->create();
@@ -34,9 +36,9 @@ it('creates commits pending review', function (): void {
 it('stores emoji shortcodes as their emoji', function (): void {
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(), 'shipped it :heart :like');
+    $commit = $action->handle(User::factory()->create(), 'shipped it :heart :like :rocket:');
 
-    expect($commit->body)->toBe('shipped it ❤️ 👍');
+    expect($commit->body)->toBe('shipped it ❤️ 👍 🚀');
 });
 
 it('approves commits of admins right away', function (): void {
@@ -71,6 +73,28 @@ it('does not notify about pending replies', function (): void {
     expect(Notification::query()->count())->toBe(0);
 });
 
+it('notifies mentioned users about commits of admins', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $mentioned = User::factory()->create(['username' => 'taylorotwell']);
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Shipped it with @taylorotwell');
+
+    expect($mentioned->notifications()->sole()->commit_id)->toBe($commit->id);
+});
+
+it('does not notify about pending mentions', function (): void {
+    User::factory()->create(['username' => 'taylorotwell']);
+
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(), 'Shipped it with @taylorotwell');
+
+    expect(Notification::query()->count())->toBe(0);
+});
+
 it('attaches a link preview for the first url in the body', function (): void {
     Queue::fake();
 
@@ -84,6 +108,31 @@ it('attaches a link preview for the first url in the body', function (): void {
         ->fetched_at->toBeNull();
 
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+});
+
+it('attaches a link preview for the chosen url in the body', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Shipped https://example.com/first and https://example.com/second', linkPreview: 'https://example.com/second');
+
+    expect($commit->refresh()->linkPreview->url)->toBe('https://example.com/second');
+
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
+});
+
+it('attaches no link preview when the author chose none', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+
+    $commit = $action->handle(User::factory()->create(), 'Shipped https://example.com/first', linkPreview: false);
+
+    expect($commit->refresh()->link_preview_id)->toBeNull()
+        ->and(LinkPreview::query()->count())->toBe(0);
+
+    Queue::assertNothingPushed();
 });
 
 it('attaches a link preview for a bare domain', function (): void {
@@ -168,4 +217,15 @@ it('attaches no link preview without a url', function (): void {
         ->and(LinkPreview::query()->count())->toBe(0);
 
     Queue::assertNothingPushed();
+});
+
+it('stores the images of a commit', function (): void {
+    Storage::fake();
+
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at this', images: [
+        UploadedFile::fake()->image('photo.jpg', 10, 10),
+    ]);
+
+    expect($commit->images()->count())->toBe(1)
+        ->and($commit->status)->toBe(CommitStatus::Pending);
 });

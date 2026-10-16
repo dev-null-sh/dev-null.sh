@@ -2,6 +2,7 @@ import { Deferred, Link, router, usePage } from '@inertiajs/react';
 import { Ellipsis, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
+import { FollowLabel, useFollowHover } from '@/components/follow-button';
 import { RailSegment } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,6 +44,7 @@ function FollowButton({
     className?: string;
 }) {
     const [isFollowing, setIsFollowing] = useState(false);
+    const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
 
     return (
         <Button
@@ -71,25 +73,19 @@ function FollowButton({
                         : `Follow @${user.username}`
                 }
                 data-test="suggested-follow-button"
+                onClick={markToggled}
+                onMouseLeave={onMouseLeave}
             >
-                {isFollowing ? (
-                    <>
-                        <span className="group-hover/follow:hidden">
-                            Following
-                        </span>
-                        <span className="hidden text-destructive group-hover/follow:inline">
-                            Unfollow
-                        </span>
-                    </>
-                ) : (
-                    'Follow'
-                )}
+                <FollowLabel
+                    isFollowing={isFollowing}
+                    isJustToggled={isJustToggled}
+                />
             </Link>
         </Button>
     );
 }
 
-function SuggestedUserRow({
+export function SuggestedUserRow({
     user,
     className,
     buttonClassName,
@@ -131,7 +127,15 @@ function SuggestedUserRow({
     );
 }
 
-function SuggestedUsersSkeleton({ rowClassName }: { rowClassName?: string }) {
+function SuggestedUsersSkeleton({
+    rowClassName,
+    buttonClassName,
+    hasWrappingReasons = false,
+}: {
+    rowClassName?: string;
+    buttonClassName?: string;
+    hasWrappingReasons?: boolean;
+}) {
     return (
         <>
             {[0, 1, 2].map((index) => (
@@ -140,11 +144,18 @@ function SuggestedUsersSkeleton({ rowClassName }: { rowClassName?: string }) {
                     aria-hidden
                     className={cn('flex items-center gap-3', rowClassName)}
                 >
-                    <Skeleton className="size-9 rounded-full" />
-                    <span className="flex-1 space-y-1.5">
-                        <Skeleton className="h-3.5 w-28" />
-                        <Skeleton className="h-3 w-20" />
+                    <Skeleton className="size-9 shrink-0 rounded-full" />
+                    <span className="flex-1">
+                        <Skeleton className="my-[3px] h-3.5 w-28" />
+                        <Skeleton className="my-0.5 h-3 w-20" />
+                        <Skeleton className="my-0.5 h-3 w-32" />
+                        {hasWrappingReasons && (
+                            <Skeleton className="my-0.5 h-3 w-16" />
+                        )}
                     </span>
+                    <Skeleton
+                        className={cn('h-8 w-24 shrink-0', buttonClassName)}
+                    />
                 </li>
             ))}
         </>
@@ -258,7 +269,7 @@ export function WhoToFollow() {
                 <ul className="space-y-4">
                     <Deferred
                         data="suggestedUsers"
-                        fallback={<SuggestedUsersSkeleton />}
+                        fallback={<SuggestedUsersSkeleton hasWrappingReasons />}
                     >
                         {suggestedUsers?.map((user) => (
                             <SuggestedUserRow key={user.id} user={user} />
@@ -312,7 +323,10 @@ export function WhoToFollowInLog({
                         <Deferred
                             data="suggestedUsers"
                             fallback={
-                                <SuggestedUsersSkeleton rowClassName="p-3" />
+                                <SuggestedUsersSkeleton
+                                    rowClassName="p-3"
+                                    buttonClassName="w-[90px]"
+                                />
                             }
                         >
                             {suggestedUsers?.map((user) => (
