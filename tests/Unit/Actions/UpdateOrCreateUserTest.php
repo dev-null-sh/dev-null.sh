@@ -159,6 +159,11 @@ it('unmarks users without a sponsors listing', function (): void {
 it('keeps the last known sponsors listing when github cannot say', function (Closure $response): void {
     Log::spy();
 
+    $stale = User::factory()->create([
+        'github_id' => '1',
+        'username' => 'octocat',
+    ]);
+
     $existing = User::factory()->create([
         'github_id' => '583231',
         'has_sponsors_listing' => true,
@@ -178,6 +183,8 @@ it('keeps the last known sponsors listing when github cannot say', function (Clo
     expect($existing->refresh())
         ->username->toBe('octocat')
         ->has_sponsors_listing->toBeTrue();
+
+    expect($stale->refresh()->username)->toBe('_renamed-1');
 
     Log::shouldHaveReceived('warning')
         ->once()
@@ -226,3 +233,29 @@ it('creates users without a sponsors listing when github cannot say', function (
 
     expect($user->refresh()->has_sponsors_listing)->toBeFalse();
 });
+
+it('frees a username still held by a stale user who renamed on github', function (string $staleUsername): void {
+    fakeGitHubSponsorsListing(hasSponsorsListing: true);
+
+    $stale = User::factory()->create([
+        'github_id' => '1',
+        'username' => $staleUsername,
+        'bio' => 'Renamed away',
+    ]);
+
+    $action = resolve(UpdateOrCreateUser::class);
+
+    $user = $action->handle(GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    expect($user->username)->toBe('octocat')
+        ->and($user->github_id)->toBe('583231')
+        ->and($user->has_sponsors_listing)->toBeTrue()
+        ->and($user->is($stale))->toBeFalse()
+        ->and(User::query()->count())->toBe(2)
+        ->and($stale->refresh()->username)->toBe('_renamed-1')
+        ->and($stale->github_id)->toBe('1')
+        ->and($stale->bio)->toBe('Renamed away');
+})->with(['octocat', 'OctoCat']);
