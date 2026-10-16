@@ -14,6 +14,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitRepliesQuery;
+use App\Queries\CommitSeriesQuery;
 use App\Services\Urls;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +24,7 @@ use Inertia\Response;
 
 final readonly class CommitController
 {
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies): RedirectResponse|Response
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, CommitSeriesQuery $series): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
             return $this->preview($user, $commit);
@@ -36,10 +37,14 @@ final readonly class CommitController
             ->withStarsFor($currentUser)
             ->findOrFail($commit->id);
 
+        $isInSeries = $commit->series_id !== null;
+
         return Inertia::render('commit/show', [
             'commit' => $commit,
-            'ancestors' => $ancestors->get($commit, $currentUser),
-            'replies' => $replies->paginate($commit, $currentUser),
+            'ancestors' => $isInSeries ? $series->before($commit, $currentUser) : $ancestors->get($commit, $currentUser),
+            'series' => $series->after($commit, $currentUser),
+            // A series reads in order, so the replies to a part stay folded until asked for...
+            'replies' => $isInSeries ? null : $replies->paginate($commit, $currentUser),
         ]);
     }
 

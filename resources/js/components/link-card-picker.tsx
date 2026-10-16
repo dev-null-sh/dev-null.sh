@@ -27,11 +27,13 @@ export function LinkCardPicker({
     disabled,
     className,
     labelClassName,
+    name = 'link_preview_url',
 }: {
     linkCard: UseLinkCardReturn;
     disabled?: boolean;
     className?: string;
     labelClassName?: string;
+    name?: string;
 }) {
     if (linkCard.links.length === 0) {
         return null;
@@ -40,11 +42,7 @@ export function LinkCardPicker({
     return (
         <>
             {linkCard.isChosen && (
-                <input
-                    type="hidden"
-                    name="link_preview_url"
-                    value={linkCard.link ?? ''}
-                />
+                <input type="hidden" name={name} value={linkCard.link ?? ''} />
             )}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
