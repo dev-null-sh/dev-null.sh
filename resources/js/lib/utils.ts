@@ -1,6 +1,7 @@
 import type { InertiaLinkProps } from '@inertiajs/react';
 import type { ClassValue } from 'clsx';
 import { clsx } from 'clsx';
+import type { MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
 import type { DeletedCommit, ThreadCommit } from '@/types';
@@ -168,4 +169,29 @@ export function withViewTransition(
                 delete document.documentElement.dataset.viewTransition;
             }
         });
+}
+
+/**
+ * A click opens the commit or reply unless it lands on something interactive,
+ * inside a nested commit, reply or popover, or ends a text selection.
+ */
+export function isClickOnCard(event: MouseEvent<HTMLElement>): boolean {
+    const target = event.target;
+
+    if (
+        event.defaultPrevented ||
+        !(target instanceof Element) ||
+        !event.currentTarget.contains(target)
+    ) {
+        return false;
+    }
+
+    if (
+        target.closest('a, button, input, textarea, select, label, [role]') ||
+        target.closest('[data-commit], [data-reply]') !== event.currentTarget
+    ) {
+        return false;
+    }
+
+    return !window.getSelection()?.toString();
 }

@@ -25,6 +25,7 @@ import {
     cn,
     formatFullDateTime,
     formatRelativeTime,
+    isClickOnCard,
     isDeleted,
     isWithinSeconds,
     laneColor,
@@ -486,29 +487,4 @@ export function CommitTombstone({
             </div>
         </article>
     );
-}
-
-/**
- * A click opens the commit unless it lands on something interactive, inside a
- * nested commit or a popover, or ends a text selection.
- */
-function isClickOnCard(event: MouseEvent<HTMLElement>): boolean {
-    const target = event.target;
-
-    if (
-        event.defaultPrevented ||
-        !(target instanceof Element) ||
-        !event.currentTarget.contains(target)
-    ) {
-        return false;
-    }
-
-    if (
-        target.closest('a, button, input, textarea, select, label, [role]') ||
-        target.closest('[data-commit]') !== event.currentTarget
-    ) {
-        return false;
-    }
-
-    return !window.getSelection()?.toString();
 }
