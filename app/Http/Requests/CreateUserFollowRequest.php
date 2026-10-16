@@ -17,7 +17,7 @@ final class CreateUserFollowRequest extends FormRequest
         $user = $this->route('user');
         assert($user instanceof User);
 
-        return $follower->isNot($user);
+        return $follower->isNot($user) && ! $follower->hasBlockWith($user);
     }
 
     /**
