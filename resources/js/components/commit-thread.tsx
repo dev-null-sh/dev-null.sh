@@ -6,7 +6,7 @@ import {
     Trash2,
 } from 'lucide-react';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BookmarkButton } from '@/components/bookmark-button';
@@ -41,6 +41,7 @@ import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
+import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import {
     characterCount,
@@ -140,13 +141,13 @@ export function useThread(
         }
     };
 
-    const reload = () => {
+    const reload = (extra = 0) => {
         const minimum =
             replies === null
                 ? 0
                 : nextCursor === null
                   ? Infinity
-                  : replies.length;
+                  : replies.length + extra;
 
         setIsLoading(true);
 
@@ -155,6 +156,34 @@ export function useThread(
             .catch(() => undefined)
             .finally(() => setIsLoading(false));
     };
+
+    const onRestored = useEffectEvent((restored: Commit) => {
+        const target =
+            restored.parent_id === commit.id
+                ? restored.parent
+                : restored.quoted_commit;
+        if (target?.replies_count !== undefined) {
+            setCount(target.replies_count);
+        }
+        if (replies !== null) {
+            reload(replies.some((reply) => reply.id === restored.id) ? 0 : 1);
+        }
+    });
+
+    useEffect(
+        () =>
+            router.on('flash', (event) => {
+                const restored = event.detail.flash.restored;
+                if (
+                    restored &&
+                    (restored.parent_id === commit.id ||
+                        restored.quoted_commit_id === commit.id)
+                ) {
+                    onRestored(restored);
+                }
+            }),
+        [commit.id],
+    );
 
     return {
         commit,
@@ -584,7 +613,10 @@ function CommitReply({
     thread: Thread;
     onDeleted: () => void;
 }) {
-    const { auth } = usePage().props;
+    const {
+        props: { auth },
+        component,
+    } = usePage();
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
 
@@ -595,8 +627,7 @@ function CommitReply({
 
     const deleteReply = () =>
         router.visit(CommitController.destroy(reply), {
-            preserveScroll: true,
-            preserveState: true,
+            ...commitMutationOptions(component),
             onSuccess: onDeleted,
         });
 
@@ -716,7 +747,9 @@ function CommitReply({
 
                     {isConfirming ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-destructive/8 px-3 py-1.5 text-sm">
-                            <span className="mr-auto">Delete this reply?</span>
+                            <span className="mr-auto">
+                                Delete this reply? You can undo for 30 seconds.
+                            </span>
                             <Button
                                 variant="ghost"
                                 size="sm"

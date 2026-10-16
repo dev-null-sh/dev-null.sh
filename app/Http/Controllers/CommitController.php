@@ -70,7 +70,15 @@ final readonly class CommitController
 
     public function destroy(DeleteCommitRequest $request, Commit $commit, DeleteCommit $action): RedirectResponse
     {
-        $action->handle($commit);
+        $commit = $action->handle($commit);
+
+        Inertia::flash('deleted', [
+            'id' => $commit->id,
+            'parent_id' => $commit->parent_id,
+            'deleted_at' => $commit->deleted_at?->toJSON(),
+            'expires_at' => $commit->deleted_at?->addSeconds(Commit::RESTORABLE_SECONDS)->toJSON(),
+            'server_time' => now()->toJSON(),
+        ]);
 
         if (url()->previous() === route('commit.show', [$commit->user, $commit])) {
             return to_route('user.show', $commit->user);
