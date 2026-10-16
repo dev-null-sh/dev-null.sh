@@ -21,6 +21,7 @@ const shortcuts = (keys: KeyLabels): Shortcut[] => [
     { keys: [keys.mod, 'K'], label: 'Search developers and commits' },
     { keys: ['/'], label: 'Search developers and commits' },
     { keys: [keys.mod, '↵'], label: 'Commit (in the composer)' },
+    { keys: [keys.mod, keys.shift, 'P'], label: 'Preview (in the composer)' },
     {
         keys: [keys.mod, keys.shift, '↵'],
         label: 'Add another commit to the series (in the composer)',

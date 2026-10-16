@@ -1,10 +1,36 @@
+import type { BodySegment } from '@/types';
+
 // Keep in sync with app/Services/CodeSpans.php: a fenced code block, from a line starting with ``` or more (and maybe
-// a language) to a line that is only ``` or more, or inline code between two backticks on one line. While typing, a
-// block or inline code that isn't closed yet also runs to the end of the text.
-const codePattern = new RegExp(
-    String.raw`((?<![^\n])\`{3,}[^\`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\`{3,}[ \t]*(?![^\r\n])|\`[^\`\r\n]+\`` +
-        String.raw`|(?<![^\n])\`\`\`[\s\S]*$|\`[^\`\r\n]*$)`,
+// a language) to a line that is only ``` or more, or inline code between two backticks on one line.
+const committedCode = String.raw`(?<![^\n])\`{3,}[^\`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\`{3,}[ \t]*(?![^\r\n])|\`[^\`\r\n]+\``;
+const codePattern = new RegExp(`(${committedCode})`);
+// While typing, a block or inline code that isn't closed yet also runs to the end of the text.
+const typedCodePattern = new RegExp(
+    `(${committedCode}|${String.raw`(?<![^\n])\`\`\`[\s\S]*$|\`[^\`\r\n]*$`})`,
 );
+
+const isBlock = (part: string | undefined): boolean =>
+    part?.startsWith('```') ?? false;
+
+function escapeHtml(text: string): string {
+    return text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function block(part: string): BodySegment {
+    const lines = part.replaceAll('\r\n', '\n').split('\n');
+    const language = lines[0].replace(/^`+/, '').trim().split(/[ \t]/)[0];
+
+    return {
+        type: 'block',
+        language: language === '' ? null : language,
+        html: escapeHtml(lines.slice(1, -1).join('\n')),
+    };
+}
 
 /**
  * Applies the callback to the prose being typed only, leaving the code as written.
@@ -14,14 +40,55 @@ export function mapTypedProse(
     callback: (prose: string) => string,
 ): string {
     return text
-        .split(codePattern)
+        .split(typedCodePattern)
         .map((part, index) => (index % 2 === 0 ? callback(part) : part))
         .join('');
+}
+
+/**
+ * Splits the text into segments the way the server does, with each code block escaped but not highlighted, since
+ * only the server highlights code.
+ */
+export function bodySegments(text: string): BodySegment[] {
+    const parts = text.split(codePattern);
+    const segments: BodySegment[] = [];
+
+    parts.forEach((part, index) => {
+        if (index % 2 === 1) {
+            segments.push(
+                isBlock(part)
+                    ? block(part)
+                    : { type: 'code', code: part.slice(1, -1) },
+            );
+
+            return;
+        }
+
+        let prose = part;
+
+        if (isBlock(parts[index - 1])) {
+            prose = prose.replace(/^\r?\n/, '');
+        }
+
+        if (isBlock(parts[index + 1])) {
+            prose = prose.replace(/\r?\n$/, '');
+        }
+
+        if (prose !== '') {
+            segments.push({ type: 'text', text: prose });
+        }
+    });
+
+    return segments;
+}
+
+export function hasCodeBlock(segments: BodySegment[]): boolean {
+    return segments.some((segment) => segment.type === 'block');
 }
 
 /**
  * The prose being typed, without the code.
  */
 export function typedProse(text: string): string[] {
-    return text.split(codePattern).filter((_, index) => index % 2 === 0);
+    return text.split(typedCodePattern).filter((_, index) => index % 2 === 0);
 }

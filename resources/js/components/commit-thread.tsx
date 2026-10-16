@@ -19,6 +19,11 @@ import {
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitStarButton } from '@/components/commit-star-button';
+import {
+    ComposerPreviewBody,
+    PreviewToggle,
+    useComposerPreview,
+} from '@/components/composer-preview';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { RailDot } from '@/components/graph-rail';
@@ -932,6 +937,11 @@ function ReplyComposer({
     const remaining = maxBodyLength - characterCount(body);
     const isReplyable = characterCount(body.trim()) >= 3;
     const suggestion = suggestEmoji(body);
+    const preview = useComposerPreview({
+        body,
+        textareaRef,
+        isSubmittable: isReplyable,
+    });
 
     const returnFocusToCommit = () => {
         const commit =
@@ -946,6 +956,10 @@ function ReplyComposer({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (preview.handleShortcut(event)) {
+            return;
+        }
+
         if (event.key === 'Tab' && suggestion !== null) {
             const completed = completeEmoji(body);
 
@@ -1023,37 +1037,55 @@ function ReplyComposer({
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
                 Reply to @{parent.user.username}
             </label>
-            <MentionTextarea
-                ref={textareaRef}
-                id={`reply-${parent.id}`}
-                name="body"
-                rows={1}
-                autoFocus
-                value={body}
-                onValueChange={updateBody}
-                onKeyDown={onKeyDown}
-                onPaste={attachments.onPaste}
-                onDragOver={attachments.onDragOver}
-                onDrop={attachments.onDrop}
-                onFocus={isRestored ? moveCaretToEnd : undefined}
-                maxLength={maxBodyLength}
-                placeholder={`Reply to @${parent.user.username}`}
-                className="block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]"
-            />
-            <EmojiSuggestionHint
-                suggestion={suggestion}
-                className="mt-1 px-1"
-            />
+            <div className="grid">
+                <MentionTextarea
+                    ref={textareaRef}
+                    id={`reply-${parent.id}`}
+                    name="body"
+                    rows={1}
+                    autoFocus
+                    value={body}
+                    onValueChange={updateBody}
+                    onKeyDown={onKeyDown}
+                    onPaste={attachments.onPaste}
+                    onDragOver={attachments.onDragOver}
+                    onDrop={attachments.onDrop}
+                    onFocus={isRestored ? moveCaretToEnd : undefined}
+                    maxLength={maxBodyLength}
+                    placeholder={`Reply to @${parent.user.username}`}
+                    className={cn(
+                        'col-start-1 row-start-1 block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
+                        { invisible: preview.isPreviewing },
+                    )}
+                />
+                {preview.isPreviewing && (
+                    <ComposerPreviewBody
+                        preview={preview}
+                        url={linkCard.link}
+                        images={attachments.images}
+                        descriptions={attachments.descriptions}
+                        className="col-start-1 row-start-1 px-1"
+                    />
+                )}
+            </div>
+            {!preview.isPreviewing && (
+                <EmojiSuggestionHint
+                    suggestion={suggestion}
+                    className="mt-1 px-1"
+                />
+            )}
             <InputError
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
             />
-            <ImagePickerPreviews
-                images={attachments.images}
-                descriptions={attachments.descriptions}
-                onDescribe={attachments.describe}
-                onRemove={attachments.remove}
-            />
+            {!preview.isPreviewing && (
+                <ImagePickerPreviews
+                    images={attachments.images}
+                    descriptions={attachments.descriptions}
+                    onDescribe={attachments.describe}
+                    onRemove={attachments.remove}
+                />
+            )}
             <SecretWarning
                 body={body}
                 findings={secrets.findings}
@@ -1062,6 +1094,7 @@ function ReplyComposer({
                 confirming={secrets.confirming}
                 onConfirmingChange={secrets.setConfirming}
                 onApprove={secrets.approve}
+                onEdit={preview.close}
             />
             <InputError
                 message={attachments.error ?? imageErrorFrom(errors)}
@@ -1075,6 +1108,7 @@ function ReplyComposer({
                         onPick={attachments.attach}
                         className="size-8"
                     />
+                    <PreviewToggle preview={preview} className="-ml-2 size-8" />
                     <LinkCardPicker
                         linkCard={linkCard}
                         disabled={processing}

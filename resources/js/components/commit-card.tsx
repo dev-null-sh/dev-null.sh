@@ -486,15 +486,18 @@ export function SeriesPosition({
 export function CommitTombstone({
     commit,
     previousLane,
+    endsWithDot = false,
 }: {
     commit?: DeletedCommit;
     previousLane?: string;
+    endsWithDot?: boolean;
 }) {
     return (
         <article className="flex" data-test="commit-tombstone">
             <GraphRail
                 lane="var(--rail)"
                 previousLane={previousLane}
+                endsWithDot={endsWithDot}
                 node={
                     <span className="size-12 rounded-full border-2 border-dashed border-rail bg-card" />
                 }
