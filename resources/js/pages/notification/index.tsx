@@ -7,6 +7,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
+import { emojify } from '@/lib/emoji';
 import { commitExcerpt } from '@/lib/spoilers';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -99,7 +100,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
             />
 
             <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex min-h-8 items-center gap-2">
                     {isModeration ? (
                         <span className="text-sm font-medium">
                             Moderation update
@@ -142,7 +143,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
 
                 {notification.type !== 'followed' && (
                     <p className="mt-1 truncate text-[15px]">
-                        {commitExcerpt(notification.commit)}
+                        {emojify(commitExcerpt(notification.commit))}
                     </p>
                 )}
                 {notification.type === 'rejected' && (
