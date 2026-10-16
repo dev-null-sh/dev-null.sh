@@ -23,6 +23,8 @@ it('redirects to github', function (): void {
 });
 
 it('creates a user and logs them in', function (): void {
+    fakeGitHubSponsorsListing(isPublic: true);
+
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',
         'nickname' => 'octocat',
@@ -49,12 +51,15 @@ it('creates a user and logs them in', function (): void {
         ->bio->toBe('I am the Octocat.')
         ->location->toBe('San Francisco')
         ->website->toBe('https://github.blog')
-        ->company->toBe('@github');
+        ->company->toBe('@github')
+        ->has_sponsors_listing->toBeTrue();
 
     $this->assertAuthenticatedAs($user);
 });
 
 it('updates an existing user on login', function (): void {
+    fakeGitHubSponsorsListing();
+
     $user = User::factory()->create([
         'github_id' => '583231',
         'username' => 'old-username',
@@ -76,6 +81,8 @@ it('updates an existing user on login', function (): void {
 });
 
 it('queues a sync of the ssh keys of the user on login', function (): void {
+    fakeGitHubSponsorsListing();
+
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',
         'nickname' => 'octocat',
@@ -89,6 +96,8 @@ it('queues a sync of the ssh keys of the user on login', function (): void {
 });
 
 it('redirects to the intended url after login', function (): void {
+    fakeGitHubSponsorsListing();
+
     $user = User::factory()->create();
 
     Socialite::fake('github', GitHubUser::fake([
