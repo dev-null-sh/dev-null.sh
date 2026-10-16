@@ -34,6 +34,16 @@ it('lists the approved devices of the user, last approved first', function (): v
             ->where('devices.1.last_used_at', now()->subDay()->startOfSecond()->toJSON()));
 });
 
+it('says whether the user linked sign in with apple', function (?string $appleId, bool $isLinked): void {
+    $response = $this->actingAs(User::factory()->create(['apple_id' => $appleId]))->get(route('device.index'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('appleLinked', $isLinked));
+})->with([
+    'linked' => ['001234.0a1b2c3d4e5f.1234', true],
+    'not linked' => [null, false],
+]);
+
 it('lists no devices', function (): void {
     $response = $this->actingAs(User::factory()->create())->get(route('device.index'));
 

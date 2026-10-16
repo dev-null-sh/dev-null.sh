@@ -7,6 +7,7 @@ use App\Jobs\UnfurlLink;
 use App\Models\Device;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\AppleIdentityTokens;
 use App\Services\OpenAI;
 use App\Services\SignedCommits;
 use Carbon\CarbonInterface;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Tests\Support\AppleTokenIssuer;
 use Tests\Support\SshKeyPair;
 use Tests\TestCase;
 
@@ -338,4 +340,14 @@ function apiKeyPairFor(User $user): SshKeyPair
     Device::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
 
     return $keyPair;
+}
+
+/**
+ * Publishes the keys of the given issuers as Apple's JWKS.
+ */
+function fakeAppleKeys(AppleTokenIssuer ...$issuers): void
+{
+    Http::fake([
+        AppleIdentityTokens::KeysUrl => Http::response(['keys' => array_map(fn (AppleTokenIssuer $issuer): array => $issuer->jwk(), $issuers)]),
+    ]);
 }

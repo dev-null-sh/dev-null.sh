@@ -101,6 +101,9 @@ final class AppServiceProvider extends ServiceProvider
         // a ceiling, so unsigned or badly signed requests can't force signature checks...
         RateLimiter::for('devices', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip())->response($rateLimited));
 
+        // Each link checks a token against Apple's keys...
+        RateLimiter::for('apple-accounts', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
+
         // Approving the devnull app on the web hands out a code each time...
         RateLimiter::for('mobile-authorizations', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
 

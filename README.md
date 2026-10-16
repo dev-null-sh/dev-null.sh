@@ -162,6 +162,27 @@ The app signs in the way an OAuth app does, with the authorization code flow and
 | `422` | | `code` or `code_verifier` is missing, or the verifier isn't 43 to 128 characters of `A-Z a-z 0-9 - . _ ~`. |
 | `429` | `rate_limited` | Over 12 tries a minute for one key, or 60 from one IP, counted before signatures are checked. `Retry-After` says when to try again. |
 
+### Sign in with Apple
+
+Apple is only ever a second way into an account made with GitHub. The app links it once the user has signed in.
+
+The app gives Apple the SHA-256 of a random raw `nonce`, in lowercase hex, and sends /dev/null the raw one with Apple's `identity_token`. /dev/null checks the token against Apple's keys (`https://appleid.apple.com/auth/keys`, kept for a day and fetched again for a key ID it hasn't seen): RS256, issued by `https://appleid.apple.com`, with an `aud` that is exactly one of `config('services.apple.client_ids')` (`APPLE_CLIENT_IDS`, `com.simonhamp.devnull` by default), not expired, and with a `nonce` claim that is `hash('sha256', $nonce)`. It keeps the token's `sub` on the user, and never the token.
+
+Apple's `sub` is only the same across apps of one developer team. Links keep working only while the app ships under team `J68WFCX458`: an app under another team gets a different `sub` for the same Apple ID, and finds no account.
+
+| Request | Body | Answer |
+|---|---|---|
+| `PUT /api/v1/me/apple`, signed | `{"identity_token": "…", "nonce": "…"}` | `200` with `{"data": user, "apple_linked": true}` |
+| `DELETE /api/v1/me/apple`, signed | | `200` with `{"data": user, "apple_linked": false}` |
+
+`GET /api/v1/me` says `apple_linked`. Linking and unlinking are limited to 10 a minute per user. The user can also unlink Apple under Settings → Devices.
+
+| Status | `code` | Means |
+|---|---|---|
+| `409` | `apple_linked_elsewhere` | `PUT /api/v1/me/apple` only: the Apple ID is linked to another account. |
+| `422` | `invalid_apple_token` | The token isn't one Apple signed for the app and this nonce, or it expired. |
+| `503` | | Apple couldn't be reached to check the token. |
+
 ## Available Tooling
 
 ### Development

@@ -47,7 +47,18 @@ it('returns the signed-in user with their unread notifications', function (): vo
                 'lane' => $user->lane(),
             ],
             'unread_notifications_count' => 1,
+            'apple_linked' => false,
         ]);
+});
+
+it('says whether the user linked an apple id, without saying which', function (): void {
+    $user = User::factory()->create(['apple_id' => '001234.0a1b2c3d4e5f.1234']);
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))
+        ->assertOk()
+        ->assertJsonPath('apple_linked', true)
+        ->assertJsonMissingPath('data.apple_id');
 });
 
 it('counts unread notifications in groups, like the web', function (): void {

@@ -12,12 +12,13 @@ use Illuminate\Container\Attributes\CurrentUser;
 final readonly class CurrentUserController
 {
     /**
-     * The signed-in user, with the unread count the web shows on Notifications.
+     * The signed-in user, with the unread count the web shows on Notifications, and whether they linked an Apple ID.
      */
     public function show(#[CurrentUser] User $user, NotificationGroupsQuery $notifications): UserResource
     {
         return UserResource::make($user->loadCounts())->additional([
             'unread_notifications_count' => $notifications->unreadCount($user),
+            'apple_linked' => $user->apple_id !== null,
         ]);
     }
 }

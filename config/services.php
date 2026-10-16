@@ -16,6 +16,11 @@ return [
     |
     */
 
+    'apple' => [
+        // The bundle IDs whose Sign in with Apple tokens devnull accepts, as the tokens' audience...
+        'client_ids' => array_values(array_filter(array_map(trim(...), explode(',', (string) env('APPLE_CLIENT_IDS', 'com.simonhamp.devnull'))))),
+    ],
+
     'fathom' => [
         'token' => env('FATHOM_API_TOKEN'),
         'site_id' => env('FATHOM_SITE_ID', 'HTQONOPD'),
