@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Log;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -29,6 +30,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property-read int|null $preferred_lane
  * @property-read string|null $pinned_commit_id
  * @property-read bool $is_trusted
+ * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read string|null $remember_token
  * @property-read CarbonInterface $created_at
@@ -50,6 +52,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
     'preferred_lane',
     'pinned_commit_id',
     'is_trusted',
+    'log',
     'onboarded_at',
 ])]
 final class User extends Authenticatable
@@ -59,8 +62,13 @@ final class User extends Authenticatable
 
     use HasUuids;
 
-    /** @var array<string, mixed> */
-    protected $attributes = ['is_trusted' => false];
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_trusted' => false,
+        'log' => Log::Following->value,
+    ];
 
     /**
      * @return array<string, string>
@@ -82,6 +90,7 @@ final class User extends Authenticatable
             'preferred_lane' => 'integer',
             'pinned_commit_id' => 'string',
             'is_trusted' => 'boolean',
+            'log' => Log::class,
             'onboarded_at' => 'datetime',
             'remember_token' => 'string',
             'created_at' => 'datetime',
