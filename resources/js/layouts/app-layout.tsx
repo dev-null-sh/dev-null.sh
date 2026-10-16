@@ -5,7 +5,7 @@ import { AppNav, MobileHeader, MobileNav } from '@/components/app-nav';
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LiveStreamBanner } from '@/components/live-stream';
-import { UserSearchDialog } from '@/components/user-search-dialog';
+import { SearchDialog } from '@/components/search-dialog';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import type { AppLayoutProps } from '@/types';
@@ -40,10 +40,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
             <CommitImageViewer />
 
-            <UserSearchDialog
-                open={isSearching}
-                onOpenChange={setIsSearching}
-            />
+            <SearchDialog open={isSearching} onOpenChange={setIsSearching} />
 
             <KeyboardShortcutsDialog
                 open={isShowingShortcuts}

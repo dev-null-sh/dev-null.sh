@@ -8,6 +8,7 @@ use App\Contracts\Services\DnsResolver;
 use App\Models\User;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -44,7 +45,37 @@ final class AppServiceProvider extends ServiceProvider
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
 
+        // Developer search answers as someone types, so the budget is sized for a fast typist, not a scraper...
+        RateLimiter::for('user-search', fn (Request $request): Limit => $this->searchLimit($request, Limit::perMinute(120), Limit::perMinute(60)));
+        RateLimiter::for('mention-suggestions', fn (Request $request): Limit => $this->searchLimit($request, Limit::perMinute(120), Limit::perMinute(60)));
+
+        // Every commit search embeds the term and asks a model which candidates are relevant, both through OpenAI, so a
+        // daily cap sits behind the per-minute one: a curious developer never meets it, a script spending our money does...
+        RateLimiter::for('commit-search', fn (Request $request): array => [
+            $this->searchLimit($request, Limit::perMinute(30), Limit::perMinute(15)),
+            $this->searchLimit($request, Limit::perDay(500), Limit::perDay(200)),
+        ]);
+
         $this->bootExceptionHandling();
+    }
+
+    /**
+     * Signed-in developers each get their own budget; guests share theirs with everyone behind the same address, so
+     * they get a smaller one. Either way, being throttled reads as a nudge, not an error.
+     */
+    private function searchLimit(Request $request, Limit $forDevelopers, Limit $forGuests): Limit
+    {
+        $user = $request->user();
+
+        $limit = $user instanceof User
+            ? $forDevelopers->by("{$forDevelopers->decaySeconds}:user:{$user->id}")
+            : $forGuests->by("{$forGuests->decaySeconds}:ip:{$request->ip()}");
+
+        return $limit->response(fn (Request $request, array $headers): JsonResponse => response()->json([
+            'message' => $limit->decaySeconds > 60
+                ? __('That is a lot of searching for one day. Try again tomorrow.')
+                : __('Slow down: too many searches. Give it a few seconds.'),
+        ], 429, $headers));
     }
 
     private function bootExceptionHandling(): void
