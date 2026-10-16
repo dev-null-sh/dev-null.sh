@@ -81,7 +81,7 @@ it('does not count the user relations or activity when reloading only commits', 
 
     expect(collect(DB::getQueryLog())
         ->pluck('query')
-        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*'))
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*') || str_starts_with($query, 'select * from (select "commits".*'))
         ->all())
         ->not->toBeEmpty()
         ->each(fn ($query) => $query->not->toContain('count(*)')->not->toContain('exists'));
@@ -302,6 +302,40 @@ it('shows guests the profile with its approved commits and a link preview', func
         ->assertDontSee('A pending commit only its author may read');
 
     $this->assertGuest();
+});
+
+it('gives guests the stats of a profile a few minutes late', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    Commit::factory()->for($user)->create();
+
+    $this->get('/@octocat')->assertOk();
+
+    Commit::factory()->for($user)->create(['created_at' => now()->subDay()]);
+
+    $this->get('/@octocat')
+        ->assertInertia(fn ($page) => $page
+            ->where('user.commits_count', 2)
+            ->where('streaks.longest', 1)
+            ->where('achievements.xp_breakdown.commits.count', 1));
+
+    $this->travel(6)->minutes();
+
+    $this->get('/@octocat')
+        ->assertInertia(fn ($page) => $page
+            ->where('streaks.longest', 2)
+            ->where('achievements.xp_breakdown.commits.count', 2));
+});
+
+it('counts the public profile of guests once for the page and its link preview', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    DB::enableQueryLog();
+
+    $this->get('/@octocat')->assertOk();
+
+    $followerCounts = array_filter(DB::getQueryLog(), fn (array $query): bool => str_contains($query['query'], 'from "follows"') && str_contains($query['query'], 'count(*)'));
+
+    expect($followerCounts)->toHaveCount(2);
 });
 
 it('describes guests a profile without a bio', function (): void {
@@ -555,4 +589,28 @@ it('includes the link previews of the user commits', function (): void {
             ->where('commits.data.0.link_preview.title', 'Octocat links')
             ->missing('commits.data.0.link_preview.url_hash')
             ->missing('commits.data.0.link_preview.fetched_at'));
+});
+
+it('preloads only replies visible to the profile visitor', function (): void {
+    $author = User::factory()->create();
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $viewer->muting()->attach($muted);
+    $blocked->blocking()->attach($viewer);
+    $parent = Commit::factory()->for($author)->create();
+    Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    $ownPending = Commit::factory()->for($parent, 'parent')->for($viewer)->pending()->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($parent, 'parent')->pending()->create();
+    Commit::factory()->for($parent, 'parent')->rejected()->create();
+    Commit::factory()->for($parent, 'parent')->create(['deleted_at' => now()]);
+    Commit::factory()->for($parent, 'quotedCommit')->for($muted)->create();
+    Commit::factory()->for($parent, 'quotedCommit')->for($blocked)->create();
+
+    $this->actingAs($viewer)->get(route('user.show', $author))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commits.data.0.replies_count', 2)
+        ->where('commits.data.0.reply_preview.data.0.id', $ownPending->id)
+        ->where('commits.data.0.reply_preview.next_cursor', fn (string $cursor): bool => $cursor !== '')
+        ->missing('commits.data.0.reply_preview.data.0.user.email'));
 });

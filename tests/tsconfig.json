@@ -4,5 +4,9 @@
         "types": ["node"],
         "allowImportingTsExtensions": true
     },
-    "include": ["Unit/**/*.test.ts"]
+    "include": [
+        "Unit/**/*.test.ts",
+        "Unit/SeriesStash.test.tsx",
+        "draft-images.config.ts"
+    ]
 }

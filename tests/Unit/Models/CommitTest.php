@@ -208,6 +208,43 @@ it('counts visible replies and quotes without series continuations in public pre
         ->and($preview->isDirty('body'))->toBeTrue();
 });
 
+it('counts only approved quotes in its public preview', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'quotedCommit')->create();
+    Commit::factory()->for($commit, 'quotedCommit')->pending()->create();
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview->replies_count)->toBe(1)
+        ->and($preview->isDirty('replies_count'))->toBeFalse();
+});
+
+it('loads a public preview for an unsaved commit without making it persistent', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->make();
+
+    $preview = $commit->loadPublicPreview();
+
+    expect($preview)->toBe($commit)
+        ->and($preview->exists)->toBeFalse()
+        ->and($preview->replies_count)->toBe(0)
+        ->and($preview->isDirty('replies_count'))->toBeFalse()
+        ->and($preview->user->is($user))->toBeTrue();
+});
+
+it('loads public preview counts onto a partially selected commit with its id', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'parent')->create();
+    Commit::factory()->for($commit, 'quotedCommit')->create();
+    $partial = Commit::query()->select(['id', 'user_id', 'parent_id'])->findOrFail($commit->id);
+
+    $partial->loadPublicPreview();
+
+    expect($partial->replies_count)->toBe(2)
+        ->and($partial->isDirty('replies_count'))->toBeFalse()
+        ->and($partial->getAttributes())->not->toHaveKey('body');
+});
+
 it('loads an unsaved public preview without dirtying its computed count', function (): void {
     $commit = Commit::factory()->make();
 

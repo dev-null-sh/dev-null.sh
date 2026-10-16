@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import type { Commit, CommitImage } from '@/types';
 
 export function commitImageAlt(
-    image: CommitImage,
+    image: Pick<CommitImage, 'description'>,
     index: number,
     count: number,
 ): string {
@@ -16,8 +16,18 @@ export function commitImageAlt(
         : 'Attached image';
 }
 
-export function CommitImages({ commit }: { commit: Commit }) {
-    const images = commit.images ?? [];
+type ShownImage = Pick<CommitImage, 'id' | 'url' | 'description'> &
+    Partial<Pick<CommitImage, 'width' | 'height'>>;
+
+type CommitImagesProps =
+    | { commit: Commit; images?: never }
+    | { commit?: never; images: ShownImage[] };
+
+export function CommitImages({
+    commit,
+    images: draftImages,
+}: CommitImagesProps) {
+    const images = commit ? (commit.images ?? []) : draftImages;
 
     if (images.length === 0) {
         return null;
@@ -35,29 +45,11 @@ export function CommitImages({ commit }: { commit: Commit }) {
             )}
             data-test="commit-images"
         >
-            {images.map((image, index) => (
-                <a
-                    key={image.id}
-                    href={commitPhotoUrl(commit, index)}
-                    onClick={(event) => {
-                        event.stopPropagation();
-
-                        if (
-                            event.metaKey ||
-                            event.ctrlKey ||
-                            event.shiftKey ||
-                            event.altKey
-                        ) {
-                            return;
-                        }
-
-                        event.preventDefault();
-                        openCommitPhoto(commit, index);
-                    }}
-                    className={cn('block min-h-0 bg-muted', {
-                        'row-span-2': images.length === 3 && index === 0,
-                    })}
-                >
+            {images.map((image, index) => {
+                const className = cn('block min-h-0 bg-muted', {
+                    'row-span-2': images.length === 3 && index === 0,
+                });
+                const thumbnail = (
                     <img
                         src={image.url}
                         alt={commitImageAlt(image, index, images.length)}
@@ -79,8 +71,37 @@ export function CommitImages({ commit }: { commit: Commit }) {
                             hasMultipleImages ? 'h-full' : 'max-h-[32rem]',
                         )}
                     />
-                </a>
-            ))}
+                );
+
+                return commit ? (
+                    <a
+                        key={image.id}
+                        href={commitPhotoUrl(commit, index)}
+                        onClick={(event) => {
+                            event.stopPropagation();
+
+                            if (
+                                event.metaKey ||
+                                event.ctrlKey ||
+                                event.shiftKey ||
+                                event.altKey
+                            ) {
+                                return;
+                            }
+
+                            event.preventDefault();
+                            openCommitPhoto(commit, index);
+                        }}
+                        className={className}
+                    >
+                        {thumbnail}
+                    </a>
+                ) : (
+                    <div key={image.id} className={className}>
+                        {thumbnail}
+                    </div>
+                );
+            })}
         </div>
     );
 }

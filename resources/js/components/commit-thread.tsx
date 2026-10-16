@@ -18,9 +18,16 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
+import { CommitReportButton } from '@/components/commit-report-button';
 import { CommitStarButton } from '@/components/commit-star-button';
+import {
+    ComposerPreviewBody,
+    PreviewToggle,
+    useComposerPreview,
+} from '@/components/composer-preview';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
+import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
@@ -41,6 +48,7 @@ import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
 import { commitStateKey } from '@/lib/commit-state';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
+import { hasModKey } from '@/lib/keyboard';
 import {
     characterCount,
     cn,
@@ -105,6 +113,7 @@ type Thread = {
     replies: ThreadCommit[] | null;
     hasMore: boolean;
     isOpen: boolean;
+    isPreview: boolean;
     isLoading: boolean;
     isReplying: boolean;
     toggle: () => void;
@@ -118,9 +127,13 @@ type Thread = {
 async function fetchReplies(
     commit: Pick<ThreadCommit, 'id'>,
     cursor: string | null,
+    newest = false,
+    limit = 50,
 ): Promise<CursorPaginated<ThreadCommit>> {
     const response = await fetch(
-        CommitReplyController.index(commit, { query: { cursor } }).url,
+        CommitReplyController.index(commit, {
+            query: { cursor, newest: newest ? 1 : 0, limit },
+        }).url,
         {
             headers: {
                 Accept: 'application/json',
@@ -139,13 +152,14 @@ async function fetchReplies(
 async function fetchRepliesUntil(
     commit: ThreadCommit,
     minimum: number,
+    newest = false,
 ): Promise<CursorPaginated<ThreadCommit>> {
-    const page = await fetchReplies(commit, null);
+    const page = await fetchReplies(commit, null, newest, newest ? 1 : 50);
     let data = page.data;
     let cursor = page.next_cursor;
 
     while (cursor !== null && data.length < minimum) {
-        const next = await fetchReplies(commit, cursor);
+        const next = await fetchReplies(commit, cursor, newest);
         data = [...data, ...next.data];
         cursor = next.next_cursor;
     }
@@ -158,11 +172,14 @@ export function useThread(
     initialReplies?: CursorPaginated<ThreadCommit>,
     loadsReplies = false,
 ): Thread {
+    const preview = !isDeleted(commit) ? commit.reply_preview : undefined;
+    const isPreview = preview !== undefined;
+    const initial = preview ?? initialReplies;
     const [replies, setReplies] = useState<ThreadCommit[] | null>(
-        initialReplies?.data ?? null,
+        initial?.data ?? null,
     );
     const [nextCursor, setNextCursor] = useState<string | null>(
-        initialReplies?.next_cursor ?? null,
+        initial?.next_cursor ?? null,
     );
     const [count, setCount] = useSharedState(
         commitStateKey('replies_count', commit.id),
@@ -170,13 +187,22 @@ export function useThread(
     );
     const [shouldLoadReplies] = useState(
         (loadsReplies && count > 0) ||
-            (initialReplies !== undefined && changedThreadIds.has(commit.id)),
+            (initial !== undefined && changedThreadIds.has(commit.id)),
     );
     const [isOpen, setIsOpen] = useState(
-        initialReplies !== undefined || shouldLoadReplies,
+        initial !== undefined || shouldLoadReplies,
     );
     const [isLoading, setIsLoading] = useState(false);
     const [isReplying, setIsReplying] = useState(false);
+
+    const [previousPreview, setPreviousPreview] = useState(preview);
+    if (preview !== previousPreview) {
+        setPreviousPreview(preview);
+        if (preview !== undefined && (replies?.length ?? 0) <= 1) {
+            setReplies(preview.data);
+            setNextCursor(preview.next_cursor);
+        }
+    }
 
     const applyPage = (loaded: ThreadCommit[], cursor: string | null) => {
         setReplies(loaded);
@@ -189,15 +215,17 @@ export function useThread(
 
     const reload = (extra = 0) => {
         const minimum =
-            replies === null
-                ? 0
-                : nextCursor === null
-                  ? Infinity
-                  : replies.length + extra;
+            isPreview && (replies?.length ?? 0) <= 1
+                ? 1
+                : replies === null
+                  ? 0
+                  : nextCursor === null
+                    ? Infinity
+                    : replies.length + extra;
 
         setIsLoading(true);
 
-        fetchRepliesUntil(commit, minimum)
+        fetchRepliesUntil(commit, minimum, isPreview)
             .then((page) => applyPage(page.data, page.next_cursor))
             .catch(() => undefined)
             .finally(() => setIsLoading(false));
@@ -212,7 +240,7 @@ export function useThread(
 
         let isCurrent = true;
 
-        fetchReplies({ id: commitId }, null)
+        fetchReplies({ id: commitId }, null, isPreview, isPreview ? 1 : 50)
             .then((page) => {
                 if (isCurrent) {
                     setReplies(page.data);
@@ -224,7 +252,7 @@ export function useThread(
         return () => {
             isCurrent = false;
         };
-    }, [commitId, shouldLoadReplies]);
+    }, [commitId, shouldLoadReplies, isPreview]);
 
     const onRestored = useEffectEvent((restored: Commit) => {
         changedThreadIds.add(commit.id);
@@ -261,6 +289,7 @@ export function useThread(
         replies,
         hasMore: replies !== null && nextCursor !== null,
         isOpen,
+        isPreview,
         isLoading,
         isReplying,
         toggle: () => {
@@ -277,7 +306,7 @@ export function useThread(
 
             setIsLoading(true);
 
-            fetchReplies(commit, nextCursor)
+            fetchReplies(commit, nextCursor, isPreview)
                 .then((page) =>
                     applyPage([...replies, ...page.data], page.next_cursor),
                 )
@@ -356,7 +385,7 @@ export function ThreadActions({
                         </button>
                     )}
 
-                    {thread.count > 0 && (
+                    {thread.count > 0 && !thread.isPreview && (
                         <button
                             type="button"
                             onClick={thread.toggle}
@@ -393,6 +422,9 @@ export function ThreadActions({
                             commit={commit}
                             keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                         />
+                    )}
+                    {!isDeleted(commit) && (
+                        <CommitReportButton commit={commit} />
                     )}
                 </div>
             </div>
@@ -526,11 +558,14 @@ export function ThreadReplies({
                         />
                     ))}
                     {thread.hasMore && (
-                        <div className="relative pl-(--indent)">
+                        <div className="relative pt-1.5 pl-(--indent)">
                             {!isFlattened && thread.replies.length > 0 && (
                                 <span
                                     aria-hidden
-                                    className={cn(replyLink, 'top-0 h-1.5')}
+                                    className={cn(
+                                        replyLink,
+                                        'top-0 h-5 sm:h-5.5',
+                                    )}
                                     style={{
                                         borderColor: laneOf(
                                             thread.replies[
@@ -576,24 +611,25 @@ function MoreRepliesButton({
     thread: Thread;
     isFlattened: boolean;
 }) {
-    const remaining = thread.count - (thread.replies?.length ?? 0);
-
     return (
         <button
             type="button"
             onClick={thread.loadMore}
             aria-disabled={thread.isLoading}
-            className="mt-1.5 -ml-2 flex max-w-full items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none"
+            className="-ml-2 flex max-w-full items-center gap-2 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none sm:gap-2.5"
             data-test="more-replies-button"
         >
-            <ChevronDown className="size-4 shrink-0" />
+            <span
+                aria-hidden
+                className="relative flex size-6 shrink-0 items-center justify-center [--lane:var(--muted-foreground)] sm:size-7"
+            >
+                <RailDot />
+            </span>
             {thread.isLoading ? (
                 <span role="status">Loading replies…</span>
             ) : (
                 <span className="truncate">
-                    {remaining > 0
-                        ? `Show ${remaining} more ${remaining === 1 ? 'reply' : 'replies'}`
-                        : 'Show more replies'}
+                    Show more
                     {isFlattened && !isDeleted(thread.commit) && (
                         <>
                             {' to '}
@@ -825,7 +861,7 @@ function CommitReply({
                         className="text-[15px]"
                     />
                     <CommitImages commit={reply} />
-                    {reply.link_preview?.title && (
+                    {reply.link_preview && (
                         <LinkPreview preview={reply.link_preview} />
                     )}
 
@@ -880,11 +916,16 @@ function ReplyComposer({
     onReplied: () => void;
 }) {
     const { user } = useUser();
-    const { body, isRestored, updateBody, drop } = useStash(
-        user.id,
-        `reply-${parent.id}`,
-    );
-    const attachments = useImageAttachments();
+    const {
+        body,
+        images,
+        descriptions,
+        isRestored,
+        updateBody,
+        updateImages,
+        drop,
+    } = useStash(user.id, `reply-${parent.id}`);
+    const attachments = useImageAttachments(images, descriptions, updateImages);
     const linkCard = useLinkCard(body);
     const updateCommitsCount = useCommitsCountUpdate();
     const request = useHttp<
@@ -905,6 +946,11 @@ function ReplyComposer({
     const remaining = maxBodyLength - characterCount(body);
     const isReplyable = characterCount(body.trim()) >= 3;
     const suggestion = suggestEmoji(body);
+    const preview = useComposerPreview({
+        body,
+        textareaRef,
+        isSubmittable: isReplyable,
+    });
 
     const returnFocusToCommit = () => {
         const commit =
@@ -919,6 +965,10 @@ function ReplyComposer({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (preview.handleShortcut(event)) {
+            return;
+        }
+
         if (event.key === 'Tab' && suggestion !== null) {
             const completed = completeEmoji(body);
 
@@ -935,11 +985,7 @@ function ReplyComposer({
             onCancel();
         }
 
-        if (
-            event.key === 'Enter' &&
-            (event.metaKey || event.ctrlKey) &&
-            isReplyable
-        ) {
+        if (event.key === 'Enter' && hasModKey(event) && isReplyable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
         }
@@ -954,8 +1000,8 @@ function ReplyComposer({
 
         request.setData(() => ({
             body,
-            images: attachments.images,
-            image_descriptions: attachments.descriptions,
+            images,
+            image_descriptions: descriptions,
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
@@ -964,8 +1010,8 @@ function ReplyComposer({
         request
             .submit(CommitReplyController.store(parent), {
                 onSuccess: (reply) => {
-                    drop();
                     attachments.clear();
+                    drop();
                     linkCard.reset();
                     returnFocusToCommit();
                     router.flash(() => reply);
@@ -1000,37 +1046,55 @@ function ReplyComposer({
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
                 Reply to @{parent.user.username}
             </label>
-            <MentionTextarea
-                ref={textareaRef}
-                id={`reply-${parent.id}`}
-                name="body"
-                rows={1}
-                autoFocus
-                value={body}
-                onValueChange={updateBody}
-                onKeyDown={onKeyDown}
-                onPaste={attachments.onPaste}
-                onDragOver={attachments.onDragOver}
-                onDrop={attachments.onDrop}
-                onFocus={isRestored ? moveCaretToEnd : undefined}
-                maxLength={maxBodyLength}
-                placeholder={`Reply to @${parent.user.username}`}
-                className="block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]"
-            />
-            <EmojiSuggestionHint
-                suggestion={suggestion}
-                className="mt-1 px-1"
-            />
+            <div className="grid">
+                <MentionTextarea
+                    ref={textareaRef}
+                    id={`reply-${parent.id}`}
+                    name="body"
+                    rows={1}
+                    autoFocus
+                    value={body}
+                    onValueChange={updateBody}
+                    onKeyDown={onKeyDown}
+                    onPaste={attachments.onPaste}
+                    onDragOver={attachments.onDragOver}
+                    onDrop={attachments.onDrop}
+                    onFocus={isRestored ? moveCaretToEnd : undefined}
+                    maxLength={maxBodyLength}
+                    placeholder={`Reply to @${parent.user.username}`}
+                    className={cn(
+                        'col-start-1 row-start-1 block field-sizing-content min-h-9 w-full resize-none overflow-x-hidden bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
+                        { invisible: preview.isPreviewing },
+                    )}
+                />
+                {preview.isPreviewing && (
+                    <ComposerPreviewBody
+                        preview={preview}
+                        url={linkCard.link}
+                        images={attachments.images}
+                        descriptions={attachments.descriptions}
+                        className="col-start-1 row-start-1 px-1"
+                    />
+                )}
+            </div>
+            {!preview.isPreviewing && (
+                <EmojiSuggestionHint
+                    suggestion={suggestion}
+                    className="mt-1 px-1"
+                />
+            )}
             <InputError
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
             />
-            <ImagePickerPreviews
-                images={attachments.images}
-                descriptions={attachments.descriptions}
-                onDescribe={attachments.describe}
-                onRemove={attachments.remove}
-            />
+            {!preview.isPreviewing && (
+                <ImagePickerPreviews
+                    images={attachments.images}
+                    descriptions={attachments.descriptions}
+                    onDescribe={attachments.describe}
+                    onRemove={attachments.remove}
+                />
+            )}
             <SecretWarning
                 body={body}
                 findings={secrets.findings}
@@ -1039,6 +1103,7 @@ function ReplyComposer({
                 confirming={secrets.confirming}
                 onConfirmingChange={secrets.setConfirming}
                 onApprove={secrets.approve}
+                onEdit={preview.close}
             />
             <InputError
                 message={attachments.error ?? imageErrorFrom(errors)}
@@ -1047,11 +1112,12 @@ function ReplyComposer({
             <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                 <div className="mr-auto flex min-w-0 items-center gap-2">
                     <ImagePickerButton
-                        count={attachments.images.length}
+                        count={images.length}
                         disabled={processing}
                         onPick={attachments.attach}
                         className="size-8"
                     />
+                    <PreviewToggle preview={preview} className="-ml-2 size-8" />
                     <LinkCardPicker
                         linkCard={linkCard}
                         disabled={processing}
@@ -1061,6 +1127,7 @@ function ReplyComposer({
                     {isRestored && (
                         <StashLabel
                             onDrop={() => {
+                                attachments.clear();
                                 drop();
                                 document
                                     .getElementById(`reply-${parent.id}`)

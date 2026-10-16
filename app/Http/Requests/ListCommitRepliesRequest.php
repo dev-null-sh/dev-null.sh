@@ -24,10 +24,13 @@ final class ListCommitRepliesRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * @return array<string, list<string>>
      */
     public function rules(): array
     {
-        return [];
+        return [
+            'newest' => ['sometimes', 'boolean'],
+            'limit' => ['sometimes', 'integer', 'in:1,50'],
+        ];
     }
 }

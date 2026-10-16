@@ -6,17 +6,35 @@ namespace App\Services;
 
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use UnexpectedValueException;
 
 final readonly class OpenAI
 {
+    /**
+     * The width of text-embedding-3-small's vectors, and so of the commits.embedding column.
+     */
+    public const int EMBEDDING_DIMENSIONS = 1536;
+
     private const string MODERATION_MODEL = 'omni-moderation-latest';
 
-    private const string VISION_MODEL = 'gpt-6-astra';
+    private const string REVIEW_MODEL = 'gpt-6-astra';
+
+    /**
+     * The only model the decisions endpoint takes, answering typed questions far faster than the responses endpoint.
+     */
+    private const string DECISION_MODEL = 'gpt-6-luna';
+
+    private const string EMBEDDING_MODEL = 'text-embedding-3-small';
 
     /**
      * Far stricter than OpenAI's own cut-off: any category scoring this much is flagged.
      */
     private const float STRICT_THRESHOLD = 0.2;
+
+    /**
+     * The decisions endpoint answers with a probability, not a verdict: only a post scoring below this is irrelevant.
+     */
+    private const float RELEVANCE_THRESHOLD = 0.5;
 
     /**
      * @var array<string, float>
@@ -31,6 +49,21 @@ final readonly class OpenAI
         children and teenagers, whether in photos, drawings, renders or any other depiction. When unsure, answer true.
         TEXT;
 
+    private const string HARMFUL_INSTRUCTIONS = <<<'TEXT'
+        You review posts on devnull, a social network for developers, before they are published.
+        Answer whether the post is harmful: a threat, including claims of having a bomb, weapon or explosive, or of
+        planning an attack, even as a joke; violence, incitement or glorification of it; hate speech or harassment of a
+        person or group; sexual content; encouragement of self-harm; or illegal activity. Developer jargon such as
+        "kill the process", "nuke the database" or "this release is the bomb" is not harmful. Disliking a technology
+        is not harmful either. When unsure, answer true.
+        TEXT;
+
+    private const string RELEVANCE_INSTRUCTIONS = <<<'TEXT'
+        You review search results for devnull, a social network for developers.
+        You are given a query and a numbered list of posts, and asked, for each post, whether it is actually about what
+        the query asks for. A post that merely shares a word with the query, or is about something else, is not relevant.
+        TEXT;
+
     public function request(): PendingRequest
     {
         return Http::baseUrl('https://api.openai.com/v1')
@@ -41,12 +74,51 @@ final readonly class OpenAI
     }
 
     /**
-     * The categories the content is flagged for, if any: those OpenAI flags, and those scoring above our own, stricter
-     * thresholds. The text goes along with the first image, and every other image is checked on its own, as a single
-     * request is only documented to take one image.
+     * The vector for a single text, for the one-off embeds a commit gets when it is created or searched for.
+     *
+     * @return list<float>
+     */
+    public function embed(string $text): array
+    {
+        $embeddings = $this->embedMany([$text]);
+
+        throw_if($embeddings === [], UnexpectedValueException::class, 'OpenAI returned no embedding.');
+
+        return $embeddings[0];
+    }
+
+    /**
+     * The vectors for several texts in one request, in the order they were given, for backfills. The API caps a
+     * request at 2048 inputs, so callers send them in batches well under that.
+     *
+     * @param  list<string>  $texts
+     * @return list<list<float>>
+     */
+    public function embedMany(array $texts): array
+    {
+        if ($texts === []) {
+            return [];
+        }
+
+        /** @var list<array{index: int, embedding: list<float>}> $data */
+        $data = $this->request()
+            ->timeout(30)
+            ->post('embeddings', ['model' => self::EMBEDDING_MODEL, 'input' => $texts])
+            ->throw()
+            ->json('data');
+
+        usort($data, fn (array $result, array $other): int => $result['index'] <=> $other['index']);
+
+        return array_map(fn (array $result): array => array_map(floatval(...), $result['embedding']), $data);
+    }
+
+    /**
+     * The categories the content is flagged for, if any, each with its highest score: those OpenAI flags, and those
+     * scoring above our own, stricter thresholds. The text goes along with the first image, and every other image is
+     * checked on its own, as a single request is only documented to take one image.
      *
      * @param  list<string>  $imageDataUrls
-     * @return list<string>
+     * @return array<string, float>
      */
     public function moderate(string $text, array $imageDataUrls = []): array
     {
@@ -73,44 +145,100 @@ final readonly class OpenAI
 
             foreach ($results as $result) {
                 foreach ($result['categories'] as $category => $isFlagged) {
-                    if ($isFlagged || ($result['category_scores'][$category] ?? 0.0) >= (self::THRESHOLDS[$category] ?? self::STRICT_THRESHOLD)) {
-                        $categories[] = $category;
+                    $score = $result['category_scores'][$category] ?? 0.0;
+
+                    if ($isFlagged || $score >= (self::THRESHOLDS[$category] ?? self::STRICT_THRESHOLD)) {
+                        $categories[$category] = max($categories[$category] ?? 0.0, $score);
                     }
                 }
             }
         }
 
-        return array_values(array_unique($categories));
+        return $categories;
     }
 
     /**
-     * Whether a minor may appear in any of the images. The moderation model can't tell, so a vision model is asked
+     * Whether a minor may appear in any of the images. The moderation model can't tell, so a reasoning model is asked
      * instead. Anything but a clear no, such as a refusal or an answer that can't be read, counts as a yes.
      *
      * @param  list<string>  $imageDataUrls
      */
     public function showsMinors(array $imageDataUrls): bool
     {
+        return $this->ask('minors', self::MINORS_INSTRUCTIONS, array_map(
+            fn (string $imageDataUrl): array => ['type' => 'input_image', 'image_url' => $imageDataUrl],
+            $imageDataUrls,
+        ));
+    }
+
+    /**
+     * Whether the text is harmful. The moderation model misses threats that are implied rather than spelled out, such
+     * as claiming to have a bomb, so a reasoning model is asked too. Anything but a clear no counts as a yes.
+     */
+    public function isHarmful(string $text): bool
+    {
+        return $this->ask('harmful', self::HARMFUL_INSTRUCTIONS, [['type' => 'input_text', 'text' => $text]]);
+    }
+
+    /**
+     * Whether each body is actually about the query, in the order they were given. The vector search returns the
+     * nearest by meaning, which can include posts that merely share a word; the decision model reads the term against
+     * each one. Anything but a clear no, such as a refusal or an answer that can't be read or doesn't line up, counts
+     * as relevant, so a flaky model never hides a post.
+     *
+     * @param  list<string>  $bodies
+     * @return list<bool>
+     */
+    public function decideRelevance(string $query, array $bodies): array
+    {
+        if ($bodies === []) {
+            return [];
+        }
+
+        $questions = array_map(fn (int $index): array => [
+            'type' => 'predicate',
+            'name' => $this->postName($index),
+            'instructions' => 'Is post '.($index + 1).' actually about what the query asks for?',
+        ], array_keys($bodies));
+
+        $answers = $this->request()
+            ->timeout(60)
+            ->post('decisions', [
+                'model' => self::DECISION_MODEL,
+                'input' => self::RELEVANCE_INSTRUCTIONS."\n\n".$this->relevancePrompt($query, $bodies),
+                'questions' => $questions,
+            ])
+            ->throw()
+            ->json('answers', []);
+
+        return $this->relevanceVerdicts($answers, count($bodies));
+    }
+
+    /**
+     * Asks the reasoning model a yes or no question about the content. Anything but a clear no, such as a refusal or an
+     * answer that can't be read, counts as a yes.
+     *
+     * @param  list<array<string, string>>  $content
+     */
+    private function ask(string $question, string $instructions, array $content): bool
+    {
         /** @var list<array{type: string, content?: list<array{type: string, text?: string}>}> $output */
         $output = $this->request()
             ->timeout(60)
             ->post('responses', [
-                'model' => self::VISION_MODEL,
+                'model' => self::REVIEW_MODEL,
                 'input' => [
-                    ['role' => 'system', 'content' => self::MINORS_INSTRUCTIONS],
-                    ['role' => 'user', 'content' => array_map(
-                        fn (string $imageDataUrl): array => ['type' => 'input_image', 'image_url' => $imageDataUrl],
-                        $imageDataUrls,
-                    )],
+                    ['role' => 'system', 'content' => $instructions],
+                    ['role' => 'user', 'content' => $content],
                 ],
                 'text' => ['format' => [
                     'type' => 'json_schema',
-                    'name' => 'minors',
+                    'name' => $question,
                     'strict' => true,
                     'schema' => [
                         'type' => 'object',
-                        'properties' => ['minors' => ['type' => 'boolean']],
-                        'required' => ['minors'],
+                        'properties' => [$question => ['type' => 'boolean']],
+                        'required' => [$question],
                         'additionalProperties' => false,
                     ],
                 ]],
@@ -119,15 +247,65 @@ final readonly class OpenAI
             ->json('output', []);
 
         foreach ($output as $item) {
-            foreach ($item['content'] ?? [] as $content) {
-                if ($content['type'] === 'output_text') {
-                    $answer = json_decode($content['text'] ?? '', true);
+            foreach ($item['content'] ?? [] as $part) {
+                if ($part['type'] === 'output_text') {
+                    $answer = json_decode($part['text'] ?? '', true);
 
-                    return ! is_array($answer) || $answer['minors'] !== false;
+                    return ! is_array($answer) || ($answer[$question] ?? null) !== false;
                 }
             }
         }
 
         return true;
+    }
+
+    /**
+     * @param  list<string>  $bodies
+     */
+    private function relevancePrompt(string $query, array $bodies): string
+    {
+        $posts = [];
+
+        foreach ($bodies as $index => $body) {
+            $posts[] = ($index + 1).'. '.$body;
+        }
+
+        return "Query: {$query}\n\nPosts:\n".implode("\n", $posts);
+    }
+
+    /**
+     * The answers come back by name, one per post. A post the answers skip, refuse or give anything but a probability
+     * below the threshold counts as relevant.
+     *
+     * @return list<bool>
+     */
+    private function relevanceVerdicts(mixed $answers, int $count): array
+    {
+        $probabilities = [];
+
+        foreach (is_array($answers) ? $answers : [] as $answer) {
+            if (is_array($answer)
+                && ($answer['type'] ?? null) === 'predicate'
+                && is_string($answer['name'] ?? null)
+                && is_numeric($answer['probability'] ?? null)) {
+                $probabilities[$answer['name']] = (float) $answer['probability'];
+            }
+        }
+
+        $verdicts = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $verdicts[] = ($probabilities[$this->postName($index)] ?? 1.0) >= self::RELEVANCE_THRESHOLD;
+        }
+
+        return $verdicts;
+    }
+
+    /**
+     * The name of the question asked about a post, which the decisions endpoint echoes back with its answer.
+     */
+    private function postName(int $index): string
+    {
+        return 'post_'.($index + 1);
     }
 }
