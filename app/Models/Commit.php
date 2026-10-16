@@ -24,6 +24,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $id
  * @property-read string|null $user_id
  * @property-read string|null $parent_id
+ * @property-read string|null $root_id
+ * @property-read float $hot_score
  * @property-read string $body
  * @property-read array<string, string>|null $mentions
  * @property-read CommitStatus $status
@@ -44,6 +46,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
+ * @property-read int|null $repliers_count
  * @property-read bool $is_saved
  * @property-read LinkPreview|null $linkPreview
  * @property-read Commit|null $quotedCommit
@@ -73,6 +76,8 @@ final class Commit extends Model
             'id' => 'string',
             'user_id' => 'string',
             'parent_id' => 'string',
+            'root_id' => 'string',
+            'hot_score' => 'float',
             'body' => 'string',
             'mentions' => 'array',
             'status' => CommitStatus::class,
@@ -141,6 +146,14 @@ final class Commit extends Model
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    /**
+     * The top-level commit that started the thread the commit belongs to, which is the commit itself when it is top-level.
+     */
+    public function threadRootId(): string
+    {
+        return $this->root_id ?? $this->id;
     }
 
     /**
@@ -222,7 +235,11 @@ final class Commit extends Model
      */
     public function loadPublicPreview(): self
     {
-        return $this->loadCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()->exceptSeriesContinuations()])
+        $this->forceFill([
+            'replies_count' => self::query()->withVisibleReplyCount(null)->findOrFail($this->id)->replies_count,
+        ])->syncOriginalAttribute('replies_count');
+
+        return $this
             ->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
     }
 
