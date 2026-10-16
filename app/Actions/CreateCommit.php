@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Dto\NewPoll;
 use App\Dto\SeriesPosition;
 use App\Enums\CommitStatus;
 use App\Jobs\ModerateCommit;
@@ -39,7 +40,7 @@ final readonly class CreateCommit
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?SeriesPosition $series = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?SeriesPosition $series = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -47,7 +48,7 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $series): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $series): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
 
@@ -66,6 +67,10 @@ final readonly class CreateCommit
             ]);
 
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);
+
+            if ($poll instanceof NewPoll) {
+                $this->createPoll($commit, $poll);
+            }
 
             if (($parent instanceof Commit || $quotedCommit instanceof Commit) && $commit->status === CommitStatus::Approved) {
                 $this->updateCommitHotScores->handle([$commit->id]);
@@ -86,6 +91,23 @@ final readonly class CreateCommit
 
             return $commit;
         });
+    }
+
+    /**
+     * A poll opens with its commit's approval, so polls of pending commits wait for moderation.
+     */
+    private function createPoll(Commit $commit, NewPoll $newPoll): void
+    {
+        $poll = $commit->poll()->create([
+            'duration' => $newPoll->duration,
+            'opened_at' => $commit->status === CommitStatus::Approved ? now() : null,
+        ]);
+
+        $poll->options()->createMany(array_map(
+            fn (string $label, int $position): array => ['label' => $this->emojiShortcodes->replace($label), 'position' => $position],
+            $newPoll->options,
+            array_keys($newPoll->options),
+        ));
     }
 
     /**

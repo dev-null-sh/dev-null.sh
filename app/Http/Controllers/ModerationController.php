@@ -38,6 +38,7 @@ final readonly class ModerationController
                         ->oldest('series_position'),
                 ])
                 ->withStarsFor($user)
+                ->withPollFor($user)
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)

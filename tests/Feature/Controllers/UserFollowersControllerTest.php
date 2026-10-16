@@ -75,3 +75,24 @@ it('returns guests to the followers once they sign in', function (): void {
 
     expect(session('url.intended'))->toBe(route('user-followers.index', $user));
 });
+
+it('previews the list to guests without letting search engines index it', function (): void {
+    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+
+    $this->get(route('user-followers.index', $user))
+        ->assertOk()
+        ->assertSee('<title>People following The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<meta name="robots" content="noindex, follow">', false)
+        ->assertSee('<link rel="canonical" href="'.route('user-followers.index', $user).'">', false)
+        ->assertSee('<meta property="og:image" content="'.route('user-open-graph-image.show', $user).'?v=', false);
+});
+
+it('keeps the default link preview of the list for signed-in users', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('user-followers.index', $user))
+        ->assertOk()
+        ->assertDontSee('<meta name="robots"', false)
+        ->assertDontSee('og:url', false);
+});

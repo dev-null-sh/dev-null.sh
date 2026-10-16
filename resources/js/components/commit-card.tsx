@@ -6,6 +6,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { CommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
+import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
@@ -290,6 +291,13 @@ export function CommitCard({
                                 )}
                             />
                             {showImages && <CommitImages commit={commit} />}
+                            {commit.poll && (
+                                <CommitPoll
+                                    key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}
+                                    commit={commit}
+                                    poll={commit.poll}
+                                />
+                            )}
                             {commit.quoted_commit_id !== null && (
                                 <QuotedCommit
                                     commit={commit.quoted_commit ?? null}

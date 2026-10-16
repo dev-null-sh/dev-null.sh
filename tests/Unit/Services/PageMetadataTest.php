@@ -51,8 +51,8 @@ it('omits an authorless parent from the metadata of a surviving reply', function
 
     $metadata = resolve(PageMetadata::class)->commit($reply);
 
+    expect($metadata['title'])->toStartWith($reply->user->nameWithHandle().' on /dev/null: “');
     expect($metadata)->toMatchArray([
-        'title' => $reply->user->nameWithHandle().' on /dev/null',
         'url' => route('commit.show', [$reply->user, $reply]),
         'author' => route('user.show', $reply->user),
     ]);

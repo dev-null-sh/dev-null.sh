@@ -11,6 +11,7 @@ use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPhotoController;
 use App\Http\Controllers\CommitPinController;
+use App\Http\Controllers\CommitPollVoteController;
 use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitRestorationController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\SafetyController;
@@ -165,9 +167,12 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('commits/{commit}/replies/{reply}', [CommitReplyController::class, 'destroy'])
         ->withTrashed()
         ->name('commit-reply.destroy');
+    Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
+        ->name('commit-poll-vote.store');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
+    Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('notification-group.show');
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');

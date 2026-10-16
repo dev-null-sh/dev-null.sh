@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\CommitImage;
 
 it('lists approved commits only', function (): void {
     $commit = Commit::factory()->create();
@@ -20,6 +21,15 @@ it('lists approved commits only', function (): void {
         ->assertDontSee($pending->id)
         ->assertDontSee($rejected->id)
         ->assertDontSee($deleted->id);
+});
+
+it('lists the images of approved commits', function (): void {
+    $image = CommitImage::factory()->create();
+
+    $this->get(route('commit-sitemap.show', 1))
+        ->assertOk()
+        ->assertSee('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"', false)
+        ->assertSee('<image:loc>'.$image->url().'</image:loc>', false);
 });
 
 it('does not route pages that are not positive numbers', function (string $page): void {
