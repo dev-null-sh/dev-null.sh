@@ -87,3 +87,18 @@ it('stays quiet when someone already has the name', function (): void {
 
     expect($commit->replies()->count())->toBe(0);
 });
+
+it('stays quiet once a real account named world has taken the name back', function (): void {
+    $action = resolve(CreateWorldReply::class);
+    $action->handle(Commit::factory()->create(['body' => 'hello world']));
+
+    expect(User::query()->where('github_id', '0')->update(['username' => '_renamed-0']))->toBe(1);
+
+    User::factory()->create(['username' => 'world']);
+
+    $commit = Commit::factory()->create(['body' => 'hello world']);
+
+    $action->handle($commit);
+
+    expect($commit->replies()->count())->toBe(0);
+});
