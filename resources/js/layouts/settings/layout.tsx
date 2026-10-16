@@ -11,7 +11,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
 
     return (
         <>
-            <div className="sticky top-0 z-10 bg-card">
+            <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:settings-header]">
                 <h1 className="flex h-14 items-center border-b px-4 font-semibold sm:px-6">
                     Settings
                 </h1>
@@ -42,7 +42,9 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                 />
             </div>
 
-            <div className="divide-y">{children}</div>
+            <div className="divide-y [view-transition-class:tab-content] [view-transition-name:settings-content]">
+                {children}
+            </div>
         </>
     );
 }
