@@ -50,6 +50,8 @@ final class CommitBuilder extends Builder
     /**
      * Deleted commits stay in a thread as tombstones while they still have replies the given user can see.
      * Replies by muted people are left out along with the replies under them.
+     * Replies and quotes are checked in one exists, which stays a lookup per tombstone: two separate ones get planned as
+     * hashes over every visible commit.
      */
     public function visibleInThreadTo(?User $user): self
     {
