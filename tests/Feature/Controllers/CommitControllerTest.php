@@ -788,7 +788,7 @@ it('may attach images to a commit', function (): void {
 });
 
 it('may attach images to a quote', function (): void {
-    Storage::fake(CommitImage::DISK);
+    Storage::fake();
 
     $user = User::factory()->create();
     $quoted = Commit::factory()->create();
