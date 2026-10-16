@@ -116,7 +116,7 @@ final class Commit extends Model
             return true;
         }
 
-        return $this->status === CommitStatus::Approved && ($user === null || ! $user->hasBlockWith($this->user));
+        return $this->status === CommitStatus::Approved && (! $user instanceof User || ! $user->hasBlockWith($this->user));
     }
 
     /**

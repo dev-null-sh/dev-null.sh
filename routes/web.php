@@ -159,6 +159,9 @@ Route::middleware('auth')->group(function (): void {
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
 
+    // Terminal...
+    Route::get('settings/terminal', fn () => Inertia::render('terminal/show', ['url' => url('/')]))->name('terminal.show');
+
     // Safety...
     Route::get('settings/safety', [SafetyController::class, 'edit'])->name('safety.edit');
 
