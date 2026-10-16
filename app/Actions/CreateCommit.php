@@ -21,6 +21,7 @@ final readonly class CreateCommit
 {
     public function __construct(
         private CreateReplyNotifications $createReplyNotifications,
+        private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
         private CreateCommitImages $createCommitImages,
         private EmojiShortcodes $emojiShortcodes,
@@ -34,7 +35,7 @@ final readonly class CreateCommit
      *
      * @param  list<UploadedFile>  $images
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, array $images = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?SeriesPosition $series = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?SeriesPosition $series = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -42,7 +43,7 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $images, $url, $poll, $series): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $url, $poll, $series): Commit {
             $linkPreview = $this->linkPreviewFor($url);
 
             $commit = $user->commits()->create([
@@ -50,6 +51,7 @@ final readonly class CreateCommit
                 'parent_id' => $parent?->id,
                 'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
+                'quoted_commit_id' => $quotedCommit?->id,
                 'series_id' => $series?->seriesId,
                 'series_position' => $series?->position,
                 'series_size' => $series?->size,
@@ -62,6 +64,7 @@ final readonly class CreateCommit
             }
 
             $this->createReplyNotifications->handle($commit);
+            $this->createQuoteNotifications->handle($commit);
             $this->createMentionNotifications->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {

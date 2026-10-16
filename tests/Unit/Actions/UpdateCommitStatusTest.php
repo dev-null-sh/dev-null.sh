@@ -74,3 +74,19 @@ it('keeps the clock of a poll running when its commit is approved again', functi
 
     expect($poll->refresh()->opened_at?->toIso8601String())->toBe($openedAt);
 });
+
+it('notifies the quoted author once a quote is approved', function (): void {
+    $quoted = Commit::factory()->create();
+    $quote = Commit::factory()->pending()->for($quoted, 'quotedCommit')->create();
+
+    $action = resolve(UpdateCommitStatus::class);
+
+    $action->handle($quote, CommitStatus::Approved);
+    $action->handle($quote, CommitStatus::Approved);
+
+    $notification = $quoted->user->notifications()->sole();
+
+    expect($notification->type)->toBe(NotificationType::Quoted)
+        ->and($notification->actor_id)->toBe($quote->user_id)
+        ->and($notification->commit_id)->toBe($quote->id);
+});

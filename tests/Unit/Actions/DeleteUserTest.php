@@ -33,6 +33,17 @@ it('erases the commits of a deleted user along with the replies under them', fun
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
 });
 
+it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {
+    $user = User::factory()->create();
+    $quote = Commit::factory()->for(Commit::factory()->for($user), 'quotedCommit')->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $this->assertNotSoftDeleted($quote);
+
+    expect($quote->refresh()->quoted_commit_id)->toBeNull();
+});
+
 it('leaves a tombstone for a reply of a deleted user that other people replied to', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->create();
@@ -61,6 +72,7 @@ it('erases the replies of a deleted user that only have their own replies under 
     resolve(DeleteUser::class)->handle($user);
 
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$commit->id]);
+
 });
 
 it('erases the mutes and blocks of a deleted user in both directions', function (): void {
@@ -77,6 +89,7 @@ it('erases the mutes and blocks of a deleted user in both directions', function 
     expect($other->muting()->count())->toBe(0)
         ->and($other->blocking()->count())->toBe(0)
         ->and($other->blockers()->count())->toBe(0);
+
 });
 
 it('erases authored polls and the users votes while keeping other polls and voters', function (): void {

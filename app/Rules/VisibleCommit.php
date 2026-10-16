@@ -11,7 +11,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 
 final readonly class VisibleCommit implements ValidationRule
 {
-    public function __construct(private User $user)
+    public function __construct(private User $user, private ?string $message = null)
     {
         //
     }
@@ -19,7 +19,7 @@ final readonly class VisibleCommit implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (! is_string($value) || ! Commit::query()->visibleTo($this->user)->whereKey($value)->exists()) {
-            $fail(__('That commit is no longer available to reply to.'));
+            $fail($this->message ?? __('That commit is no longer available to reply to.'));
         }
     }
 }

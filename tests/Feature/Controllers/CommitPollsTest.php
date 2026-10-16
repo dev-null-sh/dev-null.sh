@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use App\Actions\DeleteUser;
+use App\Actions\UpdateCommitStatus;
+use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Enums\NotificationType;
 use App\Enums\PollDuration;
 use App\Jobs\UnfurlLink;
 use App\Models\Bookmark;
@@ -59,6 +62,56 @@ it('keeps a poll when its link card is chosen or removed', function (?string $li
     } else {
         Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
     }
+})->with(['chosen' => 'https://example.com/second', 'removed' => null]);
+
+it('keeps polls and link card choices on quotes through approval without exposing quoted votes', function (?string $linkPreviewUrl): void {
+    Queue::fake([UnfurlLink::class]);
+
+    $user = User::factory()->create();
+    $quotedAuthor = User::factory()->create(['username' => 'quoted-writer']);
+    $quoted = Poll::factory()->for(Commit::factory()->for($quotedAuthor))->withOptions('Private A', 'Private B')->create();
+    $voter = User::factory()->create(['username' => 'private-voter']);
+    PollVote::factory()->for($quoted->options[0], 'option')->for($voter)->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Compare @quoted-writer https://example.com/first and https://example.com/second',
+            'quoted_commit_id' => $quoted->commit_id,
+            'link_preview_url' => $linkPreviewUrl,
+            'poll' => ['options' => ['First', 'Second'], 'duration' => PollDuration::OneDay->value],
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirectToRoute('log.show', Log::Following);
+
+    $quote = $user->commits()->sole();
+
+    expect($quote->quoted_commit_id)->toBe($quoted->commit_id)
+        ->and($quote->poll->opened_at)->toBeNull()
+        ->and($quote->linkPreview?->url)->toBe($linkPreviewUrl);
+
+    resolve(UpdateCommitStatus::class)->handle($quote, CommitStatus::Approved);
+
+    $notification = $quotedAuthor->notifications()->sole();
+
+    expect($quote->poll->refresh()->opened_at?->toIso8601String())->toBe(now()->toIso8601String())
+        ->and($user->notifications()->exists())->toBeFalse()
+        ->and($notification->type)->toBe(NotificationType::Quoted)
+        ->and($notification->actor_id)->toBe($user->id)
+        ->and($notification->commit_id)->toBe($quote->id);
+
+    auth()->logout();
+
+    $this->get(route('commit.show', [$user, $quote]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('auth.user', null)
+            ->where('commit.poll.options.0.label', 'First')
+            ->where('commit.poll.total_votes', null)
+            ->where('commit.quoted_commit.id', $quoted->commit_id)
+            ->missing('commit.quoted_commit.poll'))
+        ->assertDontSee('private-voter')
+        ->assertDontSee($voter->id);
 })->with(['chosen' => 'https://example.com/second', 'removed' => null]);
 
 it('does not create a poll when its chosen link card is outside the body', function (): void {
