@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateCommitHotScores;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -47,7 +48,7 @@ it('renders each author with their effective lane', function (): void {
     Commit::factory()->for($automatic)->create();
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -59,19 +60,52 @@ it('renders each author with their effective lane', function (): void {
 it('renders commits of everyone newest first', function (): void {
     $user = User::factory()->create();
 
-    Commit::factory()->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
+    $starred = Commit::factory()->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
+    $starred->stars()->attach(User::factory()->create());
+    resolve(UpdateCommitHotScores::class)->handle([$starred->id]);
     Commit::factory()->create(['body' => 'Newer']);
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/latest');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('log/show')
-            ->where('log', 'everyone')
+            ->where('log', 'latest')
+            ->where('isRanked', false)
+            ->where('newestCommitId', null)
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('renders commits of everyone ranked by popularity', function (): void {
+    $user = User::factory()->create();
+
+    $starred = Commit::factory()->create(['body' => 'Starred', 'created_at' => now()->subHour()]);
+    $starred->stars()->attach(User::factory()->create());
+    resolve(UpdateCommitHotScores::class)->handle([$starred->id]);
+    Commit::factory()->create(['body' => 'Newer']);
+
+    $response = $this->actingAs($user)
+        ->get('/log/trending');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('log/show')
+            ->where('log', 'trending')
+            ->where('isRanked', true)
+            ->has('commits.data', 2)
+            ->where('commits.data.0.body', 'Starred')
+            ->where('commits.data.1.body', 'Newer'));
+});
+
+it('redirects the former everyone log to the trending log', function (): void {
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/log/everyone');
+
+    $response->assertRedirect('/log/trending')
+        ->assertStatus(301);
 });
 
 it('paginates the log', function (Log $log): void {
@@ -94,7 +128,7 @@ it('does not count the authenticated user relations when reloading only commits'
     $user = User::factory()->has(Commit::factory())->create();
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(function ($page): void {
@@ -114,7 +148,7 @@ it('does not count the authenticated user relations when reloading only commits'
 });
 
 it('remembers the last visited log', function (Log $log): void {
-    $user = User::factory()->create(['log' => $log === Log::Following ? Log::Everyone : Log::Following]);
+    $user = User::factory()->create(['log' => $log === Log::Following ? Log::Trending : Log::Following]);
 
     $response = $this->actingAs($user)
         ->get(route('log.show', $log));
@@ -126,13 +160,13 @@ it('remembers the last visited log', function (Log $log): void {
 })->with(Log::cases());
 
 it('does not update the user when the log is unchanged', function (): void {
-    $user = User::factory()->create(['log' => Log::Everyone]);
+    $user = User::factory()->create(['log' => Log::Trending]);
     $updatedAt = $user->updated_at;
 
     $this->travel(1)->minute();
 
     $this->actingAs($user)
-        ->get(route('log.show', Log::Everyone))
+        ->get(route('log.show', Log::Trending))
         ->assertOk();
 
     expect($user->refresh()->updated_at->equalTo($updatedAt))->toBeTrue();
@@ -298,7 +332,7 @@ it('only shows top-level commits with their reply counts', function (): void {
     Commit::factory()->for($parent, 'parent')->pending()->create();
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -402,7 +436,7 @@ it('defers suggested users to follow', function (): void {
     $suggested = User::factory()->has(Commit::factory())->create();
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -427,7 +461,7 @@ it('keeps the suggested users the client already loaded when navigating', functi
             'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
             'X-Inertia-Except-Once-Props' => 'suggestedUsers',
         ])
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertJsonMissingPath('props.suggestedUsers')
@@ -442,7 +476,7 @@ it('does not suggest users to follow once they are hidden', function (): void {
 
     $response = $this->actingAs($user)
         ->withUnencryptedCookie('who_to_follow', 'false')
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -460,7 +494,7 @@ it('offers the commits newer than a given one on top of the ranked log, newest f
     $newer = Commit::factory()->create();
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -475,7 +509,7 @@ it('offers the commits newer than a given one on top of the ranked log, newest f
             'X-Inertia-Partial-Component' => 'log/show',
             'X-Inertia-Partial-Data' => 'latestCommits',
         ])
-        ->get('/log/everyone?since='.$seen->id);
+        ->get('/log/trending?since='.$seen->id);
 
     $response->assertOk()
         ->assertJsonPath('props.latestCommits.0.id', $newer->id)
@@ -492,7 +526,7 @@ it('offers the commit just committed on top of the ranked log', function (): voi
     $starred->stars()->attach(User::factory()->create());
 
     $response = $this->actingAs($user)
-        ->from('/log/everyone')
+        ->from('/log/trending')
         ->followingRedirects()
         ->post(route('commit.store'), ['body' => 'Initial commit']);
 
@@ -517,12 +551,12 @@ it('leaves the user own commits out of the newer commits of the ranked log', fun
 
     $this->actingAs($user)
         ->withHeaders([...$headers, 'X-Inertia-Partial-Data' => 'newCommitsCount'])
-        ->get('/log/everyone?since='.$seen->id)
+        ->get('/log/trending?since='.$seen->id)
         ->assertJsonPath('props.newCommitsCount', 1);
 
     $this->actingAs($user)
         ->withHeaders([...$headers, 'X-Inertia-Partial-Data' => 'latestCommits'])
-        ->get('/log/everyone?since='.$seen->id)
+        ->get('/log/trending?since='.$seen->id)
         ->assertJsonCount(1, 'props.latestCommits')
         ->assertJsonPath('props.latestCommits.0.id', $other->id);
 });
@@ -542,7 +576,7 @@ it('offers the oldest of too many newer commits, so the rest are offered next', 
             'X-Inertia-Partial-Component' => 'log/show',
             'X-Inertia-Partial-Data' => 'latestCommits',
         ])
-        ->get('/log/everyone?since='.$seen->id);
+        ->get('/log/trending?since='.$seen->id);
 
     $response->assertJsonCount(LatestLogCommitsQuery::LIMIT, 'props.latestCommits')
         ->assertJsonPath('props.latestCommits.0.id', $commits[LatestLogCommitsQuery::LIMIT - 1]->id)

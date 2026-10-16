@@ -1,1 +1,1 @@
-export type Log = 'following' | 'everyone';
+export type Log = 'following' | 'latest' | 'trending';

@@ -244,7 +244,7 @@ it('returns only the viewers saved state across logs profiles commit pages and r
     Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $reply->id]);
     $user->following()->attach($other);
 
-    foreach ([route('log.show', 'everyone'), route('log.show', 'following'), route('user.show', $other), route('user.show', [$other, 'tab' => 'replies'])] as $url) {
+    foreach ([route('log.show', 'trending'), route('log.show', 'following'), route('user.show', $other), route('user.show', [$other, 'tab' => 'replies'])] as $url) {
         $this->actingAs($user)->get($url)->assertOk()->assertInertia(fn ($page) => $page
             ->where('commits.data.0.is_saved', true));
         $this->actingAs($other)->get($url)->assertOk()->assertInertia(fn ($page) => $page

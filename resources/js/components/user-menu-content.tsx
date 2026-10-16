@@ -1,6 +1,7 @@
-import { Link, router } from '@inertiajs/react';
-import { Bookmark, LogOut, Settings, UserRound } from 'lucide-react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { Activity, Bookmark, LogOut, Settings, UserRound } from 'lucide-react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
+import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export function UserMenuContent({ user }: Props) {
+    const { auth } = usePage().props;
     const cleanup = useMobileNavigation();
 
     const handleLogout = () => {
@@ -69,6 +71,18 @@ export function UserMenuContent({ user }: Props) {
                         Settings
                     </Link>
                 </DropdownMenuItem>
+                {auth.isAdmin && (
+                    <DropdownMenuItem asChild>
+                        <Link
+                            className="block w-full cursor-pointer"
+                            href={OperationsController.show()}
+                            onClick={cleanup}
+                        >
+                            <Activity className="mr-2" />
+                            Operations
+                        </Link>
+                    </DropdownMenuItem>
+                )}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>

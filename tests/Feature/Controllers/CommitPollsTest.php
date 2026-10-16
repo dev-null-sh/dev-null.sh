@@ -153,7 +153,7 @@ it('may not attach a poll to a reply', function (): void {
     $parent = Commit::factory()->create();
 
     $this->actingAs(User::factory()->create())
-        ->fromRoute('log.show', Log::Everyone)
+        ->fromRoute('log.show', Log::Trending)
         ->post(route('commit.store'), [
             'body' => 'Tabs or spaces?',
             'parent_id' => $parent->id,
@@ -184,7 +184,7 @@ it('highlights code in the question of a poll like in any commit', function (): 
     Poll::factory()->for(Commit::factory()->state(['body' => 'Do you still run `composer dump`?']))->withOptions('Yes', 'No')->create();
 
     $this->actingAs(User::factory()->create())
-        ->get(route('log.show', Log::Everyone))
+        ->get(route('log.show', Log::Trending))
         ->assertInertia(fn ($page) => $page
             ->where('commits.data.0.poll.options.0.label', 'Yes')
             ->where('commits.data.0.body_segments.1', ['type' => 'code', 'code' => 'composer dump']));
@@ -256,18 +256,18 @@ it('shows the poll of a pending commit to moderators', function (): void {
 });
 
 it('loads the polls of the log with a bounded number of queries', function (): void {
-    $user = User::factory()->create(['log' => Log::Everyone]);
+    $user = User::factory()->create(['log' => Log::Trending]);
     Poll::factory()->withOptions('Tabs', 'Spaces')->create();
     $this->actingAs($user);
     DB::enableQueryLog();
 
-    $this->get(route('log.show', Log::Everyone))->assertOk();
+    $this->get(route('log.show', Log::Trending))->assertOk();
     $singleCount = count(DB::getQueryLog());
     Poll::factory()->count(19)->withOptions('Vim', 'Emacs', 'Nano')->create();
     PollVote::factory()->count(5)->create();
     DB::flushQueryLog();
 
-    $this->get(route('log.show', Log::Everyone))->assertOk()->assertInertia(fn ($page) => $page->has('commits.data', 20));
+    $this->get(route('log.show', Log::Trending))->assertOk()->assertInertia(fn ($page) => $page->has('commits.data', 20));
     expect(count(DB::getQueryLog()))->toBe($singleCount);
     DB::disableQueryLog();
 });
@@ -278,7 +278,7 @@ it('keeps poll choices and results when newer commits are prepended to the ranke
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
     PollVote::factory()->for($poll->options[1], 'option')->for($user)->create();
 
-    $this->actingAs($user)->get(route('log.show', Log::Everyone))
+    $this->actingAs($user)->get(route('log.show', Log::Trending))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('newestCommitId', $poll->commit_id));
 
@@ -287,7 +287,7 @@ it('keeps poll choices and results when newer commits are prepended to the ranke
         'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
         'X-Inertia-Partial-Component' => 'log/show',
         'X-Inertia-Partial-Data' => 'latestCommits',
-    ])->get(route('log.show', ['log' => Log::Everyone, 'since' => $seen->id]))
+    ])->get(route('log.show', ['log' => Log::Trending, 'since' => $seen->id]))
         ->assertOk()
         ->assertJsonCount(1, 'props.latestCommits')
         ->assertJsonPath('props.latestCommits.0.id', $poll->commit_id)

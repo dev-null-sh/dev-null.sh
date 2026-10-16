@@ -1,6 +1,7 @@
 import { Form, Link, usePage } from '@inertiajs/react';
 import { ChartBar, Clock3, Plus, X } from 'lucide-react';
-import { useState, type KeyboardEvent } from 'react';
+import type { KeyboardEvent } from 'react';
+import { createRef, useMemo, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitSeriesController from '@/actions/App/Http/Controllers/CommitSeriesController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
@@ -16,11 +17,13 @@ import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import type { PollDraft } from '@/components/poll-editor';
 import { emptyPollDraft, PollEditor } from '@/components/poll-editor';
+import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCards } from '@/hooks/use-link-card';
+import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useSeriesStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { completeEmoji, suggestEmoji } from '@/lib/emoji';
@@ -78,6 +81,17 @@ export function CommitComposer() {
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const hasImages = attachments.images.length > 0;
     const linkCards = useLinkCards(bodies);
+    const textareas = useMemo(
+        () =>
+            Array.from({ length: maxParts }, () =>
+                createRef<HTMLTextAreaElement>(),
+            ),
+        [],
+    );
+    const secrets = useSecretWarning(bodies);
+    const firstSecretPart = secrets.findingsByPart.findIndex(
+        (findings) => findings.length > 0,
+    );
 
     const isSeries = bodies.length > 1;
     const canAddPart =
@@ -154,6 +168,7 @@ export function CommitComposer() {
                 : isSeries
                   ? CommitSeriesController.store.form()
                   : CommitController.store.form())}
+            onBefore={secrets.beforeSubmit}
             transform={(data) =>
                 isScheduling
                     ? {
@@ -231,6 +246,7 @@ export function CommitComposer() {
                                                 : 'Body'}
                                         </label>
                                         <MentionTextarea
+                                            ref={textareas[index]}
                                             id={id}
                                             name={
                                                 isSeries ? 'bodies[]' : 'body'
@@ -294,6 +310,24 @@ export function CommitComposer() {
                                                     ? errors.link_preview_url
                                                     : undefined)
                                             }
+                                        />
+                                        <SecretWarning
+                                            body={body}
+                                            findings={
+                                                secrets.findingsByPart[index]
+                                            }
+                                            textarea={textareas[index]}
+                                            onChange={(text) =>
+                                                updateBody(index, text)
+                                            }
+                                            confirming={
+                                                secrets.confirming &&
+                                                index === firstSecretPart
+                                            }
+                                            onConfirmingChange={
+                                                secrets.setConfirming
+                                            }
+                                            onApprove={secrets.approve}
                                         />
 
                                         {index === 0 && (
