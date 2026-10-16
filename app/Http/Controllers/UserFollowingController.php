@@ -12,13 +12,13 @@ use Inertia\Response;
 
 final readonly class UserFollowingController
 {
-    public function index(#[CurrentUser] User $currentUser, User $user): Response
+    public function index(#[CurrentUser] ?User $currentUser, User $user): Response
     {
         return Inertia::render('user/connections', [
             'user' => $user,
             'type' => 'following',
             'users' => Inertia::scroll(fn () => $user->following()
-                ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($currentUser->id)])
+                ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $currentUser instanceof User ? $query->whereKey($currentUser->id) : $query->whereRaw('1 = 0')])
                 ->latest('follows.created_at')
                 ->latest('users.id')
                 ->cursorPaginate(30)),

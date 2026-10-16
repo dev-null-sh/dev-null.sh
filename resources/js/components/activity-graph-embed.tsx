@@ -1,4 +1,3 @@
-import { usePage } from '@inertiajs/react';
 import type { LucideIcon } from 'lucide-react';
 import { Check, Copy, Monitor, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -6,6 +5,7 @@ import { toast } from 'sonner';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { useUser } from '@/hooks/use-user';
 import { cn } from '@/lib/utils';
 
 type GraphTheme = 'light' | 'dark' | 'auto';
@@ -27,14 +27,14 @@ export default function ActivityGraphEmbed({
     activityGraphUrl: string;
     profileUrl: string;
 }) {
-    const { auth } = usePage().props;
+    const { user } = useUser();
     const [, copy] = useClipboard();
     const [theme, setTheme] = useState<GraphTheme>('light');
     const [isCopied, setIsCopied] = useState(false);
 
     const imageUrl = themedUrl(activityGraphUrl, theme);
     const snippet = `[![devnull activity](${imageUrl})](${profileUrl})`;
-    const previewUrl = `${imageUrl}${theme === 'light' ? '?' : '&'}lane=${auth.user.lane}`;
+    const previewUrl = `${imageUrl}${theme === 'light' ? '?' : '&'}lane=${user.lane}`;
 
     useEffect(() => {
         if (!isCopied) {
@@ -108,7 +108,7 @@ export default function ActivityGraphEmbed({
             <div className="mt-5 overflow-hidden rounded-lg border bg-background p-3 sm:p-4">
                 <img
                     src={previewUrl}
-                    alt={`Commit activity graph of @${auth.user.username}`}
+                    alt={`Commit activity graph of @${user.username}`}
                     width={754}
                     height={196}
                     className="h-auto w-full"
