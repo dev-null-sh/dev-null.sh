@@ -11,7 +11,7 @@ const shortcodeNames = Object.keys(shortcodeEmoji).sort(
 );
 
 const shortcodePattern = new RegExp(
-    `:(${shortcodeNames.map(escapeRegExp).join('|')}):?(?![A-Za-z0-9_])`,
+    `(?<![A-Za-z0-9_]):(${shortcodeNames.map(escapeRegExp).join('|')}):?(?![A-Za-z0-9_])`,
     'g',
 );
 
