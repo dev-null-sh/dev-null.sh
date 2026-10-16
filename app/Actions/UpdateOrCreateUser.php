@@ -9,6 +9,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Two\User as GitHubUser;
 
@@ -22,7 +23,7 @@ final readonly class UpdateOrCreateUser
         $githubId = (string) $githubUser->getId();
         $username = (string) $githubUser->getNickname();
 
-        $hasSponsorsListing = $this->hasSponsorsListing($githubUser->token);
+        $hasSponsorsListing = $this->hasSponsorsListing($githubUser->token, $username);
 
         return DB::transaction(function () use ($githubUser, $raw, $githubId, $username, $hasSponsorsListing): User {
             $this->freeUsername($username, $githubId);
@@ -58,27 +59,39 @@ final readonly class UpdateOrCreateUser
     }
 
     /**
-     * Only a public listing has a sponsors page to link to. The REST API doesn't say, so this asks
-     * GraphQL with the user's own token. Null when GitHub can't answer, which keeps the last known value.
+     * The REST API doesn't say, so this asks GraphQL with the user's own token. Everything inside the
+     * listing, even whether it's public, needs a read:user or read:org token, and sign-in only asks for
+     * user:email. Null when GitHub can't answer, which keeps the last known value.
      */
-    private function hasSponsorsListing(string $token): ?bool
+    private function hasSponsorsListing(string $token, string $username): ?bool
     {
         try {
             $response = Http::withToken($token)
                 ->connectTimeout(2)
                 ->timeout(3)
                 ->post('https://api.github.com/graphql', [
-                    'query' => 'query { viewer { sponsorsListing { isPublic } } }',
+                    'query' => 'query { viewer { hasSponsorsListing } }',
                 ]);
-        } catch (ConnectionException) {
+        } catch (ConnectionException $connectionException) {
+            Log::warning('Could not check the GitHub Sponsors listing.', [
+                'username' => $username,
+                'error' => $connectionException->getMessage(),
+            ]);
+
             return null;
         }
 
         if ($response->failed() || $response->json('errors') !== null) {
+            Log::warning('Could not check the GitHub Sponsors listing.', [
+                'username' => $username,
+                'status' => $response->status(),
+                'errors' => $response->json('errors') ?? $response->json('message'),
+            ]);
+
             return null;
         }
 
-        return $response->json('data.viewer.sponsorsListing.isPublic') === true;
+        return $response->json('data.viewer.hasSponsorsListing') === true;
     }
 
     private function website(mixed $value): ?string
