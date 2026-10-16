@@ -285,7 +285,7 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                         </span>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
-                        className="w-60"
+                        className="relative isolate w-60"
                         side="top"
                         align="start"
                     >
@@ -338,7 +338,10 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                         >
                             <UserAvatar user={auth.user} className="size-8" />
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-60" align="end">
+                        <DropdownMenuContent
+                            className="relative isolate w-60"
+                            align="end"
+                        >
                             <UserMenuContent user={auth.user} />
                         </DropdownMenuContent>
                     </DropdownMenu>

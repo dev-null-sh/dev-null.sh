@@ -115,6 +115,26 @@
     --animate-rail-draw: rail-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-star-pop: star-pop 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275)
         both;
+    --animate-dash-fall: dash-fall 1800ms cubic-bezier(0.4, 0, 0.6, 1) both;
+
+    @keyframes dash-fall {
+        0% {
+            transform: translateY(-4%);
+            opacity: 0;
+            filter: blur(0);
+        }
+        18% {
+            opacity: 1;
+        }
+        55% {
+            opacity: 0.6;
+        }
+        100% {
+            transform: translateY(72%);
+            opacity: 0;
+            filter: blur(2px);
+        }
+    }
 
     @keyframes star-pop {
         0% {
