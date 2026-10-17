@@ -60,10 +60,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: tmp/phpstan
-          key: ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock', 'phpstan.neon') }}-${{ github.sha }}
+          key: phpstan-cache-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock', 'phpstan.neon') }}-
-            ${{ runner.os }}-phpstan-
+            phpstan-cache-
 
       - name: Types
         run: composer test:types

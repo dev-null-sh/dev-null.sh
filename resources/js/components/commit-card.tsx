@@ -318,7 +318,10 @@ export function CommitCard({
                                 />
                             )}
                             {commit.link_preview && (
-                                <LinkPreview preview={commit.link_preview} />
+                                <LinkPreview
+                                    commitId={commit.id}
+                                    preview={commit.link_preview}
+                                />
                             )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">

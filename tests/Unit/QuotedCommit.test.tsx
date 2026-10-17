@@ -48,7 +48,7 @@ async function render(
     const result = await createInertiaApp({
         page: {
             component: 'quote',
-            props: { errors: {} },
+            props: { errors: {}, auth: { user: null, pasteis: null } },
             url: '/@author/quote',
             version: null,
             clearHistory: false,
@@ -100,6 +100,7 @@ void test('shows the images, link card and embed of a quoted commit inside the s
         image_url: 'https://laravel.com/og.png',
         site_name: 'Laravel',
         embed: null,
+        is_pending: false,
     };
     const spotify = {
         ...card,

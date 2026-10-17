@@ -79,7 +79,11 @@ export function QuotedCommit({
                 <CommitPoll commit={commit} poll={commit.poll} isStatic />
             )}
             {commit.link_preview && (
-                <LinkPreview preview={commit.link_preview} isStatic />
+                <LinkPreview
+                    commitId={commit.id}
+                    preview={commit.link_preview}
+                    isStatic
+                />
             )}
         </>
     );

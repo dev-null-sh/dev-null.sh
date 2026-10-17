@@ -8,6 +8,7 @@ use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
+use App\Http\Controllers\CommitLinkPreviewController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPastelController;
 use App\Http\Controllers\CommitPhotoController;
@@ -129,6 +130,8 @@ Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageCont
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
+    ->name('commit-link-preview.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');

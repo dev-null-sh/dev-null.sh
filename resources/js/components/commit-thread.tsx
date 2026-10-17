@@ -865,7 +865,10 @@ function CommitReply({
                     />
                     <CommitImages commit={reply} />
                     {reply.link_preview && (
-                        <LinkPreview preview={reply.link_preview} />
+                        <LinkPreview
+                            commitId={reply.id}
+                            preview={reply.link_preview}
+                        />
                     )}
 
                     {isConfirming ? (

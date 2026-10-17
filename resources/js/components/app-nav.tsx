@@ -7,6 +7,7 @@ import {
     Search,
     Settings2,
     ShieldCheck,
+    SquarePen,
     UserRound,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -190,7 +191,13 @@ function NavIcon({
     );
 }
 
-export function AppNav({ onSearch }: { onSearch: () => void }) {
+export function AppNav({
+    onSearch,
+    onCompose,
+}: {
+    onSearch: () => void;
+    onCompose: () => void;
+}) {
     const { auth } = usePage().props;
     const items = useNavItems();
     const keys = useKeyLabels();
@@ -267,6 +274,19 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                     </kbd>
                 </button>
             </nav>
+
+            <Button
+                type="button"
+                onClick={onCompose}
+                aria-label="Write a commit"
+                aria-keyshortcuts="c"
+                title="Write a commit (C)"
+                className="mt-4 h-[52px] w-[52px] shrink-0 rounded-lg text-[15px] lg:w-auto"
+                data-test="nav-commit-button"
+            >
+                <SquarePen className="size-5" />
+                <span className="sr-only lg:not-sr-only">Commit</span>
+            </Button>
 
             {auth.user === null ? (
                 <SignInButton className="mt-auto h-[52px] w-[52px] rounded-lg lg:w-auto" />
