@@ -17,7 +17,7 @@ final readonly class CreateCommitImageFiles
 
     private const int QUALITY = 60;
 
-    private const array ALLOWED_TYPES = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_GIF, IMAGETYPE_WEBP];
+    private const array ALLOWED_TYPES = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP];
 
     /**
      * Every image is decoded, scaled down, and re-encoded as WebP: metadata such as GPS location is dropped, and anything smuggled alongside the pixels is not kept.
@@ -81,7 +81,7 @@ final readonly class CreateCommitImageFiles
     private function invalid(): ValidationException
     {
         return ValidationException::withMessages([
-            'images' => __('Images must be JPEG, PNG, GIF, or WebP files of at most :size pixels per side.', ['size' => CreateCommitImages::MAX_SOURCE_DIMENSION]),
+            'images' => __('Images must be JPEG, PNG, or WebP files of at most :size pixels per side.', ['size' => CreateCommitImages::MAX_SOURCE_DIMENSION]),
         ]);
     }
 }

@@ -8,7 +8,7 @@ export const maxImages = 3;
 export const maxDescriptionLength = 1000;
 
 const maxImageBytes = 10 * 1024 * 1024;
-const acceptedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const acceptedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
 /**
  * Keeps the files the server would accept, and tells why any others were left out.
@@ -26,7 +26,7 @@ export function pickImages(
     if (accepted.length < picked.length) {
         return {
             images,
-            error: 'Only JPEG, PNG, GIF, or WebP images up to 10 MB.',
+            error: 'Only JPEG, PNG, or WebP images up to 10 MB.',
         };
     }
 
@@ -118,6 +118,22 @@ export function ImagePickerButton({
                 <ImagePlus className="size-5" />
             </Button>
         </>
+    );
+}
+
+export function ImageDropOverlay({ className }: { className?: string }) {
+    return (
+        <div
+            aria-hidden
+            className={cn(
+                'pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary bg-primary-soft/90 text-sm font-medium text-primary motion-safe:animate-in motion-safe:duration-150 motion-safe:fade-in-0',
+                className,
+            )}
+            data-test="image-drop-overlay"
+        >
+            <ImagePlus className="size-5" />
+            Drop images to attach
+        </div>
     );
 }
 

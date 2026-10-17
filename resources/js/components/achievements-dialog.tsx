@@ -4,7 +4,6 @@ import {
     Flame,
     GitMerge,
     Key,
-    Maximize,
     Server,
     Shield,
     Sparkles,
@@ -35,7 +34,6 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     star: Star,
     sparkles: Sparkles,
     'git-merge': GitMerge,
-    maximize: Maximize,
     key: Key,
 };
 

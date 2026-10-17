@@ -13,6 +13,7 @@ import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyCon
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
+    ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
@@ -723,6 +724,11 @@ function CommitReply({
 
     const isOwn = reply.user_id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
+    const isQuote = reply.quoted_commit_id === parent.id;
+    const permalink = CommitController.show({
+        user: reply.user,
+        commit: reply,
+    });
 
     const deleteReply = async () => {
         try {
@@ -796,14 +802,20 @@ function CommitReply({
                                 @{reply.user.username}
                             </Link>
                         </UserPreview>
+                        {isQuote && (
+                            <Link
+                                href={permalink}
+                                className="shrink-0 font-mono text-xs text-primary hover:underline"
+                                data-test="quote-reply-label"
+                            >
+                                quoted
+                            </Link>
+                        )}
                         <span aria-hidden className="text-muted-foreground">
                             ·
                         </span>
                         <Link
-                            href={CommitController.show({
-                                user: reply.user,
-                                commit: reply,
-                            })}
+                            href={permalink}
                             className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
                         >
                             <time
@@ -844,9 +856,10 @@ function CommitReply({
                         <p className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
                             <CornerDownRight className="size-3 shrink-0" />
                             <span className="truncate">
+                                {isQuote ? 'quoting' : 'replying to'}{' '}
                                 {isDeleted(parent)
-                                    ? 'replying to [deleted]'
-                                    : `replying to @${parent.user.username}`}
+                                    ? '[deleted]'
+                                    : `@${parent.user.username}`}
                             </span>
                         </p>
                     )}
@@ -1033,9 +1046,13 @@ function ReplyComposer({
     return (
         <form
             onSubmit={submit}
-            className="mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
+            {...attachments.dropzone}
+            className="relative mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
             data-test="reply-composer"
         >
+            {attachments.isDraggingFiles && (
+                <ImageDropOverlay className="-inset-px" />
+            )}
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
                 Reply to @{parent.user.username}
             </label>
@@ -1050,8 +1067,6 @@ function ReplyComposer({
                     onValueChange={updateBody}
                     onKeyDown={onKeyDown}
                     onPaste={attachments.onPaste}
-                    onDragOver={attachments.onDragOver}
-                    onDrop={attachments.onDrop}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
                     maxLength={maxBodyLength}
                     placeholder={`Reply to @${parent.user.username}`}
