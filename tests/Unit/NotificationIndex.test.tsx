@@ -118,3 +118,48 @@ for (const isFollowing of [false, true]) {
         assert.doesNotMatch(body, /```/);
     });
 }
+
+void test('links stargazers to their profiles and the action to the starred commit', async () => {
+    const starred = {
+        ...notification,
+        id: 'star-notification',
+        group_id: 'star-notification',
+        type: 'starred',
+        commit_id: 'commit',
+        subject_id: 'commit',
+        commit: { ...notification.commit, id: 'commit' },
+    } as NotificationGroup;
+    const body = await render([starred]);
+
+    assert.match(body, /<a[^>]*href="\/@mnapoli"[^>]*>Matthieu Napoli<\/a>/);
+    assert.match(body, /<a tabindex="-1"[^>]*href="\/@mnapoli"/);
+    assert.match(
+        body,
+        /<a[^>]*href="\/@nunomaduro\/commits\/commit"[^>]*>starred your commit<\/a>/,
+    );
+    assert.doesNotMatch(body, /<a\b[^>]*>(?:(?!<\/a>).)*<a\b/s);
+});
+
+void test('lists each stargazer and stacked avatar as a profile link', async () => {
+    const other = {
+        ...actor,
+        id: 'other',
+        name: 'Ana Ruiz',
+        username: 'anaruiz',
+        lane: 1,
+    } as User;
+    const starred = {
+        ...notification,
+        id: 'stars',
+        group_id: 'stars',
+        type: 'starred',
+        event_count: 2,
+        actors: [actor, other],
+        actors_count: 2,
+    } as NotificationGroup;
+    const body = await render([starred]);
+
+    assert.match(body, /Matthieu Napoli<\/a><\/span> (?:<!-- -->)?and 1 other/);
+    assert.match(body, /<a[^>]*href="\/@anaruiz"/);
+    assert.doesNotMatch(body, /<a\b[^>]*>(?:(?!<\/a>).)*<a\b/s);
+});
