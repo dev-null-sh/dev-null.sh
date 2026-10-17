@@ -169,8 +169,24 @@ async function fetchSuggestions(
     return data.users;
 }
 
+/**
+ * Where the query matches the text, preferring the start of a word, so ":art" marks "arts" in "martial_arts".
+ */
+function matchIndex(text: string, query: string): number {
+    const lower = text.toLowerCase();
+    const first = query === '' ? -1 : lower.indexOf(query);
+
+    for (let at = first; at !== -1; at = lower.indexOf(query, at + 1)) {
+        if (at === 0 || /[^\p{L}\p{N}]/u.test(lower[at - 1])) {
+            return at;
+        }
+    }
+
+    return first;
+}
+
 function Highlighted({ text, query }: { text: string; query: string }) {
-    const index = query === '' ? -1 : text.toLowerCase().indexOf(query);
+    const index = matchIndex(text, query);
 
     if (index === -1) {
         return text;

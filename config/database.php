@@ -99,6 +99,8 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Compiling a log or inbox query just in time costs more than running it: a few hundred milliseconds each...
+            'server_options' => ['jit' => env('DB_JIT', 'off')],
         ],
 
         'sqlsrv' => [

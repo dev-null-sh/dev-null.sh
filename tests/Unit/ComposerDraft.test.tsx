@@ -65,7 +65,7 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
 
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
-const { ImagePickerButton, ImagePickerPreviews } =
+const { ImageDropOverlay, ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
 const { ComposerPreviewBody, PreviewToggle } =
     await import('../../resources/js/components/composer-preview');
@@ -114,55 +114,55 @@ beforeEach(() => {
     draft.descriptions = [];
 });
 
-test('preserves restored images and link cards while preventing scheduling', () => {
-        draft.images = [image];
-        draft.descriptions = ['A restored screenshot'];
-        const { form, fields } = render();
-        const data = {
-            body: draft.body,
-            link_preview_url: 'https://example.com',
-        };
-        assert.deepEqual(form.props.transform(data), {
-            ...data,
-            images: [image],
-            image_descriptions: ['A restored screenshot'],
-        });
-        const preview = fields.find(
-            (element) => element.type === ImagePickerPreviews,
-        )!;
-        assert.deepEqual(preview.props.images, [image]);
-        const picker = fields.find(
-            (element) => element.type === ImagePickerButton,
-        )!;
-        assert.equal(picker.props.count, 1);
-        const schedule = fields.find(
-            (element) => element.props['aria-controls'] === 'body-schedule',
-        )!;
-        assert.equal(schedule.props.disabled, true);
-        assert.equal(
-            fields.find(
-                (element) => element.props['data-test'] === 'add-poll-button',
-            )!.props.disabled,
-            true,
-        );
-        assert.equal(
-            fields.filter((element) => element.type === LinkCardPicker).length,
-            1,
-        );
+test('preserves restored images and link cards and allows scheduling them', () => {
+    draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
+    const { form, fields } = render();
+    const data = {
+        body: draft.body,
+        link_preview_url: 'https://example.com',
+    };
+    assert.deepEqual(form.props.transform(data), {
+        ...data,
+        images: [image],
+        image_descriptions: ['A restored screenshot'],
+    });
+    const preview = fields.find(
+        (element) => element.type === ImagePickerPreviews,
+    )!;
+    assert.deepEqual(preview.props.images, [image]);
+    const picker = fields.find(
+        (element) => element.type === ImagePickerButton,
+    )!;
+    assert.equal(picker.props.count, 1);
+    const schedule = fields.find(
+        (element) => element.props['aria-controls'] === 'body-schedule',
+    )!;
+    assert.equal(schedule.props.disabled, false);
+    assert.equal(
+        fields.find(
+            (element) => element.props['data-test'] === 'add-poll-button',
+        )!.props.disabled,
+        true,
+    );
+    assert.equal(
+        fields.filter((element) => element.type === LinkCardPicker).length,
+        1,
+    );
 
-        form.props.onSuccess({
-            flash: { toast: { type: 'error', message: 'Slow down' } },
-        });
-        assert.equal(draft.drop.mock.calls.length, 0);
-        assert.deepEqual(draft.images, [image]);
-        vi.stubGlobal('requestAnimationFrame', vi.fn());
-        try {
-            form.props.onSuccess({ flash: {} });
-            assert.deepEqual(draft.images, []);
-            assert.equal(draft.drop.mock.calls.length, 1);
-        } finally {
-            vi.unstubAllGlobals();
-        }
+    form.props.onSuccess({
+        flash: { toast: { type: 'error', message: 'Slow down' } },
+    });
+    assert.equal(draft.drop.mock.calls.length, 0);
+    assert.deepEqual(draft.images, [image]);
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        form.props.onSuccess({ flash: {} });
+        assert.deepEqual(draft.images, []);
+        assert.equal(draft.drop.mock.calls.length, 1);
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });
 
 test('removing restored images enables polls and successful posting resets the poll', () => {
@@ -199,16 +199,20 @@ test('removing restored images enables polls and successful posting resets the p
         );
         assert.equal(
             view.fields.find(
-                (element) =>
-                    element.props['aria-controls'] === 'body-schedule',
+                (element) => element.props['aria-controls'] === 'body-schedule',
             )!.props.disabled,
-            true,
+            false,
         );
         const textarea = view.fields.find(
             (element) => element.type === MentionTextarea,
         )!;
         assert.equal(textarea.props.onPaste, undefined);
-        assert.equal(textarea.props.onDrop, undefined);
+        assert.equal(
+            view.fields.some(
+                (element) => element.props.onDragEnter !== undefined,
+            ),
+            false,
+        );
 
         (editor.props.onChange as (poll: unknown) => void)({
             options: ['Tabs', 'Spaces'],
@@ -248,7 +252,47 @@ test('removing restored images enables polls and successful posting resets the p
     }
 });
 
-test('schedules plain text in UTC and keeps pasted images visible until removed before scheduling', () => {
+test('dropping images anywhere on the composer attaches them while dragging text is left alone', () => {
+    const dragged = (types: string[], files: File[] = []) => ({
+        dataTransfer: { types, files, dropEffect: 'none' },
+        preventDefault: vi.fn(),
+    });
+    const dropzone = () =>
+        render().fields.find(
+            (element) => element.props.onDragEnter !== undefined,
+        )!;
+    const isOverlaid = () =>
+        render().fields.some((element) => element.type === ImageDropOverlay);
+
+    const text = dragged(['text/plain']);
+    (dropzone().props.onDragEnter as (event: unknown) => void)(text);
+    (dropzone().props.onDragOver as (event: unknown) => void)(text);
+    assert.equal(text.preventDefault.mock.calls.length, 0);
+    assert.equal(isOverlaid(), false);
+
+    const files = dragged(['Files'], [image]);
+    (dropzone().props.onDragEnter as (event: unknown) => void)(files);
+    (dropzone().props.onDragEnter as (event: unknown) => void)(files);
+    (dropzone().props.onDragLeave as (event: unknown) => void)(files);
+    (dropzone().props.onDragOver as (event: unknown) => void)(files);
+    assert.equal(files.dataTransfer.dropEffect, 'copy');
+    assert.equal(isOverlaid(), true);
+
+    (dropzone().props.onDrop as (event: unknown) => void)(files);
+    assert.equal(isOverlaid(), false);
+    assert.ok(files.preventDefault.mock.calls.length > 0);
+    assert.deepEqual(
+        render().fields.find((element) => element.type === ImagePickerPreviews)!
+            .props.images,
+        [image],
+    );
+
+    (dropzone().props.onDragEnter as (event: unknown) => void)(files);
+    (dropzone().props.onDragLeave as (event: unknown) => void)(files);
+    assert.equal(isOverlaid(), false);
+});
+
+test('schedules in UTC with pasted images and the chosen link card', () => {
     let view = render();
     const schedule = view.fields.find(
         (element) => element.props['aria-controls'] === 'body-schedule',
@@ -266,19 +310,20 @@ test('schedules plain text in UTC and keeps pasted images visible until removed 
     });
     assert.deepEqual(setCustomValidity.mock.lastCall, ['']);
     view = render();
+    const scheduledAt = new Date(date)
+        .toISOString()
+        .replace(/\.\d{3}Z$/, '+00:00');
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
-        scheduled_at: new Date(date)
-            .toISOString()
-            .replace(/\.\d{3}Z$/, '+00:00'),
+        scheduled_at: scheduledAt,
     });
     assert.equal(
         view.fields.some((element) => element.type === ImagePickerButton),
-        false,
+        true,
     );
     assert.equal(
         view.fields.some((element) => element.type === LinkCardPicker),
-        false,
+        true,
     );
     const textarea = view.fields.find(
         (element) => element.type === MentionTextarea,
@@ -290,29 +335,24 @@ test('schedules plain text in UTC and keeps pasted images visible until removed 
     });
     assert.equal(preventDefault.mock.calls.length, 1);
     view = render();
-    const submit = view.fields.find(
-        (element) => element.props['data-test'] === 'create-commit-button',
-    )!;
-    assert.equal(submit.props.disabled, true);
-    const preview = view.fields.find(
-        (element) => element.type === ImagePickerPreviews,
-    )!;
-    assert.deepEqual(preview.props.images, [image]);
-    assert.ok(
-        view.fields.some(
-            (element) =>
-                element.props.message ===
-                "Images can't be scheduled yet. Remove them to schedule this commit.",
-        ),
-    );
-    (preview.props.onRemove as (index: number) => void)(0);
-    view = render();
     assert.equal(
         view.fields.find(
             (element) => element.props['data-test'] === 'create-commit-button',
         )!.props.disabled,
         false,
     );
+    assert.deepEqual(
+        view.fields.find((element) => element.type === ImagePickerPreviews)!
+            .props.images,
+        [image],
+    );
+    const data = { body: draft.body, link_preview_url: '' };
+    assert.deepEqual(view.form.props.transform(data), {
+        ...data,
+        images: [image],
+        image_descriptions: [''],
+        scheduled_at: scheduledAt,
+    });
 });
 
 test('retains restored images while sensitive text requires explicit approval', () => {
