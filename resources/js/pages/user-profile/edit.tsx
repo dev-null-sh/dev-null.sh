@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Form, Head, Link } from '@inertiajs/react';
 import { ArrowUpRight, Download, RefreshCw } from 'lucide-react';
 import ExportController from '@/actions/App/Http/Controllers/ExportController';
@@ -17,13 +18,13 @@ import SettingsLayout from '@/layouts/settings/layout';
 import { formatFullDateTime } from '@/lib/utils';
 import { show } from '@/routes/user';
 
-function formatSyncedAgo(date: string, now: Date): string {
+function formatSyncedAgo(date: string, now: Date, justNow: string): string {
     const seconds = Math.round(
         (now.getTime() - new Date(date).getTime()) / 1000,
     );
 
     if (seconds < 60) {
-        return 'just now';
+        return justNow;
     }
 
     const [value, unit]: [number, Intl.RelativeTimeFormatUnit] =
@@ -54,15 +55,16 @@ export default function Edit({
 }) {
     const { user } = useUser();
     const now = useNow();
+    const { __ } = useLang();
 
     return (
         <>
-            <Head title="Profile settings" />
+            <Head title={__('settings.profile.title')} />
 
             <section className="px-4 py-6 sm:px-6">
                 <Heading
-                    title="Profile information"
-                    description="Mirrored from GitHub when you sign in. To change any of it, change it on GitHub, then sync it here."
+                    title={__('settings.profile.information')}
+                    description={__('settings.profile.information_description')}
                 />
 
                 <GitHubProfile />
@@ -74,7 +76,7 @@ export default function Edit({
                             target="_blank"
                             rel="noopener noreferrer"
                         >
-                            Edit on GitHub
+                            {__('settings.profile.edit_on_github')}
                             <ArrowUpRight />
                         </a>
                     </Button>
@@ -91,12 +93,14 @@ export default function Edit({
                                 data-test="sync-profile-button"
                             >
                                 {processing ? <Spinner /> : <RefreshCw />}
-                                Sync from GitHub
+                                {__('settings.profile.sync')}
                             </Button>
                         )}
                     </Form>
                     <Button variant="outline" asChild>
-                        <Link href={show(user)}>View profile</Link>
+                        <Link href={show(user)}>
+                            {__('settings.profile.view')}
+                        </Link>
                     </Button>
                 </div>
 
@@ -106,16 +110,20 @@ export default function Edit({
                 >
                     {githubSyncedAt ? (
                         <>
-                            Last synced{' '}
+                            {__('settings.profile.last_synced')}{' '}
                             <time
                                 dateTime={githubSyncedAt}
                                 title={formatFullDateTime(githubSyncedAt)}
                             >
-                                {formatSyncedAgo(githubSyncedAt, now)}
+                                {formatSyncedAgo(
+                                    githubSyncedAt,
+                                    now,
+                                    __('settings.profile.just_now'),
+                                )}
                             </time>
                         </>
                     ) : (
-                        'Last synced when you signed in'
+                        __('settings.profile.last_synced_at_sign_in')
                     )}
                 </p>
             </section>
@@ -134,17 +142,16 @@ export default function Edit({
 
             <section className="px-4 py-6 sm:px-6">
                 <Heading
-                    title="Export your data"
-                    description="Download everything we store about you: your profile, commits and replies (including pending, rejected, and deleted ones), stars, saved commits, follows, mutes, blocks, notifications, SSH key fingerprints, and active sessions."
+                    title={__('settings.profile.export')}
+                    description={__('settings.profile.export_description')}
                 />
                 <p className="mb-5 text-sm text-muted-foreground">
-                    Other people's replies are excluded. Your export is a JSON
-                    file. Your profile is still managed on GitHub.
+                    {__('settings.profile.export_note')}
                 </p>
                 <Button variant="outline" asChild>
                     <a href={ExportController.url()}>
                         <Download />
-                        Download JSON
+                        {__('settings.profile.download_json')}
                     </a>
                 </Button>
             </section>

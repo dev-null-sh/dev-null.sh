@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { useHttp } from '@inertiajs/react';
 import { Eye, Link2 } from 'lucide-react';
 import type { KeyboardEvent, RefObject } from 'react';
@@ -126,6 +127,7 @@ export function PreviewToggle({
     className?: string;
 }) {
     const keys = useKeyLabels();
+    const { __ } = useLang();
 
     return (
         <Button
@@ -134,9 +136,11 @@ export function PreviewToggle({
             size="icon"
             onClick={() => preview.toggle()}
             aria-pressed={preview.isPreviewing}
-            aria-label="Preview"
+            aria-label={__('composer.preview.label')}
             aria-keyshortcuts="Meta+Shift+P Control+Shift+P"
-            title={`Preview (${keys.combo(keys.mod, keys.shift, 'P')})`}
+            title={__('composer.preview.title', {
+                keys: keys.combo(keys.mod, keys.shift, 'P'),
+            })}
             className={cn(
                 'text-muted-foreground aria-pressed:bg-primary-soft aria-pressed:text-primary aria-pressed:hover:bg-primary-soft aria-pressed:hover:text-primary',
                 className,
@@ -161,12 +165,14 @@ export function ComposerPreviewBody({
     url: string | null;
     className?: string;
 }) {
+    const { __ } = useLang();
+
     return (
         <div
             id={preview.previewId}
             tabIndex={-1}
             role="region"
-            aria-label="Preview"
+            aria-label={__('composer.preview.label')}
             onKeyDown={preview.onPreviewKeyDown}
             className={cn('min-w-0 outline-none', className)}
             data-test="composer-preview"
@@ -178,7 +184,7 @@ export function ComposerPreviewBody({
                 />
             ) : (
                 <p className="text-[15px] leading-relaxed text-muted-foreground">
-                    Nothing to preview yet.
+                    {__('composer.preview.empty')}
                 </p>
             )}
 
@@ -204,7 +210,7 @@ export function ComposerPreviewBody({
                             {url.replace(/^https?:\/\//i, '')}
                         </p>
                         <p className="text-sm leading-snug text-muted-foreground">
-                            Unfurls into a link card after you commit.
+                            {__('composer.preview.link_card')}
                         </p>
                     </div>
                 </div>

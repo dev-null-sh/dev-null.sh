@@ -11,6 +11,7 @@
         "test:unit": "node --experimental-strip-types --test tests/Unit/*.test.ts"
     },
     "dependencies": {
+        "@erag/lang-sync-inertia": "^3.1.0",
         "@headlessui/react": "^2.2.10",
         "@inertiajs/react": "^3.9.1",
         "@inertiajs/vite": "^3.9.1",

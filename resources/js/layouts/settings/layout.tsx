@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import type { PropsWithChildren } from 'react';
 import { PageTabs } from '@/components/page-tabs';
 import { useCurrentUrl } from '@/hooks/use-current-url';
@@ -8,33 +9,35 @@ import { edit } from '@/routes/user-profile';
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentUrl } = useCurrentUrl();
+    const { __ } = useLang();
 
     return (
         <>
             <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:settings-header]">
                 <h1 className="flex h-14 items-center border-b px-4 font-semibold sm:px-6">
-                    Settings
+                    {__('settings.title')}
                 </h1>
                 <PageTabs
-                    label="Settings"
+                    label={__('settings.title')}
+                    name="Settings"
                     tabs={[
                         {
-                            title: 'Profile',
+                            title: __('settings.tabs.profile'),
                             href: edit(),
                             isActive: isCurrentUrl(edit()),
                         },
                         {
-                            title: 'Appearance',
+                            title: __('settings.tabs.appearance'),
                             href: editAppearance(),
                             isActive: isCurrentUrl(editAppearance()),
                         },
                         {
-                            title: 'Terminal',
+                            title: __('settings.tabs.terminal'),
                             href: showTerminal(),
                             isActive: isCurrentUrl(showTerminal()),
                         },
                         {
-                            title: 'Safety',
+                            title: __('settings.tabs.safety'),
                             href: editSafety(),
                             isActive: isCurrentUrl(editSafety()),
                         },

@@ -1,0 +1,68 @@
+{
+    "title": "Notificaciones",
+    "filter_label": "Filtrar notificaciones",
+    "filters": {
+        "all": "Todas",
+        "replies": "Respuestas",
+        "quotes": "Citas",
+        "stars": "Estrellas",
+        "mentions": "Menciones",
+        "follows": "Seguidores",
+        "moderation": "Moderación"
+    },
+    "empty": {
+        "all": "Aún no hay nada aquí. Aquí aparecerán seguidores, estrellas, respuestas, citas, menciones y novedades de moderación de tus commits.",
+        "replies": "Aún no hay respuestas. Cuando alguien responda a uno de tus commits, aparecerá aquí.",
+        "quotes": "Aún no hay citas. Cuando alguien cite uno de tus commits, aparecerá aquí.",
+        "stars": "Aún no hay estrellas. Cuando alguien le dé estrella a uno de tus commits, aparecerá aquí.",
+        "mentions": "Aún no hay menciones. Cuando alguien te mencione en un commit, aparecerá aquí.",
+        "follows": "Aún no tienes seguidores. Cuando alguien te siga, aparecerá aquí.",
+        "moderation": "No hay novedades de moderación. Aquí aparecen los commits aprobados y rechazados."
+    },
+    "show_all": "Mostrar todas las notificaciones",
+    "new_label": "notificación nueva|notificaciones nuevas",
+    "loading_more": "Cargando más notificaciones",
+    "end": "Esa es la notificación más antigua. No hay nada antes.",
+    "last_visit": "Las notificaciones de arriba son nuevas desde tu última visita",
+    "new": "Nueva.",
+    "try_again": "Reintentar",
+    "groups": {
+        "followers": {
+            "count": ":count seguidor|:count seguidores",
+            "hide": "Ocultar seguidores",
+            "loading": "Cargando seguidores…",
+            "failed": "fatal: no se pudieron cargar los seguidores",
+            "older": "Mostrar seguidores anteriores"
+        },
+        "stars": {
+            "count": ":count estrella|:count estrellas",
+            "hide": "Ocultar estrellas",
+            "loading": "Cargando estrellas…",
+            "failed": "fatal: no se pudieron cargar las estrellas",
+            "older": "Mostrar estrellas anteriores"
+        },
+        "updates": {
+            "count": ":count novedad|:count novedades",
+            "hide": "Ocultar novedades",
+            "loading": "Cargando novedades…",
+            "failed": "fatal: no se pudieron cargar las novedades",
+            "older": "Mostrar novedades anteriores"
+        }
+    },
+    "actions": {
+        "followed": "te siguió",
+        "replied": "respondió a tu commit",
+        "quoted": "citó tu commit",
+        "starred": "le dio estrella a tu commit",
+        "mentioned": "te mencionó",
+        "approved": "Tu commit fue aprobado",
+        "rejected": "Tu commit fue rechazado"
+    },
+    "and_others": "y :count más|y :count más",
+    "statuses": {
+        "approved": "aprobado",
+        "rejected": "rechazado"
+    },
+    "reason": "motivo:",
+    "rejected_note": "Solo tú puedes ver esta novedad y tu commit rechazado."
+}

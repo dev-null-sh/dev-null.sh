@@ -1,0 +1,13 @@
+{
+    "title": "खोजें",
+    "title_with_query": ":query · खोज",
+    "placeholder": "मतलब से कमिट खोजें",
+    "input_label": "कमिट खोजें",
+    "clear": "खोज साफ़ करें",
+    "most_relevant": "सबसे प्रासंगिक कमिट",
+    "matches": "नतीजा|नतीजे",
+    "nothing_close": "':term' जैसा कुछ नहीं मिला",
+    "nothing_close_hint": "अपने विचार को दूसरे शब्दों में लिखकर देखें, या नीचे दी गई कोई खोज चुनें।",
+    "searching": "कमिट खोजे जा रहे हैं",
+    "try_searching": "ये खोजकर देखें…"
+}

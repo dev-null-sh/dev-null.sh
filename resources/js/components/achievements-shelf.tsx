@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import {
     Award,
     Box,
@@ -48,6 +49,7 @@ export function AchievementsShelf({
     lane: string;
     onInspect: () => void;
 }) {
+    const { __ } = useLang();
     const unlockedCount = achievements.badges.filter((b) => b.unlocked).length;
     const nextRank = achievements.ranks.find(
         (r) => r.level === achievements.level + 1,
@@ -55,7 +57,7 @@ export function AchievementsShelf({
 
     return (
         <section
-            aria-label="Developer achievements"
+            aria-label={__('users.achievements.label')}
             className="border-b px-4 py-3 sm:px-6"
         >
             <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[13px] text-muted-foreground">
@@ -66,10 +68,15 @@ export function AchievementsShelf({
                 >
                     <Award className="size-4 text-foreground" />
                     <span className="font-medium text-foreground group-hover:underline">
-                        Lv. {achievements.level} · {achievements.rank}
+                        {__('users.achievements.level', {
+                            level: achievements.level,
+                            rank: achievements.rank,
+                        })}
                     </span>
                     <span aria-hidden>·</span>
-                    <span>{achievements.xp} XP</span>
+                    <span>
+                        {__('users.achievements.xp', { xp: achievements.xp })}
+                    </span>
                 </button>
                 <button
                     type="button"
@@ -77,7 +84,10 @@ export function AchievementsShelf({
                     className="flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground hover:underline"
                 >
                     <span>
-                        {unlockedCount} / {achievements.badges.length} unlocked
+                        {__('users.achievements.unlocked', {
+                            unlocked: unlockedCount,
+                            total: achievements.badges.length,
+                        })}
                     </span>
                     <ChevronRight className="size-3.5" />
                 </button>
@@ -88,13 +98,21 @@ export function AchievementsShelf({
                 <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground">
                     <span>
                         {achievements.next_level_xp
-                            ? `${achievements.xp} / ${achievements.next_level_xp} XP`
-                            : `${achievements.xp} XP`}
+                            ? __('users.achievements.xp_progress', {
+                                  xp: achievements.xp,
+                                  next: achievements.next_level_xp,
+                              })
+                            : __('users.achievements.xp', {
+                                  xp: achievements.xp,
+                              })}
                     </span>
                     <span>
                         {nextRank
-                            ? `${nextRank.min_xp - achievements.xp} XP to ${nextRank.rank}`
-                            : 'Maximum rank (UID 0)'}
+                            ? __('users.achievements.xp_to_rank', {
+                                  xp: nextRank.min_xp - achievements.xp,
+                                  rank: nextRank.rank,
+                              })
+                            : __('users.achievements.max_rank')}
                     </span>
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">

@@ -1,0 +1,13 @@
+{
+    "title": "Buscar",
+    "title_with_query": ":query · Buscar",
+    "placeholder": "Busca commits por significado",
+    "input_label": "Buscar commits",
+    "clear": "Borrar búsqueda",
+    "most_relevant": "Commits más relevantes",
+    "matches": "resultado|resultados",
+    "nothing_close": "nada parecido a ':term'",
+    "nothing_close_hint": "Intenta describir la idea con otras palabras o elige una de las búsquedas de abajo.",
+    "searching": "Buscando commits",
+    "try_searching": "Prueba a buscar…"
+}

@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head, Link } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
@@ -92,20 +93,22 @@ export default function Edit({
     muted: User[];
     blocked: User[];
 }) {
+    const { __ } = useLang();
+
     return (
         <>
-            <Head title="Safety settings" />
+            <Head title={__('settings.safety.title')} />
 
             <section className="px-4 py-6 sm:px-6">
                 <Heading
-                    title="Muted"
-                    description="Their commits and replies stay out of your logs, threads, search, and suggestions, and they can't notify you. They aren't told, and you can still visit their profile."
+                    title={__('settings.safety.muted')}
+                    description={__('settings.safety.muted_description')}
                 />
                 <PeopleList
                     people={muted}
-                    empty="You haven't muted anyone."
+                    empty={__('settings.safety.muted_empty')}
                     undo={(person) => ({
-                        label: 'Unmute',
+                        label: __('settings.safety.unmute'),
                         href: UserMuteController.destroy(person),
                     })}
                 />
@@ -113,14 +116,14 @@ export default function Edit({
 
             <section className="px-4 py-6 sm:px-6">
                 <Heading
-                    title="Blocked"
-                    description="Neither of you can follow, reply to, or star the other, or see each other's commits. Unblocking doesn't bring back follows."
+                    title={__('settings.safety.blocked')}
+                    description={__('settings.safety.blocked_description')}
                 />
                 <PeopleList
                     people={blocked}
-                    empty="You haven't blocked anyone."
+                    empty={__('settings.safety.blocked_empty')}
                     undo={(person) => ({
-                        label: 'Unblock',
+                        label: __('settings.safety.unblock'),
                         href: UserBlockController.destroy(person),
                     })}
                 />

@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { ArrowLeft, Clock3, LockKeyhole } from 'lucide-react';
 import { useState } from 'react';
@@ -31,51 +32,57 @@ export default function Index({
     const now = useNow();
     const [canceling, setCanceling] = useState<string | null>(null);
     usePoll(30_000, { only: ['scheduledCommits'] });
+    const { __ } = useLang();
 
     const labels = {
-        pending: 'Submitted for review',
-        approved: 'Approved',
-        rejected: 'Rejected',
-        deleted: 'Deleted',
+        pending: __('settings.scheduled.status.pending'),
+        approved: __('settings.scheduled.status.approved'),
+        rejected: __('settings.scheduled.status.rejected'),
+        deleted: __('settings.scheduled.status.deleted'),
     };
 
     return (
         <>
-            <Head title="Scheduled commits" />
+            <Head title={__('settings.scheduled.title')} />
             <div className="flex h-14 items-center gap-3 border-b px-4">
                 <Link
                     href={LogController.show('following')}
-                    aria-label="Back to Log"
+                    aria-label={__('settings.scheduled.back_to_log')}
                     className="rounded-md p-2 text-muted-foreground hover:bg-accent"
                 >
                     <ArrowLeft className="size-4" />
                 </Link>
-                <h1 className="font-semibold">Scheduled commits</h1>
+                <h1 className="font-semibold">
+                    {__('settings.scheduled.title')}
+                </h1>
                 <LockKeyhole
                     className="ml-auto size-4 text-muted-foreground"
-                    aria-label="Private"
+                    aria-label={__('settings.scheduled.private')}
                 />
             </div>
             <div className="border-b px-5 py-4 sm:px-6">
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                    Only you can see this list. At the scheduled time, each
-                    commit goes through the usual review process. Scheduling is
-                    not approval.
+                    {__('settings.scheduled.intro')}
                 </p>
                 <p className="mt-2 font-mono text-xs text-muted-foreground">
-                    Times in {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                    {__('settings.scheduled.times_in', {
+                        timezone:
+                            Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    })}
                 </p>
             </div>
             {scheduledCommits.data.length === 0 ? (
                 <div className="space-y-3 px-6 py-14 text-center">
                     <Clock3 className="mx-auto size-6 text-muted-foreground" />
-                    <p className="font-medium">No scheduled commits</p>
+                    <p className="font-medium">
+                        {__('settings.scheduled.empty_title')}
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                        Choose Schedule in the composer to submit later.
+                        {__('settings.scheduled.empty_description')}
                     </p>
                     <Button asChild variant="outline" size="sm">
                         <Link href={LogController.show('following')}>
-                            Back to Log
+                            {__('settings.scheduled.back_to_log')}
                         </Link>
                     </Button>
                 </div>
@@ -95,8 +102,12 @@ export default function Index({
                                         <p className="text-sm font-medium">
                                             {scheduled.status === 'scheduled'
                                                 ? due
-                                                    ? 'Waiting for submission'
-                                                    : 'Scheduled'
+                                                    ? __(
+                                                          'settings.scheduled.status.waiting',
+                                                      )
+                                                    : __(
+                                                          'settings.scheduled.status.scheduled',
+                                                      )
                                                 : labels[scheduled.status]}
                                         </p>
                                         <time
@@ -116,7 +127,20 @@ export default function Index({
                                             variant="outline"
                                             size="sm"
                                             disabled={canceling !== null}
-                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
+                                            aria-label={__(
+                                                'settings.scheduled.cancel_label',
+                                                {
+                                                    time: new Date(
+                                                        scheduled.scheduled_at,
+                                                    ).toLocaleString(
+                                                        undefined,
+                                                        {
+                                                            dateStyle: 'medium',
+                                                            timeStyle: 'short',
+                                                        },
+                                                    ),
+                                                },
+                                            )}
                                             onClick={() => {
                                                 setCanceling(scheduled.id);
                                                 router.delete(
@@ -132,8 +156,12 @@ export default function Index({
                                             }}
                                         >
                                             {canceling === scheduled.id
-                                                ? 'Canceling…'
-                                                : 'Cancel'}
+                                                ? __(
+                                                      'settings.scheduled.canceling',
+                                                  )
+                                                : __(
+                                                      'settings.scheduled.cancel',
+                                                  )}
                                         </Button>
                                     )}
                                 </div>
@@ -149,8 +177,10 @@ export default function Index({
                                 {scheduled.status === 'scheduled' && (
                                     <p className="text-xs text-muted-foreground">
                                         {due
-                                            ? 'Waiting for the scheduler. If submission fails, it is retried automatically.'
-                                            : 'Private until submitted. You can cancel before submission.'}
+                                            ? __('settings.scheduled.due_note')
+                                            : __(
+                                                  'settings.scheduled.private_note',
+                                              )}
                                     </p>
                                 )}
                             </li>
@@ -163,13 +193,15 @@ export default function Index({
                 <div className="flex justify-between border-t px-6 py-4 text-sm text-primary">
                     {scheduledCommits.prev_page_url ? (
                         <Link href={scheduledCommits.prev_page_url}>
-                            Previous
+                            {__('settings.scheduled.previous')}
                         </Link>
                     ) : (
                         <span />
                     )}
                     {scheduledCommits.next_page_url && (
-                        <Link href={scheduledCommits.next_page_url}>Next</Link>
+                        <Link href={scheduledCommits.next_page_url}>
+                            {__('settings.scheduled.next')}
+                        </Link>
                     )}
                 </div>
             )}

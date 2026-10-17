@@ -1,0 +1,207 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'actions' => [
+        'cancel' => 'Cancelar',
+        'delete' => 'Eliminar',
+        'more' => 'Más acciones',
+        'reply' => 'Responder',
+    ],
+
+    'status' => [
+        'pending' => 'pendiente',
+        'approved' => 'aprobado',
+        'rejected' => 'rechazado',
+    ],
+
+    'card' => [
+        'pending_title' => 'Solo tú puedes ver este commit hasta que sea aprobado.',
+        'rejected_title' => 'Este commit fue rechazado. Solo tú puedes verlo.',
+        'commit_title' => 'Commit :id',
+        'delete' => 'Eliminar commit',
+        'replying_to' => 'respondiendo a @:username',
+        'replying_to_deleted' => 'respondiendo a [deleted]',
+        'confirm_delete' => 'Confirmar eliminación',
+        'confirm_delete_message' => '¿Eliminar este commit? Puedes deshacerlo durante 30 segundos.',
+        'tombstone' => 'Este commit fue eliminado.',
+    ],
+
+    'thread' => [
+        'unsent_reply' => 'Tienes una respuesta sin enviar aquí',
+        'show_replies' => 'Mostrar respuestas',
+        'hide_replies' => 'Ocultar respuestas',
+        'replies' => ':count respuesta|:count respuestas',
+        'loading_replies' => 'Cargando respuestas',
+        'loading_replies_ellipsis' => 'Cargando respuestas…',
+        'show_more' => 'Mostrar más',
+        'show_more_to' => 'Ver más respuestas a',
+        'delete' => 'Eliminar respuesta',
+        'delete_failed' => 'No se pudo eliminar tu respuesta. Inténtalo de nuevo.',
+        'confirm_delete_message' => '¿Eliminar esta respuesta? Puedes deshacerlo durante 30 segundos.',
+        'reply_failed' => 'No se pudo enviar tu respuesta. Inténtalo de nuevo.',
+        'parent_unavailable' => 'Ese commit ya no está disponible para responder.',
+        'reply_to' => 'Responder a @:username',
+        'replying' => 'Respondiendo…',
+    ],
+
+    'feed' => [
+        'pinned_commit' => 'Commit fijado',
+        'pinned' => 'Fijado',
+        'latest_commits' => 'Últimos commits',
+        'just_now' => 'Justo ahora',
+        'top_commits' => 'Commits destacados',
+        'loading_more' => 'Cargando más commits',
+        'today' => 'Hoy',
+        'yesterday' => 'Ayer',
+        'last_visit_label' => 'Los commits de arriba son nuevos desde tu última visita',
+        'last_visit' => 'última visita',
+    ],
+
+    'body' => [
+        'show_more' => 'Mostrar más',
+    ],
+
+    'images' => [
+        'attached' => 'Imagen adjunta',
+        'attached_numbered' => 'Imagen adjunta :position de :count',
+    ],
+
+    'viewer' => [
+        'hide_commit' => 'Ocultar commit',
+        'show_commit' => 'Mostrar commit',
+        'hide_description' => 'Ocultar descripción de la imagen',
+        'show_description' => 'Mostrar descripción de la imagen',
+        'commit' => 'Commit',
+        'previous' => 'Anterior',
+        'next' => 'Siguiente',
+        'close' => 'Cerrar',
+        'slide' => 'Diapositiva',
+        'carousel' => 'Carrusel',
+        'lightbox' => 'Visor',
+        'photo_gallery' => 'Galería de fotos',
+        'slide_position' => ':index de :total',
+        'zoom_in' => 'Acercar',
+        'zoom_out' => 'Alejar',
+        'download' => 'Descargar',
+    ],
+
+    'poll' => [
+        'vote_failed' => 'No se pudo registrar tu voto. Inténtalo de nuevo.',
+        'votes' => ':count voto|:count votos',
+        'opens_once_approved' => 'La votación se abre cuando se apruebe',
+        'closed' => 'Encuesta cerrada',
+        'final_results' => 'Resultados finales',
+        'time_left' => 'Quedan :time',
+        'options' => 'Opciones de la encuesta',
+        'results' => 'Resultados de la encuesta',
+        'vote' => 'Votar',
+        'voting' => 'Votando…',
+        'your_vote' => ', tu voto',
+    ],
+
+    'quote' => [
+        'quoting' => 'Citando',
+        'unavailable' => 'Este commit no está disponible.',
+    ],
+
+    'report' => [
+        'title' => 'Reportar commit',
+        'description' => 'Tu reporte es privado. Solo los moderadores pueden revisarlo. Reportar no oculta este commit.',
+        'too_many' => 'Demasiados reportes. Espera un minuto e inténtalo de nuevo.',
+        'unavailable' => 'Este commit ya no está disponible para reportar.',
+        'network_error' => 'No se pudo enviar tu reporte. Revisa tu conexión e inténtalo de nuevo.',
+        'reason_legend' => '¿Por qué reportas este commit?',
+        'reasons' => [
+            'spam' => 'Spam o enlaces engañosos',
+            'harassment' => 'Acoso u odio',
+            'unsafe' => 'Información dañina o privada',
+            'other' => 'Otra cosa',
+        ],
+        'details' => 'Detalles',
+        'optional' => '(opcional)',
+        'details_hint' => 'Agrega contexto para los moderadores. Hasta 500 caracteres.',
+        'sending' => 'Enviando…',
+        'send' => 'Enviar reporte',
+    ],
+
+    'bookmark' => [
+        'failed' => 'No se pudieron actualizar tus commits guardados. Inténtalo de nuevo.',
+        'save_commit' => 'Guardar commit',
+        'unsave_commit' => 'Quitar de guardados',
+        'saved' => 'Guardado',
+        'save_privately' => 'Guardar commit en privado',
+    ],
+
+    'copy_link' => [
+        'copy' => 'Copiar enlace',
+        'copied' => 'Enlace a :hash copiado',
+        'failed' => 'no se pudo copiar el enlace a :hash',
+    ],
+
+    'star' => [
+        'star' => 'Dar estrella',
+        'unstar' => 'Quitar estrella',
+        'star_commit' => 'Dar estrella al commit',
+        'unstar_commit' => 'Quitar estrella al commit',
+        'star_commit_count' => 'Dar estrella al commit, :count estrella|Dar estrella al commit, :count estrellas',
+        'unstar_commit_count' => 'Quitar estrella al commit, :count estrella|Quitar estrella al commit, :count estrellas',
+        'no_stars' => 'Aún no hay estrellas',
+        'stars' => ':count estrella|:count estrellas',
+    ],
+
+    'undo' => [
+        'expired' => 'El tiempo para deshacer expiró.',
+        'restored' => 'Commit restaurado.',
+        'restore_failed' => 'No se pudo restaurar este commit.',
+        'deleted' => 'Commit eliminado.',
+        'time_to_undo' => ':time para deshacer',
+        'availability' => 'Puedes deshacer durante 30 segundos después de eliminar.',
+        'restoring' => 'Restaurando…',
+        'undo' => 'Deshacer',
+    ],
+
+    'pastel' => [
+        'exhausted' => 'te quedaste sin pastéis. espera hasta mañana.',
+        'count' => ':count pastel|:count pastéis',
+        'award_failed' => 'No se pudo dar el pastel. Inténtalo de nuevo.',
+        'give_label' => 'Dar un pastel, :pasteis, te quedan :remaining hoy',
+        'give_title' => 'Dar un pastel · te quedan :remaining hoy · se reinicia a las 00:00 UTC',
+    ],
+
+    'pin' => [
+        'pin_to_profile' => 'Fijar en el perfil',
+        'unpin_from_profile' => 'Desfijar del perfil',
+        'pinned' => 'Commit fijado en tu perfil.',
+        'unpinned' => 'Commit desfijado.',
+        'failed' => 'No se pudo actualizar tu commit fijado.',
+        'saving' => 'Guardando…',
+        'pin' => 'Fijar',
+        'unpin' => 'Desfijar',
+    ],
+
+    'embed' => [
+        'play' => 'Reproducir :title de :provider',
+        'player' => 'Reproductor de :provider',
+    ],
+
+    'code' => [
+        'copy' => 'Copiar código',
+        'copied' => 'Código copiado al portapapeles',
+        'copy_failed' => 'No se pudo copiar el código. Selecciónalo y cópialo manualmente.',
+        'wrap_lines' => 'Ajustar líneas',
+    ],
+
+    'copyable' => [
+        'copy' => 'Copiar :label',
+        'copied' => 'Se copió :label',
+        'failed' => 'no se pudo copiar :label',
+    ],
+
+    'show' => [
+        'title' => ':name: “:excerpt”',
+        'back' => 'Volver',
+        'heading' => 'Commit',
+    ],
+];

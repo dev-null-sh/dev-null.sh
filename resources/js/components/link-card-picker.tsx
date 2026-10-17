@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { ChevronDown, Link2, Link2Off } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +36,8 @@ export function LinkCardPicker({
     labelClassName?: string;
     name?: string;
 }) {
+    const { __ } = useLang();
+
     if (linkCard.links.length === 0) {
         return null;
     }
@@ -51,7 +54,7 @@ export function LinkCardPicker({
                         variant="ghost"
                         size="sm"
                         disabled={disabled}
-                        title="Choose which link gets a card"
+                        title={__('composer.link_card.title')}
                         className={cn(
                             'min-w-0 gap-1.5 px-2 font-mono text-[13px] font-normal text-muted-foreground',
                             className,
@@ -59,10 +62,12 @@ export function LinkCardPicker({
                         data-test="link-card-button"
                     >
                         {linkCard.link === null ? <Link2Off /> : <Link2 />}
-                        <span className="sr-only">Link card:</span>
+                        <span className="sr-only">
+                            {__('composer.link_card.sr_label')}
+                        </span>
                         <span className={cn('truncate', labelClassName)}>
                             {linkCard.link === null
-                                ? 'No card'
+                                ? __('composer.link_card.none')
                                 : withoutScheme(linkCard.link)}
                         </span>
                         <ChevronDown className="size-3.5 opacity-60" />
@@ -74,7 +79,7 @@ export function LinkCardPicker({
                     className="w-72 max-w-[calc(100vw-2rem)]"
                 >
                     <DropdownMenuLabel className="font-mono text-xs font-normal text-muted-foreground">
-                        Link card
+                        {__('composer.link_card.label')}
                     </DropdownMenuLabel>
                     <DropdownMenuRadioGroup
                         value={linkCard.link ?? noCard}
@@ -96,7 +101,7 @@ export function LinkCardPicker({
                         ))}
                         <DropdownMenuSeparator />
                         <DropdownMenuRadioItem value={noCard}>
-                            No card
+                            {__('composer.link_card.none')}
                         </DropdownMenuRadioItem>
                     </DropdownMenuRadioGroup>
                 </DropdownMenuContent>

@@ -10,6 +10,7 @@ import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { SearchDialog } from '@/components/search-dialog';
+import { useUndoToastLabels } from '@/hooks/use-flash-toast';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
@@ -26,6 +27,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const showShortcuts = useCallback(() => setIsShowingShortcuts(true), []);
     const openSearch = useCallback(() => setIsSearching(true), []);
     const isGuest = auth.user === null;
+
+    useUndoToastLabels();
     const compose = useCallback(() => {
         if (isGuest) {
             signIn();

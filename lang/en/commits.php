@@ -1,0 +1,207 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'actions' => [
+        'cancel' => 'Cancel',
+        'delete' => 'Delete',
+        'more' => 'More actions',
+        'reply' => 'Reply',
+    ],
+
+    'status' => [
+        'pending' => 'pending',
+        'approved' => 'approved',
+        'rejected' => 'rejected',
+    ],
+
+    'card' => [
+        'pending_title' => 'Only you can see this commit until it is approved.',
+        'rejected_title' => 'This commit was rejected. Only you can see it.',
+        'commit_title' => 'Commit :id',
+        'delete' => 'Delete commit',
+        'replying_to' => 'replying to @:username',
+        'replying_to_deleted' => 'replying to [deleted]',
+        'confirm_delete' => 'Confirm delete',
+        'confirm_delete_message' => 'Delete this commit? You can undo for 30 seconds.',
+        'tombstone' => 'This commit was deleted.',
+    ],
+
+    'thread' => [
+        'unsent_reply' => 'You have an unsent reply here',
+        'show_replies' => 'Show replies',
+        'hide_replies' => 'Hide replies',
+        'replies' => ':count reply|:count replies',
+        'loading_replies' => 'Loading replies',
+        'loading_replies_ellipsis' => 'Loading replies…',
+        'show_more' => 'Show more',
+        'show_more_to' => 'Show more to',
+        'delete' => 'Delete reply',
+        'delete_failed' => 'Could not delete your reply. Try again.',
+        'confirm_delete_message' => 'Delete this reply? You can undo for 30 seconds.',
+        'reply_failed' => 'Could not send your reply. Try again.',
+        'parent_unavailable' => 'That commit is no longer available to reply to.',
+        'reply_to' => 'Reply to @:username',
+        'replying' => 'Replying…',
+    ],
+
+    'feed' => [
+        'pinned_commit' => 'Pinned commit',
+        'pinned' => 'Pinned',
+        'latest_commits' => 'Latest commits',
+        'just_now' => 'Just now',
+        'top_commits' => 'Top commits',
+        'loading_more' => 'Loading more commits',
+        'today' => 'Today',
+        'yesterday' => 'Yesterday',
+        'last_visit_label' => 'Commits above are new since your last visit',
+        'last_visit' => 'last visit',
+    ],
+
+    'body' => [
+        'show_more' => 'Show more',
+    ],
+
+    'images' => [
+        'attached' => 'Attached image',
+        'attached_numbered' => 'Attached image :position of :count',
+    ],
+
+    'viewer' => [
+        'hide_commit' => 'Hide commit',
+        'show_commit' => 'Show commit',
+        'hide_description' => 'Hide image description',
+        'show_description' => 'Show image description',
+        'commit' => 'Commit',
+        'previous' => 'Previous',
+        'next' => 'Next',
+        'close' => 'Close',
+        'slide' => 'Slide',
+        'carousel' => 'Carousel',
+        'lightbox' => 'Lightbox',
+        'photo_gallery' => 'Photo gallery',
+        'slide_position' => ':index of :total',
+        'zoom_in' => 'Zoom in',
+        'zoom_out' => 'Zoom out',
+        'download' => 'Download',
+    ],
+
+    'poll' => [
+        'vote_failed' => 'Could not record your vote. Try again.',
+        'votes' => ':count vote|:count votes',
+        'opens_once_approved' => 'Voting opens once approved',
+        'closed' => 'Poll closed',
+        'final_results' => 'Final results',
+        'time_left' => ':time left',
+        'options' => 'Poll options',
+        'results' => 'Poll results',
+        'vote' => 'Vote',
+        'voting' => 'Voting…',
+        'your_vote' => ', your vote',
+    ],
+
+    'quote' => [
+        'quoting' => 'Quoting',
+        'unavailable' => "This commit isn't available.",
+    ],
+
+    'report' => [
+        'title' => 'Report commit',
+        'description' => 'Your report is private. Only moderators can review it. Reporting does not hide this commit.',
+        'too_many' => 'Too many reports. Please wait a minute and try again.',
+        'unavailable' => 'This commit is no longer available to report.',
+        'network_error' => 'Could not send your report. Check your connection and try again.',
+        'reason_legend' => 'Why are you reporting this commit?',
+        'reasons' => [
+            'spam' => 'Spam or misleading links',
+            'harassment' => 'Harassment or hate',
+            'unsafe' => 'Harmful or private information',
+            'other' => 'Something else',
+        ],
+        'details' => 'Details',
+        'optional' => '(optional)',
+        'details_hint' => 'Add context for moderators. Up to 500 characters.',
+        'sending' => 'Sending…',
+        'send' => 'Send report',
+    ],
+
+    'bookmark' => [
+        'failed' => 'Could not update your saved commits. Try again.',
+        'save_commit' => 'Save commit',
+        'unsave_commit' => 'Unsave commit',
+        'saved' => 'Saved',
+        'save_privately' => 'Save commit privately',
+    ],
+
+    'copy_link' => [
+        'copy' => 'Copy link',
+        'copied' => 'Copied link to :hash',
+        'failed' => 'could not copy link to :hash',
+    ],
+
+    'star' => [
+        'star' => 'Star',
+        'unstar' => 'Unstar',
+        'star_commit' => 'Star commit',
+        'unstar_commit' => 'Unstar commit',
+        'star_commit_count' => 'Star commit, :count star|Star commit, :count stars',
+        'unstar_commit_count' => 'Unstar commit, :count star|Unstar commit, :count stars',
+        'no_stars' => 'No stars yet',
+        'stars' => ':count star|:count stars',
+    ],
+
+    'undo' => [
+        'expired' => 'Undo window expired.',
+        'restored' => 'Commit restored.',
+        'restore_failed' => 'Unable to restore this commit.',
+        'deleted' => 'Commit deleted.',
+        'time_to_undo' => ':time to undo',
+        'availability' => 'Undo is available for 30 seconds after deletion.',
+        'restoring' => 'Restoring…',
+        'undo' => 'Undo',
+    ],
+
+    'pastel' => [
+        'exhausted' => 'you ran out of pastéis. wait until tomorrow.',
+        'count' => ':count pastel|:count pastéis',
+        'award_failed' => 'Could not award a pastel. Please try again.',
+        'give_label' => 'Give a pastel, :pasteis, :remaining left today',
+        'give_title' => 'Give a pastel · :remaining left today · resets at 00:00 UTC',
+    ],
+
+    'pin' => [
+        'pin_to_profile' => 'Pin to profile',
+        'unpin_from_profile' => 'Unpin from profile',
+        'pinned' => 'Commit pinned to your profile.',
+        'unpinned' => 'Commit unpinned.',
+        'failed' => 'Could not update your pinned commit.',
+        'saving' => 'Saving…',
+        'pin' => 'Pin',
+        'unpin' => 'Unpin',
+    ],
+
+    'embed' => [
+        'play' => 'Play :title from :provider',
+        'player' => ':provider player',
+    ],
+
+    'code' => [
+        'copy' => 'Copy code',
+        'copied' => 'Code copied to clipboard',
+        'copy_failed' => 'Could not copy code. Select it and copy manually.',
+        'wrap_lines' => 'Wrap lines',
+    ],
+
+    'copyable' => [
+        'copy' => 'Copy :label',
+        'copied' => 'Copied :label',
+        'failed' => 'could not copy :label',
+    ],
+
+    'show' => [
+        'title' => ':name: “:excerpt”',
+        'back' => 'Back',
+        'heading' => 'Commit',
+    ],
+];

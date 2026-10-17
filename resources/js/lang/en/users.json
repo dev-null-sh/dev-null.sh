@@ -1,0 +1,175 @@
+{
+    "counts": {
+        "commits": "commit|commits",
+        "following": "following",
+        "followers": "follower|followers"
+    },
+    "follows_you": "Follows you",
+    "muted": "Muted",
+    "follow": {
+        "follow": "Follow",
+        "following": "Following",
+        "unfollow": "Unfollow",
+        "follow_label": "Follow @:username",
+        "unfollow_label": "Unfollow @:username"
+    },
+    "profile": {
+        "edit_on_github": "Edit on GitHub",
+        "view_achievements": "View achievements and Unix rank",
+        "sponsor": "Sponsor on GitHub",
+        "joined": "Joined :date",
+        "pasteis_received": "pastéis received",
+        "feed_label": "Profile feed",
+        "tabs": {
+            "commits": "Commits",
+            "replies": "Replies"
+        },
+        "end": {
+            "own_first_reply": "That was your first reply.",
+            "first_reply": "That's @:username's first reply.",
+            "own_first_commit": "That was your first commit. Everyone starts somewhere.",
+            "root_commit": "That's @:username's root commit."
+        },
+        "empty": {
+            "replies_command": "fatal: no replies yet",
+            "own_replies": "Your replies show up here. Join a conversation from your log.",
+            "replies": "@:username hasn't replied to anything yet.",
+            "own_commits_command": "fatal: you do not have any commits yet",
+            "own_commits": "Your commits show up here. Make your first one from your log.",
+            "commits_command": "fatal: no commits yet",
+            "commits": "@:username hasn't committed anything yet."
+        }
+    },
+    "connections": {
+        "titles": {
+            "following": "Following",
+            "followers": "Followers"
+        },
+        "tabs_label": "Connections",
+        "back": "Back to @:username",
+        "empty_command": {
+            "following": "fatal: no following yet",
+            "followers": "fatal: no followers yet"
+        },
+        "empty": {
+            "following": "@:username isn't following anyone yet.",
+            "followers": "Nobody is following @:username yet."
+        }
+    },
+    "saved": {
+        "title": "Saved",
+        "only_you": "Only you",
+        "description": "Commits you want to come back to. Most recently saved first.",
+        "end": "You've reached the end of your saved commits.",
+        "empty_command": "fatal: no saved commits yet",
+        "empty": "Save a commit to find it here. Your saved commits are private.",
+        "explore": "Explore Trending"
+    },
+    "preview": {
+        "about": "About @:username",
+        "blocked": "You blocked @:username.",
+        "unavailable": "This profile is unavailable."
+    },
+    "safety": {
+        "more_options": "More options for @:username",
+        "mute": "Mute @:username",
+        "unmute": "Unmute @:username",
+        "block": "Block @:username",
+        "unblock": "Unblock @:username",
+        "block_title": "Block @:username?",
+        "block_description": "You'll stop following each other. Neither of you will be able to follow, reply to, or star the other, or see each other's commits. They won't be told, but they'll see your profile as unavailable. You can unblock them any time from your settings.",
+        "cancel": "Cancel",
+        "confirm_block": "Block"
+    },
+    "achievements": {
+        "title": "Developer Achievements",
+        "label": "Developer achievements",
+        "level": "Lv. :level · :rank",
+        "summary": "@:username · :xp XP · :unlocked\/:total badges unlocked",
+        "unlocked": ":unlocked \/ :total unlocked",
+        "xp": ":xp XP",
+        "xp_progress": ":xp \/ :next XP",
+        "xp_to_rank": ":xp XP to :rank",
+        "max_rank": "Maximum rank (UID 0)",
+        "badges_tab": "Badges (:count)",
+        "ranks_tab": "Unix Ranks (:count)",
+        "current": "CURRENT",
+        "achieved": "✓ Achieved",
+        "requires": "Requires :xp XP",
+        "formula": "XP: 10\/commit · 15\/day streak · 5\/star received · 5\/reply · 2\/star given"
+    },
+    "activity": {
+        "heading": "Commit activity",
+        "no_commits_yet": "No commits yet",
+        "no_commits": "No commits",
+        "commit_count": ":count commit|:count commits",
+        "summary": ":commits :window",
+        "windows": {
+            "day": "in the last 24 hours",
+            "week": "in the last 7 days",
+            "month": "in the last 30 days",
+            "year": "in the last year"
+        },
+        "on_date": ":commits on :date",
+        "between_today": ":commits between :start and :end today",
+        "between_yesterday": ":commits between :start and :end yesterday",
+        "month_day": ":month :day",
+        "date_with_year": ":month :day, :year",
+        "date_with_weekday": ":weekday, :month :day",
+        "weekday_day": ":weekday :day",
+        "less": "Less",
+        "more": "More",
+        "months": {
+            "jan": "Jan",
+            "feb": "Feb",
+            "mar": "Mar",
+            "apr": "Apr",
+            "may": "May",
+            "jun": "Jun",
+            "jul": "Jul",
+            "aug": "Aug",
+            "sep": "Sep",
+            "oct": "Oct",
+            "nov": "Nov",
+            "dec": "Dec"
+        },
+        "weekdays": {
+            "sun": "Sun",
+            "mon": "Mon",
+            "tue": "Tue",
+            "wed": "Wed",
+            "thu": "Thu",
+            "fri": "Fri",
+            "sat": "Sat"
+        }
+    },
+    "streaks": {
+        "longest": "longest streak",
+        "days": "day|days",
+        "current": "current"
+    },
+    "embed": {
+        "title": "Embed your activity graph",
+        "description": "Your commit graph as an SVG for your GitHub profile README, or anywhere Markdown renders. It only shows approved commits and refreshes about once an hour.",
+        "theme_label": "Graph theme",
+        "themes": {
+            "light": "Light",
+            "dark": "Dark",
+            "auto": "Auto"
+        },
+        "theme_hints": {
+            "light": "Always light, whatever the reader prefers.",
+            "dark": "Always dark, whatever the reader prefers.",
+            "auto": "Follows the color scheme of whoever is reading."
+        },
+        "preview_alt": "Commit activity graph of @:username",
+        "copy": "Copy Markdown",
+        "copied": "Copied",
+        "copied_toast": "Copied the Markdown. Paste it into your README.",
+        "copy_failed": "fatal: could not copy the Markdown"
+    },
+    "live": {
+        "heading": "Watch us build it, live",
+        "player_title": "Watch us build \/dev\/null live on YouTube"
+    }
+}

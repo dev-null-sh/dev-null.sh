@@ -1,0 +1,183 @@
+{
+    "actions": {
+        "cancel": "रद्द करें",
+        "delete": "डिलीट करें",
+        "more": "और विकल्प",
+        "reply": "जवाब दें"
+    },
+    "status": {
+        "pending": "लंबित",
+        "approved": "स्वीकृत",
+        "rejected": "अस्वीकृत"
+    },
+    "card": {
+        "pending_title": "स्वीकृत होने तक यह कमिट सिर्फ़ आप देख सकते हैं।",
+        "rejected_title": "यह कमिट अस्वीकार कर दिया गया। इसे सिर्फ़ आप देख सकते हैं।",
+        "commit_title": "कमिट :id",
+        "delete": "कमिट डिलीट करें",
+        "replying_to": "@:username को जवाब",
+        "replying_to_deleted": "[deleted] को जवाब",
+        "confirm_delete": "डिलीट की पुष्टि करें",
+        "confirm_delete_message": "यह कमिट डिलीट करें? आप 30 सेकंड तक इसे वापस ले सकते हैं।",
+        "tombstone": "यह कमिट डिलीट कर दिया गया।"
+    },
+    "thread": {
+        "unsent_reply": "यहाँ आपका एक जवाब भेजा नहीं गया है",
+        "show_replies": "जवाब दिखाएँ",
+        "hide_replies": "जवाब छिपाएँ",
+        "replies": ":count जवाब|:count जवाब",
+        "loading_replies": "जवाब लोड हो रहे हैं",
+        "loading_replies_ellipsis": "जवाब लोड हो रहे हैं…",
+        "show_more": "और दिखाएँ",
+        "show_more_to": "और जवाब देखें:",
+        "delete": "जवाब डिलीट करें",
+        "delete_failed": "आपका जवाब डिलीट नहीं हो सका। फिर से कोशिश करें।",
+        "confirm_delete_message": "यह जवाब डिलीट करें? आप 30 सेकंड तक इसे वापस ले सकते हैं।",
+        "reply_failed": "आपका जवाब भेजा नहीं जा सका। फिर से कोशिश करें।",
+        "parent_unavailable": "वह कमिट अब जवाब देने के लिए उपलब्ध नहीं है।",
+        "reply_to": "@:username को जवाब दें",
+        "replying": "जवाब भेजा जा रहा है…"
+    },
+    "feed": {
+        "pinned_commit": "पिन किया गया कमिट",
+        "pinned": "पिन किया गया",
+        "latest_commits": "नए कमिट",
+        "just_now": "अभी-अभी",
+        "top_commits": "टॉप कमिट",
+        "loading_more": "और कमिट लोड हो रहे हैं",
+        "today": "आज",
+        "yesterday": "कल",
+        "last_visit_label": "ऊपर के कमिट आपकी पिछली विज़िट के बाद के हैं",
+        "last_visit": "पिछली विज़िट"
+    },
+    "body": {
+        "show_more": "और दिखाएँ"
+    },
+    "images": {
+        "attached": "संलग्न इमेज",
+        "attached_numbered": ":count में से संलग्न इमेज :position"
+    },
+    "viewer": {
+        "hide_commit": "कमिट छिपाएँ",
+        "show_commit": "कमिट दिखाएँ",
+        "hide_description": "इमेज का विवरण छिपाएँ",
+        "show_description": "इमेज का विवरण दिखाएँ",
+        "commit": "कमिट",
+        "previous": "पिछला",
+        "next": "अगला",
+        "close": "बंद करें",
+        "slide": "स्लाइड",
+        "carousel": "कैरोसेल",
+        "lightbox": "लाइटबॉक्स",
+        "photo_gallery": "फ़ोटो गैलरी",
+        "slide_position": ":total में से :index",
+        "zoom_in": "ज़ूम इन",
+        "zoom_out": "ज़ूम आउट",
+        "download": "डाउनलोड करें"
+    },
+    "poll": {
+        "vote_failed": "आपका वोट दर्ज नहीं हो सका। फिर से कोशिश करें।",
+        "votes": ":count वोट|:count वोट",
+        "opens_once_approved": "स्वीकृत होने के बाद वोटिंग शुरू होगी",
+        "closed": "पोल बंद",
+        "final_results": "अंतिम नतीजे",
+        "time_left": ":time बाकी",
+        "options": "पोल के विकल्प",
+        "results": "पोल के नतीजे",
+        "vote": "वोट करें",
+        "voting": "वोट हो रहा है…",
+        "your_vote": ", आपका वोट"
+    },
+    "quote": {
+        "quoting": "कोट कर रहे हैं",
+        "unavailable": "यह कमिट उपलब्ध नहीं है।"
+    },
+    "report": {
+        "title": "कमिट रिपोर्ट करें",
+        "description": "आपकी रिपोर्ट निजी है। सिर्फ़ मॉडरेटर इसे देख सकते हैं। रिपोर्ट करने से यह कमिट छिपता नहीं है।",
+        "too_many": "बहुत ज़्यादा रिपोर्ट। एक मिनट रुककर फिर से कोशिश करें।",
+        "unavailable": "यह कमिट अब रिपोर्ट करने के लिए उपलब्ध नहीं है।",
+        "network_error": "आपकी रिपोर्ट भेजी नहीं जा सकी। अपना कनेक्शन जाँचें और फिर से कोशिश करें।",
+        "reason_legend": "आप इस कमिट को क्यों रिपोर्ट कर रहे हैं?",
+        "reasons": {
+            "spam": "स्पैम या भ्रामक लिंक",
+            "harassment": "उत्पीड़न या नफ़रत",
+            "unsafe": "हानिकारक या निजी जानकारी",
+            "other": "कुछ और"
+        },
+        "details": "विवरण",
+        "optional": "(वैकल्पिक)",
+        "details_hint": "मॉडरेटर के लिए संदर्भ जोड़ें। अधिकतम 500 अक्षर।",
+        "sending": "भेजा जा रहा है…",
+        "send": "रिपोर्ट भेजें"
+    },
+    "bookmark": {
+        "failed": "आपके सेव किए कमिट अपडेट नहीं हो सके। फिर से कोशिश करें।",
+        "save_commit": "कमिट सेव करें",
+        "unsave_commit": "सेव से हटाएँ",
+        "saved": "सेव किया गया",
+        "save_privately": "कमिट निजी रूप से सेव करें"
+    },
+    "copy_link": {
+        "copy": "लिंक कॉपी करें",
+        "copied": ":hash का लिंक कॉपी हो गया",
+        "failed": ":hash का लिंक कॉपी नहीं हो सका"
+    },
+    "star": {
+        "star": "स्टार करें",
+        "unstar": "स्टार हटाएँ",
+        "star_commit": "कमिट को स्टार करें",
+        "unstar_commit": "कमिट से स्टार हटाएँ",
+        "star_commit_count": "कमिट को स्टार करें, :count स्टार|कमिट को स्टार करें, :count स्टार",
+        "unstar_commit_count": "कमिट से स्टार हटाएँ, :count स्टार|कमिट से स्टार हटाएँ, :count स्टार",
+        "no_stars": "अभी तक कोई स्टार नहीं",
+        "stars": ":count स्टार|:count स्टार"
+    },
+    "undo": {
+        "expired": "वापस लेने का समय ख़त्म हो गया।",
+        "restored": "कमिट वापस आ गया।",
+        "restore_failed": "यह कमिट वापस नहीं लाया जा सका।",
+        "deleted": "कमिट डिलीट हो गया।",
+        "time_to_undo": "वापस लेने के लिए :time",
+        "availability": "डिलीट करने के बाद 30 सेकंड तक आप इसे वापस ले सकते हैं।",
+        "restoring": "वापस लाया जा रहा है…",
+        "undo": "वापस लें"
+    },
+    "pastel": {
+        "exhausted": "आपके pastéis ख़त्म हो गए। कल तक इंतज़ार करें।",
+        "count": ":count pastel|:count pastéis",
+        "award_failed": "pastel नहीं दिया जा सका। फिर से कोशिश करें।",
+        "give_label": "एक pastel दें, :pasteis, आज :remaining बाकी",
+        "give_title": "एक pastel दें · आज :remaining बाकी · 00:00 UTC पर रीसेट"
+    },
+    "pin": {
+        "pin_to_profile": "प्रोफ़ाइल पर पिन करें",
+        "unpin_from_profile": "प्रोफ़ाइल से अनपिन करें",
+        "pinned": "कमिट आपकी प्रोफ़ाइल पर पिन हो गया।",
+        "unpinned": "कमिट अनपिन हो गया।",
+        "failed": "आपका पिन किया कमिट अपडेट नहीं हो सका।",
+        "saving": "सेव हो रहा है…",
+        "pin": "पिन करें",
+        "unpin": "अनपिन करें"
+    },
+    "embed": {
+        "play": ":provider पर :title चलाएँ",
+        "player": ":provider प्लेयर"
+    },
+    "code": {
+        "copy": "कोड कॉपी करें",
+        "copied": "कोड क्लिपबोर्ड पर कॉपी हो गया",
+        "copy_failed": "कोड कॉपी नहीं हो सका। इसे चुनकर ख़ुद कॉपी करें।",
+        "wrap_lines": "लाइनें रैप करें"
+    },
+    "copyable": {
+        "copy": ":label कॉपी करें",
+        "copied": ":label कॉपी हो गया",
+        "failed": ":label कॉपी नहीं हो सका"
+    },
+    "show": {
+        "title": ":name: “:excerpt”",
+        "back": "वापस",
+        "heading": "कमिट"
+    }
+}

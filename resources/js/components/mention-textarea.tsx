@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import type { ComponentProps, KeyboardEvent, Ref, SyntheticEvent } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -206,6 +207,7 @@ export function MentionTextarea({
     onValueChange: (value: string) => void;
 }) {
     const id = useId();
+    const { __ } = useLang();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const listRef = useRef<HTMLUListElement>(null);
     const [trigger, setTrigger] = useState<Trigger | null>(null);
@@ -477,7 +479,7 @@ export function MentionTextarea({
                                 ref={listRef}
                                 id={listId}
                                 role="listbox"
-                                aria-label="Insert an emoji"
+                                aria-label={__('composer.mentions.emoji_label')}
                                 className="max-h-80 overflow-y-auto p-1.5"
                             >
                                 {emojis.map((emoji, index) => (
@@ -533,7 +535,7 @@ export function MentionTextarea({
                                 ref={listRef}
                                 id={listId}
                                 role="listbox"
-                                aria-label="Mention a developer"
+                                aria-label={__('composer.mentions.label')}
                                 className="max-h-80 overflow-y-auto p-1.5"
                             >
                                 {current?.query === '' && (
@@ -541,7 +543,7 @@ export function MentionTextarea({
                                         role="presentation"
                                         className="px-2.5 pt-1 pb-1.5 text-xs text-muted-foreground"
                                     >
-                                        People you follow
+                                        {__('composer.mentions.following')}
                                     </li>
                                 )}
                                 {suggestions.map((user, index) => (
@@ -616,12 +618,13 @@ export function MentionTextarea({
                                 {isSearching ? (
                                     <span className="flex items-center gap-2">
                                         <Spinner className="size-3.5" />
-                                        Searching…
+                                        {__('composer.mentions.searching')}
                                     </span>
                                 ) : (
                                     <span className="font-mono text-[13px]">
-                                        fatal: no developers match '
-                                        {trigger?.query}'
+                                        {__('composer.mentions.no_match', {
+                                            query: trigger?.query ?? '',
+                                        })}
                                     </span>
                                 )}
                             </div>

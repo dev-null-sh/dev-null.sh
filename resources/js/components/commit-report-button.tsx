@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { useForm, usePage } from '@inertiajs/react';
 import { Flag } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -22,12 +23,7 @@ import {
 } from '@/components/ui/tooltip';
 import type { Commit } from '@/types';
 
-const reasons = [
-    ['spam', 'Spam or misleading links'],
-    ['harassment', 'Harassment or hate'],
-    ['unsafe', 'Harmful or private information'],
-    ['other', 'Something else'],
-];
+const reasons = ['spam', 'harassment', 'unsafe', 'other'];
 
 export function useCanReport(commit: Commit): boolean {
     const { auth } = usePage().props;
@@ -40,6 +36,7 @@ export function useCanReport(commit: Commit): boolean {
 }
 
 export function CommitReportButton({ commit }: { commit: Commit }) {
+    const { __ } = useLang();
     const [open, setOpen] = useState(false);
 
     if (!useCanReport(commit)) {
@@ -54,13 +51,13 @@ export function CommitReportButton({ commit }: { commit: Commit }) {
                         <button
                             type="button"
                             className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                            aria-label="Report commit"
+                            aria-label={__('commits.report.title')}
                         >
                             <Flag aria-hidden className="size-4" />
                         </button>
                     </DialogTrigger>
                 </TooltipTrigger>
-                <TooltipContent>Report commit</TooltipContent>
+                <TooltipContent>{__('commits.report.title')}</TooltipContent>
             </Tooltip>
         </CommitReportDialog>
     );
@@ -77,6 +74,7 @@ export function CommitReportDialog({
     onOpenChange: (open: boolean) => void;
     children?: ReactNode;
 }) {
+    const { __ } = useLang();
     const [failure, setFailure] = useState('');
     const id = useId();
     const form = useForm({ reason: '', details: '' });
@@ -95,10 +93,9 @@ export function CommitReportDialog({
             {children}
             <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto bg-card motion-reduce:animate-none">
                 <DialogHeader className="text-left">
-                    <DialogTitle>Report commit</DialogTitle>
+                    <DialogTitle>{__('commits.report.title')}</DialogTitle>
                     <DialogDescription>
-                        Your report is private. Only moderators can review it.
-                        Reporting does not hide this commit.
+                        {__('commits.report.description')}
                     </DialogDescription>
                 </DialogHeader>
                 <p className="line-clamp-3 border-y py-3 text-sm leading-relaxed [overflow-wrap:anywhere] whitespace-pre-wrap">
@@ -118,15 +115,13 @@ export function CommitReportDialog({
                             onHttpException: (response) => {
                                 setFailure(
                                     response.status === 429
-                                        ? 'Too many reports. Please wait a minute and try again.'
-                                        : 'This commit is no longer available to report.',
+                                        ? __('commits.report.too_many')
+                                        : __('commits.report.unavailable'),
                                 );
                                 return false;
                             },
                             onNetworkError: () => {
-                                setFailure(
-                                    'Could not send your report. Check your connection and try again.',
-                                );
+                                setFailure(__('commits.report.network_error'));
                                 return false;
                             },
                         });
@@ -142,9 +137,9 @@ export function CommitReportDialog({
                         }
                     >
                         <legend className="mb-2 text-sm font-medium">
-                            Why are you reporting this commit?
+                            {__('commits.report.reason_legend')}
                         </legend>
-                        {reasons.map(([value, label]) => (
+                        {reasons.map((value) => (
                             <label
                                 key={value}
                                 className="flex min-h-9 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm has-checked:border-primary has-checked:bg-primary-soft"
@@ -160,7 +155,7 @@ export function CommitReportDialog({
                                     required
                                     className="size-4 accent-primary"
                                 />
-                                {label}
+                                {__(`commits.report.reasons.${value}`)}
                             </label>
                         ))}
                         <InputError
@@ -173,9 +168,9 @@ export function CommitReportDialog({
                             htmlFor={`${id}-details`}
                             className="text-sm font-medium"
                         >
-                            Details{' '}
+                            {__('commits.report.details')}{' '}
                             <span className="font-normal text-muted-foreground">
-                                (optional)
+                                {__('commits.report.optional')}
                             </span>
                         </label>
                         <textarea
@@ -195,7 +190,7 @@ export function CommitReportDialog({
                             id={`${id}-details-hint`}
                             className="text-xs text-muted-foreground"
                         >
-                            Add context for moderators. Up to 500 characters.
+                            {__('commits.report.details_hint')}
                         </p>
                         <InputError
                             id={`${id}-details-error`}
@@ -214,14 +209,17 @@ export function CommitReportDialog({
                                 variant="outline"
                                 disabled={form.processing}
                             >
-                                Cancel
+                                {__('commits.actions.cancel')}
                             </Button>
                         </DialogClose>
                         <Button
                             type="submit"
                             disabled={form.processing || !form.data.reason}
+                            className="min-w-28"
                         >
-                            {form.processing ? 'Sending…' : 'Send report'}
+                            {form.processing
+                                ? __('commits.report.sending')
+                                : __('commits.report.send')}
                         </Button>
                     </DialogFooter>
                 </form>

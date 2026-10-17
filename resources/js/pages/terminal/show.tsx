@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head } from '@inertiajs/react';
 import { CopyableCode } from '@/components/copyable-code';
 import Heading from '@/components/heading';
@@ -25,37 +26,39 @@ const workflow = [
     '          ssh-key: ${{ secrets.DEVNULL_SSH_KEY }}',
 ].join('\n');
 
-const inputs = [
-    { name: 'body', description: 'The commit, 3 to 4,000 characters.' },
-    {
-        name: 'ssh-key',
-        description:
-            'The private key, from a secret. Ed25519 or RSA, without a passphrase.',
-    },
-    {
-        name: 'reply-to',
-        description: 'Optional. The hash or link of a commit to reply to.',
-    },
-];
-
 export default function Show({ url }: { url: string }) {
+    const { __ } = useLang();
+    const inputs = [
+        { name: 'body', description: __('settings.terminal.inputs.body') },
+        {
+            name: 'ssh-key',
+            description: __('settings.terminal.inputs.ssh_key'),
+        },
+        {
+            name: 'reply-to',
+            description: __('settings.terminal.inputs.reply_to'),
+        },
+    ];
+
     return (
         <>
-            <Head title="Terminal settings" />
+            <Head title={__('settings.terminal.title')} />
 
             <section className="px-4 py-6 sm:px-6">
                 <Heading
-                    title="Commit from your terminal"
-                    description="No login, no token: the script signs your commit with an SSH key that is on your GitHub account, and /dev/null checks it against the keys GitHub publishes for you."
+                    title={__('settings.terminal.from_terminal')}
+                    description={__(
+                        'settings.terminal.from_terminal_description',
+                    )}
                 />
 
                 <div className="space-y-3">
                     <CopyableCode
-                        label="command"
+                        label={__('settings.terminal.command')}
                         code={`curl -fsSL ${url}/commit | bash -s -- 'It was DNS.'`}
                     />
                     <CopyableCode
-                        label="reply command"
+                        label={__('settings.terminal.reply_command')}
                         code={`curl -fsSL ${url}/commit | bash -s -- --reply 0be0130 'Agreed!'`}
                     />
                 </div>
@@ -63,66 +66,71 @@ export default function Show({ url }: { url: string }) {
 
             <section className="px-4 py-6 sm:px-6">
                 <Heading
-                    title="Commit from GitHub Actions"
-                    description="Ship release notes when you publish a release, or anything else a workflow knows. Same signature, same moderation, same 10 commits a minute."
+                    title={__('settings.terminal.from_actions')}
+                    description={__(
+                        'settings.terminal.from_actions_description',
+                    )}
                 />
 
                 <ol className="space-y-4 text-sm">
                     <li className="space-y-2">
                         <p>
                             <StepNumber number={1} />
-                            Generate a key for CI only.
+                            {__('settings.terminal.step_generate')}
                         </p>
                         <CopyableCode
-                            label="key command"
+                            label={__('settings.terminal.key_command')}
                             code="ssh-keygen -t ed25519 -N '' -C devnull-ci -f devnull-ci"
                         />
                     </li>
                     <li>
                         <p className="max-w-prose text-pretty">
                             <StepNumber number={2} />
-                            Add{' '}
+                            {__('settings.terminal.step_add_key_before')}{' '}
                             <code className="font-mono text-[13px]">
                                 devnull-ci.pub
                             </code>{' '}
-                            to GitHub as a{' '}
+                            {__('settings.terminal.step_add_key_middle')}{' '}
                             <a
                                 href="https://github.com/settings/ssh/new"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground"
                             >
-                                signing key
+                                {__('settings.terminal.step_add_key_link')}
                             </a>
-                            . It can sign /dev/null commits, but never push code
-                            or log in.
+                            {__('settings.terminal.step_add_key_after')}
                         </p>
                     </li>
                     <li>
                         <p className="max-w-prose text-pretty">
                             <StepNumber number={3} />
-                            Save{' '}
+                            {__(
+                                'settings.terminal.step_save_secret_before',
+                            )}{' '}
                             <code className="font-mono text-[13px]">
                                 devnull-ci
                             </code>
-                            , the private key, as a repository secret named{' '}
+                            {__('settings.terminal.step_save_secret_middle')}{' '}
                             <code className="font-mono text-[13px]">
                                 DEVNULL_SSH_KEY
                             </code>
-                            , then delete both files.
+                            {__('settings.terminal.step_save_secret_after')}
                         </p>
                     </li>
                     <li className="space-y-2">
                         <p>
                             <StepNumber number={4} />
-                            Add the workflow, in{' '}
+                            {__(
+                                'settings.terminal.step_add_workflow_before',
+                            )}{' '}
                             <code className="font-mono text-[13px]">
                                 .github/workflows/devnull.yml
                             </code>
-                            .
+                            {__('settings.terminal.step_add_workflow_after')}
                         </p>
                         <CopyableCode
-                            label="workflow"
+                            label={__('settings.terminal.workflow')}
                             language="yaml"
                             code={workflow}
                         />
@@ -144,9 +152,7 @@ export default function Show({ url }: { url: string }) {
                 </dl>
 
                 <p className="mt-4 max-w-prose text-sm text-pretty text-muted-foreground">
-                    The job prints the link to your commit, and whether it is
-                    pending review. When /dev/null refuses it, the job fails
-                    with the reason.
+                    {__('settings.terminal.job_output')}
                 </p>
             </section>
         </>

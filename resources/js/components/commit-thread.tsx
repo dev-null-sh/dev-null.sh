@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Link, router, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
@@ -16,6 +17,7 @@ import {
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
+    maxImages,
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
@@ -72,14 +74,12 @@ type CreatedReply = {
     toast?: FlashToast;
 };
 
-const replyFailedMessage = 'Could not send your reply. Try again.';
-
-const parentUnavailableMessage =
-    'That commit is no longer available to reply to.';
-
 const changedThreadIds = new Set<string>();
 
-function replyFailureMessage(response: { status: number; data: string }) {
+function replyFailureMessage(
+    response: { status: number; data: string },
+    replyFailedMessage: string,
+) {
     if (response.status !== 429) {
         return replyFailedMessage;
     }
@@ -338,6 +338,7 @@ export function ThreadActions({
     hasKeyboardShortcuts?: boolean;
 }) {
     const { auth } = usePage().props;
+    const { __, transChoice } = useLang();
     const { commit } = thread;
     const hasStash = useHasStash(auth.user?.id ?? null, `reply-${commit.id}`);
 
@@ -364,16 +365,18 @@ export function ThreadActions({
                                     : undefined
                             }
                             title={
-                                hasKeyboardShortcuts ? 'Reply (r)' : undefined
+                                hasKeyboardShortcuts
+                                    ? `${__('commits.actions.reply')} (r)`
+                                    : undefined
                             }
                             className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                             data-test="reply-button"
                         >
                             <MessageSquareReply className="size-4" />
-                            Reply
+                            {__('commits.actions.reply')}
                             {hasStash && !thread.isReplying && (
                                 <span
-                                    title="You have an unsent reply here"
+                                    title={__('commits.thread.unsent_reply')}
                                     className="font-mono text-[11px] opacity-70"
                                     data-test="reply-stash-hint"
                                 >
@@ -393,10 +396,10 @@ export function ThreadActions({
                             }
                             title={
                                 hasKeyboardShortcuts
-                                    ? `${thread.isOpen ? 'Hide' : 'Show'} replies (o)`
+                                    ? `${thread.isOpen ? __('commits.thread.hide_replies') : __('commits.thread.show_replies')} (o)`
                                     : undefined
                             }
-                            className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
+                            className="flex min-w-28 items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
                             data-test="toggle-replies-button"
                         >
                             <ChevronDown
@@ -405,8 +408,11 @@ export function ThreadActions({
                                 })}
                             />
                             {thread.isOpen
-                                ? 'Hide replies'
-                                : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
+                                ? __('commits.thread.hide_replies')
+                                : transChoice(
+                                      'commits.thread.replies',
+                                      thread.count,
+                                  )}
                         </button>
                     )}
                 </div>
@@ -578,10 +584,12 @@ export function ThreadReplies({
 }
 
 function ReplySkeleton() {
+    const { __ } = useLang();
+
     return (
         <div
             role="status"
-            aria-label="Loading replies"
+            aria-label={__('commits.thread.loading_replies')}
             className="flex gap-2 pt-2.5 pl-(--indent) motion-safe:animate-pulse sm:gap-2.5"
         >
             <span className="size-6 shrink-0 rounded-full bg-muted sm:size-7" />
@@ -601,6 +609,8 @@ function MoreRepliesButton({
     thread: Thread;
     isFlattened: boolean;
 }) {
+    const { __ } = useLang();
+
     return (
         <button
             type="button"
@@ -616,17 +626,20 @@ function MoreRepliesButton({
                 <RailDot />
             </span>
             {thread.isLoading ? (
-                <span role="status">Loading replies…</span>
+                <span role="status">
+                    {__('commits.thread.loading_replies_ellipsis')}
+                </span>
             ) : (
                 <span className="truncate">
-                    Show more
-                    {isFlattened && !isDeleted(thread.commit) && (
+                    {isFlattened && !isDeleted(thread.commit) ? (
                         <>
-                            {' to '}
+                            {__('commits.thread.show_more_to')}{' '}
                             <span className="font-mono text-xs">
                                 @{thread.commit.user.username}
                             </span>
                         </>
+                    ) : (
+                        __('commits.thread.show_more')
                     )}
                 </span>
             )}
@@ -647,6 +660,7 @@ function ReplyItem({
     links: ReactNode;
     onDeleted: () => void;
 }) {
+    const { __ } = useLang();
     const thread = useThread(reply);
 
     if (isDeleted(reply)) {
@@ -673,7 +687,7 @@ function ReplyItem({
                     <div className="min-w-0 flex-1">
                         <p className="flex min-h-6 items-center gap-1.5 text-sm text-muted-foreground sm:min-h-7">
                             <span className="font-mono text-xs">[deleted]</span>
-                            This commit was deleted.
+                            {__('commits.card.tombstone')}
                         </p>
                         <ThreadActions thread={thread} />
                     </div>
@@ -712,6 +726,7 @@ function CommitReply({
     onDeleted: () => void;
 }) {
     const { auth } = usePage().props;
+    const { __ } = useLang();
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
     const request = useHttp<Record<string, never>, { deleted: DeletedFlash }>(
@@ -735,7 +750,7 @@ function CommitReply({
             onDeleted();
             router.flash(() => response);
         } catch {
-            toast.error('Could not delete your reply. Try again.');
+            toast.error(__('commits.thread.delete_failed'));
 
             return;
         }
@@ -824,15 +839,15 @@ function CommitReply({
                                         : 'bg-destructive/10 text-destructive',
                                 )}
                             >
-                                {reply.status}
+                                {__(`commits.status.${reply.status}`)}
                             </span>
                         )}
                         {isOwn && (
                             <button
                                 type="button"
                                 onClick={() => setIsConfirming(true)}
-                                aria-label="Delete reply"
-                                title="Delete reply"
+                                aria-label={__('commits.thread.delete')}
+                                title={__('commits.thread.delete')}
                                 className="-my-1 ml-auto shrink-0 self-center rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:reply-hover:opacity-100 [@media(hover:none)]:opacity-100"
                             >
                                 <Trash2 className="size-3.5" />
@@ -845,8 +860,10 @@ function CommitReply({
                             <CornerDownRight className="size-3 shrink-0" />
                             <span className="truncate">
                                 {isDeleted(parent)
-                                    ? 'replying to [deleted]'
-                                    : `replying to @${parent.user.username}`}
+                                    ? __('commits.card.replying_to_deleted')
+                                    : __('commits.card.replying_to', {
+                                          username: parent.user.username,
+                                      })}
                             </span>
                         </p>
                     )}
@@ -867,7 +884,7 @@ function CommitReply({
                     {isConfirming ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-destructive/8 px-3 py-1.5 text-sm">
                             <span className="mr-auto">
-                                Delete this reply? You can undo for 30 seconds.
+                                {__('commits.thread.confirm_delete_message')}
                             </span>
                             <Button
                                 variant="ghost"
@@ -875,7 +892,7 @@ function CommitReply({
                                 autoFocus
                                 onClick={() => setIsConfirming(false)}
                             >
-                                Cancel
+                                {__('commits.actions.cancel')}
                             </Button>
                             <Button
                                 variant="destructive"
@@ -883,7 +900,7 @@ function CommitReply({
                                 disabled={request.processing}
                                 onClick={deleteReply}
                             >
-                                Delete
+                                {__('commits.actions.delete')}
                             </Button>
                         </div>
                     ) : (
@@ -921,6 +938,8 @@ function ReplyComposer({
     onReplied: () => void;
 }) {
     const { user } = useUser();
+    const { __ } = useLang();
+    const replyFailedMessage = __('commits.thread.reply_failed');
     const {
         body,
         images,
@@ -1013,12 +1032,17 @@ function ReplyComposer({
                 },
                 onHttpException: (response) => {
                     if (response.status === 404) {
-                        request.setError('body', parentUnavailableMessage);
+                        request.setError(
+                            'body',
+                            __('commits.thread.parent_unavailable'),
+                        );
 
                         return;
                     }
 
-                    toast.error(replyFailureMessage(response));
+                    toast.error(
+                        replyFailureMessage(response, replyFailedMessage),
+                    );
                 },
                 onNetworkError: () => {
                     toast.error(replyFailedMessage);
@@ -1036,7 +1060,9 @@ function ReplyComposer({
             data-test="reply-composer"
         >
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
-                Reply to @{parent.user.username}
+                {__('commits.thread.reply_to', {
+                    username: parent.user.username,
+                })}
             </label>
             <div className="grid">
                 <MentionTextarea
@@ -1053,7 +1079,9 @@ function ReplyComposer({
                     onDrop={attachments.onDrop}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
                     maxLength={maxBodyLength}
-                    placeholder={`Reply to @${parent.user.username}`}
+                    placeholder={__('commits.thread.reply_to', {
+                        username: parent.user.username,
+                    })}
                     className={cn(
                         'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
                         { invisible: preview.isPreviewing },
@@ -1092,7 +1120,11 @@ function ReplyComposer({
                 onEdit={preview.close}
             />
             <InputError
-                message={attachments.error ?? imageErrorFrom(errors)}
+                message={
+                    attachments.error !== null
+                        ? __(attachments.error, { max: maxImages })
+                        : imageErrorFrom(errors)
+                }
                 className="mt-1 px-1"
             />
             <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
@@ -1130,7 +1162,7 @@ function ReplyComposer({
                     size="sm"
                     onClick={onCancel}
                 >
-                    Cancel
+                    {__('commits.actions.cancel')}
                 </Button>
                 <Button
                     type="submit"
@@ -1139,7 +1171,9 @@ function ReplyComposer({
                     className="min-w-[4.75rem]"
                     data-test="submit-reply-button"
                 >
-                    {processing ? 'Replying…' : 'Reply'}
+                    {processing
+                        ? __('commits.thread.replying')
+                        : __('commits.actions.reply')}
                 </Button>
             </div>
         </form>

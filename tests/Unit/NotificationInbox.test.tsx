@@ -66,6 +66,30 @@ async function renderInbox(notifications: NotificationGroup[]) {
                     log: {},
                 },
                 errors: {},
+                lang: {
+                    notifications: {
+                        filters: { quotes: 'Quotes' },
+                        empty: {
+                            all: 'Nothing here yet. Follows, stars, replies, quotes, mentions, and moderation updates for your commits will show up here.',
+                        },
+                        groups: {
+                            followers: {
+                                count: ':count follower|:count followers',
+                            },
+                        },
+                        actions: {
+                            followed: 'followed you',
+                            quoted: 'quoted your commit',
+                        },
+                        and_others: 'and :count other|and :count others',
+                    },
+                    users: {
+                        follow: {
+                            follow_label: 'Follow @:username',
+                            unfollow_label: 'Unfollow @:username',
+                        },
+                    },
+                },
             },
             url: '/notifications',
             version: null,

@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowUpRight,
@@ -37,10 +38,6 @@ import type {
     Streaks,
 } from '@/types';
 
-function pluralize(count: number, singular: string, plural: string) {
-    return count === 1 ? singular : plural;
-}
-
 export default function Show({
     user,
     pasteisReceived,
@@ -67,6 +64,7 @@ export default function Show({
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
+    const { __, transChoice } = useLang();
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
@@ -99,7 +97,7 @@ export default function Show({
                 <p className="min-w-0 truncate font-semibold">{user.name}</p>
                 <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
                     {user.commits_count}{' '}
-                    {pluralize(user.commits_count, 'commit', 'commits')}
+                    {transChoice('users.counts.commits', user.commits_count)}
                 </p>
             </div>
 
@@ -118,7 +116,7 @@ export default function Show({
                                 target="_blank"
                                 rel="noopener noreferrer"
                             >
-                                Edit on GitHub
+                                {__('users.profile.edit_on_github')}
                                 <ArrowUpRight />
                             </a>
                         </Button>
@@ -154,12 +152,12 @@ export default function Show({
                         @{user.username}
                         {followsYou && (
                             <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
-                                Follows you
+                                {__('users.follows_you')}
                             </span>
                         )}
                         {isMuting && (
                             <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
-                                Muted
+                                {__('users.muted')}
                             </span>
                         )}
                     </p>
@@ -172,10 +170,13 @@ export default function Show({
                             backgroundColor: `${lane}15`,
                             color: lane,
                         }}
-                        title="View achievements and Unix rank"
+                        title={__('users.profile.view_achievements')}
                     >
                         <span>
-                            Lv. {achievements.level} · {achievements.rank}
+                            {__('users.achievements.level', {
+                                level: achievements.level,
+                                rank: achievements.rank,
+                            })}
                         </span>
                     </button>
                 </div>
@@ -234,17 +235,18 @@ export default function Show({
                                 rel="noopener noreferrer"
                                 className="text-primary hover:underline"
                             >
-                                Sponsor on GitHub
+                                {__('users.profile.sponsor')}
                             </a>
                         </li>
                     )}
                     <li className="flex items-center gap-1.5">
                         <CalendarDays className="size-4" />
-                        Joined{' '}
-                        {new Date(user.created_at).toLocaleDateString(
-                            undefined,
-                            { month: 'long', year: 'numeric' },
-                        )}
+                        {__('users.profile.joined', {
+                            date: new Date(user.created_at).toLocaleDateString(
+                                undefined,
+                                { month: 'long', year: 'numeric' },
+                            ),
+                        })}
                     </li>
                 </ul>
 
@@ -252,24 +254,22 @@ export default function Show({
                     {[
                         {
                             count: user.commits_count,
-                            label: pluralize(
+                            label: transChoice(
+                                'users.counts.commits',
                                 user.commits_count,
-                                'commit',
-                                'commits',
                             ),
                             href: show(user),
                         },
                         {
                             count: user.following_count,
-                            label: 'following',
+                            label: __('users.counts.following'),
                             href: UserFollowingController.index(user),
                         },
                         {
                             count: user.followers_count,
-                            label: pluralize(
+                            label: transChoice(
+                                'users.counts.followers',
                                 user.followers_count,
-                                'follower',
-                                'followers',
                             ),
                             href: UserFollowersController.index(user),
                         },
@@ -315,7 +315,7 @@ export default function Show({
                         >
                             {pasteisCount}
                         </span>{' '}
-                        pastéis received
+                        {__('users.profile.pasteis_received')}
                     </p>
                 )}
             </header>
@@ -343,18 +343,19 @@ export default function Show({
             />
 
             <PageTabs
-                label="Profile feed"
+                label={__('users.profile.feed_label')}
+                name="Profile feed"
                 preserveScroll
                 only={['tab', 'commits', 'pinnedCommit']}
                 reset={['commits']}
                 tabs={[
                     {
-                        title: 'Commits',
+                        title: __('users.profile.tabs.commits'),
                         href: show(user),
                         isActive: tab === 'commits',
                     },
                     {
-                        title: 'Replies',
+                        title: __('users.profile.tabs.replies'),
                         href: show(user, { query: { tab: 'replies' } }),
                         isActive: tab === 'replies',
                     },
@@ -379,27 +380,42 @@ export default function Show({
                 end={
                     tab === 'replies'
                         ? isCurrentUser
-                            ? 'That was your first reply.'
-                            : `That's @${user.username}'s first reply.`
+                            ? __('users.profile.end.own_first_reply')
+                            : __('users.profile.end.first_reply', {
+                                  username: user.username,
+                              })
                         : isCurrentUser
-                          ? 'That was your first commit. Everyone starts somewhere.'
-                          : `That's @${user.username}'s root commit.`
+                          ? __('users.profile.end.own_first_commit')
+                          : __('users.profile.end.root_commit', {
+                                username: user.username,
+                            })
                 }
                 empty={
                     tab === 'replies' ? (
-                        <EmptyFeed command="fatal: no replies yet">
+                        <EmptyFeed
+                            command={__('users.profile.empty.replies_command')}
+                        >
                             {isCurrentUser
-                                ? 'Your replies show up here. Join a conversation from your log.'
-                                : `@${user.username} hasn't replied to anything yet.`}
+                                ? __('users.profile.empty.own_replies')
+                                : __('users.profile.empty.replies', {
+                                      username: user.username,
+                                  })}
                         </EmptyFeed>
                     ) : isCurrentUser ? (
-                        <EmptyFeed command="fatal: you do not have any commits yet">
-                            Your commits show up here. Make your first one from
-                            your log.
+                        <EmptyFeed
+                            command={__(
+                                'users.profile.empty.own_commits_command',
+                            )}
+                        >
+                            {__('users.profile.empty.own_commits')}
                         </EmptyFeed>
                     ) : (
-                        <EmptyFeed command="fatal: no commits yet">
-                            @{user.username} hasn't committed anything yet.
+                        <EmptyFeed
+                            command={__('users.profile.empty.commits_command')}
+                        >
+                            {__('users.profile.empty.commits', {
+                                username: user.username,
+                            })}
                         </EmptyFeed>
                     )
                 }

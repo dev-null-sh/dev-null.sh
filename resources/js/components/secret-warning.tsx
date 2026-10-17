@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import type { Secret } from '@sanity-labs/secret-scan';
 import { ShieldAlert } from 'lucide-react';
 import type { RefObject } from 'react';
@@ -31,6 +32,8 @@ export function SecretWarning({
     onApprove: () => void;
     onEdit?: () => void;
 }) {
+    const { __, transChoice } = useLang();
+
     if (findings.length === 0) return null;
 
     const remove = () => {
@@ -43,7 +46,7 @@ export function SecretWarning({
     return (
         <>
             <section
-                aria-label="Sensitive text warning"
+                aria-label={__('composer.secrets.warning')}
                 className="my-2 rounded-md border border-amber-600/30 bg-amber-500/8 p-3 text-sm"
             >
                 <p
@@ -51,12 +54,10 @@ export function SecretWarning({
                     role="status"
                 >
                     <ShieldAlert className="size-4 shrink-0 text-amber-700 dark:text-amber-400" />
-                    Possible {findings.length === 1 ? 'secret' : 'secrets'}{' '}
-                    detected
+                    {transChoice('composer.secrets.detected', findings.length)}
                 </p>
                 <p className="mt-1 text-muted-foreground">
-                    Checked on your device. This draft won't be saved while it
-                    contains a detected secret.
+                    {__('composer.secrets.checked_locally')}
                 </p>
                 <ul className="mt-2 space-y-1">
                     {findings.map((finding, index) => (
@@ -75,8 +76,11 @@ export function SecretWarning({
                                     });
                                 }}
                             >
-                                Select possible secret{' '}
-                                {findings.length > 1 ? index + 1 : ''}
+                                {findings.length > 1
+                                    ? __('composer.secrets.select_numbered', {
+                                          number: index + 1,
+                                      })
+                                    : __('composer.secrets.select')}
                             </button>
                         </li>
                     ))}
@@ -88,20 +92,21 @@ export function SecretWarning({
                     className="mt-2"
                     onClick={remove}
                 >
-                    Remove detected secrets
+                    {__('composer.secrets.remove_detected')}
                 </Button>
             </section>
             <Dialog open={confirming} onOpenChange={onConfirmingChange}>
                 <DialogContent>
-                    <DialogTitle>Publish possible secrets?</DialogTitle>
+                    <DialogTitle>
+                        {__('composer.secrets.confirm_title')}
+                    </DialogTitle>
                     <DialogDescription>
-                        This text may contain credentials. Remove them before
-                        publishing, or continue only if these are safe examples.
+                        {__('composer.secrets.confirm_description')}
                     </DialogDescription>
                     <DialogFooter className="flex-col sm:flex-row">
                         <DialogClose asChild>
                             <Button type="button" variant="ghost">
-                                Keep editing
+                                {__('composer.secrets.keep_editing')}
                             </Button>
                         </DialogClose>
                         <Button
@@ -109,7 +114,7 @@ export function SecretWarning({
                             variant="outline"
                             onClick={remove}
                         >
-                            Remove secrets
+                            {__('composer.secrets.remove')}
                         </Button>
                         <Button
                             type="button"
@@ -119,7 +124,7 @@ export function SecretWarning({
                                 textarea.current?.form?.requestSubmit();
                             }}
                         >
-                            Publish anyway
+                            {__('composer.secrets.publish_anyway')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import type { LucideIcon } from 'lucide-react';
 import { Check, Copy, Monitor, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -10,10 +11,10 @@ import { cn } from '@/lib/utils';
 
 type GraphTheme = 'light' | 'dark' | 'auto';
 
-const themes: { value: GraphTheme; icon: LucideIcon; label: string }[] = [
-    { value: 'light', icon: Sun, label: 'Light' },
-    { value: 'dark', icon: Moon, label: 'Dark' },
-    { value: 'auto', icon: Monitor, label: 'Auto' },
+const themes: { value: GraphTheme; icon: LucideIcon }[] = [
+    { value: 'light', icon: Sun },
+    { value: 'dark', icon: Moon },
+    { value: 'auto', icon: Monitor },
 ];
 
 function themedUrl(url: string, theme: GraphTheme): string {
@@ -28,6 +29,7 @@ export default function ActivityGraphEmbed({
     profileUrl: string;
 }) {
     const { user } = useUser();
+    const { __ } = useLang();
     const [, copy] = useClipboard();
     const [theme, setTheme] = useState<GraphTheme>('light');
     const [isCopied, setIsCopied] = useState(false);
@@ -51,7 +53,7 @@ export default function ActivityGraphEmbed({
             setIsCopied(true);
             toast(
                 <span className="font-mono text-[13px]">
-                    Copied the Markdown. Paste it into your README.
+                    {__('users.embed.copied_toast')}
                 </span>,
             );
 
@@ -60,7 +62,7 @@ export default function ActivityGraphEmbed({
 
         toast.error(
             <span className="font-mono text-[13px]">
-                fatal: could not copy the Markdown
+                {__('users.embed.copy_failed')}
             </span>,
         );
     };
@@ -70,16 +72,16 @@ export default function ActivityGraphEmbed({
     return (
         <section className="px-4 py-6 sm:px-6" data-test="activity-graph-embed">
             <Heading
-                title="Embed your activity graph"
-                description="Your commit graph as an SVG for your GitHub profile README, or anywhere Markdown renders. It only shows approved commits and refreshes about once an hour."
+                title={__('users.embed.title')}
+                description={__('users.embed.description')}
             />
 
             <div
                 role="radiogroup"
-                aria-label="Graph theme"
+                aria-label={__('users.embed.theme_label')}
                 className="inline-flex gap-1 rounded-lg border p-1"
             >
-                {themes.map(({ value, icon: Icon, label }) => (
+                {themes.map(({ value, icon: Icon }) => (
                     <button
                         key={value}
                         type="button"
@@ -95,20 +97,20 @@ export default function ActivityGraphEmbed({
                         )}
                     >
                         <Icon className="size-4" />
-                        {label}
+                        {__(`users.embed.themes.${value}`)}
                     </button>
                 ))}
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-                {theme === 'auto'
-                    ? 'Follows the color scheme of whoever is reading.'
-                    : `Always ${theme}, whatever the reader prefers.`}
+                {__(`users.embed.theme_hints.${theme}`)}
             </p>
 
             <div className="mt-5 overflow-hidden rounded-lg border bg-background p-3 sm:p-4">
                 <img
                     src={previewUrl}
-                    alt={`Commit activity graph of @${user.username}`}
+                    alt={__('users.embed.preview_alt', {
+                        username: user.username,
+                    })}
                     width={754}
                     height={196}
                     className="h-auto w-full"
@@ -125,11 +127,14 @@ export default function ActivityGraphEmbed({
                         type="button"
                         variant="ghost"
                         size="sm"
+                        className="min-w-36"
                         onClick={copySnippet}
                         data-test="copy-embed-button"
                     >
                         <CopyIcon />
-                        {isCopied ? 'Copied' : 'Copy Markdown'}
+                        {isCopied
+                            ? __('users.embed.copied')
+                            : __('users.embed.copy')}
                     </Button>
                 </div>
                 <pre className="overflow-x-auto px-4 py-3 font-mono text-[13px] break-all whitespace-pre-wrap">

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Enums\Locale;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
@@ -55,6 +56,11 @@ final class HandleInertiaRequests extends Middleware
                     'day' => today()->toDateString(),
                 ] : null,
             ],
+            'locale' => app()->getLocale(),
+            'locales' => array_map(fn (Locale $locale): array => [
+                'value' => $locale->value,
+                'label' => $locale->label(),
+            ], Locale::cases()),
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,

@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { router, useHttp, usePage } from '@inertiajs/react';
 import { Check } from 'lucide-react';
 import { useId, useState } from 'react';
@@ -15,20 +16,14 @@ function timeLeft(closesAt: string, now: Date): string {
     );
 
     if (minutes >= 1440) {
-        return `${Math.floor(minutes / 1440)}d left`;
+        return `${Math.floor(minutes / 1440)}d`;
     }
 
     if (minutes >= 60) {
-        return `${Math.floor(minutes / 60)}h left`;
+        return `${Math.floor(minutes / 60)}h`;
     }
 
-    return `${Math.max(minutes, 1)}m left`;
-}
-
-const failedVoteMessage = 'Could not record your vote. Try again.';
-
-function votesLabel(count: number): string {
-    return `${count} ${count === 1 ? 'vote' : 'votes'}`;
+    return `${Math.max(minutes, 1)}m`;
 }
 
 function percentage(votes: number, total: number): number {
@@ -45,6 +40,7 @@ export function CommitPoll({
     isStatic?: boolean;
 }) {
     const { auth } = usePage().props;
+    const { __, transChoice } = useLang();
     const now = useNow();
     const id = useId();
     const [poll, setPoll] = useState(initialPoll);
@@ -52,6 +48,9 @@ export function CommitPoll({
         option: '',
     });
     const choice = request.data.option;
+    const failedVoteMessage = __('commits.poll.vote_failed');
+    const votesLabel = (count: number): string =>
+        transChoice('commits.poll.votes', count);
 
     const hasExpired =
         poll.is_closed ||
@@ -66,12 +65,14 @@ export function CommitPoll({
 
     const status =
         poll.closes_at === null
-            ? 'Voting opens once approved'
+            ? __('commits.poll.opens_once_approved')
             : hasExpired
               ? poll.total_votes === null
-                  ? 'Poll closed'
-                  : 'Final results'
-              : timeLeft(poll.closes_at, now);
+                  ? __('commits.poll.closed')
+                  : __('commits.poll.final_results')
+              : __('commits.poll.time_left', {
+                    time: timeLeft(poll.closes_at, now),
+                });
 
     const vote = async () => {
         if (choice === '' || request.processing) {
@@ -103,7 +104,7 @@ export function CommitPoll({
     return (
         <div className="mt-3" data-test="commit-poll">
             {poll.total_votes === null && isStatic ? (
-                <div role="group" aria-label="Poll options">
+                <div role="group" aria-label={__('commits.poll.options')}>
                     <ul className="space-y-2">
                         {poll.options.map((option) => (
                             <li
@@ -120,7 +121,9 @@ export function CommitPoll({
                 </div>
             ) : poll.total_votes === null ? (
                 <fieldset disabled={!canVote || request.processing}>
-                    <legend className="sr-only">Poll options</legend>
+                    <legend className="sr-only">
+                        {__('commits.poll.options')}
+                    </legend>
                     <div className="space-y-2">
                         {poll.options.map((option) => (
                             <label
@@ -153,15 +156,18 @@ export function CommitPoll({
                                 size="sm"
                                 onClick={vote}
                                 disabled={choice === '' || request.processing}
+                                className="min-w-[4.75rem]"
                                 data-test="poll-vote-button"
                             >
-                                {request.processing ? 'Voting…' : 'Vote'}
+                                {request.processing
+                                    ? __('commits.poll.voting')
+                                    : __('commits.poll.vote')}
                             </Button>
                         )}
                     </div>
                 </fieldset>
             ) : (
-                <div role="group" aria-label="Poll results">
+                <div role="group" aria-label={__('commits.poll.results')}>
                     <ul className="space-y-2">
                         {poll.options.map((option) => {
                             const share = percentage(
@@ -197,7 +203,9 @@ export function CommitPoll({
                                                         className="ml-1.5 inline size-4 align-[-2px] text-primary"
                                                     />
                                                     <span className="sr-only">
-                                                        , your vote
+                                                        {__(
+                                                            'commits.poll.your_vote',
+                                                        )}
                                                     </span>
                                                 </>
                                             )}

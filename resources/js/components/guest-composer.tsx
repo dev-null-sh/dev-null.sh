@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { GitHubIcon } from '@/components/github-icon';
 import { GraphRail } from '@/components/graph-rail';
@@ -9,6 +10,8 @@ import { login } from '@/routes';
  * GitHub, which an Inertia visit cannot follow, so these are plain links.
  */
 export function GuestComposer() {
+    const { __ } = useLang();
+
     return (
         <section
             aria-labelledby="guest-composer"
@@ -35,19 +38,18 @@ export function GuestComposer() {
                     id="guest-composer"
                     className="text-[17px] leading-snug font-semibold tracking-tight text-balance"
                 >
-                    A social network for developers.
+                    {__('composer.guest.title')}
                 </h2>
                 <p className="mt-1 text-[15px] text-pretty text-muted-foreground">
-                    Everyone below signed in with GitHub and committed plain
-                    text. Your turn.
+                    {__('composer.guest.description')}
                 </p>
 
                 <a
                     href={login().url}
-                    aria-label="Sign in with GitHub to commit"
+                    aria-label={__('composer.guest.sign_in_to_commit')}
                     className="mt-3 flex min-h-10 items-center rounded-lg border border-dashed px-3 py-1.5 text-[17px] text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
                 >
-                    What did you ship?
+                    {__('composer.placeholder')}
                     <span
                         aria-hidden
                         className="ml-0.5 h-5 w-0.5 bg-primary motion-safe:animate-pulse"
@@ -56,12 +58,12 @@ export function GuestComposer() {
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                     <p className="text-sm text-muted-foreground">
-                        Your profile comes from GitHub. Nothing to fill in.
+                        {__('composer.guest.profile')}
                     </p>
                     <Button size="sm" asChild>
                         <a href={login().url} data-test="login-button">
                             <GitHubIcon className="size-4" />
-                            Sign in with GitHub
+                            {__('composer.guest.sign_in')}
                         </a>
                     </Button>
                 </div>

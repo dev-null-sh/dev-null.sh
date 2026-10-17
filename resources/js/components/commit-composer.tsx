@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Form, Link, usePage } from '@inertiajs/react';
 import { ChartBar, Clock3 } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
@@ -9,6 +10,7 @@ import {
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
+    maxImages,
 } from '@/components/commit-image-picker';
 import {
     ComposerPreviewBody,
@@ -99,6 +101,7 @@ function CommitComposerBody({
     drop: () => void;
 }) {
     const keys = useKeyLabels();
+    const { __ } = useLang();
     const { body, isRestored, updateBody } = stash;
     const { auth } = usePage().props;
     const {
@@ -133,7 +136,7 @@ function CommitComposerBody({
             >
                 <div className="min-w-0 flex-1">
                     <label htmlFor={id} className="sr-only">
-                        Body
+                        {__('composer.body')}
                     </label>
                     <div className="grid">
                         <MentionTextarea
@@ -161,7 +164,9 @@ function CommitComposerBody({
                             onFocus={isRestored ? moveCaretToEnd : undefined}
                             maxLength={maxBodyLength}
                             placeholder={
-                                poll ? 'Ask a question' : 'What did you ship?'
+                                poll
+                                    ? __('composer.poll_placeholder')
+                                    : __('composer.placeholder')
                             }
                             autoComplete="off"
                             aria-invalid={error ? true : undefined}
@@ -208,10 +213,11 @@ function CommitComposerBody({
                     )}
                     <InputError
                         message={
-                            attachments.error ??
-                            (isSchedulingImages
-                                ? "Images can't be scheduled yet. Remove them to schedule this commit."
-                                : imageErrorFrom(errors))
+                            attachments.error !== null
+                                ? __(attachments.error, { max: maxImages })
+                                : isSchedulingImages
+                                  ? __('composer.schedule.images_unsupported')
+                                  : imageErrorFrom(errors)
                         }
                         className="mt-1"
                     />
@@ -238,7 +244,7 @@ function CommitComposerBody({
                                 htmlFor={`${id}-scheduled-at`}
                                 className="text-sm font-medium"
                             >
-                                Submit at
+                                {__('composer.schedule.submit_at')}
                             </label>
                             <Input
                                 id={`${id}-scheduled-at`}
@@ -254,7 +260,9 @@ function CommitComposerBody({
                                     const local = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
                                     event.target.setCustomValidity(
                                         value && local !== value
-                                            ? 'This time does not exist in your timezone. Choose another time.'
+                                            ? __(
+                                                  'composer.schedule.nonexistent_time',
+                                              )
                                             : '',
                                     );
                                 }}
@@ -267,15 +275,21 @@ function CommitComposerBody({
                                 id={`${id}-schedule-help`}
                                 className="text-xs leading-relaxed text-muted-foreground"
                             >
-                                {timezone}
-                                {scheduledAt &&
-                                !Number.isNaN(new Date(scheduledAt).getTime())
-                                    ? ` (${new Intl.DateTimeFormat(undefined, { timeZoneName: 'shortOffset' }).formatToParts(new Date(scheduledAt)).find((part) => part.type === 'timeZoneName')?.value})`
-                                    : ''}
-                                . Within 30 days. Private until submitted;{' '}
-                                {auth.isAdmin
-                                    ? 'your commit will be approved automatically.'
-                                    : 'then submitted for review, not published automatically.'}
+                                {__(
+                                    auth.isAdmin
+                                        ? 'composer.schedule.help_admin'
+                                        : 'composer.schedule.help_review',
+                                    {
+                                        timezone: `${timezone}${
+                                            scheduledAt &&
+                                            !Number.isNaN(
+                                                new Date(scheduledAt).getTime(),
+                                            )
+                                                ? ` (${new Intl.DateTimeFormat(undefined, { timeZoneName: 'shortOffset' }).formatToParts(new Date(scheduledAt)).find((part) => part.type === 'timeZoneName')?.value})`
+                                                : ''
+                                        }`,
+                                    },
+                                )}
                             </p>
                             <InputError
                                 id={`${id}-schedule-error`}
@@ -285,7 +299,7 @@ function CommitComposerBody({
                                 href={ScheduledCommitController.index()}
                                 className="text-xs font-medium text-primary hover:underline"
                             >
-                                Scheduled commits →
+                                {__('composer.schedule.scheduled_commits')}
                             </Link>
                         </div>
                     )}
@@ -320,13 +334,15 @@ function CommitComposerBody({
                                             ?.focus(),
                                     );
                                 }}
-                                aria-label="Add poll"
+                                aria-label={__('composer.poll.add')}
                                 title={
                                     isScheduling
-                                        ? 'Polls cannot be scheduled yet'
+                                        ? __(
+                                              'composer.schedule.polls_unsupported',
+                                          )
                                         : hasImages
-                                          ? 'A commit can have images or a poll, not both'
-                                          : 'Add poll'
+                                          ? __('composer.poll.images_or_poll')
+                                          : __('composer.poll.add')
                                 }
                                 className="text-muted-foreground"
                                 data-test="add-poll-button"
@@ -366,9 +382,11 @@ function CommitComposerBody({
                             }
                             title={
                                 !isScheduling && poll !== null
-                                    ? 'Polls cannot be scheduled yet'
+                                    ? __('composer.schedule.polls_unsupported')
                                     : !isScheduling && hasImages
-                                      ? "Images can't be scheduled yet"
+                                      ? __(
+                                            'composer.schedule.images_unsupported_title',
+                                        )
                                       : undefined
                             }
                             onClick={() => {
@@ -381,7 +399,7 @@ function CommitComposerBody({
                             className="gap-1.5 px-2 text-muted-foreground"
                         >
                             <Clock3 className="size-3.5" aria-hidden="true" />
-                            Schedule
+                            {__('composer.schedule.button')}
                         </Button>
                         <BodyCounter
                             id={`${id}-count`}
@@ -391,21 +409,22 @@ function CommitComposerBody({
                         <Button
                             type="submit"
                             disabled={processing || !isSubmittable}
-                            title={
+                            title={__(
                                 isScheduling
-                                    ? `Schedule commit (${keys.combo(keys.mod, keys.enter)})`
-                                    : `Commit (${keys.combo(keys.mod, keys.enter)})`
-                            }
+                                    ? 'composer.schedule.commit_title'
+                                    : 'composer.commit_title',
+                                { keys: keys.combo(keys.mod, keys.enter) },
+                            )}
                             className="min-w-[7.5rem]"
                             data-test="create-commit-button"
                         >
                             {isScheduling
                                 ? processing
-                                    ? 'Scheduling…'
-                                    : 'Schedule commit'
+                                    ? __('composer.schedule.scheduling')
+                                    : __('composer.schedule.commit')
                                 : processing
-                                  ? 'Committing…'
-                                  : 'Commit'}
+                                  ? __('composer.committing')
+                                  : __('composer.commit')}
                         </Button>
                     </div>
                 </div>

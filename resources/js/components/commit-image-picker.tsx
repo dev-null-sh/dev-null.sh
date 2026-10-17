@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { ImagePlus, X } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,8 @@ const maxImageBytes = 10 * 1024 * 1024;
 const acceptedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 /**
- * Keeps the files the server would accept, and tells why any others were left out.
+ * Keeps the files the server would accept, and tells why any others were left out. The error is a translation key,
+ * shown with `__(error, { max: maxImages })`.
  */
 export function pickImages(
     current: File[],
@@ -24,14 +26,11 @@ export function pickImages(
     const images = [...current, ...accepted].slice(0, maxImages);
 
     if (accepted.length < picked.length) {
-        return {
-            images,
-            error: 'Only JPEG, PNG, GIF, or WebP images up to 10 MB.',
-        };
+        return { images, error: 'composer.images.invalid' };
     }
 
     if (current.length + accepted.length > maxImages) {
-        return { images, error: `Up to ${maxImages} images per commit.` };
+        return { images, error: 'composer.images.too_many' };
     }
 
     return { images, error: null };
@@ -89,6 +88,7 @@ export function ImagePickerButton({
     className?: string;
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
+    const { __ } = useLang();
 
     return (
         <>
@@ -110,8 +110,8 @@ export function ImagePickerButton({
                 size="icon"
                 disabled={disabled || count >= maxImages}
                 onClick={() => inputRef.current?.click()}
-                aria-label="Attach images"
-                title={`Attach up to ${maxImages} images`}
+                aria-label={__('composer.images.attach')}
+                title={__('composer.images.attach_title', { max: maxImages })}
                 className={cn('text-muted-foreground', className)}
                 data-test="attach-images-button"
             >
@@ -133,6 +133,7 @@ export function ImagePickerPreviews({
     onRemove: (index: number) => void;
 }) {
     const id = useId();
+    const { __ } = useLang();
     const [describedIndex, setDescribedIndex] = useState<number | null>(null);
     const urls = images.map(objectUrlFor);
 
@@ -156,7 +157,10 @@ export function ImagePickerPreviews({
 
     return (
         <div className="mt-2">
-            <ul className="flex gap-2" aria-label="Attached images">
+            <ul
+                className="flex gap-2"
+                aria-label={__('composer.images.attached')}
+            >
                 {urls.map((url, index) => {
                     const isDescribed = Boolean(descriptions[index]?.trim());
 
@@ -164,7 +168,9 @@ export function ImagePickerPreviews({
                         <li key={url} className="relative">
                             <img
                                 src={url}
-                                alt={`Attached image ${index + 1}`}
+                                alt={__('composer.images.attached_alt', {
+                                    number: index + 1,
+                                })}
                                 className="size-20 rounded-md border bg-muted object-cover"
                             />
                             <button
@@ -173,7 +179,9 @@ export function ImagePickerPreviews({
                                     setDescribedIndex(null);
                                     onRemove(index);
                                 }}
-                                aria-label={`Remove image ${index + 1}`}
+                                aria-label={__('composer.images.remove', {
+                                    number: index + 1,
+                                })}
                                 className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5 text-foreground backdrop-blur transition hover:bg-background"
                             >
                                 <X className="size-3.5" />
@@ -186,11 +194,12 @@ export function ImagePickerPreviews({
                                         editing === index ? null : index,
                                     )
                                 }
-                                aria-label={
+                                aria-label={__(
                                     isDescribed
-                                        ? `Edit description of image ${index + 1}`
-                                        : `Add description to image ${index + 1}`
-                                }
+                                        ? 'composer.images.edit_description'
+                                        : 'composer.images.add_description',
+                                    { number: index + 1 },
+                                )}
                                 aria-expanded={editing === index}
                                 aria-controls={`${id}-description`}
                                 className={cn(
@@ -217,7 +226,9 @@ export function ImagePickerPreviews({
                         htmlFor={`${id}-description-input`}
                         className="text-xs font-medium text-muted-foreground"
                     >
-                        Description of image {editing + 1}
+                        {__('composer.images.description_label', {
+                            number: editing + 1,
+                        })}
                     </label>
                     <textarea
                         id={`${id}-description-input`}
@@ -235,7 +246,9 @@ export function ImagePickerPreviews({
                             }
                         }}
                         maxLength={maxDescriptionLength}
-                        placeholder="Describe the image for people who can't see it"
+                        placeholder={__(
+                            'composer.images.description_placeholder',
+                        )}
                         className="mt-1 block field-sizing-content max-h-40 min-h-12 w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
                         data-test="image-description-input"
                     />
@@ -250,7 +263,7 @@ export function ImagePickerPreviews({
                             size="sm"
                             onClick={finishDescribing}
                         >
-                            Done
+                            {__('composer.images.done')}
                         </Button>
                     </div>
                 </div>

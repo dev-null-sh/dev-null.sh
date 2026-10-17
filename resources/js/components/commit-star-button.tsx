@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { router, useHttp, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
@@ -12,16 +13,18 @@ import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
-function starLabel(starred: boolean, count: number): string {
-    const verb = starred ? 'Unstar' : 'Star';
+function starLabel(
+    starred: boolean,
+    count: number,
+    { __, transChoice }: ReturnType<typeof useLang>,
+): string {
+    const verb = starred ? 'unstar' : 'star';
 
     if (count === 0) {
-        return `${verb} commit`;
+        return __(`commits.star.${verb}_commit`);
     }
 
-    const noun = count === 1 ? 'star' : 'stars';
-
-    return `${verb} commit, ${count} ${noun}`;
+    return transChoice(`commits.star.${verb}_commit_count`, count);
 }
 
 export function CommitStarButton({
@@ -32,6 +35,7 @@ export function CommitStarButton({
     className?: string;
 }) {
     const { auth } = usePage().props;
+    const lang = useLang();
     const isOwn = commit.user_id === auth.user?.id;
     const [starred, setStarred] = useSharedState(
         commitStateKey('starred', commit.id),
@@ -147,8 +151,12 @@ export function CommitStarButton({
             type="button"
             onClick={toggle}
             aria-pressed={starred}
-            aria-label={starLabel(starred, count)}
-            title={starred ? 'Unstar' : 'Star'}
+            aria-label={starLabel(starred, count, lang)}
+            title={
+                starred
+                    ? lang.__('commits.star.unstar')
+                    : lang.__('commits.star.star')
+            }
             className={cn(
                 'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                 starred && 'text-primary hover:text-primary',
@@ -183,10 +191,11 @@ function StarCount({
     count: number;
     className?: string;
 }) {
+    const { __, transChoice } = useLang();
     const label =
         count === 0
-            ? 'No stars yet'
-            : `${count} ${count === 1 ? 'star' : 'stars'}`;
+            ? __('commits.star.no_stars')
+            : transChoice('commits.star.stars', count);
 
     return (
         <span

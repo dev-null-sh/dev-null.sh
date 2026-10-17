@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head, Link, router } from '@inertiajs/react';
 import { LockKeyhole } from 'lucide-react';
 import { useRef } from 'react';
@@ -13,6 +14,7 @@ export default function Index({
 }: {
     commits: CursorPaginated<Commit>;
 }) {
+    const { __ } = useLang();
     const headingRef = useRef<HTMLHeadingElement>(null);
     const remove = (id: string) => {
         const index = commits.data.findIndex((commit) => commit.id === id);
@@ -47,35 +49,34 @@ export default function Index({
 
     return (
         <>
-            <Head title="Saved" />
+            <Head title={__('users.saved.title')} />
 
             <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b bg-card px-4 sm:px-6">
                 <h1 ref={headingRef} tabIndex={-1} className="font-semibold">
-                    Saved
+                    {__('users.saved.title')}
                 </h1>
                 <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <LockKeyhole aria-hidden className="size-3.5" />
-                    Only you
+                    {__('users.saved.only_you')}
                 </span>
             </header>
 
             <p className="border-b px-4 py-3 text-sm text-muted-foreground sm:px-6">
-                Commits you want to come back to. Most recently saved first.
+                {__('users.saved.description')}
             </p>
 
             <BookmarkRemovalContext value={remove}>
                 <CommitFeed
                     commits={commits}
-                    end="You've reached the end of your saved commits."
+                    end={__('users.saved.end')}
                     empty={
-                        <EmptyFeed command="fatal: no saved commits yet">
-                            Save a commit to find it here. Your saved commits
-                            are private.
+                        <EmptyFeed command={__('users.saved.empty_command')}>
+                            {__('users.saved.empty')}
                             <Link
                                 href={LogController.show('trending')}
                                 className="mt-3 block text-primary hover:underline"
                             >
-                                Explore Trending
+                                {__('users.saved.explore')}
                             </Link>
                         </EmptyFeed>
                     }

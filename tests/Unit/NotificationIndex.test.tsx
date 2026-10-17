@@ -51,6 +51,17 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
                     log: {},
                 },
                 errors: {},
+                lang: {
+                    notifications: {
+                        actions: { followed: 'followed you' },
+                    },
+                    users: {
+                        follow: {
+                            follow_label: 'Follow @:username',
+                            unfollow_label: 'Unfollow @:username',
+                        },
+                    },
+                },
             },
             url: '/notifications',
             version: null,

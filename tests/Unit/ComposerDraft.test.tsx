@@ -51,7 +51,19 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user, isAdmin: false } } }),
+    usePage: () => ({
+        props: {
+            auth: { user, isAdmin: false },
+            lang: {
+                composer: {
+                    schedule: {
+                        images_unsupported:
+                            "Images can't be scheduled yet. Remove them to schedule this commit.",
+                    },
+                },
+            },
+        },
+    }),
     useHttp: () => ({ processing: false, transform: vi.fn(), submit: vi.fn() }),
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
@@ -115,54 +127,54 @@ beforeEach(() => {
 });
 
 test('preserves restored images and link cards while preventing scheduling', () => {
-        draft.images = [image];
-        draft.descriptions = ['A restored screenshot'];
-        const { form, fields } = render();
-        const data = {
-            body: draft.body,
-            link_preview_url: 'https://example.com',
-        };
-        assert.deepEqual(form.props.transform(data), {
-            ...data,
-            images: [image],
-            image_descriptions: ['A restored screenshot'],
-        });
-        const preview = fields.find(
-            (element) => element.type === ImagePickerPreviews,
-        )!;
-        assert.deepEqual(preview.props.images, [image]);
-        const picker = fields.find(
-            (element) => element.type === ImagePickerButton,
-        )!;
-        assert.equal(picker.props.count, 1);
-        const schedule = fields.find(
-            (element) => element.props['aria-controls'] === 'body-schedule',
-        )!;
-        assert.equal(schedule.props.disabled, true);
-        assert.equal(
-            fields.find(
-                (element) => element.props['data-test'] === 'add-poll-button',
-            )!.props.disabled,
-            true,
-        );
-        assert.equal(
-            fields.filter((element) => element.type === LinkCardPicker).length,
-            1,
-        );
+    draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
+    const { form, fields } = render();
+    const data = {
+        body: draft.body,
+        link_preview_url: 'https://example.com',
+    };
+    assert.deepEqual(form.props.transform(data), {
+        ...data,
+        images: [image],
+        image_descriptions: ['A restored screenshot'],
+    });
+    const preview = fields.find(
+        (element) => element.type === ImagePickerPreviews,
+    )!;
+    assert.deepEqual(preview.props.images, [image]);
+    const picker = fields.find(
+        (element) => element.type === ImagePickerButton,
+    )!;
+    assert.equal(picker.props.count, 1);
+    const schedule = fields.find(
+        (element) => element.props['aria-controls'] === 'body-schedule',
+    )!;
+    assert.equal(schedule.props.disabled, true);
+    assert.equal(
+        fields.find(
+            (element) => element.props['data-test'] === 'add-poll-button',
+        )!.props.disabled,
+        true,
+    );
+    assert.equal(
+        fields.filter((element) => element.type === LinkCardPicker).length,
+        1,
+    );
 
-        form.props.onSuccess({
-            flash: { toast: { type: 'error', message: 'Slow down' } },
-        });
-        assert.equal(draft.drop.mock.calls.length, 0);
-        assert.deepEqual(draft.images, [image]);
-        vi.stubGlobal('requestAnimationFrame', vi.fn());
-        try {
-            form.props.onSuccess({ flash: {} });
-            assert.deepEqual(draft.images, []);
-            assert.equal(draft.drop.mock.calls.length, 1);
-        } finally {
-            vi.unstubAllGlobals();
-        }
+    form.props.onSuccess({
+        flash: { toast: { type: 'error', message: 'Slow down' } },
+    });
+    assert.equal(draft.drop.mock.calls.length, 0);
+    assert.deepEqual(draft.images, [image]);
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        form.props.onSuccess({ flash: {} });
+        assert.deepEqual(draft.images, []);
+        assert.equal(draft.drop.mock.calls.length, 1);
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });
 
 test('removing restored images enables polls and successful posting resets the poll', () => {
@@ -199,8 +211,7 @@ test('removing restored images enables polls and successful posting resets the p
         );
         assert.equal(
             view.fields.find(
-                (element) =>
-                    element.props['aria-controls'] === 'body-schedule',
+                (element) => element.props['aria-controls'] === 'body-schedule',
             )!.props.disabled,
             true,
         );

@@ -1,0 +1,144 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'title' => '설정',
+
+    'tabs' => [
+        'profile' => '프로필',
+        'appearance' => '화면',
+        'terminal' => '터미널',
+        'safety' => '안전',
+    ],
+
+    'appearance' => [
+        'title' => '화면 설정',
+        'theme' => '테마',
+        'theme_description' => '시스템은 운영체제 설정을 따라요. 그렇게 설정해 두었다면 낮에는 라이트, 밤에는 다크로 바뀌어요.',
+        'light' => '라이트',
+        'dark' => '다크',
+        'system' => '시스템',
+        'who_to_follow' => '팔로우 추천',
+        'who_to_follow_description' => '팔로우할 만한 세 사람을 오른쪽 열에 보여 줘요. 작은 화면에서는 로그에 표시돼요.',
+        'show' => '보기',
+        'hide' => '숨기기',
+    ],
+
+    'language' => [
+        'title' => '언어',
+        'description' => 'devnull을 표시할 언어예요. 커밋은 작성된 언어 그대로 표시돼요.',
+    ],
+
+    'profile' => [
+        'title' => '프로필 설정',
+        'information' => '프로필 정보',
+        'information_description' => '로그인할 때 GitHub에서 가져와요. 바꾸려면 GitHub에서 수정한 다음 여기에서 동기화하세요.',
+        'edit_on_github' => 'GitHub에서 수정',
+        'sync' => 'GitHub에서 동기화',
+        'view' => '프로필 보기',
+        'last_synced' => '마지막 동기화',
+        'last_synced_at_sign_in' => '로그인할 때 마지막으로 동기화됨',
+        'just_now' => '방금',
+        'export' => '내 데이터 내보내기',
+        'export_description' => '저장된 내 데이터를 모두 다운로드해요: 프로필, 커밋과 답글(검토 대기, 거부, 삭제된 것 포함), 스타, 저장한 커밋, 팔로우, 뮤트, 차단, 알림, SSH 키 지문, 활성 세션.',
+        'export_note' => '다른 사람의 답글은 포함되지 않아요. 내보낸 파일은 JSON 형식이에요. 프로필은 계속 GitHub에서 관리돼요.',
+        'download_json' => 'JSON 다운로드',
+    ],
+
+    'lane' => [
+        'title' => '색상',
+        'description' => '그래프에서 나의 레인이에요. 커밋 옆의 레일과 노드, 아바타 둘레의 링, 핸들 앞의 점에 쓰여요. 자동을 선택하면 계정 ID에 따라 색이 정해져요.',
+        'auto' => '자동',
+        'automatic' => '자동 (:color)',
+        'names' => [
+            'orange' => '주황',
+            'green' => '초록',
+            'violet' => '보라',
+            'teal' => '청록',
+            'rose' => '로즈',
+            'ochre' => '황토',
+        ],
+        'save' => '색상 저장',
+    ],
+
+    'pasteis' => [
+        'title' => 'Pastéis 모드',
+        'description' => '매일 새로 받는 작은 감사 표시예요. 다른 사람의 커밋에 줄 수 있는 pastel을 매일 10개 받고, 한 번 클릭할 때마다 하나씩 줄 수 있어요. 매일 00:00 UTC에 초기화돼요.',
+        'off_note' => '끄면 pastel 관련 버튼과 카운터가 모두 숨겨져요. 다른 사람이 주는 pastel은 계속 받을 수 있어요.',
+        'save_failed' => 'Pastéis 모드를 저장하지 못했어요. 다시 시도해 주세요.',
+    ],
+
+    'delete_account' => [
+        'title' => '계정 삭제',
+        'description' => '내 /dev/null 계정, 내가 작성한 모든 커밋과 답글, 팔로우를 모두 삭제해요. 다른 사람이 내 커밋에 단 답글도 함께 삭제돼요. 내 답글에 달린 답글은 [deleted] 묘비 아래에 남아요. GitHub 계정에는 영향이 없어요.',
+        'confirm_title' => '계정을 삭제할까요?',
+        'confirm_description' => '프로필, 커밋, 답글, 팔로우가 다른 사람이 내 커밋에 단 모든 답글과 함께 /dev/null로 사라져요. 내 답글에 달린 답글은 [deleted] 묘비 아래에 남아요. 이 작업은 되돌릴 수 없어요. 나중에 GitHub로 다시 로그인할 수 있지만, 처음부터 다시 시작하게 돼요.',
+        'keep' => '계정 유지',
+    ],
+
+    'safety' => [
+        'title' => '안전 설정',
+        'muted' => '뮤트함',
+        'muted_description' => '상대의 커밋과 답글이 내 로그, 스레드, 검색, 추천에 나타나지 않고, 상대가 나에게 알림을 보낼 수 없어요. 상대에게는 알려지지 않으며, 상대의 프로필은 계속 방문할 수 있어요.',
+        'muted_empty' => '아직 뮤트한 사람이 없어요.',
+        'unmute' => '뮤트 해제',
+        'blocked' => '차단함',
+        'blocked_description' => '서로 팔로우, 답글, 스타를 할 수 없고, 서로의 커밋도 볼 수 없어요. 차단을 해제해도 팔로우는 복구되지 않아요.',
+        'blocked_empty' => '아직 차단한 사람이 없어요.',
+        'unblock' => '차단 해제',
+    ],
+
+    'terminal' => [
+        'title' => '터미널 설정',
+        'from_terminal' => '터미널에서 커밋하기',
+        'from_terminal_description' => '로그인도 토큰도 필요 없어요. 스크립트가 GitHub 계정에 등록된 SSH 키로 커밋에 서명하고, /dev/null은 GitHub가 공개한 내 키와 대조해 확인해요.',
+        'command' => '명령어',
+        'reply_command' => '답글 명령어',
+        'key_command' => '키 명령어',
+        'workflow' => '워크플로',
+        'from_actions' => 'GitHub Actions에서 커밋하기',
+        'from_actions_description' => '릴리스를 게시할 때 릴리스 노트를 올리거나, 워크플로가 아는 무엇이든 올려 보세요. 서명도, 검토도, 분당 10개 커밋 제한도 똑같아요.',
+        'step_generate' => 'CI 전용 키를 생성하세요.',
+        'step_add_key_before' => '공개 키',
+        'step_add_key_middle' => '파일을 GitHub에',
+        'step_add_key_link' => '서명 키',
+        'step_add_key_after' => '로 추가하세요. 이 키로 /dev/null 커밋에 서명할 수는 있지만, 코드를 푸시하거나 로그인할 수는 없어요.',
+        'step_save_secret_before' => '개인 키',
+        'step_save_secret_middle' => ' 파일을 저장소 시크릿으로 저장하고, 이름은',
+        'step_save_secret_after' => '로 지정한 다음 두 파일을 모두 삭제하세요.',
+        'step_add_workflow_before' => '워크플로를',
+        'step_add_workflow_after' => '에 추가하세요.',
+        'inputs' => [
+            'body' => '커밋 내용, 3~4,000자.',
+            'ssh_key' => '시크릿에서 가져온 개인 키. 암호가 없는 Ed25519 또는 RSA.',
+            'reply_to' => '선택 사항. 답글을 달 커밋의 해시 또는 링크.',
+        ],
+        'job_output' => '작업은 커밋 링크와 검토 대기 여부를 출력해요. /dev/null이 거부하면 작업은 그 이유와 함께 실패해요.',
+    ],
+
+    'scheduled' => [
+        'title' => '예약된 커밋',
+        'back_to_log' => '로그로 돌아가기',
+        'private' => '비공개',
+        'intro' => '이 목록은 나만 볼 수 있어요. 예약된 시간이 되면 각 커밋은 일반 검토 과정을 거쳐요. 예약은 승인이 아니에요.',
+        'times_in' => ':timezone 기준 시간',
+        'empty_title' => '예약된 커밋이 없어요',
+        'empty_description' => '나중에 제출하려면 작성 창에서 예약을 선택하세요.',
+        'status' => [
+            'scheduled' => '예약됨',
+            'waiting' => '제출 대기 중',
+            'pending' => '검토 요청됨',
+            'approved' => '승인됨',
+            'rejected' => '거부됨',
+            'deleted' => '삭제됨',
+        ],
+        'cancel' => '취소',
+        'cancel_label' => ':time에 예약된 커밋 취소',
+        'canceling' => '취소 중…',
+        'due_note' => '스케줄러를 기다리는 중이에요. 제출에 실패하면 자동으로 다시 시도해요.',
+        'private_note' => '제출 전까지 비공개예요. 제출 전에는 취소할 수 있어요.',
+        'previous' => '이전',
+        'next' => '다음',
+    ],
+];

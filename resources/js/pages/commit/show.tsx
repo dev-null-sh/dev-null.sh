@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
@@ -20,6 +21,7 @@ export default function Show({
     replies: CursorPaginated<ThreadCommit>;
 }) {
     const { auth } = usePage().props;
+    const { __ } = useLang();
     const excerpt =
         commit.body.length > titleLength
             ? `${commit.body.slice(0, titleLength).trimEnd()}…`
@@ -39,18 +41,23 @@ export default function Show({
 
     return (
         <>
-            <Head title={`${commit.user.name}: “${excerpt}”`} />
+            <Head
+                title={__('commits.show.title', {
+                    name: commit.user.name,
+                    excerpt,
+                })}
+            />
 
             <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4">
                 <button
                     type="button"
                     onClick={goBack}
-                    aria-label="Back"
+                    aria-label={__('commits.show.back')}
                     className="text-muted-foreground hover:text-foreground"
                 >
                     <ArrowLeft className="size-4" />
                 </button>
-                <h1 className="font-semibold">Commit</h1>
+                <h1 className="font-semibold">{__('commits.show.heading')}</h1>
                 <p className="ml-auto shrink-0 font-mono text-[13px] text-muted-foreground">
                     {shortHash(commit.id)}
                 </p>

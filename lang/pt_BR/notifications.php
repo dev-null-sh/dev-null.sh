@@ -1,0 +1,80 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'title' => 'Notificações',
+    'filter_label' => 'Filtrar notificações',
+
+    'filters' => [
+        'all' => 'Todas',
+        'replies' => 'Respostas',
+        'quotes' => 'Citações',
+        'stars' => 'Estrelas',
+        'mentions' => 'Menções',
+        'follows' => 'Seguidores',
+        'moderation' => 'Moderação',
+    ],
+
+    'empty' => [
+        'all' => 'Nada por aqui ainda. Novos seguidores, estrelas, respostas, citações, menções e atualizações de moderação dos seus commits vão aparecer aqui.',
+        'replies' => 'Nenhuma resposta ainda. Quando alguém responder a um dos seus commits, vai aparecer aqui.',
+        'quotes' => 'Nenhuma citação ainda. Quando alguém citar um dos seus commits, vai aparecer aqui.',
+        'stars' => 'Nenhuma estrela ainda. Quando alguém der estrela a um dos seus commits, vai aparecer aqui.',
+        'mentions' => 'Nenhuma menção ainda. Quando alguém mencionar você em um commit, vai aparecer aqui.',
+        'follows' => 'Nenhum seguidor ainda. Quando alguém seguir você, vai aparecer aqui.',
+        'moderation' => 'Nenhuma atualização de moderação. Commits aprovados e rejeitados aparecem aqui.',
+    ],
+
+    'show_all' => 'Mostrar todas as notificações',
+    'new_label' => 'nova notificação|novas notificações',
+    'loading_more' => 'Carregando mais notificações',
+    'end' => 'Essa é a notificação mais antiga. Não há nada antes dela.',
+    'last_visit' => 'As notificações acima são novas desde a sua última visita',
+    'new' => 'Nova.',
+    'try_again' => 'Tentar de novo',
+
+    'groups' => [
+        'followers' => [
+            'count' => ':count seguidor|:count seguidores',
+            'hide' => 'Ocultar seguidores',
+            'loading' => 'Carregando seguidores…',
+            'failed' => 'fatal: não foi possível carregar os seguidores',
+            'older' => 'Mostrar seguidores mais antigos',
+        ],
+        'stars' => [
+            'count' => ':count estrela|:count estrelas',
+            'hide' => 'Ocultar estrelas',
+            'loading' => 'Carregando estrelas…',
+            'failed' => 'fatal: não foi possível carregar as estrelas',
+            'older' => 'Mostrar estrelas mais antigas',
+        ],
+        'updates' => [
+            'count' => ':count atualização|:count atualizações',
+            'hide' => 'Ocultar atualizações',
+            'loading' => 'Carregando atualizações…',
+            'failed' => 'fatal: não foi possível carregar as atualizações',
+            'older' => 'Mostrar atualizações mais antigas',
+        ],
+    ],
+
+    'actions' => [
+        'followed' => 'seguiu você',
+        'replied' => 'respondeu ao seu commit',
+        'quoted' => 'citou seu commit',
+        'starred' => 'deu estrela ao seu commit',
+        'mentioned' => 'mencionou você',
+        'approved' => 'Seu commit foi aprovado',
+        'rejected' => 'Seu commit foi rejeitado',
+    ],
+
+    'and_others' => 'e mais :count pessoa|e mais :count pessoas',
+
+    'statuses' => [
+        'approved' => 'aprovado',
+        'rejected' => 'rejeitado',
+    ],
+
+    'reason' => 'motivo:',
+    'rejected_note' => 'Só você vê esta atualização e o seu commit rejeitado.',
+];

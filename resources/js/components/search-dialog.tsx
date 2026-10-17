@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Link, router } from '@inertiajs/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { ArrowRight, Search, Sparkles } from 'lucide-react';
@@ -36,6 +37,8 @@ const commitLimit = 5;
 
 type Found<T> = { term: string; items: T[]; throttled?: boolean };
 
+type Translate = ReturnType<typeof useLang>['__'];
+
 type Option =
     | { kind: 'developer'; id: string; user: User }
     | { kind: 'commit'; id: string; commit: Commit }
@@ -56,6 +59,8 @@ export function SearchDialog({
     onOpenChange: (open: boolean) => void;
 }) {
     const keys = useKeyLabels();
+    const { __ } = useLang();
+    const headings = headingsFor(__);
     const [query, setQuery] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
 
@@ -154,11 +159,10 @@ export function SearchDialog({
                     data-test="search"
                 >
                     <DialogPrimitive.Title className="sr-only">
-                        Search
+                        {__('nav.search.title')}
                     </DialogPrimitive.Title>
                     <DialogPrimitive.Description className="sr-only">
-                        Find developers by name or handle, or commits by what
-                        they are about.
+                        {__('nav.search.description')}
                     </DialogPrimitive.Description>
 
                     <div className="flex items-center gap-3 border-b px-4">
@@ -169,7 +173,7 @@ export function SearchDialog({
                             value={query}
                             onChange={(event) => type(event.target.value)}
                             onKeyDown={onKeyDown}
-                            placeholder="Search developers or commits"
+                            placeholder={__('nav.search.placeholder')}
                             role="combobox"
                             aria-expanded={options.length > 0}
                             aria-controls="search-results"
@@ -201,16 +205,17 @@ export function SearchDialog({
                             role="status"
                             className="truncate px-5 pt-4 font-mono text-[13px] text-muted-foreground"
                         >
-                            error: too many searches, give it a few seconds
+                            error: {__('nav.search.too_many')}
                         </p>
                     ) : (
                         foundNothing && (
                             <p
                                 role="status"
                                 className="truncate px-5 pt-4 font-mono text-[13px] text-muted-foreground"
-                                title={`fatal: nothing matches '${term}'`}
+                                title={`fatal: ${__('nav.search.nothing_matches', { term })}`}
                             >
-                                fatal: nothing matches '{term}'
+                                fatal:{' '}
+                                {__('nav.search.nothing_matches', { term })}
                             </p>
                         )
                     )}
@@ -219,7 +224,7 @@ export function SearchDialog({
                         <ul
                             id="search-results"
                             role="listbox"
-                            aria-label="Search results"
+                            aria-label={__('nav.search.results')}
                             className="max-h-[min(30rem,60dvh)] overflow-y-auto overscroll-contain p-2"
                         >
                             {options.map((option, index) => (
@@ -227,7 +232,11 @@ export function SearchDialog({
                                     key={option.id}
                                     option={option}
                                     term={term}
-                                    heading={headingBefore(options, index)}
+                                    heading={headingBefore(
+                                        options,
+                                        index,
+                                        headings,
+                                    )}
                                     isActive={index === activeIndex}
                                     onHover={() => setActiveIndex(index)}
                                     onOpen={close}
@@ -241,26 +250,29 @@ export function SearchDialog({
                             className="px-5 py-8 text-center text-sm text-muted-foreground"
                         >
                             {isAwaitingDeveloperName
-                                ? 'Type a name or handle to find a developer'
-                                : 'Searching…'}
+                                ? __('nav.search.awaiting_developer')
+                                : __('nav.search.searching')}
                         </div>
                     )}
 
                     <div className="hidden items-center gap-4 border-t bg-muted/40 px-4 py-2 text-xs text-muted-foreground sm:flex">
                         <span className="flex items-center gap-1.5">
-                            <kbd className="font-mono">↑↓</kbd> to move
+                            <kbd className="font-mono">↑↓</kbd>{' '}
+                            {__('nav.search.to_move')}
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <kbd className="font-mono">↵</kbd> to open
+                            <kbd className="font-mono">↵</kbd>{' '}
+                            {__('nav.search.to_open')}
                         </span>
                         <span className="flex items-center gap-1.5">
-                            <kbd className="font-mono">@</kbd> for developers
+                            <kbd className="font-mono">@</kbd>{' '}
+                            {__('nav.search.for_developers')}
                         </span>
                         <span className="ml-auto flex items-center gap-1.5">
                             <kbd className="font-mono">
                                 {keys.combo(keys.mod, 'K')}
                             </kbd>{' '}
-                            anywhere
+                            {__('nav.search.anywhere')}
                         </span>
                     </div>
                 </DialogPrimitive.Content>
@@ -373,19 +385,25 @@ function optionsFor(
     return [...developerOptions, ...commitOptions, ...seeAll];
 }
 
-const headings: Record<Option['kind'], ReactNode> = {
-    developer: 'Developers',
-    commit: 'Most relevant commits',
+type Headings = Record<Option['kind'], ReactNode>;
+
+const headingsFor = (__: Translate): Headings => ({
+    developer: __('nav.search.developers'),
+    commit: __('nav.search.most_relevant'),
     all: null,
     suggestion: (
         <span className="flex items-center gap-1.5">
             <Sparkles aria-hidden className="size-3.5 text-primary" />
-            Try searching for…
+            {__('nav.search.try_searching')}
         </span>
     ),
-};
+});
 
-function headingBefore(options: Option[], index: number): ReactNode {
+function headingBefore(
+    options: Option[],
+    index: number,
+    headings: Headings,
+): ReactNode {
     const kind = options[index].kind;
 
     if (options[index - 1]?.kind === kind) {
@@ -491,6 +509,8 @@ function ResultOption({
 }
 
 function OptionContent({ option }: { option: Option }): ReactNode {
+    const { __ } = useLang();
+
     if (option.kind === 'developer') {
         return <DeveloperResult user={option.user} />;
     }
@@ -515,7 +535,7 @@ function OptionContent({ option }: { option: Option }): ReactNode {
 
     return (
         <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-primary">
-            See all matching commits
+            {__('nav.search.see_all')}
             <ArrowRight aria-hidden className="size-4" />
         </span>
     );

@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Link, router, usePage } from '@inertiajs/react';
 import type { CSSProperties, ReactNode, RefObject } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -100,6 +101,7 @@ export function UserPreview({
     anchor?: RefObject<HTMLElement | null>;
     onHoverChange?: (isHovering: boolean) => void;
 }) {
+    const { __ } = useLang();
     const triggerRef = useRef<HTMLSpanElement>(null);
     const previewRef = useRef<HTMLDivElement>(null);
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -238,7 +240,9 @@ export function UserPreview({
                     <div
                         ref={previewRef}
                         role="dialog"
-                        aria-label={`About @${user.username}`}
+                        aria-label={__('users.preview.about', {
+                            username: user.username,
+                        })}
                         onMouseEnter={() => {
                             onHoverChange?.(true);
                             keepOpen();
@@ -288,6 +292,7 @@ function UserPreviewContent({
     onMenuOpenChange: (isOpen: boolean) => void;
 }) {
     const { auth } = usePage().props;
+    const { __, transChoice } = useLang();
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
 
@@ -362,11 +367,12 @@ function UserPreviewContent({
                                         toggleFollow();
                                     }}
                                     onMouseLeave={onMouseLeave}
-                                    aria-label={
+                                    aria-label={__(
                                         data.isFollowing
-                                            ? `Unfollow @${user.username}`
-                                            : `Follow @${user.username}`
-                                    }
+                                            ? 'users.follow.unfollow_label'
+                                            : 'users.follow.follow_label',
+                                        { username: user.username },
+                                    )}
                                     data-test="user-preview-follow-button"
                                 >
                                     <FollowLabel
@@ -395,12 +401,12 @@ function UserPreviewContent({
                 <span className="truncate">@{user.username}</span>
                 {data?.followsYou && (
                     <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
-                        Follows you
+                        {__('users.follows_you')}
                     </span>
                 )}
                 {data?.isMuting && (
                     <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
-                        Muted
+                        {__('users.muted')}
                     </span>
                 )}
             </p>
@@ -415,8 +421,10 @@ function UserPreviewContent({
                 {data?.isUnavailable ? (
                     <p className="text-muted-foreground">
                         {data.isBlocking
-                            ? `You blocked @${user.username}.`
-                            : 'This profile is unavailable.'}
+                            ? __('users.preview.blocked', {
+                                  username: user.username,
+                              })
+                            : __('users.preview.unavailable')}
                     </p>
                 ) : data ? (
                     <>
@@ -425,9 +433,10 @@ function UserPreviewContent({
                                 {data.user.commits_count}
                             </span>{' '}
                             <span className="text-muted-foreground">
-                                {data.user.commits_count === 1
-                                    ? 'commit'
-                                    : 'commits'}
+                                {transChoice(
+                                    'users.counts.commits',
+                                    data.user.commits_count,
+                                )}
                             </span>
                         </span>
                         <Link
@@ -438,7 +447,7 @@ function UserPreviewContent({
                                 {data.user.following_count}
                             </span>{' '}
                             <span className="text-muted-foreground">
-                                following
+                                {__('users.counts.following')}
                             </span>
                         </Link>
                         <Link
@@ -449,9 +458,10 @@ function UserPreviewContent({
                                 {data.user.followers_count}
                             </span>{' '}
                             <span className="text-muted-foreground">
-                                {data.user.followers_count === 1
-                                    ? 'follower'
-                                    : 'followers'}
+                                {transChoice(
+                                    'users.counts.followers',
+                                    data.user.followers_count,
+                                )}
                             </span>
                         </Link>
                     </>

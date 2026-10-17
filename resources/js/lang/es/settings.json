@@ -1,0 +1,130 @@
+{
+    "title": "Ajustes",
+    "tabs": {
+        "profile": "Perfil",
+        "appearance": "Apariencia",
+        "terminal": "Terminal",
+        "safety": "Seguridad"
+    },
+    "appearance": {
+        "title": "Ajustes de apariencia",
+        "theme": "Tema",
+        "theme_description": "Sistema sigue a tu sistema operativo: claro de día y oscuro de noche, si lo tienes configurado así.",
+        "light": "Claro",
+        "dark": "Oscuro",
+        "system": "Sistema",
+        "who_to_follow": "A quién seguir",
+        "who_to_follow_description": "Tres personas que quizá quieras seguir, en la columna derecha o en tu log en pantallas más pequeñas.",
+        "show": "Mostrar",
+        "hide": "Ocultar"
+    },
+    "language": {
+        "title": "Idioma",
+        "description": "El idioma en el que se muestra devnull. Los commits se quedan en el idioma en que se escribieron."
+    },
+    "profile": {
+        "title": "Ajustes del perfil",
+        "information": "Información del perfil",
+        "information_description": "Se copia de GitHub cuando inicias sesión. Para cambiar algo, cámbialo en GitHub y luego sincronízalo aquí.",
+        "edit_on_github": "Editar en GitHub",
+        "sync": "Sincronizar desde GitHub",
+        "view": "Ver perfil",
+        "last_synced": "Última sincronización",
+        "last_synced_at_sign_in": "Sincronizado por última vez al iniciar sesión",
+        "just_now": "justo ahora",
+        "export": "Exportar tus datos",
+        "export_description": "Descarga todo lo que guardamos sobre ti: tu perfil, commits y respuestas (incluidos los pendientes, rechazados y eliminados), estrellas, commits guardados, seguimientos, silenciados, bloqueos, notificaciones, huellas de claves SSH y sesiones activas.",
+        "export_note": "No se incluyen las respuestas de otras personas. Tu exportación es un archivo JSON. Tu perfil se sigue gestionando en GitHub.",
+        "download_json": "Descargar JSON"
+    },
+    "lane": {
+        "title": "Color",
+        "description": "Tu carril en el gráfico: la línea y los nodos junto a tus commits, el anillo alrededor de tu avatar y el punto antes de tu usuario. Automático elige uno a partir del id de tu cuenta.",
+        "auto": "Auto",
+        "automatic": "Automático (:color)",
+        "names": {
+            "orange": "Naranja",
+            "green": "Verde",
+            "violet": "Violeta",
+            "teal": "Verde azulado",
+            "rose": "Rosa",
+            "ochre": "Ocre"
+        },
+        "save": "Guardar color"
+    },
+    "pasteis": {
+        "title": "Modo pastéis",
+        "description": "Un poco de aprecio, recién hecho cada día. Recibe 10 pastéis para dar a commits de otras personas, uno por clic. Tu cupo se reinicia a las 00:00 UTC.",
+        "off_note": "Si está desactivado, se ocultan todos los controles y contadores de pastéis. Sigues recibiendo pastéis de los demás.",
+        "save_failed": "No se pudo guardar el modo pastéis. Inténtalo de nuevo."
+    },
+    "delete_account": {
+        "title": "Eliminar cuenta",
+        "description": "Elimina tu cuenta de \/dev\/null, cada commit y respuesta que hayas hecho, y a todas las personas que sigues. También se van las respuestas que otros dejaron en tus commits. Las respuestas a tus respuestas se quedan, colgando de una lápida [deleted]. Tu cuenta de GitHub no se toca.",
+        "confirm_title": "¿Eliminar tu cuenta?",
+        "confirm_description": "Tu perfil, commits, respuestas y seguimientos van a \/dev\/null, junto con cada respuesta que otros dejaron en tus commits. Las respuestas a tus respuestas se quedan, bajo una lápida [deleted]. Esto no se puede deshacer. Puedes volver a iniciar sesión con GitHub más tarde, pero empezarás de cero.",
+        "keep": "Conservar mi cuenta"
+    },
+    "safety": {
+        "title": "Ajustes de seguridad",
+        "muted": "Silenciados",
+        "muted_description": "Sus commits y respuestas no aparecen en tus logs, hilos, búsquedas ni sugerencias, y no pueden enviarte notificaciones. No se les avisa, y aún puedes visitar su perfil.",
+        "muted_empty": "No has silenciado a nadie.",
+        "unmute": "Dejar de silenciar",
+        "blocked": "Bloqueados",
+        "blocked_description": "Ninguno de los dos puede seguir, responder ni dar estrella al otro, ni ver los commits del otro. Desbloquear no restaura los seguimientos.",
+        "blocked_empty": "No has bloqueado a nadie.",
+        "unblock": "Desbloquear"
+    },
+    "terminal": {
+        "title": "Ajustes de terminal",
+        "from_terminal": "Haz commit desde tu terminal",
+        "from_terminal_description": "Sin login ni token: el script firma tu commit con una clave SSH de tu cuenta de GitHub, y \/dev\/null la verifica con las claves que GitHub publica para ti.",
+        "command": "comando",
+        "reply_command": "comando de respuesta",
+        "key_command": "comando de clave",
+        "workflow": "workflow",
+        "from_actions": "Haz commit desde GitHub Actions",
+        "from_actions_description": "Publica notas de versión cuando lances un release, o cualquier otra cosa que sepa un workflow. Misma firma, misma moderación, mismos 10 commits por minuto.",
+        "step_generate": "Genera una clave solo para CI.",
+        "step_add_key_before": "Agrega",
+        "step_add_key_middle": "a GitHub como",
+        "step_add_key_link": "clave de firma",
+        "step_add_key_after": ". Puede firmar commits de \/dev\/null, pero nunca subir código ni iniciar sesión.",
+        "step_save_secret_before": "Guarda",
+        "step_save_secret_middle": ", la clave privada, como un secreto del repositorio llamado",
+        "step_save_secret_after": ", y luego borra ambos archivos.",
+        "step_add_workflow_before": "Agrega el workflow en",
+        "step_add_workflow_after": ".",
+        "inputs": {
+            "body": "El commit, de 3 a 4000 caracteres.",
+            "ssh_key": "La clave privada, desde un secreto. Ed25519 o RSA, sin frase de contraseña.",
+            "reply_to": "Opcional. El hash o enlace de un commit al que responder."
+        },
+        "job_output": "El job imprime el enlace a tu commit y si está pendiente de revisión. Cuando \/dev\/null lo rechaza, el job falla con el motivo."
+    },
+    "scheduled": {
+        "title": "Commits programados",
+        "back_to_log": "Volver al log",
+        "private": "Privado",
+        "intro": "Solo tú puedes ver esta lista. A la hora programada, cada commit pasa por el proceso de revisión habitual. Programar no es aprobar.",
+        "times_in": "Horas en :timezone",
+        "empty_title": "No hay commits programados",
+        "empty_description": "Elige Programar en el editor para enviarlo más tarde.",
+        "status": {
+            "scheduled": "Programado",
+            "waiting": "Esperando envío",
+            "pending": "Enviado a revisión",
+            "approved": "Aprobado",
+            "rejected": "Rechazado",
+            "deleted": "Eliminado"
+        },
+        "cancel": "Cancelar",
+        "cancel_label": "Cancelar el commit programado para :time",
+        "canceling": "Cancelando…",
+        "due_note": "Esperando al programador. Si el envío falla, se reintenta automáticamente.",
+        "private_note": "Privado hasta que se envíe. Puedes cancelarlo antes del envío.",
+        "previous": "Anterior",
+        "next": "Siguiente"
+    }
+}

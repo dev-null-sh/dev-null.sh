@@ -2,8 +2,13 @@ import { Link } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
 import { cn } from '@/lib/utils';
 
+/**
+ * The indicator's view transition name comes from `name`, falling back to the label. Pass `name` when the label is
+ * translated, so the name stays the same in every language.
+ */
 export function PageTabs({
     label,
+    name = label,
     tabs,
     preserveScroll = false,
     prefetch = true,
@@ -11,6 +16,7 @@ export function PageTabs({
     reset,
 }: {
     label: string;
+    name?: string;
     preserveScroll?: boolean;
     prefetch?: boolean;
     only?: InertiaLinkProps['only'];
@@ -21,7 +27,7 @@ export function PageTabs({
         isActive: boolean;
     }[];
 }) {
-    const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
+    const indicatorName = `tab-indicator-${name.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
 
     return (
         <nav aria-label={label} className="flex border-b">

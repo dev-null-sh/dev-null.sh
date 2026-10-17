@@ -1,0 +1,207 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'actions' => [
+        'cancel' => '取消',
+        'delete' => '删除',
+        'more' => '更多操作',
+        'reply' => '回复',
+    ],
+
+    'status' => [
+        'pending' => '待审核',
+        'approved' => '已通过',
+        'rejected' => '已拒绝',
+    ],
+
+    'card' => [
+        'pending_title' => '审核通过前，这条提交仅你自己可见。',
+        'rejected_title' => '这条提交已被拒绝，仅你自己可见。',
+        'commit_title' => '提交 :id',
+        'delete' => '删除提交',
+        'replying_to' => '回复 @:username',
+        'replying_to_deleted' => '回复 [deleted]',
+        'confirm_delete' => '确认删除',
+        'confirm_delete_message' => '删除这条提交？30 秒内可以撤销。',
+        'tombstone' => '这条提交已被删除。',
+    ],
+
+    'thread' => [
+        'unsent_reply' => '你在这里有一条未发送的回复',
+        'show_replies' => '显示回复',
+        'hide_replies' => '隐藏回复',
+        'replies' => ':count 条回复|:count 条回复',
+        'loading_replies' => '正在加载回复',
+        'loading_replies_ellipsis' => '正在加载回复…',
+        'show_more' => '显示更多',
+        'show_more_to' => '查看更多回复：',
+        'delete' => '删除回复',
+        'delete_failed' => '无法删除你的回复，请重试。',
+        'confirm_delete_message' => '删除这条回复？30 秒内可以撤销。',
+        'reply_failed' => '无法发送你的回复，请重试。',
+        'parent_unavailable' => '这条提交已无法回复。',
+        'reply_to' => '回复 @:username',
+        'replying' => '正在回复…',
+    ],
+
+    'feed' => [
+        'pinned_commit' => '置顶提交',
+        'pinned' => '已置顶',
+        'latest_commits' => '最新提交',
+        'just_now' => '刚刚',
+        'top_commits' => '热门提交',
+        'loading_more' => '正在加载更多提交',
+        'today' => '今天',
+        'yesterday' => '昨天',
+        'last_visit_label' => '以上是你上次访问后的新提交',
+        'last_visit' => '上次访问',
+    ],
+
+    'body' => [
+        'show_more' => '显示更多',
+    ],
+
+    'images' => [
+        'attached' => '附图',
+        'attached_numbered' => '附图 :position / :count',
+    ],
+
+    'viewer' => [
+        'hide_commit' => '隐藏提交',
+        'show_commit' => '显示提交',
+        'hide_description' => '隐藏图片描述',
+        'show_description' => '显示图片描述',
+        'commit' => '提交',
+        'previous' => '上一张',
+        'next' => '下一张',
+        'close' => '关闭',
+        'slide' => '幻灯片',
+        'carousel' => '轮播',
+        'lightbox' => '灯箱',
+        'photo_gallery' => '图库',
+        'slide_position' => ':index / :total',
+        'zoom_in' => '放大',
+        'zoom_out' => '缩小',
+        'download' => '下载',
+    ],
+
+    'poll' => [
+        'vote_failed' => '无法记录你的投票，请重试。',
+        'votes' => ':count 票|:count 票',
+        'opens_once_approved' => '审核通过后开放投票',
+        'closed' => '投票已结束',
+        'final_results' => '最终结果',
+        'time_left' => '剩余 :time',
+        'options' => '投票选项',
+        'results' => '投票结果',
+        'vote' => '投票',
+        'voting' => '正在投票…',
+        'your_vote' => '，你的选择',
+    ],
+
+    'quote' => [
+        'quoting' => '引用',
+        'unavailable' => '这条提交不可用。',
+    ],
+
+    'report' => [
+        'title' => '举报提交',
+        'description' => '你的举报是私密的，只有管理员可以查看。举报不会隐藏这条提交。',
+        'too_many' => '举报次数过多，请稍等一分钟后重试。',
+        'unavailable' => '这条提交已无法举报。',
+        'network_error' => '无法发送你的举报，请检查网络连接后重试。',
+        'reason_legend' => '你为什么要举报这条提交？',
+        'reasons' => [
+            'spam' => '垃圾信息或误导性链接',
+            'harassment' => '骚扰或仇恨言论',
+            'unsafe' => '有害或隐私信息',
+            'other' => '其他原因',
+        ],
+        'details' => '详细信息',
+        'optional' => '（可选）',
+        'details_hint' => '为管理员补充背景信息，最多 500 个字符。',
+        'sending' => '正在发送…',
+        'send' => '发送举报',
+    ],
+
+    'bookmark' => [
+        'failed' => '无法更新你的收藏，请重试。',
+        'save_commit' => '收藏提交',
+        'unsave_commit' => '取消收藏',
+        'saved' => '已收藏',
+        'save_privately' => '私密收藏这条提交',
+    ],
+
+    'copy_link' => [
+        'copy' => '复制链接',
+        'copied' => '已复制 :hash 的链接',
+        'failed' => '无法复制 :hash 的链接',
+    ],
+
+    'star' => [
+        'star' => '星标',
+        'unstar' => '取消星标',
+        'star_commit' => '为提交加星标',
+        'unstar_commit' => '取消提交的星标',
+        'star_commit_count' => '为提交加星标，:count 个星标|为提交加星标，:count 个星标',
+        'unstar_commit_count' => '取消提交的星标，:count 个星标|取消提交的星标，:count 个星标',
+        'no_stars' => '还没有星标',
+        'stars' => ':count 个星标|:count 个星标',
+    ],
+
+    'undo' => [
+        'expired' => '撤销时间已过。',
+        'restored' => '提交已恢复。',
+        'restore_failed' => '无法恢复这条提交。',
+        'deleted' => '提交已删除。',
+        'time_to_undo' => ':time 内可撤销',
+        'availability' => '删除后 30 秒内可以撤销。',
+        'restoring' => '正在恢复…',
+        'undo' => '撤销',
+    ],
+
+    'pastel' => [
+        'exhausted' => '你的 pastel 用完了，明天再来吧。',
+        'count' => ':count 个 pastel|:count 个 pastel',
+        'award_failed' => '无法送出 pastel，请重试。',
+        'give_label' => '送一个 pastel，:pasteis，今天还剩 :remaining 个',
+        'give_title' => '送一个 pastel · 今天还剩 :remaining 个 · 每天 00:00 UTC 重置',
+    ],
+
+    'pin' => [
+        'pin_to_profile' => '置顶到个人主页',
+        'unpin_from_profile' => '从个人主页取消置顶',
+        'pinned' => '提交已置顶到你的个人主页。',
+        'unpinned' => '已取消置顶。',
+        'failed' => '无法更新你的置顶提交。',
+        'saving' => '正在保存…',
+        'pin' => '置顶',
+        'unpin' => '取消置顶',
+    ],
+
+    'embed' => [
+        'play' => '播放来自 :provider 的 :title',
+        'player' => ':provider 播放器',
+    ],
+
+    'code' => [
+        'copy' => '复制代码',
+        'copied' => '代码已复制到剪贴板',
+        'copy_failed' => '无法复制代码，请选中后手动复制。',
+        'wrap_lines' => '自动换行',
+    ],
+
+    'copyable' => [
+        'copy' => '复制:label',
+        'copied' => '已复制:label',
+        'failed' => '无法复制:label',
+    ],
+
+    'show' => [
+        'title' => ':name：“:excerpt”',
+        'back' => '返回',
+        'heading' => '提交',
+    ],
+];

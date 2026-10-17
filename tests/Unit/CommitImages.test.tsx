@@ -1,7 +1,8 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { createInertiaApp } from '@inertiajs/react';
+import { renderToString } from 'react-dom/server';
 import {
     CommitImages,
     replaceFailedImage,
@@ -50,16 +51,46 @@ const commit: Commit = {
     ],
 };
 
-void test('keeps the uploaded image until it fails to load', () => {
-    assert.ok(
-        renderToStaticMarkup(<CommitImages commit={commit} />).includes(
-            'src="/images/missing.webp"',
-        ),
-    );
+async function renderImages(): Promise<string> {
+    const result = await createInertiaApp({
+        page: {
+            component: 'images',
+            props: {
+                errors: {},
+                lang: {
+                    commits: {
+                        images: {
+                            attached: 'Attached image',
+                            attached_numbered:
+                                'Attached image :position of :count',
+                        },
+                    },
+                },
+            },
+            url: '/',
+            version: null,
+            clearHistory: false,
+            encryptHistory: false,
+            rescuedProps: [],
+            rememberedState: {},
+            flash: {},
+        },
+        resolve: () => () => <CommitImages commit={commit} />,
+        render: renderToString,
+        setup: ({ App, props }) => <App {...props} />,
+    });
+
+    assert.ok(result);
+
+    return result.body;
+}
+
+void test('keeps the uploaded image until it fails to load', async () => {
+    assert.ok((await renderImages()).includes('src="/images/missing.webp"'));
 });
 
-void test('shows the short image hash instead of the alt text while the image loads', () => {
-    const markup = renderToStaticMarkup(<CommitImages commit={commit} />);
+void test('shows the short image hash instead of the alt text while the image loads', async () => {
+    const markup = await renderImages();
     const placeholder = markup.match(
         /<div aria-hidden="true" data-test="commit-image-loading".*?<\/div><\/div><\/div>/,
     );

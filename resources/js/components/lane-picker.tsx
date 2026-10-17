@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Form } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
@@ -8,8 +9,6 @@ import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-user';
 import { cn, laneColor, withViewTransition } from '@/lib/utils';
-
-const laneNames = ['Orange', 'Green', 'Violet', 'Teal', 'Rose', 'Ochre'];
 
 export function LanePreview({ lane }: { lane: string }) {
     const { user } = useUser();
@@ -48,11 +47,22 @@ export function LaneOptions({
     automaticLane: number;
     onSelect: (lane: number | null) => void;
 }) {
+    const { __ } = useLang();
+    const laneNames = [
+        __('settings.lane.names.orange'),
+        __('settings.lane.names.green'),
+        __('settings.lane.names.violet'),
+        __('settings.lane.names.teal'),
+        __('settings.lane.names.rose'),
+        __('settings.lane.names.ochre'),
+    ];
     const options = [
         {
             value: null,
-            label: 'Auto',
-            ariaLabel: `Automatic (${laneNames[automaticLane].toLowerCase()})`,
+            label: __('settings.lane.auto'),
+            ariaLabel: __('settings.lane.automatic', {
+                color: laneNames[automaticLane].toLowerCase(),
+            }),
             lane: automaticLane,
         },
         ...laneNames.map((name, index) => ({
@@ -65,7 +75,7 @@ export function LaneOptions({
 
     return (
         <fieldset>
-            <legend className="sr-only">Color</legend>
+            <legend className="sr-only">{__('settings.lane.title')}</legend>
             <div className="grid max-w-md grid-cols-7 gap-1">
                 {options.map((option) => (
                     <label
@@ -127,12 +137,13 @@ export default function LanePicker({
     automaticLane: number;
 }) {
     const [selected, setSelected] = useState<number | null>(preferredLane);
+    const { __ } = useLang();
 
     return (
         <section className="px-4 py-6 sm:px-6">
             <Heading
-                title="Color"
-                description="Your lane on the graph: the rail and nodes beside your commits, the ring around your avatar, and the dot before your handle. Automatic picks one from your account id."
+                title={__('settings.lane.title')}
+                description={__('settings.lane.description')}
             />
 
             <LanePreview lane={laneColor(selected ?? automaticLane)} />
@@ -160,7 +171,7 @@ export default function LanePicker({
                             disabled={processing || selected === preferredLane}
                             data-test="save-lane-button"
                         >
-                            Save color
+                            {__('settings.lane.save')}
                         </Button>
                     </>
                 )}

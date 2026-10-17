@@ -1,0 +1,112 @@
+{
+    "body": "本文",
+    "placeholder": "何をリリースしましたか？",
+    "poll_placeholder": "質問する",
+    "commit": "コミット",
+    "committing": "コミット中…",
+    "commit_title": "コミット (:keys)",
+    "dialog": {
+        "title": "コミットを書く",
+        "description": "送信すると、コミットがあなたのログに追加されます。"
+    },
+    "guest": {
+        "title": "開発者のためのSNS。",
+        "description": "ここにいる全員が GitHub でサインインし、プレーンテキストでコミットしています。次はあなたの番です。",
+        "sign_in_to_commit": "GitHub でサインインしてコミット",
+        "profile": "プロフィールは GitHub から取得されます。入力は不要です。",
+        "sign_in": "GitHub でサインイン"
+    },
+    "schedule": {
+        "button": "予約",
+        "submit_at": "送信日時",
+        "commit": "コミットを予約",
+        "scheduling": "予約中…",
+        "commit_title": "コミットを予約 (:keys)",
+        "nonexistent_time": "この時刻はあなたのタイムゾーンには存在しません。別の時刻を選んでください。",
+        "help_admin": ":timezone。30日以内。送信されるまで非公開で、コミットは自動的に承認されます。",
+        "help_review": ":timezone。30日以内。送信されるまで非公開で、その後審査に回ります。自動では公開されません。",
+        "scheduled_commits": "予約済みのコミット →",
+        "images_unsupported": "画像はまだ予約できません。このコミットを予約するには画像を削除してください。",
+        "images_unsupported_title": "画像はまだ予約できません",
+        "polls_unsupported": "投票はまだ予約できません"
+    },
+    "poll": {
+        "add": "投票を追加",
+        "images_or_poll": "コミットには画像か投票のどちらか一方だけを追加できます",
+        "legend": "投票",
+        "option": "選択肢 :number",
+        "remove_option": "選択肢 :number を削除",
+        "remove_option_title": "選択肢を削除",
+        "add_option": "選択肢を追加",
+        "length": "投票期間",
+        "remove": "投票を削除",
+        "hours": ":count時間|:count時間",
+        "days": ":count日|:count日"
+    },
+    "images": {
+        "invalid": "10 MB までの JPEG、PNG、GIF、WebP 画像のみ使用できます。",
+        "too_many": "1つのコミットに追加できる画像は:max枚までです。",
+        "attach": "画像を添付",
+        "attach_title": "画像を:max枚まで添付",
+        "attached": "添付画像",
+        "attached_alt": "添付画像 :number",
+        "remove": "画像 :number を削除",
+        "edit_description": "画像 :number の説明を編集",
+        "add_description": "画像 :number に説明を追加",
+        "description_label": "画像 :number の説明",
+        "description_placeholder": "画像が見えない人のために内容を説明してください",
+        "done": "完了"
+    },
+    "preview": {
+        "label": "プレビュー",
+        "title": "プレビュー (:keys)",
+        "empty": "プレビューする内容はまだありません。",
+        "link_card": "コミット後にリンクカードとして展開されます。"
+    },
+    "link_card": {
+        "title": "カードを表示するリンクを選択",
+        "label": "リンクカード",
+        "sr_label": "リンクカード：",
+        "none": "カードなし"
+    },
+    "counter": {
+        "remaining": "残り:count文字|残り:count文字",
+        "fold_hint": "フィードには最初の:length文字または:lines行までが表示され、続きは「もっと見る」で表示されます。"
+    },
+    "stash": {
+        "restored": "未送信の下書きを復元しました",
+        "drop_title": "復元した下書きを破棄"
+    },
+    "mentions": {
+        "emoji_label": "絵文字を挿入",
+        "label": "開発者をメンション",
+        "following": "フォロー中のユーザー",
+        "searching": "検索中…",
+        "no_match": "fatal: ':query' に一致する開発者はいません"
+    },
+    "secrets": {
+        "warning": "機密テキストの警告",
+        "detected": "シークレットの可能性がある文字列を検出しました|シークレットの可能性がある文字列を検出しました",
+        "checked_locally": "お使いのデバイス上でチェックしました。シークレットが検出されている間、この下書きは保存されません。",
+        "select": "シークレットの可能性がある文字列を選択",
+        "select_numbered": "シークレットの可能性がある文字列 :number を選択",
+        "remove_detected": "検出されたシークレットを削除",
+        "confirm_title": "シークレットの可能性がある文字列を公開しますか？",
+        "confirm_description": "このテキストには認証情報が含まれている可能性があります。公開する前に削除するか、安全なサンプルの場合のみそのまま続けてください。",
+        "keep_editing": "編集を続ける",
+        "remove": "シークレットを削除",
+        "publish_anyway": "このまま公開"
+    },
+    "quote": {
+        "button": "引用",
+        "button_title": "引用 (:keys)",
+        "unsent": "未送信の引用があります",
+        "title": ":handle を引用",
+        "description": "自分のコミットを書きましょう。このコミットはその下に埋め込まれます。",
+        "label": "あなたのコミット",
+        "placeholder": "コメントを追加",
+        "cancel": "キャンセル",
+        "submit": "引用",
+        "quoting": "引用中…"
+    }
+}

@@ -1,0 +1,80 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'title' => 'Notifications',
+    'filter_label' => 'Filtrer les notifications',
+
+    'filters' => [
+        'all' => 'Toutes',
+        'replies' => 'Réponses',
+        'quotes' => 'Citations',
+        'stars' => 'Étoiles',
+        'mentions' => 'Mentions',
+        'follows' => 'Abonnés',
+        'moderation' => 'Modération',
+    ],
+
+    'empty' => [
+        'all' => "Rien ici pour l'instant. Les abonnements, étoiles, réponses, citations, mentions et mises à jour de modération de tes commits apparaîtront ici.",
+        'replies' => "Aucune réponse pour l'instant. Quand quelqu'un répond à l'un de tes commits, ça apparaît ici.",
+        'quotes' => "Aucune citation pour l'instant. Quand quelqu'un cite l'un de tes commits, ça apparaît ici.",
+        'stars' => "Aucune étoile pour l'instant. Quand quelqu'un met une étoile à l'un de tes commits, ça apparaît ici.",
+        'mentions' => "Aucune mention pour l'instant. Quand quelqu'un te mentionne dans un commit, ça apparaît ici.",
+        'follows' => "Aucun abonné pour l'instant. Quand quelqu'un te suit, ça apparaît ici.",
+        'moderation' => 'Aucune mise à jour de modération. Les commits approuvés et rejetés apparaissent ici.',
+    ],
+
+    'show_all' => 'Afficher toutes les notifications',
+    'new_label' => 'nouvelle notification|nouvelles notifications',
+    'loading_more' => "Chargement d'autres notifications",
+    'end' => "C'est la plus ancienne notification. Il n'y a rien avant.",
+    'last_visit' => 'Les notifications ci-dessus sont nouvelles depuis ta dernière visite',
+    'new' => 'Nouveau.',
+    'try_again' => 'Réessayer',
+
+    'groups' => [
+        'followers' => [
+            'count' => ':count abonné|:count abonnés',
+            'hide' => 'Masquer les abonnés',
+            'loading' => 'Chargement des abonnés…',
+            'failed' => 'fatal: impossible de charger les abonnés',
+            'older' => 'Afficher les abonnés plus anciens',
+        ],
+        'stars' => [
+            'count' => ':count étoile|:count étoiles',
+            'hide' => 'Masquer les étoiles',
+            'loading' => 'Chargement des étoiles…',
+            'failed' => 'fatal: impossible de charger les étoiles',
+            'older' => 'Afficher les étoiles plus anciennes',
+        ],
+        'updates' => [
+            'count' => ':count mise à jour|:count mises à jour',
+            'hide' => 'Masquer les mises à jour',
+            'loading' => 'Chargement des mises à jour…',
+            'failed' => 'fatal: impossible de charger les mises à jour',
+            'older' => 'Afficher les mises à jour plus anciennes',
+        ],
+    ],
+
+    'actions' => [
+        'followed' => "s'est abonné à toi",
+        'replied' => 'a répondu à ton commit',
+        'quoted' => 'a cité ton commit',
+        'starred' => 'a mis une étoile à ton commit',
+        'mentioned' => "t'a mentionné",
+        'approved' => 'Ton commit a été approuvé',
+        'rejected' => 'Ton commit a été rejeté',
+    ],
+
+    'and_others' => 'et :count autre personne|et :count autres personnes',
+
+    'statuses' => [
+        'approved' => 'approuvé',
+        'rejected' => 'rejeté',
+    ],
+
+    'reason' => 'motif :',
+    'rejected_note' => 'Toi seul peux voir cette mise à jour et ton commit rejeté.',
+];

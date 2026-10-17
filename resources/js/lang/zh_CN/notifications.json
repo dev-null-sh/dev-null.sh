@@ -1,0 +1,68 @@
+{
+    "title": "通知",
+    "filter_label": "筛选通知",
+    "filters": {
+        "all": "全部",
+        "replies": "回复",
+        "quotes": "引用",
+        "stars": "星标",
+        "mentions": "提及",
+        "follows": "关注",
+        "moderation": "审核"
+    },
+    "empty": {
+        "all": "这里还什么都没有。与你的提交相关的关注、星标、回复、引用、提及和审核动态都会显示在这里。",
+        "replies": "还没有回复。有人回复你的提交时，会显示在这里。",
+        "quotes": "还没有引用。有人引用你的提交时，会显示在这里。",
+        "stars": "还没有星标。有人为你的提交加星标时，会显示在这里。",
+        "mentions": "还没有提及。有人在提交中提及你时，会显示在这里。",
+        "follows": "还没有关注者。有人关注你时，会显示在这里。",
+        "moderation": "没有审核动态。通过和被拒绝的提交会显示在这里。"
+    },
+    "show_all": "显示所有通知",
+    "new_label": "条新通知|条新通知",
+    "loading_more": "正在加载更多通知",
+    "end": "这是最早的一条通知，之前没有更多内容了。",
+    "last_visit": "以上是你上次访问后的新通知",
+    "new": "新通知。",
+    "try_again": "重试",
+    "groups": {
+        "followers": {
+            "count": ":count 位关注者|:count 位关注者",
+            "hide": "隐藏关注者",
+            "loading": "正在加载关注者…",
+            "failed": "fatal: 无法加载关注者",
+            "older": "显示更早的关注者"
+        },
+        "stars": {
+            "count": ":count 个星标|:count 个星标",
+            "hide": "隐藏星标",
+            "loading": "正在加载星标…",
+            "failed": "fatal: 无法加载星标",
+            "older": "显示更早的星标"
+        },
+        "updates": {
+            "count": ":count 条动态|:count 条动态",
+            "hide": "隐藏动态",
+            "loading": "正在加载动态…",
+            "failed": "fatal: 无法加载动态",
+            "older": "显示更早的动态"
+        }
+    },
+    "actions": {
+        "followed": "关注了你",
+        "replied": "回复了你的提交",
+        "quoted": "引用了你的提交",
+        "starred": "为你的提交加了星标",
+        "mentioned": "提及了你",
+        "approved": "你的提交已通过审核",
+        "rejected": "你的提交未通过审核"
+    },
+    "and_others": "和另外 :count 人|和另外 :count 人",
+    "statuses": {
+        "approved": "已通过",
+        "rejected": "已拒绝"
+    },
+    "reason": "原因：",
+    "rejected_note": "只有你能看到这条动态和被拒绝的提交。"
+}

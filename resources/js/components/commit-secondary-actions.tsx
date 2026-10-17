@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Bookmark, Ellipsis, Flag, LinkIcon } from 'lucide-react';
 import { useState } from 'react';
 import { BookmarkButton, useBookmark } from '@/components/bookmark-button';
@@ -44,6 +45,7 @@ function CommitActionsMenu({
     commit: Commit;
     hasBookmark: boolean;
 }) {
+    const { __ } = useLang();
     const [isReporting, setIsReporting] = useState(false);
     const bookmark = useBookmark(commit);
     const { copyLink } = useCopyLink(commit);
@@ -55,7 +57,7 @@ function CommitActionsMenu({
                 <DropdownMenuTrigger asChild>
                     <button
                         type="button"
-                        aria-label="More actions"
+                        aria-label={__('commits.actions.more')}
                         className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-accent data-[state=open]:text-foreground"
                         data-test="commit-actions-menu"
                     >
@@ -73,17 +75,19 @@ function CommitActionsMenu({
                                     'fill-current': bookmark.isSaved,
                                 })}
                             />
-                            {bookmark.isSaved ? 'Unsave commit' : 'Save commit'}
+                            {bookmark.isSaved
+                                ? __('commits.bookmark.unsave_commit')
+                                : __('commits.bookmark.save_commit')}
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onSelect={copyLink}>
                         <LinkIcon />
-                        Copy link
+                        {__('commits.copy_link.copy')}
                     </DropdownMenuItem>
                     {canReport && (
                         <DropdownMenuItem onSelect={() => setIsReporting(true)}>
                             <Flag />
-                            Report commit
+                            {__('commits.report.title')}
                         </DropdownMenuItem>
                     )}
                 </DropdownMenuContent>

@@ -1,0 +1,13 @@
+{
+    "title": "検索",
+    "title_with_query": ":query · 検索",
+    "placeholder": "意味でコミットを検索",
+    "input_label": "コミットを検索",
+    "clear": "検索をクリア",
+    "most_relevant": "関連性の高いコミット",
+    "matches": "件|件",
+    "nothing_close": "':term' に近いものはありません",
+    "nothing_close_hint": "別の言葉でアイデアを説明するか、下の検索例から選んでみてください。",
+    "searching": "コミットを検索中",
+    "try_searching": "こんな検索はいかが…"
+}

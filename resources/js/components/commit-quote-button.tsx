@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Form, usePage } from '@inertiajs/react';
 import { Quote } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
@@ -8,6 +9,7 @@ import {
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
+    maxImages,
 } from '@/components/commit-image-picker';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
@@ -42,6 +44,7 @@ export function CommitQuoteButton({
     className?: string;
 }) {
     const { auth } = usePage().props;
+    const { __ } = useLang();
     const [isOpen, setIsOpen] = useState(false);
     const hasStash = useHasStash(auth.user?.id ?? null, `quote-${commit.id}`);
 
@@ -64,7 +67,13 @@ export function CommitQuoteButton({
                 }}
                 aria-haspopup="dialog"
                 aria-keyshortcuts={keyShortcut}
-                title={keyShortcut ? `Quote (${keyShortcut})` : 'Quote'}
+                title={
+                    keyShortcut
+                        ? __('composer.quote.button_title', {
+                              keys: keyShortcut,
+                          })
+                        : __('composer.quote.button')
+                }
                 className={cn(
                     'flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                     className,
@@ -72,10 +81,12 @@ export function CommitQuoteButton({
                 data-test="quote-button"
             >
                 <Quote className="size-4" />
-                <span className="sr-only sm:not-sr-only">Quote</span>
+                <span className="sr-only sm:not-sr-only">
+                    {__('composer.quote.button')}
+                </span>
                 {hasStash && (
                     <span
-                        title="You have an unsent quote here"
+                        title={__('composer.quote.unsent')}
                         className="font-mono text-[11px] opacity-70"
                     >
                         {'stash@{0}'}
@@ -117,6 +128,7 @@ function QuoteComposer({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
     const keys = useKeyLabels();
+    const { __ } = useLang();
 
     const isQuotable = characterCount(body.trim()) >= minBodyLength;
 
@@ -146,10 +158,12 @@ function QuoteComposer({
             data-test="quote-composer"
         >
             <DialogTitle className="text-base">
-                Quote @{commit.user.username}
+                {__('composer.quote.title', {
+                    handle: `@${commit.user.username}`,
+                })}
             </DialogTitle>
             <DialogDescription className="sr-only">
-                Write a commit of your own. This commit is embedded below it.
+                {__('composer.quote.description')}
             </DialogDescription>
 
             <Form
@@ -189,7 +203,7 @@ function QuoteComposer({
                                 value={commit.id}
                             />
                             <label htmlFor={id} className="sr-only">
-                                Your commit
+                                {__('composer.quote.label')}
                             </label>
                             <MentionTextarea
                                 ref={textareaRef}
@@ -207,7 +221,7 @@ function QuoteComposer({
                                     isRestored ? moveCaretToEnd : undefined
                                 }
                                 maxLength={maxBodyLength}
-                                placeholder="Add your take"
+                                placeholder={__('composer.quote.placeholder')}
                                 autoComplete="off"
                                 aria-invalid={
                                     errors.body || errors.quoted_commit_id
@@ -240,7 +254,11 @@ function QuoteComposer({
                             />
                             <InputError
                                 message={
-                                    attachments.error ?? imageErrorFrom(errors)
+                                    attachments.error !== null
+                                        ? __(attachments.error, {
+                                              max: maxImages,
+                                          })
+                                        : imageErrorFrom(errors)
                                 }
                                 className="mt-1"
                             />
@@ -278,15 +296,20 @@ function QuoteComposer({
                                     variant="ghost"
                                     onClick={onClose}
                                 >
-                                    Cancel
+                                    {__('composer.quote.cancel')}
                                 </Button>
                                 <Button
                                     type="submit"
                                     disabled={processing || !isQuotable}
-                                    title={`Quote (${keys.combo(keys.mod, keys.enter)})`}
+                                    title={__('composer.quote.button_title', {
+                                        keys: keys.combo(keys.mod, keys.enter),
+                                    })}
+                                    className="min-w-24"
                                     data-test="submit-quote-button"
                                 >
-                                    {processing ? 'Quoting…' : 'Quote'}
+                                    {processing
+                                        ? __('composer.quote.quoting')
+                                        : __('composer.quote.submit')}
                                 </Button>
                             </div>
                         </div>

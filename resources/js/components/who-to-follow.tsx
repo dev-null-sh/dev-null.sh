@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
 import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
@@ -20,15 +21,19 @@ import { edit } from '@/routes/appearance';
 import { show } from '@/routes/user';
 import type { SuggestedUser } from '@/types';
 
-function reasonFor(user: SuggestedUser): string | null {
+function reasonFor(
+    user: SuggestedUser,
+    transChoice: ReturnType<typeof useLang>['transChoice'],
+): string | null {
     if (user.followed_by_following_count > 0) {
-        return `Followed by ${user.followed_by_following_count} you follow`;
+        return transChoice(
+            'nav.who_to_follow.followed_by',
+            user.followed_by_following_count,
+        );
     }
 
     if (user.followers_count > 0) {
-        return user.followers_count === 1
-            ? '1 follower'
-            : `${user.followers_count} followers`;
+        return transChoice('nav.who_to_follow.followers', user.followers_count);
     }
 
     return null;
@@ -46,6 +51,7 @@ function FollowButton({
 }) {
     const [isFollowing, setIsFollowing] = useState(false);
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
+    const { __ } = useLang();
 
     return (
         <Button
@@ -71,8 +77,12 @@ function FollowButton({
                 onHttpException={(response) => !toastWhenThrottled(response)}
                 aria-label={
                     isFollowing
-                        ? `Unfollow @${user.username}`
-                        : `Follow @${user.username}`
+                        ? __('nav.who_to_follow.unfollow', {
+                              username: user.username,
+                          })
+                        : __('nav.who_to_follow.follow', {
+                              username: user.username,
+                          })
                 }
                 data-test="suggested-follow-button"
                 onClick={markToggled}
@@ -96,7 +106,8 @@ export function SuggestedUserRow({
     className?: string;
     buttonClassName?: string;
 }) {
-    const reason = reasonFor(user);
+    const { transChoice } = useLang();
+    const reason = reasonFor(user, transChoice);
 
     return (
         <li className={cn('flex items-center gap-3', className)}>
@@ -166,6 +177,7 @@ function SuggestedUsersSkeleton({
 
 function WhoToFollowRefreshButton() {
     const { isRefreshing, refreshSuggestedUsers } = useWhoToFollow();
+    const { __ } = useLang();
 
     return (
         <Button
@@ -174,8 +186,8 @@ function WhoToFollowRefreshButton() {
             className="size-7 text-muted-foreground"
             onClick={refreshSuggestedUsers}
             aria-disabled={isRefreshing}
-            aria-label="Suggest other people"
-            title="Suggest other people"
+            aria-label={__('nav.who_to_follow.refresh')}
+            title={__('nav.who_to_follow.refresh')}
             data-test="who-to-follow-refresh"
         >
             <RefreshCw
@@ -203,6 +215,8 @@ function WhoToFollowActions({
 }
 
 function WhoToFollowMenu({ onHide }: { onHide: () => void }) {
+    const { __ } = useLang();
+
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -210,7 +224,7 @@ function WhoToFollowMenu({ onHide }: { onHide: () => void }) {
                     variant="ghost"
                     size="icon"
                     className="size-7 text-muted-foreground"
-                    aria-label="Who to follow options"
+                    aria-label={__('nav.who_to_follow.options')}
                     data-test="who-to-follow-menu"
                 >
                     <Ellipsis />
@@ -220,7 +234,7 @@ function WhoToFollowMenu({ onHide }: { onHide: () => void }) {
                 <DropdownMenuItem onSelect={onHide}>
                     <EyeOff />
                     <span>
-                        Don't show again
+                        {__('nav.who_to_follow.dont_show')}
                         <span className="block font-mono text-xs text-muted-foreground">
                             &gt; /dev/null
                         </span>
@@ -254,6 +268,8 @@ function useHideWhoToFollow() {
 }
 
 function WhoToFollowHidden({ onUndo }: { onUndo: () => void }) {
+    const { __ } = useLang();
+
     return (
         <div>
             <p className="font-mono text-[13px] text-muted-foreground">
@@ -264,11 +280,11 @@ function WhoToFollowHidden({ onUndo }: { onUndo: () => void }) {
             </p>
             <div className="mt-1 flex items-center justify-between gap-3">
                 <p className="min-w-0 text-xs text-muted-foreground">
-                    Bring it back in{' '}
+                    {__('nav.who_to_follow.bring_back_before')}{' '}
                     <Link href={edit()} className="underline">
-                        Settings
+                        {__('nav.who_to_follow.bring_back_link')}
                     </Link>
-                    .
+                    {__('nav.who_to_follow.bring_back_after')}
                 </p>
                 <Button
                     variant="outline"
@@ -277,7 +293,7 @@ function WhoToFollowHidden({ onUndo }: { onUndo: () => void }) {
                     onClick={onUndo}
                     data-test="who-to-follow-undo"
                 >
-                    Undo
+                    {__('nav.who_to_follow.undo')}
                 </Button>
             </div>
         </div>
@@ -287,6 +303,7 @@ function WhoToFollowHidden({ onUndo }: { onUndo: () => void }) {
 export function WhoToFollow() {
     const { isVisible, isHidden, hide, undo, suggestedUsers } =
         useHideWhoToFollow();
+    const { __ } = useLang();
 
     if (!isVisible) {
         return null;
@@ -299,7 +316,7 @@ export function WhoToFollow() {
         >
             <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 id="aside-who-to-follow" className="text-sm font-semibold">
-                    Who to follow
+                    {__('nav.who_to_follow.title')}
                 </h2>
                 {!isHidden && (
                     <WhoToFollowActions

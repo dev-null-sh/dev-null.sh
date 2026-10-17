@@ -1,9 +1,27 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import { CommitUndoToast } from '@/components/commit-undo-toast';
+import type { CommitUndoToastLabels } from '@/components/commit-undo-toast';
+import {
+    CommitUndoToast,
+    useCommitUndoToastLabels,
+} from '@/components/commit-undo-toast';
 import { emojify } from '@/lib/emoji';
 import { shortHash } from '@/lib/utils';
+
+let undoToastLabels: CommitUndoToastLabels | undefined;
+
+/**
+ * Toasts render outside the Inertia app, where translations can't be read, so the app layout hands the undo toast its
+ * labels in the current language.
+ */
+export function useUndoToastLabels(): void {
+    const labels = useCommitUndoToastLabels();
+
+    useEffect(() => {
+        undoToastLabels = labels;
+    });
+}
 
 export function useFlashToast(): void {
     useEffect(() => {
@@ -17,6 +35,7 @@ export function useFlashToast(): void {
                         key={deleted.expires_at}
                         deleted={deleted}
                         toastId={id}
+                        labels={undoToastLabels}
                     />,
                     {
                         id,

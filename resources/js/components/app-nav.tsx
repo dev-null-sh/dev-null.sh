@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Link, usePage } from '@inertiajs/react';
 import {
     Activity,
@@ -38,8 +39,9 @@ import type { Log, NavItem, Profile } from '@/types';
 /**
  * Guests see the same items, each taking them to sign in.
  */
-function useNavItems(): (NavItem & { isActive: boolean })[] {
+function useNavItems(): (NavItem & { label: string; isActive: boolean })[] {
     const { auth, hasUnmoderatedCommits } = usePage().props;
+    const { __ } = useLang();
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
     const { user, log } = auth;
 
@@ -48,15 +50,17 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     ): NavItem['href'] =>
         user === null || log === null ? login() : href(user, log);
 
-    const items: NavItem[] = [
+    const items: (NavItem & { label: string })[] = [
         {
             title: 'Log',
+            label: __('nav.items.log'),
             href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
             prefetch: false,
         },
         {
             title: 'Notifications',
+            label: __('nav.items.notifications'),
             href: hrefFor(() => NotificationController.index()),
             icon: Bell,
             badge: auth.unreadNotificationsCount,
@@ -64,11 +68,13 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
         },
         {
             title: 'Profile',
+            label: __('nav.items.profile'),
             href: hrefFor((user) => show(user)),
             icon: UserRound,
         },
         {
             title: 'Saved',
+            label: __('nav.items.saved'),
             href: hrefFor(() => BookmarkController.index()),
             icon: Bookmark,
             prefetch: false,
@@ -77,12 +83,14 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             ? [
                   {
                       title: 'Moderation',
+                      label: __('nav.items.moderation'),
                       href: ModerationController.show(),
                       icon: ShieldCheck,
                       hasIndicator: hasUnmoderatedCommits,
                   },
                   {
                       title: 'Operations',
+                      label: __('nav.items.operations'),
                       href: OperationsController.show(),
                       icon: Activity,
                       prefetch: false,
@@ -91,6 +99,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             : []),
         {
             title: 'Settings',
+            label: __('nav.items.settings'),
             href: hrefFor(() => edit()),
             icon: Settings2,
         },
@@ -116,7 +125,7 @@ function NavLink({
     className,
     children,
 }: {
-    item: NavItem & { isActive: boolean };
+    item: NavItem & { label: string; isActive: boolean };
     className: string;
     children: ReactNode;
 }) {
@@ -144,12 +153,14 @@ function NavLink({
 }
 
 function SignInButton({ className }: { className?: string }) {
+    const { __ } = useLang();
+
     return (
         <Button asChild className={className}>
             <a href={login().url} data-test="nav-login-button">
                 <GitHubIcon className="size-4" />
                 <span className="sr-only lg:not-sr-only">
-                    Sign in with GitHub
+                    {__('nav.sign_in_with_github')}
                 </span>
             </a>
         </Button>
@@ -160,9 +171,11 @@ function NavIcon({
     item,
     indicatorClassName,
 }: {
-    item: NavItem & { isActive: boolean };
+    item: NavItem & { label: string; isActive: boolean };
     indicatorClassName?: string;
 }) {
+    const { __ } = useLang();
+
     if (!item.icon) {
         return null;
     }
@@ -184,7 +197,7 @@ function NavIcon({
             {count > 0 && (
                 <span className="absolute -top-1.5 -right-2 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-primary-foreground tabular-nums">
                     {count > 99 ? '99+' : count}
-                    <span className="sr-only"> unread</span>
+                    <span className="sr-only"> {__('nav.unread')}</span>
                 </span>
             )}
         </span>
@@ -201,6 +214,7 @@ export function AppNav({
     const { auth } = usePage().props;
     const items = useNavItems();
     const keys = useKeyLabels();
+    const { __ } = useLang();
 
     return (
         <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
@@ -209,19 +223,17 @@ export function AppNav({
                 viewTransition
                 className="mb-8 rounded-md px-3 lg:px-3"
                 aria-label={
-                    auth.log === null
-                        ? '/dev/null, go to the home page'
-                        : '/dev/null, go to your log'
+                    auth.log === null ? __('nav.go_home') : __('nav.go_to_log')
                 }
             >
                 <AppLogoIcon className="size-7 fill-current lg:hidden" />
                 <AppLogo className="hidden text-[1.75rem] font-bold tracking-[-0.03em] lg:inline-flex" />
                 <span className="mt-1 hidden text-sm text-muted-foreground lg:block">
-                    a social network for devs
+                    {__('nav.tagline')}
                 </span>
             </Link>
 
-            <nav aria-label="Main" className="flex flex-col gap-1">
+            <nav aria-label={__('nav.main')} className="flex flex-col gap-1">
                 {items.map((item) => (
                     <NavLink
                         key={item.title}
@@ -251,7 +263,7 @@ export function AppNav({
                                 indicatorClassName="lg:hidden"
                             />
                             <span className="sr-only lg:not-sr-only">
-                                {item.title}
+                                {item.label}
                             </span>
                             {item.hasIndicator && (
                                 <span
@@ -268,7 +280,9 @@ export function AppNav({
                     className="flex items-center gap-3 rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground xl:hidden"
                 >
                     <Search className="size-5" />
-                    <span className="sr-only lg:not-sr-only">Search</span>
+                    <span className="sr-only lg:not-sr-only">
+                        {__('nav.search.title')}
+                    </span>
                     <kbd className="ml-auto hidden rounded border border-b-2 bg-muted px-1.5 font-mono text-xs lg:block">
                         {keys.combo(keys.mod, 'K')}
                     </kbd>
@@ -278,14 +292,16 @@ export function AppNav({
             <Button
                 type="button"
                 onClick={onCompose}
-                aria-label="Write a commit"
+                aria-label={__('nav.write_commit')}
                 aria-keyshortcuts="c"
-                title="Write a commit (C)"
+                title={__('nav.write_commit_title')}
                 className="mt-4 h-[52px] w-[52px] shrink-0 rounded-lg text-[15px] lg:w-auto"
                 data-test="nav-commit-button"
             >
                 <SquarePen className="size-5" />
-                <span className="sr-only lg:not-sr-only">Commit</span>
+                <span className="sr-only lg:not-sr-only">
+                    {__('nav.commit')}
+                </span>
             </Button>
 
             {auth.user === null ? (
@@ -321,6 +337,7 @@ export function AppNav({
 
 export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     const { auth } = usePage().props;
+    const { __ } = useLang();
 
     return (
         <div className="flex h-14 items-center justify-between border-b px-4 md:hidden">
@@ -328,9 +345,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                 href={auth.log === null ? home() : LogController.show(auth.log)}
                 viewTransition
                 aria-label={
-                    auth.log === null
-                        ? '/dev/null, go to the home page'
-                        : '/dev/null, go to your log'
+                    auth.log === null ? __('nav.go_home') : __('nav.go_to_log')
                 }
             >
                 <AppLogo className="text-lg" />
@@ -340,7 +355,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                 <button
                     type="button"
                     onClick={onSearch}
-                    aria-label="Search"
+                    aria-label={__('nav.search.title')}
                     className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                     <Search className="size-5" />
@@ -349,14 +364,14 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                     <Button size="sm" className="h-8" asChild>
                         <a href={login().url} data-test="nav-login-button">
                             <GitHubIcon className="size-4" />
-                            Sign in
+                            {__('nav.sign_in')}
                         </a>
                     </Button>
                 ) : (
                     <DropdownMenu>
                         <DropdownMenuTrigger
                             className="rounded-full"
-                            aria-label="Account menu"
+                            aria-label={__('nav.account_menu')}
                         >
                             <UserAvatar user={auth.user} className="size-8" />
                         </DropdownMenuTrigger>
@@ -374,10 +389,11 @@ export function MobileNav() {
     const items = useNavItems().filter(
         (item) => !['Saved', 'Operations'].includes(item.title),
     );
+    const { __ } = useLang();
 
     return (
         <nav
-            aria-label="Main"
+            aria-label={__('nav.main')}
             className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden"
         >
             {items.map((item) => (
@@ -405,7 +421,7 @@ export function MobileNav() {
                             <NavIcon item={item} />
                         </span>
                     </span>
-                    <span className="max-w-full truncate">{item.title}</span>
+                    <span className="max-w-full truncate">{item.label}</span>
                 </NavLink>
             ))}
         </nav>

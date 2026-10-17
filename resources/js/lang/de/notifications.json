@@ -1,0 +1,68 @@
+{
+    "title": "Mitteilungen",
+    "filter_label": "Mitteilungen filtern",
+    "filters": {
+        "all": "Alle",
+        "replies": "Antworten",
+        "quotes": "Zitate",
+        "stars": "Sterne",
+        "mentions": "Erwähnungen",
+        "follows": "Follower",
+        "moderation": "Moderation"
+    },
+    "empty": {
+        "all": "Noch nichts da. Neue Follower, Sterne, Antworten, Zitate, Erwähnungen und Moderations-Updates zu deinen Commits erscheinen hier.",
+        "replies": "Noch keine Antworten. Wenn jemand auf einen deiner Commits antwortet, erscheint das hier.",
+        "quotes": "Noch keine Zitate. Wenn jemand einen deiner Commits zitiert, erscheint das hier.",
+        "stars": "Noch keine Sterne. Wenn jemand einem deiner Commits einen Stern gibt, erscheint das hier.",
+        "mentions": "Noch keine Erwähnungen. Wenn dich jemand in einem Commit erwähnt, erscheint das hier.",
+        "follows": "Noch keine Follower. Wenn dir jemand folgt, erscheint das hier.",
+        "moderation": "Keine Moderations-Updates. Freigegebene und abgelehnte Commits erscheinen hier."
+    },
+    "show_all": "Alle Mitteilungen anzeigen",
+    "new_label": "neue Mitteilung|neue Mitteilungen",
+    "loading_more": "Weitere Mitteilungen werden geladen",
+    "end": "Das ist die älteste Mitteilung. Davor gibt es nichts.",
+    "last_visit": "Die Mitteilungen darüber sind seit deinem letzten Besuch neu",
+    "new": "Neu.",
+    "try_again": "Noch mal versuchen",
+    "groups": {
+        "followers": {
+            "count": ":count Follower|:count Follower",
+            "hide": "Follower ausblenden",
+            "loading": "Follower werden geladen…",
+            "failed": "fatal: Follower konnten nicht geladen werden",
+            "older": "Ältere Follower anzeigen"
+        },
+        "stars": {
+            "count": ":count Stern|:count Sterne",
+            "hide": "Sterne ausblenden",
+            "loading": "Sterne werden geladen…",
+            "failed": "fatal: Sterne konnten nicht geladen werden",
+            "older": "Ältere Sterne anzeigen"
+        },
+        "updates": {
+            "count": ":count Update|:count Updates",
+            "hide": "Updates ausblenden",
+            "loading": "Updates werden geladen…",
+            "failed": "fatal: Updates konnten nicht geladen werden",
+            "older": "Ältere Updates anzeigen"
+        }
+    },
+    "actions": {
+        "followed": "folgt dir jetzt",
+        "replied": "hat auf deinen Commit geantwortet",
+        "quoted": "hat deinen Commit zitiert",
+        "starred": "hat deinem Commit einen Stern gegeben",
+        "mentioned": "hat dich erwähnt",
+        "approved": "Dein Commit wurde freigegeben",
+        "rejected": "Dein Commit wurde abgelehnt"
+    },
+    "and_others": "und :count weitere Person|und :count weitere Personen",
+    "statuses": {
+        "approved": "freigegeben",
+        "rejected": "abgelehnt"
+    },
+    "reason": "Grund:",
+    "rejected_note": "Nur du siehst dieses Update und deinen abgelehnten Commit."
+}
