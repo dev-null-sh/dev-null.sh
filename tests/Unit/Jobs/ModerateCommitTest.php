@@ -234,6 +234,31 @@ it('checks the images of a commit too, one per request', function (): void {
     ]);
 });
 
+it('checks only the images of a commit without a body', function (): void {
+    Storage::fake();
+    Storage::put('commit-images/first.webp', 'first');
+
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->create(['body' => '']);
+    CommitImage::factory()->for($commit)->create(['path' => 'commit-images/first.webp', 'position' => 0]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_decision->toBe(CommitStatus::Approved)
+        ->ai_categories->toBe([]);
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/moderations')
+        && $request['input'] === [['type' => 'image_url', 'image_url' => ['url' => 'data:image/webp;base64,'.base64_encode('first')]]]);
+
+    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
+        && $request['text']['format']['name'] === 'harmful');
+});
+
 it('flags categories scoring above the strict thresholds, even when openai does not flag them', function (): void {
     Http::fake([
         'api.openai.com/v1/moderations' => Http::response(moderationResponse(scores: [

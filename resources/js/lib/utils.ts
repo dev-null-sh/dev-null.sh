@@ -3,7 +3,7 @@ import type { ClassValue } from 'clsx';
 import { clsx } from 'clsx';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
-import type { DeletedCommit, ThreadCommit } from '@/types';
+import type { DeletedCommit, Lane, ThreadCommit } from '@/types';
 import type { FlashToast } from '@/types/ui';
 
 export function characterCount(value: string): number {
@@ -53,21 +53,23 @@ export function formatRelativeTime(date: string, now: Date = new Date()) {
     });
 }
 
-export function formatFullDateTime(date: string): string {
+export function formatFullDateTime(date: string, timeZone?: string): string {
     const value = new Date(date);
 
     return `${value.toLocaleTimeString(undefined, {
         hour: 'numeric',
         minute: '2-digit',
+        timeZone,
     })} · ${value.toLocaleDateString(undefined, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
+        timeZone,
     })}`;
 }
 
-export function laneColor(lane: number): string {
-    return `var(--lane-${lane})`;
+export function laneColor(lane: Lane): string {
+    return typeof lane === 'string' ? lane : `var(--lane-${lane})`;
 }
 
 export function isDeleted(commit: {
@@ -137,6 +139,36 @@ export function formatDayLabel(date: string, now: Date = new Date()): string {
         day: 'numeric',
         year: day.getFullYear() === now.getFullYear() ? undefined : 'numeric',
     });
+}
+
+export function browserTimeZone(): string {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+export function formatZonedTime(date: string, timeZone: string): string {
+    return new Date(date).toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone,
+    });
+}
+
+export function formatZonedDate(date: string, timeZone: string): string {
+    const value = new Date(date);
+
+    return value.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year:
+            value.getFullYear() === new Date().getFullYear()
+                ? undefined
+                : 'numeric',
+        timeZone,
+    });
+}
+
+export function timeZoneCity(timeZone: string): string {
+    return timeZone.slice(timeZone.lastIndexOf('/') + 1).replaceAll('_', ' ');
 }
 
 /**
