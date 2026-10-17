@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Exceptions\ApiException;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -22,7 +23,7 @@ final class ListApiUserCommitsRequest extends FormRequest
         $viewer = $this->user();
         $blockerId = $viewer instanceof User ? $viewer->blockerIdWith($user) : null;
 
-        throw_if($blockerId !== null, fn (): ApiException => ApiException::acrossBlock($user, blockedByViewer: $blockerId === $viewer?->id));
+        throw_if($blockerId !== null, fn (): ApiException => ApiException::acrossBlock($user, blockedByViewer: $blockerId === $viewer?->id, shown: UserResource::make($user)));
 
         return true;
     }

@@ -254,10 +254,16 @@ it('tells a signed request it blocked the profile, as the web does', function ()
 
     signedApiRequest($keyPair, 'GET', route('api-user.show', $user))
         ->assertForbidden()
-        ->assertExactJson([
-            'message' => "You blocked The Octocat. Neither of you can follow, reply to, or star the other, or see each other's commits.",
-            'code' => 'user_blocked',
-        ]);
+        ->assertJsonPath('message', "You blocked The Octocat. Neither of you can follow, reply to, or star the other, or see each other's commits.")
+        ->assertJsonPath('code', 'user_blocked')
+        // Who they blocked, as the web shows them on the blocked profile.
+        ->assertJsonPath('user.id', $user->id)
+        ->assertJsonPath('user.username', $user->username)
+        ->assertJsonPath('user.name', 'The Octocat')
+        ->assertJsonPath('user.avatar_url', $user->avatar_url)
+        ->assertJsonPath('user.lane', $user->lane())
+        ->assertJsonMissingPath('user.followers_count')
+        ->assertJsonMissingPath('data');
 
     $this->getJson(route('api-user.show', $user))
         ->assertOk()

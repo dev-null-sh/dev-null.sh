@@ -7,31 +7,34 @@ namespace App\Exceptions;
 use App\Enums\ApiErrorCode;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use JsonSerializable;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
- * An error from the signed API. It answers with its message and its code, and the status that goes with the code.
+ * An error from the signed API. It answers with its message and its code, and the status that goes with the code, and
+ * anything else the app needs to show it.
  */
 final class ApiException extends HttpException
 {
     /**
      * @param  array<mixed>  $headers
+     * @param  array<string, mixed>  $data
      */
-    public function __construct(public readonly ApiErrorCode $errorCode, string $message, array $headers = [])
+    public function __construct(public readonly ApiErrorCode $errorCode, string $message, array $headers = [], public readonly array $data = [])
     {
         parent::__construct($errorCode->status(), $message, headers: $headers);
     }
 
     /**
      * A profile across a block is unavailable to a signed request, as on the web. Only the one who blocked the other
-     * is told why.
+     * is told why, with the user they blocked as the API shows users, for the blocked page the web shows them.
      */
-    public static function acrossBlock(User $user, bool $blockedByViewer): self
+    public static function acrossBlock(User $user, bool $blockedByViewer, JsonSerializable $shown): self
     {
         return $blockedByViewer
             ? new self(ApiErrorCode::UserBlocked, __("You blocked :name. Neither of you can follow, reply to, or star the other, or see each other's commits.", [
                 'name' => $user->name,
-            ]))
+            ]), data: ['user' => $shown])
             : new self(ApiErrorCode::UserUnavailable, __("This profile isn't available."));
     }
 
@@ -48,6 +51,7 @@ final class ApiException extends HttpException
         return response()->json([
             'message' => $this->getMessage(),
             'code' => $this->errorCode->value,
+            ...$this->data,
         ], $this->getStatusCode(), $this->getHeaders());
     }
 }
