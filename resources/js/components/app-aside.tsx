@@ -1,4 +1,4 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Deferred, Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
@@ -8,6 +8,7 @@ import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowin
 import { ChangelogPopover } from '@/components/changelog-popover';
 import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
 import { useSharedState } from '@/hooks/use-shared-state';
@@ -25,7 +26,8 @@ export function AppAside({
     onShowShortcuts: () => void;
     onSearch: () => void;
 }) {
-    const { user } = usePage().props.auth;
+    const { auth, onlineDevelopersCount } = usePage().props;
+    const { user } = auth;
     const keys = useKeyLabels();
     const [commitsCount] = useSharedState(
         commitStateKey('commits_count', user?.id ?? ''),
@@ -166,6 +168,27 @@ export function AppAside({
             <WhoToFollow />
 
             <div className="mt-auto space-y-2 text-sm text-muted-foreground">
+                <div
+                    className="flex items-center gap-2 font-mono text-xs"
+                    data-test="online-developers-count"
+                >
+                    <span
+                        aria-hidden
+                        className="size-2 rounded-full bg-emerald-500 motion-safe:animate-pulse"
+                    />
+                    <Deferred
+                        data="onlineDevelopersCount"
+                        fallback={<Skeleton className="h-3.5 w-24" />}
+                    >
+                        <span>
+                            {onlineDevelopersCount}{' '}
+                            {onlineDevelopersCount === 1
+                                ? 'developer'
+                                : 'developers'}{' '}
+                            online
+                        </span>
+                    </Deferred>
+                </div>
                 <button
                     type="button"
                     onClick={onShowShortcuts}
