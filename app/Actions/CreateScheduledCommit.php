@@ -9,6 +9,7 @@ use App\Models\ScheduledCommit;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 
 final readonly class CreateScheduledCommit
 {
@@ -25,12 +26,12 @@ final readonly class CreateScheduledCommit
      */
     public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null): ScheduledCommit
     {
-        return ScheduledCommit::query()->create([
+        return DB::transaction(fn (): ScheduledCommit => ScheduledCommit::query()->create([
             'user_id' => $user->id,
             'body' => mb_trim($body),
             'poll' => $poll instanceof NewPoll ? ['options' => $poll->options, 'duration' => $poll->duration->value] : null,
             'images' => $images === [] ? null : $this->createCommitImageFiles->handle($images, $imageDescriptions),
             'scheduled_at' => $scheduledAt->utc(),
-        ]);
+        ]));
     }
 }
