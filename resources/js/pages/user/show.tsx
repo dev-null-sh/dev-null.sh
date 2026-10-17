@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import AppLayout from '@/layouts/app-layout';
+import { formatCompactCount, formatFullCount } from '@/lib/numbers';
 import { laneColor } from '@/lib/utils';
 import type {
     Achievements,
@@ -255,7 +256,8 @@ export default function Show({
                             href: UserFollowersController.index(user),
                         },
                         {
-                            count: starsCount,
+                            count: formatCompactCount(starsCount),
+                            title: formatFullCount(starsCount),
                             label: pluralize(starsCount, 'star', 'stars'),
                             href: null,
                         },
@@ -276,7 +278,10 @@ export default function Show({
                                     stat.label
                                 )}
                             </dt>
-                            <dd className="font-mono font-medium tabular-nums">
+                            <dd
+                                className="font-mono font-medium tabular-nums"
+                                title={stat.title}
+                            >
                                 {stat.href ? (
                                     <Link
                                         href={stat.href}
