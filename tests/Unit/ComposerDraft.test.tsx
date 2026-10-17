@@ -65,7 +65,7 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
 
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
-const { ImagePickerButton, ImagePickerPreviews } =
+const { ImageDropOverlay, ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
 const { ComposerPreviewBody, PreviewToggle } =
     await import('../../resources/js/components/composer-preview');
@@ -207,7 +207,12 @@ test('removing restored images enables polls and successful posting resets the p
             (element) => element.type === MentionTextarea,
         )!;
         assert.equal(textarea.props.onPaste, undefined);
-        assert.equal(textarea.props.onDrop, undefined);
+        assert.equal(
+            view.fields.some(
+                (element) => element.props.onDragEnter !== undefined,
+            ),
+            false,
+        );
 
         (editor.props.onChange as (poll: unknown) => void)({
             options: ['Tabs', 'Spaces'],
@@ -245,6 +250,46 @@ test('removing restored images enables polls and successful posting resets the p
     } finally {
         vi.unstubAllGlobals();
     }
+});
+
+test('dropping images anywhere on the composer attaches them while dragging text is left alone', () => {
+    const dragged = (types: string[], files: File[] = []) => ({
+        dataTransfer: { types, files, dropEffect: 'none' },
+        preventDefault: vi.fn(),
+    });
+    const dropzone = () =>
+        render().fields.find(
+            (element) => element.props.onDragEnter !== undefined,
+        )!;
+    const isOverlaid = () =>
+        render().fields.some((element) => element.type === ImageDropOverlay);
+
+    const text = dragged(['text/plain']);
+    (dropzone().props.onDragEnter as (event: unknown) => void)(text);
+    (dropzone().props.onDragOver as (event: unknown) => void)(text);
+    assert.equal(text.preventDefault.mock.calls.length, 0);
+    assert.equal(isOverlaid(), false);
+
+    const files = dragged(['Files'], [image]);
+    (dropzone().props.onDragEnter as (event: unknown) => void)(files);
+    (dropzone().props.onDragEnter as (event: unknown) => void)(files);
+    (dropzone().props.onDragLeave as (event: unknown) => void)(files);
+    (dropzone().props.onDragOver as (event: unknown) => void)(files);
+    assert.equal(files.dataTransfer.dropEffect, 'copy');
+    assert.equal(isOverlaid(), true);
+
+    (dropzone().props.onDrop as (event: unknown) => void)(files);
+    assert.equal(isOverlaid(), false);
+    assert.ok(files.preventDefault.mock.calls.length > 0);
+    assert.deepEqual(
+        render().fields.find((element) => element.type === ImagePickerPreviews)!
+            .props.images,
+        [image],
+    );
+
+    (dropzone().props.onDragEnter as (event: unknown) => void)(files);
+    (dropzone().props.onDragLeave as (event: unknown) => void)(files);
+    assert.equal(isOverlaid(), false);
 });
 
 test('schedules in UTC with pasted images and the chosen link card', () => {

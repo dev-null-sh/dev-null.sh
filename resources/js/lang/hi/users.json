@@ -18,7 +18,7 @@
         "view_achievements": "उपलब्धियाँ और Unix रैंक देखें",
         "sponsor": "GitHub पर स्पॉन्सर करें",
         "joined": ":date में जुड़े",
-        "pasteis_received": "pastéis मिले",
+        "pasteis_received": "pastel मिला|pastéis मिले",
         "feed_label": "प्रोफ़ाइल फ़ीड",
         "tabs": {
             "commits": "कमिट",

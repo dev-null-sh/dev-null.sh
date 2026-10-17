@@ -41,7 +41,8 @@
         "days": ":count jour|:count jours"
     },
     "images": {
-        "invalid": "Uniquement des images JPEG, PNG, GIF ou WebP jusqu'à 10 Mo.",
+        "invalid": "Uniquement des images JPEG, PNG ou WebP jusqu’à 10 Mo.",
+        "drop_to_attach": "Dépose les images pour les joindre",
         "too_many": "Jusqu'à :max images par commit.",
         "attach": "Joindre des images",
         "attach_title": "Joindre jusqu'à :max images",

@@ -7,6 +7,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { BodyCounter } from '@/components/body-counter';
 import {
+    ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
@@ -119,7 +120,13 @@ function CommitComposerBody({
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
 
     return (
-        <div className="flex">
+        <div
+            className="relative flex"
+            {...(poll === null ? attachments.dropzone : {})}
+        >
+            {attachments.isDraggingFiles && (
+                <ImageDropOverlay className="inset-2" />
+            )}
             <GraphRail
                 lane={laneColor(user.lane)}
                 variant="staged"
@@ -147,14 +154,6 @@ function CommitComposerBody({
                             onValueChange={updateBody}
                             onPaste={
                                 poll === null ? attachments.onPaste : undefined
-                            }
-                            onDragOver={
-                                poll === null
-                                    ? attachments.onDragOver
-                                    : undefined
-                            }
-                            onDrop={
-                                poll === null ? attachments.onDrop : undefined
                             }
                             onKeyDown={(event) =>
                                 preview.handleShortcut(event) ||

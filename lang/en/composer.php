@@ -50,7 +50,8 @@ return [
     ],
 
     'images' => [
-        'invalid' => 'Only JPEG, PNG, GIF, or WebP images up to 10 MB.',
+        'invalid' => 'Only JPEG, PNG, or WebP images up to 10 MB.',
+        'drop_to_attach' => 'Drop images to attach',
         'too_many' => 'Up to :max images per commit.',
         'attach' => 'Attach images',
         'attach_title' => 'Attach up to :max images',

@@ -50,7 +50,8 @@ return [
     ],
 
     'images' => [
-        'invalid' => '仅支持 10 MB 以内的 JPEG、PNG、GIF 或 WebP 图片。',
+        'invalid' => '仅支持 10 MB 以内的 JPEG、PNG 或 WebP 图片。',
+        'drop_to_attach' => '拖放图片以添加',
         'too_many' => '每条提交最多 :max 张图片。',
         'attach' => '添加图片',
         'attach_title' => '最多添加 :max 张图片',

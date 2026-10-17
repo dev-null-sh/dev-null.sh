@@ -17,6 +17,9 @@
         "delete": "Удалить коммит",
         "replying_to": "в ответ @:username",
         "replying_to_deleted": "в ответ [deleted]",
+        "quoting": "цитирует @:username",
+        "quoting_deleted": "цитирует [deleted]",
+        "quoted": "цитирует",
         "confirm_delete": "Подтвердить удаление",
         "confirm_delete_message": "Удалить этот коммит? Отменить можно в течение 30 секунд.",
         "tombstone": "Этот коммит удалён."

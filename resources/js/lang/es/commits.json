@@ -17,6 +17,9 @@
         "delete": "Eliminar commit",
         "replying_to": "respondiendo a @:username",
         "replying_to_deleted": "respondiendo a [deleted]",
+        "quoting": "citando a @:username",
+        "quoting_deleted": "citando a [deleted]",
+        "quoted": "citó",
         "confirm_delete": "Confirmar eliminación",
         "confirm_delete_message": "¿Eliminar este commit? Puedes deshacerlo durante 30 segundos.",
         "tombstone": "Este commit fue eliminado."

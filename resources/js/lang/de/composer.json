@@ -41,7 +41,8 @@
         "days": ":count Tag|:count Tage"
     },
     "images": {
-        "invalid": "Nur JPEG-, PNG-, GIF- oder WebP-Bilder bis 10 MB.",
+        "invalid": "Nur JPEG-, PNG- oder WebP-Bilder bis 10 MB.",
+        "drop_to_attach": "Bilder hier ablegen zum Anhängen",
         "too_many": "Bis zu :max Bilder pro Commit.",
         "attach": "Bilder anhängen",
         "attach_title": "Bis zu :max Bilder anhängen",

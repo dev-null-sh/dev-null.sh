@@ -17,6 +17,9 @@
         "delete": "커밋 삭제",
         "replying_to": "답글 대상: @:username",
         "replying_to_deleted": "답글 대상: [deleted]",
+        "quoting": "인용 대상: @:username",
+        "quoting_deleted": "인용 대상: [deleted]",
+        "quoted": "인용함",
         "confirm_delete": "삭제 확인",
         "confirm_delete_message": "이 커밋을 삭제할까요? 30초 동안 실행 취소할 수 있어요.",
         "tombstone": "삭제된 커밋이에요."

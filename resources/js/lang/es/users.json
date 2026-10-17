@@ -18,7 +18,7 @@
         "view_achievements": "Ver logros y rango Unix",
         "sponsor": "Patrocinar en GitHub",
         "joined": "Se unió en :date",
-        "pasteis_received": "pastéis recibidos",
+        "pasteis_received": "pastel recibido|pastéis recibidos",
         "feed_label": "Feed del perfil",
         "tabs": {
             "commits": "Commits",

@@ -41,7 +41,8 @@
         "days": ":count दिन|:count दिन"
     },
     "images": {
-        "invalid": "सिर्फ़ 10 MB तक की JPEG, PNG, GIF या WebP इमेज।",
+        "invalid": "सिर्फ़ 10 MB तक की JPEG, PNG या WebP इमेज।",
+        "drop_to_attach": "जोड़ने के लिए इमेज यहाँ छोड़ें",
         "too_many": "हर कमिट में अधिकतम :max इमेज।",
         "attach": "इमेज जोड़ें",
         "attach_title": "अधिकतम :max इमेज जोड़ें",

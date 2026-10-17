@@ -17,6 +17,9 @@
         "delete": "コミットを削除",
         "replying_to": "返信先: @:username",
         "replying_to_deleted": "返信先: [deleted]",
+        "quoting": "引用元: @:username",
+        "quoting_deleted": "引用元: [deleted]",
+        "quoted": "引用",
         "confirm_delete": "削除を確認",
         "confirm_delete_message": "このコミットを削除しますか？30秒以内なら元に戻せます。",
         "tombstone": "このコミットは削除されました。"

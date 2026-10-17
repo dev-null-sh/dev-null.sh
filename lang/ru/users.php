@@ -25,7 +25,7 @@ return [
         'view_achievements' => 'Достижения и ранг Unix',
         'sponsor' => 'Спонсировать на GitHub',
         'joined' => 'С нами с :date',
-        'pasteis_received' => 'pastéis получено',
+        'pasteis_received' => 'pastel получен|pastéis получено',
         'feed_label' => 'Лента профиля',
         'tabs' => [
             'commits' => 'Коммиты',

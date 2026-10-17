@@ -17,6 +17,9 @@
         "delete": "Commit löschen",
         "replying_to": "Antwort an @:username",
         "replying_to_deleted": "Antwort an [deleted]",
+        "quoting": "zitiert @:username",
+        "quoting_deleted": "zitiert [deleted]",
+        "quoted": "zitiert",
         "confirm_delete": "Löschen bestätigen",
         "confirm_delete_message": "Diesen Commit löschen? Du kannst es 30 Sekunden lang rückgängig machen.",
         "tombstone": "Dieser Commit wurde gelöscht."

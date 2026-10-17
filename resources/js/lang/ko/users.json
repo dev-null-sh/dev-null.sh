@@ -18,7 +18,7 @@
         "view_achievements": "업적과 Unix 등급 보기",
         "sponsor": "GitHub에서 후원하기",
         "joined": "가입일: :date",
-        "pasteis_received": "받은 pastel",
+        "pasteis_received": "받은 pastel|받은 pastel",
         "feed_label": "프로필 피드",
         "tabs": {
             "commits": "커밋",

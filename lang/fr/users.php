@@ -25,7 +25,7 @@ return [
         'view_achievements' => 'Voir les succès et le rang Unix',
         'sponsor' => 'Sponsoriser sur GitHub',
         'joined' => 'Membre depuis :date',
-        'pasteis_received' => 'pastéis reçus',
+        'pasteis_received' => 'pastel reçu|pastéis reçus',
         'feed_label' => 'Fil du profil',
         'tabs' => [
             'commits' => 'Commits',

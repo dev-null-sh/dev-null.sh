@@ -50,7 +50,8 @@ return [
     ],
 
     'images' => [
-        'invalid' => '10MB 이하의 JPEG, PNG, GIF, WebP 이미지만 올릴 수 있어요.',
+        'invalid' => '10MB 이하의 JPEG, PNG, WebP 이미지만 올릴 수 있어요.',
+        'drop_to_attach' => '이미지를 놓아서 첨부하세요',
         'too_many' => '커밋당 이미지는 최대 :max개까지예요.',
         'attach' => '이미지 첨부',
         'attach_title' => '이미지 최대 :max개 첨부',

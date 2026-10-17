@@ -25,7 +25,7 @@ return [
         'view_achievements' => '実績と Unix ランクを見る',
         'sponsor' => 'GitHub でスポンサーになる',
         'joined' => ':date に参加',
-        'pasteis_received' => '受け取った pastel',
+        'pasteis_received' => '受け取った pastel|受け取った pastel',
         'feed_label' => 'プロフィールフィード',
         'tabs' => [
             'commits' => 'コミット',

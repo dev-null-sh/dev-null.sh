@@ -17,6 +17,9 @@
         "delete": "कमिट डिलीट करें",
         "replying_to": "@:username को जवाब",
         "replying_to_deleted": "[deleted] को जवाब",
+        "quoting": "@:username को कोट किया",
+        "quoting_deleted": "[deleted] को कोट किया",
+        "quoted": "कोट किया",
         "confirm_delete": "डिलीट की पुष्टि करें",
         "confirm_delete_message": "यह कमिट डिलीट करें? आप 30 सेकंड तक इसे वापस ले सकते हैं।",
         "tombstone": "यह कमिट डिलीट कर दिया गया।"

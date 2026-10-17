@@ -25,7 +25,7 @@ return [
         'view_achievements' => '查看成就和 Unix 等级',
         'sponsor' => '在 GitHub 上赞助',
         'joined' => ':date 加入',
-        'pasteis_received' => '收到的 pastel',
+        'pasteis_received' => '收到的 pastel|收到的 pastel',
         'feed_label' => '个人主页动态',
         'tabs' => [
             'commits' => '提交',

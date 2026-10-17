@@ -50,7 +50,8 @@ return [
     ],
 
     'images' => [
-        'invalid' => '10 MB までの JPEG、PNG、GIF、WebP 画像のみ使用できます。',
+        'invalid' => '10 MB までの JPEG、PNG、WebP 画像のみ使用できます。',
+        'drop_to_attach' => 'ドロップして画像を添付',
         'too_many' => '1つのコミットに追加できる画像は:max枚までです。',
         'attach' => '画像を添付',
         'attach_title' => '画像を:max枚まで添付',
