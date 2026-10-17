@@ -51,3 +51,13 @@ it('does not count the stars of deleted commits', function (): void {
 
     expect(resolve(UserStarsCountQuery::class)->get($user, $user))->toBe(0);
 });
+
+it('does not count stars the user gave their own commits', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+
+    $user->starredCommits()->attach($commit);
+    User::factory()->create()->starredCommits()->attach($commit);
+
+    expect(resolve(UserStarsCountQuery::class)->get($user, $user))->toBe(1);
+});
