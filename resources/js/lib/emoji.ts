@@ -11,7 +11,7 @@ const shortcodeNames = Object.keys(shortcodeEmoji).sort(
 );
 
 const shortcodePattern = new RegExp(
-    `:(${shortcodeNames.map(escapeRegExp).join('|')}):?(?![A-Za-z0-9_])`,
+    `:(${shortcodeNames.map(escapeRegExp).join('|')}):`,
     'g',
 );
 
@@ -40,22 +40,30 @@ export type EmojiSuggestion = {
 };
 
 /**
- * The shortcodes that start with the query, shortest first, then the ones that only contain it.
+ * The shortcodes that start with the query, then the ones with a later word starting with it, then the ones that only
+ * contain it, each shortest first.
  */
 export function searchEmoji(query: string, limit = 8): EmojiSuggestion[] {
     const partial = query.toLowerCase();
-    const byLength = (left: string, right: string): number =>
-        left.length - right.length || left.localeCompare(right);
-    const names = Object.keys(shortcodeEmoji);
+    const rank = (name: string): number => {
+        if (name.startsWith(partial)) {
+            return 0;
+        }
 
-    return [
-        ...names.filter((name) => name.startsWith(partial)).sort(byLength),
-        ...names
-            .filter(
-                (name) => !name.startsWith(partial) && name.includes(partial),
-            )
-            .sort(byLength),
-    ]
+        return name.split(/[_-]/).some((word) => word.startsWith(partial))
+            ? 1
+            : 2;
+    };
+
+    return Object.keys(shortcodeEmoji)
+        .filter((name) => name.includes(partial))
+        .map((name) => ({ name, rank: rank(name) }))
+        .sort(
+            (left, right) =>
+                left.rank - right.rank ||
+                left.name.length - right.name.length ||
+                left.name.localeCompare(right.name),
+        )
         .slice(0, limit)
-        .map((name) => ({ name, emoji: shortcodeEmoji[name] }));
+        .map(({ name }) => ({ name, emoji: shortcodeEmoji[name] }));
 }

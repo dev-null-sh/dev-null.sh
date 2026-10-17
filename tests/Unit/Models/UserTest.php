@@ -180,15 +180,23 @@ it('uses the chosen lane over the automatic one', function (): void {
         ->and($user->lane())->toBe(4);
 });
 
-it('serializes the effective lane', function (?int $preferredLane, int $lane): void {
-    $user = User::factory()->create(['id' => '3b4571bc-5802-4005-afc1-2d9aa826b5d3', 'preferred_lane' => $preferredLane])->refresh();
+it('uses the custom color over any lane', function (): void {
+    $user = User::factory()->make(['preferred_lane' => 4, 'lane_color' => '#1a2b3c']);
+
+    expect($user->lane())->toBe('#1a2b3c');
+});
+
+it('serializes the effective lane', function (?int $preferredLane, ?string $color, int|string $lane): void {
+    $user = User::factory()->create(['id' => '3b4571bc-5802-4005-afc1-2d9aa826b5d3', 'preferred_lane' => $preferredLane, 'lane_color' => $color])->refresh();
 
     expect($user->toArray())
         ->toHaveKey('lane', $lane)
-        ->not->toHaveKey('preferred_lane');
+        ->not->toHaveKey('preferred_lane')
+        ->not->toHaveKey('lane_color');
 })->with([
-    'automatic' => [null, 3],
-    'chosen' => [0, 0],
+    'automatic' => [null, null, 3],
+    'chosen' => [0, null, 0],
+    'custom' => [null, '#1a2b3c', '#1a2b3c'],
 ]);
 
 it('knows who it mutes and who mutes it', function (): void {

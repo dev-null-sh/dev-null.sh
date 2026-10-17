@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn, laneColor } from '@/lib/utils';
+import type { Lane } from '@/types';
 
 export type MessageStatusKind = 'staged' | 'pushed' | 'pulled' | 'rejected';
 
@@ -14,8 +15,8 @@ export function MessageStatusGlyph({
     className,
 }: {
     status: MessageStatusKind;
-    lane: number;
-    partnerLane: number;
+    lane: Lane;
+    partnerLane: Lane;
     className?: string;
 }) {
     const color = laneColor(lane);

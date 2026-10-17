@@ -29,6 +29,7 @@ export default function Unavailable({
                         <UserAvatar
                             user={blockedUser}
                             className="mx-auto mb-5 size-16 text-xl grayscale"
+                            pixels={160}
                         />
                         <EmptyFeed command={`fatal: @${username} is blocked`}>
                             <p>

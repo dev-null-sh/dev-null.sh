@@ -26,6 +26,11 @@ final class CreateCommitRequest extends FormRequest
     public const array BODY_RULES = ['required', 'string', 'min:'.Commit::MIN_BODY_LENGTH, 'max:'.Commit::MAX_BODY_LENGTH];
 
     /**
+     * Images say enough on their own, so a commit with images may have a body of any length, or none at all.
+     */
+    public const array BODY_WITH_IMAGES_RULES = ['nullable', 'string', 'max:'.Commit::MAX_BODY_LENGTH];
+
+    /**
      * Blank lines are collapsed before the body is measured, by every request that takes a body with BODY_RULES.
      */
     public static function normalizeBody(FormRequest $request): void
@@ -35,14 +40,38 @@ final class CreateCommitRequest extends FormRequest
         }
     }
 
+    /**
+     * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
+     *
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum>>
+     */
+    public static function attachmentRules(): array
+    {
+        return [
+            'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],
+            'poll.options' => ['required_with:poll', 'list', 'min:'.NewPoll::MinOptions, 'max:'.NewPoll::MaxOptions],
+            'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
+            'poll.duration' => ['required_with:poll', Rule::enum(PollDuration::class)],
+            'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
+            'images.*' => [
+                'required',
+                'image',
+                File::types(['image/jpeg', 'image/png', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
+                Rule::dimensions()
+                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
+                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
+            ],
+            'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
+            'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
+        ];
+    }
+
     public function authorize(): bool
     {
         return true;
     }
 
     /**
-     * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
-     *
      * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>>
      */
     public function rules(): array
@@ -52,24 +81,10 @@ final class CreateCommitRequest extends FormRequest
         $body = $this->input('body');
 
         return [
-            'body' => self::BODY_RULES,
+            'body' => $this->hasFile('images') ? self::BODY_WITH_IMAGES_RULES : self::BODY_RULES,
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
-            'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],
-            'poll.options' => ['required_with:poll', 'list', 'min:'.NewPoll::MinOptions, 'max:'.NewPoll::MaxOptions],
-            'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
-            'poll.duration' => ['required_with:poll', Rule::enum(PollDuration::class)],
-            'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
-            'images.*' => [
-                'required',
-                'image',
-                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
-                Rule::dimensions()
-                    ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
-                    ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
-            ],
-            'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
-            'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
+            ...self::attachmentRules(),
         ];
     }
 

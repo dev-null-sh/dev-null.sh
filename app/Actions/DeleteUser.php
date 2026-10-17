@@ -7,8 +7,10 @@ namespace App\Actions;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -22,24 +24,21 @@ final readonly class DeleteUser
     /**
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author, so the replies under them keep their thread.
-     * The database cascades the image rows of erased commits, but the image files are erased here.
+     * The database cascades the image rows of erased commits and the user's scheduled commits, but the image files are erased here.
      */
     public function handle(User $user): void
     {
         $imagePaths = DB::transaction(function () use ($user): array {
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
-            $topLevelIds = $user->commits()->withTrashed()->topLevel()->pluck('id')->all();
-            $replyIds = $user->commits()->withTrashed()->whereNotNull('parent_id')->pluck('id')->all();
+            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user)];
 
-            $imagePaths = $this->imagePaths([...$this->withReplies($topLevelIds), ...$replyIds]);
+            $user->commits()->withTrashed()->topLevel()->forceDelete();
+            CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
+            CommitReport::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
 
-            Commit::query()->withTrashed()->whereKey($topLevelIds)->forceDelete();
-            CommitImage::query()->whereIn('commit_id', $replyIds)->delete();
-            CommitReport::query()->whereIn('commit_id', $replyIds)->delete();
-
-            while (($leafIds = $this->repliesWithoutReplies($user)) !== []) {
-                Commit::query()->withTrashed()->whereKey($leafIds)->forceDelete();
+            while ($this->replies($user)->whereDoesntHave('replies', fn (CommitBuilder $replies): CommitBuilder => $replies->withTrashed())->forceDelete() > 0) {
+                //
             }
 
             $user->commits()->delete();
@@ -73,44 +72,38 @@ final readonly class DeleteUser
     }
 
     /**
-     * @param  array<mixed>  $commitIds
-     * @return array<mixed>
+     * @return HasMany<Commit, User>
      */
-    private function withReplies(array $commitIds): array
+    private function replies(User $user): HasMany
     {
-        $allIds = [];
-        $level = $commitIds;
-
-        while ($level !== []) {
-            $allIds = [...$allIds, ...$level];
-            $level = Commit::query()->withTrashed()->whereIn('parent_id', $level)->pluck('id')->all();
-        }
-
-        return $allIds;
+        return $user->commits()->withTrashed()->whereNotNull('parent_id');
     }
 
     /**
-     * @return array<mixed>
+     * The images of the user's commits and of every reply in the threads they started, which go along with them.
+     *
+     * @return array<int, string>
      */
-    private function repliesWithoutReplies(User $user): array
+    private function imagePaths(User $user): array
     {
-        return $user->commits()
-            ->withTrashed()
-            ->whereDoesntHave('replies', fn (CommitBuilder $replies): CommitBuilder => $replies->withTrashed())
-            ->pluck('id')
+        return CommitImage::query()
+            ->whereIn('commit_id', $user->commits()->withTrashed()->select('id'))
+            ->orWhereIn('commit_id', Commit::query()->withTrashed()->whereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id'))->select('id'))
+            ->get(['path'])
+            ->map(fn (CommitImage $image): string => $image->path)
             ->all();
     }
 
     /**
-     * @param  array<mixed>  $commitIds
      * @return array<int, string>
      */
-    private function imagePaths(array $commitIds): array
+    private function scheduledImagePaths(User $user): array
     {
-        return CommitImage::query()
-            ->whereIn('commit_id', $commitIds)
-            ->get(['path'])
-            ->map(fn (CommitImage $image): string => $image->path)
+        return ScheduledCommit::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('images')
+            ->get(['images'])
+            ->flatMap(fn (ScheduledCommit $scheduled): array => array_column($scheduled->images ?? [], 'path'))
             ->all();
     }
 }

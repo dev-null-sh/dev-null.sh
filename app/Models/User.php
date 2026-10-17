@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read string|null $company
  * @property-read bool $has_sponsors_listing
  * @property-read int|null $preferred_lane
+ * @property-read string|null $lane_color
  * @property-read bool $pasteis_mode
  * @property-read bool $remotes_enabled
  * @property-read RemotesFrom $remotes_from
@@ -67,6 +68,7 @@ use Illuminate\Support\Facades\DB;
     'email',
     'remember_token',
     'preferred_lane',
+    'lane_color',
     'pasteis_mode',
     'remotes_enabled',
     'remotes_from',
@@ -121,6 +123,7 @@ final class User extends Authenticatable
             'company' => 'string',
             'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
+            'lane_color' => 'string',
             'pasteis_mode' => 'boolean',
             'remotes_enabled' => 'boolean',
             'remotes_from' => RemotesFrom::class,
@@ -367,9 +370,14 @@ final class User extends Authenticatable
         return self::DAILY_PASTEIS - ($this->pasteis_given_on?->isToday() ? $this->pasteis_given_today : 0);
     }
 
-    public function lane(): int
+    public function lane(): int|string
     {
-        return $this->preferred_lane ?? $this->automaticLane();
+        return $this->preferredLane() ?? $this->automaticLane();
+    }
+
+    public function preferredLane(): int|string|null
+    {
+        return $this->lane_color ?? $this->preferred_lane;
     }
 
     /**

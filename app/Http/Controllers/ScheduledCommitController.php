@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\CommitBodies;
 use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,7 +23,7 @@ final readonly class ScheduledCommitController
     public function index(#[CurrentUser] User $user, CommitBodies $bodies): Response
     {
         return Inertia::render('scheduled-commits/index', [
-            'scheduledCommits' => ScheduledCommit::query()->where('user_id', $user->id)
+            'scheduledCommits' => fn (): LengthAwarePaginator => ScheduledCommit::query()->where('user_id', $user->id)
                 ->whereNull('canceled_at')->with('commit')
                 ->orderByRaw('submitted_at IS NOT NULL')->orderBy('scheduled_at')->orderBy('id')
                 ->paginate(20)->through(fn (ScheduledCommit $scheduled): array => [
@@ -30,6 +31,8 @@ final readonly class ScheduledCommitController
                     ...($scheduled->submitted_at === null && $scheduled->body !== null
                         ? ['body' => $scheduled->body, ...$bodies->segments($scheduled->body)]
                         : ['body' => null, 'body_segments' => [], 'preview_segments' => null]),
+                    'poll_options' => $scheduled->poll['options'] ?? null,
+                    'image_count' => count($scheduled->images ?? []),
                     'scheduled_at' => $scheduled->scheduled_at->toIso8601String(),
                     'submitted_at' => $scheduled->submitted_at?->toIso8601String(),
                     'status' => $scheduled->submitted_at === null ? 'scheduled' : ($scheduled->commit === null || $scheduled->commit->trashed() ? 'deleted' : $scheduled->commit->status->value),
@@ -39,7 +42,7 @@ final readonly class ScheduledCommitController
 
     public function store(CreateScheduledCommitRequest $request, #[CurrentUser] User $user, CreateScheduledCommit $action): RedirectResponse
     {
-        $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc());
+        $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview());
 
         Inertia::flash('scheduled', true);
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Commit scheduled. Only you can see it until it is submitted.')]);

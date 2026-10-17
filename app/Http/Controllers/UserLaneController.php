@@ -15,7 +15,7 @@ final readonly class UserLaneController
 {
     public function update(UpdateUserLaneRequest $request, #[CurrentUser] User $user, UpdateUserLane $action): RedirectResponse
     {
-        $action->handle($user, $request->lane());
+        $action->handle($user, $request->lane(), $request->color());
 
         Inertia::flash('toast', [
             'type' => 'success',

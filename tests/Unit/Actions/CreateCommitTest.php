@@ -42,9 +42,9 @@ it('creates commits pending review', function (): void {
 it('stores emoji shortcodes as their emoji', function (): void {
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(), 'shipped it :heart :like :rocket:');
+    $commit = $action->handle(User::factory()->create(), 'shipped it :heart: :like: :rocket and :rocket:');
 
-    expect($commit->body)->toBe('shipped it ❤️ 👍 🚀');
+    expect($commit->body)->toBe('shipped it ❤️ 👍 :rocket and 🚀');
 });
 
 it('approves commits of admins right away', function (): void {
@@ -181,6 +181,17 @@ it('queues ai review for a quote while preserving its images and chosen link car
 
     Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($quote));
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($quote->linkPreview));
+});
+
+it('does not embed commits without a body', function (): void {
+    config(['services.openai.key' => 'sk-test']);
+    Storage::fake();
+    Queue::fake();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(), '', images: [UploadedFile::fake()->image('screenshot.png', 10, 10)]);
+
+    Queue::assertPushed(ModerateCommit::class);
+    Queue::assertNotPushed(EmbedCommit::class);
 });
 
 it('does not ask the ai without an api key', function (): void {
@@ -321,7 +332,7 @@ it('attaches no link preview without a url', function (): void {
 it('attaches a poll with its options in order', function (): void {
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(), 'Tabs or spaces?', poll: new NewPoll(['Tabs', 'Spaces', 'Both :fire'], PollDuration::ThreeDays));
+    $commit = $action->handle(User::factory()->create(), 'Tabs or spaces?', poll: new NewPoll(['Tabs', 'Spaces', 'Both :fire:'], PollDuration::ThreeDays));
 
     expect($commit->poll)
         ->duration->toBe(PollDuration::ThreeDays)
