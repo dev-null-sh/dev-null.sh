@@ -177,6 +177,7 @@ export function ComposerPreviewBody({
             {preview.segments.length > 0 ? (
                 <CommitBody
                     segments={preview.segments}
+                    mentions={null}
                     className="text-[15px]"
                 />
             ) : (
