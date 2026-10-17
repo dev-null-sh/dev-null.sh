@@ -42,9 +42,11 @@ final class CreateCommitReplyRequest extends FormRequest
      */
     public function rules(): array
     {
+        $body = $this->input('body');
+
         return [
             'body' => CreateCommitRequest::BODY_RULES,
-            'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
+            'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
                 'required',

@@ -49,11 +49,12 @@ final class CreateCommitRequest extends FormRequest
     {
         $user = $this->user();
         assert($user instanceof User);
+        $body = $this->input('body');
 
         return [
             'body' => self::BODY_RULES,
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
-            'link_preview_url' => ['nullable', 'string', Rule::in(resolve(Urls::class)->all($this->string('body')->value()))],
+            'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],
             'poll.options' => ['required_with:poll', 'list', 'min:'.NewPoll::MinOptions, 'max:'.NewPoll::MaxOptions],
             'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
