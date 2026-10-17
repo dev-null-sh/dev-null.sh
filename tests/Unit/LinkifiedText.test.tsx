@@ -182,7 +182,9 @@ void test('shows a dev/null commit link as its author and short hash', () => {
 
 void test('shows a dev/null commit link as its author and short hash without a link when static', () => {
     const text = `same root cause as ${commitUrl}.`;
-    const markup = renderToStaticMarkup(<LinkifiedText text={text} isStatic />);
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text={text} mentions={null} isStatic />,
+    );
 
     assert.ok(!markup.includes('<a'));
     assert.ok(markup.includes(`title="${commitUrl}"`));
