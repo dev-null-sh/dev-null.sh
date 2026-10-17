@@ -71,6 +71,80 @@ it('highlights a code block in its language', function (): void {
     ]);
 });
 
+it('highlights ruby code blocks and keeps the language label', function (string $language): void {
+    $segments = resolve(CodeSpans::class)->highlight("```{$language}\nclass Greeter\n  def greet(name)\n    puts \"Hello\"\n  end\nend\n```");
+
+    expect($segments[0]['language'])->toBe($language)
+        ->and($segments[0]['html'])
+        ->toContain('<span class="hl-keyword">class</span>')
+        ->toContain('<span class="hl-type">Greeter</span>')
+        ->toContain('<span class="hl-keyword">def</span>')
+        ->toContain('<span class="hl-property">greet</span>')
+        ->toContain('<span class="hl-value">&quot;Hello&quot;</span>')
+        ->toContain('<span class="hl-keyword">end</span>');
+})->with(['ruby', 'rb', 'Ruby', 'RUBY']);
+
+it('highlights ruby values, variables, symbols and comments', function (): void {
+    $code = <<<'RUBY'
+        @name = 'Ruby'
+        @@count = 42
+        $debug = true
+        options = { enabled: false, name: :ruby, value: nil }
+        # class Greeter "hello"
+        RUBY;
+
+    $html = resolve(CodeSpans::class)->highlight("```ruby\n{$code}\n```")[0]['html'];
+
+    expect($html)
+        ->toContain('<span class="hl-variable">@name</span>')
+        ->toContain('<span class="hl-variable">@@count</span>')
+        ->toContain('<span class="hl-variable">$debug</span>')
+        ->toContain('<span class="hl-value">\'Ruby\'</span>')
+        ->toContain('<span class="hl-number">42</span>')
+        ->toContain('<span class="hl-literal">true</span>')
+        ->toContain('<span class="hl-literal">false</span>')
+        ->toContain('<span class="hl-literal">nil</span>')
+        ->toContain('<span class="hl-value">:ruby</span>')
+        ->toContain('<span class="hl-comment"># class Greeter &quot;hello&quot;</span>');
+});
+
+it('escapes html in ruby strings and comments without highlighting their contents', function (): void {
+    $code = <<<'RUBY'
+        puts "<script>class Greeter # end</script>"
+        # <img src=x onerror=alert(1)>
+        RUBY;
+
+    $html = resolve(CodeSpans::class)->highlight("```ruby\n{$code}\n```")[0]['html'];
+
+    expect($html)
+        ->toContain('<span class="hl-value">&quot;&lt;script&gt;class Greeter # end&lt;/script&gt;&quot;</span>')
+        ->toContain('<span class="hl-comment"># &lt;img src=x onerror=alert(1)&gt;</span>')
+        ->not->toContain('<script>', '<img', 'hl-keyword', 'hl-type');
+});
+
+it('keeps escaped quotes and comment markers inside ruby strings', function (): void {
+    $code = <<<'RUBY'
+        "say \"hello\" # class"; 'it\'s Ruby'
+        RUBY;
+
+    $html = resolve(CodeSpans::class)->highlight("```ruby\n{$code}\n```")[0]['html'];
+
+    expect($html)
+        ->toContain('<span class="hl-value">&quot;say \\&quot;hello\\&quot; # class&quot;</span>')
+        ->toContain('<span class="hl-value">\'it\\\'s Ruby\'</span>')
+        ->not->toContain('hl-comment', 'hl-keyword', 'hl-type');
+});
+
+it('highlights ruby block comments without highlighting their contents', function (): void {
+    $code = "=begin\nclass Greeter\n=end\nclass Hello\nend";
+    $html = resolve(CodeSpans::class)->highlight("```ruby\n{$code}\n```")[0]['html'];
+
+    expect($html)
+        ->toContain("<span class=\"hl-comment\">=begin\nclass Greeter\n=end</span>")
+        ->toContain('<span class="hl-type">Hello</span>')
+        ->not->toContain('<span class="hl-type">Greeter</span>');
+});
+
 it('drops the line breaks around a code block', function (string $lineBreak): void {
     $codeSpans = resolve(CodeSpans::class);
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\Highlighting\RubyLanguage;
 use Illuminate\Container\Attributes\Scoped;
 use Tempest\Highlight\Highlighter;
 
@@ -21,7 +22,7 @@ final readonly class CodeSpans
 
     public function __construct(private Highlighter $highlighter)
     {
-        //
+        $this->highlighter->addLanguage(new RubyLanguage());
     }
 
     /**
