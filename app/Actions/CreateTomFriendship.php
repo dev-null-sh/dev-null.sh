@@ -25,7 +25,7 @@ final readonly class CreateTomFriendship
     {
         $tom = $this->tom();
 
-        if ($user->is($tom)) {
+        if ($user->is($tom) || $user->hasBlockWith($tom)) {
             return;
         }
 

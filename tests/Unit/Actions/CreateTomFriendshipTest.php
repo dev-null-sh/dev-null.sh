@@ -51,6 +51,25 @@ it('does not make tom follow himself or change his existing friendships', functi
         ->and($tom->notifications()->count())->toBe(0);
 });
 
+it('does not restore a friendship when Tom is blocked', function (): void {
+    $user = User::factory()->create();
+    $action = resolve(CreateTomFriendship::class);
+
+    $action->handle($user);
+
+    $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->sole();
+
+    $this->actingAs($user)
+        ->post(route('user-block.store', $tom))
+        ->assertRedirect();
+
+    $this->artisan('tom:befriend')->assertSuccessful();
+
+    expect($user->isBlocking($tom))->toBeTrue()
+        ->and($user->isFollowing($tom))->toBeFalse()
+        ->and($tom->isFollowing($user))->toBeFalse();
+});
+
 it('befriends every existing user', function (): void {
     $users = User::factory()->count(3)->create();
 
