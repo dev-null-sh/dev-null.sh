@@ -27,4 +27,19 @@ export type Thread = {
     partner_read_at: string | null;
     partner_typing: boolean;
     is_archived: boolean;
+    access: PushAccess;
 };
+
+/**
+ * What the composer can do: push, merge a fetched request first, wait for the partner to merge, or nothing.
+ */
+export type PushAccess = 'open' | 'request' | 'waiting' | 'closed';
+
+export type InboxTab = 'open' | 'fetched' | 'stashed';
+
+export type InboxPage = {
+    conversations: ConversationSummary[];
+    has_more: boolean;
+};
+
+export type RemotesFrom = 'following' | 'everyone';

@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 use App\Models\User;
 
-it('moves an archived conversation to the archived tab, for you only', function (): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create(['username' => 'nunomaduro']);
+it('moves a stashed conversation to the stashed tab, for you only', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
     sendChatMessage($nuno, $mark, 'ship it');
 
     $this->actingAs($mark)->postJson(route('conversation-archive.store', $nuno))->assertNoContent();
 
     $this->getJson(route('inbox.index'))->assertJsonPath('conversations', [])->assertJsonPath('unread', 0);
-    $this->getJson(route('inbox.index', ['archived' => true]))
+    $this->getJson(route('inbox.index', ['tab' => 'stashed']))
         ->assertJsonPath('conversations.0.partner.username', 'nunomaduro')
         ->assertJsonPath('conversations.0.is_archived', true);
     $this->getJson(route('conversation-message.index', $nuno))->assertJsonPath('is_archived', true);
@@ -20,21 +20,21 @@ it('moves an archived conversation to the archived tab, for you only', function 
     $this->actingAs($nuno)->getJson(route('inbox.index'))->assertJsonCount(1, 'conversations');
 });
 
-it('brings an archived conversation back when either of you writes', function (string $writer): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+it('pops a stashed conversation back when either of you writes', function (string $writer): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
     sendChatMessage($nuno, $mark, 'ship it');
     $this->actingAs($mark)->postJson(route('conversation-archive.store', $nuno))->assertNoContent();
 
     $writer === 'you' ? sendChatMessage($mark, $nuno, 'one more thing') : sendChatMessage($nuno, $mark, 'one more thing');
 
     $this->actingAs($mark)->getJson(route('inbox.index'))->assertJsonCount(1, 'conversations');
-    $this->getJson(route('inbox.index', ['archived' => true]))->assertJsonPath('conversations', []);
+    $this->getJson(route('inbox.index', ['tab' => 'stashed']))->assertJsonPath('conversations', []);
 })->with(['you', 'them']);
 
-it('unarchives a conversation', function (): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+it('pops a stashed conversation', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
     sendChatMessage($nuno, $mark, 'ship it');
     $this->actingAs($mark)->postJson(route('conversation-archive.store', $nuno));
 
@@ -43,9 +43,9 @@ it('unarchives a conversation', function (): void {
     $this->getJson(route('inbox.index'))->assertJsonCount(1, 'conversations')->assertJsonPath('conversations.0.is_archived', false);
 });
 
-it('hides archiving from people you cannot message', function (): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+it('hides stashing from people you cannot message', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
     $nuno->blocking()->attach($mark);
 
     $this->actingAs($mark)->postJson(route('conversation-archive.store', $nuno))->assertNotFound();
@@ -53,5 +53,5 @@ it('hides archiving from people you cannot message', function (): void {
 });
 
 it('requires authentication', function (): void {
-    $this->postJson(route('conversation-archive.store', User::factory()->create()))->assertUnauthorized();
+    $this->postJson(route('conversation-archive.store', User::factory()->withRemotes()->create()))->assertUnauthorized();
 });

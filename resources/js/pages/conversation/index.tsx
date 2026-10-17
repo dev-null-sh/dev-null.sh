@@ -5,6 +5,7 @@ import ConversationController from '@/actions/App/Http/Controllers/ConversationC
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { ConversationThread } from '@/components/chat/conversation-thread';
 import { InboxPanel } from '@/components/chat/inbox-panel';
+import { RemoteSettingsMenu } from '@/components/chat/remote-settings-menu';
 import { SearchDialog } from '@/components/search-dialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,14 +21,14 @@ import { seedInbox, seedThread } from '@/lib/chat';
 import { setChatDocked, useChatDock } from '@/lib/chat-dock';
 import { cn } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { ConversationSummary, Thread, User } from '@/types';
+import type { InboxPage, Thread, User } from '@/types';
 
 export default function Index({
-    conversations,
+    inbox,
     partner,
     thread,
 }: {
-    conversations: ConversationSummary[];
+    inbox: InboxPage;
     partner: User | null;
     thread: Thread | null;
 }) {
@@ -36,9 +37,9 @@ export default function Index({
     const [isPicking, setIsPicking] = useState(false);
     const [seededFrom, setSeededFrom] = useState<object | null>(null);
 
-    if (seededFrom !== conversations) {
-        setSeededFrom(conversations);
-        seedInbox(conversations);
+    if (seededFrom !== inbox) {
+        setSeededFrom(inbox);
+        seedInbox(inbox);
 
         if (partner !== null && thread !== null) {
             seedThread(partner, thread);
@@ -47,10 +48,12 @@ export default function Index({
 
     useInbox();
 
+    // Keeps the inbox's tab and search while moving between conversations.
+    const visit = (href: Parameters<typeof router.visit>[0]) =>
+        router.visit(href, { preserveScroll: true, preserveState: true });
+
     const message = (person: User) =>
-        router.visit(ConversationController.show(person), {
-            preserveScroll: true,
-        });
+        visit(ConversationController.show(person));
 
     return (
         <>
@@ -98,6 +101,7 @@ export default function Index({
                                         : 'Keep chat open on every page'}
                                 </TooltipContent>
                             </Tooltip>
+                            <RemoteSettingsMenu />
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <button
@@ -120,11 +124,9 @@ export default function Index({
                         activeUsername={partner?.username}
                         onOpen={message}
                         onLeaveActive={() =>
-                            router.visit(ConversationController.index())
+                            visit(ConversationController.index())
                         }
-                        onBlocked={() =>
-                            router.reload({ only: ['conversations'] })
-                        }
+                        onBlocked={() => router.reload({ only: ['inbox'] })}
                         empty={
                             <EmptyInbox onCompose={() => setIsPicking(true)} />
                         }
@@ -136,8 +138,16 @@ export default function Index({
                         key={partner.username}
                         partner={partner}
                         user={user}
-                        header={<ThreadHeader partner={partner} />}
+                        header={
+                            <ThreadHeader
+                                partner={partner}
+                                onLeave={() =>
+                                    visit(ConversationController.index())
+                                }
+                            />
+                        }
                         autoFocus
+                        onDropped={() => visit(ConversationController.index())}
                     />
                 ) : (
                     <div className="hidden flex-1 flex-col items-center justify-center gap-3 px-8 text-center lg:flex">
@@ -166,7 +176,13 @@ export default function Index({
     );
 }
 
-function ThreadHeader({ partner }: { partner: User }) {
+function ThreadHeader({
+    partner,
+    onLeave,
+}: {
+    partner: User;
+    onLeave: () => void;
+}) {
     const { threads } = useChat();
 
     return (
@@ -198,7 +214,7 @@ function ThreadHeader({ partner }: { partner: User }) {
             <ConversationActions
                 partner={partner}
                 isArchived={threads[partner.username]?.is_archived ?? false}
-                onLeave={() => router.visit(ConversationController.index())}
+                onLeave={onLeave}
                 className="ml-auto size-9"
             />
         </header>

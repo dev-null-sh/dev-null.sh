@@ -14,13 +14,15 @@ return new class extends Migration
             $table->id();
             $table->foreignId('conversation_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
+            $table->string('status')->default('open');
+            $table->timestamp('last_message_at')->nullable();
             $table->unsignedBigInteger('read_through_id')->default(0);
             $table->timestamp('read_at')->nullable();
             $table->timestamp('archived_at')->nullable();
             $table->timestamps();
 
             $table->unique(['conversation_id', 'user_id']);
-            $table->index('user_id');
+            $table->index(['user_id', 'status', 'last_message_at']);
         });
     }
 

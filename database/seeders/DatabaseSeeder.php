@@ -7,6 +7,7 @@ namespace Database\Seeders;
 use App\Actions\CreateMessage;
 use App\Actions\UpdateCommitHotScores;
 use App\Actions\UpdateConversationReadThrough;
+use App\Enums\RemotesFrom;
 use App\Models\Commit;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -57,17 +58,24 @@ final class DatabaseSeeder extends Seeder
         $localDeveloper->following()->syncWithoutDetaching($users->random(3)->modelKeys());
         $localDeveloper->followers()->syncWithoutDetaching($users->random(5)->modelKeys());
 
-        $this->converse($localDeveloper, $users->random(3)->values());
+        $this->converse($localDeveloper, $users);
     }
 
     /**
-     * One conversation waiting on the local developer, one where their reply was read, and one where it was not yet.
+     * Remotes on for everyone, the local developer taking them from people they follow. With three of those: one
+     * conversation waiting on them, one where their reply was read, and one where it was not yet. And a request
+     * fetched from someone they don't follow.
      *
-     * @param  Collection<int, User>  $partners
+     * @param  Collection<int, User>  $users
      */
-    private function converse(User $localDeveloper, Collection $partners): void
+    private function converse(User $localDeveloper, Collection $users): void
     {
-        [$waiting, $read, $unread] = $partners->all();
+        User::query()->whereKeyNot($localDeveloper->id)->update(['remotes_enabled' => true, 'remotes_from' => RemotesFrom::Everyone]);
+        $localDeveloper->update(['remotes_enabled' => true, 'remotes_from' => RemotesFrom::Following]);
+
+        $followed = $localDeveloper->following()->pluck('users.id');
+        [$waiting, $read, $unread] = $users->whereIn('id', $followed)->values()->all();
+        $stranger = $users->whereNotIn('id', $followed)->firstOrFail();
         $now = Date::now();
 
         $this->chat([
@@ -86,6 +94,10 @@ final class DatabaseSeeder extends Seeder
         $this->chat([
             [$unread, $localDeveloper, 'nice work on the photo viewer downloads', '-2 days 11:02'],
             [$localDeveloper, $unread, 'thanks! more coming soon', '-2 days 11:15'],
+        ], $now);
+
+        $this->chat([
+            [$stranger, $localDeveloper, 'hey! loved your talk on polling, could I ask you a few questions about it?', 'today 08:02'],
         ], $now);
     }
 

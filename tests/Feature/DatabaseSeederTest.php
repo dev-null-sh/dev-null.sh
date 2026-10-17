@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\InboxTab;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
 use Database\Seeders\DatabaseSeeder;
@@ -30,8 +31,9 @@ it('gives the local developer conversations to read and reply to', function (): 
     $this->seed(DatabaseSeeder::class);
 
     $localDeveloper = User::query()->where('github_id', 'local')->sole();
-    $conversations = resolve(ConversationsQuery::class)->get($localDeveloper);
+    $conversations = resolve(ConversationsQuery::class);
 
-    expect($conversations)->toHaveCount(3)
-        ->and(resolve(ConversationsQuery::class)->unreadCount($localDeveloper))->toBe(2);
+    expect($conversations->get($localDeveloper)['conversations'])->toHaveCount(3)
+        ->and($conversations->get($localDeveloper, InboxTab::Fetched)['conversations'])->toHaveCount(1)
+        ->and($conversations->unreadCount($localDeveloper))->toBe(3);
 });

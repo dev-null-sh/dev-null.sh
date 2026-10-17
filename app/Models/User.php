@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Actions\CreateTomFriendship;
 use App\Enums\Log;
+use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -32,6 +33,9 @@ use Illuminate\Support\Facades\DB;
  * @property-read bool $has_sponsors_listing
  * @property-read int|null $preferred_lane
  * @property-read bool $pasteis_mode
+ * @property-read bool $remotes_enabled
+ * @property-read RemotesFrom $remotes_from
+ * @property-read bool $pull_receipts
  * @property-read int $pasteis_received
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
@@ -64,6 +68,9 @@ use Illuminate\Support\Facades\DB;
     'remember_token',
     'preferred_lane',
     'pasteis_mode',
+    'remotes_enabled',
+    'remotes_from',
+    'pull_receipts',
     'pasteis_received',
     'pasteis_given_today',
     'pasteis_given_on',
@@ -88,6 +95,9 @@ final class User extends Authenticatable
     protected $attributes = [
         'log' => Log::Following->value,
         'pasteis_mode' => false,
+        'remotes_enabled' => false,
+        'remotes_from' => RemotesFrom::Following->value,
+        'pull_receipts' => true,
         'pasteis_received' => 0,
         'pasteis_given_today' => 0,
         'pasteis_given_on' => null,
@@ -112,6 +122,9 @@ final class User extends Authenticatable
             'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
             'pasteis_mode' => 'boolean',
+            'remotes_enabled' => 'boolean',
+            'remotes_from' => RemotesFrom::class,
+            'pull_receipts' => 'boolean',
             'pasteis_received' => 'integer',
             'pasteis_given_today' => 'integer',
             'pasteis_given_on' => 'date',
@@ -303,11 +316,20 @@ final class User extends Authenticatable
     }
 
     /**
-     * Anyone can message anyone else, unless a block stands between them.
+     * Whether the user can have a conversation with someone at all: remotes on, someone else, and no block between
+     * them. Whether they may push to it right now is the conversation's own business.
      */
     public function canMessage(self $user): bool
     {
-        return ! $this->is($user) && ! $this->hasBlockWith($user);
+        return $this->remotes_enabled && ! $this->is($user) && ! $this->hasBlockWith($user);
+    }
+
+    /**
+     * Whether a first message from the sender opens the conversation straight away, or waits fetched for a merge.
+     */
+    public function acceptsRemotesFrom(self $sender): bool
+    {
+        return $this->remotes_from === RemotesFrom::Everyone || $this->isFollowing($sender);
     }
 
     /**

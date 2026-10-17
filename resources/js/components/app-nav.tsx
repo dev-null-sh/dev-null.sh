@@ -66,14 +66,18 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             badge: auth.unreadNotificationsCount,
             prefetch: false,
         },
-        {
-            title: 'Remotes',
-            description: 'Direct messages',
-            href: hrefFor(() => ConversationController.index()),
-            icon: MessagesSquare,
-            badge: unreadMessages,
-            prefetch: false,
-        },
+        ...(auth.remotes !== null
+            ? [
+                  {
+                      title: 'Remotes',
+                      description: 'Direct messages',
+                      href: ConversationController.index(),
+                      icon: MessagesSquare,
+                      badge: unreadMessages,
+                      prefetch: false,
+                  },
+              ]
+            : []),
         {
             title: 'Profile',
             href: hrefFor((user) => show(user)),

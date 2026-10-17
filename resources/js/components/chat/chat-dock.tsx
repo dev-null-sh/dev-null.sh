@@ -147,6 +147,7 @@ function DockedChat({ user }: { user: User }) {
                     user={user}
                     isCompact
                     autoFocus={focusesComposer}
+                    onDropped={leave}
                     header={
                         <DockHeader onToggle={toggle}>
                             <DockButton

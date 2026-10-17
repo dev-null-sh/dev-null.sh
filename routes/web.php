@@ -25,6 +25,8 @@ use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\ConversationArchiveController;
 use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\ConversationDropController;
+use App\Http\Controllers\ConversationMergeController;
 use App\Http\Controllers\ConversationMessageController;
 use App\Http\Controllers\ConversationReadController;
 use App\Http\Controllers\ConversationTypingController;
@@ -58,6 +60,8 @@ use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPasteisModeController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
+use App\Http\Controllers\UserRemotePreferencesController;
+use App\Http\Controllers\UserRemotesController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
 use App\Http\Middleware\RememberIntendedUrl;
@@ -237,6 +241,12 @@ Route::middleware('auth')->group(function (): void {
             ->name('conversation-read.update');
         Route::put('remotes/@{partner:username}/typing', [ConversationTypingController::class, 'update'])
             ->name('conversation-typing.update');
+        Route::post('remotes/@{partner:username}/merge', [ConversationMergeController::class, 'store'])
+            ->name('conversation-merge.store');
+        Route::post('remotes/@{partner:username}/drop', [ConversationDropController::class, 'store'])
+            ->name('conversation-drop.store');
+        Route::put('remotes/preferences', [UserRemotePreferencesController::class, 'update'])
+            ->name('user-remote-preferences.update');
         Route::post('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'store'])
             ->name('conversation-archive.store');
         Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
@@ -285,6 +295,8 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
 
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
+
+    Route::put('settings/remotes', [UserRemotesController::class, 'update'])->name('user-remotes.update');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');

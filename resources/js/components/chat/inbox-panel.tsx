@@ -1,15 +1,25 @@
 import { Search, X } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import UserSearchController from '@/actions/App/Http/Controllers/UserSearchController';
 import { ConversationList } from '@/components/chat/conversation-list';
 import { UserAvatar } from '@/components/user-avatar';
 import { useChat } from '@/hooks/use-chat';
-import { loadArchived, searchConversations } from '@/lib/chat';
+import {
+    loadMoreConversations,
+    loadTab,
+    searchConversations,
+} from '@/lib/chat';
 import { cn, laneColor } from '@/lib/utils';
-import type { ConversationSummary, User } from '@/types';
+import type { ConversationSummary, InboxTab, User } from '@/types';
 
-type Tab = 'messages' | 'archived';
+type Tab = InboxTab;
+
+const tabs: { name: Tab; label: string }[] = [
+    { name: 'open', label: 'Open' },
+    { name: 'fetched', label: 'Fetched' },
+    { name: 'stashed', label: 'Stashed' },
+];
 
 type Found = {
     term: string;
@@ -21,7 +31,8 @@ type Found = {
 const debounce = 150;
 
 /**
- * The inbox with its search and its archive, shared by the Remotes page and the dock.
+ * The inbox with its search, its fetched requests, and its stash, shared by the Remotes page and the dock. Each tab
+ * loads more as it scrolls to the end, so long inboxes stay quick.
  */
 export function InboxPanel({
     user,
@@ -40,8 +51,16 @@ export function InboxPanel({
     isCompact?: boolean;
     empty: ReactNode;
 }) {
-    const { conversations, archived } = useChat();
-    const [tab, setTab] = useState<Tab>('messages');
+    const {
+        conversations,
+        fetched,
+        archived,
+        hasMore,
+        isLoadingMore,
+        requests,
+    } = useChat();
+    const [tab, setTab] = useState<Tab>('open');
+    const end = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState('');
     const [found, setFound] = useState<Found | null>(null);
     const term = query.trim().replace(/^@/u, '');
@@ -54,12 +73,8 @@ export function InboxPanel({
         const controller = new AbortController();
         const timeout = window.setTimeout(() => {
             void Promise.all([
-                searchConversations(
-                    term,
-                    tab === 'archived',
-                    controller.signal,
-                ),
-                tab === 'messages'
+                searchConversations(term, tab, controller.signal),
+                tab === 'open'
                     ? searchDevelopers(term, controller.signal)
                     : Promise.resolve([]),
             ])
@@ -85,14 +100,37 @@ export function InboxPanel({
             window.clearTimeout(timeout);
             controller.abort();
         };
-        // Archiving, blocking, and new messages change what matches, so the search follows the inbox.
-    }, [term, tab, user.id, conversations, archived]);
+        // Stashing, merging, blocking, and new messages change what matches, so the search follows the inbox.
+    }, [term, tab, user.id, conversations, fetched, archived]);
+
+    const isSearching = term !== '';
+
+    useEffect(() => {
+        const element = end.current;
+
+        if (element === null || isSearching || !hasMore[tab]) {
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry?.isIntersecting) {
+                    void loadMoreConversations(tab);
+                }
+            },
+            { rootMargin: '200px' },
+        );
+
+        observer.observe(element);
+
+        return () => observer.disconnect();
+    }, [tab, isSearching, hasMore]);
 
     const showTab = (next: Tab) => {
         setTab(next);
 
-        if (next === 'archived') {
-            void loadArchived();
+        if (next !== 'open') {
+            void loadTab(next);
         }
     };
 
@@ -100,12 +138,9 @@ export function InboxPanel({
         found !== null && found.term === term && found.tab === tab
             ? found
             : null;
-    const isSearching = term !== '';
     const list = isSearching
         ? (results?.conversations ?? null)
-        : tab === 'archived'
-          ? archived
-          : conversations;
+        : { open: conversations, fetched, stashed: archived }[tab];
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -159,7 +194,7 @@ export function InboxPanel({
                 aria-label="Conversations"
                 className="flex shrink-0 border-b"
             >
-                {(['messages', 'archived'] as const).map((name) => (
+                {tabs.map(({ name, label }) => (
                     <button
                         key={name}
                         type="button"
@@ -179,7 +214,13 @@ export function InboxPanel({
                                 isCompact ? 'py-2.5' : 'py-3',
                             )}
                         >
-                            {name === 'messages' ? 'Open' : 'Stashed'}
+                            {label}
+                            {name === 'fetched' && (requests ?? 0) > 0 && (
+                                <span className="ml-1.5 inline-flex min-w-5 justify-center rounded-full bg-primary px-1.5 font-mono text-[11px] leading-5 text-primary-foreground tabular-nums">
+                                    {requests}
+                                    <span className="sr-only"> waiting</span>
+                                </span>
+                            )}
                             {tab === name && (
                                 <span
                                     aria-hidden
@@ -214,15 +255,31 @@ export function InboxPanel({
                                     fatal: nothing matches '{term}'
                                 </p>
                             )
-                        ) : tab === 'archived' ? (
+                        ) : tab === 'stashed' ? (
                             <p className="px-4 py-10 text-center font-mono text-[13px] text-muted-foreground">
                                 nothing stashed
+                            </p>
+                        ) : tab === 'fetched' ? (
+                            <p className="px-4 py-10 text-center font-mono text-[13px] text-muted-foreground">
+                                no requests fetched
                             </p>
                         ) : (
                             empty
                         )
                     }
                 />
+
+                {!isSearching && (
+                    <div
+                        ref={end}
+                        aria-hidden
+                        className="flex h-10 items-center justify-center"
+                    >
+                        {isLoadingMore[tab] && (
+                            <span className="size-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-transparent" />
+                        )}
+                    </div>
+                )}
 
                 {isSearching &&
                     results !== null &&

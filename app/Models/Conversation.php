@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\RemoteStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\ConversationFactory;
 use Illuminate\Database\Eloquent\Collection;
@@ -16,7 +17,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read int $id
  * @property-read string $pair
  * @property-read int|null $last_message_id
- * @property-read CarbonInterface|null $last_message_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, ConversationParticipant> $participants
@@ -25,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read User $partner
  * @property-read string $partner_id
  * @property-read int $ahead
+ * @property-read CarbonInterface|null $last_message_at
+ * @property-read RemoteStatus $partner_status
  * @property-read int $partner_read_through_id
  * @property-read CarbonInterface|null $partner_read_at
  * @property-read CarbonInterface|null $archived_at
@@ -54,11 +56,12 @@ final class Conversation extends Model
             'id' => 'integer',
             'pair' => 'string',
             'last_message_id' => 'integer',
-            'last_message_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'partner_id' => 'string',
             'ahead' => 'integer',
+            'last_message_at' => 'datetime',
+            'partner_status' => RemoteStatus::class,
             'partner_read_through_id' => 'integer',
             'partner_read_at' => 'datetime',
             'archived_at' => 'datetime',

@@ -8,8 +8,8 @@ use App\Models\User;
 use Illuminate\Support\Str;
 
 it('starts one conversation between two people and keeps their messages in it', function (): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
     $clientId = Str::uuid()->toString();
 
     $this->actingAs($mark)->postJson(route('conversation-message.store', $nuno), [
@@ -27,8 +27,8 @@ it('starts one conversation between two people and keeps their messages in it', 
 });
 
 it('stores a retried message only once', function (): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
     $clientId = Str::uuid()->toString();
 
     $first = $this->actingAs($mark)->postJson(route('conversation-message.store', $nuno), ['body' => 'on it', 'client_id' => $clientId])->assertCreated();
@@ -39,8 +39,8 @@ it('stores a retried message only once', function (): void {
 });
 
 it('rejects invalid messages', function (array $payload, string $error): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
 
     $this->actingAs($mark)->postJson(route('conversation-message.store', $nuno), $payload)
         ->assertUnprocessable()->assertJsonValidationErrors($error);
@@ -55,8 +55,8 @@ it('rejects invalid messages', function (array $payload, string $error): void {
 ]);
 
 it('hides people you cannot message', function (string $who): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
 
     match ($who) {
         'blocked' => $mark->blocking()->attach($nuno),
@@ -74,8 +74,8 @@ it('hides people you cannot message', function (string $who): void {
 })->with(['yourself', 'blocked', 'blocker']);
 
 it('returns the latest messages, then only newer ones, then older pages', function (): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
     $messages = collect(range(1, 55))->map(fn (int $index): Message => sendChatMessage($index % 2 === 0 ? $mark : $nuno, $index % 2 === 0 ? $nuno : $mark, "message {$index}"));
 
     $latest = $this->actingAs($mark)->getJson(route('conversation-message.index', $nuno))
@@ -101,8 +101,8 @@ it('returns the latest messages, then only newer ones, then older pages', functi
 });
 
 it('returns an empty thread before anyone has written', function (): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
 
     $this->actingAs($mark)->getJson(route('conversation-message.index', $nuno))
         ->assertOk()
@@ -114,7 +114,7 @@ it('returns an empty thread before anyone has written', function (): void {
 });
 
 it('requires authentication', function (): void {
-    $nuno = User::factory()->create();
+    $nuno = User::factory()->withRemotes()->create();
 
     $this->postJson(route('conversation-message.store', $nuno), ['body' => 'hi', 'client_id' => Str::uuid()->toString()])->assertUnauthorized();
     $this->getJson(route('conversation-message.index', $nuno))->assertUnauthorized();

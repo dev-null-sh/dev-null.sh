@@ -1,10 +1,19 @@
 import ConversationArchiveController from '@/actions/App/Http/Controllers/ConversationArchiveController';
+import ConversationDropController from '@/actions/App/Http/Controllers/ConversationDropController';
+import ConversationMergeController from '@/actions/App/Http/Controllers/ConversationMergeController';
 import ConversationMessageController from '@/actions/App/Http/Controllers/ConversationMessageController';
 import ConversationReadController from '@/actions/App/Http/Controllers/ConversationReadController';
 import ConversationTypingController from '@/actions/App/Http/Controllers/ConversationTypingController';
 import InboxController from '@/actions/App/Http/Controllers/InboxController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
-import type { ConversationSummary, Message, Thread, User } from '@/types';
+import type {
+    ConversationSummary,
+    InboxPage,
+    InboxTab,
+    Message,
+    Thread,
+    User,
+} from '@/types';
 
 export type PendingMessage = {
     client_id: string;
@@ -30,8 +39,12 @@ export type ThreadState = Thread & {
 
 export type ChatState = {
     conversations: ConversationSummary[] | null;
+    fetched: ConversationSummary[] | null;
     archived: ConversationSummary[] | null;
+    hasMore: Record<InboxTab, boolean>;
+    isLoadingMore: Record<InboxTab, boolean>;
     unread: number | null;
+    requests: number | null;
     isPollingInbox: boolean;
     threads: Record<string, ThreadState>;
 };
@@ -43,10 +56,20 @@ const busyInboxPoll = 6_000;
 const activeWindow = 60_000;
 const typingPing = 3_000;
 
+const listOf = {
+    open: 'conversations',
+    fetched: 'fetched',
+    stashed: 'archived',
+} as const;
+
 let state: ChatState = {
     conversations: null,
+    fetched: null,
     archived: null,
+    hasMore: { open: false, fetched: false, stashed: false },
+    isLoadingMore: { open: false, fetched: false, stashed: false },
     unread: null,
+    requests: null,
     isPollingInbox: false,
     threads: {},
 };
@@ -131,6 +154,10 @@ async function request<T>(
 }
 
 function mergeMessages(current: Message[], incoming: Message[]): Message[] {
+    if (incoming.length === 0) {
+        return current;
+    }
+
     const byId = new Map(current.map((message) => [message.id, message]));
     incoming.forEach((message) => byId.set(message.id, message));
 
@@ -144,8 +171,93 @@ function unreadOf(conversations: ConversationSummary[]): number {
     );
 }
 
-export function seedInbox(conversations: ConversationSummary[]): void {
-    updateDuringRender({ conversations, unread: unreadOf(conversations) });
+export function seedInbox(inbox: InboxPage): void {
+    updateDuringRender({
+        conversations: inbox.conversations,
+        hasMore: { ...state.hasMore, open: inbox.has_more },
+        unread: state.unread ?? unreadOf(inbox.conversations),
+    });
+}
+
+/**
+ * The first page fresh from the server, followed by the older pages already scrolled into, without duplicates.
+ */
+function withFirstPage(
+    current: ConversationSummary[] | null,
+    firstPage: ConversationSummary[],
+): ConversationSummary[] {
+    const fresh = new Set(firstPage.map((item) => item.partner.id));
+    const oldest = firstPage.at(-1)?.last_message_at ?? '';
+
+    return [
+        ...firstPage,
+        ...(current ?? []).filter(
+            (item) =>
+                !fresh.has(item.partner.id) &&
+                (item.last_message_at ?? '') <= oldest,
+        ),
+    ];
+}
+
+async function fetchInbox(
+    tab: InboxTab,
+    before?: number,
+): Promise<InboxPage & { unread: number; requests: number }> {
+    return request(
+        InboxController.index.url({
+            query: { tab, ...(before === undefined ? {} : { before }) },
+        }),
+    );
+}
+
+/**
+ * Loads a tab's first page, for the tabs that are not polled.
+ */
+export async function loadTab(tab: InboxTab): Promise<void> {
+    try {
+        const page = await fetchInbox(tab);
+
+        update({
+            [listOf[tab]]: page.conversations,
+            hasMore: { ...state.hasMore, [tab]: page.has_more },
+            requests: page.requests,
+        });
+    } catch {
+        update({ [listOf[tab]]: state[listOf[tab]] ?? [] });
+    }
+}
+
+/**
+ * The next page of a tab, once the user scrolls to the end of it.
+ */
+export async function loadMoreConversations(tab: InboxTab): Promise<void> {
+    const list = state[listOf[tab]];
+    const last = list?.at(-1);
+
+    if (!state.hasMore[tab] || state.isLoadingMore[tab] || last === undefined) {
+        return;
+    }
+
+    update({ isLoadingMore: { ...state.isLoadingMore, [tab]: true } });
+
+    try {
+        const page = await fetchInbox(tab, last.id);
+        const known = new Set(
+            (state[listOf[tab]] ?? []).map((item) => item.partner.id),
+        );
+
+        update({
+            [listOf[tab]]: [
+                ...(state[listOf[tab]] ?? []),
+                ...page.conversations.filter(
+                    (item) => !known.has(item.partner.id),
+                ),
+            ],
+            hasMore: { ...state.hasMore, [tab]: page.has_more },
+        });
+    } finally {
+        update({ isLoadingMore: { ...state.isLoadingMore, [tab]: false } });
+    }
 }
 
 /**
@@ -185,6 +297,7 @@ function emptyThread(partner: User): ThreadState {
         partner_read_at: null,
         partner_typing: false,
         is_archived: false,
+        access: 'open',
         pending: [],
         head: 0,
         headUntil: 0,
@@ -213,17 +326,20 @@ async function pollInbox(): Promise<void> {
     }
 
     try {
-        const { conversations, unread } = await request<{
-            conversations: ConversationSummary[];
-            unread: number;
-        }>(InboxController.index.url());
+        const { conversations, unread, requests } = await fetchInbox('open');
+        const requestsChanged =
+            state.requests !== null && requests !== state.requests;
 
         update({
-            conversations: conversations.map((conversation) =>
-                isWatching(conversation.partner.username)
-                    ? { ...conversation, ahead: 0 }
-                    : conversation,
+            conversations: withFirstPage(
+                state.conversations,
+                conversations.map((conversation) =>
+                    isWatching(conversation.partner.username)
+                        ? { ...conversation, ahead: 0 }
+                        : conversation,
+                ),
             ),
+            requests,
             unread:
                 unread -
                 conversations
@@ -235,6 +351,10 @@ async function pollInbox(): Promise<void> {
                         0,
                     ),
         });
+
+        if (requestsChanged && state.fetched !== null) {
+            void loadTab('fetched');
+        }
     } catch {
         // Keep the last known inbox until the next poll.
     }
@@ -311,15 +431,19 @@ async function pollThread(username: string, partner: User): Promise<void> {
             ...state.threads,
             [username]: {
                 ...current,
-                partner: fresh.partner,
+                partner: current.isLoaded ? current.partner : fresh.partner,
                 messages: mergeMessages(current.messages, fresh.messages),
-                pending: current.pending.filter(
-                    (pending) =>
-                        !fresh.messages.some(
-                            (message) =>
-                                message.client_id === pending.client_id,
-                        ),
-                ),
+                pending:
+                    fresh.messages.length === 0
+                        ? current.pending
+                        : current.pending.filter(
+                              (pending) =>
+                                  !fresh.messages.some(
+                                      (message) =>
+                                          message.client_id ===
+                                          pending.client_id,
+                                  ),
+                          ),
                 has_older: current.isLoaded
                     ? current.has_older
                     : fresh.has_older,
@@ -335,6 +459,7 @@ async function pollThread(username: string, partner: User): Promise<void> {
                 partner_read_at: fresh.partner_read_at,
                 partner_typing: fresh.partner_typing,
                 is_archived: fresh.is_archived,
+                access: fresh.access,
                 isLoaded: true,
             },
         },
@@ -455,6 +580,11 @@ async function deliver(partner: User, pending: PendingMessage): Promise<void> {
         );
 
         lastActivity.set(username, Date.now());
+
+        if (state.threads[username]?.messages.length === 0) {
+            void pollThread(username, partner).catch(() => undefined);
+        }
+
         updateThread(username, (thread) => ({
             messages: mergeMessages(thread.messages, [message]),
             pending: thread.pending.filter(
@@ -614,30 +744,16 @@ function byLatest(conversations: ConversationSummary[]): ConversationSummary[] {
     );
 }
 
-export async function loadArchived(): Promise<void> {
-    try {
-        const { conversations } = await request<{
-            conversations: ConversationSummary[];
-        }>(InboxController.index.url({ query: { archived: 1 } }));
-
-        update({ archived: conversations });
-    } catch {
-        update({ archived: state.archived ?? [] });
-    }
-}
-
 /**
  * Searches the user's conversations by the partner's name or handle, on whichever tab is open.
  */
 export async function searchConversations(
     term: string,
-    isArchived: boolean,
+    tab: InboxTab,
     signal: AbortSignal,
 ): Promise<ConversationSummary[]> {
     const response = await fetch(
-        InboxController.index.url({
-            query: { q: term, ...(isArchived ? { archived: 1 } : {}) },
-        }),
+        InboxController.index.url({ query: { q: term, tab } }),
         { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
     );
 
@@ -645,8 +761,49 @@ export async function searchConversations(
         throw new Error(`Conversation search failed: ${response.status}`);
     }
 
-    return ((await response.json()) as { conversations: ConversationSummary[] })
-        .conversations;
+    return ((await response.json()) as InboxPage).conversations;
+}
+
+/**
+ * Merges a fetched request into the open conversations, or drops it. The sender is never told about a drop.
+ */
+export async function settleRequest(
+    partner: User,
+    isMerging: boolean,
+): Promise<boolean> {
+    const username = partner.username;
+
+    try {
+        await request(
+            isMerging
+                ? ConversationMergeController.store.url({ partner: username })
+                : ConversationDropController.store.url({ partner: username }),
+            'POST',
+        );
+    } catch {
+        return false;
+    }
+
+    const request_ = state.fetched?.find(
+        (item) => item.partner.username === username,
+    );
+
+    update({
+        fetched: withoutPartner(state.fetched, partner),
+        requests: Math.max(0, (state.requests ?? 1) - 1),
+        unread: Math.max(0, (state.unread ?? 1) - 1),
+        ...(isMerging && request_
+            ? {
+                  conversations: byLatest([
+                      ...(withoutPartner(state.conversations, partner) ?? []),
+                      { ...request_, ahead: 0 },
+                  ]),
+              }
+            : {}),
+    });
+    updateThread(username, () => ({ access: isMerging ? 'open' : 'waiting' }));
+
+    return true;
 }
 
 /**
@@ -743,6 +900,7 @@ export async function blockPartner(partner: User): Promise<boolean> {
 
     update({
         conversations: withoutPartner(state.conversations, partner),
+        fetched: withoutPartner(state.fetched, partner),
         archived: withoutPartner(state.archived, partner),
         threads,
     });

@@ -5,20 +5,29 @@ import type {
     KeyboardEvent,
     ReactNode,
 } from 'react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+    memo,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
+import { toast } from 'sonner';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { useThread } from '@/hooks/use-chat';
 import {
+    settleRequest,
     loadOlderMessages,
     markThreadRead,
     pingTyping,
     retryMessage,
     sendMessage,
 } from '@/lib/chat';
-import type { PendingMessage, ThreadState } from '@/lib/chat';
+import type { PendingMessage } from '@/lib/chat';
 import {
     characterCount,
     cn,
@@ -26,9 +35,13 @@ import {
     limitCharacters,
     localDayKey,
 } from '@/lib/utils';
-import type { Message, User } from '@/types';
+import type { Message, PushAccess, User } from '@/types';
 
 const maxLength = 2000;
+
+const noMessages: Message[] = [];
+
+const noPending: PendingMessage[] = [];
 
 const countFrom = maxLength * 0.8;
 
@@ -55,6 +68,7 @@ export function ConversationThread({
     isVisible = true,
     isCompact = false,
     autoFocus = false,
+    onDropped,
 }: {
     partner: User;
     user: User;
@@ -62,6 +76,10 @@ export function ConversationThread({
     isVisible?: boolean;
     isCompact?: boolean;
     autoFocus?: boolean;
+    /**
+     * Called after dropping the partner's request, which takes it out of the inbox.
+     */
+    onDropped?: () => void;
 }) {
     const thread = useThread(partner);
     const scroller = useRef<HTMLDivElement>(null);
@@ -72,9 +90,19 @@ export function ConversationThread({
     const seenLatest = useRef(0);
     const [unseen, setUnseen] = useState(0);
 
-    const messages = thread?.messages ?? [];
-    const pending = thread?.pending ?? [];
+    const messages = thread?.messages ?? noMessages;
+    const pending = thread?.pending ?? noPending;
     const latestId = messages.at(-1)?.id ?? 0;
+    const head = thread?.head ?? 0;
+    const headUntil = thread?.headUntil ?? 0;
+    const items = useMemo(
+        () => itemsOf(messages, pending, head, headUntil, user),
+        [messages, pending, head, headUntil, user],
+    );
+    const lastMine = useMemo(
+        () => lastMineOf(messages, pending, user),
+        [messages, pending, user],
+    );
     const contentKey = `${latestId}:${pending.length}:${pending.map((item) => item.status).join()}`;
 
     useEffect(() => {
@@ -198,11 +226,13 @@ export function ConversationThread({
                                     empty history. say hi to @{partner.username}
                                 </li>
                             )}
-                        {itemsOf(thread, user).map((item) => (
+                        {items.map((item) => (
                             <ThreadItem
                                 key={item.key}
                                 item={item}
-                                thread={thread}
+                                readThrough={thread.partner_read_through_id}
+                                readAt={thread.partner_read_at}
+                                lastMine={lastMine}
                                 user={user}
                                 partner={partner}
                                 headLine={headLine}
@@ -224,43 +254,58 @@ export function ConversationThread({
                 </button>
             )}
 
-            <Composer
-                partner={partner}
-                isCompact={isCompact}
-                autoFocus={autoFocus}
-                isPartnerTyping={thread?.partner_typing ?? false}
-            />
+            {(thread?.access ?? 'open') === 'open' ? (
+                <Composer
+                    partner={partner}
+                    isCompact={isCompact}
+                    autoFocus={autoFocus}
+                    isPartnerTyping={thread?.partner_typing ?? false}
+                />
+            ) : (
+                <AccessBar
+                    access={thread?.access ?? 'open'}
+                    partner={partner}
+                    isCompact={isCompact}
+                    onDropped={onDropped}
+                />
+            )}
         </section>
     );
 }
 
-function itemsOf(thread: ThreadState, user: User): Item[] {
+function itemsOf(
+    messages: Message[],
+    pendingMessages: PendingMessage[],
+    head: number,
+    headUntil: number,
+    user: User,
+): Item[] {
     const bubbles: {
         bubble: Bubble;
         at: string;
         isMine: boolean;
         id: number;
     }[] = [
-        ...thread.messages.map((message) => ({
+        ...messages.map((message) => ({
             bubble: { kind: 'message', message } as Bubble,
             at: message.created_at,
             isMine: message.user_id === user.id,
             id: message.id,
         })),
-        ...thread.pending.map((pending) => ({
+        ...pendingMessages.map((pending) => ({
             bubble: { kind: 'pending', pending } as Bubble,
             at: pending.created_at,
             isMine: true,
             id: Number.POSITIVE_INFINITY,
         })),
     ];
-    const unread = thread.messages.filter(
+    const unread = messages.filter(
         (message) =>
-            message.id > thread.head &&
-            message.id <= thread.headUntil &&
+            message.id > head &&
+            message.id <= headUntil &&
             message.user_id !== user.id,
     );
-    const firstUnread = thread.messages.findIndex(
+    const firstUnread = messages.findIndex(
         (message) => message.id === unread[0]?.id,
     );
     const items: Item[] = [];
@@ -306,16 +351,23 @@ function itemsOf(thread: ThreadState, user: User): Item[] {
     return items;
 }
 
-function ThreadItem({
+/**
+ * Only re-renders when its own messages, or the read position, change. Rows off screen skip layout and paint.
+ */
+const ThreadItem = memo(function ThreadItem({
     item,
-    thread,
+    readThrough,
+    readAt,
+    lastMine,
     user,
     partner,
     headLine,
     isCompact,
 }: {
     item: Item;
-    thread: ThreadState;
+    readThrough: number;
+    readAt: string | null;
+    lastMine: string | null;
     user: User;
     partner: User;
     headLine: React.RefObject<HTMLDivElement | null>;
@@ -348,14 +400,15 @@ function ThreadItem({
         );
     }
 
-    const lastMine = lastMineOf(thread, user);
-
     return (
         <li
-            className={cn('flex flex-col gap-0.5 [&+&]:mt-2.5', {
-                'items-end': item.isMine,
-                'items-start': !item.isMine,
-            })}
+            className={cn(
+                'flex flex-col gap-0.5 [contain-intrinsic-size:auto_3rem] [content-visibility:auto] [&+&]:mt-2.5',
+                {
+                    'items-end': item.isMine,
+                    'items-start': !item.isMine,
+                },
+            )}
         >
             {item.bubbles.map((bubble, index) => {
                 const key =
@@ -372,7 +425,8 @@ function ThreadItem({
                         isFirst={index === 0}
                         isLast={isLast}
                         isLatestMine={key === lastMine}
-                        thread={thread}
+                        readThrough={readThrough}
+                        readAt={readAt}
                         user={user}
                         partner={partner}
                         isCompact={isCompact}
@@ -381,17 +435,21 @@ function ThreadItem({
             })}
         </li>
     );
-}
+});
 
-function lastMineOf(thread: ThreadState, user: User): string | null {
-    const pending = thread.pending.at(-1);
+function lastMineOf(
+    messages: Message[],
+    pendingMessages: PendingMessage[],
+    user: User,
+): string | null {
+    const pending = pendingMessages.at(-1);
 
     if (pending) {
         return pending.client_id;
     }
 
     return (
-        thread.messages.findLast((message) => message.user_id === user.id)
+        messages.findLast((message) => message.user_id === user.id)
             ?.client_id ?? null
     );
 }
@@ -402,7 +460,8 @@ function BubbleWithMeta({
     isFirst,
     isLast,
     isLatestMine,
-    thread,
+    readThrough,
+    readAt,
     user,
     partner,
     isCompact,
@@ -412,7 +471,8 @@ function BubbleWithMeta({
     isFirst: boolean;
     isLast: boolean;
     isLatestMine: boolean;
-    thread: ThreadState;
+    readThrough: number;
+    readAt: string | null;
     user: User;
     partner: User;
     isCompact: boolean;
@@ -422,7 +482,7 @@ function BubbleWithMeta({
     const status =
         bubble.kind === 'pending'
             ? bubble.pending.status
-            : thread.partner_read_through_id >= bubble.message.id
+            : readThrough >= bubble.message.id
               ? 'pulled'
               : 'pushed';
 
@@ -478,9 +538,7 @@ function BubbleWithMeta({
                     />
                     <span>
                         {status}
-                        {status === 'pulled' &&
-                            thread.partner_read_at &&
-                            ` ${timeOf(thread.partner_read_at)}`}
+                        {status === 'pulled' && readAt && ` ${timeOf(readAt)}`}
                     </span>
                 </MetaLine>
             ) : (
@@ -703,6 +761,88 @@ function Composer({
                     Push
                 </Button>
             </form>
+        </>
+    );
+}
+
+/**
+ * Takes the composer's place when the user can't push: a fetched request to merge or drop, their own request
+ * waiting to be merged, or a partner with remotes off. As tall as the composer, so nothing jumps.
+ */
+function AccessBar({
+    access,
+    partner,
+    isCompact,
+    onDropped,
+}: {
+    access: PushAccess;
+    partner: User;
+    isCompact: boolean;
+    onDropped?: () => void;
+}) {
+    const [isSettling, setIsSettling] = useState(false);
+
+    const settle = async (isMerging: boolean) => {
+        setIsSettling(true);
+        const isSettled = await settleRequest(partner, isMerging);
+        setIsSettling(false);
+
+        if (!isSettled) {
+            toast.error('Could not update the request. Try again.');
+
+            return;
+        }
+
+        if (!isMerging) {
+            onDropped?.();
+        }
+    };
+
+    return (
+        <>
+            <div aria-hidden className="h-6 shrink-0" />
+            <div
+                className={cn(
+                    'flex min-h-16 shrink-0 items-center gap-3 border-t',
+                    isCompact ? 'px-3 py-2.5' : 'px-4 py-3',
+                )}
+                data-test={`access-${access}`}
+            >
+                {access === 'request' ? (
+                    <>
+                        <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+                            <span className="font-mono text-foreground">
+                                @{partner.username}
+                            </span>{' '}
+                            wants to push to you. Merge to reply, or drop it.
+                            They won&apos;t be told.
+                        </p>
+                        <Button
+                            variant="outline"
+                            className="min-w-16 rounded-full"
+                            disabled={isSettling}
+                            onClick={() => void settle(false)}
+                            data-test="drop-request"
+                        >
+                            Drop
+                        </Button>
+                        <Button
+                            className="min-w-20 rounded-full"
+                            disabled={isSettling}
+                            onClick={() => void settle(true)}
+                            data-test="merge-request"
+                        >
+                            Merge
+                        </Button>
+                    </>
+                ) : (
+                    <p className="min-w-0 flex-1 font-mono text-[13px] text-muted-foreground">
+                        {access === 'waiting'
+                            ? `pushed. waiting for @${partner.username} to merge your request`
+                            : `@${partner.username} isn't taking remotes`}
+                    </p>
+                )}
+            </div>
         </>
     );
 }

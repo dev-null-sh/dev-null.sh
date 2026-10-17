@@ -76,7 +76,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
             <CommitImageViewer />
 
-            {auth.user !== null && !isMessages && <ChatDock user={auth.user} />}
+            {auth.user !== null && auth.remotes !== null && !isMessages && (
+                <ChatDock user={auth.user} />
+            )}
 
             <SearchDialog open={isSearching} onOpenChange={setIsSearching} />
 

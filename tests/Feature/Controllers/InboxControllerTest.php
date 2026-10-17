@@ -3,11 +3,12 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use App\Queries\ConversationsQuery;
 
 it('lists conversations by latest message with what is unread', function (): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create(['username' => 'nunomaduro']);
-    $taylor = User::factory()->create(['username' => 'taylorotwell']);
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $taylor = User::factory()->withRemotes()->create(['username' => 'taylorotwell']);
     sendChatMessage($mark, $taylor, 'thanks!');
     sendChatMessage($nuno, $mark, 'did you see the PR?');
     sendChatMessage($nuno, $mark, 'ship it');
@@ -27,8 +28,8 @@ it('lists conversations by latest message with what is unread', function (): voi
 });
 
 it('clears what is unread once read', function (): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
     $message = sendChatMessage($nuno, $mark, 'ship it');
 
     $this->actingAs($mark)->putJson(route('conversation-read.update', $nuno), ['through' => $message->id]);
@@ -37,8 +38,8 @@ it('clears what is unread once read', function (): void {
 });
 
 it('leaves out conversations across a block', function (): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create();
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
     sendChatMessage($nuno, $mark, 'hey');
     $mark->blocking()->attach($nuno);
 
@@ -50,9 +51,9 @@ it('requires authentication', function (): void {
 });
 
 it('searches conversations by name or handle', function (string $term): void {
-    $mark = User::factory()->create();
-    $nuno = User::factory()->create(['username' => 'nunomaduro', 'name' => 'Nuno Maduro']);
-    $taylor = User::factory()->create(['username' => 'taylorotwell', 'name' => 'Taylor Otwell']);
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro', 'name' => 'Nuno Maduro']);
+    $taylor = User::factory()->withRemotes()->create(['username' => 'taylorotwell', 'name' => 'Taylor Otwell']);
     sendChatMessage($nuno, $mark, 'ship it');
     sendChatMessage($taylor, $mark, 'thanks!');
 
@@ -62,9 +63,28 @@ it('searches conversations by name or handle', function (string $term): void {
 })->with(['nuno', '@NunoMad', 'maduro']);
 
 it('validates the inbox filters', function (array $query, string $error): void {
-    $this->actingAs(User::factory()->create())->getJson(route('inbox.index', $query))
+    $this->actingAs(User::factory()->withRemotes()->create())->getJson(route('inbox.index', $query))
         ->assertUnprocessable()->assertJsonValidationErrors($error);
 })->with([
-    [fn (): array => ['archived' => 'maybe'], 'archived'],
+    [fn (): array => ['tab' => 'maybe'], 'tab'],
     [fn (): array => ['q' => str_repeat('a', 101)], 'q'],
 ]);
+
+it('pages through conversations, newest first', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $partners = User::factory()->withRemotes()->count(ConversationsQuery::PAGE + 2)->create();
+    $partners->each(function (User $partner, int $index) use ($mark): void {
+        $this->travel(1)->minutes();
+        sendChatMessage($partner, $mark, "message {$index}");
+    });
+
+    $first = $this->actingAs($mark)->getJson(route('inbox.index'))->assertJsonPath('has_more', true);
+
+    expect($first->json('conversations'))->toHaveCount(ConversationsQuery::PAGE)
+        ->and($first->json('conversations.0.last_message.body'))->toBe('message '.(ConversationsQuery::PAGE + 1));
+
+    $second = $this->getJson(route('inbox.index', ['before' => $first->json('conversations.'.(ConversationsQuery::PAGE - 1).'.id')]))
+        ->assertJsonPath('has_more', false);
+
+    expect(collect($second->json('conversations'))->pluck('last_message.body')->all())->toBe(['message 1', 'message 0']);
+});

@@ -14,7 +14,6 @@ return new class extends Migration
             $table->id();
             $table->string('pair')->unique();
             $table->unsignedBigInteger('last_message_id')->nullable();
-            $table->timestamp('last_message_at')->nullable();
             $table->timestamps();
         });
     }
