@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\ConversationKind;
+use App\Enums\OrgRole;
 use App\Enums\RemoteStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\ConversationFactory;
@@ -15,14 +17,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property-read int $id
- * @property-read string $pair
+ * @property-read ConversationKind $kind
+ * @property-read string|null $pair
+ * @property-read string|null $name
  * @property-read int|null $last_message_id
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, ConversationParticipant> $participants
  * @property-read Collection<int, Message> $messages
  * @property-read Message|null $lastMessage
- * @property-read User $partner
+ * @property-read User|null $partner
  * @property-read string $partner_id
  * @property-read int $ahead
  * @property-read CarbonInterface|null $last_message_at
@@ -37,6 +41,11 @@ final class Conversation extends Model
     use HasFactory;
 
     /**
+     * An org holds the maintainer and up to fourteen others.
+     */
+    public const int MAX_MEMBERS = 15;
+
+    /**
      * Two people share exactly one conversation, whichever of them started it.
      */
     public static function pairOf(User $user, User $other): string
@@ -47,6 +56,34 @@ final class Conversation extends Model
         return implode(':', $ids);
     }
 
+    public static function between(User $user, User $other): ?self
+    {
+        return self::query()->where('pair', self::pairOf($user, $other))->first();
+    }
+
+    public static function betweenOrFail(User $user, User $other): self
+    {
+        return self::query()->where('pair', self::pairOf($user, $other))->firstOrFail();
+    }
+
+    public function isOrg(): bool
+    {
+        return $this->kind === ConversationKind::Org;
+    }
+
+    /**
+     * The user's role in the org, or null when they aren't in it.
+     */
+    public function roleOf(User $user): ?OrgRole
+    {
+        return $this->isOrg() ? $this->participants()->where('user_id', $user->id)->first()?->role : null;
+    }
+
+    public function isMaintainedBy(User $user): bool
+    {
+        return $this->roleOf($user) === OrgRole::Maintainer;
+    }
+
     /**
      * @return array<string, string>
      */
@@ -54,7 +91,9 @@ final class Conversation extends Model
     {
         return [
             'id' => 'integer',
+            'kind' => ConversationKind::class,
             'pair' => 'string',
+            'name' => 'string',
             'last_message_id' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

@@ -10,11 +10,11 @@ use App\Models\User;
 
 final readonly class DeleteConversationArchive
 {
-    public function handle(User $user, User $partner): void
+    public function handle(User $user, Conversation $conversation): void
     {
         ConversationParticipant::query()
             ->where('user_id', $user->id)
-            ->whereIn('conversation_id', Conversation::query()->select('id')->where('pair', Conversation::pairOf($user, $partner)))
+            ->where('conversation_id', $conversation->id)
             ->update(['archived_at' => null]);
     }
 }

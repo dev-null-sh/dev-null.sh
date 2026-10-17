@@ -241,3 +241,36 @@ function sendChatMessage(User $sender, User $recipient, string $body = 'hello'):
 
     return Message::query()->latest('id')->firstOrFail();
 }
+
+/**
+ * People who follow the maintainer, so they can be added to an org.
+ *
+ * @return list<User>
+ */
+function followersOf(User $maintainer, int $count): array
+{
+    return User::factory()->count($count)->create()->each(fn (User $follower) => $follower->following()->attach($maintainer))->all();
+}
+
+/**
+ * Creates an org the way the Remotes page does, and returns its id.
+ *
+ * @param  list<User>  $members
+ */
+function createOrg(User $maintainer, array $members, ?string $name = 'dev/null core'): int
+{
+    return test()->actingAs($maintainer)->postJson(route('org.store'), [
+        'name' => $name,
+        'members' => array_map(fn (User $member): string => $member->username, $members),
+    ])->assertCreated()->json('org.id');
+}
+
+function pushToOrg(User $sender, int $org, string $body = 'hello'): Message
+{
+    test()->actingAs($sender)->postJson(route('org-message.store', $org), [
+        'body' => $body,
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated();
+
+    return Message::query()->latest('id')->firstOrFail();
+}

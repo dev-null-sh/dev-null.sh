@@ -10,9 +10,11 @@ import {
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
+import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { ConversationThread } from '@/components/chat/conversation-thread';
 import { InboxPanel } from '@/components/chat/inbox-panel';
+import { MemberStack, OrgHeader, orgTitle } from '@/components/chat/org';
 import { SearchDialog } from '@/components/search-dialog';
 import {
     Tooltip,
@@ -22,7 +24,8 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { useChat, useInbox, useUnreadMessages } from '@/hooks/use-chat';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { rememberPartner } from '@/lib/chat';
+import { rememberTarget, summaryKey, targetKey, targetOf } from '@/lib/chat';
+import type { ChatTarget } from '@/lib/chat';
 import { setChatDocked, updateChatDock, useChatDock } from '@/lib/chat-dock';
 import { cn } from '@/lib/utils';
 import type { User } from '@/types';
@@ -49,23 +52,27 @@ function DockedChat({ user }: { user: User }) {
     const unread = useUnreadMessages();
     const [isPicking, setIsPicking] = useState(false);
     const [focusesComposer, setFocusesComposer] = useState(false);
-    const partner =
-        dock.partner === null
-            ? null
-            : (conversations?.find(
+    const summary =
+        dock.conversation === null
+            ? undefined
+            : conversations?.find(
                   (conversation) =>
-                      conversation.partner.username === dock.partner,
-              )?.partner ??
-              threads[dock.partner]?.partner ??
-              null);
+                      summaryKey(conversation) === dock.conversation,
+              );
+    const target: ChatTarget | null =
+        dock.conversation === null
+            ? null
+            : (threads[dock.conversation]?.target ??
+              (summary === undefined ? null : targetOf(summary)));
+    const thread = target === null ? undefined : threads[targetKey(target)];
 
-    const open = (person: User) => {
-        rememberPartner(person);
+    const open = (next: ChatTarget) => {
+        rememberTarget(next);
         setFocusesComposer(true);
-        updateChatDock({ partner: person.username, isExpanded: true });
+        updateChatDock({ conversation: targetKey(next), isExpanded: true });
     };
 
-    const leave = () => updateChatDock({ partner: null });
+    const leave = () => updateChatDock({ conversation: null });
 
     const leaveBlocked = () => {
         leave();
@@ -76,7 +83,7 @@ function DockedChat({ user }: { user: User }) {
 
     const tools = (
         <div className="ml-auto flex shrink-0 items-center">
-            {partner === null && (
+            {target === null && (
                 <DockButton
                     label="New remote"
                     onClick={() => setIsPicking(true)}
@@ -88,9 +95,11 @@ function DockedChat({ user }: { user: User }) {
                 <TooltipTrigger asChild>
                     <Link
                         href={
-                            partner === null
+                            target === null
                                 ? ConversationController.index()
-                                : ConversationController.show(partner)
+                                : target.kind === 'direct'
+                                  ? ConversationController.show(target.partner)
+                                  : OrgController.show({ org: target.org.id })
                         }
                         onClick={(event) => event.stopPropagation()}
                         aria-label="Open in Remotes"
@@ -140,55 +149,74 @@ function DockedChat({ user }: { user: User }) {
             )}
             data-test="chat-dock"
         >
-            {partner !== null && dock.isExpanded ? (
+            {target !== null && dock.isExpanded ? (
                 <ConversationThread
-                    key={partner.username}
-                    partner={partner}
+                    key={targetKey(target)}
+                    target={target}
                     user={user}
                     isCompact
                     autoFocus={focusesComposer}
                     onDropped={leave}
                     header={
                         <DockHeader onToggle={toggle}>
-                            <DockButton
-                                label="All remotes"
-                                onClick={() =>
-                                    updateChatDock({ partner: null })
-                                }
-                                className="-ml-1.5"
-                            >
-                                <ChevronLeft className="size-4" />
-                            </DockButton>
-                            <UserAvatar user={partner} className="size-7" />
-                            <span className="min-w-0">
-                                <span className="block truncate text-sm font-semibold">
-                                    {partner.name}
-                                </span>
-                                <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                                    @{partner.username}
-                                </span>
-                            </span>
-                            <ConversationActions
-                                partner={partner}
-                                isArchived={
-                                    threads[partner.username]?.is_archived ??
-                                    false
-                                }
-                                onLeave={leave}
-                                onBlocked={leaveBlocked}
-                                className="ml-auto"
-                            />
-                            {tools}
+                            {target.kind === 'org' ? (
+                                <OrgHeader
+                                    org={target.org}
+                                    user={user}
+                                    isCompact
+                                    before={
+                                        <DockButton
+                                            label="All remotes"
+                                            onClick={leave}
+                                            className="-ml-1.5"
+                                        >
+                                            <ChevronLeft className="size-4" />
+                                        </DockButton>
+                                    }
+                                    after={tools}
+                                    onLeft={leave}
+                                />
+                            ) : (
+                                <DirectDockHeader
+                                    partner={target.partner}
+                                    user={user}
+                                    isArchived={thread?.is_archived ?? false}
+                                    onBack={leave}
+                                    onBlocked={leaveBlocked}
+                                    tools={tools}
+                                />
+                            )}
                         </DockHeader>
                     }
                 />
             ) : (
                 <>
-                    {partner !== null ? (
+                    {target !== null ? (
                         <DockHeader onToggle={toggle}>
-                            <UserAvatar user={partner} className="size-7" />
+                            {target.kind === 'direct' ? (
+                                <UserAvatar
+                                    user={target.partner}
+                                    className="size-7"
+                                />
+                            ) : (
+                                <MemberStack
+                                    users={(thread?.members ?? []).map(
+                                        (member) => member.user,
+                                    )}
+                                    max={2}
+                                    avatarClassName="size-6"
+                                />
+                            )}
                             <span className="min-w-0 truncate text-sm font-semibold">
-                                {partner.name}
+                                {target.kind === 'direct'
+                                    ? target.partner.name
+                                    : orgTitle(
+                                          target.org,
+                                          thread?.members ??
+                                              summary?.members ??
+                                              null,
+                                          user,
+                                      )}
                             </span>
                             {unread > 0 && (
                                 <span className="rounded-full bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums">
@@ -221,10 +249,59 @@ function DockedChat({ user }: { user: User }) {
             <SearchDialog
                 open={isPicking}
                 onOpenChange={setIsPicking}
-                onPickDeveloper={open}
+                onPickDeveloper={(person) =>
+                    open({ kind: 'direct', partner: person })
+                }
                 excludeId={user.id}
             />
         </section>
+    );
+}
+
+function DirectDockHeader({
+    partner,
+    user,
+    isArchived,
+    onBack,
+    onBlocked,
+    tools,
+}: {
+    partner: User;
+    user: User;
+    isArchived: boolean;
+    onBack: () => void;
+    onBlocked: () => void;
+    tools: ReactNode;
+}) {
+    return (
+        <>
+            <DockButton
+                label="All remotes"
+                onClick={onBack}
+                className="-ml-1.5"
+            >
+                <ChevronLeft className="size-4" />
+            </DockButton>
+            <UserAvatar user={partner} className="size-7" />
+            <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold">
+                    {partner.name}
+                </span>
+                <span className="block truncate font-mono text-[11px] text-muted-foreground">
+                    @{partner.username}
+                </span>
+            </span>
+            <ConversationActions
+                target={{ kind: 'direct', partner }}
+                title={`@${partner.username}`}
+                user={user}
+                isArchived={isArchived}
+                onLeave={onBack}
+                onBlocked={onBlocked}
+                className="ml-auto"
+            />
+            {tools}
+        </>
     );
 }
 
@@ -238,7 +315,13 @@ function DockHeader({
     return (
         <header
             onClick={(event) => {
-                if (!(event.target as HTMLElement).closest('button, a')) {
+                const target = event.target as HTMLElement;
+
+                // Clicks inside dialogs and menus opened from the header bubble here through their portals.
+                if (
+                    event.currentTarget.contains(target) &&
+                    !target.closest('button, a')
+                ) {
                     onToggle();
                 }
             }}

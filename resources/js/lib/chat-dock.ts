@@ -1,17 +1,20 @@
 import { useSyncExternalStore } from 'react';
 import { readStorage, writeStorage } from '@/lib/storage';
 
+/**
+ * The open conversation is kept by its key: the partner's username, or `org:{id}`.
+ */
 export type ChatDock = {
     isDocked: boolean;
     isExpanded: boolean;
-    partner: string | null;
+    conversation: string | null;
 };
 
 const storageKey = 'chat-dock';
 const undocked: ChatDock = {
     isDocked: false,
     isExpanded: false,
-    partner: null,
+    conversation: null,
 };
 const listeners = new Set<() => void>();
 let dock: ChatDock | null = null;
@@ -29,8 +32,10 @@ function read(): ChatDock {
         dock = {
             isDocked: stored?.isDocked === true,
             isExpanded: stored?.isExpanded === true,
-            partner:
-                typeof stored?.partner === 'string' ? stored.partner : null,
+            conversation:
+                typeof stored?.conversation === 'string'
+                    ? stored.conversation
+                    : null,
         };
     } catch {
         dock = undocked;

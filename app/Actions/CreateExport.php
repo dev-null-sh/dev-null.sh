@@ -20,7 +20,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\LazyCollection;
-use Illuminate\Support\Str;
 use stdClass;
 
 final readonly class CreateExport
@@ -170,17 +169,18 @@ final readonly class CreateExport
      */
     private function messages(User $user): Generator
     {
-        $partnerIds = Conversation::query()
+        $recipients = Conversation::query()
             ->whereIn('id', ConversationParticipant::query()->select('conversation_id')->where('user_id', $user->id))
-            ->get(['id', 'pair'])
-            ->mapWithKeys(fn (Conversation $conversation): array => [
-                $conversation->id => Str::of($conversation->pair)->explode(':')->first(fn (string $id): bool => $id !== $user->id),
+            ->with('participants.user')
+            ->get()
+            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $conversation->isOrg()
+                ? 'org: '.($conversation->name ?? $conversation->id)
+                : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username,
             ]);
-        $partners = User::query()->whereIn('id', $partnerIds->values())->get()->keyBy('id');
 
-        foreach (Message::query()->where('user_id', $user->id)->lazyById(500) as $message) {
+        foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->lazyById(500) as $message) {
             yield [
-                'to' => $partners->get($partnerIds->get($message->conversation_id))?->username,
+                'to' => $recipients->get($message->conversation_id),
                 'body' => $message->body,
                 'created_at' => $message->created_at->toIso8601String(),
             ];

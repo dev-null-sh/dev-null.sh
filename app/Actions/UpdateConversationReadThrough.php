@@ -13,15 +13,9 @@ final readonly class UpdateConversationReadThrough
     /**
      * Only ever moves forward, and never past the conversation's last message.
      */
-    public function handle(User $user, User $partner, int $through): void
+    public function handle(User $user, Conversation $conversation, int $through): void
     {
-        $conversation = Conversation::query()->where('pair', Conversation::pairOf($user, $partner))->first();
-
-        if (! $conversation instanceof Conversation || $conversation->last_message_id === null) {
-            return;
-        }
-
-        $through = min($through, $conversation->last_message_id);
+        $through = min($through, $conversation->last_message_id ?? 0);
 
         ConversationParticipant::query()
             ->where('conversation_id', $conversation->id)

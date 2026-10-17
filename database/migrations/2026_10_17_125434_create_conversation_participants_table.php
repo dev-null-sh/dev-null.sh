@@ -15,6 +15,8 @@ return new class extends Migration
             $table->foreignId('conversation_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
             $table->string('status')->default('open');
+            $table->string('role')->nullable();
+            $table->unsignedBigInteger('visible_from_id')->default(0);
             $table->timestamp('last_message_at')->nullable();
             $table->unsignedBigInteger('read_through_id')->default(0);
             $table->timestamp('read_at')->nullable();

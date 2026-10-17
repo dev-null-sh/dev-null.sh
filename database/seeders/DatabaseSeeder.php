@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Actions\CreateConversation;
 use App\Actions\CreateMessage;
+use App\Actions\CreateOrg;
 use App\Actions\UpdateCommitHotScores;
 use App\Actions\UpdateConversationReadThrough;
 use App\Enums\RemotesFrom;
@@ -20,7 +22,9 @@ final class DatabaseSeeder extends Seeder
 {
     public function __construct(
         private readonly UpdateCommitHotScores $updateCommitHotScores,
+        private readonly CreateConversation $createConversation,
         private readonly CreateMessage $createMessage,
+        private readonly CreateOrg $createOrg,
         private readonly UpdateConversationReadThrough $updateConversationReadThrough,
     ) {
         //
@@ -64,7 +68,7 @@ final class DatabaseSeeder extends Seeder
     /**
      * Remotes on for everyone, the local developer taking them from people they follow. With three of those: one
      * conversation waiting on them, one where their reply was read, and one where it was not yet. And, while
-     * requests are on, a request fetched from someone they don't follow.
+     * requests are on, a request fetched from someone they don't follow. Plus an org they maintain with those three.
      *
      * @param  Collection<int, User>  $users
      */
@@ -96,6 +100,21 @@ final class DatabaseSeeder extends Seeder
             [$localDeveloper, $unread, 'thanks! more coming soon', '-2 days 11:15'],
         ], $now);
 
+        Date::setTestNow($now->copy()->modify('-1 day 10:00'));
+        $org = $this->createOrg->handle($localDeveloper, 'dev/null core', collect([$waiting, $read, $unread]));
+
+        foreach ([
+            [$waiting, 'standup in 10?', '-1 day 10:02'],
+            [$read, 'can we pin the polling PR in the log?', 'today 08:40'],
+            [$localDeveloper, 'pinned. remotes go out today', 'today 08:45'],
+            [$unread, 'nice, I will write the changelog', 'today 09:05'],
+        ] as [$sender, $body, $at]) {
+            Date::setTestNow($now->copy()->modify($at));
+            $this->createMessage->handle($sender, $org, $body, Str::uuid()->toString());
+        }
+
+        Date::setTestNow();
+
         if (config('remotes.requests')) {
             $this->chat([
                 [$stranger, $localDeveloper, 'hey! loved your talk on polling, could I ask you a few questions about it?', 'today 08:02'],
@@ -112,13 +131,14 @@ final class DatabaseSeeder extends Seeder
     {
         foreach ($messages as [$sender, $recipient, $body, $at]) {
             Date::setTestNow($now->copy()->modify($at));
-            $message = $this->createMessage->handle($sender, $recipient, $body, Str::uuid()->toString());
+            $conversation = $this->createConversation->handle($sender, $recipient);
+            $message = $this->createMessage->handle($sender, $conversation, $body, Str::uuid()->toString());
         }
 
         Date::setTestNow();
 
-        if ($readBy instanceof User && isset($message, $sender)) {
-            $this->updateConversationReadThrough->handle($readBy, $sender, $message->id);
+        if ($readBy instanceof User && isset($message, $conversation)) {
+            $this->updateConversationReadThrough->handle($readBy, $conversation, $message->id);
         }
     }
 

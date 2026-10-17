@@ -16,6 +16,8 @@ return new class extends Migration
             $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
             $table->uuid('client_id');
             $table->text('body');
+            $table->string('event')->nullable();
+            $table->foreignUuid('subject_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
             $table->unique(['user_id', 'client_id']);

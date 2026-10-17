@@ -2,16 +2,17 @@ import { usePage } from '@inertiajs/react';
 import { Search, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import UserSearchController from '@/actions/App/Http/Controllers/UserSearchController';
 import { ConversationList } from '@/components/chat/conversation-list';
-import { UserAvatar } from '@/components/user-avatar';
+import { CandidateRow } from '@/components/chat/org';
 import { useChat } from '@/hooks/use-chat';
 import {
     loadMoreConversations,
     loadTab,
+    searchCandidates,
     searchConversations,
 } from '@/lib/chat';
-import { cn, laneColor } from '@/lib/utils';
+import type { Candidate, ChatTarget } from '@/lib/chat';
+import { cn } from '@/lib/utils';
 import type { ConversationSummary, InboxTab, User } from '@/types';
 
 type Tab = InboxTab;
@@ -26,7 +27,7 @@ type Found = {
     term: string;
     tab: Tab;
     conversations: ConversationSummary[];
-    developers: User[];
+    developers: Candidate[];
 };
 
 const debounce = 150;
@@ -37,7 +38,7 @@ const debounce = 150;
  */
 export function InboxPanel({
     user,
-    activeUsername,
+    activeKey,
     onOpen,
     onLeaveActive,
     onBlocked,
@@ -45,8 +46,8 @@ export function InboxPanel({
     empty,
 }: {
     user: User;
-    activeUsername?: string | null;
-    onOpen: (partner: User) => void;
+    activeKey?: string | null;
+    onOpen: (target: ChatTarget) => void;
     onLeaveActive?: () => void;
     onBlocked?: () => void;
     isCompact?: boolean;
@@ -80,7 +81,11 @@ export function InboxPanel({
             void Promise.all([
                 searchConversations(term, tab, controller.signal),
                 tab === 'open'
-                    ? searchDevelopers(term, controller.signal)
+                    ? searchCandidates(
+                          term,
+                          { for: 'remote' },
+                          controller.signal,
+                      ).then((candidates) => candidates.slice(0, 5))
                     : Promise.resolve([]),
             ])
                 .then(([matches, developers]) =>
@@ -90,10 +95,9 @@ export function InboxPanel({
                         conversations: matches,
                         developers: developers.filter(
                             (developer) =>
-                                developer.id !== user.id &&
                                 !matches.some(
                                     (match) =>
-                                        match.partner.id === developer.id,
+                                        match.partner?.id === developer.user.id,
                                 ),
                         ),
                     }),
@@ -176,7 +180,7 @@ export function InboxPanel({
                         autoComplete="off"
                         spellCheck={false}
                         className={cn(
-                            'w-full min-w-0 rounded-full border bg-card pr-9 pl-9 text-base outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none md:text-sm [&::-webkit-search-cancel-button]:hidden',
+                            'w-full min-w-0 rounded-md border bg-card pr-9 pl-9 text-base outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none md:text-sm [&::-webkit-search-cancel-button]:hidden',
                             isCompact ? 'h-8' : 'h-9',
                         )}
                         data-test="conversation-search"
@@ -244,7 +248,7 @@ export function InboxPanel({
                 <ConversationList
                     conversations={list}
                     user={user}
-                    activeUsername={activeUsername}
+                    activeKey={activeKey}
                     onOpen={onOpen}
                     onLeaveActive={onLeaveActive}
                     onBlocked={onBlocked}
@@ -294,75 +298,26 @@ export function InboxPanel({
                                 Start a conversation
                             </h3>
                             <ul>
-                                {results.developers.map((developer) => (
-                                    <li key={developer.id}>
-                                        <button
-                                            type="button"
-                                            onClick={() => onOpen(developer)}
-                                            className={cn(
-                                                'flex w-full items-center gap-3 text-left transition-colors hover:bg-accent',
-                                                isCompact
-                                                    ? 'px-3.5 py-2'
-                                                    : 'px-4 py-2.5',
-                                            )}
-                                        >
-                                            <UserAvatar
+                                {results.developers.map(
+                                    ({ user: developer, reason }) => (
+                                        <li key={developer.id}>
+                                            <CandidateRow
                                                 user={developer}
-                                                className={
-                                                    isCompact
-                                                        ? 'size-8'
-                                                        : 'size-9'
+                                                reason={reason}
+                                                onToggle={() =>
+                                                    onOpen({
+                                                        kind: 'direct',
+                                                        partner: developer,
+                                                    })
                                                 }
                                             />
-                                            <span className="min-w-0">
-                                                <span className="block truncate text-sm font-semibold">
-                                                    {developer.name}
-                                                </span>
-                                                <span className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
-                                                    <span
-                                                        aria-hidden
-                                                        className="size-1.5 shrink-0 rounded-full"
-                                                        style={{
-                                                            background:
-                                                                laneColor(
-                                                                    developer.lane,
-                                                                ),
-                                                        }}
-                                                    />
-                                                    <span className="truncate">
-                                                        @{developer.username}
-                                                    </span>
-                                                </span>
-                                            </span>
-                                        </button>
-                                    </li>
-                                ))}
+                                        </li>
+                                    ),
+                                )}
                             </ul>
                         </section>
                     )}
             </div>
         </div>
     );
-}
-
-async function searchDevelopers(
-    term: string,
-    signal: AbortSignal,
-): Promise<User[]> {
-    const response = await fetch(
-        UserSearchController.index.url({ query: { q: term } }),
-        {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            signal,
-        },
-    );
-
-    if (!response.ok) {
-        return [];
-    }
-
-    return ((await response.json()) as { users: User[] }).users.slice(0, 5);
 }

@@ -15,9 +15,11 @@ import {
 } from 'react';
 import { toast } from 'sonner';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
+import { EventLine, typingText } from '@/components/chat/org';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { UserAvatar } from '@/components/user-avatar';
 import { useThread } from '@/hooks/use-chat';
 import {
     settleRequest,
@@ -26,8 +28,9 @@ import {
     pingTyping,
     retryMessage,
     sendMessage,
+    targetKey,
 } from '@/lib/chat';
-import type { PendingMessage } from '@/lib/chat';
+import type { ChatTarget, PendingMessage } from '@/lib/chat';
 import {
     characterCount,
     cn,
@@ -36,7 +39,7 @@ import {
     limitCharacters,
     localDayKey,
 } from '@/lib/utils';
-import type { Message, PushAccess, User } from '@/types';
+import type { Message, OrgMember, PushAccess, User } from '@/types';
 
 const maxLength = 2000;
 
@@ -55,15 +58,27 @@ type Bubble =
 type Item =
     | { kind: 'day'; key: string; label: string }
     | { kind: 'head'; key: string; count: number }
+    | { kind: 'event'; key: string; message: Message }
     | {
           kind: 'group';
           key: string;
           isMine: boolean;
+          authorId: string;
+          author: User | null;
           bubbles: Bubble[];
       };
 
+/**
+ * Who has pulled up to where: the partner in a conversation, or each member in an org.
+ */
+type Pulls = {
+    readThrough: number;
+    readAt: string | null;
+    members: OrgMember[];
+};
+
 export function ConversationThread({
-    partner,
+    target,
     user,
     header,
     isVisible = true,
@@ -71,7 +86,7 @@ export function ConversationThread({
     autoFocus = false,
     onDropped,
 }: {
-    partner: User;
+    target: ChatTarget;
     user: User;
     header: ReactNode;
     isVisible?: boolean;
@@ -82,9 +97,13 @@ export function ConversationThread({
      */
     onDropped?: () => void;
 }) {
-    const thread = useThread(partner);
+    const thread = useThread(target);
+    const isOrg = target.kind === 'org';
+    // Renaming an org updates the thread's target, not the one this was opened with.
+    const current = thread?.target ?? target;
     const scroller = useRef<HTMLDivElement>(null);
     const headLine = useRef<HTMLDivElement>(null);
+    const list = useRef<HTMLOListElement>(null);
     const isPinned = useRef(true);
     const hasScrolledIn = useRef(false);
     const previousHeight = useRef<number | null>(null);
@@ -97,20 +116,36 @@ export function ConversationThread({
     const head = thread?.head ?? 0;
     const headUntil = thread?.headUntil ?? 0;
     const items = useMemo(
-        () => itemsOf(messages, pending, head, headUntil, user),
-        [messages, pending, head, headUntil, user],
+        () => itemsOf(messages, pending, head, headUntil, user, isOrg),
+        [messages, pending, head, headUntil, user, isOrg],
     );
     const lastMine = useMemo(
         () => lastMineOf(messages, pending, user),
         [messages, pending, user],
     );
+    const pulls = useMemo<Pulls>(
+        () => ({
+            readThrough: thread?.partner_read_through_id ?? 0,
+            readAt: thread?.partner_read_at ?? null,
+            members: (thread?.members ?? []).filter(
+                (member) => member.user.id !== user.id,
+            ),
+        }),
+        [
+            thread?.partner_read_through_id,
+            thread?.partner_read_at,
+            thread?.members,
+            user.id,
+        ],
+    );
     const contentKey = `${latestId}:${pending.length}:${pending.map((item) => item.status).join()}`;
 
     useEffect(() => {
         if (isVisible && thread?.isLoaded && isPinned.current) {
-            markThreadRead(partner);
+            markThreadRead(target);
         }
-    }, [isVisible, latestId, thread?.isLoaded, partner]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isVisible, latestId, thread?.isLoaded, targetKey(target)]);
 
     useLayoutEffect(() => {
         const element = scroller.current;
@@ -126,6 +161,8 @@ export function ConversationThread({
 
             if (headLine.current === null) {
                 element.scrollTop = element.scrollHeight;
+            } else {
+                isPinned.current = false;
             }
 
             return;
@@ -146,13 +183,34 @@ export function ConversationThread({
                 messages.filter(
                     (message) =>
                         message.id > seenLatest.current &&
-                        message.user_id !== user.id,
+                        message.user_id !== user.id &&
+                        !message.event,
                 ).length,
             );
         }
         // Scrolling follows new content only, not every poll that changes nothing.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [contentKey, thread?.isLoaded, messages[0]?.id]);
+
+    // Rows settle their height after the first paint, so a pinned thread follows them down.
+    useEffect(() => {
+        const element = scroller.current;
+        const content = list.current;
+
+        if (element === null || content === null) {
+            return;
+        }
+
+        const observer = new ResizeObserver(() => {
+            if (isPinned.current) {
+                element.scrollTop = element.scrollHeight;
+            }
+        });
+
+        observer.observe(content);
+
+        return () => observer.disconnect();
+    }, [thread?.isLoaded]);
 
     const onScroll = () => {
         const element = scroller.current;
@@ -170,7 +228,7 @@ export function ConversationThread({
             setUnseen(0);
 
             if (isVisible) {
-                markThreadRead(partner);
+                markThreadRead(target);
             }
         }
 
@@ -180,7 +238,7 @@ export function ConversationThread({
             !thread.isLoadingOlder
         ) {
             previousHeight.current = element.scrollHeight;
-            void loadOlderMessages(partner);
+            void loadOlderMessages(target);
         }
     };
 
@@ -192,7 +250,11 @@ export function ConversationThread({
 
     return (
         <section
-            aria-label={`Conversation with ${partner.name}`}
+            aria-label={
+                current.kind === 'direct'
+                    ? `Conversation with ${current.partner.name}`
+                    : `Org ${current.org.name ?? ''}`.trim()
+            }
             className="relative flex min-h-0 min-w-0 flex-1 flex-col"
         >
             {header}
@@ -207,6 +269,7 @@ export function ConversationThread({
                     <ThreadSkeleton isCompact={isCompact} />
                 ) : (
                     <ol
+                        ref={list}
                         aria-live="polite"
                         aria-relevant="additions"
                         className={cn(
@@ -225,18 +288,20 @@ export function ConversationThread({
                             thread.pending.length === 0 &&
                             thread.access === 'open' && (
                                 <li className="py-10 text-center font-mono text-[13px] text-muted-foreground">
-                                    empty history. say hi to @{partner.username}
+                                    empty history.{' '}
+                                    {target.kind === 'direct'
+                                        ? `say hi to @${target.partner.username}`
+                                        : 'say hi to the org'}
                                 </li>
                             )}
                         {items.map((item) => (
                             <ThreadItem
                                 key={item.key}
                                 item={item}
-                                readThrough={thread.partner_read_through_id}
-                                readAt={thread.partner_read_at}
+                                pulls={pulls}
                                 lastMine={lastMine}
                                 user={user}
-                                partner={partner}
+                                target={target}
                                 headLine={headLine}
                                 isCompact={isCompact}
                             />
@@ -258,18 +323,28 @@ export function ConversationThread({
 
             {(thread?.access ?? 'open') === 'open' ? (
                 <Composer
-                    partner={partner}
+                    target={current}
                     isCompact={isCompact}
                     autoFocus={autoFocus}
-                    isPartnerTyping={thread?.partner_typing ?? false}
+                    typing={
+                        target.kind === 'org'
+                            ? (thread?.typing ?? []).length > 0
+                                ? typingText(thread?.typing ?? [])
+                                : null
+                            : thread?.partner_typing
+                              ? `@${target.partner.username} is typing…`
+                              : null
+                    }
                 />
             ) : (
-                <AccessBar
-                    access={thread?.access ?? 'open'}
-                    partner={partner}
-                    isCompact={isCompact}
-                    onDropped={onDropped}
-                />
+                target.kind === 'direct' && (
+                    <AccessBar
+                        access={thread?.access ?? 'open'}
+                        partner={target.partner}
+                        isCompact={isCompact}
+                        onDropped={onDropped}
+                    />
+                )
             )}
         </section>
     );
@@ -281,23 +356,27 @@ function itemsOf(
     head: number,
     headUntil: number,
     user: User,
+    isOrg: boolean,
 ): Item[] {
     const bubbles: {
         bubble: Bubble;
         at: string;
         isMine: boolean;
+        author: string;
         id: number;
     }[] = [
         ...messages.map((message) => ({
             bubble: { kind: 'message', message } as Bubble,
             at: message.created_at,
             isMine: message.user_id === user.id,
+            author: message.user_id,
             id: message.id,
         })),
         ...pendingMessages.map((pending) => ({
             bubble: { kind: 'pending', pending } as Bubble,
             at: pending.created_at,
             isMine: true,
+            author: user.id,
             id: Number.POSITIVE_INFINITY,
         })),
     ];
@@ -305,7 +384,8 @@ function itemsOf(
         (message) =>
             message.id > head &&
             message.id <= headUntil &&
-            message.user_id !== user.id,
+            message.user_id !== user.id &&
+            !message.event,
     );
     const firstUnread = messages.findIndex(
         (message) => message.id === unread[0]?.id,
@@ -313,7 +393,7 @@ function itemsOf(
     const items: Item[] = [];
     let day: string | null = null;
 
-    bubbles.forEach(({ bubble, at, isMine, id }, index) => {
+    bubbles.forEach(({ bubble, at, isMine, author, id }, index) => {
         const dayKey = localDayKey(at);
         const last = items.at(-1);
 
@@ -330,11 +410,22 @@ function itemsOf(
             items.push({ kind: 'head', key: 'head', count: unread.length });
         }
 
+        if (bubble.kind === 'message' && bubble.message.event) {
+            items.push({
+                kind: 'event',
+                key: `event-${id}`,
+                message: bubble.message,
+            });
+
+            return;
+        }
+
         const current = items.at(-1);
 
         if (
             current?.kind === 'group' &&
             current.isMine === isMine &&
+            current.authorId === author &&
             current === last
         ) {
             current.bubbles.push(bubble);
@@ -346,6 +437,11 @@ function itemsOf(
             kind: 'group',
             key: `group-${bubble.kind === 'message' ? id : bubble.pending.client_id}`,
             isMine,
+            authorId: author,
+            author:
+                isOrg && !isMine && bubble.kind === 'message'
+                    ? (bubble.message.user ?? null)
+                    : null,
             bubbles: [bubble],
         });
     });
@@ -358,20 +454,18 @@ function itemsOf(
  */
 const ThreadItem = memo(function ThreadItem({
     item,
-    readThrough,
-    readAt,
+    pulls,
     lastMine,
     user,
-    partner,
+    target,
     headLine,
     isCompact,
 }: {
     item: Item;
-    readThrough: number;
-    readAt: string | null;
+    pulls: Pulls;
     lastMine: string | null;
     user: User;
-    partner: User;
+    target: ChatTarget;
     headLine: React.RefObject<HTMLDivElement | null>;
     isCompact: boolean;
 }) {
@@ -402,6 +496,10 @@ const ThreadItem = memo(function ThreadItem({
         );
     }
 
+    if (item.kind === 'event') {
+        return <EventLine message={item.message} user={user} />;
+    }
+
     return (
         <li
             className={cn(
@@ -412,6 +510,22 @@ const ThreadItem = memo(function ThreadItem({
                 },
             )}
         >
+            {item.author !== null && (
+                <span
+                    className="flex max-w-full min-w-0 items-center gap-1.5 px-1.5 pb-0.5 text-xs text-muted-foreground"
+                    title={item.author.name}
+                >
+                    <UserAvatar user={item.author} className="size-4" />
+                    <span className="truncate font-medium text-foreground">
+                        {item.author.name}
+                    </span>
+                    <span
+                        aria-hidden
+                        className="size-1.5 shrink-0 rounded-full"
+                        style={{ background: laneColor(item.author.lane) }}
+                    />
+                </span>
+            )}
             {item.bubbles.map((bubble, index) => {
                 const key =
                     bubble.kind === 'message'
@@ -427,10 +541,9 @@ const ThreadItem = memo(function ThreadItem({
                         isFirst={index === 0}
                         isLast={isLast}
                         isLatestMine={key === lastMine}
-                        readThrough={readThrough}
-                        readAt={readAt}
+                        pulls={pulls}
                         user={user}
-                        partner={partner}
+                        target={target}
                         isCompact={isCompact}
                     />
                 );
@@ -451,8 +564,9 @@ function lastMineOf(
     }
 
     return (
-        messages.findLast((message) => message.user_id === user.id)
-            ?.client_id ?? null
+        messages.findLast(
+            (message) => message.user_id === user.id && !message.event,
+        )?.client_id ?? null
     );
 }
 
@@ -462,10 +576,9 @@ function BubbleWithMeta({
     isFirst,
     isLast,
     isLatestMine,
-    readThrough,
-    readAt,
+    pulls,
     user,
-    partner,
+    target,
     isCompact,
 }: {
     bubble: Bubble;
@@ -473,20 +586,35 @@ function BubbleWithMeta({
     isFirst: boolean;
     isLast: boolean;
     isLatestMine: boolean;
-    readThrough: number;
-    readAt: string | null;
+    pulls: Pulls;
     user: User;
-    partner: User;
+    target: ChatTarget;
     isCompact: boolean;
 }) {
     const body =
         bubble.kind === 'message' ? bubble.message.body : bubble.pending.body;
+    const pulledBy =
+        bubble.kind === 'message' && target.kind === 'org'
+            ? pulls.members
+                  .filter(
+                      (member) => member.read_through_id >= bubble.message.id,
+                  )
+                  .map((member) => member.user)
+            : [];
     const status =
         bubble.kind === 'pending'
             ? bubble.pending.status
-            : readThrough >= bubble.message.id
+            : (
+                    target.kind === 'org'
+                        ? pulledBy.length > 0
+                        : pulls.readThrough >= bubble.message.id
+                )
               ? 'pulled'
               : 'pushed';
+    const partnerLane =
+        target.kind === 'direct'
+            ? target.partner.lane
+            : (pulledBy[0]?.lane ?? user.lane);
 
     return (
         <>
@@ -517,14 +645,14 @@ function BubbleWithMeta({
                     <MessageStatusGlyph
                         status="rejected"
                         lane={user.lane}
-                        partnerLane={partner.lane}
+                        partnerLane={partnerLane}
                     />
                     rejected ·
                     <button
                         type="button"
                         onClick={() =>
                             bubble.kind === 'pending' &&
-                            retryMessage(partner, bubble.pending.client_id)
+                            retryMessage(target, bubble.pending.client_id)
                         }
                         className="underline underline-offset-2"
                     >
@@ -536,12 +664,22 @@ function BubbleWithMeta({
                     <MessageStatusGlyph
                         status={status}
                         lane={user.lane}
-                        partnerLane={partner.lane}
+                        partnerLane={partnerLane}
                     />
                     <span>
                         {status}
-                        {status === 'pulled' && readAt && ` ${timeOf(readAt)}`}
+                        {status === 'pulled' &&
+                            target.kind === 'direct' &&
+                            pulls.readAt &&
+                            ` ${timeOf(pulls.readAt)}`}
+                        {pulledBy.length > 0 && ' by'}
                     </span>
+                    {pulledBy.length > 0 && (
+                        <PulledBy
+                            users={pulledBy}
+                            total={pulls.members.length}
+                        />
+                    )}
                 </MetaLine>
             ) : (
                 isLast &&
@@ -554,6 +692,42 @@ function BubbleWithMeta({
                 )
             )}
         </>
+    );
+}
+
+/**
+ * The members who pulled a message, as small avatars, or "everyone" once the whole org has.
+ */
+function PulledBy({ users, total }: { users: User[]; total: number }) {
+    const names = users.map((person) => `@${person.username}`).join(', ');
+
+    if (users.length === total && total > 3) {
+        return (
+            <span title={names} data-test="pulled-by">
+                everyone
+            </span>
+        );
+    }
+
+    return (
+        <span
+            className="flex items-center"
+            title={names}
+            aria-label={names}
+            data-test="pulled-by"
+        >
+            {users.slice(0, 5).map((person) => (
+                <UserAvatar
+                    key={person.id}
+                    user={person}
+                    pixels={32}
+                    className="size-3.5 ring-1 ring-background not-first:-ml-1"
+                />
+            ))}
+            {users.length > 5 && (
+                <span className="ml-1">+{users.length - 5}</span>
+            )}
+        </span>
     );
 }
 
@@ -588,16 +762,22 @@ function timeOf(date: string): string {
  * quietly cutting it short.
  */
 function Composer({
-    partner,
+    target,
     isCompact,
     autoFocus,
-    isPartnerTyping,
+    typing,
 }: {
-    partner: User;
+    target: ChatTarget;
     isCompact: boolean;
     autoFocus: boolean;
-    isPartnerTyping: boolean;
+    typing: string | null;
 }) {
+    const id = `message-${targetKey(target).replace(':', '-')}`;
+    const placeholder =
+        target.kind === 'direct'
+            ? `Message @${target.partner.username}`
+            : `Message ${target.org.name ?? 'the org'}`;
+    const lane = target.kind === 'direct' ? target.partner.lane : 0;
     const [body, setBody] = useState('');
     const [error, setError] = useState<string | null>(null);
     const input = useRef<HTMLTextAreaElement>(null);
@@ -624,7 +804,7 @@ function Composer({
             return;
         }
 
-        sendMessage(partner, trimmed);
+        sendMessage(target, trimmed);
         setBody('');
         showError(null);
         input.current?.focus();
@@ -664,7 +844,7 @@ function Composer({
                     'flex h-6 shrink-0 items-center gap-2 font-mono text-xs text-muted-foreground',
                     isCompact ? 'px-3.5' : 'px-5',
                 )}
-                style={{ '--lane': laneColor(partner.lane) } as never}
+                style={{ '--lane': laneColor(lane) } as never}
             >
                 <span className="flex min-w-0 flex-1 items-center gap-2">
                     {error !== null ? (
@@ -677,14 +857,17 @@ function Composer({
                             {error}
                         </span>
                     ) : (
-                        isPartnerTyping && (
+                        typing !== null && (
                             <>
                                 <span
                                     aria-hidden
                                     className="size-2.5 shrink-0 rounded-full border-2 border-dashed border-(--lane) motion-safe:animate-[spin_3s_linear_infinite]"
                                 />
-                                <span className="truncate font-sans">
-                                    @{partner.username} is typing…
+                                <span
+                                    className="truncate font-sans"
+                                    data-test="typing"
+                                >
+                                    {typing}
                                 </span>
                             </>
                         )
@@ -711,14 +894,11 @@ function Composer({
                     isCompact ? 'p-2.5' : 'px-4 py-3',
                 )}
             >
-                <label
-                    htmlFor={`message-${partner.username}`}
-                    className="sr-only"
-                >
-                    Message @{partner.username}
+                <label htmlFor={id} className="sr-only">
+                    {placeholder}
                 </label>
                 <textarea
-                    id={`message-${partner.username}`}
+                    id={id}
                     ref={input}
                     rows={1}
                     autoFocus={autoFocus}
@@ -739,15 +919,15 @@ function Composer({
                         }
 
                         if (value.trim() !== '') {
-                            pingTyping(partner);
+                            pingTyping(target);
                         }
                     }}
                     onPaste={onPaste}
                     onKeyDown={onKeyDown}
-                    placeholder={`Message @${partner.username}`}
+                    placeholder={placeholder}
                     aria-invalid={error !== null || undefined}
                     className={cn(
-                        'field-sizing-content max-h-40 min-h-10 min-w-0 flex-1 resize-none overflow-x-hidden rounded-[20px] border border-input bg-card px-4 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
+                        'field-sizing-content max-h-40 min-h-10 min-w-0 flex-1 resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
                         { 'min-h-9 py-1.5 md:text-sm': isCompact },
                     )}
                     data-test="message-input"
@@ -756,7 +936,7 @@ function Composer({
                     type="submit"
                     disabled={trimmed === ''}
                     className={cn(
-                        'shrink-0 rounded-full',
+                        'shrink-0',
                         isCompact ? 'h-9 min-w-16' : 'h-10 min-w-20',
                     )}
                 >
@@ -821,7 +1001,7 @@ function AccessBar({
                         </p>
                         <Button
                             variant="outline"
-                            className="min-w-16 rounded-full"
+                            className="min-w-16"
                             disabled={isSettling}
                             onClick={() => void settle(false)}
                             data-test="drop-request"
@@ -829,7 +1009,7 @@ function AccessBar({
                             Drop
                         </Button>
                         <Button
-                            className="min-w-20 rounded-full"
+                            className="min-w-20"
                             disabled={isSettling}
                             onClick={() => void settle(true)}
                             data-test="merge-request"

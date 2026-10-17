@@ -5,15 +5,34 @@ import ConversationMessageController from '@/actions/App/Http/Controllers/Conver
 import ConversationReadController from '@/actions/App/Http/Controllers/ConversationReadController';
 import ConversationTypingController from '@/actions/App/Http/Controllers/ConversationTypingController';
 import InboxController from '@/actions/App/Http/Controllers/InboxController';
+import OrgArchiveController from '@/actions/App/Http/Controllers/OrgArchiveController';
+import OrgController from '@/actions/App/Http/Controllers/OrgController';
+import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberController';
+import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageController';
+import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController';
+import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
+import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import type {
     ConversationSummary,
     InboxPage,
     InboxTab,
     Message,
+    OrgMember,
+    OrgRef,
+    OrgRole,
+    OrgThread,
+    PushAccess,
     Thread,
     User,
 } from '@/types';
+
+/**
+ * Who a conversation is with: one person, or an org.
+ */
+export type ChatTarget =
+    | { kind: 'direct'; partner: User }
+    | { kind: 'org'; org: OrgRef };
 
 export type PendingMessage = {
     client_id: string;
@@ -22,8 +41,19 @@ export type PendingMessage = {
     status: 'staged' | 'rejected';
 };
 
-export type ThreadState = Thread & {
-    partner: User;
+export type ThreadState = {
+    target: ChatTarget;
+    messages: Message[];
+    has_older: boolean;
+    read_through_id: number;
+    partner_read_through_id: number;
+    partner_read_at: string | null;
+    partner_typing: boolean;
+    members: OrgMember[];
+    typing: string[];
+    role: OrgRole | null;
+    is_archived: boolean;
+    access: PushAccess;
     pending: PendingMessage[];
     /**
      * Where the user had read up to when they opened the conversation, kept while it stays open.
@@ -48,6 +78,8 @@ export type ChatState = {
     isPollingInbox: boolean;
     threads: Record<string, ThreadState>;
 };
+
+export type Candidate = { user: User; reason: string | null };
 
 const activePoll = 1_500;
 const idlePoll = 4_000;
@@ -80,6 +112,55 @@ const lastTypingPing = new Map<string, number>();
 let inboxWatchers = 0;
 let inboxTimer: number | undefined;
 
+export function targetKey(target: ChatTarget): string {
+    return target.kind === 'direct'
+        ? target.partner.username
+        : `org:${target.org.id}`;
+}
+
+export function summaryKey(summary: ConversationSummary): string {
+    return summary.kind === 'org' || summary.partner === null
+        ? `org:${summary.id}`
+        : summary.partner.username;
+}
+
+export function targetOf(summary: ConversationSummary): ChatTarget {
+    return summary.kind === 'org' || summary.partner === null
+        ? { kind: 'org', org: { id: summary.id, name: summary.name } }
+        : { kind: 'direct', partner: summary.partner };
+}
+
+function urls(target: ChatTarget) {
+    if (target.kind === 'direct') {
+        const partner = { partner: target.partner.username };
+
+        return {
+            index: (query?: Record<string, number>) =>
+                ConversationMessageController.index.url(
+                    partner,
+                    query ? { query } : undefined,
+                ),
+            store: ConversationMessageController.store.url(partner),
+            read: ConversationReadController.update.url(partner),
+            typing: ConversationTypingController.update.url(partner),
+            stash: ConversationArchiveController.store.url(partner),
+            pop: ConversationArchiveController.destroy.url(partner),
+        };
+    }
+
+    const org = { org: target.org.id };
+
+    return {
+        index: (query?: Record<string, number>) =>
+            OrgMessageController.index.url(org, query ? { query } : undefined),
+        store: OrgMessageController.store.url(org),
+        read: OrgReadController.update.url(org),
+        typing: OrgTypingController.update.url(org),
+        stash: OrgArchiveController.store.url(org),
+        pop: OrgArchiveController.destroy.url(org),
+    };
+}
+
 export function subscribeToChat(listener: () => void): () => void {
     listeners.add(listener);
 
@@ -104,10 +185,10 @@ function updateDuringRender(next: Partial<ChatState>): void {
 }
 
 function updateThread(
-    username: string,
+    key: string,
     change: (thread: ThreadState) => Partial<ThreadState>,
 ): void {
-    const thread = state.threads[username];
+    const thread = state.threads[key];
 
     if (thread === undefined) {
         return;
@@ -116,7 +197,7 @@ function updateThread(
     update({
         threads: {
             ...state.threads,
-            [username]: { ...thread, ...change(thread) },
+            [key]: { ...thread, ...change(thread) },
         },
     });
 }
@@ -125,6 +206,22 @@ function xsrfToken(): string {
     const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/);
 
     return match ? decodeURIComponent(match[1]) : '';
+}
+
+export class ChatRequestError extends Error {
+    constructor(
+        public status: number,
+        public body: { message?: string; errors?: Record<string, string[]> },
+    ) {
+        super(body.message ?? `Chat request failed: ${status}`);
+    }
+
+    /**
+     * The first reason the server gave, for showing next to whatever was refused.
+     */
+    firstError(): string {
+        return Object.values(this.body.errors ?? {})[0]?.[0] ?? this.message;
+    }
 }
 
 async function request<T>(
@@ -147,7 +244,12 @@ async function request<T>(
     });
 
     if (!response.ok) {
-        throw new Error(`Chat request failed: ${response.status}`);
+        throw new ChatRequestError(
+            response.status,
+            (await response.json().catch(() => ({}))) as {
+                message?: string;
+            },
+        );
     }
 
     return (response.status === 204 ? null : await response.json()) as T;
@@ -171,6 +273,23 @@ function unreadOf(conversations: ConversationSummary[]): number {
     );
 }
 
+function withoutKey(
+    conversations: ConversationSummary[] | null,
+    key: string,
+): ConversationSummary[] | null {
+    return (
+        conversations?.filter(
+            (conversation) => summaryKey(conversation) !== key,
+        ) ?? null
+    );
+}
+
+function byLatest(conversations: ConversationSummary[]): ConversationSummary[] {
+    return [...conversations].sort((a, b) =>
+        (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''),
+    );
+}
+
 export function seedInbox(inbox: InboxPage): void {
     updateDuringRender({
         conversations: inbox.conversations,
@@ -186,14 +305,14 @@ function withFirstPage(
     current: ConversationSummary[] | null,
     firstPage: ConversationSummary[],
 ): ConversationSummary[] {
-    const fresh = new Set(firstPage.map((item) => item.partner.id));
+    const fresh = new Set(firstPage.map(summaryKey));
     const oldest = firstPage.at(-1)?.last_message_at ?? '';
 
     return [
         ...firstPage,
         ...(current ?? []).filter(
             (item) =>
-                !fresh.has(item.partner.id) &&
+                !fresh.has(summaryKey(item)) &&
                 (item.last_message_at ?? '') <= oldest,
         ),
     ];
@@ -242,15 +361,13 @@ export async function loadMoreConversations(tab: InboxTab): Promise<void> {
 
     try {
         const page = await fetchInbox(tab, last.id);
-        const known = new Set(
-            (state[listOf[tab]] ?? []).map((item) => item.partner.id),
-        );
+        const known = new Set((state[listOf[tab]] ?? []).map(summaryKey));
 
         update({
             [listOf[tab]]: [
                 ...(state[listOf[tab]] ?? []),
                 ...page.conversations.filter(
-                    (item) => !known.has(item.partner.id),
+                    (item) => !known.has(summaryKey(item)),
                 ),
             ],
             hasMore: { ...state.hasMore, [tab]: page.has_more },
@@ -260,42 +377,18 @@ export async function loadMoreConversations(tab: InboxTab): Promise<void> {
     }
 }
 
-/**
- * Pages hand over what the server already rendered, so the first paint needs no request.
- */
-export function seedThread(partner: User, thread: Thread): void {
-    const current = state.threads[partner.username];
-
-    updateDuringRender({
-        threads: {
-            ...state.threads,
-            [partner.username]: {
-                ...thread,
-                messages: mergeMessages(
-                    current?.messages ?? [],
-                    thread.messages,
-                ),
-                has_older: current?.has_older ?? thread.has_older,
-                partner,
-                pending: current?.pending ?? [],
-                head: thread.read_through_id,
-                headUntil: thread.messages.at(-1)?.id ?? 0,
-                isLoaded: true,
-                isLoadingOlder: false,
-            },
-        },
-    });
-}
-
-function emptyThread(partner: User): ThreadState {
+function emptyThread(target: ChatTarget): ThreadState {
     return {
-        partner,
+        target,
         messages: [],
         has_older: false,
         read_through_id: 0,
         partner_read_through_id: 0,
         partner_read_at: null,
         partner_typing: false,
+        members: [],
+        typing: [],
+        role: null,
         is_archived: false,
         access: 'open',
         pending: [],
@@ -306,16 +399,64 @@ function emptyThread(partner: User): ThreadState {
     };
 }
 
+function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
+    return 'members' in thread
+        ? {
+              members: thread.members,
+              typing: thread.typing,
+              role: thread.role,
+              is_archived: thread.is_archived,
+              access: thread.access,
+          }
+        : {
+              partner_read_through_id: thread.partner_read_through_id,
+              partner_read_at: thread.partner_read_at,
+              partner_typing: thread.partner_typing,
+              is_archived: thread.is_archived,
+              access: thread.access,
+          };
+}
+
 /**
- * Opens a conversation with someone new, before either has written anything.
+ * Pages hand over what the server already rendered, so the first paint needs no request.
  */
-export function rememberPartner(partner: User): void {
-    if (state.threads[partner.username] === undefined) {
-        update({
-            threads: {
-                ...state.threads,
-                [partner.username]: emptyThread(partner),
+export function seedThread(
+    target: ChatTarget,
+    thread: Thread | OrgThread,
+): void {
+    const key = targetKey(target);
+    const current = state.threads[key] ?? emptyThread(target);
+
+    updateDuringRender({
+        threads: {
+            ...state.threads,
+            [key]: {
+                ...current,
+                ...fromServer(thread),
+                target,
+                messages: mergeMessages(current.messages, thread.messages),
+                has_older: current.isLoaded
+                    ? current.has_older
+                    : thread.has_older,
+                read_through_id: thread.read_through_id,
+                head: thread.read_through_id,
+                headUntil: thread.messages.at(-1)?.id ?? 0,
+                isLoaded: true,
+                isLoadingOlder: false,
             },
+        },
+    });
+}
+
+/**
+ * Opens a conversation before anything was written in it, or before its first poll.
+ */
+export function rememberTarget(target: ChatTarget): void {
+    const key = targetKey(target);
+
+    if (state.threads[key] === undefined) {
+        update({
+            threads: { ...state.threads, [key]: emptyThread(target) },
         });
     }
 }
@@ -329,12 +470,15 @@ async function pollInbox(): Promise<void> {
         const { conversations, unread, requests } = await fetchInbox('open');
         const requestsChanged =
             state.requests !== null && requests !== state.requests;
+        const watched = conversations.filter((conversation) =>
+            isWatching(summaryKey(conversation)),
+        );
 
         update({
             conversations: withFirstPage(
                 state.conversations,
                 conversations.map((conversation) =>
-                    isWatching(conversation.partner.username)
+                    isWatching(summaryKey(conversation))
                         ? { ...conversation, ahead: 0 }
                         : conversation,
                 ),
@@ -342,14 +486,10 @@ async function pollInbox(): Promise<void> {
             requests,
             unread:
                 unread -
-                conversations
-                    .filter((conversation) =>
-                        isWatching(conversation.partner.username),
-                    )
-                    .reduce(
-                        (total, conversation) => total + conversation.ahead,
-                        0,
-                    ),
+                watched.reduce(
+                    (total, conversation) => total + conversation.ahead,
+                    0,
+                ),
         });
 
         if (requestsChanged && state.fetched !== null) {
@@ -373,8 +513,8 @@ function scheduleInbox(): void {
     );
 }
 
-function isWatching(username: string): boolean {
-    return (threadWatchers.get(username) ?? 0) > 0;
+function isWatching(key: string): boolean {
+    return (threadWatchers.get(key) ?? 0) > 0;
 }
 
 /**
@@ -408,30 +548,35 @@ export function watchInbox(): () => void {
     };
 }
 
-async function pollThread(username: string, partner: User): Promise<void> {
-    const thread = state.threads[username];
+async function pollThread(target: ChatTarget): Promise<void> {
+    const key = targetKey(target);
+    const thread = state.threads[key];
     const after = thread?.isLoaded ? (thread.messages.at(-1)?.id ?? 0) : null;
 
-    const fresh = await request<Thread & { partner: User }>(
-        ConversationMessageController.index.url(
-            { partner: username },
-            after === null ? undefined : { query: { after } },
-        ),
-    );
+    const fresh = await request<
+        (Thread & { partner: User }) | (OrgThread & { org: OrgRef })
+    >(urls(target).index(after === null ? undefined : { after }));
 
-    const current = state.threads[username] ?? emptyThread(partner);
-    const arrived = fresh.messages.length > 0 || fresh.partner_typing;
+    const current = state.threads[key] ?? emptyThread(target);
+    const isTyping =
+        'members' in fresh ? fresh.typing.length > 0 : fresh.partner_typing;
 
-    if (arrived) {
-        lastActivity.set(username, Date.now());
+    if (fresh.messages.length > 0 || isTyping) {
+        lastActivity.set(key, Date.now());
     }
 
     update({
         threads: {
             ...state.threads,
-            [username]: {
+            [key]: {
                 ...current,
-                partner: current.isLoaded ? current.partner : fresh.partner,
+                ...fromServer(fresh),
+                target:
+                    'org' in fresh
+                        ? { kind: 'org', org: fresh.org }
+                        : current.isLoaded
+                          ? current.target
+                          : { kind: 'direct', partner: fresh.partner },
                 messages: mergeMessages(current.messages, fresh.messages),
                 pending:
                     fresh.messages.length === 0
@@ -455,11 +600,6 @@ async function pollThread(username: string, partner: User): Promise<void> {
                 headUntil: current.isLoaded
                     ? current.headUntil
                     : (fresh.messages.at(-1)?.id ?? 0),
-                partner_read_through_id: fresh.partner_read_through_id,
-                partner_read_at: fresh.partner_read_at,
-                partner_typing: fresh.partner_typing,
-                is_archived: fresh.is_archived,
-                access: fresh.access,
                 isLoaded: true,
             },
         },
@@ -470,19 +610,19 @@ async function pollThread(username: string, partner: User): Promise<void> {
  * Polls an open conversation quickly while it is lively and slower once it goes quiet, and not at all in a
  * hidden tab. Returns the function that stops watching.
  */
-export function watchThread(partner: User): () => void {
-    const username = partner.username;
+export function watchThread(target: ChatTarget): () => void {
+    const key = targetKey(target);
     let timer: number | undefined;
     let isStopped = false;
 
-    threadWatchers.set(username, (threadWatchers.get(username) ?? 0) + 1);
+    threadWatchers.set(key, (threadWatchers.get(key) ?? 0) + 1);
 
-    if (state.threads[username] === undefined) {
+    if (state.threads[key] === undefined) {
         update({
-            threads: { ...state.threads, [username]: emptyThread(partner) },
+            threads: { ...state.threads, [key]: emptyThread(target) },
         });
     } else {
-        updateThread(username, (thread) => ({
+        updateThread(key, (thread) => ({
             head: thread.isLoaded ? thread.read_through_id : thread.head,
             headUntil: thread.isLoaded
                 ? (thread.messages.at(-1)?.id ?? 0)
@@ -495,7 +635,7 @@ export function watchThread(partner: User): () => void {
 
         if (!document.hidden) {
             try {
-                await pollThread(username, partner);
+                await pollThread(target);
             } catch {
                 // Keep the conversation as it is until the next poll.
             }
@@ -506,7 +646,7 @@ export function watchThread(partner: User): () => void {
         }
 
         const isActive =
-            Date.now() - (lastActivity.get(username) ?? 0) < activeWindow;
+            Date.now() - (lastActivity.get(key) ?? 0) < activeWindow;
 
         timer = window.setTimeout(
             () => void tick(),
@@ -529,26 +669,37 @@ export function watchThread(partner: User): () => void {
         window.clearTimeout(timer);
         document.removeEventListener('visibilitychange', onVisible);
 
-        const watchers = (threadWatchers.get(username) ?? 1) - 1;
+        const watchers = (threadWatchers.get(key) ?? 1) - 1;
 
         if (watchers === 0) {
-            threadWatchers.delete(username);
+            threadWatchers.delete(key);
         } else {
-            threadWatchers.set(username, watchers);
+            threadWatchers.set(key, watchers);
         }
 
         scheduleInbox();
     };
 }
 
-function touchInbox(partner: User, message: Message): void {
+function touchInbox(target: ChatTarget, message: Message): void {
+    const key = targetKey(target);
     const conversations = state.conversations ?? [];
-    const existing = conversations.find(
-        (conversation) => conversation.partner.username === partner.username,
+    const existing = [...conversations, ...(state.archived ?? [])].find(
+        (conversation) => summaryKey(conversation) === key,
     );
+
+    if (existing === undefined && target.kind === 'org') {
+        void pollInbox();
+
+        return;
+    }
+
     const summary: ConversationSummary = {
         id: existing?.id ?? 0,
-        partner,
+        kind: target.kind,
+        name: existing?.name ?? null,
+        partner: target.kind === 'direct' ? target.partner : null,
+        members: existing?.members ?? null,
         last_message: message,
         last_message_at: message.created_at,
         ahead: existing?.ahead ?? 0,
@@ -558,34 +709,32 @@ function touchInbox(partner: User, message: Message): void {
     };
 
     update({
-        conversations: [
-            summary,
-            ...conversations.filter(
-                (conversation) => conversation !== existing,
-            ),
-        ],
-        archived: withoutPartner(state.archived, partner),
+        conversations: [summary, ...(withoutKey(conversations, key) ?? [])],
+        archived: withoutKey(state.archived, key),
     });
-    updateThread(partner.username, () => ({ is_archived: false }));
+    updateThread(key, () => ({ is_archived: false }));
 }
 
-async function deliver(partner: User, pending: PendingMessage): Promise<void> {
-    const username = partner.username;
+async function deliver(
+    target: ChatTarget,
+    pending: PendingMessage,
+): Promise<void> {
+    const key = targetKey(target);
 
     try {
         const { message } = await request<{ message: Message }>(
-            ConversationMessageController.store.url({ partner: username }),
+            urls(target).store,
             'POST',
             { body: pending.body, client_id: pending.client_id },
         );
 
-        lastActivity.set(username, Date.now());
+        lastActivity.set(key, Date.now());
 
-        if (state.threads[username]?.messages.length === 0) {
-            void pollThread(username, partner).catch(() => undefined);
+        if (state.threads[key]?.messages.length === 0) {
+            void pollThread(target).catch(() => undefined);
         }
 
-        updateThread(username, (thread) => ({
+        updateThread(key, (thread) => ({
             messages: mergeMessages(thread.messages, [message]),
             pending: thread.pending.filter(
                 (item) => item.client_id !== pending.client_id,
@@ -593,9 +742,9 @@ async function deliver(partner: User, pending: PendingMessage): Promise<void> {
             read_through_id: Math.max(thread.read_through_id, message.id),
             head: Math.max(thread.head, message.id),
         }));
-        touchInbox(partner, message);
+        touchInbox(target, message);
     } catch {
-        updateThread(username, (thread) => ({
+        updateThread(key, (thread) => ({
             pending: thread.pending.map((item) =>
                 item.client_id === pending.client_id
                     ? { ...item, status: 'rejected' }
@@ -608,14 +757,10 @@ async function deliver(partner: User, pending: PendingMessage): Promise<void> {
 /**
  * Shows the message straight away as staged, then swaps in the stored message once the server has it.
  */
-export function sendMessage(partner: User, body: string): void {
-    const username = partner.username;
+export function sendMessage(target: ChatTarget, body: string): void {
+    const key = targetKey(target);
 
-    if (state.threads[username] === undefined) {
-        update({
-            threads: { ...state.threads, [username]: emptyThread(partner) },
-        });
-    }
+    rememberTarget(target);
 
     const pending: PendingMessage = {
         client_id: crypto.randomUUID(),
@@ -624,18 +769,19 @@ export function sendMessage(partner: User, body: string): void {
         status: 'staged',
     };
 
-    lastTypingPing.delete(username);
-    updateThread(username, (thread) => ({
+    lastTypingPing.delete(key);
+    updateThread(key, (thread) => ({
         pending: [...thread.pending, pending],
     }));
-    void deliver(partner, pending);
+    void deliver(target, pending);
 }
 
 /**
  * Sends a rejected message again with its original client id, so the server stores it once at most.
  */
-export function retryMessage(partner: User, clientId: string): void {
-    const pending = state.threads[partner.username]?.pending.find(
+export function retryMessage(target: ChatTarget, clientId: string): void {
+    const key = targetKey(target);
+    const pending = state.threads[key]?.pending.find(
         (item) => item.client_id === clientId,
     );
 
@@ -643,58 +789,53 @@ export function retryMessage(partner: User, clientId: string): void {
         return;
     }
 
-    updateThread(partner.username, (thread) => ({
+    updateThread(key, (thread) => ({
         pending: thread.pending.map((item) =>
             item.client_id === clientId ? { ...item, status: 'staged' } : item,
         ),
     }));
-    void deliver(partner, { ...pending, status: 'staged' });
+    void deliver(target, { ...pending, status: 'staged' });
 }
 
-export function markThreadRead(partner: User): void {
-    const username = partner.username;
-    const thread = state.threads[username];
+export function markThreadRead(target: ChatTarget): void {
+    const key = targetKey(target);
+    const thread = state.threads[key];
     const latest = thread?.messages.at(-1)?.id ?? 0;
 
     if (thread === undefined || latest <= thread.read_through_id) {
         return;
     }
 
-    updateThread(username, () => ({ read_through_id: latest }));
+    updateThread(key, () => ({ read_through_id: latest }));
 
     const conversations = (state.conversations ?? []).map((conversation) =>
-        conversation.partner.username === username
+        summaryKey(conversation) === key
             ? { ...conversation, ahead: 0 }
             : conversation,
     );
 
     update({ conversations, unread: unreadOf(conversations) });
 
-    void request(
-        ConversationReadController.update.url({ partner: username }),
-        'PUT',
-        { through: latest },
-    ).catch(() => undefined);
+    void request(urls(target).read, 'PUT', { through: latest }).catch(
+        () => undefined,
+    );
 }
 
-export function pingTyping(partner: User): void {
-    const username = partner.username;
+export function pingTyping(target: ChatTarget): void {
+    const key = targetKey(target);
     const now = Date.now();
 
-    if (now - (lastTypingPing.get(username) ?? 0) < typingPing) {
+    if (now - (lastTypingPing.get(key) ?? 0) < typingPing) {
         return;
     }
 
-    lastTypingPing.set(username, now);
-    void request(
-        ConversationTypingController.update.url({ partner: username }),
-        'PUT',
-    ).catch(() => undefined);
+    lastTypingPing.set(key, now);
+    void request(urls(target).typing, 'PUT').catch(() => undefined);
 }
 
-export async function loadOlderMessages(partner: User): Promise<void> {
-    const username = partner.username;
-    const thread = state.threads[username];
+export async function loadOlderMessages(target: ChatTarget): Promise<void> {
+    const key = targetKey(target);
+    const thread = state.threads[key];
     const oldest = thread?.messages[0]?.id;
 
     if (
@@ -706,46 +847,26 @@ export async function loadOlderMessages(partner: User): Promise<void> {
         return;
     }
 
-    updateThread(username, () => ({ isLoadingOlder: true }));
+    updateThread(key, () => ({ isLoadingOlder: true }));
 
     try {
-        const older = await request<Thread>(
-            ConversationMessageController.index.url(
-                { partner: username },
-                { query: { before: oldest } },
-            ),
+        const older = await request<Thread | OrgThread>(
+            urls(target).index({ before: oldest }),
         );
 
-        updateThread(username, (current) => ({
+        updateThread(key, (current) => ({
             messages: mergeMessages(current.messages, older.messages),
             has_older: older.has_older,
             isLoadingOlder: false,
         }));
     } catch {
-        updateThread(username, () => ({ isLoadingOlder: false }));
+        updateThread(key, () => ({ isLoadingOlder: false }));
     }
 }
 
-function withoutPartner(
-    conversations: ConversationSummary[] | null,
-    partner: User,
-): ConversationSummary[] | null {
-    return (
-        conversations?.filter(
-            (conversation) =>
-                conversation.partner.username !== partner.username,
-        ) ?? null
-    );
-}
-
-function byLatest(conversations: ConversationSummary[]): ConversationSummary[] {
-    return [...conversations].sort((a, b) =>
-        (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''),
-    );
-}
-
 /**
- * Searches the user's conversations by the partner's name or handle, on whichever tab is open.
+ * Searches the user's conversations by a partner's or member's name or handle, or an org's name, on whichever tab
+ * is open.
  */
 export async function searchConversations(
     term: string,
@@ -765,54 +886,75 @@ export async function searchConversations(
 }
 
 /**
+ * Developers to message or add to an org, each with the reason they can't be, if there is one.
+ */
+export async function searchCandidates(
+    term: string,
+    scope: { for: 'remote' | 'org' } | { org: number },
+    signal: AbortSignal,
+): Promise<Candidate[]> {
+    const response = await fetch(
+        RemoteCandidateController.index.url({ query: { q: term, ...scope } }),
+        { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
+    );
+
+    if (!response.ok) {
+        return [];
+    }
+
+    return ((await response.json()) as { candidates: Candidate[] }).candidates;
+}
+
+/**
  * Merges a fetched request into the open conversations, or drops it. The sender is never told about a drop.
  */
 export async function settleRequest(
     partner: User,
     isMerging: boolean,
 ): Promise<boolean> {
-    const username = partner.username;
+    const key = partner.username;
 
     try {
         await request(
             isMerging
-                ? ConversationMergeController.store.url({ partner: username })
-                : ConversationDropController.store.url({ partner: username }),
+                ? ConversationMergeController.store.url({ partner: key })
+                : ConversationDropController.store.url({ partner: key }),
             'POST',
         );
     } catch {
         return false;
     }
 
-    const request_ = state.fetched?.find(
-        (item) => item.partner.username === username,
+    const fetchedRequest = state.fetched?.find(
+        (item) => summaryKey(item) === key,
     );
 
     update({
-        fetched: withoutPartner(state.fetched, partner),
+        fetched: withoutKey(state.fetched, key),
         requests: Math.max(0, (state.requests ?? 1) - 1),
         unread: Math.max(0, (state.unread ?? 1) - 1),
-        ...(isMerging && request_
+        ...(isMerging && fetchedRequest
             ? {
                   conversations: byLatest([
-                      ...(withoutPartner(state.conversations, partner) ?? []),
-                      { ...request_, ahead: 0 },
+                      ...(withoutKey(state.conversations, key) ?? []),
+                      { ...fetchedRequest, ahead: 0 },
                   ]),
               }
             : {}),
     });
-    updateThread(username, () => ({ access: isMerging ? 'open' : 'waiting' }));
+    updateThread(key, () => ({ access: isMerging ? 'open' : 'waiting' }));
 
     return true;
 }
 
 /**
- * Moves the conversation between the inbox and the archive straight away, and back if the server refuses.
+ * Moves the conversation between the inbox and the stash straight away, and back if the server refuses.
  */
 export async function setConversationArchived(
-    partner: User,
+    target: ChatTarget,
     isArchived: boolean,
 ): Promise<boolean> {
+    const key = targetKey(target);
     const previous = {
         conversations: state.conversations,
         archived: state.archived,
@@ -821,23 +963,20 @@ export async function setConversationArchived(
     const conversation = [
         ...(state.conversations ?? []),
         ...(state.archived ?? []),
-    ].find((item) => item.partner.username === partner.username);
+    ].find((item) => summaryKey(item) === key);
 
     if (conversation !== undefined) {
         const moved = { ...conversation, is_archived: isArchived };
         const conversations = isArchived
-            ? withoutPartner(state.conversations, partner)
+            ? withoutKey(state.conversations, key)
             : byLatest([
-                  ...(withoutPartner(state.conversations, partner) ?? []),
+                  ...(withoutKey(state.conversations, key) ?? []),
                   moved,
               ]);
         const archived = isArchived
             ? state.archived &&
-              byLatest([
-                  ...(withoutPartner(state.archived, partner) ?? []),
-                  moved,
-              ])
-            : withoutPartner(state.archived, partner);
+              byLatest([...(withoutKey(state.archived, key) ?? []), moved])
+            : withoutKey(state.archived, key);
 
         update({
             conversations,
@@ -850,24 +989,18 @@ export async function setConversationArchived(
         });
     }
 
-    updateThread(partner.username, () => ({ is_archived: isArchived }));
+    updateThread(key, () => ({ is_archived: isArchived }));
 
     try {
         await request(
-            isArchived
-                ? ConversationArchiveController.store.url({
-                      partner: partner.username,
-                  })
-                : ConversationArchiveController.destroy.url({
-                      partner: partner.username,
-                  }),
+            isArchived ? urls(target).stash : urls(target).pop,
             isArchived ? 'POST' : 'DELETE',
         );
 
         return true;
     } catch {
         update(previous);
-        updateThread(partner.username, () => ({ is_archived: !isArchived }));
+        updateThread(key, () => ({ is_archived: !isArchived }));
 
         return false;
     }
@@ -899,11 +1032,105 @@ export async function blockPartner(partner: User): Promise<boolean> {
     delete threads[partner.username];
 
     update({
-        conversations: withoutPartner(state.conversations, partner),
-        fetched: withoutPartner(state.fetched, partner),
-        archived: withoutPartner(state.archived, partner),
+        conversations: withoutKey(state.conversations, partner.username),
+        fetched: withoutKey(state.fetched, partner.username),
+        archived: withoutKey(state.archived, partner.username),
         threads,
     });
 
     return true;
+}
+
+/**
+ * Starts an org with the people picked, and returns it.
+ */
+export async function createOrg(
+    name: string,
+    members: string[],
+): Promise<OrgRef> {
+    const { org } = await request<{ org: { id: number } }>(
+        OrgController.store.url(),
+        'POST',
+        { name, members },
+    );
+
+    void pollInbox();
+
+    return { id: org.id, name: name.trim() || null };
+}
+
+async function refreshOrg(org: OrgRef): Promise<void> {
+    await pollThread({ kind: 'org', org }).catch(() => undefined);
+    void pollInbox();
+}
+
+export async function renameOrg(org: OrgRef, name: string): Promise<void> {
+    await request(OrgController.update.url({ org: org.id }), 'PUT', { name });
+
+    const key = targetKey({ kind: 'org', org });
+    const renamed = { ...org, name: name.trim() || null };
+
+    updateThread(key, () => ({ target: { kind: 'org', org: renamed } }));
+    await refreshOrg(renamed);
+}
+
+export async function addOrgMembers(
+    org: OrgRef,
+    members: string[],
+    sharesHistory: boolean,
+): Promise<void> {
+    await request(OrgMemberController.store.url({ org: org.id }), 'POST', {
+        members,
+        share_history: sharesHistory,
+    });
+    await refreshOrg(org);
+}
+
+export async function setOrgMemberRole(
+    org: OrgRef,
+    member: User,
+    role: OrgRole,
+): Promise<void> {
+    await request(
+        OrgMemberController.update.url({
+            org: org.id,
+            member: member.username,
+        }),
+        'PUT',
+        { role },
+    );
+    await refreshOrg(org);
+}
+
+/**
+ * Removes a member, or leaves when the member is the user. Leaving takes the org out of the inbox.
+ */
+export async function removeOrgMember(
+    org: OrgRef,
+    member: User,
+    isLeaving: boolean,
+): Promise<void> {
+    await request(
+        OrgMemberController.destroy.url({
+            org: org.id,
+            member: member.username,
+        }),
+        'DELETE',
+    );
+
+    if (!isLeaving) {
+        await refreshOrg(org);
+
+        return;
+    }
+
+    const key = targetKey({ kind: 'org', org });
+    const threads = { ...state.threads };
+    delete threads[key];
+
+    update({
+        conversations: withoutKey(state.conversations, key),
+        archived: withoutKey(state.archived, key),
+        threads,
+    });
 }

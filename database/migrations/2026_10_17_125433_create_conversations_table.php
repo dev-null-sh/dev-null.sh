@@ -12,7 +12,9 @@ return new class extends Migration
     {
         Schema::create('conversations', function (Blueprint $table): void {
             $table->id();
-            $table->string('pair')->unique();
+            $table->string('kind')->default('direct');
+            $table->string('pair')->nullable()->unique();
+            $table->string('name')->nullable();
             $table->unsignedBigInteger('last_message_id')->nullable();
             $table->timestamps();
         });

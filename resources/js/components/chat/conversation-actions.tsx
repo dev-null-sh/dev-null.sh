@@ -4,6 +4,7 @@ import {
     ArchiveRestore,
     Ban,
     Ellipsis,
+    LogOut,
     UserRound,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -24,23 +25,36 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { blockPartner, setConversationArchived } from '@/lib/chat';
+import {
+    blockPartner,
+    removeOrgMember,
+    setConversationArchived,
+} from '@/lib/chat';
+import type { ChatTarget } from '@/lib/chat';
 import { cn } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { User } from '@/types';
 
 /**
- * Stash (archive), pop (unarchive), or block, from the conversation's own header or from its row in the inbox.
+ * Stash (archive), pop (unarchive), and block or leave, from the conversation's own header or from its row in the
+ * inbox.
  */
 export function ConversationActions({
-    partner,
+    target,
+    title,
+    user,
     isArchived,
     onLeave,
     onBlocked,
     onOpenChange,
     className,
 }: {
-    partner: User;
+    target: ChatTarget;
+    /**
+     * How the conversation is called in messages: a handle, or an org's name.
+     */
+    title: string;
+    user: User;
     isArchived: boolean;
     /**
      * Called once the conversation leaves the list being shown, so an open thread can step back to the inbox.
@@ -69,7 +83,7 @@ export function ConversationActions({
 
         onLeave?.();
 
-        if (!(await setConversationArchived(partner, archiving))) {
+        if (!(await setConversationArchived(target, archiving))) {
             toast.error('Could not update the conversation. Try again.');
 
             return;
@@ -77,19 +91,35 @@ export function ConversationActions({
 
         toast.success(
             archiving
-                ? `Stashed your conversation with @${partner.username}. It pops back when either of you writes.`
-                : `Popped your conversation with @${partner.username} back into Open.`,
+                ? `Stashed ${title}. It pops back when someone writes.`
+                : `Popped ${title} back into Open.`,
         );
     };
 
     const block = async () => {
+        if (target.kind === 'org') {
+            setIsBlocking(true);
+
+            try {
+                await removeOrgMember(target.org, user, true);
+                changeOpen(false, false);
+                (onBlocked ?? onLeave)?.();
+            } catch {
+                toast.error(`Could not leave ${title}. Try again.`);
+            } finally {
+                setIsBlocking(false);
+            }
+
+            return;
+        }
+
         setIsBlocking(true);
-        const isBlocked = await blockPartner(partner);
+        const isBlocked = await blockPartner(target.partner);
         setIsBlocking(false);
         changeOpen(false, false);
 
         if (!isBlocked) {
-            toast.error(`Could not block @${partner.username}. Try again.`);
+            toast.error(`Could not block ${title}. Try again.`);
 
             return;
         }
@@ -108,7 +138,7 @@ export function ConversationActions({
                 <DropdownMenuTrigger asChild>
                     <button
                         type="button"
-                        aria-label={`More options for your conversation with @${partner.username}`}
+                        aria-label={`More options for ${title}`}
                         onClick={(event) => event.stopPropagation()}
                         className={cn(
                             'grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground',
@@ -124,12 +154,14 @@ export function ConversationActions({
                     className="w-56"
                     onClick={(event) => event.stopPropagation()}
                 >
-                    <DropdownMenuItem asChild>
-                        <Link href={show(partner)}>
-                            <UserRound />
-                            View profile
-                        </Link>
-                    </DropdownMenuItem>
+                    {target.kind === 'direct' && (
+                        <DropdownMenuItem asChild>
+                            <Link href={show(target.partner)}>
+                                <UserRound />
+                                View profile
+                            </Link>
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onSelect={() => void archive()}>
                         {isArchived ? <ArchiveRestore /> : <Archive />}
                         {isArchived ? 'Pop' : 'Stash'}
@@ -138,9 +170,12 @@ export function ConversationActions({
                     <DropdownMenuItem
                         variant="destructive"
                         onSelect={() => changeOpen(false, true)}
+                        data-test={
+                            target.kind === 'org' ? 'leave-org' : undefined
+                        }
                     >
-                        <Ban />
-                        Block @{partner.username}
+                        {target.kind === 'org' ? <LogOut /> : <Ban />}
+                        {target.kind === 'org' ? 'Leave org' : `Block ${title}`}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
@@ -150,12 +185,13 @@ export function ConversationActions({
                 onOpenChange={(open) => changeOpen(false, open)}
             >
                 <DialogContent onClick={(event) => event.stopPropagation()}>
-                    <DialogTitle>Block @{partner.username}?</DialogTitle>
+                    <DialogTitle className="truncate" title={title}>
+                        {target.kind === 'org' ? 'Leave' : 'Block'} {title}?
+                    </DialogTitle>
                     <DialogDescription>
-                        This conversation goes away for both of you, and neither
-                        of you can message, follow, reply to, or star the other.
-                        They won't be told. You can unblock them any time from
-                        your settings.
+                        {target.kind === 'org'
+                            ? 'You stop seeing the org and its history. A maintainer would have to add you back. If you are its only maintainer, the longest-standing member takes over.'
+                            : "This conversation goes away for both of you, and neither of you can message, follow, reply to, or star the other. They won't be told. You can unblock them any time from your settings."}
                     </DialogDescription>
 
                     <DialogFooter className="gap-2">
@@ -169,7 +205,7 @@ export function ConversationActions({
                             className="min-w-20"
                             data-test="confirm-block-button"
                         >
-                            Block
+                            {target.kind === 'org' ? 'Leave' : 'Block'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

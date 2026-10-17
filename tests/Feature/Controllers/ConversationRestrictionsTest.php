@@ -50,3 +50,15 @@ it('keeps fetched requests out of reach while requests are off', function (): vo
     $this->postJson(route('conversation-merge.store', $mark))->assertNotFound();
     $this->postJson(route('conversation-drop.store', $mark))->assertNotFound();
 });
+
+it('lets site admins push to anyone with remotes on', function (): void {
+    config(['app.admins' => ['mark']]);
+    $mark = User::factory()->create(['username' => 'mark']);
+    $nuno = User::factory()->create();
+    $off = User::factory()->create(['remotes_enabled' => false]);
+
+    sendChatMessage($mark, $nuno, 'hi from staff');
+
+    $this->actingAs($nuno)->getJson(route('inbox.index'))->assertJsonCount(1, 'conversations');
+    $this->actingAs($mark)->getJson(route('conversation-message.index', $off))->assertJsonPath('access', 'closed');
+});

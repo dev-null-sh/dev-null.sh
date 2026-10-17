@@ -3,11 +3,11 @@ import { useEffect, useSyncExternalStore } from 'react';
 import {
     chatSnapshot,
     subscribeToChat,
+    targetKey,
     watchInbox,
     watchThread,
 } from '@/lib/chat';
-import type { ChatState, ThreadState } from '@/lib/chat';
-import type { User } from '@/types';
+import type { ChatState, ChatTarget, ThreadState } from '@/lib/chat';
 
 export function useChat(): ChatState {
     return useSyncExternalStore(subscribeToChat, chatSnapshot, chatSnapshot);
@@ -21,21 +21,21 @@ export function useInbox(isWatching = true): ChatState['conversations'] {
     return conversations;
 }
 
-export function useThread(partner: User | null): ThreadState | null {
+export function useThread(target: ChatTarget | null): ThreadState | null {
     const { threads } = useChat();
-    const username = partner?.username ?? null;
+    const key = target === null ? null : targetKey(target);
 
     useEffect(() => {
-        if (partner === null) {
+        if (target === null) {
             return;
         }
 
-        return watchThread(partner);
-        // The partner object changes identity on every poll; only a different person restarts the watch.
+        return watchThread(target);
+        // The target object changes identity on every poll; only a different conversation restarts the watch.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [username]);
+    }, [key]);
 
-    return username === null ? null : (threads[username] ?? null);
+    return key === null ? null : (threads[key] ?? null);
 }
 
 /**

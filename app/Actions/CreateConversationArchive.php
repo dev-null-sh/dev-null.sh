@@ -11,13 +11,13 @@ use App\Models\User;
 final readonly class CreateConversationArchive
 {
     /**
-     * Archiving is the user's own: their partner keeps the conversation in their inbox.
+     * Stashing is the user's own: everyone else keeps the conversation in their inbox.
      */
-    public function handle(User $user, User $partner): void
+    public function handle(User $user, Conversation $conversation): void
     {
         ConversationParticipant::query()
             ->where('user_id', $user->id)
-            ->whereIn('conversation_id', Conversation::query()->select('id')->where('pair', Conversation::pairOf($user, $partner)))
+            ->where('conversation_id', $conversation->id)
             ->whereNull('archived_at')
             ->update(['archived_at' => now()]);
     }

@@ -2,18 +2,22 @@ import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
+import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
+import { eventText, MemberStack, orgTitle } from '@/components/chat/org';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
+import { summaryKey, targetOf } from '@/lib/chat';
+import type { ChatTarget } from '@/lib/chat';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import type { ConversationSummary, User } from '@/types';
 
 export function ConversationList({
     conversations,
     user,
-    activeUsername,
+    activeKey,
     onOpen,
     onLeaveActive,
     onBlocked,
@@ -22,8 +26,8 @@ export function ConversationList({
 }: {
     conversations: ConversationSummary[] | null;
     user: User;
-    activeUsername?: string | null;
-    onOpen?: (partner: User) => void;
+    activeKey?: string | null;
+    onOpen?: (target: ChatTarget) => void;
     /**
      * Called when the open conversation is archived or blocked from its row.
      */
@@ -44,10 +48,10 @@ export function ConversationList({
         <ul aria-label="Conversations">
             {conversations.map((conversation) => (
                 <ConversationRow
-                    key={conversation.partner.id}
+                    key={summaryKey(conversation)}
                     conversation={conversation}
                     user={user}
-                    isActive={conversation.partner.username === activeUsername}
+                    isActive={summaryKey(conversation) === activeKey}
                     onOpen={onOpen}
                     onLeaveActive={onLeaveActive}
                     onBlocked={onBlocked}
@@ -70,7 +74,7 @@ function ConversationRow({
     conversation: ConversationSummary;
     user: User;
     isActive: boolean;
-    onOpen?: (partner: User) => void;
+    onOpen?: (target: ChatTarget) => void;
     onLeaveActive?: () => void;
     onBlocked?: () => void;
     isCompact: boolean;
@@ -78,7 +82,25 @@ function ConversationRow({
     const now = useNow();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const { partner, last_message: lastMessage, ahead } = conversation;
-    const isMine = lastMessage?.user_id === user.id;
+    const target = targetOf(conversation);
+    const others = (conversation.members ?? [])
+        .map((member) => member.user)
+        .filter((member) => member.id !== user.id);
+    const title =
+        partner === null
+            ? orgTitle(conversation, conversation.members, user)
+            : `@${partner.username}`;
+    const isMine = lastMessage?.user_id === user.id && !lastMessage.event;
+    const preview =
+        lastMessage === null
+            ? ''
+            : lastMessage.event
+              ? eventText(lastMessage, user)
+              : isMine
+                ? `you: ${lastMessage.body}`
+                : partner === null
+                  ? `${lastMessage.user?.name.split(' ')[0] ?? 'someone'}: ${lastMessage.body}`
+                  : lastMessage.body;
     const className = cn(
         'relative grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 text-left transition-colors hover:bg-accent focus-visible:-outline-offset-2',
         isCompact ? 'px-3.5 py-2.5' : 'px-4 py-3',
@@ -94,30 +116,53 @@ function ConversationRow({
                     className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-primary"
                 />
             )}
-            <UserAvatar
-                user={partner}
-                className={isCompact ? 'size-8' : 'size-10'}
-            />
+            {partner === null ? (
+                <OrgAvatar users={others} isCompact={isCompact} />
+            ) : (
+                <UserAvatar
+                    user={partner}
+                    className={isCompact ? 'size-8' : 'size-10'}
+                />
+            )}
             <span className="min-w-0">
-                <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span
-                        className={cn(
-                            'truncate font-semibold',
-                            isCompact ? 'text-sm' : 'text-[15px]',
-                        )}
-                        title={partner.name}
-                    >
-                        {partner.name}
-                    </span>
-                    <span className="flex min-w-0 shrink-[4] items-center gap-1 font-mono text-xs text-muted-foreground">
+                {partner === null ? (
+                    <span className="flex min-w-0 items-baseline gap-1.5">
                         <span
-                            aria-hidden
-                            className="size-1.5 shrink-0 rounded-full"
-                            style={{ background: laneColor(partner.lane) }}
-                        />
-                        <span className="truncate">@{partner.username}</span>
+                            className={cn(
+                                'truncate font-semibold',
+                                isCompact ? 'text-sm' : 'text-[15px]',
+                            )}
+                            title={title}
+                        >
+                            {title}
+                        </span>
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                            org · {others.length + 1}
+                        </span>
                     </span>
-                </span>
+                ) : (
+                    <span className="flex min-w-0 items-baseline gap-1.5">
+                        <span
+                            className={cn(
+                                'truncate font-semibold',
+                                isCompact ? 'text-sm' : 'text-[15px]',
+                            )}
+                            title={partner.name}
+                        >
+                            {partner.name}
+                        </span>
+                        <span className="flex min-w-0 shrink-[4] items-center gap-1 font-mono text-xs text-muted-foreground">
+                            <span
+                                aria-hidden
+                                className="size-1.5 shrink-0 rounded-full"
+                                style={{ background: laneColor(partner.lane) }}
+                            />
+                            <span className="truncate">
+                                @{partner.username}
+                            </span>
+                        </span>
+                    </span>
+                )}
                 <span
                     className={cn(
                         'flex min-w-0 items-center gap-1.5 text-muted-foreground',
@@ -125,7 +170,7 @@ function ConversationRow({
                         { 'text-foreground': ahead > 0 },
                     )}
                 >
-                    {isMine && lastMessage && (
+                    {isMine && lastMessage && partner !== null && (
                         <MessageStatusGlyph
                             status={
                                 conversation.partner_read_through_id >=
@@ -137,9 +182,13 @@ function ConversationRow({
                             partnerLane={partner.lane}
                         />
                     )}
-                    <span className="truncate" title={lastMessage?.body}>
-                        {isMine ? 'you: ' : ''}
-                        {lastMessage?.body}
+                    <span
+                        className={cn('truncate', {
+                            'font-mono text-xs': lastMessage?.event,
+                        })}
+                        title={preview}
+                    >
+                        {preview}
                     </span>
                 </span>
             </span>
@@ -174,14 +223,18 @@ function ConversationRow({
             {onOpen ? (
                 <button
                     type="button"
-                    onClick={() => onOpen(partner)}
+                    onClick={() => onOpen(target)}
                     className={className}
                 >
                     {content}
                 </button>
             ) : (
                 <Link
-                    href={ConversationController.show(partner)}
+                    href={
+                        partner === null
+                            ? OrgController.show({ org: conversation.id })
+                            : ConversationController.show(partner)
+                    }
                     preserveScroll
                     aria-current={isActive ? 'page' : undefined}
                     className={className}
@@ -196,7 +249,9 @@ function ConversationRow({
                 )}
             >
                 <ConversationActions
-                    partner={partner}
+                    target={target}
+                    title={title}
+                    user={user}
                     isArchived={conversation.is_archived}
                     onLeave={isActive ? onLeaveActive : undefined}
                     onBlocked={isActive ? onLeaveActive : onBlocked}
@@ -204,6 +259,42 @@ function ConversationRow({
                 />
             </div>
         </li>
+    );
+}
+
+/**
+ * Two of the other members, overlapping, in the space of one avatar.
+ */
+function OrgAvatar({
+    users,
+    isCompact,
+}: {
+    users: User[];
+    isCompact: boolean;
+}) {
+    const [first, second] = users;
+
+    return (
+        <span
+            aria-hidden
+            className={cn(
+                'relative shrink-0',
+                isCompact ? 'size-8' : 'size-10',
+            )}
+        >
+            {second === undefined ? (
+                first !== undefined && (
+                    <UserAvatar user={first} className="size-full" />
+                )
+            ) : (
+                <MemberStack
+                    users={[first, second]}
+                    max={2}
+                    className="absolute inset-0 [&>*]:absolute [&>*]:m-0! [&>*:first-child]:top-0 [&>*:first-child]:left-0 [&>*:last-child]:right-0 [&>*:last-child]:bottom-0"
+                    avatarClassName={isCompact ? 'size-5.5' : 'size-7'}
+                />
+            )}
+        </span>
     );
 }
 

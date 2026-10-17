@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Enums\ConversationKind;
 use App\Enums\InboxTab;
+use App\Enums\OrgRole;
 use App\Enums\RemoteStatus;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
@@ -22,7 +24,7 @@ final readonly class ConversationsQuery
      * One page of a tab, newest first, continuing before a conversation when scrolling down. The term matches the
      * partner's name or handle, already lowercased and without a leading @.
      *
-     * @return array{conversations: Collection<int, array{id: int, partner: User, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}>, has_more: bool}
+     * @return array{conversations: Collection<int, array{id: int, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}>, has_more: bool}
      */
     public function get(User $user, InboxTab $tab = InboxTab::Open, string $term = '', ?int $before = null): array
     {
@@ -36,19 +38,25 @@ final readonly class ConversationsQuery
             ->join('conversation_participants as mine', fn (JoinClause $join): JoinClause => $join
                 ->on('mine.conversation_id', '=', 'conversations.id')
                 ->where('mine.user_id', $user->id))
-            ->join('conversation_participants as theirs', fn (JoinClause $join): JoinClause => $join
+            ->leftJoin('conversation_participants as theirs', fn (JoinClause $join): JoinClause => $join
                 ->on('theirs.conversation_id', '=', 'conversations.id')
-                ->where('theirs.user_id', '!=', $user->id))
+                ->where('theirs.user_id', '!=', $user->id)
+                ->where('conversations.kind', ConversationKind::Direct))
             ->where('mine.status', $tab === InboxTab::Fetched ? RemoteStatus::Fetched : RemoteStatus::Open)
             ->when($tab === InboxTab::Open, fn (Builder $query): Builder => $query->whereNull('mine.archived_at'))
             ->when($tab === InboxTab::Stashed, fn (Builder $query): Builder => $query->whereNotNull('mine.archived_at'))
             ->whereNotNull('mine.last_message_at')
-            ->whereNotIn('theirs.user_id', $user->idsAcrossBlocks())
-            ->when($term !== '', fn (Builder $query): Builder => $query->whereIn('theirs.user_id', User::query()
-                ->select('id')
-                ->where(fn (Builder $query): Builder => $query
-                    ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
-                    ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))))
+            ->where(fn (Builder $query): Builder => $query
+                ->where('conversations.kind', ConversationKind::Org)
+                ->orWhereNotIn('theirs.user_id', $user->idsAcrossBlocks()))
+            ->when($term !== '', fn (Builder $query): Builder => $query->where(fn (Builder $query): Builder => $query
+                ->whereIn('theirs.user_id', $this->matching($escaped))
+                ->orWhereRaw("LOWER(conversations.name) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+                ->orWhere(fn (Builder $query): Builder => $query
+                    ->where('conversations.kind', ConversationKind::Org)
+                    ->whereIn('conversations.id', ConversationParticipant::query()
+                        ->select('conversation_id')
+                        ->whereIn('user_id', $this->matching($escaped))))))
             ->when($cursor, fn (Builder $query, ConversationParticipant $cursor): Builder => $query->whereRaw(
                 '(mine.last_message_at, conversations.id) < (?, ?)',
                 [$cursor->last_message_at, $cursor->conversation_id],
@@ -67,10 +75,11 @@ final readonly class ConversationsQuery
                     ->selectRaw('count(*)')
                     ->whereColumn('messages.conversation_id', 'conversations.id')
                     ->whereColumn('messages.id', '>', 'mine.read_through_id')
-                    ->where('messages.user_id', '!=', $user->id),
+                    ->where('messages.user_id', '!=', $user->id)
+                    ->whereNull('messages.event'),
                 'ahead',
             )
-            ->with(['lastMessage', 'partner'])
+            ->with(['lastMessage.user', 'lastMessage.subject', 'partner', 'participants.user'])
             ->orderByDesc('mine.last_message_at')
             ->orderByDesc('conversations.id')
             ->limit(self::PAGE + 1)
@@ -98,6 +107,7 @@ final readonly class ConversationsQuery
                 ->whereNull('mine.archived_at'))
             ->whereColumn('messages.id', '>', 'mine.read_through_id')
             ->where('messages.user_id', '!=', $user->id)
+            ->whereNull('messages.event')
             ->whereNotIn('messages.user_id', $user->idsAcrossBlocks())
             ->count();
 
@@ -123,15 +133,23 @@ final readonly class ConversationsQuery
     }
 
     /**
-     * @return array{id: int, partner: User, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}
+     * @return array{id: int, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}
      */
     private function summary(User $user, Conversation $conversation): array
     {
-        $sharesReads = $user->pull_receipts && $conversation->partner->pull_receipts && $conversation->partner_status === RemoteStatus::Open;
+        $partner = $conversation->partner;
+        $sharesReads = $partner instanceof User && $user->pull_receipts && $partner->pull_receipts && $conversation->partner_status === RemoteStatus::Open;
 
         return [
             'id' => $conversation->id,
-            'partner' => $conversation->partner,
+            'kind' => $conversation->kind,
+            'name' => $conversation->name,
+            'partner' => $partner,
+            'members' => $conversation->isOrg() ? $conversation->participants
+                ->sortBy('id')
+                ->map(fn (ConversationParticipant $participant): array => ['user' => $participant->user, 'role' => $participant->role])
+                ->values()
+                ->toBase() : null,
             'last_message' => $conversation->lastMessage,
             'last_message_at' => $conversation->last_message_at?->toJSON(),
             'ahead' => $conversation->ahead,
@@ -139,5 +157,17 @@ final readonly class ConversationsQuery
             'partner_read_at' => $sharesReads ? $conversation->partner_read_at?->toJSON() : null,
             'is_archived' => $conversation->archived_at !== null,
         ];
+    }
+
+    /**
+     * @return Builder<User>
+     */
+    private function matching(string $escaped): Builder
+    {
+        return User::query()
+            ->select('id')
+            ->where(fn (Builder $query): Builder => $query
+                ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+                ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]));
     }
 }

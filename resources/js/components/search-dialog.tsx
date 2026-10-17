@@ -10,6 +10,7 @@ import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
+import { searchCandidates } from '@/lib/chat';
 import {
     searchCommits,
     suggestedQueries,
@@ -37,7 +38,7 @@ const commitLimit = 5;
 type Found<T> = { term: string; items: T[]; throttled?: boolean };
 
 type Option =
-    | { kind: 'developer'; id: string; user: User }
+    | { kind: 'developer'; id: string; user: User; reason?: string | null }
     | { kind: 'commit'; id: string; commit: Commit }
     | { kind: 'all'; id: string }
     | { kind: 'suggestion'; id: string; term: string };
@@ -49,8 +50,8 @@ const suggestionOptions: Option[] = suggestedQueries.map((term, index) => ({
 }));
 
 /**
- * Searches developers and commits. Picking a developer for something else, like a new conversation, narrows
- * it to developers and hands the pick back instead of opening their profile.
+ * Searches developers and commits. Picking a developer for a new conversation narrows it to developers, says why
+ * anyone can't be messaged, and hands the pick back instead of opening their profile.
  */
 export function SearchDialog({
     open,
@@ -76,7 +77,7 @@ export function SearchDialog({
     const developers = useDebouncedSearch(
         developerTerm,
         developerDebounce,
-        searchDevelopers,
+        isPicking ? searchRemoteCandidates : searchDevelopers,
     );
     const commits = useDebouncedSearch(
         commitTerm,
@@ -86,7 +87,7 @@ export function SearchDialog({
 
     const visibleDevelopers = developers
         .resultsFor(developerTerm)
-        .filter((user) => user.id !== excludeId);
+        .filter(({ user }) => user.id !== excludeId);
     const visibleCommits = commits.resultsFor(commitTerm);
     const results = optionsFor(
         intent,
@@ -156,7 +157,11 @@ export function SearchDialog({
 
         if (event.key === 'Enter') {
             event.preventDefault();
-            openOption(options[Math.min(activeIndex, options.length - 1)]);
+            const option = options[Math.min(activeIndex, options.length - 1)];
+
+            if (option.kind !== 'developer' || !option.reason) {
+                openOption(option);
+            }
         }
     };
 
@@ -361,7 +366,19 @@ function useDebouncedSearch<T>(
     };
 }
 
-function searchDevelopers(term: string, signal: AbortSignal): Promise<User[]> {
+type FoundDeveloper = { user: User; reason?: string | null };
+
+async function searchRemoteCandidates(
+    term: string,
+    signal: AbortSignal,
+): Promise<FoundDeveloper[]> {
+    return searchCandidates(term, { for: 'remote' }, signal);
+}
+
+function searchDevelopers(
+    term: string,
+    signal: AbortSignal,
+): Promise<FoundDeveloper[]> {
     return fetch(UserSearchController.index({ query: { q: term } }).url, {
         headers: {
             Accept: 'application/json',
@@ -380,19 +397,22 @@ function searchDevelopers(term: string, signal: AbortSignal): Promise<User[]> {
 
             return response.json();
         })
-        .then((data: { users: User[] }) => data.users);
+        .then((data: { users: User[] }) =>
+            data.users.map((user) => ({ user })),
+        );
 }
 
 function optionsFor(
     intent: ReturnType<typeof searchIntent>,
-    developers: User[],
+    developers: FoundDeveloper[],
     commits: Commit[],
     commitTerm: string,
 ): Option[] {
-    const developerOptions: Option[] = developers.map((user) => ({
+    const developerOptions: Option[] = developers.map(({ user, reason }) => ({
         kind: 'developer',
         id: `developer-${user.id}`,
         user,
+        reason,
     }));
     const commitOptions: Option[] = commits.map((commit) => ({
         kind: 'commit',
@@ -469,7 +489,7 @@ function ResultOption({
     onPickDeveloper?: (user: User) => void;
 }) {
     const className = cn(
-        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left',
+        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left disabled:cursor-not-allowed',
         { 'bg-accent': isActive },
     );
     const content = (
@@ -507,6 +527,9 @@ function ResultOption({
                     <button
                         type="button"
                         tabIndex={-1}
+                        disabled={
+                            option.kind === 'developer' && !!option.reason
+                        }
                         onMouseMove={onHover}
                         onClick={() =>
                             option.kind === 'developer'
@@ -536,7 +559,7 @@ function ResultOption({
 
 function OptionContent({ option }: { option: Option }): ReactNode {
     if (option.kind === 'developer') {
-        return <DeveloperResult user={option.user} />;
+        return <DeveloperResult user={option.user} reason={option.reason} />;
     }
 
     if (option.kind === 'commit') {
@@ -565,19 +588,38 @@ function OptionContent({ option }: { option: Option }): ReactNode {
     );
 }
 
-function DeveloperResult({ user }: { user: User }) {
+function DeveloperResult({
+    user,
+    reason,
+}: {
+    user: User;
+    reason?: string | null;
+}) {
     return (
         <>
-            <UserAvatar user={user} className="size-9 shrink-0" />
-            <span className="min-w-0 flex-1">
+            <UserAvatar
+                user={user}
+                className={cn('size-9 shrink-0', { 'opacity-50': reason })}
+            />
+            <span className={cn('min-w-0 flex-1', { 'opacity-60': reason })}>
                 <span className="flex items-baseline gap-1.5">
                     <span className="truncate font-semibold">{user.name}</span>
                     <Handle user={user} />
                 </span>
-                {user.bio && (
-                    <span className="block truncate text-sm text-muted-foreground">
-                        {user.bio}
+                {reason ? (
+                    <span
+                        className="block truncate font-mono text-xs text-muted-foreground"
+                        title={reason}
+                        data-test="candidate-reason"
+                    >
+                        can't push: {reason}
                     </span>
+                ) : (
+                    user.bio && (
+                        <span className="block truncate text-sm text-muted-foreground">
+                            {user.bio}
+                        </span>
+                    )
                 )}
             </span>
         </>

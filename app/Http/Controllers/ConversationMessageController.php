@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Actions\CreateConversation;
 use App\Actions\CreateMessage;
 use App\Http\Requests\CreateConversationMessageRequest;
 use App\Http\Requests\ListConversationMessagesRequest;
@@ -22,9 +23,9 @@ final readonly class ConversationMessageController
         ])->header('Cache-Control', 'private, no-store');
     }
 
-    public function store(CreateConversationMessageRequest $request, #[CurrentUser] User $user, User $partner, CreateMessage $action): JsonResponse
+    public function store(CreateConversationMessageRequest $request, #[CurrentUser] User $user, User $partner, CreateConversation $createConversation, CreateMessage $action): JsonResponse
     {
-        $message = $action->handle($user, $partner, $request->string('body')->value(), $request->string('client_id')->value());
+        $message = $action->handle($user, $createConversation->handle($user, $partner), $request->string('body')->value(), $request->string('client_id')->value());
 
         return response()->json(['message' => $message], 201);
     }

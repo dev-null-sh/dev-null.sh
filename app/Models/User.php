@@ -331,11 +331,12 @@ final class User extends Authenticatable
 
     /**
      * Whether a first message from the sender opens the conversation straight away. When it doesn't, it waits
-     * fetched for a merge, or can't be sent at all while requests are off.
+     * fetched for a merge, or can't be sent at all while requests are off. Site admins can always reach anyone with
+     * remotes on.
      */
     public function acceptsRemotesFrom(self $sender): bool
     {
-        return ($this->remotes_from === RemotesFrom::Everyone && config('remotes.everyone')) || $this->isFollowing($sender);
+        return $sender->isAdmin() || ($this->remotes_from === RemotesFrom::Everyone && config('remotes.everyone')) || $this->isFollowing($sender);
     }
 
     /**

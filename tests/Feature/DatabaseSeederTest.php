@@ -35,10 +35,10 @@ it('gives the local developer conversations to read and reply to', function (boo
     $localDeveloper = User::query()->where('github_id', 'local')->sole();
     $conversations = resolve(ConversationsQuery::class);
 
-    expect($conversations->get($localDeveloper)['conversations'])->toHaveCount(3)
+    expect($conversations->get($localDeveloper)['conversations'])->toHaveCount(4)
         ->and($conversations->get($localDeveloper, InboxTab::Fetched)['conversations'])->toHaveCount($fetched)
         ->and($conversations->unreadCount($localDeveloper))->toBe($unread);
 })->with([
-    'requests off' => [false, 0, 2],
-    'requests on' => [true, 1, 3],
+    'requests off' => [false, 0, 3],
+    'requests on' => [true, 1, 4],
 ]);

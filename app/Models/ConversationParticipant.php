@@ -4,19 +4,24 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\OrgRole;
 use App\Enums\RemoteStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\ConversationParticipantFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property-read int $id
  * @property-read int $conversation_id
  * @property-read string $user_id
  * @property-read RemoteStatus $status
+ * @property-read OrgRole|null $role
+ * @property-read int $visible_from_id
  * @property-read CarbonInterface|null $last_message_at
  * @property-read int $read_through_id
+ * @property-read User $user
  * @property-read CarbonInterface|null $read_at
  * @property-read CarbonInterface|null $archived_at
  * @property-read CarbonInterface $created_at
@@ -32,6 +37,7 @@ final class ConversationParticipant extends Model
      */
     protected $attributes = [
         'status' => 'open',
+        'visible_from_id' => 0,
         'read_through_id' => 0,
     ];
 
@@ -45,6 +51,8 @@ final class ConversationParticipant extends Model
             'conversation_id' => 'integer',
             'user_id' => 'string',
             'status' => RemoteStatus::class,
+            'role' => OrgRole::class,
+            'visible_from_id' => 'integer',
             'last_message_at' => 'datetime',
             'read_through_id' => 'integer',
             'read_at' => 'datetime',
@@ -52,5 +60,13 @@ final class ConversationParticipant extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

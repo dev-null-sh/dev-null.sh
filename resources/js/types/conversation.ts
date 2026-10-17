@@ -5,12 +5,44 @@ export type Message = {
     user_id: string;
     client_id: string;
     body: string;
+    event?: OrgEvent | null;
+    subject_id?: string | null;
+    user?: User;
+    subject?: User | null;
     created_at: string;
+};
+
+export type ConversationKind = 'direct' | 'org';
+
+export type OrgRole = 'maintainer' | 'contributor';
+
+/**
+ * What happened in an org, logged between its messages.
+ */
+export type OrgEvent =
+    | 'created'
+    | 'added'
+    | 'removed'
+    | 'left'
+    | 'renamed'
+    | 'promoted'
+    | 'demoted'
+    | 'inherited';
+
+export type OrgRef = { id: number; name: string | null };
+
+export type OrgMember = {
+    user: User;
+    role: OrgRole | null;
+    read_through_id: number;
 };
 
 export type ConversationSummary = {
     id: number;
-    partner: User;
+    kind: ConversationKind;
+    name: string | null;
+    partner: User | null;
+    members: { user: User; role: OrgRole | null }[] | null;
     last_message: Message | null;
     last_message_at: string | null;
     ahead: number;
@@ -27,6 +59,17 @@ export type Thread = {
     partner_read_at: string | null;
     partner_typing: boolean;
     is_archived: boolean;
+    access: PushAccess;
+};
+
+export type OrgThread = {
+    messages: Message[];
+    has_older: boolean;
+    read_through_id: number;
+    members: OrgMember[];
+    typing: string[];
+    is_archived: boolean;
+    role: OrgRole | null;
     access: PushAccess;
 };
 

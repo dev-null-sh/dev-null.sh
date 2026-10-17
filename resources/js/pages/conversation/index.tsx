@@ -1,10 +1,17 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ChevronLeft, PanelBottomOpen, SquarePen } from 'lucide-react';
+import {
+    ChevronLeft,
+    PanelBottomOpen,
+    SquarePen,
+    UsersRound,
+} from 'lucide-react';
 import { useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
+import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { ConversationThread } from '@/components/chat/conversation-thread';
 import { InboxPanel } from '@/components/chat/inbox-panel';
+import { OrgHeader, OrgPeopleDialog } from '@/components/chat/org';
 import { RemoteSettingsMenu } from '@/components/chat/remote-settings-menu';
 import { SearchDialog } from '@/components/search-dialog';
 import { Button } from '@/components/ui/button';
@@ -17,32 +24,42 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useChat, useInbox } from '@/hooks/use-chat';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
-import { seedInbox, seedThread } from '@/lib/chat';
+import { seedInbox, seedThread, targetKey } from '@/lib/chat';
+import type { ChatTarget } from '@/lib/chat';
 import { setChatDocked, useChatDock } from '@/lib/chat-dock';
 import { cn } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { InboxPage, Thread, User } from '@/types';
+import type { InboxPage, OrgRef, OrgThread, Thread, User } from '@/types';
 
 export default function Index({
     inbox,
     partner,
+    org = null,
     thread,
 }: {
     inbox: InboxPage;
     partner: User | null;
-    thread: Thread | null;
+    org?: OrgRef | null;
+    thread: Thread | OrgThread | null;
 }) {
     const { user } = useUser();
     const dock = useChatDock();
     const [isPicking, setIsPicking] = useState(false);
+    const [isStartingOrg, setIsStartingOrg] = useState(false);
     const [seededFrom, setSeededFrom] = useState<object | null>(null);
+    const target: ChatTarget | null =
+        partner !== null
+            ? { kind: 'direct', partner }
+            : org !== null
+              ? { kind: 'org', org }
+              : null;
 
     if (seededFrom !== inbox) {
         setSeededFrom(inbox);
         seedInbox(inbox);
 
-        if (partner !== null && thread !== null) {
-            seedThread(partner, thread);
+        if (target !== null && thread !== null) {
+            seedThread(target, thread);
         }
     }
 
@@ -52,13 +69,27 @@ export default function Index({
     const visit = (href: Parameters<typeof router.visit>[0]) =>
         router.visit(href, { preserveScroll: true, preserveState: true });
 
-    const message = (person: User) =>
-        visit(ConversationController.show(person));
+    const open = (next: ChatTarget) =>
+        visit(
+            next.kind === 'direct'
+                ? ConversationController.show(next.partner)
+                : OrgController.show({ org: next.org.id }),
+        );
+
+    const message = (person: User) => open({ kind: 'direct', partner: person });
+
+    const leave = () => visit(ConversationController.index());
 
     return (
         <>
             <Head
-                title={partner ? `@${partner.username} · Remotes` : 'Remotes'}
+                title={
+                    partner
+                        ? `@${partner.username} · Remotes`
+                        : org
+                          ? `${org.name ?? 'Org'} · Remotes`
+                          : 'Remotes'
+                }
             />
 
             <div className="flex h-[calc(100dvh-8.5rem)] min-h-0 md:h-svh">
@@ -66,14 +97,14 @@ export default function Index({
                     aria-label="Conversations"
                     className={cn(
                         'flex min-h-0 w-full flex-col lg:w-80 lg:shrink-0 lg:border-r',
-                        { 'hidden lg:flex': partner !== null },
+                        { 'hidden lg:flex': target !== null },
                     )}
                 >
                     <div className="flex h-16 shrink-0 items-center justify-between gap-2 px-4">
                         <h1 className="text-xl font-bold tracking-tight">
                             Remotes
                         </h1>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5">
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <button
@@ -83,7 +114,7 @@ export default function Index({
                                             setChatDocked(!dock.isDocked)
                                         }
                                         className={cn(
-                                            'hidden h-8 min-w-24 items-center justify-center gap-1.5 rounded-full border px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:border-input hover:text-foreground md:inline-flex',
+                                            'mr-0.5 hidden h-8 min-w-22 items-center justify-center gap-1 rounded-md border px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:border-input hover:text-foreground md:inline-flex',
                                             {
                                                 'border-transparent bg-primary-soft text-primary hover:border-transparent hover:text-primary':
                                                     dock.isDocked,
@@ -106,9 +137,23 @@ export default function Index({
                                 <TooltipTrigger asChild>
                                     <button
                                         type="button"
+                                        aria-label="New org"
+                                        onClick={() => setIsStartingOrg(true)}
+                                        className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                        data-test="new-org"
+                                    >
+                                        <UsersRound className="size-[18px]" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>New org</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        type="button"
                                         aria-label="New remote"
                                         onClick={() => setIsPicking(true)}
-                                        className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                        className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                         data-test="new-message"
                                     >
                                         <SquarePen className="size-[18px]" />
@@ -121,11 +166,9 @@ export default function Index({
 
                     <InboxPanel
                         user={user}
-                        activeUsername={partner?.username}
-                        onOpen={message}
-                        onLeaveActive={() =>
-                            visit(ConversationController.index())
-                        }
+                        activeKey={target === null ? null : targetKey(target)}
+                        onOpen={open}
+                        onLeaveActive={leave}
                         onBlocked={() => router.reload({ only: ['inbox'] })}
                         empty={
                             <EmptyInbox onCompose={() => setIsPicking(true)} />
@@ -133,21 +176,31 @@ export default function Index({
                     />
                 </section>
 
-                {partner !== null ? (
+                {target !== null ? (
                     <ConversationThread
-                        key={partner.username}
-                        partner={partner}
+                        key={targetKey(target)}
+                        target={target}
                         user={user}
                         header={
-                            <ThreadHeader
-                                partner={partner}
-                                onLeave={() =>
-                                    visit(ConversationController.index())
-                                }
-                            />
+                            target.kind === 'direct' ? (
+                                <ThreadHeader
+                                    partner={target.partner}
+                                    user={user}
+                                    onLeave={leave}
+                                />
+                            ) : (
+                                <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4">
+                                    <OrgHeader
+                                        org={target.org}
+                                        user={user}
+                                        before={<BackToRemotes />}
+                                        onLeft={leave}
+                                    />
+                                </header>
+                            )
                         }
                         autoFocus
-                        onDropped={() => visit(ConversationController.index())}
+                        onDropped={leave}
                     />
                 ) : (
                     <div className="hidden flex-1 flex-col items-center justify-center gap-3 px-8 text-center lg:flex">
@@ -156,7 +209,6 @@ export default function Index({
                         </p>
                         <Button
                             variant="outline"
-                            className="rounded-full"
                             onClick={() => setIsPicking(true)}
                         >
                             <SquarePen className="size-4" />
@@ -172,28 +224,43 @@ export default function Index({
                 onPickDeveloper={message}
                 excludeId={user.id}
             />
+
+            <OrgPeopleDialog
+                mode={{ kind: 'create' }}
+                open={isStartingOrg}
+                onOpenChange={setIsStartingOrg}
+                onDone={(created) => open({ kind: 'org', org: created })}
+            />
         </>
+    );
+}
+
+function BackToRemotes() {
+    return (
+        <Link
+            href={ConversationController.index()}
+            aria-label="All remotes"
+            className="-ml-2 grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:hidden"
+        >
+            <ChevronLeft className="size-5" />
+        </Link>
     );
 }
 
 function ThreadHeader({
     partner,
+    user,
     onLeave,
 }: {
     partner: User;
+    user: User;
     onLeave: () => void;
 }) {
     const { threads } = useChat();
 
     return (
         <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4">
-            <Link
-                href={ConversationController.index()}
-                aria-label="All remotes"
-                className="-ml-2 grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:hidden"
-            >
-                <ChevronLeft className="size-5" />
-            </Link>
+            <BackToRemotes />
             <Link
                 href={show(partner)}
                 className="flex min-w-0 items-center gap-3 rounded-lg"
@@ -212,7 +279,9 @@ function ThreadHeader({
                 </span>
             </Link>
             <ConversationActions
-                partner={partner}
+                target={{ kind: 'direct', partner }}
+                title={`@${partner.username}`}
+                user={user}
                 isArchived={threads[partner.username]?.is_archived ?? false}
                 onLeave={onLeave}
                 className="ml-auto size-9"
@@ -227,11 +296,7 @@ function EmptyInbox({ onCompose }: { onCompose: () => void }) {
             <p className="font-mono text-[13px] text-muted-foreground">
                 no conversations yet
             </p>
-            <Button
-                variant="outline"
-                className="rounded-full"
-                onClick={onCompose}
-            >
+            <Button variant="outline" onClick={onCompose}>
                 <SquarePen className="size-4" />
                 New remote
             </Button>
