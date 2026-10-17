@@ -39,9 +39,9 @@ final readonly class OpenAI
     ];
 
     /**
-     * A candidate the decision model puts at worse than even odds of being about the query is left out.
+     * Keep plausible connections, not just confident matches; discard candidates below 30% relevance probability.
      */
-    private const float RELEVANCE_THRESHOLD = 0.5;
+    private const float RELEVANCE_THRESHOLD = 0.3;
 
     private const string MINORS_INSTRUCTIONS = <<<'TEXT'
         You review images uploaded to /dev/null, a social network for developers, before they are published.
@@ -60,8 +60,11 @@ final readonly class OpenAI
 
     private const string RELEVANCE_INSTRUCTIONS = <<<'TEXT'
         You review search results for devnull, a social network for developers.
-        You are given a query and a numbered list of posts. For each post, answer whether it is actually about what the
-        query asks for. A post that merely shares a word with the query, or is about something else, is not relevant.
+        You are given a query and a numbered list of posts. For each post, answer whether it has a meaningful connection
+        to the query. Keep related discussions, personal experiences, opinions, jokes and livestream updates, even if
+        they only cover part of the topic or use different words. A post does not need to directly answer a question.
+        For example, experiences with coding agents can match AI coding, and pull requests can match contributing on
+        GitHub. A shared word alone is not enough: leave out posts with no meaningful connection to the topic.
         Answer with one boolean per post, in the same order.
         TEXT;
 
@@ -114,9 +117,9 @@ final readonly class OpenAI
     }
 
     /**
-     * Whether each body is actually about the query, in the order they were given. The vector search returns the
-     * nearest by meaning, which can include posts that merely share a word; the decision model is asked, for each post,
-     * whether it is more likely relevant than not. Anything but a clear answer, such as a refusal, a post the model
+     * Whether each body is meaningfully related to the query, in the order they were given. The vector search returns
+     * the nearest by meaning, which can include posts that merely share a word; the decision model filters those out
+     * while keeping plausible connections. Anything but a clear answer, such as a refusal, a post the model
      * skipped, or a probability that can't be read, counts as relevant, so a flaky model never hides a post.
      *
      * @param  list<string>  $bodies
@@ -134,7 +137,7 @@ final readonly class OpenAI
             $questions[] = [
                 'name' => 'post_'.($index + 1),
                 'type' => 'predicate',
-                'instructions' => 'Is post '.($index + 1).' actually about what the query asks for?',
+                'instructions' => 'Does post '.($index + 1).' have a meaningful connection to the query, even if it only covers part of the topic or does not directly answer it?',
             ];
         }
 
@@ -279,7 +282,7 @@ final readonly class OpenAI
     }
 
     /**
-     * One verdict per post, in the order they were given: kept unless the model put it at worse than even odds. A post
+     * One verdict per post, in the order they were given: kept at or above the relevance threshold. A post
      * the answer skips, and one whose probability can't be read, is kept.
      *
      * @return list<bool>

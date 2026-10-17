@@ -30,10 +30,10 @@ final readonly class UserProfileController
 
         Inertia::flash('toast', $synced ? [
             'type' => 'success',
-            'message' => __('Synced from GitHub.'),
+            'message' => 'Synced from GitHub.',
         ] : [
             'type' => 'error',
-            'message' => __('Could not sync from GitHub. Try again in a minute.'),
+            'message' => 'Could not sync from GitHub. Try again in a minute.',
         ]);
 
         return back();

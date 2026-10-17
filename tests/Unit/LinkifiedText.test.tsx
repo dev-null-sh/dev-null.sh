@@ -97,6 +97,18 @@ void test('shows a dev/null commit link as its author and short hash', () => {
     );
 });
 
+void test('shows a dev/null commit link as its author and short hash without a link when static', () => {
+    const text = `same root cause as ${commitUrl}.`;
+    const markup = renderToStaticMarkup(<LinkifiedText text={text} isStatic />);
+
+    assert.ok(!markup.includes('<a'));
+    assert.ok(markup.includes(`title="${commitUrl}"`));
+    assert.equal(
+        markup.replace(/<[^>]+>/g, ''),
+        `same root cause as ${commitUrl}Hacksore/5149ca8.`,
+    );
+});
+
 for (const link of [
     'https://dev-null.sh/@Hacksore/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8/photos/1',
     'https://dev-null.sh/@Hacksore/commits/01a14a9d-7971-73ea-8f35-135fe5149ca8?tab=replies',

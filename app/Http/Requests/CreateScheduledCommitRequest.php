@@ -57,7 +57,7 @@ final class CreateScheduledCommitRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'link_preview_url.in' => __('The link card must be one of the links in the body.'),
+            'link_preview_url.in' => 'The link card must be one of the links in the body.',
         ];
     }
 

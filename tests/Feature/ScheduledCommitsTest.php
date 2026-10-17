@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateScheduledCommit;
 use App\Actions\DeleteScheduledCommit;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
@@ -16,6 +17,7 @@ use App\Models\Poll;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\UserActivityQuery;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
@@ -77,6 +79,20 @@ it('schedules images privately and attaches them at the due time', function (): 
         ])
         ->and(ScheduledCommit::query()->sole()->images)->toBeNull();
     Storage::disk()->assertExists($paths);
+});
+
+it('erases the stored images when the scheduled commit fails to save', function (): void {
+    Storage::fake();
+
+    expect(fn (): ScheduledCommit => resolve(CreateScheduledCommit::class)->handle(
+        User::factory()->make(['id' => 999_999]),
+        'Shipped the new dashboard.',
+        now()->addHour()->toImmutable(),
+        [UploadedFile::fake()->image('wide.png', 300, 200)],
+    ))->toThrow(QueryException::class);
+
+    expect(ScheduledCommit::query()->count())->toBe(0)
+        ->and(Storage::disk()->allFiles())->toBe([]);
 });
 
 it('schedules images without a body', function (): void {

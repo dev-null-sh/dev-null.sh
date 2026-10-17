@@ -45,7 +45,7 @@ final readonly class ScheduledCommitController
         $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview());
 
         Inertia::flash('scheduled', true);
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Commit scheduled. Only you can see it until it is submitted.')]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Commit scheduled. Only you can see it until it is submitted.']);
 
         return back();
     }
@@ -55,8 +55,8 @@ final readonly class ScheduledCommitController
         $canceled = $action->handle($user, $scheduledCommit);
 
         Inertia::flash('toast', ['type' => $canceled ? 'success' : 'info', 'message' => $canceled
-            ? __('Scheduled commit canceled.')
-            : __('This commit was already submitted or canceled. Refresh to see its status.')]);
+            ? 'Scheduled commit canceled.'
+            : 'This commit was already submitted or canceled. Refresh to see its status.']);
 
         return back();
     }
