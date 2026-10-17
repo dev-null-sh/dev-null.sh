@@ -303,6 +303,14 @@ final class User extends Authenticatable
     }
 
     /**
+     * Anyone can message anyone else, unless a block stands between them.
+     */
+    public function canMessage(self $user): bool
+    {
+        return ! $this->is($user) && ! $this->hasBlockWith($user);
+    }
+
+    /**
      * Which of the two blocked the other, if either did.
      */
     public function blockerIdWith(self $user): ?string

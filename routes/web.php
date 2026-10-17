@@ -23,9 +23,15 @@ use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
+use App\Http\Controllers\ConversationArchiveController;
+use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\ConversationMessageController;
+use App\Http\Controllers\ConversationReadController;
+use App\Http\Controllers\ConversationTypingController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
+use App\Http\Controllers\InboxController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
@@ -218,6 +224,28 @@ Route::middleware('auth')->group(function (): void {
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
     Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('notification-group.show');
+
+    // Messages...
+    Route::get('remotes', [ConversationController::class, 'index'])->name('conversation.index');
+    Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
+
+    Route::middleware('throttle:conversations')->group(function (): void {
+        Route::get('remotes/inbox', [InboxController::class, 'index'])->name('inbox.index');
+        Route::get('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'index'])
+            ->name('conversation-message.index');
+        Route::put('remotes/@{partner:username}/read', [ConversationReadController::class, 'update'])
+            ->name('conversation-read.update');
+        Route::put('remotes/@{partner:username}/typing', [ConversationTypingController::class, 'update'])
+            ->name('conversation-typing.update');
+        Route::post('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'store'])
+            ->name('conversation-archive.store');
+        Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
+            ->name('conversation-archive.destroy');
+    });
+
+    Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])
+        ->middleware('throttle:messages')
+        ->name('conversation-message.store');
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
