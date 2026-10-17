@@ -17,7 +17,7 @@ export function useFlashToast(): void {
             } = event.detail.flash;
 
             if (achievementsUnlocked?.length) {
-                dropConfetti({ edge: 'top' });
+                dropConfetti();
 
                 for (const name of achievementsUnlocked) {
                     toast('achievement unlocked 🎉', { description: name });
