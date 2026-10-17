@@ -7,6 +7,7 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Enums\CommitStatus;
 use App\Enums\PollDuration;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -16,6 +17,7 @@ use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\UserActivityQuery;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -458,4 +460,22 @@ it('paginates author receipts while keeping outstanding items first', function (
     $active = ScheduledCommit::factory()->for($user)->create();
     $this->actingAs($user)->get(route('scheduled-commit.index'))->assertInertia(fn ($page) => $page
         ->has('scheduledCommits.data', 20)->where('scheduledCommits.data.0.id', $active->id)->has('scheduledCommits.next_page_url'));
+});
+
+it('does not load the schedule when the page only polls the unread count', function (): void {
+    $user = User::factory()->create();
+    ScheduledCommit::factory()->for($user)->create();
+
+    DB::enableQueryLog();
+
+    $this->actingAs($user)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'scheduled-commits/index',
+        'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount',
+    ])->get(route('scheduled-commit.index'))->assertOk()
+        ->assertJsonPath('props.auth.unreadNotificationsCount', 0)
+        ->assertJsonMissingPath('props.scheduledCommits');
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'scheduled_commits')))->toBeEmpty();
 });
