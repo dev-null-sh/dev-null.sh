@@ -110,7 +110,7 @@ function CommitComposerBody({
         setIsScheduling,
     } = schedule;
     const hasImages = attachments.images.length > 0;
-    const isFilled = characterCount(body.trim()) >= minBodyLength;
+    const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
     const error = errors.body ?? errors.link_preview_url;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
@@ -421,11 +421,11 @@ export function CommitComposer({
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(body);
 
+    const hasImages = attachments.images.length > 0;
     const isCommittable =
-        characterCount(body.trim()) >= minBodyLength &&
+        (hasImages || characterCount(body.trim()) >= minBodyLength) &&
         (poll === null ||
             poll.options.every((option) => option.trim().length > 0));
-    const hasImages = attachments.images.length > 0;
 
     useEffect(() => discardSeriesStash(user.id), [user.id]);
 

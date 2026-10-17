@@ -29,7 +29,7 @@ final class CreateScheduledCommitRequest extends FormRequest
         assert($user instanceof User);
 
         return [
-            'body' => CreateCommitRequest::BODY_RULES,
+            'body' => $this->hasFile('images') ? CreateCommitRequest::BODY_WITH_IMAGES_RULES : CreateCommitRequest::BODY_RULES,
             'scheduled_at' => ['required', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
             'parent_id' => ['prohibited'],
             ...CreateCommitRequest::attachmentRules(),

@@ -93,6 +93,22 @@ it('erases the stored images when the scheduled commit fails to save', function 
         ->and(Storage::disk()->allFiles())->toBe([]);
 });
 
+it('schedules images without a body', function (): void {
+    Storage::fake();
+    $user = User::factory()->create();
+    $this->actingAs($user)->post(route('scheduled-commit.store'), [
+        'scheduled_at' => now()->addHour()->toIso8601String(),
+        'images' => [UploadedFile::fake()->image('wide.png', 300, 200)],
+    ])->assertSessionHasNoErrors();
+
+    $this->travel(1)->hour();
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    expect(Commit::query()->sole())
+        ->body->toBe('')
+        ->images->toHaveCount(1);
+});
+
 it('deletes scheduled images once canceled or with the account', function (string $deletion): void {
     Storage::fake();
     $user = User::factory()->create();

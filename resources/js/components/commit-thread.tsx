@@ -948,7 +948,8 @@ function ReplyComposer({
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
-    const isReplyable = characterCount(body.trim()) >= minBodyLength;
+    const isReplyable =
+        images.length > 0 || characterCount(body.trim()) >= minBodyLength;
     const preview = useComposerPreview({
         body,
         textareaRef,
