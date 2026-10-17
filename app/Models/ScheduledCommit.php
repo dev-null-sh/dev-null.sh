@@ -17,13 +17,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $user_id
  * @property-read string|null $commit_id
  * @property-read string|null $body
+ * @property-read array{options: list<string>, duration: int}|null $poll
+ * @property-read list<array{path: string, width: int, height: int, description: string|null, position: int}>|null $images
+ * @property-read string|null $link_preview_url
  * @property-read CarbonInterface $scheduled_at
  * @property-read CarbonInterface|null $submitted_at
  * @property-read CarbonInterface|null $canceled_at
  * @property-read User $user
  * @property-read Commit|null $commit
  */
-#[Fillable(['user_id', 'body', 'scheduled_at'])]
+#[Fillable(['user_id', 'body', 'poll', 'images', 'link_preview_url', 'scheduled_at'])]
 final class ScheduledCommit extends Model
 {
     /** @use HasFactory<ScheduledCommitFactory> */
@@ -35,6 +38,8 @@ final class ScheduledCommit extends Model
     public function casts(): array
     {
         return [
+            'poll' => 'array',
+            'images' => 'array',
             'scheduled_at' => 'immutable_datetime',
             'submitted_at' => 'immutable_datetime',
             'canceled_at' => 'immutable_datetime',

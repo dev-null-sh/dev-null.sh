@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Dto\NewPoll;
+use App\Enums\PollDuration;
 use App\Models\ScheduledCommit;
 use Illuminate\Support\Facades\DB;
 
@@ -30,9 +32,11 @@ final readonly class UpdateScheduledCommitSubmittedAt
 
             $scheduled = ScheduledCommit::query()->with('user')->findOrFail($id);
             assert(is_string($scheduled->body));
-            $commit = $this->createCommit->handle($scheduled->user, $scheduled->body);
+            $poll = $scheduled->poll === null ? null : new NewPoll($scheduled->poll['options'], PollDuration::from($scheduled->poll['duration']));
+            $commit = $this->createCommit->handle($scheduled->user, $scheduled->body, linkPreview: $scheduled->link_preview_url ?? false, poll: $poll);
+            $commit->images()->createMany($scheduled->images ?? []);
 
-            $scheduled->forceFill(['commit_id' => $commit->id, 'body' => null])->save();
+            $scheduled->forceFill(['commit_id' => $commit->id, 'body' => null, 'poll' => null, 'images' => null, 'link_preview_url' => null])->save();
 
             return true;
         }, attempts: 5);
