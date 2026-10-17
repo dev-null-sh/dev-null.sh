@@ -141,7 +141,7 @@ export default function Show({
                                 <FollowButton
                                     user={user}
                                     isFollowing={isFollowing}
-                                    className="min-w-24 sm:min-w-28"
+                                    className="min-w-28"
                                     onSuccess={() => router.flushAll()}
                                 />
                             </>
