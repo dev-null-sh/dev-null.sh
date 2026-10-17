@@ -43,6 +43,21 @@ it('leaves commits that already have an embedding alone', function (): void {
     Http::assertSentCount(1);
 });
 
+it('leaves commits without a body alone', function (): void {
+    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(4)]))]);
+
+    $imageOnly = Commit::factory()->create(['body' => '']);
+    Commit::factory()->create(['body' => 'Needs one']);
+
+    $this->artisan('commits:embed --all')
+        ->expectsOutputToContain('Embedded 1 commits.')
+        ->assertSuccessful();
+
+    expect($imageOnly->refresh()->embedding)->toBeNull();
+
+    Http::assertSent(fn (Request $request): bool => $request['input'] === ['Needs one']);
+});
+
 it('embeds every commit again with --all', function (): void {
     Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(4)]))]);
 

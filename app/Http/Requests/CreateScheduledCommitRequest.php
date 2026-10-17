@@ -8,12 +8,15 @@ use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\User;
 use App\Rules\ScheduledCommitLimit;
+use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\File;
+use Illuminate\Validation\Rules\In;
 
 final class CreateScheduledCommitRequest extends FormRequest
 {
@@ -22,16 +25,18 @@ final class CreateScheduledCommitRequest extends FormRequest
         return $this->user() !== null;
     }
 
-    /** @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum>> */
+    /** @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>> */
     public function rules(): array
     {
         $user = $this->user();
         assert($user instanceof User);
+        $body = $this->input('body');
 
         return [
-            'body' => CreateCommitRequest::BODY_RULES,
+            'body' => $this->hasFile('images') ? CreateCommitRequest::BODY_WITH_IMAGES_RULES : CreateCommitRequest::BODY_RULES,
             'scheduled_at' => ['required', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
             'parent_id' => ['prohibited'],
+            'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...CreateCommitRequest::attachmentRules(),
         ];
     }
@@ -44,6 +49,28 @@ final class CreateScheduledCommitRequest extends FormRequest
         return [
             'image_descriptions.*' => 'image description',
         ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'link_preview_url.in' => __('The link card must be one of the links in the body.'),
+        ];
+    }
+
+    /**
+     * The first link in the body gets the link preview, unless the author chose another link or none at all.
+     */
+    public function linkPreview(): bool|string
+    {
+        if (! $this->has('link_preview_url')) {
+            return true;
+        }
+
+        return $this->filled('link_preview_url') ? $this->string('link_preview_url')->value() : false;
     }
 
     public function poll(): ?NewPoll

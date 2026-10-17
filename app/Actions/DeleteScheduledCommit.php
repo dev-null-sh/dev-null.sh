@@ -19,7 +19,7 @@ final readonly class DeleteScheduledCommit
 
         $canceled = ScheduledCommit::query()->whereKey($scheduled->id)->where('user_id', $user->id)
             ->whereNull('submitted_at')->whereNull('canceled_at')
-            ->update(['canceled_at' => now(), 'body' => null, 'poll' => null, 'images' => null]) === 1;
+            ->update(['canceled_at' => now(), 'body' => null, 'poll' => null, 'images' => null, 'link_preview_url' => null]) === 1;
 
         if ($canceled) {
             Storage::disk()->delete($imagePaths);

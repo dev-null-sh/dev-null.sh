@@ -110,7 +110,7 @@ function CommitComposerBody({
         setIsScheduling,
     } = schedule;
     const hasImages = attachments.images.length > 0;
-    const isFilled = characterCount(body.trim()) >= minBodyLength;
+    const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
     const error = errors.body ?? errors.link_preview_url;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
@@ -173,11 +173,7 @@ function CommitComposerBody({
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
-                                url={
-                                    isScheduling
-                                        ? (linkCard.links[0] ?? null)
-                                        : linkCard.link
-                                }
+                                url={linkCard.link}
                                 images={attachments.images}
                                 descriptions={attachments.descriptions}
                                 className="col-start-1 row-start-1 py-1.5"
@@ -320,13 +316,11 @@ function CommitComposerBody({
                             >
                                 <ChartBar className="size-5" />
                             </Button>
-                            {!isScheduling && (
-                                <LinkCardPicker
-                                    linkCard={linkCard}
-                                    disabled={processing}
-                                    className="-ml-3"
-                                />
-                            )}
+                            <LinkCardPicker
+                                linkCard={linkCard}
+                                disabled={processing}
+                                className="-ml-3"
+                            />
                             <PreviewToggle
                                 preview={preview}
                                 className="-ml-3"
@@ -421,11 +415,11 @@ export function CommitComposer({
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(body);
 
+    const hasImages = attachments.images.length > 0;
     const isCommittable =
-        characterCount(body.trim()) >= minBodyLength &&
+        (hasImages || characterCount(body.trim()) >= minBodyLength) &&
         (poll === null ||
             poll.options.every((option) => option.trim().length > 0));
-    const hasImages = attachments.images.length > 0;
 
     useEffect(() => discardSeriesStash(user.id), [user.id]);
 
