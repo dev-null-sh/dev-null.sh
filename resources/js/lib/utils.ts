@@ -3,7 +3,7 @@ import type { ClassValue } from 'clsx';
 import { clsx } from 'clsx';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
-import type { DeletedCommit, ThreadCommit } from '@/types';
+import type { DeletedCommit, Lane, ThreadCommit } from '@/types';
 import type { FlashToast } from '@/types/ui';
 
 export function characterCount(value: string): number {
@@ -68,8 +68,8 @@ export function formatFullDateTime(date: string, timeZone?: string): string {
     })}`;
 }
 
-export function laneColor(lane: number): string {
-    return `var(--lane-${lane})`;
+export function laneColor(lane: Lane): string {
+    return typeof lane === 'string' ? lane : `var(--lane-${lane})`;
 }
 
 export function isDeleted(commit: {

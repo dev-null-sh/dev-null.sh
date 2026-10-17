@@ -54,13 +54,12 @@ final readonly class UserAchievementsQuery
     {
         $visibleCommitsQuery = $user->commits()->visibleTo($viewer);
 
-        /** @var object{total_commits: int|string, has_max_payload: int|string|null, has_syntax: int|string|null} $commitStats */
+        /** @var object{total_commits: int|string, has_syntax: int|string|null} $commitStats */
         $commitStats = (clone $visibleCommitsQuery)
-            ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN length(body) = ? THEN 1 ELSE 0 END) as has_max_payload, MAX(CASE WHEN body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax", [Commit::MAX_BODY_LENGTH])
+            ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax")
             ->first();
 
         $commitsCount = (int) ($commitStats->total_commits ?? 0);
-        $hasMaxPayloadCommit = (bool) ($commitStats->has_max_payload ?? 0);
         $hasSyntaxCommit = (bool) ($commitStats->has_syntax ?? 0);
 
         // Replies must be to other developers (excluding self-replies)
@@ -157,10 +156,6 @@ final readonly class UserAchievementsQuery
             Achievement::Pipe->value => [
                 'progress' => min($repliesCount, Achievement::Pipe->target()),
                 'target' => Achievement::Pipe->target(),
-            ],
-            Achievement::MaxPayload->value => [
-                'progress' => $hasMaxPayloadCommit ? 1 : 0,
-                'target' => Achievement::MaxPayload->target(),
             ],
             Achievement::AuthorizedKeys->value => [
                 'progress' => $hasSshKey ? 1 : 0,
