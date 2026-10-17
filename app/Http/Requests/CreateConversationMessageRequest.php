@@ -30,9 +30,9 @@ final class CreateConversationMessageRequest extends FormRequest
 
         return match ($access->get($user, $partner)) {
             PushAccess::Open => Response::allow(),
-            PushAccess::Request => Response::deny(__("Merge @:username's request before replying.", ['username' => $partner->username])),
-            PushAccess::Waiting => Response::deny(__("@:username hasn't merged your request yet.", ['username' => $partner->username])),
-            PushAccess::Closed => Response::deny(__("@:username isn't taking remotes.", ['username' => $partner->username])),
+            PushAccess::Request => Response::deny("Merge @{$partner->username}'s request before replying."),
+            PushAccess::Waiting => Response::deny("@{$partner->username} hasn't merged your request yet."),
+            PushAccess::Closed => Response::deny("@{$partner->username} isn't taking remotes."),
         };
     }
 

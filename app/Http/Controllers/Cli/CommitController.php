@@ -20,8 +20,8 @@ final readonly class CommitController
         $url = route('commit.show', [$user, $commit]);
 
         $message = $commit->status === CommitStatus::Pending
-            ? __('Committed: :url (pending review, only you can see it until it is approved)', ['url' => $url])
-            : __('Committed: :url', ['url' => $url]);
+            ? "Committed: {$url} (pending review, only you can see it until it is approved)"
+            : "Committed: {$url}";
 
         return response($message."\n", 201)->header('Content-Type', 'text/plain; charset=utf-8');
     }

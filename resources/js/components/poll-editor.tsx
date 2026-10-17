@@ -27,12 +27,14 @@ export function PollEditor({
     errors,
     onChange,
     onRemove,
+    className,
 }: {
     id: string;
     poll: PollDraft;
     errors: Record<string, string | undefined>;
     onChange: (poll: PollDraft) => void;
     onRemove: () => void;
+    className?: string;
 }) {
     const updateOption = (index: number, value: string) =>
         onChange({
@@ -66,7 +68,7 @@ export function PollEditor({
 
     return (
         <fieldset
-            className="mt-2 rounded-lg border p-3"
+            className={cn('rounded-lg border p-3', className)}
             data-test="poll-editor"
         >
             <legend className="sr-only">Poll</legend>

@@ -7,7 +7,9 @@ namespace App\Actions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Image\Image as ProcessedImage;
 use Illuminate\Image\ImageException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Image;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -21,7 +23,7 @@ final readonly class CreateCommitImageFiles
 
     /**
      * Every image is decoded, scaled down, and re-encoded as WebP: metadata such as GPS location is dropped, and anything smuggled alongside the pixels is not kept.
-     * All of them are encoded before any is stored, so a bad one leaves nothing behind.
+     * All of them are encoded before any is stored, so a bad one leaves nothing behind, and a stored one is erased again if the transaction saving it rolls back.
      *
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $descriptions
@@ -36,6 +38,8 @@ final readonly class CreateCommitImageFiles
         foreach ($optimized as $position => $image) {
             $path = $image->storeAs('commit-images', Str::uuid7()->toString().'.webp');
             assert(is_string($path));
+
+            DB::afterRollBack(fn (): bool => Storage::disk()->delete($path));
 
             $files[] = [
                 'path' => $path,
@@ -81,7 +85,7 @@ final readonly class CreateCommitImageFiles
     private function invalid(): ValidationException
     {
         return ValidationException::withMessages([
-            'images' => __('Images must be JPEG, PNG, or WebP files of at most :size pixels per side.', ['size' => CreateCommitImages::MAX_SOURCE_DIMENSION]),
+            'images' => 'Images must be JPEG, PNG, or WebP files of at most '.CreateCommitImages::MAX_SOURCE_DIMENSION.' pixels per side.',
         ]);
     }
 }

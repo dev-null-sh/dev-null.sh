@@ -72,7 +72,7 @@ final readonly class SessionController
     {
         Inertia::flash('toast', [
             'type' => 'error',
-            'message' => __('Unable to sign in with GitHub. Please try again.'),
+            'message' => 'Unable to sign in with GitHub. Please try again.',
         ]);
 
         return to_route('home');

@@ -116,9 +116,11 @@ export function FoldedCommitBody({
 
 export function CommitBodyExcerpt({
     segments,
+    previewSegments = null,
     className,
 }: {
     segments: BodySegment[];
+    previewSegments?: BodySegment[] | null;
     className?: string;
 }) {
     const bodyRef = useRef<HTMLDivElement>(null);
@@ -145,10 +147,16 @@ export function CommitBodyExcerpt({
             className={cn(
                 'overflow-hidden',
                 className,
-                isClamped && 'mask-b-from-60%',
+                previewSegments !== null
+                    ? 'mask-b-from-[calc(100%-3rem)] mask-b-to-[calc(100%+0.75rem)]'
+                    : isClamped && 'mask-b-from-60%',
             )}
         >
-            <CommitBody segments={segments} className="text-[15px]" isStatic />
+            <CommitBody
+                segments={previewSegments ?? segments}
+                className="text-[15px]"
+                isStatic
+            />
         </div>
     );
 }
