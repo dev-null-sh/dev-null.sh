@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\NotificationGroupController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
+use App\Http\Controllers\Api\UserLaneController;
+use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -48,6 +50,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
+
+        // User Profile: mirrored from GitHub again, as Sync from GitHub does on the web...
+        Route::put('me/github', [UserProfileController::class, 'update'])
+            ->middleware('throttle:profile-syncs')
+            ->name('api-user-profile.update');
+
+        // User Lane...
+        Route::put('me/lane', [UserLaneController::class, 'update'])->name('api-user-lane.update');
 
         // Log...
         Route::get('log/{log}', [LogController::class, 'show'])->name('api-log.show');
