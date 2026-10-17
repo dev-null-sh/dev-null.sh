@@ -293,9 +293,16 @@ function useDebouncedSearch<T>(
             search(term, controller.signal)
                 .then((items) => setFound({ term, items }))
                 .catch((error: unknown) => {
-                    if (error instanceof TooManySearches) {
-                        setFound({ term, items: [], throttled: true });
+                    if (controller.signal.aborted) {
+                        return;
                     }
+
+                    // A failed search counts as an empty one, so the dialog never waits on it forever.
+                    setFound({
+                        term,
+                        items: [],
+                        throttled: error instanceof TooManySearches,
+                    });
                 })
                 .finally(() => {
                     if (!controller.signal.aborted) {

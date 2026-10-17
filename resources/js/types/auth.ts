@@ -1,5 +1,10 @@
 import type { Log } from '@/types/log';
 
+/**
+ * A lane from the palette, or a custom hex color.
+ */
+export type Lane = number | string;
+
 export type User = {
     id: string;
     username: string;
@@ -11,7 +16,8 @@ export type User = {
     company: string | null;
     has_sponsors_listing: boolean;
     has_github_account: boolean;
-    lane: number;
+    lane: Lane;
+    timezone: string | null;
     created_at: string;
     updated_at: string;
 };

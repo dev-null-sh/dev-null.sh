@@ -34,7 +34,7 @@ final readonly class CommitReplyController
             ],
             ...$reply->status === CommitStatus::Pending ? ['toast' => [
                 'type' => 'info',
-                'message' => __('Your commit is pending review. Everyone will see it once it is approved.'),
+                'message' => 'Your commit is pending review. Everyone will see it once it is approved.',
             ]] : [],
         ], 201);
     }

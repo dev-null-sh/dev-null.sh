@@ -6,6 +6,7 @@ use App\Actions\CreateQuoteNotifications;
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -648,6 +649,48 @@ it('shows the first 50 replies of a commit with a cursor to the rest', function 
             ->where('replies.next_cursor', fn (string $cursor): bool => $cursor !== ''));
 });
 
+it('reloads the commit alone without loading its thread', function (): void {
+    $viewer = User::factory()->create();
+    $queries = function (Commit $commit) use ($viewer): int {
+        $this->actingAs($viewer)
+            ->get(route('commit.show', [$commit->user, $commit]))
+            ->assertOk()
+            ->assertInertia(function ($page): void {
+                DB::flushQueryLog();
+                DB::enableQueryLog();
+
+                $page->reloadOnly('commit', fn ($reload) => $reload->missing('replies')->missing('ancestors')->missing('series'));
+
+                DB::disableQueryLog();
+            });
+
+        return count(DB::getQueryLog());
+    };
+    $alone = Commit::factory()->create();
+    $inThread = Commit::factory()->for(Commit::factory()->for(Commit::factory(), 'parent'), 'parent')->create();
+    Commit::factory()->for($inThread, 'parent')->count(3)->create();
+
+    expect($queries($inThread))->toBe($queries($alone));
+});
+
+it('builds the link preview only for full page loads', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'parent')->create();
+    $queries = function (array $headers) use ($commit): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->get(route('commit.show', [$commit->user, $commit]), $headers)->assertOk();
+
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    };
+
+    expect($queries(['X-Inertia' => 'true', 'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request())]))
+        ->toBeLessThan($queries([]));
+});
+
 it('shows own pending commit', function (): void {
     $commit = Commit::factory()->pending()->create();
 
@@ -1089,7 +1132,7 @@ it('may attach images to a commit', function (): void {
             'body' => 'Look at this',
             'images' => [
                 UploadedFile::fake()->image('first.jpg', 40, 30),
-                UploadedFile::fake()->image('second.gif', 10, 10),
+                UploadedFile::fake()->image('second.png', 10, 10),
                 UploadedFile::fake()->image('third.webp', 10, 10),
             ],
         ]);
@@ -1102,6 +1145,63 @@ it('may attach images to a commit', function (): void {
     expect($commit->status)->toBe(CommitStatus::Pending)
         ->and($commit->images)->toHaveCount(3)
         ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
+});
+
+it('may commit images without a body', function (array $body): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            ...$body,
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->body)->toBe('')
+        ->and($commit->images)->toHaveCount(1);
+})->with([
+    'missing' => [[]],
+    'blank' => [['body' => '   ']],
+]);
+
+it('may commit images with a body shorter than 3 characters', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), [
+            'body' => 'ok',
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->body)->toBe('ok');
+});
+
+it('may quote a commit with only images', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), [
+            'quoted_commit_id' => $quoted->id,
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole())
+        ->body->toBe('')
+        ->quoted_commit_id->toBe($quoted->id);
 });
 
 it('may describe the images attached to a commit', function (): void {
@@ -1194,7 +1294,7 @@ it('may not attach more than three images to a commit', function (): void {
     expect($user->commits()->count())->toBe(0);
 });
 
-it('may only attach jpeg, png, gif or webp images to a commit', function (UploadedFile $file): void {
+it('may only attach jpeg, png or webp images to a commit', function (UploadedFile $file): void {
     Storage::fake();
 
     $user = User::factory()->create();
@@ -1212,6 +1312,7 @@ it('may only attach jpeg, png, gif or webp images to a commit', function (Upload
     'svg' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
     'html disguised as png' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.png', '<html><script>alert(1)</script></html>'),
     'bmp' => fn (): UploadedFile => UploadedFile::fake()->image('image.bmp', 10, 10),
+    'gif' => fn (): UploadedFile => UploadedFile::fake()->image('image.gif', 10, 10),
     'pdf' => fn (): UploadedFile => UploadedFile::fake()->create('document.pdf', 10, 'application/pdf'),
 ]);
 

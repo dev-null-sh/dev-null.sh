@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
-use App\Models\Commit;
-
 enum Achievement: string
 {
     case Init = 'init';
@@ -18,7 +16,6 @@ enum Achievement: string
     case Stargazer = 'stargazer';
     case Superstar = 'superstar';
     case Pipe = 'pipe';
-    case MaxPayload = 'max_payload';
     case AuthorizedKeys = 'authorized_keys';
 
     public function label(): string
@@ -34,7 +31,6 @@ enum Achievement: string
             self::Stargazer => 'stargazer',
             self::Superstar => 'superstar',
             self::Pipe => 'pipe',
-            self::MaxPayload => 'max payload',
             self::AuthorizedKeys => 'authorized_keys',
         };
     }
@@ -52,7 +48,6 @@ enum Achievement: string
             self::Stargazer => 'Starred 10 commits by other developers.',
             self::Superstar => 'Received 25 stars on your commits.',
             self::Pipe => 'Joined conversations with 5 replies to other developers.',
-            self::MaxPayload => 'Committed an exact '.number_format(Commit::MAX_BODY_LENGTH).'-character post.',
             self::AuthorizedKeys => 'Provisioned a public SSH key from GitHub.',
         };
     }
@@ -70,7 +65,6 @@ enum Achievement: string
             self::Stargazer => 'star',
             self::Superstar => 'sparkles',
             self::Pipe => 'git-merge',
-            self::MaxPayload => 'maximize',
             self::AuthorizedKeys => 'key',
         };
     }
@@ -88,7 +82,6 @@ enum Achievement: string
             self::Stargazer => 10,
             self::Superstar => 25,
             self::Pipe => 5,
-            self::MaxPayload => 1,
             self::AuthorizedKeys => 1,
         };
     }

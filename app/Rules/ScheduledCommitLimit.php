@@ -25,7 +25,7 @@ final readonly class ScheduledCommitLimit implements ValidationRule
             ->count();
 
         if ($outstanding >= 10) {
-            $fail(__('You can have up to 10 scheduled commits. Cancel one before scheduling another.'));
+            $fail('You can have up to 10 scheduled commits. Cancel one before scheduling another.');
         }
     }
 }
