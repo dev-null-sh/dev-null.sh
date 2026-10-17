@@ -1,7 +1,7 @@
 import { Link } from '@inertiajs/react';
 import { Check, Ellipsis, Search, UserPlus, X } from 'lucide-react';
 import type { FormEvent, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { Button } from '@/components/ui/button';
@@ -612,6 +612,7 @@ export function OrgPeopleDialog({
     const [sharesHistory, setSharesHistory] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const isCreated = useRef(false);
     const term = query.trim().replace(/^@/u, '');
     const orgId = mode.kind === 'add' ? mode.org.id : null;
     const current = mode.kind === 'add' ? mode.members.length : 1;
@@ -670,7 +671,10 @@ export function OrgPeopleDialog({
 
         try {
             if (mode.kind === 'create') {
-                onDone(await createOrg(name, usernames));
+                const org = await createOrg(name, usernames);
+
+                isCreated.current = true;
+                onDone(org);
             } else {
                 await addOrgMembers(mode.org, usernames, sharesHistory);
                 onDone(mode.org);
@@ -701,6 +705,13 @@ export function OrgPeopleDialog({
         >
             <DialogContent
                 className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+                onCloseAutoFocus={(event) => {
+                    // The new org's composer takes focus, so it isn't handed back to the button that opened this.
+                    if (isCreated.current) {
+                        event.preventDefault();
+                        isCreated.current = false;
+                    }
+                }}
                 data-test="org-people"
             >
                 <form
