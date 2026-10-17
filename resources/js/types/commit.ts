@@ -70,6 +70,7 @@ export type Commit = {
     reply_preview?: CursorPaginated<ThreadCommit>;
     is_saved?: boolean;
     saved_order?: number | null;
+    collection_ids?: string[];
     is_pinned?: boolean;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
@@ -108,4 +109,10 @@ export type CursorPaginated<T> = {
     data: T[];
     next_cursor: string | null;
     prev_cursor: string | null;
+};
+
+export type BookmarkCollection = {
+    id: string;
+    name: string;
+    commits_count: number;
 };

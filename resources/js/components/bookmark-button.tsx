@@ -3,6 +3,7 @@ import { Bookmark } from 'lucide-react';
 import { createContext, useContext } from 'react';
 import { toast } from 'sonner';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
+import { BookmarkCollectionsMenu } from '@/components/bookmark-collections-menu';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { commitStateKey } from '@/lib/commit-state';
@@ -56,23 +57,26 @@ export function BookmarkButton({ commit }: { commit: Commit }) {
     };
 
     return (
-        <button
-            type="button"
-            onClick={toggle}
-            aria-disabled={request.processing}
-            aria-label={isSaved ? 'Unsave commit' : 'Save commit'}
-            aria-pressed={isSaved}
-            title={isSaved ? 'Unsave commit' : 'Save commit privately'}
-            className={cn(
-                'rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-disabled:pointer-events-none aria-disabled:opacity-50',
-                { 'text-primary hover:text-primary': isSaved },
-            )}
-            data-test="bookmark-button"
-        >
-            <Bookmark
-                aria-hidden
-                className={cn('size-4', { 'fill-current': isSaved })}
-            />
-        </button>
+        <>
+            {isSaved && <BookmarkCollectionsMenu commit={commit} />}
+            <button
+                type="button"
+                onClick={toggle}
+                aria-disabled={request.processing}
+                aria-label={isSaved ? 'Unsave commit' : 'Save commit'}
+                aria-pressed={isSaved}
+                title={isSaved ? 'Unsave commit' : 'Save commit privately'}
+                className={cn(
+                    'rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-disabled:pointer-events-none aria-disabled:opacity-50',
+                    { 'text-primary hover:text-primary': isSaved },
+                )}
+                data-test="bookmark-button"
+            >
+                <Bookmark
+                    aria-hidden
+                    className={cn('size-4', { 'fill-current': isSaved })}
+                />
+            </button>
+        </>
     );
 }

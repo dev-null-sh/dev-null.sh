@@ -10,17 +10,21 @@ use App\Http\Requests\CreateBookmarkRequest;
 use App\Http\Requests\DeleteBookmarkRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\BookmarkCollectionsQuery;
 use App\Queries\SavedCommitsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final readonly class BookmarkController
 {
-    public function index(#[CurrentUser] User $user, SavedCommitsQuery $saved): Response
+    public function index(#[CurrentUser] User $user, SavedCommitsQuery $saved, BookmarkCollectionsQuery $collections): Response
     {
         return Inertia::render('bookmark/index', [
+            'collection' => null,
+            'collections' => fn (): Collection => $collections->get($user),
             'commits' => Inertia::scroll(fn () => $saved->builder($user)->cursorPaginate(20)),
         ]);
     }

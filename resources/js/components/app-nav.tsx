@@ -103,7 +103,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                 ? isCurrentOrParentUrl('/settings')
                 : item.title === 'Log'
                   ? isCurrentOrParentUrl('/log')
-                  : isCurrentUrl(item.href)),
+                  : item.title === 'Saved'
+                    ? isCurrentOrParentUrl('/saved')
+                    : isCurrentUrl(item.href)),
     }));
 }
 

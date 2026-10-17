@@ -1,17 +1,27 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { LockKeyhole } from 'lucide-react';
 import { useRef } from 'react';
+import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { BookmarkRemovalContext } from '@/components/bookmark-button';
+import {
+    BookmarkCollectionBar,
+    BookmarkCollectionHeader,
+} from '@/components/bookmark-collections';
+import { BookmarkCollectionsContext } from '@/components/bookmark-collections-menu';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import AppLayout from '@/layouts/app-layout';
-import type { Commit, CursorPaginated } from '@/types';
+import type { BookmarkCollection, Commit, CursorPaginated } from '@/types';
 
 export default function Index({
     commits,
+    collections,
+    collection,
 }: {
     commits: CursorPaginated<Commit>;
+    collections: BookmarkCollection[];
+    collection: Pick<BookmarkCollection, 'id' | 'name'> | null;
 }) {
     const headingRef = useRef<HTMLHeadingElement>(null);
     const remove = (id: string) => {
@@ -44,10 +54,17 @@ export default function Index({
             );
         }
     };
+    const removeAndRecount = (id: string) => {
+        remove(id);
+
+        if (collections.length > 0) {
+            router.reload({ only: ['collections'] });
+        }
+    };
 
     return (
         <>
-            <Head title="Saved" />
+            <Head title={collection ? `${collection.name} · Saved` : 'Saved'} />
 
             <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b bg-card px-4 sm:px-6">
                 <h1 ref={headingRef} tabIndex={-1} className="font-semibold">
@@ -59,27 +76,65 @@ export default function Index({
                 </span>
             </header>
 
-            <p className="border-b px-4 py-3 text-sm text-muted-foreground sm:px-6">
-                Commits you want to come back to. Most recently saved first.
-            </p>
+            <BookmarkCollectionBar
+                collections={collections}
+                selectedId={collection?.id ?? null}
+            />
 
-            <BookmarkRemovalContext value={remove}>
-                <CommitFeed
-                    commits={commits}
-                    end="You've reached the end of your saved commits."
-                    empty={
-                        <EmptyFeed command="fatal: no saved commits yet">
-                            Save a commit to find it here. Your saved commits
-                            are private.
-                            <Link
-                                href={LogController.show('trending')}
-                                className="mt-3 block text-primary hover:underline"
-                            >
-                                Explore Trending
-                            </Link>
-                        </EmptyFeed>
-                    }
+            {collection ? (
+                <BookmarkCollectionHeader
+                    key={collection.id}
+                    collection={collection}
                 />
+            ) : (
+                <p className="border-b px-4 py-3 text-sm text-muted-foreground sm:px-6">
+                    Commits you want to come back to. Most recently saved first.
+                </p>
+            )}
+
+            <BookmarkRemovalContext value={removeAndRecount}>
+                <BookmarkCollectionsContext
+                    value={{
+                        collections,
+                        selectedId: collection?.id ?? null,
+                        onRemovedFromSelected: remove,
+                    }}
+                >
+                    <CommitFeed
+                        key={collection?.id ?? 'all'}
+                        commits={commits}
+                        end={
+                            collection
+                                ? "You've reached the end of this collection."
+                                : "You've reached the end of your saved commits."
+                        }
+                        empty={
+                            collection ? (
+                                <EmptyFeed command="fatal: nothing in this collection yet">
+                                    Open the collections menu on any saved
+                                    commit to add it here.
+                                    <Link
+                                        href={BookmarkController.index()}
+                                        className="mt-3 block text-primary hover:underline"
+                                    >
+                                        Back to all saved
+                                    </Link>
+                                </EmptyFeed>
+                            ) : (
+                                <EmptyFeed command="fatal: no saved commits yet">
+                                    Save a commit to find it here. Your saved
+                                    commits are private.
+                                    <Link
+                                        href={LogController.show('trending')}
+                                        className="mt-3 block text-primary hover:underline"
+                                    >
+                                        Explore Trending
+                                    </Link>
+                                </EmptyFeed>
+                            )
+                        }
+                    />
+                </BookmarkCollectionsContext>
             </BookmarkRemovalContext>
         </>
     );
