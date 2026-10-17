@@ -1,0 +1,191 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'counts' => [
+        'commits' => 'commit|commits',
+        'following' => 'seguindo',
+        'followers' => 'seguidor|seguidores',
+    ],
+
+    'follows_you' => 'Segue você',
+    'muted' => 'Silenciado',
+
+    'follow' => [
+        'follow' => 'Seguir',
+        'following' => 'Seguindo',
+        'unfollow' => 'Deixar de seguir',
+        'follow_label' => 'Seguir @:username',
+        'unfollow_label' => 'Deixar de seguir @:username',
+    ],
+
+    'profile' => [
+        'edit_on_github' => 'Editar no GitHub',
+        'view_achievements' => 'Ver conquistas e rank Unix',
+        'sponsor' => 'Patrocinar no GitHub',
+        'joined' => 'Entrou em :date',
+        'pasteis_received' => 'pastel recebido|pastéis recebidos',
+        'feed_label' => 'Feed do perfil',
+        'tabs' => [
+            'commits' => 'Commits',
+            'replies' => 'Respostas',
+        ],
+        'end' => [
+            'own_first_reply' => 'Essa foi sua primeira resposta.',
+            'first_reply' => 'Essa é a primeira resposta de @:username.',
+            'own_first_commit' => 'Esse foi seu primeiro commit. Todo mundo começa de algum lugar.',
+            'root_commit' => 'Esse é o root commit de @:username.',
+        ],
+        'empty' => [
+            'replies_command' => 'fatal: ainda não há respostas',
+            'own_replies' => 'Suas respostas aparecem aqui. Entre em uma conversa a partir do seu log.',
+            'replies' => '@:username ainda não respondeu a nada.',
+            'own_commits_command' => 'fatal: você ainda não tem commits',
+            'own_commits' => 'Seus commits aparecem aqui. Faça o primeiro a partir do seu log.',
+            'commits_command' => 'fatal: ainda não há commits',
+            'commits' => '@:username ainda não commitou nada.',
+        ],
+    ],
+
+    'connections' => [
+        'titles' => [
+            'following' => 'Seguindo',
+            'followers' => 'Seguidores',
+        ],
+        'tabs_label' => 'Conexões',
+        'back' => 'Voltar para @:username',
+        'empty_command' => [
+            'following' => 'fatal: ainda não segue ninguém',
+            'followers' => 'fatal: ainda não há seguidores',
+        ],
+        'empty' => [
+            'following' => '@:username ainda não segue ninguém.',
+            'followers' => 'Ninguém segue @:username ainda.',
+        ],
+    ],
+
+    'saved' => [
+        'title' => 'Salvos',
+        'only_you' => 'Só você',
+        'description' => 'Commits aos quais você quer voltar. Os salvos mais recentemente primeiro.',
+        'end' => 'Você chegou ao fim dos seus commits salvos.',
+        'empty_command' => 'fatal: ainda não há commits salvos',
+        'empty' => 'Salve um commit para encontrá-lo aqui. Seus commits salvos são privados.',
+        'explore' => 'Explorar Em alta',
+    ],
+
+    'preview' => [
+        'about' => 'Sobre @:username',
+        'blocked' => 'Você bloqueou @:username.',
+        'unavailable' => 'Este perfil não está disponível.',
+    ],
+
+    'safety' => [
+        'more_options' => 'Mais opções para @:username',
+        'mute' => 'Silenciar @:username',
+        'unmute' => 'Reativar som de @:username',
+        'block' => 'Bloquear @:username',
+        'unblock' => 'Desbloquear @:username',
+        'block_title' => 'Bloquear @:username?',
+        'block_description' => 'Vocês vão deixar de se seguir. Nenhum de vocês vai poder seguir, responder ou dar estrela ao outro, nem ver os commits um do outro. A pessoa não será avisada, mas verá seu perfil como indisponível. Você pode desbloquear quando quiser nas suas configurações.',
+        'cancel' => 'Cancelar',
+        'confirm_block' => 'Bloquear',
+    ],
+
+    'achievements' => [
+        'title' => 'Conquistas de dev',
+        'label' => 'Conquistas de dev',
+        'level' => 'Nv. :level · :rank',
+        'summary' => '@:username · :xp XP · :unlocked/:total emblemas desbloqueados',
+        'unlocked' => ':unlocked / :total desbloqueados',
+        'xp' => ':xp XP',
+        'xp_progress' => ':xp / :next XP',
+        'xp_to_rank' => ':xp XP para :rank',
+        'max_rank' => 'Rank máximo (UID 0)',
+        'badges_tab' => 'Emblemas (:count)',
+        'ranks_tab' => 'Ranks Unix (:count)',
+        'current' => 'ATUAL',
+        'achieved' => '✓ Conquistado',
+        'requires' => 'Requer :xp XP',
+        'formula' => 'XP: 10/commit · 15/dia de sequência · 5/estrela recebida · 5/resposta · 2/estrela dada',
+    ],
+
+    'activity' => [
+        'heading' => 'Atividade de commits',
+        'no_commits_yet' => 'Nenhum commit ainda',
+        'no_commits' => 'Nenhum commit',
+        'commit_count' => ':count commit|:count commits',
+        'summary' => ':commits :window',
+        'windows' => [
+            'day' => 'nas últimas 24 horas',
+            'week' => 'nos últimos 7 dias',
+            'month' => 'nos últimos 30 dias',
+            'year' => 'no último ano',
+        ],
+        'on_date' => ':commits em :date',
+        'between_today' => ':commits entre :start e :end hoje',
+        'between_yesterday' => ':commits entre :start e :end ontem',
+        'month_day' => ':day de :month',
+        'date_with_year' => ':day de :month de :year',
+        'date_with_weekday' => ':weekday, :day de :month',
+        'weekday_day' => ':weekday :day',
+        'less' => 'Menos',
+        'more' => 'Mais',
+        'months' => [
+            'jan' => 'jan',
+            'feb' => 'fev',
+            'mar' => 'mar',
+            'apr' => 'abr',
+            'may' => 'mai',
+            'jun' => 'jun',
+            'jul' => 'jul',
+            'aug' => 'ago',
+            'sep' => 'set',
+            'oct' => 'out',
+            'nov' => 'nov',
+            'dec' => 'dez',
+        ],
+        'weekdays' => [
+            'sun' => 'dom',
+            'mon' => 'seg',
+            'tue' => 'ter',
+            'wed' => 'qua',
+            'thu' => 'qui',
+            'fri' => 'sex',
+            'sat' => 'sáb',
+        ],
+    ],
+
+    'streaks' => [
+        'longest' => 'maior sequência',
+        'days' => 'dia|dias',
+        'current' => 'atual',
+    ],
+
+    'embed' => [
+        'title' => 'Incorpore seu gráfico de atividade',
+        'description' => 'Seu gráfico de commits como SVG para o README do seu perfil no GitHub ou qualquer lugar que renderize Markdown. Ele só mostra commits aprovados e é atualizado mais ou menos uma vez por hora.',
+        'theme_label' => 'Tema do gráfico',
+        'themes' => [
+            'light' => 'Claro',
+            'dark' => 'Escuro',
+            'auto' => 'Auto',
+        ],
+        'theme_hints' => [
+            'light' => 'Sempre claro, seja qual for a preferência de quem lê.',
+            'dark' => 'Sempre escuro, seja qual for a preferência de quem lê.',
+            'auto' => 'Segue o esquema de cores de quem estiver lendo.',
+        ],
+        'preview_alt' => 'Gráfico de atividade de commits de @:username',
+        'copy' => 'Copiar Markdown',
+        'copied' => 'Copiado',
+        'copied_toast' => 'Markdown copiado. Cole no seu README.',
+        'copy_failed' => 'fatal: não foi possível copiar o Markdown',
+    ],
+
+    'live' => [
+        'heading' => 'Assista à construção ao vivo',
+        'player_title' => 'Assista à construção do /dev/null ao vivo no YouTube',
+    ],
+];

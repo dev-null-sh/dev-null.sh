@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import type { Streaks } from '@/types';
 
 export function ActivityStreaks({
@@ -7,6 +8,8 @@ export function ActivityStreaks({
     streaks: Streaks;
     lane: string;
 }) {
+    const { __, transChoice } = useLang();
+
     if (streaks.longest === 0) {
         return null;
     }
@@ -14,11 +17,11 @@ export function ActivityStreaks({
     return (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-3 font-mono text-[13px] text-muted-foreground sm:px-6">
             <span>
-                longest streak{' '}
+                {__('users.streaks.longest')}{' '}
                 <span className="font-medium text-foreground">
                     {streaks.longest}
                 </span>{' '}
-                {streaks.longest === 1 ? 'day' : 'days'}
+                {transChoice('users.streaks.days', streaks.longest)}
             </span>
 
             {streaks.current > 0 && (
@@ -31,7 +34,7 @@ export function ActivityStreaks({
                             style={{ background: lane }}
                         />
                         <span>
-                            current{' '}
+                            {__('users.streaks.current')}{' '}
                             <span className="font-medium text-foreground">
                                 {streaks.current}
                             </span>

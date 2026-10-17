@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'titles' => [
+        'following' => '关注',
+        'latest' => '最新',
+        'trending' => '热门',
+    ],
+
+    'tabs_label' => '日志',
+    'new_commits' => ':count 条新提交|:count 条新提交',
+    'end' => '这是根提交，之前没有更多内容了。',
+
+    'empty' => [
+        'following_command' => 'fatal: 你的日志还没有任何提交',
+        'following' => '你的日志会显示你自己的提交，以及你关注的人的提交。',
+        'suggestions_intro' => '看看最近几位开发者都提交了什么：',
+        'find_someone_before' => '去',
+        'find_someone_after' => '找找值得关注的人吧。',
+        'command' => 'fatal: 还没有任何提交',
+        'nobody' => '还没有人提交过任何内容。来做第一个吧。只是纯文本而已，没问题的。',
+    ],
+
+    'suggestions' => [
+        'follow' => '关注',
+        'follow_label' => '关注 @:username',
+        'browse_before' => '或者去',
+        'browse_after' => '发现更多。',
+    ],
+];

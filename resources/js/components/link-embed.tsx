@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { AudioLines, Code2, Play } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
@@ -67,15 +68,22 @@ export function LinkEmbed({
     preview: LinkPreview;
     embed: Embed;
 }) {
+    const { __ } = useLang();
     const [isPlaying, setIsPlaying] = useState(false);
     const Icon = icons[embed.kind];
-    const label = `Play ${preview.title ?? preview.url} from ${embed.provider}`;
+    const label = __('commits.embed.play', {
+        title: preview.title ?? preview.url,
+        provider: embed.provider,
+    });
     const isVideo = embed.aspect_ratio !== null;
 
     const frame = (
         <iframe
             src={embed.src}
-            title={preview.title ?? `${embed.provider} player`}
+            title={
+                preview.title ??
+                __('commits.embed.player', { provider: embed.provider })
+            }
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture; clipboard-write"
             sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation allow-forms"
             referrerPolicy="strict-origin-when-cross-origin"

@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Link } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
@@ -14,6 +15,7 @@ export function QuotedCommit({
     commit: QuotedCommitData | DeletedCommit | null;
     isPreview?: boolean;
 }) {
+    const { __ } = useLang();
     const now = useNow();
     if (commit === null || isDeleted(commit)) {
         return (
@@ -25,8 +27,8 @@ export function QuotedCommit({
                     {commit === null ? '[unavailable]' : '[deleted]'}
                 </span>
                 {commit === null
-                    ? "This commit isn't available."
-                    : 'This commit was deleted.'}
+                    ? __('commits.quote.unavailable')
+                    : __('commits.card.tombstone')}
             </p>
         );
     }
@@ -36,7 +38,7 @@ export function QuotedCommit({
     const content = (
         <>
             <span className="flex min-w-0 items-center gap-1.5 text-sm">
-                <span className="sr-only">Quoting</span>
+                <span className="sr-only">{__('commits.quote.quoting')}</span>
                 <UserAvatar user={commit.user} className="size-5" />
                 <span className="truncate font-semibold">
                     {commit.user.name}
@@ -63,7 +65,7 @@ export function QuotedCommit({
                                 : 'bg-destructive/10 text-destructive',
                         )}
                     >
-                        {commit.status}
+                        {__(`commits.status.${commit.status}`)}
                     </span>
                 )}
             </span>

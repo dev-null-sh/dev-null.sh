@@ -1,27 +1,41 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head } from '@inertiajs/react';
 import AppearanceTabs from '@/components/appearance-tabs';
 import Heading from '@/components/heading';
+import LanguageSelect from '@/components/language-select';
 import WhoToFollowTabs from '@/components/who-to-follow-tabs';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 
 export default function Update() {
+    const { __ } = useLang();
+
     return (
         <>
-            <Head title="Appearance settings" />
+            <Head title={__('settings.appearance.title')} />
 
             <section className="px-4 py-6 sm:px-6">
                 <Heading
-                    title="Theme"
-                    description="System follows your operating system, light by day and dark by night if that's how you have it set."
+                    title={__('settings.appearance.theme')}
+                    description={__('settings.appearance.theme_description')}
                 />
                 <AppearanceTabs />
             </section>
 
             <section className="border-t px-4 py-6 sm:px-6">
                 <Heading
-                    title="Who to follow"
-                    description="Three people you might want to follow, in the right column, or in your log on smaller screens."
+                    title={__('settings.language.title')}
+                    description={__('settings.language.description')}
+                />
+                <LanguageSelect />
+            </section>
+
+            <section className="border-t px-4 py-6 sm:px-6">
+                <Heading
+                    title={__('settings.appearance.who_to_follow')}
+                    description={__(
+                        'settings.appearance.who_to_follow_description',
+                    )}
                 />
                 <WhoToFollowTabs />
             </section>

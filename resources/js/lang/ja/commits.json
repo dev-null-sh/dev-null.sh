@@ -1,0 +1,186 @@
+{
+    "actions": {
+        "cancel": "キャンセル",
+        "delete": "削除",
+        "more": "その他の操作",
+        "reply": "返信"
+    },
+    "status": {
+        "pending": "審査待ち",
+        "approved": "承認済み",
+        "rejected": "却下"
+    },
+    "card": {
+        "pending_title": "承認されるまで、このコミットはあなたにしか表示されません。",
+        "rejected_title": "このコミットは却下されました。あなたにしか表示されません。",
+        "commit_title": "コミット :id",
+        "delete": "コミットを削除",
+        "replying_to": "返信先: @:username",
+        "replying_to_deleted": "返信先: [deleted]",
+        "quoting": "引用元: @:username",
+        "quoting_deleted": "引用元: [deleted]",
+        "quoted": "引用",
+        "confirm_delete": "削除を確認",
+        "confirm_delete_message": "このコミットを削除しますか？30秒以内なら元に戻せます。",
+        "tombstone": "このコミットは削除されました。"
+    },
+    "thread": {
+        "unsent_reply": "未送信の返信があります",
+        "show_replies": "返信を表示",
+        "hide_replies": "返信を非表示",
+        "replies": ":count件の返信|:count件の返信",
+        "loading_replies": "返信を読み込み中",
+        "loading_replies_ellipsis": "返信を読み込み中…",
+        "show_more": "さらに表示",
+        "show_more_to": "返信をさらに表示：",
+        "delete": "返信を削除",
+        "delete_failed": "返信を削除できませんでした。もう一度お試しください。",
+        "confirm_delete_message": "この返信を削除しますか？30秒以内なら元に戻せます。",
+        "reply_failed": "返信を送信できませんでした。もう一度お試しください。",
+        "parent_unavailable": "このコミットには返信できなくなりました。",
+        "reply_to": "@:username に返信",
+        "replying": "返信中…"
+    },
+    "feed": {
+        "pinned_commit": "固定されたコミット",
+        "pinned": "固定",
+        "latest_commits": "最新のコミット",
+        "just_now": "たった今",
+        "top_commits": "人気のコミット",
+        "loading_more": "さらにコミットを読み込み中",
+        "today": "今日",
+        "yesterday": "昨日",
+        "last_visit_label": "ここより上は前回の訪問以降の新しいコミットです",
+        "last_visit": "前回の訪問"
+    },
+    "body": {
+        "show_more": "もっと見る"
+    },
+    "images": {
+        "attached": "添付画像",
+        "attached_numbered": "添付画像 :position\/:count"
+    },
+    "viewer": {
+        "hide_commit": "コミットを非表示",
+        "show_commit": "コミットを表示",
+        "hide_description": "画像の説明を非表示",
+        "show_description": "画像の説明を表示",
+        "commit": "コミット",
+        "previous": "前へ",
+        "next": "次へ",
+        "close": "閉じる",
+        "slide": "スライド",
+        "carousel": "カルーセル",
+        "lightbox": "ライトボックス",
+        "photo_gallery": "フォトギャラリー",
+        "slide_position": ":index\/:total",
+        "zoom_in": "拡大",
+        "zoom_out": "縮小",
+        "download": "ダウンロード"
+    },
+    "poll": {
+        "vote_failed": "投票を記録できませんでした。もう一度お試しください。",
+        "votes": ":count票|:count票",
+        "opens_once_approved": "承認後に投票できるようになります",
+        "closed": "投票は終了しました",
+        "final_results": "最終結果",
+        "time_left": "残り:time",
+        "options": "投票の選択肢",
+        "results": "投票結果",
+        "vote": "投票",
+        "voting": "投票中…",
+        "your_vote": "、あなたの投票"
+    },
+    "quote": {
+        "quoting": "引用",
+        "unavailable": "このコミットは利用できません。"
+    },
+    "report": {
+        "title": "コミットを報告",
+        "description": "報告の内容は非公開で、モデレーターだけが確認できます。報告してもこのコミットは非表示になりません。",
+        "too_many": "報告が多すぎます。1分ほど待ってからもう一度お試しください。",
+        "unavailable": "このコミットは報告できなくなりました。",
+        "network_error": "報告を送信できませんでした。接続を確認してもう一度お試しください。",
+        "reason_legend": "このコミットを報告する理由は何ですか？",
+        "reasons": {
+            "spam": "スパムまたは誤解を招くリンク",
+            "harassment": "嫌がらせまたはヘイト",
+            "unsafe": "有害な情報または個人情報",
+            "other": "その他"
+        },
+        "details": "詳細",
+        "optional": "（任意）",
+        "details_hint": "モデレーター向けに状況を補足してください。500文字以内。",
+        "sending": "送信中…",
+        "send": "報告を送信"
+    },
+    "bookmark": {
+        "failed": "保存済みコミットを更新できませんでした。もう一度お試しください。",
+        "save_commit": "コミットを保存",
+        "unsave_commit": "保存を解除",
+        "saved": "保存済み",
+        "save_privately": "コミットを非公開で保存"
+    },
+    "copy_link": {
+        "copy": "リンクをコピー",
+        "copied": ":hash へのリンクをコピーしました",
+        "failed": ":hash へのリンクをコピーできませんでした"
+    },
+    "star": {
+        "star": "スター",
+        "unstar": "スターを外す",
+        "star_commit": "コミットにスターを付ける",
+        "unstar_commit": "コミットのスターを外す",
+        "star_commit_count": "コミットにスターを付ける、スター:count件|コミットにスターを付ける、スター:count件",
+        "unstar_commit_count": "コミットのスターを外す、スター:count件|コミットのスターを外す、スター:count件",
+        "no_stars": "まだスターはありません",
+        "stars": "スター:count件|スター:count件"
+    },
+    "undo": {
+        "expired": "元に戻せる時間が過ぎました。",
+        "restored": "コミットを復元しました。",
+        "restore_failed": "このコミットを復元できませんでした。",
+        "deleted": "コミットを削除しました。",
+        "time_to_undo": "あと:timeは元に戻せます",
+        "availability": "削除後30秒間は元に戻せます。",
+        "restoring": "復元中…",
+        "undo": "元に戻す"
+    },
+    "pastel": {
+        "exhausted": "pastel を使い切りました。明日までお待ちください。",
+        "count": ":count pastel|:count pastel",
+        "award_failed": "pastel を贈れませんでした。もう一度お試しください。",
+        "give_label": "pastel を贈る、:pasteis、今日の残り:remaining個",
+        "give_title": "pastel を贈る · 今日の残り:remaining個 · 00:00 UTC にリセット"
+    },
+    "pin": {
+        "pin_to_profile": "プロフィールに固定",
+        "unpin_from_profile": "プロフィールへの固定を解除",
+        "pinned": "コミットをプロフィールに固定しました。",
+        "unpinned": "コミットの固定を解除しました。",
+        "failed": "固定コミットを更新できませんでした。",
+        "saving": "保存中…",
+        "pin": "固定",
+        "unpin": "固定を解除"
+    },
+    "embed": {
+        "play": ":provider の :title を再生",
+        "player": ":provider プレーヤー"
+    },
+    "code": {
+        "copy": "コードをコピー",
+        "copied": "コードをクリップボードにコピーしました",
+        "copy_failed": "コードをコピーできませんでした。選択して手動でコピーしてください。",
+        "wrap_lines": "折り返し"
+    },
+    "copyable": {
+        "copy": ":label をコピー",
+        "copied": ":label をコピーしました",
+        "failed": ":label をコピーできませんでした"
+    },
+    "show": {
+        "title": ":name：「:excerpt」",
+        "back": "戻る",
+        "heading": "コミット"
+    }
+}

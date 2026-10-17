@@ -13,10 +13,24 @@ async function render(
 ): Promise<string> {
     const result = await createInertiaApp<{
         auth: { user: { id: string } | null };
+        lang: Record<string, unknown>;
     }>({
         page: {
             component: 'star',
-            props: { auth: { user }, errors: {} },
+            props: {
+                auth: { user },
+                errors: {},
+                lang: {
+                    commits: {
+                        star: {
+                            star_commit_count:
+                                'Star commit, :count star|Star commit, :count stars',
+                            no_stars: 'No stars yet',
+                            stars: ':count star|:count stars',
+                        },
+                    },
+                },
+            },
             url: '/@author/commit',
             version: null,
             clearHistory: false,

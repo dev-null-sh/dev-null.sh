@@ -1,0 +1,110 @@
+{
+    "body": "正文",
+    "placeholder": "你上线了什么？",
+    "poll_placeholder": "提个问题",
+    "commit": "提交",
+    "committing": "正在提交…",
+    "commit_title": "提交 (:keys)",
+    "dialog": {
+        "title": "写一条提交",
+        "description": "提交后，它会出现在你的日志中。"
+    },
+    "guest": {
+        "title": "开发者的社交网络。",
+        "description": "下面的每个人都用 GitHub 登录，提交纯文本。轮到你了。",
+        "sign_in_to_commit": "使用 GitHub 登录后提交",
+        "profile": "你的个人资料来自 GitHub，无需填写任何内容。",
+        "sign_in": "使用 GitHub 登录"
+    },
+    "schedule": {
+        "button": "定时",
+        "submit_at": "提交时间",
+        "commit": "定时提交",
+        "scheduling": "正在设置定时…",
+        "commit_title": "定时提交 (:keys)",
+        "nonexistent_time": "这个时间在你的时区中不存在，请选择其他时间。",
+        "help_admin": ":timezone。30 天以内。提交前仅自己可见；你的提交将自动通过审核。",
+        "help_review": ":timezone。30 天以内。提交前仅自己可见；到时会提交审核，不会自动发布。",
+        "scheduled_commits": "定时提交 →"
+    },
+    "poll": {
+        "add": "添加投票",
+        "images_or_poll": "一条提交只能包含图片或投票，不能同时包含",
+        "legend": "投票",
+        "option": "选项 :number",
+        "remove_option": "移除选项 :number",
+        "remove_option_title": "移除选项",
+        "add_option": "添加选项",
+        "length": "投票时长",
+        "remove": "移除投票",
+        "hours": ":count 小时|:count 小时",
+        "days": ":count 天|:count 天"
+    },
+    "images": {
+        "invalid": "仅支持 10 MB 以内的 JPEG、PNG 或 WebP 图片。",
+        "drop_to_attach": "拖放图片以添加",
+        "too_many": "每条提交最多 :max 张图片。",
+        "attach": "添加图片",
+        "attach_title": "最多添加 :max 张图片",
+        "attached": "已添加的图片",
+        "attached_alt": "附图 :number",
+        "remove": "移除图片 :number",
+        "edit_description": "编辑图片 :number 的描述",
+        "add_description": "为图片 :number 添加描述",
+        "description_label": "图片 :number 的描述",
+        "description_placeholder": "为看不到图片的人描述一下",
+        "done": "完成"
+    },
+    "preview": {
+        "label": "预览",
+        "title": "预览 (:keys)",
+        "empty": "还没有可预览的内容。",
+        "link_card": "提交后会展开为链接卡片。"
+    },
+    "link_card": {
+        "title": "选择要显示卡片的链接",
+        "label": "链接卡片",
+        "sr_label": "链接卡片：",
+        "none": "不显示卡片"
+    },
+    "counter": {
+        "remaining": "还剩 :count 个字符|还剩 :count 个字符",
+        "fold_hint": "动态中会显示前 :length 个字符或 :lines 行，其余内容折叠在“显示更多”中。"
+    },
+    "stash": {
+        "restored": "已恢复你未发送的草稿",
+        "drop_title": "丢弃恢复的草稿"
+    },
+    "mentions": {
+        "emoji_label": "插入表情",
+        "label": "提及开发者",
+        "following": "你关注的人",
+        "searching": "正在搜索…",
+        "no_match": "fatal: 没有与 ':query' 匹配的开发者"
+    },
+    "secrets": {
+        "warning": "敏感文本警告",
+        "detected": "检测到可能的密钥|检测到可能的密钥",
+        "checked_locally": "已在你的设备上检查。草稿中含有检测到的密钥时不会被保存。",
+        "select": "选中可能的密钥",
+        "select_numbered": "选中可能的密钥 :number",
+        "remove_detected": "移除检测到的密钥",
+        "confirm_title": "要发布可能的密钥吗？",
+        "confirm_description": "这段文本可能包含凭据。请在发布前移除它们，除非你确定这些只是安全的示例。",
+        "keep_editing": "继续编辑",
+        "remove": "移除密钥",
+        "publish_anyway": "仍然发布"
+    },
+    "quote": {
+        "button": "引用",
+        "button_title": "引用 (:keys)",
+        "unsent": "你在这里有一条未发送的引用",
+        "title": "引用 :handle",
+        "description": "写一条你自己的提交，这条提交会嵌入在下方。",
+        "label": "你的提交",
+        "placeholder": "说说你的看法",
+        "cancel": "取消",
+        "submit": "引用",
+        "quoting": "正在引用…"
+    }
+}

@@ -1,0 +1,25 @@
+{
+    "titles": {
+        "following": "Abonnements",
+        "latest": "Récents",
+        "trending": "Tendances"
+    },
+    "tabs_label": "Logs",
+    "new_commits": ":count nouveau commit|:count nouveaux commits",
+    "end": "C'est le commit racine. Il n'y a rien avant.",
+    "empty": {
+        "following_command": "fatal: ton log n'a encore aucun commit",
+        "following": "Ton log affiche tes commits et ceux des personnes que tu suis.",
+        "suggestions_intro": "Voici ce que quelques développeurs ont commité récemment :",
+        "find_someone_before": "Trouve quelqu'un à suivre dans",
+        "find_someone_after": ".",
+        "command": "fatal: aucun commit pour le moment",
+        "nobody": "Personne n'a encore rien commité. Sois le premier. C'est juste du texte brut ; tout ira bien."
+    },
+    "suggestions": {
+        "follow": "Suivre",
+        "follow_label": "Suivre @:username",
+        "browse_before": "Ou parcours",
+        "browse_after": "pour en voir plus."
+    }
+}

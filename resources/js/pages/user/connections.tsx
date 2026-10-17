@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
@@ -45,7 +46,8 @@ export default function Connections({
     users: CursorPaginated<Connection>;
 }) {
     const { auth } = usePage().props;
-    const title = type === 'following' ? 'Following' : 'Followers';
+    const { __ } = useLang();
+    const title = __(`users.connections.titles.${type}`);
 
     return (
         <>
@@ -55,7 +57,9 @@ export default function Connections({
                 <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
                     <Link
                         href={show(user)}
-                        aria-label={`Back to @${user.username}`}
+                        aria-label={__('users.connections.back', {
+                            username: user.username,
+                        })}
                         className="text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft className="size-4" />
@@ -68,15 +72,16 @@ export default function Connections({
                     </p>
                 </div>
                 <PageTabs
-                    label="Connections"
+                    label={__('users.connections.tabs_label')}
+                    name="Connections"
                     tabs={[
                         {
-                            title: 'Followers',
+                            title: __('users.connections.titles.followers'),
                             href: UserFollowersController.index(user),
                             isActive: type === 'followers',
                         },
                         {
-                            title: 'Following',
+                            title: __('users.connections.titles.following'),
                             href: UserFollowingController.index(user),
                             isActive: type === 'following',
                         },
@@ -86,10 +91,12 @@ export default function Connections({
 
             {users.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
-                    <EmptyFeed command={`fatal: no ${type} yet`}>
-                        {type === 'following'
-                            ? `@${user.username} isn't following anyone yet.`
-                            : `Nobody is following @${user.username} yet.`}
+                    <EmptyFeed
+                        command={__(`users.connections.empty_command.${type}`)}
+                    >
+                        {__(`users.connections.empty.${type}`, {
+                            username: user.username,
+                        })}
                     </EmptyFeed>
                 </div>
             ) : (

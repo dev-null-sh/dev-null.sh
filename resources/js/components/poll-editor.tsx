@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -15,11 +16,11 @@ const maxOptionLength = 50;
 const maxOptions = 4;
 
 const durations = [
-    { minutes: 60, label: '1 hour' },
-    { minutes: 1440, label: '1 day' },
-    { minutes: 4320, label: '3 days' },
-    { minutes: 10080, label: '7 days' },
-];
+    { minutes: 60, unit: 'hours', count: 1 },
+    { minutes: 1440, unit: 'days', count: 1 },
+    { minutes: 4320, unit: 'days', count: 3 },
+    { minutes: 10080, unit: 'days', count: 7 },
+] as const;
 
 export function PollEditor({
     id,
@@ -34,6 +35,7 @@ export function PollEditor({
     onChange: (poll: PollDraft) => void;
     onRemove: () => void;
 }) {
+    const { __, transChoice } = useLang();
     const updateOption = (index: number, value: string) =>
         onChange({
             ...poll,
@@ -69,7 +71,7 @@ export function PollEditor({
             className="mt-2 rounded-lg border p-3"
             data-test="poll-editor"
         >
-            <legend className="sr-only">Poll</legend>
+            <legend className="sr-only">{__('composer.poll.legend')}</legend>
 
             <div className="space-y-2">
                 {poll.options.map((option, index) => {
@@ -82,7 +84,9 @@ export function PollEditor({
                                     htmlFor={`${id}-option-${index}`}
                                     className="sr-only"
                                 >
-                                    Option {index + 1}
+                                    {__('composer.poll.option', {
+                                        number: index + 1,
+                                    })}
                                 </label>
                                 <input
                                     id={`${id}-option-${index}`}
@@ -95,7 +99,9 @@ export function PollEditor({
                                         )
                                     }
                                     maxLength={maxOptionLength}
-                                    placeholder={`Option ${index + 1}`}
+                                    placeholder={__('composer.poll.option', {
+                                        number: index + 1,
+                                    })}
                                     autoComplete="off"
                                     aria-invalid={error ? true : undefined}
                                     className={cn(
@@ -107,8 +113,13 @@ export function PollEditor({
                                     <button
                                         type="button"
                                         onClick={() => removeOption(index)}
-                                        aria-label={`Remove option ${index + 1}`}
-                                        title="Remove option"
+                                        aria-label={__(
+                                            'composer.poll.remove_option',
+                                            { number: index + 1 },
+                                        )}
+                                        title={__(
+                                            'composer.poll.remove_option_title',
+                                        )}
                                         className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                                     >
                                         <X className="size-4" />
@@ -131,13 +142,13 @@ export function PollEditor({
                     data-test="add-poll-option-button"
                 >
                     <Plus />
-                    Add option
+                    {__('composer.poll.add_option')}
                 </Button>
             )}
 
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
                 <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                    Poll length
+                    {__('composer.poll.length')}
                     <span className="relative inline-flex">
                         <select
                             id="poll-duration"
@@ -156,7 +167,10 @@ export function PollEditor({
                                     key={duration.minutes}
                                     value={duration.minutes}
                                 >
-                                    {duration.label}
+                                    {transChoice(
+                                        `composer.poll.${duration.unit}`,
+                                        duration.count,
+                                    )}
                                 </option>
                             ))}
                         </select>
@@ -173,7 +187,7 @@ export function PollEditor({
                     onClick={onRemove}
                     className="text-muted-foreground hover:text-destructive"
                 >
-                    Remove poll
+                    {__('composer.poll.remove')}
                 </Button>
             </div>
 

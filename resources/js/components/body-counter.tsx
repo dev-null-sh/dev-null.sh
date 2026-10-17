@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { FoldVertical } from 'lucide-react';
 import {
     isFoldedInLists,
@@ -22,17 +23,21 @@ export function BodyCounter({
     body: string;
     className?: string;
 }) {
+    const { __, transChoice } = useLang();
     const remaining = maxBodyLength - characterCount(body);
     const isCounting = remaining <= countFrom;
     const isFolded = !isCounting && isFoldedInLists(body);
-    const foldHint = `Feeds show the first ${previewLength} characters or ${previewLines} lines, then “Show more”.`;
+    const foldHint = __('composer.counter.fold_hint', {
+        length: previewLength,
+        lines: previewLines,
+    });
 
     return (
         <span
             id={id}
             aria-label={
                 isCounting
-                    ? `${remaining} characters left`
+                    ? transChoice('composer.counter.remaining', remaining)
                     : isFolded
                       ? foldHint
                       : undefined

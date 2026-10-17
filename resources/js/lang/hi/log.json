@@ -1,0 +1,25 @@
+{
+    "titles": {
+        "following": "फ़ॉलोइंग",
+        "latest": "नए",
+        "trending": "ट्रेंडिंग"
+    },
+    "tabs_label": "लॉग",
+    "new_commits": ":count नया कमिट|:count नए कमिट",
+    "end": "यह रूट कमिट है। इससे पहले कुछ नहीं है।",
+    "empty": {
+        "following_command": "fatal: आपके लॉग में अभी कोई कमिट नहीं है",
+        "following": "आपके लॉग में आपके और आपके फ़ॉलो किए लोगों के कमिट दिखते हैं।",
+        "suggestions_intro": "कुछ डेवलपर्स ने हाल में ये कमिट किए:",
+        "find_someone_before": "फ़ॉलो करने लायक लोगों के लिए",
+        "find_someone_after": " देखें।",
+        "command": "fatal: अभी कोई कमिट नहीं",
+        "nobody": "अभी तक किसी ने कुछ कमिट नहीं किया। पहले आप बनें। यह बस सादा टेक्स्ट है; सब ठीक रहेगा।"
+    },
+    "suggestions": {
+        "follow": "फ़ॉलो करें",
+        "follow_label": "@:username को फ़ॉलो करें",
+        "browse_before": "या और लोगों के लिए",
+        "browse_after": "देखें।"
+    }
+}

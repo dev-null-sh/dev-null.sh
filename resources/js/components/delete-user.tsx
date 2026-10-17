@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Form } from '@inertiajs/react';
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import Heading from '@/components/heading';
@@ -13,11 +14,13 @@ import {
 } from '@/components/ui/dialog';
 
 export default function DeleteUser() {
+    const { __ } = useLang();
+
     return (
         <section className="px-4 py-6 sm:px-6">
             <Heading
-                title="Delete account"
-                description="Removes your /dev/null account, every commit and reply you've made, and everyone you follow. Replies others left under your commits go too. Replies under your replies stay, hanging off a [deleted] tombstone. Your GitHub account is not touched."
+                title={__('settings.delete_account.title')}
+                description={__('settings.delete_account.description')}
             />
 
             <Dialog>
@@ -27,17 +30,15 @@ export default function DeleteUser() {
                         className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                         data-test="delete-user-button"
                     >
-                        Delete account
+                        {__('settings.delete_account.title')}
                     </Button>
                 </DialogTrigger>
                 <DialogContent>
-                    <DialogTitle>Delete your account?</DialogTitle>
+                    <DialogTitle>
+                        {__('settings.delete_account.confirm_title')}
+                    </DialogTitle>
                     <DialogDescription>
-                        Your profile, commits, replies, and follows go to
-                        /dev/null, along with every reply others left under your
-                        commits. Replies under your replies stay, under a
-                        [deleted] tombstone. This can't be undone. You can sign
-                        in with GitHub again later, but you'll start from zero.
+                        {__('settings.delete_account.confirm_description')}
                     </DialogDescription>
 
                     <Form {...UserController.destroy.form()}>
@@ -45,7 +46,7 @@ export default function DeleteUser() {
                             <DialogFooter className="gap-2">
                                 <DialogClose asChild>
                                     <Button variant="outline">
-                                        Keep my account
+                                        {__('settings.delete_account.keep')}
                                     </Button>
                                 </DialogClose>
 
@@ -55,7 +56,7 @@ export default function DeleteUser() {
                                     disabled={processing}
                                     data-test="confirm-delete-user-button"
                                 >
-                                    Delete account
+                                    {__('settings.delete_account.title')}
                                 </Button>
                             </DialogFooter>
                         )}

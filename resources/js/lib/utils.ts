@@ -107,7 +107,14 @@ export function localDayKey(date: string): string {
     return `${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`;
 }
 
-export function formatDayLabel(date: string, now: Date = new Date()): string {
+export function formatDayLabel(
+    date: string,
+    now: Date = new Date(),
+    labels: { today: string; yesterday: string } = {
+        today: 'Today',
+        yesterday: 'Yesterday',
+    },
+): string {
     const day = new Date(date);
     const startOfToday = new Date(
         now.getFullYear(),
@@ -124,11 +131,11 @@ export function formatDayLabel(date: string, now: Date = new Date()): string {
     );
 
     if (daysAgo === 0) {
-        return 'Today';
+        return labels.today;
     }
 
     if (daysAgo === 1) {
-        return 'Yesterday';
+        return labels.yesterday;
     }
 
     return day.toLocaleDateString(undefined, {

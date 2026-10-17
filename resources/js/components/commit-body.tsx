@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { CodeBlock } from '@/components/code-block';
@@ -71,6 +72,7 @@ export function FoldedCommitBody({
     previewSegments: BodySegment[] | null;
     className?: string;
 }) {
+    const { __ } = useLang();
     const [isUnfolded, setIsUnfolded] = useState(false);
     const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -107,7 +109,7 @@ export function FoldedCommitBody({
                     className="mt-0.5 text-[15px] font-medium text-primary hover:underline"
                     data-test="show-more"
                 >
-                    Show more
+                    {__('commits.body.show_more')}
                 </button>
             )}
         </div>

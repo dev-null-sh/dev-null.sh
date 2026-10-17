@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -39,6 +40,7 @@ export default function Show({
         flash,
         props: { auth },
     } = usePage();
+    const { __, transChoice } = useLang();
     const user = auth.user;
     const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
@@ -135,29 +137,30 @@ export default function Show({
 
     return (
         <>
-            <Head title={titles[log]} />
+            <Head title={__(`log.titles.${log}`)} />
 
             <div
                 ref={tabsRef}
                 className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]"
             >
-                <h1 className="sr-only">{titles[log]}</h1>
+                <h1 className="sr-only">{__(`log.titles.${log}`)}</h1>
                 <PageTabs
-                    label="Logs"
+                    label={__('log.tabs_label')}
+                    name="Logs"
                     prefetch={false}
                     tabs={[
                         {
-                            title: 'Following',
+                            title: __('log.titles.following'),
                             href: LogController.show('following'),
                             isActive: log === 'following',
                         },
                         {
-                            title: 'Latest',
+                            title: __('log.titles.latest'),
                             href: LogController.show('latest'),
                             isActive: log === 'latest',
                         },
                         {
-                            title: 'Trending',
+                            title: __('log.titles.trending'),
                             href: LogController.show('trending'),
                             isActive: log === 'trending',
                         },
@@ -178,8 +181,7 @@ export default function Show({
                         className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                     >
                         <ArrowUp className="size-4" />
-                        {newCommitsCount}{' '}
-                        {newCommitsCount === 1 ? 'new commit' : 'new commits'}
+                        {transChoice('log.new_commits', newCommitsCount)}
                     </button>
                 </div>
             )}
@@ -191,18 +193,19 @@ export default function Show({
                     firstSeenId={firstSeenId}
                     latestCommits={latestCommits}
                     isRanked={isRanked}
-                    end="That's the root commit. There's nothing before it."
+                    end={__('log.end')}
                     interlude={(lane, isDimmed) => (
                         <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
                     )}
                     empty={
                         log === 'following' ? (
-                            <EmptyFeed command="fatal: your log does not have any commits yet">
-                                Your log shows your commits and commits from
-                                people you follow.{' '}
+                            <EmptyFeed
+                                command={__('log.empty.following_command')}
+                            >
+                                {__('log.empty.following')}{' '}
                                 {suggestions.length > 0
-                                    ? 'Here is what a few developers committed lately:'
-                                    : 'Find someone worth following on '}
+                                    ? __('log.empty.suggestions_intro')
+                                    : `${__('log.empty.find_someone_before')} `}
                                 {suggestions.length === 0 && (
                                     <>
                                         <Link
@@ -211,9 +214,9 @@ export default function Show({
                                             )}
                                             className="font-medium text-primary underline"
                                         >
-                                            Trending
+                                            {__('log.titles.trending')}
                                         </Link>
-                                        .
+                                        {__('log.empty.find_someone_after')}
                                     </>
                                 )}
                                 {suggestions.length > 0 && (
@@ -221,9 +224,8 @@ export default function Show({
                                 )}
                             </EmptyFeed>
                         ) : (
-                            <EmptyFeed command="fatal: no commits yet">
-                                Nobody has committed anything. Be the first.
-                                It's just plain text; you'll be fine.
+                            <EmptyFeed command={__('log.empty.command')}>
+                                {__('log.empty.nobody')}
                             </EmptyFeed>
                         )
                     }
@@ -232,12 +234,6 @@ export default function Show({
         </>
     );
 }
-
-const titles: Record<Log, string> = {
-    following: 'Following',
-    latest: 'Latest',
-    trending: 'Trending',
-};
 
 /**
  * Commits fetched earlier are older than the ones fetched last, so the newest of all is where the next fetch starts.
@@ -255,6 +251,8 @@ function newestOf(commits: Commit[]): Commit | undefined {
 }
 
 function Suggestions({ suggestions }: { suggestions: Commit[] }) {
+    const { __ } = useLang();
+
     return (
         <>
             <ul className="mt-5 divide-y rounded-lg border text-left">
@@ -283,23 +281,25 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 href={UserFollowController.store(commit.user)}
                                 as="button"
                                 preserveScroll
-                                aria-label={`Follow @${commit.user.username}`}
+                                aria-label={__('log.suggestions.follow_label', {
+                                    username: commit.user.username,
+                                })}
                             >
-                                Follow
+                                {__('log.suggestions.follow')}
                             </Link>
                         </Button>
                     </li>
                 ))}
             </ul>
             <p className="mt-4 text-sm text-muted-foreground">
-                Or browse{' '}
+                {__('log.suggestions.browse_before')}{' '}
                 <Link
                     href={LogController.show('trending')}
                     className="font-medium text-primary underline"
                 >
-                    Trending
+                    {__('log.titles.trending')}
                 </Link>{' '}
-                for more.
+                {__('log.suggestions.browse_after')}
             </p>
         </>
     );

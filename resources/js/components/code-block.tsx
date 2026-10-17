@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Check, Copy, WrapText } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -13,6 +14,7 @@ export function CodeBlock({
     language: string | null;
     isCopyable?: boolean;
 }) {
+    const { __ } = useLang();
     const codeRef = useRef<HTMLPreElement>(null);
     const [, copy] = useClipboard();
     const [isCopied, setIsCopied] = useState(false);
@@ -42,7 +44,7 @@ export function CodeBlock({
         setIsCopied(false);
         toast.error(
             <span className="font-mono text-[13px]">
-                Could not copy code. Select it and copy manually.
+                {__('commits.code.copy_failed')}
             </span>,
         );
     };
@@ -59,9 +61,9 @@ export function CodeBlock({
                             <button
                                 type="button"
                                 onClick={() => setIsWrapped(!isWrapped)}
-                                aria-label="Wrap lines"
+                                aria-label={__('commits.code.wrap_lines')}
                                 aria-pressed={isWrapped}
-                                title="Wrap lines"
+                                title={__('commits.code.wrap_lines')}
                                 className={cn(
                                     'grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                                     isWrapped && 'bg-muted text-foreground',
@@ -72,8 +74,8 @@ export function CodeBlock({
                             <button
                                 type="button"
                                 onClick={copyCode}
-                                aria-label="Copy code"
-                                title="Copy code"
+                                aria-label={__('commits.code.copy')}
+                                title={__('commits.code.copy')}
                                 className={cn(
                                     'relative grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                                     isCopied && 'text-foreground',
@@ -97,7 +99,7 @@ export function CodeBlock({
                                 />
                             </button>
                             <span role="status" className="sr-only">
-                                {isCopied ? 'Code copied to clipboard' : ''}
+                                {isCopied ? __('commits.code.copied') : ''}
                             </span>
                         </div>
                     )}

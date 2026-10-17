@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -8,6 +9,7 @@ export function PasteisModeSetting() {
     const { auth } = usePage().props;
     const enabled = auth.pasteis !== null;
     const [processing, setProcessing] = useState(false);
+    const { __ } = useLang();
 
     const toggle = () => {
         if (processing) {
@@ -22,10 +24,7 @@ export function PasteisModeSetting() {
                 only: ['auth'],
                 onStart: () => setProcessing(true),
                 onFinish: () => setProcessing(false),
-                onError: () =>
-                    toast.error(
-                        'Could not save pastéis mode. Please try again.',
-                    ),
+                onError: () => toast.error(__('settings.pasteis.save_failed')),
                 onSuccess: () => router.flushAll(),
             },
         );
@@ -39,19 +38,16 @@ export function PasteisModeSetting() {
                         id="pasteis-mode-label"
                         className="text-base font-semibold"
                     >
-                        Pastéis mode
+                        {__('settings.pasteis.title')}
                     </h2>
                     <p
                         id="pasteis-mode-description"
                         className="text-sm text-muted-foreground"
                     >
-                        A little appreciation, fresh daily. Get 10 pastéis to
-                        give to other people’s commits, one per click. Your
-                        allowance resets at 00:00 UTC.
+                        {__('settings.pasteis.description')}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                        When off, all pastéis controls and counters are hidden.
-                        You still receive pastéis from others.
+                        {__('settings.pasteis.off_note')}
                     </p>
                 </div>
                 <button

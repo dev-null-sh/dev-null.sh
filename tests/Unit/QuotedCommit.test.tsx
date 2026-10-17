@@ -46,7 +46,13 @@ async function render(
     const result = await createInertiaApp({
         page: {
             component: 'quote',
-            props: { errors: {} },
+            props: {
+                auth: { user: null },
+                errors: {},
+                lang: {
+                    commits: { poll: { votes: ':count vote|:count votes' } },
+                },
+            },
             url: '/@author/quote',
             version: null,
             clearHistory: false,

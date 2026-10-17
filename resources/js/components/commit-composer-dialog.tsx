@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { CommitComposer } from '@/components/commit-composer';
 import {
     Dialog,
@@ -50,6 +51,7 @@ export function CommitComposerDialog({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
+    const { __ } = useLang();
     const [, setClosedCount] = useSharedState<number>(closedCountKey, 0);
 
     const close = () => {
@@ -87,10 +89,10 @@ export function CommitComposerDialog({
                     data-test="commit-composer-dialog"
                 >
                     <DialogTitle className="px-5 pt-5 pb-1 text-base">
-                        Write a commit
+                        {__('composer.dialog.title')}
                     </DialogTitle>
                     <DialogDescription className="sr-only">
-                        Your commit is added to your log once it is submitted.
+                        {__('composer.dialog.description')}
                     </DialogDescription>
                     <CommitComposer
                         id={bodyId}

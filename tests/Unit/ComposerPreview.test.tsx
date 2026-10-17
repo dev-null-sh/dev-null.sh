@@ -13,6 +13,24 @@ import {
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
 
+const lang = {
+    composer: {
+        counter: { remaining: ':count character left|:count characters left' },
+        preview: { label: 'Preview', title: 'Preview (:keys)' },
+        secrets: {
+            warning: 'Sensitive text warning',
+            remove_detected: 'Remove detected secrets',
+            confirm_title: 'Publish possible secrets?',
+        },
+    },
+    commits: {
+        images: {
+            attached: 'Attached image',
+            attached_numbered: 'Attached image :position of :count',
+        },
+    },
+};
+
 function renderPage(content: ReactElement, pasteisMode = false): string {
     return renderToStaticMarkup(
         <App
@@ -24,6 +42,7 @@ function renderPage(content: ReactElement, pasteisMode = false): string {
                     version: null,
                     props: {
                         errors: {},
+                        lang,
                         auth: {
                             user: null,
                             pasteis: pasteisMode
@@ -127,6 +146,7 @@ function renderComposer(body: string): string {
                         version: null,
                         props: {
                             errors: {},
+                            lang,
                             auth: {
                                 user: {
                                     id: 'preview-user',

@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head, router } from '@inertiajs/react';
 import { ArrowRight, Search, Sparkles, X } from 'lucide-react';
 import type { FormEvent } from 'react';
@@ -18,6 +19,7 @@ export default function Index({ query }: { query: string }) {
     const [draft, setDraft] = useState(query);
     const inputRef = useRef<HTMLInputElement>(null);
     const { results, isWaiting } = useCommitSearch(query);
+    const { __ } = useLang();
 
     const search = (term: string) => {
         router.get(
@@ -45,10 +47,16 @@ export default function Index({ query }: { query: string }) {
 
     return (
         <>
-            <Head title={query === '' ? 'Search' : `${query} · Search`} />
+            <Head
+                title={
+                    query === ''
+                        ? __('search.title')
+                        : __('search.title_with_query', { query })
+                }
+            />
 
             <header className="sticky top-0 z-10 border-b bg-card px-4 py-3 sm:px-6">
-                <h1 className="sr-only">Search</h1>
+                <h1 className="sr-only">{__('search.title')}</h1>
                 <form role="search" onSubmit={submit} className="relative">
                     <Search
                         aria-hidden
@@ -61,8 +69,8 @@ export default function Index({ query }: { query: string }) {
                         maxLength={100}
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
-                        placeholder="Search commits by meaning"
-                        aria-label="Search commits"
+                        placeholder={__('search.placeholder')}
+                        aria-label={__('search.input_label')}
                         autoComplete="off"
                         className="h-11 w-full rounded-full border bg-background pr-11 pl-10 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring md:text-[15px] [&::-webkit-search-cancel-button]:hidden"
                         data-test="search-input"
@@ -70,7 +78,7 @@ export default function Index({ query }: { query: string }) {
                     <button
                         type="button"
                         onClick={clear}
-                        aria-label="Clear search"
+                        aria-label={__('search.clear')}
                         className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-[color,opacity] hover:text-foreground disabled:pointer-events-none disabled:opacity-0"
                         disabled={draft === ''}
                     >
@@ -139,6 +147,8 @@ function SearchResults({
     results: Results | null;
     isWaiting: boolean;
 }) {
+    const { __, transChoice } = useLang();
+
     if (results === null) {
         return <ResultsSkeleton isVisible={isWaiting} />;
     }
@@ -147,21 +157,20 @@ function SearchResults({
         <section aria-labelledby="search-results" aria-busy={isWaiting}>
             <div className="flex h-11 items-center justify-between border-b px-4 sm:px-6">
                 <h2 id="search-results" className="font-semibold">
-                    Most relevant commits
+                    {__('search.most_relevant')}
                 </h2>
                 <span className="font-mono text-xs text-muted-foreground tabular-nums">
                     {results.commits.length}{' '}
-                    {results.commits.length === 1 ? 'match' : 'matches'}
+                    {transChoice('search.matches', results.commits.length)}
                 </span>
             </div>
 
             {results.commits.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed
-                        command={`fatal: nothing close to '${results.term}'`}
+                        command={`fatal: ${__('search.nothing_close', { term: results.term })}`}
                     >
-                        Try describing the idea in other words, or pick one of
-                        the searches below.
+                        {__('search.nothing_close_hint')}
                     </EmptyFeed>
                 </div>
             ) : (
@@ -187,10 +196,12 @@ function SearchResults({
  * Takes the loaded header's height even before it shows, so the results land without pushing anything around.
  */
 function ResultsSkeleton({ isVisible }: { isVisible: boolean }) {
+    const { __ } = useLang();
+
     return (
         <div
             role="status"
-            aria-label="Searching commits"
+            aria-label={__('search.searching')}
             className={isVisible ? 'opacity-100' : 'opacity-0'}
         >
             <div className="flex h-11 items-center border-b px-4 sm:px-6">
@@ -210,6 +221,7 @@ function Suggestions({
     onPick: (term: string) => void;
     exclude?: string;
 }) {
+    const { __ } = useLang();
     const visible = suggestedQueries.filter((term) => term !== exclude);
 
     return (
@@ -222,7 +234,7 @@ function Suggestions({
                 className="mb-3 flex items-center gap-2 font-semibold"
             >
                 <Sparkles aria-hidden className="size-4 text-primary" />
-                Try searching for…
+                {__('search.try_searching')}
             </h2>
             <ul className="space-y-2">
                 {visible.map((term) => (

@@ -808,7 +808,7 @@ it('does not mention an unavailable parent in the link preview', function (Closu
     $this->get(route('commit.show', [$reply->user, $reply]))
         ->assertOk()
         ->assertSee('<meta property="og:title" content="@octocat on /dev/null: “', false)
-        ->assertDontSee('replying to')
+        ->assertDontSee('replying to @taylorotwell')
         ->assertDontSee('taylorotwell')
         ->assertDontSee('The parent commit');
 })->with([

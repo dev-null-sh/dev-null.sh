@@ -50,7 +50,11 @@ async function renderThread(count: number) {
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {} },
+            props: {
+                auth: { user: null },
+                errors: {},
+                lang: { commits: { thread: { show_more: 'Show more' } } },
+            },
             url: '/',
             version: null,
             clearHistory: false,

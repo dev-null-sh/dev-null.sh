@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useLang } from '@erag/lang-sync-inertia/react';
+import { useMemo, useState } from 'react';
 import { useScrambledHash } from '@/hooks/use-scrambled-hash';
 import { commitPhotoUrl, openCommitPhoto } from '@/lib/commit-photo';
 import { cn } from '@/lib/utils';
@@ -8,14 +9,38 @@ export function commitImageAlt(
     image: Pick<CommitImage, 'description'>,
     index: number,
     count: number,
+    labels: {
+        single: string;
+        numbered: (position: number, count: number) => string;
+    } = {
+        single: 'Attached image',
+        numbered: (position, total) => `Attached image ${position} of ${total}`,
+    },
 ): string {
     if (image.description) {
         return image.description;
     }
 
-    return count > 1
-        ? `Attached image ${index + 1} of ${count}`
-        : 'Attached image';
+    return count > 1 ? labels.numbered(index + 1, count) : labels.single;
+}
+
+export function useCommitImageAltLabels(): NonNullable<
+    Parameters<typeof commitImageAlt>[3]
+> {
+    const { __ } = useLang();
+    const single = __('commits.images.attached');
+    const numbered = __('commits.images.attached_numbered');
+
+    return useMemo(
+        () => ({
+            single,
+            numbered: (position, count) =>
+                numbered
+                    .replace(':position', String(position))
+                    .replace(':count', String(count)),
+        }),
+        [single, numbered],
+    );
 }
 
 type ShownImage = Pick<CommitImage, 'id' | 'url' | 'description'> &
@@ -58,14 +83,18 @@ function CommitImageLoading({ hash }: { hash: string }) {
 
 function CommitImageThumbnail({
     image,
-    alt,
+    index,
+    count,
     className,
 }: {
     image: ShownImage;
-    alt: string;
+    index: number;
+    count: number;
     className: string;
 }) {
+    const altLabels = useCommitImageAltLabels();
     const [isLoaded, setIsLoaded] = useState(false);
+    const alt = commitImageAlt(image, index, count, altLabels);
 
     return (
         <>
@@ -130,7 +159,8 @@ export function CommitImages({
                 const thumbnail = (
                     <CommitImageThumbnail
                         image={image}
-                        alt={commitImageAlt(image, index, images.length)}
+                        index={index}
+                        count={images.length}
                         className={cn(
                             'w-full object-cover data-fallback:object-contain',
                             hasMultipleImages ? 'h-full' : 'max-h-[32rem]',

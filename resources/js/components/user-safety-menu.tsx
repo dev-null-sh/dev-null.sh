@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { router } from '@inertiajs/react';
 import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
@@ -34,6 +35,7 @@ export function UserSafetyMenu({
     className?: string;
     onOpenChange?: (isOpen: boolean) => void;
 }) {
+    const { __ } = useLang();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfirmingBlock, setIsConfirmingBlock] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -68,7 +70,9 @@ export function UserSafetyMenu({
                         variant="outline"
                         size="icon"
                         className={cn('shrink-0', className)}
-                        aria-label={`More options for @${user.username}`}
+                        aria-label={__('users.safety.more_options', {
+                            username: user.username,
+                        })}
                         data-test="user-safety-menu"
                     >
                         <Ellipsis />
@@ -86,9 +90,12 @@ export function UserSafetyMenu({
                         }
                     >
                         {isMuting ? <Volume2 /> : <VolumeX />}
-                        {isMuting
-                            ? `Unmute @${user.username}`
-                            : `Mute @${user.username}`}
+                        {__(
+                            isMuting
+                                ? 'users.safety.unmute'
+                                : 'users.safety.mute',
+                            { username: user.username },
+                        )}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         variant={isBlocking ? 'default' : 'destructive'}
@@ -100,9 +107,12 @@ export function UserSafetyMenu({
                         }
                     >
                         <Ban />
-                        {isBlocking
-                            ? `Unblock @${user.username}`
-                            : `Block @${user.username}`}
+                        {__(
+                            isBlocking
+                                ? 'users.safety.unblock'
+                                : 'users.safety.block',
+                            { username: user.username },
+                        )}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
@@ -112,18 +122,20 @@ export function UserSafetyMenu({
                 onOpenChange={(open) => changeOpen(false, open)}
             >
                 <DialogContent>
-                    <DialogTitle>Block @{user.username}?</DialogTitle>
+                    <DialogTitle>
+                        {__('users.safety.block_title', {
+                            username: user.username,
+                        })}
+                    </DialogTitle>
                     <DialogDescription>
-                        You'll stop following each other. Neither of you will be
-                        able to follow, reply to, or star the other, or see each
-                        other's commits. They won't be told, but they'll see
-                        your profile as unavailable. You can unblock them any
-                        time from your settings.
+                        {__('users.safety.block_description')}
                     </DialogDescription>
 
                     <DialogFooter className="gap-2">
                         <DialogClose asChild>
-                            <Button variant="outline">Cancel</Button>
+                            <Button variant="outline">
+                                {__('users.safety.cancel')}
+                            </Button>
                         </DialogClose>
 
                         <Button
@@ -134,7 +146,7 @@ export function UserSafetyMenu({
                             }
                             data-test="confirm-block-button"
                         >
-                            Block
+                            {__('users.safety.confirm_block')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

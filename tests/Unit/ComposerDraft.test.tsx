@@ -51,7 +51,7 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user, isAdmin: false } } }),
+    usePage: () => ({ props: { auth: { user, isAdmin: false }, lang: {} } }),
     useHttp: () => ({ processing: false, transform: vi.fn(), submit: vi.fn() }),
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({

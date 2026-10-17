@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import type { CancelToken } from '@inertiajs/core';
 import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
 import {
@@ -53,46 +54,14 @@ type Filters = {
         | 'moderation';
 };
 
-const filterOptions: {
-    type: Filters['type'];
-    label: string;
-    empty: string;
-}[] = [
-    {
-        type: 'all',
-        label: 'All',
-        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, and moderation updates for your commits will show up here.',
-    },
-    {
-        type: 'replies',
-        label: 'Replies',
-        empty: 'No replies yet. When someone replies to one of your commits, it shows up here.',
-    },
-    {
-        type: 'quotes',
-        label: 'Quotes',
-        empty: 'No quotes yet. When someone quotes one of your commits, it shows up here.',
-    },
-    {
-        type: 'stars',
-        label: 'Stars',
-        empty: 'No stars yet. When someone stars one of your commits, it shows up here.',
-    },
-    {
-        type: 'mentions',
-        label: 'Mentions',
-        empty: 'No mentions yet. When someone mentions you in a commit, it shows up here.',
-    },
-    {
-        type: 'follows',
-        label: 'Follows',
-        empty: 'No followers yet. When someone follows you, it shows up here.',
-    },
-    {
-        type: 'moderation',
-        label: 'Moderation',
-        empty: 'No moderation updates. Approved and rejected commits show up here.',
-    },
+const filterOptions: { type: Filters['type'] }[] = [
+    { type: 'all' },
+    { type: 'replies' },
+    { type: 'quotes' },
+    { type: 'stars' },
+    { type: 'mentions' },
+    { type: 'follows' },
+    { type: 'moderation' },
 ];
 
 const rail = 'var(--rail)';
@@ -139,6 +108,7 @@ export default function Index({
     filters: Filters;
     readAt: string;
 }) {
+    const { __, transChoice } = useLang();
     const now = useNow();
     const pollRequest = useRef<CancelToken | null>(null);
     const filterNav = useRef<HTMLElement>(null);
@@ -263,14 +233,16 @@ export default function Index({
 
     return (
         <>
-            <Head title="Notifications" />
+            <Head title={__('notifications.title')} />
             <div ref={header} className="sticky top-0 z-10 border-b bg-card">
                 <div className="flex h-14 items-center px-4 sm:px-6">
-                    <h1 className="font-semibold">Notifications</h1>
+                    <h1 className="font-semibold">
+                        {__('notifications.title')}
+                    </h1>
                 </div>
                 <nav
                     ref={filterNav}
-                    aria-label="Filter notifications"
+                    aria-label={__('notifications.filter_label')}
                     className="flex [scrollbar-width:none] overflow-x-auto px-1 sm:px-3"
                 >
                     {filterOptions.map((option) => {
@@ -287,7 +259,7 @@ export default function Index({
                                 )}
                             >
                                 <span className="relative block py-3">
-                                    {option.label}
+                                    {__(`notifications.filters.${option.type}`)}
                                     {isActive && (
                                         <span
                                             aria-hidden
@@ -317,9 +289,7 @@ export default function Index({
                             <span className="tabular-nums">
                                 {arrivals}
                             </span>{' '}
-                            {arrivals === 1
-                                ? 'new notification'
-                                : 'new notifications'}
+                            {transChoice('notifications.new_label', arrivals)}
                         </button>
                     </div>
                 )}
@@ -333,13 +303,13 @@ export default function Index({
                                 : `$ cat /dev/notifications | grep ${active.type}`
                         }
                     >
-                        {active.empty}
+                        {__(`notifications.empty.${active.type}`)}
                         {active.type !== 'all' && (
                             <a
                                 {...filterLink('all')}
                                 className="mt-3 block text-primary hover:underline"
                             >
-                                Show all notifications
+                                {__('notifications.show_all')}
                             </a>
                         )}
                     </EmptyFeed>
@@ -353,7 +323,7 @@ export default function Index({
                         loading={
                             <div
                                 role="status"
-                                aria-label="Loading more notifications"
+                                aria-label={__('notifications.loading_more')}
                                 className="animate-in opacity-0 delay-300 fill-mode-forwards fade-in"
                             >
                                 <NotificationSkeleton hasPrevious />
@@ -410,8 +380,7 @@ export default function Index({
                                 hasTail={false}
                             />
                             <p className="pt-[1.3rem] pr-4 pb-10 text-sm text-muted-foreground">
-                                That's the oldest notification. There's nothing
-                                before it.
+                                {__('notifications.end')}
                             </p>
                         </div>
                     )}
@@ -441,10 +410,12 @@ function DayMarker({
 }
 
 function LastVisitMarker() {
+    const { __ } = useLang();
+
     return (
         <div
             role="separator"
-            aria-label="Notifications above are new since your last visit"
+            aria-label={__('notifications.last_visit')}
             className="flex"
         >
             <RailSegment lane={rail} />
@@ -479,7 +450,9 @@ function NotificationSkeleton({ hasPrevious }: { hasPrevious: boolean }) {
     );
 }
 
-function groupNoun(notification: NotificationGroup): string {
+function groupNoun(
+    notification: NotificationGroup,
+): 'followers' | 'stars' | 'updates' {
     if (notification.type === 'followed') {
         return 'followers';
     }
@@ -510,6 +483,7 @@ function NotificationGroupItem({
     const [loading, setLoading] = useState(false);
     const [isSlow, setIsSlow] = useState(false);
     const [failed, setFailed] = useState(false);
+    const { __, transChoice } = useLang();
     const id = useId();
     const grouped = notification.event_count > 1;
     const noun = groupNoun(notification);
@@ -575,14 +549,17 @@ function NotificationGroupItem({
                                     { invisible: open },
                                 )}
                             >
-                                {notification.event_count} {noun}
+                                {transChoice(
+                                    `notifications.groups.${noun}.count`,
+                                    notification.event_count,
+                                )}
                             </span>
                             <span
                                 className={cn('col-start-1 row-start-1', {
                                     invisible: !open,
                                 })}
                             >
-                                Hide {noun}
+                                {__(`notifications.groups.${noun}.hide`)}
                             </span>
                         </span>
                     </button>
@@ -625,7 +602,7 @@ function NotificationGroupItem({
                         </ul>
                         {loading && (
                             <p role="status" className="sr-only">
-                                Loading {noun}…
+                                {__(`notifications.groups.${noun}.loading`)}
                             </p>
                         )}
                         {failed && (
@@ -634,14 +611,14 @@ function NotificationGroupItem({
                                 className="flex flex-wrap items-center gap-3 py-2 pl-8"
                             >
                                 <p className="font-mono text-[13px] text-muted-foreground">
-                                    fatal: could not load {noun}
+                                    {__(`notifications.groups.${noun}.failed`)}
                                 </p>
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => void load(cursor)}
                                 >
-                                    Try again
+                                    {__('notifications.try_again')}
                                 </Button>
                             </div>
                         )}
@@ -651,7 +628,7 @@ function NotificationGroupItem({
                                 onClick={() => void load(cursor)}
                                 className="mt-1 ml-6 flex items-center rounded-md px-2 py-0.5 text-[13px] font-medium text-primary transition-colors hover:bg-primary-soft"
                             >
-                                Show older {noun}
+                                {__(`notifications.groups.${noun}.older`)}
                             </button>
                         )}
                     </div>
@@ -693,6 +670,7 @@ function NotificationContent({
     hasPrevious?: boolean;
     children?: ReactNode;
 }) {
+    const { __, transChoice } = useLang();
     const now = useNow();
     const { user } = useUser();
     const { actor } = notification;
@@ -744,15 +722,7 @@ function NotificationContent({
             {formatRelativeTime(notification.created_at, now)}
         </time>
     );
-    const action = {
-        followed: 'followed you',
-        replied: 'replied to your commit',
-        quoted: 'quoted your commit',
-        starred: 'starred your commit',
-        mentioned: 'mentioned you',
-        approved: 'Your commit was approved',
-        rejected: 'Your commit was rejected',
-    }[notification.type];
+    const action = __(`notifications.actions.${notification.type}`);
     const excerpt =
         notification.type === 'followed' ? null : isOwnCommit ? (
             <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
@@ -772,14 +742,12 @@ function NotificationContent({
             {notification.reason && (
                 <p className="wrap-anywhere whitespace-pre-wrap text-foreground">
                     <span className="font-mono text-[13px] text-muted-foreground">
-                        reason:
+                        {__('notifications.reason')}
                     </span>{' '}
                     {notification.reason}
                 </p>
             )}
-            <p className="mt-1">
-                Only you can see this update and your rejected commit.
-            </p>
+            <p className="mt-1">{__('notifications.rejected_note')}</p>
         </div>
     );
 
@@ -806,7 +774,7 @@ function NotificationContent({
                                 @{actor.username}
                             </span>
                             <span className="sr-only">
-                                {isNew && 'New. '}
+                                {isNew && `${__('notifications.new')} `}
                                 {action}
                             </span>
                             <span className="ml-auto flex shrink-0 items-center gap-2 pl-2">
@@ -857,7 +825,9 @@ function NotificationContent({
                                             : 'bg-muted text-muted-foreground',
                                     )}
                                 >
-                                    {notification.type}
+                                    {__(
+                                        `notifications.statuses.${notification.type}`,
+                                    )}
                                 </span>
                             ) : (
                                 <span className="flex -space-x-2" aria-hidden>
@@ -882,7 +852,11 @@ function NotificationContent({
                             {time}
                         </div>
                         <p className="mt-1 text-[15px] wrap-anywhere">
-                            {isNew && <span className="sr-only">New. </span>}
+                            {isNew && (
+                                <span className="sr-only">
+                                    {`${__('notifications.new')} `}
+                                </span>
+                            )}
                             {moderation ? (
                                 `${action}.`
                             ) : (
@@ -894,7 +868,7 @@ function NotificationContent({
                                         {actor.name}
                                     </span>{' '}
                                     {otherActors > 0 ? (
-                                        `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
+                                        `${transChoice('notifications.and_others', otherActors)} `
                                     ) : (
                                         <>
                                             <span

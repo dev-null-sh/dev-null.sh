@@ -1,0 +1,210 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'actions' => [
+        'cancel' => '취소',
+        'delete' => '삭제',
+        'more' => '더 보기',
+        'reply' => '답글',
+    ],
+
+    'status' => [
+        'pending' => '검토 대기',
+        'approved' => '승인됨',
+        'rejected' => '거부됨',
+    ],
+
+    'card' => [
+        'pending_title' => '승인되기 전까지 이 커밋은 나만 볼 수 있어요.',
+        'rejected_title' => '이 커밋은 거부되었어요. 나만 볼 수 있어요.',
+        'commit_title' => '커밋 :id',
+        'delete' => '커밋 삭제',
+        'replying_to' => '답글 대상: @:username',
+        'replying_to_deleted' => '답글 대상: [deleted]',
+        'quoting' => '인용 대상: @:username',
+        'quoting_deleted' => '인용 대상: [deleted]',
+        'quoted' => '인용함',
+        'confirm_delete' => '삭제 확인',
+        'confirm_delete_message' => '이 커밋을 삭제할까요? 30초 동안 실행 취소할 수 있어요.',
+        'tombstone' => '삭제된 커밋이에요.',
+    ],
+
+    'thread' => [
+        'unsent_reply' => '보내지 않은 답글이 있어요',
+        'show_replies' => '답글 보기',
+        'hide_replies' => '답글 숨기기',
+        'replies' => '답글 :count개|답글 :count개',
+        'loading_replies' => '답글 불러오는 중',
+        'loading_replies_ellipsis' => '답글 불러오는 중…',
+        'show_more' => '더 보기',
+        'show_more_to' => '답글 더 보기:',
+        'delete' => '답글 삭제',
+        'delete_failed' => '답글을 삭제하지 못했어요. 다시 시도해 주세요.',
+        'confirm_delete_message' => '이 답글을 삭제할까요? 30초 동안 실행 취소할 수 있어요.',
+        'reply_failed' => '답글을 보내지 못했어요. 다시 시도해 주세요.',
+        'parent_unavailable' => '더 이상 이 커밋에 답글을 달 수 없어요.',
+        'reply_to' => '@:username 님에게 답글',
+        'replying' => '답글 다는 중…',
+    ],
+
+    'feed' => [
+        'pinned_commit' => '고정된 커밋',
+        'pinned' => '고정됨',
+        'latest_commits' => '최신 커밋',
+        'just_now' => '방금',
+        'top_commits' => '인기 커밋',
+        'loading_more' => '커밋 더 불러오는 중',
+        'today' => '오늘',
+        'yesterday' => '어제',
+        'last_visit_label' => '위의 커밋은 마지막 방문 이후 새로 올라온 커밋이에요',
+        'last_visit' => '마지막 방문',
+    ],
+
+    'body' => [
+        'show_more' => '더 보기',
+    ],
+
+    'images' => [
+        'attached' => '첨부 이미지',
+        'attached_numbered' => '첨부 이미지 :position/:count',
+    ],
+
+    'viewer' => [
+        'hide_commit' => '커밋 숨기기',
+        'show_commit' => '커밋 보기',
+        'hide_description' => '이미지 설명 숨기기',
+        'show_description' => '이미지 설명 보기',
+        'commit' => '커밋',
+        'previous' => '이전',
+        'next' => '다음',
+        'close' => '닫기',
+        'slide' => '슬라이드',
+        'carousel' => '캐러셀',
+        'lightbox' => '라이트박스',
+        'photo_gallery' => '사진 갤러리',
+        'slide_position' => ':index/:total',
+        'zoom_in' => '확대',
+        'zoom_out' => '축소',
+        'download' => '다운로드',
+    ],
+
+    'poll' => [
+        'vote_failed' => '투표를 기록하지 못했어요. 다시 시도해 주세요.',
+        'votes' => ':count표|:count표',
+        'opens_once_approved' => '승인되면 투표가 열려요',
+        'closed' => '투표 종료',
+        'final_results' => '최종 결과',
+        'time_left' => ':time 남음',
+        'options' => '투표 항목',
+        'results' => '투표 결과',
+        'vote' => '투표',
+        'voting' => '투표 중…',
+        'your_vote' => ', 내 투표',
+    ],
+
+    'quote' => [
+        'quoting' => '인용',
+        'unavailable' => '이 커밋을 볼 수 없어요.',
+    ],
+
+    'report' => [
+        'title' => '커밋 신고',
+        'description' => '신고 내용은 비공개이며 운영자만 검토할 수 있어요. 신고해도 이 커밋이 숨겨지지는 않아요.',
+        'too_many' => '신고가 너무 많아요. 1분 정도 기다린 후 다시 시도해 주세요.',
+        'unavailable' => '더 이상 이 커밋을 신고할 수 없어요.',
+        'network_error' => '신고를 보내지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.',
+        'reason_legend' => '이 커밋을 신고하는 이유가 무엇인가요?',
+        'reasons' => [
+            'spam' => '스팸 또는 오해의 소지가 있는 링크',
+            'harassment' => '괴롭힘 또는 혐오',
+            'unsafe' => '유해하거나 개인적인 정보',
+            'other' => '기타',
+        ],
+        'details' => '상세 내용',
+        'optional' => '(선택)',
+        'details_hint' => '운영자에게 상황을 알려 주세요. 최대 500자.',
+        'sending' => '보내는 중…',
+        'send' => '신고 보내기',
+    ],
+
+    'bookmark' => [
+        'failed' => '저장한 커밋을 업데이트하지 못했어요. 다시 시도해 주세요.',
+        'save_commit' => '커밋 저장',
+        'unsave_commit' => '저장 취소',
+        'saved' => '저장됨',
+        'save_privately' => '커밋을 비공개로 저장',
+    ],
+
+    'copy_link' => [
+        'copy' => '링크 복사',
+        'copied' => ':hash 링크를 복사했어요',
+        'failed' => ':hash 링크를 복사하지 못했어요',
+    ],
+
+    'star' => [
+        'star' => '스타',
+        'unstar' => '스타 취소',
+        'star_commit' => '커밋에 스타 주기',
+        'unstar_commit' => '커밋 스타 취소',
+        'star_commit_count' => '커밋에 스타 주기, 스타 :count개|커밋에 스타 주기, 스타 :count개',
+        'unstar_commit_count' => '커밋 스타 취소, 스타 :count개|커밋 스타 취소, 스타 :count개',
+        'no_stars' => '아직 스타가 없어요',
+        'stars' => '스타 :count개|스타 :count개',
+    ],
+
+    'undo' => [
+        'expired' => '실행 취소 가능 시간이 지났어요.',
+        'restored' => '커밋을 복원했어요.',
+        'restore_failed' => '이 커밋을 복원할 수 없어요.',
+        'deleted' => '커밋을 삭제했어요.',
+        'time_to_undo' => ':time 안에 실행 취소 가능',
+        'availability' => '삭제 후 30초 동안 실행 취소할 수 있어요.',
+        'restoring' => '복원 중…',
+        'undo' => '실행 취소',
+    ],
+
+    'pastel' => [
+        'exhausted' => 'pastel을 모두 썼어요. 내일까지 기다려 주세요.',
+        'count' => 'pastel :count개|pastel :count개',
+        'award_failed' => 'pastel을 주지 못했어요. 다시 시도해 주세요.',
+        'give_label' => 'pastel 주기, :pasteis, 오늘 :remaining개 남음',
+        'give_title' => 'pastel 주기 · 오늘 :remaining개 남음 · 00:00 UTC에 초기화',
+    ],
+
+    'pin' => [
+        'pin_to_profile' => '프로필에 고정',
+        'unpin_from_profile' => '프로필에서 고정 해제',
+        'pinned' => '커밋을 프로필에 고정했어요.',
+        'unpinned' => '커밋 고정을 해제했어요.',
+        'failed' => '고정된 커밋을 업데이트하지 못했어요.',
+        'saving' => '저장 중…',
+        'pin' => '고정',
+        'unpin' => '고정 해제',
+    ],
+
+    'embed' => [
+        'play' => ':provider의 :title 재생',
+        'player' => ':provider 플레이어',
+    ],
+
+    'code' => [
+        'copy' => '코드 복사',
+        'copied' => '코드를 클립보드에 복사했어요',
+        'copy_failed' => '코드를 복사하지 못했어요. 선택한 뒤 직접 복사해 주세요.',
+        'wrap_lines' => '줄 바꿈',
+    ],
+
+    'copyable' => [
+        'copy' => ':label 복사',
+        'copied' => ':label 복사됨',
+        'failed' => ':label 복사에 실패했어요',
+    ],
+
+    'show' => [
+        'title' => ':name: “:excerpt”',
+        'back' => '뒤로',
+        'heading' => '커밋',
+    ],
+];

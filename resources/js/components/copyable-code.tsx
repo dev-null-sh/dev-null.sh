@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -12,6 +13,7 @@ export function CopyableCode({
     label: string;
     language?: string;
 }) {
+    const { __ } = useLang();
     const [, copy] = useClipboard();
     const [isCopied, setIsCopied] = useState(false);
 
@@ -29,7 +31,9 @@ export function CopyableCode({
         if (await copy(code)) {
             setIsCopied(true);
             toast(
-                <span className="font-mono text-[13px]">Copied {label}</span>,
+                <span className="font-mono text-[13px]">
+                    {__('commits.copyable.copied', { label })}
+                </span>,
             );
 
             return;
@@ -37,7 +41,7 @@ export function CopyableCode({
 
         toast.error(
             <span className="font-mono text-[13px]">
-                fatal: could not copy {label}
+                fatal: {__('commits.copyable.failed', { label })}
             </span>,
         );
     };
@@ -48,8 +52,8 @@ export function CopyableCode({
         <button
             type="button"
             onClick={copyCode}
-            aria-label={`Copy ${label}`}
-            title={`Copy ${label}`}
+            aria-label={__('commits.copyable.copy', { label })}
+            title={__('commits.copyable.copy', { label })}
             className="flex items-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
             <Icon className="size-4" />

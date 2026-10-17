@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Link, usePage } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
 import type { ComponentProps } from 'react';
@@ -29,19 +30,23 @@ export function FollowLabel({
     isFollowing: boolean;
     isJustToggled: boolean;
 }) {
+    const { __ } = useLang();
+
     if (!isFollowing) {
-        return 'Follow';
+        return __('users.follow.follow');
     }
 
     if (isJustToggled) {
-        return 'Following';
+        return __('users.follow.following');
     }
 
     return (
         <>
-            <span className="group-hover/follow:hidden">Following</span>
+            <span className="group-hover/follow:hidden">
+                {__('users.follow.following')}
+            </span>
             <span className="hidden text-destructive group-hover/follow:inline">
-                Unfollow
+                {__('users.follow.unfollow')}
             </span>
         </>
     );
@@ -61,6 +66,7 @@ export function FollowButton({
     className?: string;
 } & Omit<InertiaLinkProps, 'href' | 'as' | 'method' | 'size' | 'className'>) {
     const { auth } = usePage().props;
+    const { __ } = useLang();
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
 
     if (auth.user === null) {
@@ -69,10 +75,12 @@ export function FollowButton({
                 size={size}
                 className={className}
                 onClick={signIn}
-                aria-label={`Follow @${user.username}`}
+                aria-label={__('users.follow.follow_label', {
+                    username: user.username,
+                })}
                 data-test="follow-button"
             >
-                Follow
+                {__('users.follow.follow')}
             </Button>
         );
     }
@@ -93,11 +101,12 @@ export function FollowButton({
                 as="button"
                 preserveScroll
                 onHttpException={(response) => !toastWhenThrottled(response)}
-                aria-label={
+                aria-label={__(
                     isFollowing
-                        ? `Unfollow @${user.username}`
-                        : `Follow @${user.username}`
-                }
+                        ? 'users.follow.unfollow_label'
+                        : 'users.follow.follow_label',
+                    { username: user.username },
+                )}
                 data-test="follow-button"
                 onClick={(event) => {
                     markToggled();

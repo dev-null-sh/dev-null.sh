@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import {
     Box,
     FileCode,
@@ -50,6 +51,7 @@ export function AchievementsDialog({
     user: User | Profile;
     lane: string;
 }) {
+    const { __ } = useLang();
     const [tab, setTab] = useState<'badges' | 'ranks'>('badges');
 
     const unlockedCount = achievements.badges.filter((b) => b.unlocked).length;
@@ -66,7 +68,7 @@ export function AchievementsDialog({
                 <DialogHeader className="text-left">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <DialogTitle className="text-base font-semibold">
-                            Developer Achievements
+                            {__('users.achievements.title')}
                         </DialogTitle>
                         <span
                             className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-medium"
@@ -76,13 +78,19 @@ export function AchievementsDialog({
                                 color: lane,
                             }}
                         >
-                            Lv. {achievements.level} · {achievements.rank}
+                            {__('users.achievements.level', {
+                                level: achievements.level,
+                                rank: achievements.rank,
+                            })}
                         </span>
                     </div>
                     <DialogDescription className="font-mono text-xs text-muted-foreground">
-                        @{user.username} · {achievements.xp} XP ·{' '}
-                        {unlockedCount}/{achievements.badges.length} badges
-                        unlocked
+                        {__('users.achievements.summary', {
+                            username: user.username,
+                            xp: achievements.xp,
+                            unlocked: unlockedCount,
+                            total: achievements.badges.length,
+                        })}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -91,13 +99,21 @@ export function AchievementsDialog({
                     <div className="flex items-center justify-between text-muted-foreground">
                         <span>
                             {achievements.next_level_xp
-                                ? `${achievements.xp} / ${achievements.next_level_xp} XP`
-                                : `${achievements.xp} XP`}
+                                ? __('users.achievements.xp_progress', {
+                                      xp: achievements.xp,
+                                      next: achievements.next_level_xp,
+                                  })
+                                : __('users.achievements.xp', {
+                                      xp: achievements.xp,
+                                  })}
                         </span>
                         <span>
                             {nextRank
-                                ? `${nextRank.min_xp - achievements.xp} XP to ${nextRank.rank}`
-                                : 'Maximum rank (UID 0)'}
+                                ? __('users.achievements.xp_to_rank', {
+                                      xp: nextRank.min_xp - achievements.xp,
+                                      rank: nextRank.rank,
+                                  })
+                                : __('users.achievements.max_rank')}
                         </span>
                     </div>
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -123,7 +139,9 @@ export function AchievementsDialog({
                                 : 'border-transparent text-muted-foreground hover:text-foreground',
                         )}
                     >
-                        Badges ({achievements.badges.length})
+                        {__('users.achievements.badges_tab', {
+                            count: achievements.badges.length,
+                        })}
                     </button>
                     <button
                         type="button"
@@ -135,7 +153,9 @@ export function AchievementsDialog({
                                 : 'border-transparent text-muted-foreground hover:text-foreground',
                         )}
                     >
-                        Unix Ranks ({achievements.ranks.length})
+                        {__('users.achievements.ranks_tab', {
+                            count: achievements.ranks.length,
+                        })}
                     </button>
                 </div>
 
@@ -250,7 +270,9 @@ export function AchievementsDialog({
                                                             color: lane,
                                                         }}
                                                     >
-                                                        CURRENT
+                                                        {__(
+                                                            'users.achievements.current',
+                                                        )}
                                                     </span>
                                                 )}
                                             </div>
@@ -262,16 +284,23 @@ export function AchievementsDialog({
 
                                     <div className="shrink-0 text-right">
                                         <span className="font-medium text-foreground">
-                                            {rank.min_xp} XP
+                                            {__('users.achievements.xp', {
+                                                xp: rank.min_xp,
+                                            })}
                                         </span>
                                         <div className="text-[10px] text-muted-foreground">
                                             {rank.achieved ? (
                                                 <span className="text-emerald-600 dark:text-emerald-400">
-                                                    ✓ Achieved
+                                                    {__(
+                                                        'users.achievements.achieved',
+                                                    )}
                                                 </span>
                                             ) : (
                                                 <span>
-                                                    Requires {rank.min_xp} XP
+                                                    {__(
+                                                        'users.achievements.requires',
+                                                        { xp: rank.min_xp },
+                                                    )}
                                                 </span>
                                             )}
                                         </div>
@@ -284,8 +313,7 @@ export function AchievementsDialog({
 
                 {/* Dry Unix XP Formula Footnote */}
                 <p className="border-t pt-2 text-center font-mono text-[11px] text-muted-foreground/80">
-                    XP: 10/commit · 15/day streak · 5/star received · 5/reply ·
-                    2/star given
+                    {__('users.achievements.formula')}
                 </p>
             </DialogContent>
         </Dialog>

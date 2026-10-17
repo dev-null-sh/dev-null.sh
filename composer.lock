@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b6471725427c5883fe29b3394a06f85c",
+    "content-hash": "c133cc7a2fbb13e849b1bdff295c7f34",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -661,6 +661,96 @@
                 }
             ],
             "time": "2025-03-06T22:45:56+00:00"
+        },
+        {
+            "name": "erag/laravel-lang-sync-inertia",
+            "version": "v2.4.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/eramitgupta/laravel-lang-sync-inertia.git",
+                "reference": "3852512b603509b6863ced1f699da33554247af1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/eramitgupta/laravel-lang-sync-inertia/zipball/3852512b603509b6863ced1f699da33554247af1",
+                "reference": "3852512b603509b6863ced1f699da33554247af1",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/console": "^8.12|^9.0|^10.0|^11.0|^12.0|^13.0",
+                "illuminate/filesystem": "^8.12|^9.0|^10.0|^11.0|^12.0|^13.0",
+                "illuminate/support": "^8.12|^9.0|^10.0|^11.0|^12.0|^13.0",
+                "inertiajs/inertia-laravel": "^1.3|^2.0|^3.0",
+                "php": ">=8.1.0"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.13"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "Lang": "LaravelLangSyncInertia\\Facades\\Lang"
+                    },
+                    "providers": [
+                        "LaravelLangSyncInertia\\LangSyncInertiaServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "files": [
+                    "src/LangHelpers.php"
+                ],
+                "psr-4": {
+                    "LaravelLangSyncInertia\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Er Amit Gupta",
+                    "email": "info.eramitgupta@gmail.com",
+                    "homepage": "https://github.com/eramitgupta"
+                }
+            ],
+            "description": "A powerful Laravel package for syncing and managing language translations across backend and Inertia.js (Vue/React/Svelte) frontends, offering effortless localization, auto-sync features, and smooth multi-language support for modern Laravel applications.",
+            "keywords": [
+                "dynamic-translations",
+                "i18n",
+                "inertia",
+                "inertia-lang",
+                "inertiajs",
+                "lang-manager",
+                "lang-sync",
+                "language-manager",
+                "language-sync",
+                "laravel",
+                "laravel-i18n",
+                "laravel-inertia",
+                "laravel-l10n",
+                "localization",
+                "multi-language",
+                "react i18n",
+                "svelte i18n",
+                "translation-helper",
+                "translation-sync",
+                "translations",
+                "vue i18n"
+            ],
+            "support": {
+                "issues": "https://github.com/eramitgupta/laravel-lang-sync-inertia/issues",
+                "source": "https://github.com/eramitgupta/laravel-lang-sync-inertia/tree/v2.4.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/eramitgupta",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-08-24T09:58:13+00:00"
         },
         {
             "name": "firebase/php-jwt",

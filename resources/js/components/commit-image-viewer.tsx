@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { usePage } from '@inertiajs/react';
 import {
     PanelBottomClose,
@@ -15,7 +16,10 @@ import 'yet-another-react-lightbox/plugins/counter.css';
 import 'yet-another-react-lightbox/styles.css';
 import { show as showCommitImage } from '@/actions/App/Http/Controllers/CommitImageController';
 import { CommitCard } from '@/components/commit-card';
-import { commitImageAlt } from '@/components/commit-images';
+import {
+    commitImageAlt,
+    useCommitImageAltLabels,
+} from '@/components/commit-images';
 import { isTyping } from '@/hooks/use-keyboard-shortcuts';
 import { closeCommitPhoto, showCommitPhoto } from '@/lib/commit-photo';
 import type { CommitPhoto } from '@/lib/commit-photo';
@@ -23,6 +27,8 @@ import { cn } from '@/lib/utils';
 
 export function CommitImageViewer() {
     const { photo } = usePage<{ photo?: CommitPhoto }>().props;
+    const { __ } = useLang();
+    const altLabels = useCommitImageAltLabels();
     const [isPanelOpen, setIsPanelOpen] = useState(true);
     const [captionedImageId, setCaptionedImageId] = useState<string | null>(
         null,
@@ -82,7 +88,7 @@ export function CommitImageViewer() {
         () =>
             (images ?? []).map((image, index, all) => ({
                 src: image.url,
-                alt: commitImageAlt(image, index, all.length),
+                alt: commitImageAlt(image, index, all.length, altLabels),
                 width: image.width,
                 height: image.height,
                 download: {
@@ -92,11 +98,13 @@ export function CommitImageViewer() {
                     filename: `${image.id}.webp`,
                 },
             })),
-        [images],
+        [images, altLabels],
     );
 
     const hasMultipleImages = slides.length > 1;
-    const panelLabel = isPanelOpen ? 'Hide commit' : 'Show commit';
+    const panelLabel = isPanelOpen
+        ? __('commits.viewer.hide_commit')
+        : __('commits.viewer.show_commit');
 
     return (
         <Lightbox
@@ -104,6 +112,22 @@ export function CommitImageViewer() {
             close={() => photo && closeCommitPhoto(photo)}
             index={photo?.index ?? 0}
             slides={slides}
+            labels={{
+                Previous: __('commits.viewer.previous'),
+                Next: __('commits.viewer.next'),
+                Close: __('commits.viewer.close'),
+                Slide: __('commits.viewer.slide'),
+                Carousel: __('commits.viewer.carousel'),
+                Lightbox: __('commits.viewer.lightbox'),
+                'Photo gallery': __('commits.viewer.photo_gallery'),
+                '{index} of {total}': __('commits.viewer.slide_position', {
+                    index: '{index}',
+                    total: '{total}',
+                }),
+                'Zoom in': __('commits.viewer.zoom_in'),
+                'Zoom out': __('commits.viewer.zoom_out'),
+                Download: __('commits.viewer.download'),
+            }}
             on={{
                 view: ({ index }) => {
                     if (photo && index !== photo.index) {
@@ -208,8 +232,8 @@ export function CommitImageViewer() {
                                 aria-controls={captionId}
                                 aria-label={
                                     isCaptioned
-                                        ? 'Hide image description'
-                                        : 'Show image description'
+                                        ? __('commits.viewer.hide_description')
+                                        : __('commits.viewer.show_description')
                                 }
                                 className="rounded bg-black/75 px-1.5 py-0.5 text-xs font-bold tracking-wide text-white ring-1 ring-white/30 transition hover:bg-black"
                             >
@@ -223,7 +247,7 @@ export function CommitImageViewer() {
                     isPanelOpen && (
                         <aside
                             ref={keepWheelInPanel}
-                            aria-label="Commit"
+                            aria-label={__('commits.viewer.commit')}
                             className="absolute inset-x-0 bottom-0 h-(--commit-panel-height) touch-auto overflow-y-auto overscroll-contain rounded-t-xl border-t bg-card text-card-foreground select-text lg:inset-x-auto lg:inset-y-0 lg:right-0 lg:h-auto lg:w-(--commit-panel-width) lg:rounded-none lg:border-t-0 lg:border-l"
                             onPointerDown={(event) => event.stopPropagation()}
                             onKeyDown={(event) => {

@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { InfiniteScroll, router, usePage } from '@inertiajs/react';
 import { Pin } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -43,6 +44,7 @@ export function CommitFeed({
     isFolded?: boolean;
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
 }) {
+    const { __ } = useLang();
     const now = useNow();
     const page = usePage();
     const isModeration = page.component === 'moderation/show';
@@ -197,12 +199,12 @@ export function CommitFeed({
     return (
         <>
             {pinnedCommit && (
-                <section aria-label="Pinned commit">
+                <section aria-label={__('commits.feed.pinned_commit')}>
                     <div className="flex">
                         <RailSegment />
                         <p className="flex items-center gap-1.5 pt-3 pb-1 font-mono text-xs text-muted-foreground">
                             <Pin aria-hidden className="size-3" />
-                            Pinned
+                            {__('commits.feed.pinned')}
                         </p>
                     </div>
                     <CommitCard
@@ -219,8 +221,8 @@ export function CommitFeed({
                 </section>
             )}
             {latestCommits.length > 0 && (
-                <section aria-label="Latest commits">
-                    <DayMarker label="Just now" />
+                <section aria-label={__('commits.feed.latest_commits')}>
+                    <DayMarker label={__('commits.feed.just_now')} />
                     {latestCommits.map((commit, index) => (
                         <Fragment key={commit.id}>
                             {card(
@@ -238,7 +240,9 @@ export function CommitFeed({
                             )}
                         </Fragment>
                     ))}
-                    {listed.length > 0 && <DayMarker label="Top commits" />}
+                    {listed.length > 0 && (
+                        <DayMarker label={__('commits.feed.top_commits')} />
+                    )}
                 </section>
             )}
             <InfiniteScroll
@@ -246,7 +250,10 @@ export function CommitFeed({
                 onlyNext
                 preserveUrl
                 loading={
-                    <div role="status" aria-label="Loading more commits">
+                    <div
+                        role="status"
+                        aria-label={__('commits.feed.loading_more')}
+                    >
                         <CommitSkeleton />
                         <CommitSkeleton />
                     </div>
@@ -286,6 +293,12 @@ export function CommitFeed({
                                     label={formatDayLabel(
                                         commit.created_at,
                                         now,
+                                        {
+                                            today: __('commits.feed.today'),
+                                            yesterday: __(
+                                                'commits.feed.yesterday',
+                                            ),
+                                        },
                                     )}
                                 />
                             )}
@@ -336,16 +349,20 @@ function DayMarker({ label }: { label: string }) {
 }
 
 function LastVisitMarker() {
+    const { __ } = useLang();
+
     return (
         <div
             role="separator"
-            aria-label="Commits above are new since your last visit"
+            aria-label={__('commits.feed.last_visit_label')}
             className="flex"
         >
             <RailSegment />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <span className="font-mono text-xs text-muted-foreground">
-                    HEAD@{'{last visit}'}
+                    HEAD@{'{'}
+                    {__('commits.feed.last_visit')}
+                    {'}'}
                 </span>
                 <span className="flex-1 border-t border-dashed" />
             </div>

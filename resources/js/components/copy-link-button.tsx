@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Check, LinkIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -12,6 +13,7 @@ import { cn, shortHash } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 export function useCopyLink(commit: Commit) {
+    const { __ } = useLang();
     const [, copy] = useClipboard();
     const [isCopied, setIsCopied] = useState(false);
     const hash = shortHash(commit.id);
@@ -33,7 +35,7 @@ export function useCopyLink(commit: Commit) {
             setIsCopied(true);
             toast(
                 <span className="font-mono text-[13px]">
-                    Copied link to {hash}
+                    {__('commits.copy_link.copied', { hash })}
                 </span>,
             );
 
@@ -42,7 +44,7 @@ export function useCopyLink(commit: Commit) {
 
         toast.error(
             <span className="font-mono text-[13px]">
-                fatal: could not copy link to {hash}
+                fatal: {__('commits.copy_link.failed', { hash })}
             </span>,
         );
     };
@@ -59,6 +61,7 @@ export function CopyLinkButton({
     keyShortcut?: string;
     className?: string;
 }) {
+    const { __ } = useLang();
     const { isCopied, copyLink } = useCopyLink(commit);
     const Icon = isCopied ? Check : LinkIcon;
 
@@ -68,7 +71,7 @@ export function CopyLinkButton({
                 <button
                     type="button"
                     onClick={copyLink}
-                    aria-label="Copy link"
+                    aria-label={__('commits.copy_link.copy')}
                     aria-keyshortcuts={keyShortcut}
                     className={cn(
                         'flex items-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
@@ -80,7 +83,7 @@ export function CopyLinkButton({
                 </button>
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-2">
-                Copy link
+                {__('commits.copy_link.copy')}
                 {keyShortcut && (
                     <kbd className="rounded border border-b-2 bg-muted px-1.5 font-mono text-[11px] text-muted-foreground">
                         {keyShortcut}

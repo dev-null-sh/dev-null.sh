@@ -57,7 +57,11 @@ async function renderReplies(replies: Commit[]) {
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {} },
+            props: {
+                auth: { user: null },
+                errors: {},
+                lang: { commits: { card: { quoted: 'quoted' } } },
+            },
             url: '/',
             version: null,
             clearHistory: false,

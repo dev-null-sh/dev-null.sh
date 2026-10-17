@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -82,6 +83,7 @@ export function CommitCard({
         props: { auth },
         component,
     } = usePage();
+    const { __ } = useLang();
     const now = useNow();
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const thread = useThread(commit, initialReplies, loadsReplies);
@@ -229,12 +231,16 @@ export function CommitCard({
                                         )}
                                         title={
                                             commit.status === 'pending'
-                                                ? 'Only you can see this commit until it is approved.'
-                                                : 'This commit was rejected. Only you can see it.'
+                                                ? __(
+                                                      'commits.card.pending_title',
+                                                  )
+                                                : __(
+                                                      'commits.card.rejected_title',
+                                                  )
                                         }
                                         data-test="commit-status"
                                     >
-                                        {commit.status}
+                                        {__(`commits.status.${commit.status}`)}
                                     </span>
                                 )}
 
@@ -250,7 +256,9 @@ export function CommitCard({
                                                 'sm:hidden': isFocused,
                                             },
                                         )}
-                                        title={`Commit ${commit.id}`}
+                                        title={__('commits.card.commit_title', {
+                                            id: commit.id,
+                                        })}
                                     >
                                         {hash}
                                     </Link>
@@ -261,8 +269,10 @@ export function CommitCard({
                                             onClick={() =>
                                                 setDeletion('confirming')
                                             }
-                                            aria-label="Delete commit"
-                                            title="Delete commit"
+                                            aria-label={__(
+                                                'commits.card.delete',
+                                            )}
+                                            title={__('commits.card.delete')}
                                             className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:commit-hover:opacity-100 sm:commit-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
                                             data-test="delete-commit-button"
                                         >
@@ -275,7 +285,7 @@ export function CommitCard({
                             {commit.parent && isDeleted(commit.parent) && (
                                 <p className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground">
                                     <CornerDownRight className="size-3" />
-                                    replying to [deleted]
+                                    {__('commits.card.replying_to_deleted')}
                                 </p>
                             )}
                             {commit.parent && !isDeleted(commit.parent) && (
@@ -287,7 +297,9 @@ export function CommitCard({
                                     className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
                                 >
                                     <CornerDownRight className="size-3" />
-                                    replying to @{commit.parent.user.username}
+                                    {__('commits.card.replying_to', {
+                                        username: commit.parent.user.username,
+                                    })}
                                 </Link>
                             )}
                             <FoldedCommitBody
@@ -328,7 +340,9 @@ export function CommitCard({
                                     </time>
                                     <span aria-hidden> · </span>
                                     <span
-                                        title={`Commit ${commit.id}`}
+                                        title={__('commits.card.commit_title', {
+                                            id: commit.id,
+                                        })}
                                         className="whitespace-nowrap"
                                     >
                                         commit {hash}
@@ -392,7 +406,9 @@ export function CommitCard({
                             {deletion === 'confirming' && (
                                 <div
                                     role="group"
-                                    aria-label="Confirm delete"
+                                    aria-label={__(
+                                        'commits.card.confirm_delete',
+                                    )}
                                     onKeyDown={(event) => {
                                         if (event.key === 'Escape') {
                                             setDeletion('idle');
@@ -401,8 +417,9 @@ export function CommitCard({
                                     className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
                                 >
                                     <span className="mr-auto">
-                                        Delete this commit? You can undo for 30
-                                        seconds.
+                                        {__(
+                                            'commits.card.confirm_delete_message',
+                                        )}
                                     </span>
                                     <Button
                                         variant="ghost"
@@ -410,7 +427,7 @@ export function CommitCard({
                                         autoFocus
                                         onClick={() => setDeletion('idle')}
                                     >
-                                        Cancel
+                                        {__('commits.actions.cancel')}
                                     </Button>
                                     <Button
                                         variant="destructive"
@@ -418,7 +435,7 @@ export function CommitCard({
                                         onClick={deleteCommit}
                                         data-test="confirm-delete-commit-button"
                                     >
-                                        Delete
+                                        {__('commits.actions.delete')}
                                     </Button>
                                 </div>
                             )}
@@ -456,6 +473,8 @@ export function CommitTombstone({
     previousLane?: string;
     endsWithDot?: boolean;
 }) {
+    const { __ } = useLang();
+
     return (
         <article className="flex" data-test="commit-tombstone">
             <GraphRail
@@ -470,7 +489,7 @@ export function CommitTombstone({
             <div className="flex min-w-0 flex-1 items-center gap-3 border-b py-3 pr-4">
                 <p className="flex items-baseline gap-1.5 text-[15px] text-muted-foreground">
                     <span className="font-mono text-[13px]">[deleted]</span>
-                    This commit was deleted.
+                    {__('commits.card.tombstone')}
                 </p>
             </div>
         </article>

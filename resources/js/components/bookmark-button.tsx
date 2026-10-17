@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { router, useHttp, usePage } from '@inertiajs/react';
 import { Bookmark } from 'lucide-react';
 import { createContext, useContext } from 'react';
@@ -20,6 +21,7 @@ export const BookmarkRemovalContext = createContext<
 
 export function useBookmark(commit: Commit) {
     const { auth } = usePage().props;
+    const { __ } = useLang();
     const [isSaved, setIsSaved] = useSharedState(
         commitStateKey('is_saved', commit.id),
         commit.is_saved ?? false,
@@ -52,7 +54,7 @@ export function useBookmark(commit: Commit) {
                 onRemoved?.(commit.id);
             }
         } catch {
-            toast.error('Could not update your saved commits. Try again.');
+            toast.error(__('commits.bookmark.failed'));
         }
     };
 
@@ -66,6 +68,7 @@ export function useBookmark(commit: Commit) {
 }
 
 export function BookmarkButton({ commit }: { commit: Commit }) {
+    const { __ } = useLang();
     const { isAvailable, isSaved, isProcessing, toggle } = useBookmark(commit);
 
     if (!isAvailable) {
@@ -79,7 +82,11 @@ export function BookmarkButton({ commit }: { commit: Commit }) {
                     type="button"
                     onClick={toggle}
                     aria-disabled={isProcessing}
-                    aria-label={isSaved ? 'Unsave commit' : 'Save commit'}
+                    aria-label={
+                        isSaved
+                            ? __('commits.bookmark.unsave_commit')
+                            : __('commits.bookmark.save_commit')
+                    }
                     aria-pressed={isSaved}
                     className={cn(
                         'rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-disabled:pointer-events-none aria-disabled:opacity-50',
@@ -94,7 +101,9 @@ export function BookmarkButton({ commit }: { commit: Commit }) {
                 </button>
             </TooltipTrigger>
             <TooltipContent>
-                {isSaved ? 'Saved' : 'Save commit privately'}
+                {isSaved
+                    ? __('commits.bookmark.saved')
+                    : __('commits.bookmark.save_privately')}
             </TooltipContent>
         </Tooltip>
     );

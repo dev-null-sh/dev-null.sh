@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Form, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useRef, useState } from 'react';
@@ -9,8 +10,6 @@ import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-user';
 import { cn, laneColor, withViewTransition } from '@/lib/utils';
 import type { Lane } from '@/types';
-
-const laneNames = ['Orange', 'Green', 'Violet', 'Teal', 'Rose', 'Ochre'];
 
 const optionClassName =
     'flex cursor-pointer flex-col items-center gap-1.5 rounded-md py-2 transition-colors hover:bg-accent has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50';
@@ -55,6 +54,15 @@ export function LaneOptions({
     automaticLane: number;
     onSelect: (lane: Lane | null) => void;
 }) {
+    const { __ } = useLang();
+    const laneNames = [
+        __('settings.lane.names.orange'),
+        __('settings.lane.names.green'),
+        __('settings.lane.names.violet'),
+        __('settings.lane.names.teal'),
+        __('settings.lane.names.rose'),
+        __('settings.lane.names.ochre'),
+    ];
     const colorInputRef = useRef<HTMLInputElement>(null);
     const [customColor, setCustomColor] = useState(
         typeof selected === 'string' ? selected : null,
@@ -64,8 +72,10 @@ export function LaneOptions({
     const options = [
         {
             value: null,
-            label: 'Auto',
-            ariaLabel: `Automatic (${laneNames[automaticLane].toLowerCase()})`,
+            label: __('settings.lane.auto'),
+            ariaLabel: __('settings.lane.automatic', {
+                color: laneNames[automaticLane].toLowerCase(),
+            }),
             lane: automaticLane,
         },
         ...laneNames.map((name, index) => ({
@@ -99,7 +109,7 @@ export function LaneOptions({
 
     return (
         <fieldset>
-            <legend className="sr-only">Color</legend>
+            <legend className="sr-only">{__('settings.lane.title')}</legend>
             <div className="grid max-w-md grid-cols-4 gap-1 sm:grid-cols-8">
                 {options.map((option) => (
                     <label
@@ -178,8 +188,10 @@ export function LaneOptions({
                         }
                         aria-label={
                             customColor === null
-                                ? 'Custom color'
-                                : `Custom color (${customColor})`
+                                ? __('settings.lane.custom_color')
+                                : __('settings.lane.custom_color_value', {
+                                      color: customColor,
+                                  })
                         }
                         className="peer sr-only"
                     />
@@ -211,7 +223,9 @@ export function LaneOptions({
                             />
                         )}
                     </span>
-                    <span className={optionLabelClassName}>Custom</span>
+                    <span className={optionLabelClassName}>
+                        {__('settings.lane.custom')}
+                    </span>
                 </label>
             </div>
         </fieldset>
@@ -226,12 +240,13 @@ export default function LanePicker({
     automaticLane: number;
 }) {
     const [selected, setSelected] = useState<Lane | null>(preferredLane);
+    const { __ } = useLang();
 
     return (
         <section className="px-4 py-6 sm:px-6">
             <Heading
-                title="Color"
-                description="Your lane on the graph: the rail and nodes beside your commits, the ring around your avatar, and the dot before your handle. Automatic picks one from your account id."
+                title={__('settings.lane.title')}
+                description={__('settings.lane.description')}
             />
 
             <LanePreview lane={laneColor(selected ?? automaticLane)} />
@@ -274,7 +289,7 @@ export default function LanePicker({
                             disabled={processing || selected === preferredLane}
                             data-test="save-lane-button"
                         >
-                            Save color
+                            {__('settings.lane.save')}
                         </Button>
                     </>
                 )}

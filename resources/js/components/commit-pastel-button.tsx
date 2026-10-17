@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { router, useHttp, usePage } from '@inertiajs/react';
 import { useRef } from 'react';
 import { toast } from 'sonner';
@@ -9,8 +10,6 @@ import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
-const exhaustedMessage = 'you ran out of pastéis. wait until tomorrow.';
-
 export function CommitPastelButton({
     commit,
     className,
@@ -19,6 +18,8 @@ export function CommitPastelButton({
     className?: string;
 }) {
     const { auth } = usePage().props;
+    const { __, transChoice } = useLang();
+    const exhaustedMessage = __('commits.pastel.exhausted');
     const day = useNow().toISOString().slice(0, 10);
     const [count, setCount] = useSharedState(
         commitStateKey('pasteis_count', commit.id),
@@ -47,7 +48,7 @@ export function CommitPastelButton({
     const userId = auth.user.id;
     const isOwn = commit.user_id === userId;
     const readOnly = isOwn || commit.status !== 'approved' || !commit.user_id;
-    const label = `${count} ${count === 1 ? 'pastel' : 'pastéis'}`;
+    const label = transChoice('commits.pastel.count', count);
 
     const award = async () => {
         if (busy.current) {
@@ -106,7 +107,7 @@ export function CommitPastelButton({
             }
         } catch {
             if (!errorShown) {
-                toast.error('Could not award a pastel. Please try again.');
+                toast.error(__('commits.pastel.award_failed'));
             }
         } finally {
             busy.current = false;
@@ -150,8 +151,11 @@ export function CommitPastelButton({
             type="button"
             onClick={award}
             aria-disabled={request.processing}
-            aria-label={`Give a pastel, ${label}, ${remaining} left today`}
-            title={`Give a pastel · ${remaining} left today · resets at 00:00 UTC`}
+            aria-label={__('commits.pastel.give_label', {
+                pasteis: label,
+                remaining,
+            })}
+            title={__('commits.pastel.give_title', { remaining })}
             className={cn(
                 classes,
                 'transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring',

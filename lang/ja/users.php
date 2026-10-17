@@ -1,0 +1,191 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'counts' => [
+        'commits' => 'コミット|コミット',
+        'following' => 'フォロー中',
+        'followers' => 'フォロワー|フォロワー',
+    ],
+
+    'follows_you' => 'フォローされています',
+    'muted' => 'ミュート中',
+
+    'follow' => [
+        'follow' => 'フォロー',
+        'following' => 'フォロー中',
+        'unfollow' => 'フォロー解除',
+        'follow_label' => '@:username をフォロー',
+        'unfollow_label' => '@:username のフォローを解除',
+    ],
+
+    'profile' => [
+        'edit_on_github' => 'GitHub で編集',
+        'view_achievements' => '実績と Unix ランクを見る',
+        'sponsor' => 'GitHub でスポンサーになる',
+        'joined' => ':date に参加',
+        'pasteis_received' => '受け取った pastel|受け取った pastel',
+        'feed_label' => 'プロフィールフィード',
+        'tabs' => [
+            'commits' => 'コミット',
+            'replies' => '返信',
+        ],
+        'end' => [
+            'own_first_reply' => 'これがあなたの最初の返信です。',
+            'first_reply' => 'これが @:username の最初の返信です。',
+            'own_first_commit' => 'これがあなたの最初のコミットです。誰でも最初はここから。',
+            'root_commit' => 'これが @:username のルートコミットです。',
+        ],
+        'empty' => [
+            'replies_command' => 'fatal: まだ返信がありません',
+            'own_replies' => 'あなたの返信がここに表示されます。ログから会話に参加しましょう。',
+            'replies' => '@:username はまだ何にも返信していません。',
+            'own_commits_command' => 'fatal: まだコミットがありません',
+            'own_commits' => 'あなたのコミットがここに表示されます。ログから最初のコミットをしてみましょう。',
+            'commits_command' => 'fatal: まだコミットがありません',
+            'commits' => '@:username はまだ何もコミットしていません。',
+        ],
+    ],
+
+    'connections' => [
+        'titles' => [
+            'following' => 'フォロー中',
+            'followers' => 'フォロワー',
+        ],
+        'tabs_label' => 'つながり',
+        'back' => '@:username に戻る',
+        'empty_command' => [
+            'following' => 'fatal: まだ誰もフォローしていません',
+            'followers' => 'fatal: まだフォロワーがいません',
+        ],
+        'empty' => [
+            'following' => '@:username はまだ誰もフォローしていません。',
+            'followers' => '@:username にはまだフォロワーがいません。',
+        ],
+    ],
+
+    'saved' => [
+        'title' => '保存済み',
+        'only_you' => '自分のみ',
+        'description' => 'あとで見返したいコミット。最近保存したものから表示されます。',
+        'end' => '保存済みのコミットはこれで全部です。',
+        'empty_command' => 'fatal: 保存済みのコミットはまだありません',
+        'empty' => 'コミットを保存するとここに表示されます。保存済みのコミットは非公開です。',
+        'explore' => 'トレンドを見る',
+    ],
+
+    'preview' => [
+        'about' => '@:username について',
+        'blocked' => '@:username をブロックしています。',
+        'unavailable' => 'このプロフィールは利用できません。',
+    ],
+
+    'safety' => [
+        'more_options' => '@:username のその他のオプション',
+        'mute' => '@:username をミュート',
+        'unmute' => '@:username のミュートを解除',
+        'block' => '@:username をブロック',
+        'unblock' => '@:username のブロックを解除',
+        'block_title' => '@:username をブロックしますか？',
+        'block_description' => 'お互いのフォローが解除されます。お互いにフォロー、返信、スターができなくなり、相手のコミットも見えなくなります。相手には知らされませんが、相手からはあなたのプロフィールが利用不可と表示されます。ブロックは設定からいつでも解除できます。',
+        'cancel' => 'キャンセル',
+        'confirm_block' => 'ブロック',
+    ],
+
+    'achievements' => [
+        'title' => '開発者の実績',
+        'label' => '開発者の実績',
+        'level' => 'Lv. :level · :rank',
+        'summary' => '@:username · :xp XP · バッジ :unlocked/:total 個獲得',
+        'unlocked' => ':unlocked / :total 獲得',
+        'xp' => ':xp XP',
+        'xp_progress' => ':xp / :next XP',
+        'xp_to_rank' => ':rank まであと :xp XP',
+        'max_rank' => '最高ランク (UID 0)',
+        'badges_tab' => 'バッジ (:count)',
+        'ranks_tab' => 'Unix ランク (:count)',
+        'current' => '現在',
+        'achieved' => '✓ 達成済み',
+        'requires' => ':xp XP が必要',
+        'formula' => 'XP：コミット1件 10 · 連続記録1日 15 · 獲得スター1つ 5 · 返信1件 5 · 付けたスター1つ 2',
+    ],
+
+    'activity' => [
+        'heading' => 'コミットアクティビティ',
+        'no_commits_yet' => 'まだコミットがありません',
+        'no_commits' => 'コミットなし',
+        'commit_count' => ':count件のコミット|:count件のコミット',
+        'summary' => ':windowで:commits',
+        'windows' => [
+            'day' => '過去24時間',
+            'week' => '過去7日間',
+            'month' => '過去30日間',
+            'year' => '過去1年間',
+        ],
+        'on_date' => ':dateに:commits',
+        'between_today' => '今日 :start〜:end に:commits',
+        'between_yesterday' => '昨日 :start〜:end に:commits',
+        'month_day' => ':month:day日',
+        'date_with_year' => ':year年:month:day日',
+        'date_with_weekday' => ':month:day日(:weekday)',
+        'weekday_day' => ':day日(:weekday)',
+        'less' => '少',
+        'more' => '多',
+        'months' => [
+            'jan' => '1月',
+            'feb' => '2月',
+            'mar' => '3月',
+            'apr' => '4月',
+            'may' => '5月',
+            'jun' => '6月',
+            'jul' => '7月',
+            'aug' => '8月',
+            'sep' => '9月',
+            'oct' => '10月',
+            'nov' => '11月',
+            'dec' => '12月',
+        ],
+        'weekdays' => [
+            'sun' => '日',
+            'mon' => '月',
+            'tue' => '火',
+            'wed' => '水',
+            'thu' => '木',
+            'fri' => '金',
+            'sat' => '土',
+        ],
+    ],
+
+    'streaks' => [
+        'longest' => '最長連続',
+        'days' => '日|日',
+        'current' => '現在',
+    ],
+
+    'embed' => [
+        'title' => 'アクティビティグラフを埋め込む',
+        'description' => 'コミットグラフを SVG として、GitHub プロフィールの README や Markdown が表示できる場所ならどこにでも貼れます。承認済みのコミットのみ表示され、約1時間ごとに更新されます。',
+        'theme_label' => 'グラフのテーマ',
+        'themes' => [
+            'light' => 'ライト',
+            'dark' => 'ダーク',
+            'auto' => '自動',
+        ],
+        'theme_hints' => [
+            'light' => '閲覧者の設定にかかわらず常にライト。',
+            'dark' => '閲覧者の設定にかかわらず常にダーク。',
+            'auto' => '閲覧者のカラースキームに合わせます。',
+        ],
+        'preview_alt' => '@:username のコミットアクティビティグラフ',
+        'copy' => 'Markdown をコピー',
+        'copied' => 'コピーしました',
+        'copied_toast' => 'Markdown をコピーしました。README に貼り付けてください。',
+        'copy_failed' => 'fatal: Markdown をコピーできませんでした',
+    ],
+
+    'live' => [
+        'heading' => '開発の様子をライブで',
+        'player_title' => 'YouTube で /dev/null のライブ開発を見る',
+    ],
+];

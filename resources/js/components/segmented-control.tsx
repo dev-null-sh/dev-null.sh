@@ -25,7 +25,7 @@ export function SegmentedControl<T>({
         >
             {options.map((option) => (
                 <button
-                    key={option.label}
+                    key={String(option.value)}
                     type="button"
                     role="radio"
                     aria-checked={option.value === value}
@@ -53,7 +53,7 @@ export function SegmentedControl<T>({
                         className="flex items-center gap-2 [view-transition-class:indicator-label] in-place:[view-transition-name:var(--transition-name)]"
                         style={
                             {
-                                '--transition-name': `${name}-${option.label.toLowerCase()}`,
+                                '--transition-name': `${name}-${String(option.value)}`,
                             } as CSSProperties
                         }
                     >

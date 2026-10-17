@@ -1,35 +1,46 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import type { CSSProperties, MouseEvent } from 'react';
 import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { Activity, ActivityBucket, ActivityScale } from '@/types';
 
-const monthNames = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+type Lang = ReturnType<typeof useLang>;
+
+const monthKeys = [
+    'jan',
+    'feb',
+    'mar',
+    'apr',
+    'may',
+    'jun',
+    'jul',
+    'aug',
+    'sep',
+    'oct',
+    'nov',
+    'dec',
 ];
 
-const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const weekdayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
-const weekdayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+const weekdayLabels = [null, 1, null, 3, null, 5, null];
 
 const levelMix = [0, 32, 56, 80, 100];
 
-const windows: Record<ActivityScale, string> = {
-    day: 'in the last 24 hours',
-    week: 'in the last 7 days',
-    month: 'in the last 30 days',
-    year: 'in the last year',
-};
+function monthName(lang: Lang, month: number): string {
+    return lang.__(`users.activity.months.${monthKeys[month]}`);
+}
+
+function weekdayName(lang: Lang, weekday: number): string {
+    return lang.__(`users.activity.weekdays.${weekdayKeys[weekday]}`);
+}
+
+function monthDay(lang: Lang, day: Date): string {
+    return lang.__('users.activity.month_day', {
+        month: monthName(lang, day.getUTCMonth()),
+        day: day.getUTCDate(),
+    });
+}
 
 function levelColor(level: number): string {
     return level === 0
@@ -49,13 +60,21 @@ function monthOf(date: string): number {
     return utcDay(date).getUTCMonth();
 }
 
-function formatDay(date: string, withYear: boolean): string {
+function formatDay(lang: Lang, date: string, withYear: boolean): string {
     const day = utcDay(date);
-    const monthDay = `${monthNames[day.getUTCMonth()]} ${day.getUTCDate()}`;
+    const month = monthName(lang, day.getUTCMonth());
 
     return withYear
-        ? `${monthDay}, ${day.getUTCFullYear()}`
-        : `${weekdayNames[day.getUTCDay()]}, ${monthDay}`;
+        ? lang.__('users.activity.date_with_year', {
+              month,
+              day: day.getUTCDate(),
+              year: day.getUTCFullYear(),
+          })
+        : lang.__('users.activity.date_with_weekday', {
+              weekday: weekdayName(lang, day.getUTCDay()),
+              month,
+              day: day.getUTCDate(),
+          });
 }
 
 function formatTime(time: Date): string {
@@ -64,21 +83,33 @@ function formatTime(time: Date): string {
         .join(':');
 }
 
-function describe(bucket: ActivityBucket, scale: ActivityScale): string {
+function describe(
+    lang: Lang,
+    bucket: ActivityBucket,
+    scale: ActivityScale,
+): string {
     const commits =
         bucket.count === 0
-            ? 'No commits'
-            : `${bucket.count} ${bucket.count === 1 ? 'commit' : 'commits'}`;
+            ? lang.__('users.activity.no_commits')
+            : lang.transChoice('users.activity.commit_count', bucket.count);
 
     if (scale !== 'day') {
-        return `${commits} on ${formatDay(bucket.date, scale === 'year')}`;
+        return lang.__('users.activity.on_date', {
+            commits,
+            date: formatDay(lang, bucket.date, scale === 'year'),
+        });
     }
 
     const start = new Date(bucket.date);
     const end = new Date(start.getTime() + 3_600_000);
     const isToday = start.toDateString() === new Date().toDateString();
 
-    return `${commits} between ${formatTime(start)} and ${formatTime(end)} ${isToday ? 'today' : 'yesterday'}`;
+    return lang.__(
+        isToday
+            ? 'users.activity.between_today'
+            : 'users.activity.between_yesterday',
+        { commits, start: formatTime(start), end: formatTime(end) },
+    );
 }
 
 function periodOf(bucket: ActivityBucket, scale: ActivityScale): string {
@@ -86,6 +117,7 @@ function periodOf(bucket: ActivityBucket, scale: ActivityScale): string {
 }
 
 function stripLabel(
+    lang: Lang,
     bucket: ActivityBucket,
     scale: ActivityScale,
     index: number,
@@ -94,7 +126,10 @@ function stripLabel(
     if (scale === 'week') {
         const day = utcDay(bucket.date);
 
-        return `${weekdayNames[day.getUTCDay()]} ${day.getUTCDate()}`;
+        return lang.__('users.activity.weekday_day', {
+            weekday: weekdayName(lang, day.getUTCDay()),
+            day: day.getUTCDate(),
+        });
     }
 
     if (scale === 'day') {
@@ -108,7 +143,7 @@ function stripLabel(
     const day = utcDay(bucket.date);
 
     return day.getUTCDay() === 1 && index < length - 3
-        ? `${monthNames[day.getUTCMonth()]} ${day.getUTCDate()}`
+        ? monthDay(lang, day)
         : null;
 }
 
@@ -140,6 +175,8 @@ export function ActivityGraph({
     lane: string;
     onPeriodHover?: (period: string | null) => void;
 }) {
+    const lang = useLang();
+    const { __, transChoice } = lang;
     const sectionRef = useRef<HTMLElement>(null);
     const [hovered, setHovered] = useState<HoveredBucket | null>(null);
     const { scale, buckets } = activity;
@@ -179,9 +216,13 @@ export function ActivityGraph({
     const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
     const max = Math.max(1, ...buckets.map((bucket) => bucket.count));
     const isEmpty = total === 0 && scale !== 'year';
+    const timeWindow = __(`users.activity.windows.${scale}`);
     const summary = isEmpty
-        ? 'No commits yet'
-        : `${total} ${total === 1 ? 'commit' : 'commits'} ${windows[scale]}`;
+        ? __('users.activity.no_commits_yet')
+        : __('users.activity.summary', {
+              commits: transChoice('users.activity.commit_count', total),
+              window: timeWindow,
+          });
 
     return (
         <section
@@ -192,18 +233,18 @@ export function ActivityGraph({
         >
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h2 id="activity-heading" className="text-sm font-semibold">
-                    Commit activity
+                    {__('users.activity.heading')}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                     {isEmpty ? (
-                        'No commits yet'
+                        __('users.activity.no_commits_yet')
                     ) : (
                         <>
                             <span className="font-mono text-foreground">
                                 {total}
                             </span>{' '}
-                            {total === 1 ? 'commit' : 'commits'}{' '}
-                            {windows[scale]}
+                            {transChoice('users.counts.commits', total)}{' '}
+                            {timeWindow}
                         </>
                     )}
                 </p>
@@ -243,7 +284,7 @@ export function ActivityGraph({
                     data-tooltip
                     style={{ left: hovered.left, top: hovered.top - 6 }}
                 >
-                    {describe(hovered.bucket, scale)}
+                    {describe(lang, hovered.bucket, scale)}
                 </div>
             )}
 
@@ -251,7 +292,7 @@ export function ActivityGraph({
                 aria-hidden
                 className="mt-2 flex items-center justify-end gap-1 text-xs text-muted-foreground"
             >
-                <span className="mr-1">Less</span>
+                <span className="mr-1">{__('users.activity.less')}</span>
                 {levelMix.map((_, level) => (
                     <span
                         key={level}
@@ -259,7 +300,7 @@ export function ActivityGraph({
                         style={{ background: levelColor(level) }}
                     />
                 ))}
-                <span className="ml-1">More</span>
+                <span className="ml-1">{__('users.activity.more')}</span>
             </div>
         </section>
     );
@@ -273,6 +314,7 @@ function Strip({
     onEnter,
     onLeave,
 }: CellsProps & { scale: ActivityScale; summary: string }) {
+    const lang = useLang();
     const columns = {
         gridTemplateColumns: `repeat(${buckets.length}, minmax(0, 1fr))`,
     };
@@ -309,7 +351,7 @@ function Strip({
                         key={bucket.date}
                         className="overflow-visible whitespace-nowrap"
                     >
-                        {stripLabel(bucket, scale, index, buckets.length)}
+                        {stripLabel(lang, bucket, scale, index, buckets.length)}
                     </span>
                 ))}
             </div>
@@ -324,6 +366,7 @@ function YearGrid({
     onEnter,
     onLeave,
 }: CellsProps & { summary: string }) {
+    const lang = useLang();
     const weekStarts = buckets.filter((_, index) => index % 7 === 0);
     const monthLabels = weekStarts.map((day, index) => {
         const changesMonth =
@@ -336,7 +379,7 @@ function YearGrid({
                 .some((week) => monthOf(week.date) !== monthOf(day.date));
 
         return changesMonth && !nextLabelIsClose
-            ? monthNames[monthOf(day.date)]
+            ? monthName(lang, monthOf(day.date))
             : null;
     });
 
@@ -383,7 +426,7 @@ function YearGrid({
                             key={index}
                             className="flex items-center leading-none"
                         >
-                            {label}
+                            {label !== null && weekdayName(lang, label)}
                         </span>
                     ))}
                 </div>

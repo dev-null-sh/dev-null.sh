@@ -22,6 +22,17 @@ it('shares app name from config', function (): void {
         ->and($shared['name'])->toBe(config('app.name'));
 });
 
+it('shares the current language and the languages to choose from', function (): void {
+    app()->setLocale('fr');
+
+    $shared = new HandleInertiaRequests()->share(Request::create('/', 'GET'));
+
+    expect($shared['locale'])->toBe('fr')
+        ->and($shared['locales'])->toHaveCount(11)
+        ->and($shared['locales'][0])->toBe(['value' => 'en', 'label' => 'English'])
+        ->and($shared['locales'][1])->toBe(['value' => 'hi', 'label' => 'हिन्दी']);
+});
+
 it('shares null user when guest', function (): void {
     $middleware = new HandleInertiaRequests();
 

@@ -1,0 +1,149 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'title' => 'Settings',
+
+    'tabs' => [
+        'profile' => 'Profile',
+        'appearance' => 'Appearance',
+        'terminal' => 'Terminal',
+        'safety' => 'Safety',
+    ],
+
+    'appearance' => [
+        'title' => 'Appearance settings',
+        'theme' => 'Theme',
+        'theme_description' => "System follows your operating system, light by day and dark by night if that's how you have it set.",
+        'light' => 'Light',
+        'dark' => 'Dark',
+        'system' => 'System',
+        'who_to_follow' => 'Who to follow',
+        'who_to_follow_description' => 'Three people you might want to follow, in the right column, or in your log on smaller screens.',
+        'show' => 'Show',
+        'hide' => 'Hide',
+    ],
+
+    'language' => [
+        'title' => 'Language',
+        'description' => 'The language devnull is shown in. Commits stay in the language they were written in.',
+    ],
+
+    'profile' => [
+        'title' => 'Profile settings',
+        'information' => 'Profile information',
+        'information_description' => 'Mirrored from GitHub when you sign in. To change any of it, change it on GitHub, then sync it here.',
+        'edit_on_github' => 'Edit on GitHub',
+        'sync' => 'Sync from GitHub',
+        'view' => 'View profile',
+        'last_synced' => 'Last synced',
+        'last_synced_at_sign_in' => 'Last synced when you signed in',
+        'just_now' => 'just now',
+        'export' => 'Export your data',
+        'export_description' => 'Download everything we store about you: your profile, commits and replies (including pending, rejected, and deleted ones), stars, saved commits, follows, mutes, blocks, notifications, SSH key fingerprints, and active sessions.',
+        'export_note' => "Other people's replies are excluded. Your export is a JSON file. Your profile is still managed on GitHub.",
+        'download_json' => 'Download JSON',
+    ],
+
+    'lane' => [
+        'title' => 'Color',
+        'description' => 'Your lane on the graph: the rail and nodes beside your commits, the ring around your avatar, and the dot before your handle. Automatic picks one from your account id.',
+        'auto' => 'Auto',
+        'automatic' => 'Automatic (:color)',
+        'custom' => 'Custom',
+        'custom_color' => 'Custom color',
+        'custom_color_value' => 'Custom color (:color)',
+        'names' => [
+            'orange' => 'Orange',
+            'green' => 'Green',
+            'violet' => 'Violet',
+            'teal' => 'Teal',
+            'rose' => 'Rose',
+            'ochre' => 'Ochre',
+        ],
+        'save' => 'Save color',
+    ],
+
+    'pasteis' => [
+        'title' => 'Pastéis mode',
+        'description' => 'A little appreciation, fresh daily. Get 10 pastéis to give to other people’s commits, one per click. Your allowance resets at 00:00 UTC.',
+        'off_note' => 'When off, all pastéis controls and counters are hidden. You still receive pastéis from others.',
+        'save_failed' => 'Could not save pastéis mode. Please try again.',
+    ],
+
+    'delete_account' => [
+        'title' => 'Delete account',
+        'description' => "Removes your /dev/null account, every commit and reply you've made, and everyone you follow. Replies others left under your commits go too. Replies under your replies stay, hanging off a [deleted] tombstone. Your GitHub account is not touched.",
+        'confirm_title' => 'Delete your account?',
+        'confirm_description' => "Your profile, commits, replies, and follows go to /dev/null, along with every reply others left under your commits. Replies under your replies stay, under a [deleted] tombstone. This can't be undone. You can sign in with GitHub again later, but you'll start from zero.",
+        'keep' => 'Keep my account',
+    ],
+
+    'safety' => [
+        'title' => 'Safety settings',
+        'muted' => 'Muted',
+        'muted_description' => "Their commits and replies stay out of your logs, threads, search, and suggestions, and they can't notify you. They aren't told, and you can still visit their profile.",
+        'muted_empty' => "You haven't muted anyone.",
+        'unmute' => 'Unmute',
+        'blocked' => 'Blocked',
+        'blocked_description' => "Neither of you can follow, reply to, or star the other, or see each other's commits. Unblocking doesn't bring back follows.",
+        'blocked_empty' => "You haven't blocked anyone.",
+        'unblock' => 'Unblock',
+    ],
+
+    'terminal' => [
+        'title' => 'Terminal settings',
+        'from_terminal' => 'Commit from your terminal',
+        'from_terminal_description' => 'No login, no token: the script signs your commit with an SSH key that is on your GitHub account, and /dev/null checks it against the keys GitHub publishes for you.',
+        'command' => 'command',
+        'reply_command' => 'reply command',
+        'key_command' => 'key command',
+        'workflow' => 'workflow',
+        'from_actions' => 'Commit from GitHub Actions',
+        'from_actions_description' => 'Ship release notes when you publish a release, or anything else a workflow knows. Same signature, same moderation, same 10 commits a minute.',
+        'step_generate' => 'Generate a key for CI only.',
+        'step_add_key_before' => 'Add',
+        'step_add_key_middle' => 'to GitHub as a',
+        'step_add_key_link' => 'signing key',
+        'step_add_key_after' => '. It can sign /dev/null commits, but never push code or log in.',
+        'step_save_secret_before' => 'Save',
+        'step_save_secret_middle' => ', the private key, as a repository secret named',
+        'step_save_secret_after' => ', then delete both files.',
+        'step_add_workflow_before' => 'Add the workflow, in',
+        'step_add_workflow_after' => '.',
+        'inputs' => [
+            'body' => 'The commit, 3 to 4,000 characters.',
+            'ssh_key' => 'The private key, from a secret. Ed25519 or RSA, without a passphrase.',
+            'reply_to' => 'Optional. The hash or link of a commit to reply to.',
+        ],
+        'job_output' => 'The job prints the link to your commit, and whether it is pending review. When /dev/null refuses it, the job fails with the reason.',
+    ],
+
+    'scheduled' => [
+        'title' => 'Scheduled commits',
+        'back_to_log' => 'Back to Log',
+        'poll_options' => 'Poll options',
+        'images' => ':count image|:count images',
+        'private' => 'Private',
+        'intro' => 'Only you can see this list. At the scheduled time, each commit goes through the usual review process. Scheduling is not approval.',
+        'times_in' => 'Times in :timezone',
+        'empty_title' => 'No scheduled commits',
+        'empty_description' => 'Choose Schedule in the composer to submit later.',
+        'status' => [
+            'scheduled' => 'Scheduled',
+            'waiting' => 'Waiting for submission',
+            'pending' => 'Submitted for review',
+            'approved' => 'Approved',
+            'rejected' => 'Rejected',
+            'deleted' => 'Deleted',
+        ],
+        'cancel' => 'Cancel',
+        'cancel_label' => 'Cancel the commit scheduled for :time',
+        'canceling' => 'Canceling…',
+        'due_note' => 'Waiting for the scheduler. If submission fails, it is retried automatically.',
+        'private_note' => 'Private until submitted. You can cancel before submission.',
+        'previous' => 'Previous',
+        'next' => 'Next',
+    ],
+];

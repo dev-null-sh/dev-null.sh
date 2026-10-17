@@ -1,3 +1,4 @@
+import { useLang } from '@erag/lang-sync-inertia/react';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Activity, Bookmark, LogOut, Settings, UserRound } from 'lucide-react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
@@ -23,6 +24,7 @@ type Props = {
 export function UserMenuContent({ user }: Props) {
     const { auth } = usePage().props;
     const cleanup = useMobileNavigation();
+    const { __ } = useLang();
 
     const handleLogout = () => {
         cleanup();
@@ -46,7 +48,7 @@ export function UserMenuContent({ user }: Props) {
                         onClick={cleanup}
                     >
                         <Bookmark className="mr-2" />
-                        Saved
+                        {__('nav.items.saved')}
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -57,7 +59,7 @@ export function UserMenuContent({ user }: Props) {
                         onClick={cleanup}
                     >
                         <UserRound className="mr-2" />
-                        Profile
+                        {__('nav.items.profile')}
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -68,7 +70,7 @@ export function UserMenuContent({ user }: Props) {
                         onClick={cleanup}
                     >
                         <Settings className="mr-2" />
-                        Settings
+                        {__('nav.items.settings')}
                     </Link>
                 </DropdownMenuItem>
                 {auth.isAdmin && (
@@ -79,7 +81,7 @@ export function UserMenuContent({ user }: Props) {
                             onClick={cleanup}
                         >
                             <Activity className="mr-2" />
-                            Operations
+                            {__('nav.items.operations')}
                         </Link>
                     </DropdownMenuItem>
                 )}
@@ -94,7 +96,7 @@ export function UserMenuContent({ user }: Props) {
                     data-test="logout-button"
                 >
                     <LogOut className="mr-2" />
-                    Log out
+                    {__('nav.log_out')}
                 </Link>
             </DropdownMenuItem>
         </>
