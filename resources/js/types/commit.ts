@@ -18,6 +18,7 @@ export type LinkPreview = {
     description: string | null;
     image_url: string | null;
     site_name: string | null;
+    is_pending: boolean;
     embed?: Embed | null;
 };
 

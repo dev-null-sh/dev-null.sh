@@ -3,8 +3,63 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+
+it('switches profile tabs with only the feed and resets its cursor data', function (string $tab): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+    $pinned = Commit::factory()->for($user)->create(['body' => 'Pinned commit']);
+    $user->update(['pinned_commit_id' => $pinned->id]);
+    $commits = Commit::factory()->for($user)->count(23)->create(['body' => 'A profile commit']);
+    $replies = Commit::factory()->for($user)->for($parent, 'parent')->count(23)->create(['body' => 'A profile reply']);
+
+    $headers = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'user/show',
+        'X-Inertia-Partial-Data' => 'tab,commits,pinnedCommit',
+        'X-Inertia-Reset' => 'commits',
+    ];
+
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+
+    $response = $this->actingAs($user)->getJson(route('user.show', ['user' => $user, 'tab' => $tab]), $headers);
+
+    $response->assertOk()
+        ->assertJsonPath('props.tab', $tab)
+        ->assertJsonCount(20, 'props.commits.data')
+        ->assertJsonMissingPath('props.user')
+        ->assertJsonMissingPath('props.activity')
+        ->assertJsonMissingPath('props.streaks')
+        ->assertJsonMissingPath('props.achievements')
+        ->assertJsonPath('scrollProps.commits.reset', true);
+
+    if ($tab === 'commits') {
+        $response->assertJsonPath('props.pinnedCommit.id', $pinned->id);
+    } else {
+        $response->assertJsonPath('props.pinnedCommit', null);
+    }
+
+    $expected = ($tab === 'replies' ? $replies : $commits)->sortByDesc('id')->pluck('id')->values();
+
+    expect(array_column($response->json('props.commits.data'), 'id'))->toBe($expected->take(20)->all())
+        ->and(collect(DB::getQueryLog())->pluck('query')->all())
+        ->each(fn ($query) => $query->not->toContain('as total_commits', 'as bucket', 'as day'));
+
+    $next = $this->getJson($response->json('props.commits.next_page_url'), [
+        ...$headers,
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Inertia-Reset' => '',
+    ]);
+
+    $next->assertOk()->assertJsonCount(3, 'props.commits.data');
+
+    expect(array_column($next->json('props.commits.data'), 'id'))->toBe($expected->skip(20)->values()->all());
+})->with(['commits', 'replies']);
 
 it('lists only the profile authors replies in the replies tab', function (): void {
     $user = User::factory()->create();

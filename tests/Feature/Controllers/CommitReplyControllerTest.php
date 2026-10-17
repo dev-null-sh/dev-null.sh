@@ -13,6 +13,25 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
+it('rejects non-text reply bodies with a validation error', function (mixed $body): void {
+    $parent = Commit::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', $parent), ['body' => $body])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('body');
+
+    expect($parent->replies()->count())->toBe(0)
+        ->and(LinkPreview::query()->count())->toBe(0);
+})->with([
+    'list' => [['Hello, world!']],
+    'object' => [['text' => 'Hello, world!']],
+    'empty array' => [[]],
+    'number' => [123],
+    'boolean' => [true],
+    'null' => [null],
+]);
+
 it('lists visible replies oldest first with their own reply counts', function (): void {
     $viewer = User::factory()->create();
     $parent = Commit::factory()->create();
