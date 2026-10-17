@@ -187,7 +187,6 @@ export default function Show({
             <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
                 <CommitFeed
                     commits={commits}
-                    firstLane="var(--rail)"
                     firstSeenId={firstSeenId}
                     latestCommits={latestCommits}
                     isRanked={isRanked}
@@ -275,7 +274,10 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
-                                <LinkifiedText text={emojify(commit.body)} />
+                                <LinkifiedText
+                                    text={emojify(commit.body)}
+                                    mentions={commit.mentions}
+                                />
                             </p>
                         </div>
                         <Button size="sm" asChild>

@@ -35,6 +35,7 @@ use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
@@ -91,6 +92,7 @@ Route::middleware('guest')->group(function (): void {
 
     // Session...
     Route::get('login', [SessionController::class, 'create'])
+        ->middleware('throttle:10,1')
         ->name('login');
     Route::get('auth/github/callback', [SessionController::class, 'store'])
         ->middleware('throttle:10,1')
@@ -133,6 +135,13 @@ Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): 
 });
 
 // User...
+Route::get('mentions/{user}', [MentionController::class, 'show'])
+    ->whereUuid('user')
+    ->name('mention.show');
+Route::get('mentions/{user}/preview', [UserPreviewController::class, 'show'])
+    ->middleware('throttle:people')
+    ->whereUuid('user')
+    ->name('mention.preview');
 Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])
     ->middleware('throttle:people')
     ->name('user-preview.show');
@@ -168,9 +177,6 @@ Route::get('search', [SearchController::class, 'index'])
 Route::get('search/users', [UserSearchController::class, 'index'])
     ->middleware('throttle:people')
     ->name('user-search.index');
-
-// Search...
-Route::get('search', [SearchController::class, 'index'])->name('search.index');
 
 // Commit Search...
 Route::get('search/commits', [CommitSearchController::class, 'index'])
