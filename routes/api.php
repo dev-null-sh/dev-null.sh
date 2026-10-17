@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
+use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\Api\NotificationGroupController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
+use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -48,6 +50,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
+        Route::put('me/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('api-user-pasteis-mode.update');
 
         // Log...
         Route::get('log/{log}', [LogController::class, 'show'])->name('api-log.show');
@@ -62,6 +65,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
             ->withTrashed()
             ->name('api-commit-reply.index');
+
+        // Commit Pastel...
+        Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
+            ->middleware('throttle:60,1')
+            ->name('api-commit-pastel.store');
 
         // User Follow...
         Route::post('users/{user:username}/follow', [UserFollowController::class, 'store'])

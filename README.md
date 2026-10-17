@@ -77,7 +77,7 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ## Signed requests
 
-The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, committing, deleting and following only take signed requests. Signed requests are limited to 120 a minute per user.
+The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, committing, deleting, following and pastéis only take signed requests. Signed requests are limited to 120 a minute per user.
 
 Commits in a signed response carry what the web's cards show: `preview_segments`, the excerpt a list shows of a long commit (or `null`), the `poll` with the user's view of its votes and each option's `percentage`, the `quoted_commit` (a tombstone once deleted, or `null` when the user may not see it, while `quoted_commit_id` still says a commit was quoted), and in lists the `reply_preview` the web shows under each commit. Its `next_cursor` continues with `GET /api/v1/commits/{id}/replies?newest=1&cursor=…`, as on the web.
 
@@ -86,6 +86,8 @@ A signed profile also says `is_muting` and has the web's `achievements`, with th
 `GET /api/v1/log/{log}` serves the web's three logs, `following`, `latest` and `trending`, with the same queries and 20 commits a page. Trending is ranked, so it says `is_ranked`. With `?since={id}`, every log counts the `new_commits_count` newer than that commit, which is always 0 on Trending, since the web offers none there. An empty Following log comes with a few `suggestions`.
 
 `GET /api/v1/notifications` groups notifications like the web and takes the web's `?type=` filter: `all` (the default), `none`, or a comma-separated list of `replies`, `quotes`, `stars`, `mentions`, `follows` and `moderation`. The response echoes it as `filters.type`. Listing them marks every notification as read, whatever the filter, and `read_at` says when, so the groups read at or after it are the new ones. `GET /api/v1/notifications/{id}/group` lists the notifications of one group, with the same filter, the way the web expands it.
+
+`GET /api/v1/me` says whether the user has pastéis mode on (`pasteis_mode`), how many of their 10 pastéis a day they may still give (`pasteis_remaining`), when that goes back to 10 (`pasteis_resets_at`, the next 00:00 UTC), and how many they were given (`pasteis_received`). `PUT /api/v1/me/pasteis-mode` with `{"enabled": true}` or `false` switches the mode, as the web's settings do, and answers like `GET /api/v1/me`. With it on, `POST /api/v1/commits/{id}/pasteis` gives someone else's commit one pastel. It answers with the commit, `pasteis_remaining`, `pasteis_resets_at` and `author_pasteis_received`, the author's new total. Signed commits always carry `pasteis_count` and signed profiles `pasteis_received`, and the app shows them only in pastéis mode, as the web does.
 
 Each request sends three headers:
 
@@ -124,7 +126,8 @@ An error is JSON with a `message` to show the user. The errors the app has to te
 | `401` | `device_not_approved` | Nobody approved the key as a device, or it was revoked. |
 | `403` | `user_blocked` | The user blocked the profile they asked for. Neither of them sees the other's commits. |
 | `403` | `user_unavailable` | The profile isn't available to the user, because it blocked them. |
-| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, 30 follows and unfollows a minute, or 60 failed signatures a minute from one IP. `Retry-After` says when to try again. |
+| `422` | `pasteis_exhausted` | `POST /api/v1/commits/{id}/pasteis` only: the user gave all 10 of today's pastéis. They come back at 00:00 UTC. |
+| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, 30 follows and unfollows a minute, 60 pastéis a minute, or 60 failed signatures a minute from one IP. `Retry-After` says when to try again. |
 
 Other errors have no `code`, like a `422` for a commit that fails validation or a `404` for one that doesn't exist. Unsigned requests to the public endpoints get the same errors as before, without codes.
 
