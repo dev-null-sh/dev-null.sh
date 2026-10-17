@@ -47,6 +47,7 @@ final readonly class CreateExport
                 'company' => $user->company,
                 'has_sponsors_listing' => $user->has_sponsors_listing,
                 'preferred_lane' => $user->preferred_lane,
+                'timezone' => $user->timezone,
                 'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,
                 'pasteis_received' => $user->pasteis_received,

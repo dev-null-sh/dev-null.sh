@@ -18,6 +18,7 @@ export type User = {
     has_sponsors_listing: boolean;
     has_github_account: boolean;
     lane: Lane;
+    timezone: string | null;
     created_at: string;
     updated_at: string;
 };
