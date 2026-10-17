@@ -35,26 +35,14 @@ final class CreateCommitRequest extends FormRequest
         }
     }
 
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     /**
      * Images are checked by their contents, not their extension, and SVG is never accepted since it can carry scripts.
      *
-     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>>
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum>>
      */
-    public function rules(): array
+    public static function attachmentRules(): array
     {
-        $user = $this->user();
-        assert($user instanceof User);
-        $body = $this->input('body');
-
         return [
-            'body' => self::BODY_RULES,
-            'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
-            'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],
             'poll.options' => ['required_with:poll', 'list', 'min:'.NewPoll::MinOptions, 'max:'.NewPoll::MaxOptions],
             'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
@@ -70,6 +58,28 @@ final class CreateCommitRequest extends FormRequest
             ],
             'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
+        ];
+    }
+
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>>
+     */
+    public function rules(): array
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+        $body = $this->input('body');
+
+        return [
+            'body' => self::BODY_RULES,
+            'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
+            'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
+            ...self::attachmentRules(),
         ];
     }
 
