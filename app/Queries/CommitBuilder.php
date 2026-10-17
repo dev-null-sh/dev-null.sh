@@ -35,7 +35,7 @@ final class CommitBuilder extends Builder
      * @param  array<int, Expression|string>|string  $columns
      * @return array<int, Commit>
      */
-    public function getModels($columns = ['*'])
+    public function getModels($columns = ['*']): array
     {
         $selected = $this->query->columns;
 
