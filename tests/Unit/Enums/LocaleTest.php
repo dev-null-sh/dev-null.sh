@@ -16,6 +16,7 @@ it('has the languages devnull is translated into', function (): void {
         'Japanese' => 'ja',
         'Russian' => 'ru',
         'Korean' => 'ko',
+        'Nepali' => 'ne',
     ]);
 });
 
@@ -32,4 +33,5 @@ it('names each language in that language', function (Locale $locale, string $lab
     [Locale::Japanese, '日本語'],
     [Locale::Russian, 'Русский'],
     [Locale::Korean, '한국어'],
+    [Locale::Nepali, 'नेपाली'],
 ]);

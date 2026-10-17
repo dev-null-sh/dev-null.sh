@@ -16,6 +16,7 @@ enum Locale: string
     case Japanese = 'ja';
     case Russian = 'ru';
     case Korean = 'ko';
+    case Nepali = 'ne';
 
     /**
      * The language's name in that language, so people can find their own language in the list.
@@ -33,6 +34,7 @@ enum Locale: string
             self::Japanese => '日本語',
             self::Russian => 'Русский',
             self::Korean => '한국어',
+            self::Nepali => 'नेपाली',
         };
     }
 }
