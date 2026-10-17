@@ -2,8 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { App } from '@inertiajs/react';
-import type { ComponentProps, KeyboardEvent } from 'react';
+import type { ComponentProps, KeyboardEvent, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { CommitBody } from '../../resources/js/components/commit-body';
 import { CommitComposer } from '../../resources/js/components/commit-composer';
 import { revokeObjectUrls } from '../../resources/js/components/commit-image-picker';
 import {
@@ -11,6 +12,32 @@ import {
     useComposerPreview,
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
+
+function renderPage(content: ReactElement, pasteisMode = false): string {
+    return renderToStaticMarkup(
+        <App
+            initialComponent={() => content}
+            initialPage={
+                {
+                    component: 'Preview',
+                    url: '/',
+                    version: null,
+                    props: {
+                        errors: {},
+                        auth: {
+                            user: null,
+                            pasteis: pasteisMode
+                                ? { remaining: 0, day: '2026-10-16' }
+                                : null,
+                        },
+                    },
+                    clearHistory: false,
+                    encryptHistory: false,
+                } as unknown as ComponentProps<typeof App>['initialPage']
+            }
+        />,
+    );
+}
 
 function previewFor(options: {
     body?: string;
@@ -146,7 +173,7 @@ void test('previews the chosen link card instead of the first link in the body',
         body: 'https://first.example.com https://second.example.com',
         isSubmittable: true,
     });
-    const markup = renderToStaticMarkup(
+    const markup = renderPage(
         <ComposerPreviewBody
             preview={preview}
             images={[]}
@@ -165,7 +192,7 @@ void test('omits the preview card when the author chooses no card', () => {
         body: 'https://first.example.com',
         isSubmittable: true,
     });
-    const markup = renderToStaticMarkup(
+    const markup = renderPage(
         <ComposerPreviewBody preview={preview} images={[]} url={null} />,
     );
 
@@ -181,7 +208,10 @@ void test('retains the link card picker and scheduling beside preview', () => {
         /<button[^>]*aria-controls="commit-schedule"[^>]*>/,
     )?.[0];
 
-    assert.equal((markup.match(/data-test="link-card-button"/g) ?? []).length, 1);
+    assert.equal(
+        (markup.match(/data-test="link-card-button"/g) ?? []).length,
+        1,
+    );
     assert.equal((markup.match(/data-test="preview-toggle"/g) ?? []).length, 1);
     assert.ok(schedule);
     assert.ok(!/\sdisabled(?:=|\s|>)/.test(schedule));
@@ -207,7 +237,6 @@ void test('ordinary drafts retain preview without a sensitive text warning', () 
     assert.ok(!markup.includes('aria-label="Sensitive text warning"'));
 });
 
-
 void test('previews attached image descriptions without a published photo link', () => {
     const images = [
         new File(['first'], 'first.png', { type: 'image/png' }),
@@ -215,7 +244,7 @@ void test('previews attached image descriptions without a published photo link',
     ];
 
     try {
-        const markup = renderToStaticMarkup(
+        const markup = renderPage(
             <ComposerPreviewBody
                 preview={previewFor({ isSubmittable: true })}
                 images={images}
@@ -232,3 +261,81 @@ void test('previews attached image descriptions without a published photo link',
         revokeObjectUrls(images);
     }
 });
+
+for (const pasteisMode of [false, true]) {
+    for (const isStatic of [false, true]) {
+        void test(`renders pastel words as ${pasteisMode ? 'emoji' : 'text'} in ${isStatic ? 'excerpts' : 'commit previews'}`, () => {
+            const body =
+                'pastel, pasteis! (pastéis) PASTEL PASTEIS PASTÉIS :rocket:';
+            const preview = previewFor({ body, isSubmittable: true });
+            const markup = renderPage(
+                isStatic ? (
+                    <CommitBody segments={preview.segments} isStatic />
+                ) : (
+                    <ComposerPreviewBody
+                        preview={preview}
+                        images={[]}
+                        url={null}
+                    />
+                ),
+                pasteisMode,
+            );
+
+            assert.equal(
+                (markup.match(/<img /g) ?? []).length,
+                pasteisMode ? 6 : 0,
+            );
+            assert.ok(markup.includes('🚀'));
+            assert.equal(preview.draft, body);
+            if (pasteisMode) {
+                for (const word of [
+                    'pastel',
+                    'pasteis',
+                    'pastéis',
+                    'PASTEL',
+                    'PASTEIS',
+                    'PASTÉIS',
+                ]) {
+                    assert.ok(markup.includes(`alt="${word}"`));
+                }
+            } else {
+                assert.ok(
+                    markup.includes(
+                        'pastel, pasteis! (pastéis) PASTEL PASTEIS PASTÉIS',
+                    ),
+                );
+            }
+        });
+
+        void test(`preserves code, URLs, usernames and larger words with mode ${pasteisMode ? 'on' : 'off'} in ${isStatic ? 'excerpts' : 'commits'}`, () => {
+            const preview = previewFor({
+                body: 'pastel https://pasteis.com/pastel @pastel pastels pastelaria épastel pastelé pastel_1\n`pasteis`\n```text\npastéis\n```',
+                isSubmittable: true,
+            });
+            const markup = renderPage(
+                <CommitBody segments={preview.segments} isStatic={isStatic} />,
+                pasteisMode,
+            );
+
+            assert.equal(
+                (markup.match(/<img /g) ?? []).length,
+                pasteisMode ? 1 : 0,
+            );
+            assert.ok(markup.includes('@pastel'));
+            assert.ok(
+                markup.includes('pastels pastelaria épastel pastelé pastel_1'),
+            );
+            assert.match(markup, /<code[^>]*>pasteis<\/code>/);
+            assert.match(markup, /<pre[^>]*>pastéis<\/pre>/);
+            assert.equal(
+                markup.includes('href="https://pasteis.com/pastel"'),
+                !isStatic,
+            );
+            assert.equal(markup.includes('data-test="mention"'), !isStatic);
+            if (isStatic) {
+                assert.ok(markup.includes('https://pasteis.com/pastel'));
+                assert.ok(!markup.includes('<a '));
+            }
+        });
+    }
+}

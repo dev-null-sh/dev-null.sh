@@ -12,7 +12,6 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useLastVisit } from '@/hooks/use-last-visit';
-import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
 import { readStorage, writeStorage } from '@/lib/storage';
@@ -35,9 +34,13 @@ export default function Show({
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
-    const { user } = useUser();
-    const { flash } = usePage();
-    const markerKey = `latest-marker:${user.id}:${log}`;
+    const {
+        flash,
+        props: { auth },
+    } = usePage();
+    const user = auth.user;
+    const viewerId = user?.id ?? 'guest';
+    const markerKey = `latest-marker:${viewerId}:${log}`;
     const [markerId, setMarkerId] = useState(
         () =>
             (flash.committed ? readStorage(markerKey) : '') ||
@@ -65,7 +68,7 @@ export default function Show({
     }, []);
 
     useEffect(() => writeStorage(markerKey, markerId), [markerKey, markerId]);
-    const firstSeenId = useLastVisit(user.id, log, commits.data);
+    const firstSeenId = useLastVisit(viewerId, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
         30_000,
@@ -104,7 +107,7 @@ export default function Show({
                 const next =
                     newestOf(
                         (page.props.latestCommits as Commit[]).filter(
-                            (commit) => commit.user_id !== user.id,
+                            (commit) => commit.user_id !== user?.id,
                         ),
                     )?.id ?? markerId;
 
@@ -160,7 +163,7 @@ export default function Show({
                 />
             </div>
 
-            <CommitComposer />
+            {user !== null && <CommitComposer />}
 
             {newCommitsCount > 0 && (
                 <div

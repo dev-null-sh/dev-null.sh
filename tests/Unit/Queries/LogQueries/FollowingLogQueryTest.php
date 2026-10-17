@@ -7,6 +7,14 @@ use App\Models\User;
 use App\Queries\LogQueries\FollowingLogQuery;
 use Illuminate\Support\Facades\DB;
 
+it('returns no commits for guests', function (): void {
+    Commit::factory()->create();
+
+    $commits = resolve(FollowingLogQuery::class)->builder(null)->get();
+
+    expect($commits)->toBeEmpty();
+});
+
 it('includes own commits and commits of followed users newest first', function (): void {
     $user = User::factory()->create();
     $followed = User::factory()->create();

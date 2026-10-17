@@ -9,5 +9,5 @@ use App\Queries\CommitBuilder;
 
 interface LogQuery
 {
-    public function builder(User $user): CommitBuilder;
+    public function builder(?User $user): CommitBuilder;
 }
