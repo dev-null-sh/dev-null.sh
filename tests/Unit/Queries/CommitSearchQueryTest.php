@@ -42,7 +42,7 @@ it('reads the term against the candidates with the decision model, keeping only 
         && count(array_filter(array_column($request['questions'], 'instructions'))) === 2);
 });
 
-it('keeps a candidate unless the decision model thinks it more likely irrelevant than not', function (float $probability, bool $isKept): void {
+it('keeps loosely related candidates at or above the relevance cutoff', function (float $probability, bool $isKept): void {
     Http::fake([
         'api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(0)])),
         'api.openai.com/v1/decisions' => Http::response(['answers' => [
@@ -56,6 +56,9 @@ it('keeps a candidate unless the decision model thinks it more likely irrelevant
 })->with([
     'likely' => [0.8, true],
     'even' => [0.5, true],
+    'loosely related' => [0.4, true],
+    'at the cutoff' => [0.3, true],
+    'below the cutoff' => [0.299, false],
     'unlikely' => [0.2, false],
 ]);
 

@@ -2,12 +2,12 @@ import CommitSearchController from '@/actions/App/Http/Controllers/CommitSearchC
 import type { Commit } from '@/types';
 
 export const suggestedQueries = [
-    'posts about indexing strategies',
-    'how to read explain output',
-    'caching with MongoDB',
-    'real-world performance tips',
-    'aggregation pipeline optimization',
-    'sharding best practices',
+    'how’s AI coding going?',
+    'what happened on the livestream?',
+    'cool projects on GitHub',
+    'vibe coding, but with a plan',
+    'building dev/null in two days',
+    'PHP is still pretty good, huh?',
 ];
 
 /**
