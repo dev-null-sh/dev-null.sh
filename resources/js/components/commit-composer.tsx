@@ -11,6 +11,7 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import {
+    ComposerPollPreview,
     ComposerPreviewBody,
     PreviewToggle,
     useComposerPreview,
@@ -217,16 +218,27 @@ function CommitComposerBody({
                     />
 
                     {poll && (
-                        <PollEditor
-                            id={`${id}-poll`}
-                            poll={poll}
-                            errors={errors}
-                            onChange={setPoll}
-                            onRemove={() => {
-                                setPoll(null);
-                                focusBody(id);
-                            }}
-                        />
+                        <div className="mt-2 grid">
+                            <PollEditor
+                                id={`${id}-poll`}
+                                poll={poll}
+                                errors={errors}
+                                onChange={setPoll}
+                                onRemove={() => {
+                                    setPoll(null);
+                                    focusBody(id);
+                                }}
+                                className={cn('col-start-1 row-start-1', {
+                                    invisible: preview.isPreviewing,
+                                })}
+                            />
+                            {preview.isPreviewing && (
+                                <ComposerPollPreview
+                                    poll={poll}
+                                    className="col-start-1 row-start-1"
+                                />
+                            )}
+                        </div>
                     )}
 
                     {isScheduling && (
