@@ -314,7 +314,6 @@ export default function Show({
 
             <CommitFeed
                 commits={commits}
-                firstLane="var(--rail)"
                 end="That's every pending commit."
                 isFolded={false}
                 actions={(commit) => (
