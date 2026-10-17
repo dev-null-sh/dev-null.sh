@@ -19,7 +19,7 @@ final readonly class UserLaneController
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __('Color saved.'),
+            'message' => 'Color saved.',
         ]);
 
         return back();

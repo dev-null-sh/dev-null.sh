@@ -21,7 +21,7 @@ final readonly class CommitReportController
     {
         $action->handle($user, $commit, $request->string('reason')->value(), $request->filled('details') ? $request->string('details')->value() : null);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => __('Report received. Moderators will review it privately.')]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Report received. Moderators will review it privately.']);
 
         return back();
     }

@@ -30,13 +30,13 @@ final readonly class OpenPoll implements ValidationRule
         }
 
         if ($this->commit->status !== CommitStatus::Approved || $poll->opened_at === null) {
-            $fail(__('This poll is not open for votes.'));
+            $fail('This poll is not open for votes.');
         } elseif ($this->commit->user_id === $this->voter->id) {
-            $fail(__("You can't vote on your own poll."));
+            $fail("You can't vote on your own poll.");
         } elseif ($poll->isClosed()) {
-            $fail(__('This poll has closed.'));
+            $fail('This poll has closed.');
         } elseif ($poll->votes()->where('user_id', $this->voter->id)->exists()) {
-            $fail(__('You have already voted on this poll.'));
+            $fail('You have already voted on this poll.');
         }
     }
 }

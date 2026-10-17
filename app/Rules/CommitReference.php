@@ -23,11 +23,11 @@ final readonly class CommitReference implements ValidationRule
         $commits = resolve(CommitByReferenceQuery::class)->get($this->user, $reference);
 
         if ($commits === null) {
-            $fail(__(':reference is not a commit hash or link.', ['reference' => $reference]));
+            $fail("{$reference} is not a commit hash or link.");
         } elseif ($commits->count() > 1) {
-            $fail(__(':reference matches several commits: use the link of the commit instead.', ['reference' => $reference]));
+            $fail("{$reference} matches several commits: use the link of the commit instead.");
         } elseif ($commits->isEmpty()) {
-            $fail(__('There is no commit :reference to reply to.', ['reference' => $reference]));
+            $fail("There is no commit {$reference} to reply to.");
         }
     }
 }
