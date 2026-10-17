@@ -107,9 +107,11 @@ function LinkPreviewSkeleton() {
 export function LinkPreview({
     commitId,
     preview: initialPreview,
+    isStatic = false,
 }: {
     commitId: string;
     preview: LinkPreviewData;
+    isStatic?: boolean;
 }) {
     const { preview, isWaiting } = useFetchedLinkPreview(
         commitId,
@@ -119,7 +121,13 @@ export function LinkPreview({
     const imageUrl = isImageBroken ? null : preview.image_url;
 
     if (preview.embed) {
-        return <LinkEmbed preview={preview} embed={preview.embed} />;
+        return (
+            <LinkEmbed
+                preview={preview}
+                embed={preview.embed}
+                isStatic={isStatic}
+            />
+        );
     }
 
     if (isWaiting) {
@@ -130,15 +138,8 @@ export function LinkPreview({
         return null;
     }
 
-    return (
-        <a
-            href={preview.url}
-            target="_blank"
-            rel="noopener noreferrer nofollow ugc"
-            onClick={(event) => event.stopPropagation()}
-            className="mt-3 flex items-center overflow-hidden rounded-lg border transition-colors hover:bg-accent focus-visible:bg-accent"
-            data-test="link-preview"
-        >
+    const content = (
+        <>
             {imageUrl && (
                 <img
                     src={imageUrl}
@@ -163,6 +164,30 @@ export function LinkPreview({
                     </span>
                 )}
             </div>
+        </>
+    );
+
+    if (isStatic) {
+        return (
+            <div
+                className="mt-3 flex items-center overflow-hidden rounded-lg border"
+                data-test="link-preview"
+            >
+                {content}
+            </div>
+        );
+    }
+
+    return (
+        <a
+            href={preview.url}
+            target="_blank"
+            rel="noopener noreferrer nofollow ugc"
+            onClick={(event) => event.stopPropagation()}
+            className="mt-3 flex items-center overflow-hidden rounded-lg border transition-colors hover:bg-accent focus-visible:bg-accent"
+            data-test="link-preview"
+        >
+            {content}
         </a>
     );
 }

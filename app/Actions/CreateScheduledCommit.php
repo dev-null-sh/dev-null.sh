@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Urls;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 
 final readonly class CreateScheduledCommit
 {
@@ -29,7 +30,7 @@ final readonly class CreateScheduledCommit
     {
         $body = mb_trim($body);
 
-        return ScheduledCommit::query()->create([
+        return DB::transaction(fn (): ScheduledCommit => ScheduledCommit::query()->create([
             'user_id' => $user->id,
             'body' => $body,
             'poll' => $poll instanceof NewPoll ? ['options' => $poll->options, 'duration' => $poll->duration->value] : null,
@@ -40,6 +41,6 @@ final readonly class CreateScheduledCommit
                 default => $linkPreview,
             },
             'scheduled_at' => $scheduledAt->utc(),
-        ]);
+        ]));
     }
 }

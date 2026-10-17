@@ -88,12 +88,15 @@ export type QuotedCommit = Pick<
     | 'user_id'
     | 'body'
     | 'body_segments'
+    | 'preview_segments'
     | 'status'
     | 'created_at'
     | 'deleted_at'
     | 'user'
     | 'replies_count'
     | 'poll'
+    | 'link_preview'
+    | 'images'
 >;
 
 export type DeletedCommit = {
