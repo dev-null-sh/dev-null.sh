@@ -3,6 +3,11 @@ import { Bookmark } from 'lucide-react';
 import { createContext, useContext } from 'react';
 import { toast } from 'sonner';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { commitStateKey } from '@/lib/commit-state';
@@ -13,7 +18,7 @@ export const BookmarkRemovalContext = createContext<
     ((id: string) => void) | null
 >(null);
 
-export function BookmarkButton({ commit }: { commit: Commit }) {
+export function useBookmark(commit: Commit) {
     const { auth } = usePage().props;
     const [isSaved, setIsSaved] = useSharedState(
         commitStateKey('is_saved', commit.id),
@@ -21,10 +26,6 @@ export function BookmarkButton({ commit }: { commit: Commit }) {
     );
     const request = useHttp<Record<string, never>, { is_saved: boolean }>({});
     const onRemoved = useContext(BookmarkRemovalContext);
-
-    if (commit.status !== 'approved' && commit.user_id !== auth.user?.id) {
-        return null;
-    }
 
     const toggle = async () => {
         if (auth.user === null) {
@@ -55,24 +56,46 @@ export function BookmarkButton({ commit }: { commit: Commit }) {
         }
     };
 
+    return {
+        isAvailable:
+            commit.status === 'approved' || commit.user_id === auth.user?.id,
+        isSaved,
+        isProcessing: request.processing,
+        toggle,
+    };
+}
+
+export function BookmarkButton({ commit }: { commit: Commit }) {
+    const { isAvailable, isSaved, isProcessing, toggle } = useBookmark(commit);
+
+    if (!isAvailable) {
+        return null;
+    }
+
     return (
-        <button
-            type="button"
-            onClick={toggle}
-            aria-disabled={request.processing}
-            aria-label={isSaved ? 'Unsave commit' : 'Save commit'}
-            aria-pressed={isSaved}
-            title={isSaved ? 'Unsave commit' : 'Save commit privately'}
-            className={cn(
-                'rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-disabled:pointer-events-none aria-disabled:opacity-50',
-                { 'text-primary hover:text-primary': isSaved },
-            )}
-            data-test="bookmark-button"
-        >
-            <Bookmark
-                aria-hidden
-                className={cn('size-4', { 'fill-current': isSaved })}
-            />
-        </button>
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <button
+                    type="button"
+                    onClick={toggle}
+                    aria-disabled={isProcessing}
+                    aria-label={isSaved ? 'Unsave commit' : 'Save commit'}
+                    aria-pressed={isSaved}
+                    className={cn(
+                        'rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-disabled:pointer-events-none aria-disabled:opacity-50',
+                        { 'text-primary hover:text-primary': isSaved },
+                    )}
+                    data-test="bookmark-button"
+                >
+                    <Bookmark
+                        aria-hidden
+                        className={cn('size-4', { 'fill-current': isSaved })}
+                    />
+                </button>
+            </TooltipTrigger>
+            <TooltipContent>
+                {isSaved ? 'Saved' : 'Save commit privately'}
+            </TooltipContent>
+        </Tooltip>
     );
 }

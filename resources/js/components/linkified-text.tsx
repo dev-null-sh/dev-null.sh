@@ -1,9 +1,14 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import AppLogoIcon from '@/components/app-logo-icon';
+import AppWordmark from '@/components/app-wordmark';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse } from '@/lib/code';
 import { shortenUrl } from '@/lib/urls';
-import { show } from '@/routes/user';
+import { shortHash } from '@/lib/utils';
+import { show } from '@/routes/mention';
+import type { Commit } from '@/types';
 
 // Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
 
@@ -34,6 +39,9 @@ const urlPattern = new RegExp(
 // into a path or a domain, so emails, "@inertiajs/react" and "@vue.js" are not mentions.
 const mentionPattern =
     /(?<![\p{L}\p{N}_./@-])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})(?![A-Za-z0-9_@/-]|\.[A-Za-z0-9])/gu;
+// A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
+const commitLinkPattern =
+    /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const schemePattern = /^https?:\/\//i;
 const maxUrlLength = 2048;
 const brackets = [
@@ -119,6 +127,59 @@ function ShortenedUrl({ url }: { url: string }) {
     );
 }
 
+// Like a shortened URL, the whole URL stays in the text, so copying it keeps the link.
+function CommitLink({
+    url,
+    username,
+    commit,
+    isStatic,
+}: {
+    url: string;
+    username: string;
+    commit: string;
+    isStatic: boolean;
+}) {
+    const hash = shortHash(commit);
+    const label = (
+        <>
+            <span className="text-[0px]">{url}</span>
+            <span
+                aria-hidden="true"
+                className="font-mono text-[0.92em] wrap-anywhere select-none"
+            >
+                {/* The mark never wraps onto a line of its own. */}
+                <span className="whitespace-nowrap text-muted-foreground">
+                    <AppLogoIcon className="mr-[0.2em] inline-block size-[1.15em] fill-foreground align-[-0.25em]" />
+                    {username.charAt(0)}
+                </span>
+                <span className="text-muted-foreground">
+                    {username.slice(1)}/
+                </span>
+                {hash}
+            </span>
+        </>
+    );
+
+    if (isStatic) {
+        return (
+            <span title={url} className="text-primary">
+                {label}
+            </span>
+        );
+    }
+
+    return (
+        <Link
+            href={CommitController.show({ user: username, commit })}
+            title={url}
+            aria-label={`@${username}’s commit ${hash}`}
+            className="text-primary hover:underline"
+        >
+            {label}
+        </Link>
+    );
+}
+
 function withPasteis(text: string, pasteisMode: boolean): ReactNode {
     if (!pasteisMode) {
         return text;
@@ -145,9 +206,30 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         );
 }
 
+function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
+    return text
+        .split(
+            /(?<![\p{L}\p{M}\p{N}_./-])(\/dev\/null)(?![\p{L}\p{M}\p{N}_/-])/u,
+        )
+        .map((part, index) =>
+            index % 2 === 0 ? (
+                withPasteis(part, pasteisMode)
+            ) : (
+                <span
+                    key={`wordmark-${index}`}
+                    title={part}
+                    className="font-semibold tracking-tight whitespace-nowrap"
+                >
+                    <AppWordmark />
+                </span>
+            ),
+        );
+}
+
 function withMentions(
     text: string,
     offset: number,
+    mentions: Commit['mentions'],
     pasteisMode: boolean,
     isStatic: boolean,
 ): ReactNode[] {
@@ -155,17 +237,24 @@ function withMentions(
     let position = 0;
 
     for (const match of text.matchAll(mentionPattern)) {
+        const username = match[1].toLowerCase();
+        const userId =
+            mentions && Object.hasOwn(mentions, username)
+                ? mentions[username]
+                : null;
+
         parts.push(
-            withPasteis(text.slice(position, match.index), pasteisMode),
-            isStatic ? (
+            ...withWordmarks(text.slice(position, match.index), pasteisMode),
+            isStatic || !userId ? (
                 match[0]
             ) : (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
                     user={{ username: match[1] }}
+                    userId={userId}
                 >
                     <Link
-                        href={show({ username: match[1] })}
+                        href={show(userId)}
                         className="font-medium text-primary hover:underline"
                         data-test="mention"
                     >
@@ -178,17 +267,19 @@ function withMentions(
         position = match.index + match[0].length;
     }
 
-    parts.push(withPasteis(text.slice(position), pasteisMode));
+    parts.push(...withWordmarks(text.slice(position), pasteisMode));
 
     return parts;
 }
 
 export function LinkifiedText({
     text,
+    mentions,
     pasteisMode = false,
     isStatic = false,
 }: {
     text: string;
+    mentions: Commit['mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
 }) {
@@ -203,14 +294,25 @@ export function LinkifiedText({
             continue;
         }
 
+        const commitLink = commitLinkPattern.exec(linkText);
+
         parts.push(
             ...withMentions(
                 text.slice(position, match.index),
                 position,
+                mentions,
                 pasteisMode,
                 isStatic,
             ),
-            isStatic ? (
+            commitLink ? (
+                <CommitLink
+                    key={match.index}
+                    url={linkText}
+                    username={commitLink[1]}
+                    commit={commitLink[2].toLowerCase()}
+                    isStatic={isStatic}
+                />
+            ) : isStatic ? (
                 linkText
             ) : (
                 <a
@@ -230,7 +332,13 @@ export function LinkifiedText({
     }
 
     parts.push(
-        ...withMentions(text.slice(position), position, pasteisMode, isStatic),
+        ...withMentions(
+            text.slice(position),
+            position,
+            mentions,
+            pasteisMode,
+            isStatic,
+        ),
     );
 
     return <>{parts}</>;

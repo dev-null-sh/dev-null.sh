@@ -6,16 +6,17 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { BodyCounter } from '@/components/body-counter';
 import {
+    ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import {
+    ComposerPollPreview,
     ComposerPreviewBody,
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
-import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -38,13 +39,17 @@ import {
 } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
-import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
-import { characterCount, cn, laneColor } from '@/lib/utils';
+import {
+    characterCount,
+    cn,
+    isRejectedSubmission,
+    laneColor,
+} from '@/lib/utils';
 import type { User } from '@/types';
 
-function focusBody(): void {
-    requestAnimationFrame(() => document.getElementById('body')?.focus());
+function focusBody(id: string): void {
+    requestAnimationFrame(() => document.getElementById(id)?.focus());
 }
 
 function useCommitSchedule() {
@@ -63,6 +68,8 @@ function useCommitSchedule() {
 }
 
 function CommitComposerBody({
+    id,
+    isInDialog,
     user,
     stash,
     attachments,
@@ -77,6 +84,8 @@ function CommitComposerBody({
     onKeyDown,
     drop,
 }: {
+    id: string;
+    isInDialog: boolean;
     user: User;
     stash: UseStashReturn;
     attachments: ReturnType<typeof useImageAttachments>;
@@ -103,45 +112,46 @@ function CommitComposerBody({
         setIsScheduling,
     } = schedule;
     const hasImages = attachments.images.length > 0;
-    const isSchedulingImages = isScheduling && hasImages;
-    const isFilled = characterCount(body.trim()) >= minBodyLength;
-    const suggestion = suggestEmoji(body);
+    const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
     const error = errors.body ?? errors.link_preview_url;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
 
     return (
-        <div className="flex">
+        <div
+            className="relative flex"
+            {...(poll === null ? attachments.dropzone : {})}
+        >
+            {attachments.isDraggingFiles && (
+                <ImageDropOverlay className="inset-2" />
+            )}
             <GraphRail
                 lane={laneColor(user.lane)}
                 variant="staged"
                 isFilled={isFilled}
+                hasTail={!isInDialog}
                 node={<RailAvatar user={user} isStaged={!isFilled} />}
             />
 
-            <div className="flex min-w-0 flex-1 border-b pt-3 pr-4 pb-3">
+            <div
+                className={cn('flex min-w-0 flex-1 pt-3 pr-4 pb-3', {
+                    'border-b': !isInDialog,
+                })}
+            >
                 <div className="min-w-0 flex-1">
-                    <label htmlFor="body" className="sr-only">
+                    <label htmlFor={id} className="sr-only">
                         Body
                     </label>
                     <div className="grid">
                         <MentionTextarea
                             ref={textareaRef}
-                            id="body"
+                            id={id}
                             name="body"
                             rows={1}
                             value={body}
                             onValueChange={updateBody}
                             onPaste={
                                 poll === null ? attachments.onPaste : undefined
-                            }
-                            onDragOver={
-                                poll === null
-                                    ? attachments.onDragOver
-                                    : undefined
-                            }
-                            onDrop={
-                                poll === null ? attachments.onDrop : undefined
                             }
                             onKeyDown={(event) =>
                                 preview.handleShortcut(event) ||
@@ -154,7 +164,7 @@ function CommitComposerBody({
                             }
                             autoComplete="off"
                             aria-invalid={error ? true : undefined}
-                            aria-describedby="body-count"
+                            aria-describedby={`${id}-count`}
                             className={cn(
                                 'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                 { invisible: preview.isPreviewing },
@@ -163,24 +173,13 @@ function CommitComposerBody({
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
-                                url={
-                                    isScheduling
-                                        ? (linkCard.links[0] ?? null)
-                                        : linkCard.link
-                                }
+                                url={linkCard.link}
                                 images={attachments.images}
                                 descriptions={attachments.descriptions}
                                 className="col-start-1 row-start-1 py-1.5"
                             />
                         )}
                     </div>
-
-                    {!preview.isPreviewing && (
-                        <EmojiSuggestionHint
-                            suggestion={suggestion}
-                            className="mt-1.5"
-                        />
-                    )}
 
                     <SecretWarning
                         body={body}
@@ -203,40 +202,47 @@ function CommitComposerBody({
                         />
                     )}
                     <InputError
-                        message={
-                            attachments.error ??
-                            (isSchedulingImages
-                                ? "Images can't be scheduled yet. Remove them to schedule this commit."
-                                : imageErrorFrom(errors))
-                        }
+                        message={attachments.error ?? imageErrorFrom(errors)}
                         className="mt-1"
                     />
 
                     {poll && (
-                        <PollEditor
-                            poll={poll}
-                            errors={errors}
-                            onChange={setPoll}
-                            onRemove={() => {
-                                setPoll(null);
-                                focusBody();
-                            }}
-                        />
+                        <div className="mt-2 grid">
+                            <PollEditor
+                                id={`${id}-poll`}
+                                poll={poll}
+                                errors={errors}
+                                onChange={setPoll}
+                                onRemove={() => {
+                                    setPoll(null);
+                                    focusBody(id);
+                                }}
+                                className={cn('col-start-1 row-start-1', {
+                                    invisible: preview.isPreviewing,
+                                })}
+                            />
+                            {preview.isPreviewing && (
+                                <ComposerPollPreview
+                                    poll={poll}
+                                    className="col-start-1 row-start-1"
+                                />
+                            )}
+                        </div>
                     )}
 
                     {isScheduling && (
                         <div
-                            id="commit-schedule"
+                            id={`${id}-schedule`}
                             className="mt-3 space-y-2 rounded-lg border bg-muted/30 p-3"
                         >
                             <label
-                                htmlFor="scheduled-at"
+                                htmlFor={`${id}-scheduled-at`}
                                 className="text-sm font-medium"
                             >
                                 Submit at
                             </label>
                             <Input
-                                id="scheduled-at"
+                                id={`${id}-scheduled-at`}
                                 type="datetime-local"
                                 required
                                 value={scheduledAt}
@@ -253,13 +259,13 @@ function CommitComposerBody({
                                             : '',
                                     );
                                 }}
-                                aria-describedby="schedule-help schedule-error"
+                                aria-describedby={`${id}-schedule-help ${id}-schedule-error`}
                                 aria-invalid={
                                     errors.scheduled_at ? true : undefined
                                 }
                             />
                             <p
-                                id="schedule-help"
+                                id={`${id}-schedule-help`}
                                 className="text-xs leading-relaxed text-muted-foreground"
                             >
                                 {timezone}
@@ -273,7 +279,7 @@ function CommitComposerBody({
                                     : 'then submitted for review, not published automatically.'}
                             </p>
                             <InputError
-                                id="schedule-error"
+                                id={`${id}-schedule-error`}
                                 message={errors.scheduled_at}
                             />
                             <Link
@@ -287,52 +293,45 @@ function CommitComposerBody({
 
                     <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
                         <div className="mr-auto flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-                            {!isScheduling && (
-                                <ImagePickerButton
-                                    count={attachments.images.length}
-                                    disabled={processing || poll !== null}
-                                    onPick={attachments.attach}
-                                    className="-ml-2"
-                                />
-                            )}
+                            <ImagePickerButton
+                                count={attachments.images.length}
+                                disabled={processing || poll !== null}
+                                onPick={attachments.attach}
+                                className="-ml-2"
+                            />
                             <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
                                 disabled={
-                                    processing ||
-                                    poll !== null ||
-                                    hasImages ||
-                                    isScheduling
+                                    processing || poll !== null || hasImages
                                 }
                                 onClick={() => {
                                     setPoll(emptyPollDraft);
                                     requestAnimationFrame(() =>
                                         document
-                                            .getElementById('poll-option-0')
+                                            .getElementById(
+                                                `${id}-poll-option-0`,
+                                            )
                                             ?.focus(),
                                     );
                                 }}
                                 aria-label="Add poll"
                                 title={
-                                    isScheduling
-                                        ? 'Polls cannot be scheduled yet'
-                                        : hasImages
-                                          ? 'A commit can have images or a poll, not both'
-                                          : 'Add poll'
+                                    hasImages
+                                        ? 'A commit can have images or a poll, not both'
+                                        : 'Add poll'
                                 }
                                 className="text-muted-foreground"
                                 data-test="add-poll-button"
                             >
                                 <ChartBar className="size-5" />
                             </Button>
-                            {!isScheduling && (
-                                <LinkCardPicker
-                                    linkCard={linkCard}
-                                    disabled={processing}
-                                    className="-ml-3"
-                                />
-                            )}
+                            <LinkCardPicker
+                                linkCard={linkCard}
+                                disabled={processing}
+                                className="-ml-3"
+                            />
                             <PreviewToggle
                                 preview={preview}
                                 className="-ml-3"
@@ -341,7 +340,7 @@ function CommitComposerBody({
                                 <StashLabel
                                     onDrop={() => {
                                         drop();
-                                        focusBody();
+                                        focusBody(id);
                                     }}
                                     className="text-[13px]"
                                 />
@@ -352,18 +351,8 @@ function CommitComposerBody({
                             variant="ghost"
                             size="sm"
                             aria-expanded={isScheduling}
-                            aria-controls="commit-schedule"
-                            disabled={
-                                processing ||
-                                (!isScheduling && (hasImages || poll !== null))
-                            }
-                            title={
-                                !isScheduling && poll !== null
-                                    ? 'Polls cannot be scheduled yet'
-                                    : !isScheduling && hasImages
-                                      ? "Images can't be scheduled yet"
-                                      : undefined
-                            }
+                            aria-controls={`${id}-schedule`}
+                            disabled={processing}
                             onClick={() => {
                                 setTimezone(
                                     Intl.DateTimeFormat().resolvedOptions()
@@ -377,7 +366,7 @@ function CommitComposerBody({
                             Schedule
                         </Button>
                         <BodyCounter
-                            id="body-count"
+                            id={`${id}-count`}
                             body={body}
                             className="text-[13px]"
                         />
@@ -407,13 +396,21 @@ function CommitComposerBody({
     );
 }
 
-export function CommitComposer() {
+export function CommitComposer({
+    id = 'body',
+    isInDialog = false,
+    onCommitted,
+}: {
+    id?: string;
+    isInDialog?: boolean;
+    onCommitted?: () => void;
+}) {
     const schedule = useCommitSchedule();
     const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
         schedule;
     const { user } = useUser();
     const stash = useStash(user.id, 'commit');
-    const { body, updateBody } = stash;
+    const { body } = stash;
     const linkCard = useLinkCard(body);
     const [draftVersion, setDraftVersion] = useState(0);
     const drop = () => {
@@ -429,31 +426,16 @@ export function CommitComposer() {
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(body);
 
+    const hasImages = attachments.images.length > 0;
     const isCommittable =
-        characterCount(body.trim()) >= minBodyLength &&
+        (hasImages || characterCount(body.trim()) >= minBodyLength) &&
         (poll === null ||
             poll.options.every((option) => option.trim().length > 0));
-    const hasImages = attachments.images.length > 0;
-    const isSubmittable =
-        isCommittable &&
-        !(isScheduling && hasImages) &&
-        (!isScheduling || poll === null);
 
     useEffect(() => discardSeriesStash(user.id), [user.id]);
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (event.key === 'Tab' && suggestEmoji(body) !== null) {
-            const completed = completeEmoji(body);
-
-            if (completed !== null) {
-                event.preventDefault();
-                updateBody(completed);
-            }
-
-            return;
-        }
-
-        if (event.key === 'Enter' && hasModKey(event) && isSubmittable) {
+        if (event.key === 'Enter' && hasModKey(event) && isCommittable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
         }
@@ -465,25 +447,21 @@ export function CommitComposer() {
                 ? ScheduledCommitController.store.form()
                 : CommitController.store.form())}
             onBefore={secrets.beforeSubmit}
-            transform={(data) =>
-                isScheduling
-                    ? {
-                          ...data,
-                          scheduled_at: new Date(scheduledAt)
-                              .toISOString()
-                              .replace(/\.\d{3}Z$/, '+00:00'),
-                      }
-                    : hasImages
-                      ? {
-                            ...data,
-                            images: attachments.images,
-                            image_descriptions: attachments.descriptions,
-                        }
-                      : data
-            }
+            transform={(data) => ({
+                ...data,
+                ...(hasImages && {
+                    images: attachments.images,
+                    image_descriptions: attachments.descriptions,
+                }),
+                ...(isScheduling && {
+                    scheduled_at: new Date(scheduledAt)
+                        .toISOString()
+                        .replace(/\.\d{3}Z$/, '+00:00'),
+                }),
+            })}
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
-                if (!page.flash.committed && !page.flash.scheduled) {
+                if (isRejectedSubmission(page.flash)) {
                     return;
                 }
 
@@ -492,13 +470,20 @@ export function CommitComposer() {
                 setIsScheduling(false);
                 attachments.clear();
                 setPoll(null);
-                focusBody();
+
+                if (onCommitted) {
+                    onCommitted();
+                } else {
+                    focusBody(id);
+                }
             }}
             data-test="commit-composer"
         >
             {({ processing, errors }) => (
                 <CommitComposerBody
                     key={draftVersion}
+                    id={id}
+                    isInDialog={isInDialog}
                     user={user}
                     stash={stash}
                     attachments={attachments}
@@ -507,7 +492,7 @@ export function CommitComposer() {
                     poll={poll}
                     setPoll={setPoll}
                     secrets={secrets}
-                    isSubmittable={isSubmittable}
+                    isSubmittable={isCommittable}
                     processing={processing}
                     errors={errors}
                     onKeyDown={onKeyDown}

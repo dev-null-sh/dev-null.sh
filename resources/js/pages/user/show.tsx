@@ -21,6 +21,7 @@ import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
+import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -108,37 +109,44 @@ export default function Show({
                     <UserAvatar
                         user={user}
                         className="size-20 text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
+                        pixels={160}
                         style={{ '--lane': lane } as CSSProperties}
                     />
 
-                    {isCurrentUser ? (
-                        <Button variant="outline" asChild>
-                            <a
-                                href="https://github.com/settings/profile"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                Edit on GitHub
-                                <ArrowUpRight />
-                            </a>
-                        </Button>
-                    ) : (
-                        <div className="flex gap-2">
-                            {auth.user && (
-                                <UserSafetyMenu
+                    <div className="flex shrink-0 gap-1.5 sm:gap-2">
+                        <ProfileShareButton
+                            username={user.username}
+                            href={show(user).url}
+                        />
+                        {isCurrentUser ? (
+                            <Button variant="outline" asChild>
+                                <a
+                                    href="https://github.com/settings/profile"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    Edit on GitHub
+                                    <ArrowUpRight />
+                                </a>
+                            </Button>
+                        ) : (
+                            <>
+                                {auth.user && (
+                                    <UserSafetyMenu
+                                        user={user}
+                                        isMuting={isMuting}
+                                        isBlocking={false}
+                                    />
+                                )}
+                                <FollowButton
                                     user={user}
-                                    isMuting={isMuting}
-                                    isBlocking={false}
+                                    isFollowing={isFollowing}
+                                    className="min-w-28"
+                                    onSuccess={() => router.flushAll()}
                                 />
-                            )}
-                            <FollowButton
-                                user={user}
-                                isFollowing={isFollowing}
-                                className="min-w-28"
-                                onSuccess={() => router.flushAll()}
-                            />
-                        </div>
-                    )}
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 <h1 className="mt-4 text-2xl font-semibold tracking-tight text-balance">
@@ -309,13 +317,10 @@ export default function Show({
                             height={20}
                             className="size-5 shrink-0 object-contain"
                         />
-                        <span
-                            className="inline-block w-[4ch] truncate font-mono font-medium text-foreground tabular-nums"
-                            title={String(pasteisCount)}
-                        >
+                        <span className="font-mono font-medium text-foreground tabular-nums">
                             {pasteisCount}
-                        </span>{' '}
-                        pastéis received
+                        </span>
+                        {pluralize(pasteisCount, 'pastel', 'pastéis')} received
                     </p>
                 )}
             </header>
@@ -345,6 +350,8 @@ export default function Show({
             <PageTabs
                 label="Profile feed"
                 preserveScroll
+                only={['tab', 'commits', 'pinnedCommit']}
+                reset={['commits']}
                 tabs={[
                     {
                         title: 'Commits',

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
+import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
@@ -39,6 +40,7 @@ export default function Show({
         props: { auth },
     } = usePage();
     const user = auth.user;
+    const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
     const markerKey = `latest-marker:${viewerId}:${log}`;
     const [markerId, setMarkerId] = useState(
@@ -163,7 +165,7 @@ export default function Show({
                 />
             </div>
 
-            {user !== null && <CommitComposer />}
+            {user !== null && <CommitComposer key={commitDialogClosedCount} />}
 
             {newCommitsCount > 0 && (
                 <div
@@ -185,7 +187,6 @@ export default function Show({
             <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
                 <CommitFeed
                     commits={commits}
-                    firstLane="var(--rail)"
                     firstSeenId={firstSeenId}
                     latestCommits={latestCommits}
                     isRanked={isRanked}
@@ -273,7 +274,10 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
-                                <LinkifiedText text={emojify(commit.body)} />
+                                <LinkifiedText
+                                    text={emojify(commit.body)}
+                                    mentions={commit.mentions}
+                                />
                             </p>
                         </div>
                         <Button size="sm" asChild>

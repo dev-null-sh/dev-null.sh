@@ -10,6 +10,7 @@ export type Embed = {
     src: string;
     aspect_ratio: string | null;
     height: number | null;
+    poster?: string | null;
 };
 
 export type LinkPreview = {
@@ -18,6 +19,7 @@ export type LinkPreview = {
     description: string | null;
     image_url: string | null;
     site_name: string | null;
+    is_pending: boolean;
     embed?: Embed | null;
 };
 
@@ -56,6 +58,7 @@ export type Commit = {
     parent_id: string | null;
     hot_score: number;
     body: string;
+    mentions: Record<string, string> | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
     status: CommitStatus;
@@ -87,12 +90,15 @@ export type QuotedCommit = Pick<
     | 'user_id'
     | 'body'
     | 'body_segments'
+    | 'preview_segments'
     | 'status'
     | 'created_at'
     | 'deleted_at'
     | 'user'
     | 'replies_count'
     | 'poll'
+    | 'link_preview'
+    | 'images'
 >;
 
 export type DeletedCommit = {

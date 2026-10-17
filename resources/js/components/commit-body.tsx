@@ -4,14 +4,16 @@ import { CodeBlock } from '@/components/code-block';
 import { LinkifiedText } from '@/components/linkified-text';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
-import type { BodySegment } from '@/types';
+import type { BodySegment, Commit } from '@/types';
 
 export function CommitBody({
     segments,
+    mentions,
     className,
     isStatic = false,
 }: {
     segments: BodySegment[];
+    mentions: Commit['mentions'];
     className?: string;
     isStatic?: boolean;
 }) {
@@ -31,6 +33,7 @@ export function CommitBody({
                             <LinkifiedText
                                 key={index}
                                 text={emojify(segment.text)}
+                                mentions={mentions}
                                 pasteisMode={Boolean(auth.pasteis)}
                                 isStatic={isStatic}
                             />
@@ -65,17 +68,25 @@ export function CommitBody({
 export function FoldedCommitBody({
     segments,
     previewSegments,
+    mentions,
     className,
 }: {
     segments: BodySegment[];
     previewSegments: BodySegment[] | null;
+    mentions: Commit['mentions'];
     className?: string;
 }) {
     const [isUnfolded, setIsUnfolded] = useState(false);
     const bodyRef = useRef<HTMLDivElement>(null);
 
     if (previewSegments === null) {
-        return <CommitBody segments={segments} className={className} />;
+        return (
+            <CommitBody
+                segments={segments}
+                mentions={mentions}
+                className={className}
+            />
+        );
     }
 
     // The button goes away, so focus moves to what was unfolded: the commit card, which the keyboard shortcuts walk,
@@ -98,6 +109,7 @@ export function FoldedCommitBody({
         <div ref={bodyRef} tabIndex={-1} className="outline-none">
             <CommitBody
                 segments={isUnfolded ? segments : previewSegments}
+                mentions={mentions}
                 className={className}
             />
             {!isUnfolded && (
@@ -116,9 +128,11 @@ export function FoldedCommitBody({
 
 export function CommitBodyExcerpt({
     segments,
+    previewSegments = null,
     className,
 }: {
     segments: BodySegment[];
+    previewSegments?: BodySegment[] | null;
     className?: string;
 }) {
     const bodyRef = useRef<HTMLDivElement>(null);
@@ -145,10 +159,17 @@ export function CommitBodyExcerpt({
             className={cn(
                 'overflow-hidden',
                 className,
-                isClamped && 'mask-b-from-60%',
+                previewSegments !== null
+                    ? 'mask-b-from-[calc(100%-3rem)] mask-b-to-[calc(100%+0.75rem)]'
+                    : isClamped && 'mask-b-from-60%',
             )}
         >
-            <CommitBody segments={segments} className="text-[15px]" isStatic />
+            <CommitBody
+                segments={previewSegments ?? segments}
+                mentions={null}
+                className="text-[15px]"
+                isStatic
+            />
         </div>
     );
 }

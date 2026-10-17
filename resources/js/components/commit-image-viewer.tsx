@@ -5,7 +5,7 @@ import {
     PanelRightClose,
     PanelRightOpen,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Lightbox from 'yet-another-react-lightbox';
 import type { ControllerRef } from 'yet-another-react-lightbox';
 import Counter from 'yet-another-react-lightbox/plugins/counter';
@@ -57,6 +57,26 @@ export function CommitImageViewer() {
 
         return () => document.removeEventListener('keydown', onKeyDown);
     }, [isOpen]);
+
+    // The lightbox cancels sideways wheel events natively to swipe between photos, before React sees them, so the panel
+    // stops them natively too, or its code blocks can't scroll horizontally. Pinches still must not zoom the page.
+    const keepWheelInPanel = useCallback((panel: HTMLElement | null) => {
+        if (!panel) {
+            return;
+        }
+
+        const onWheel = (event: WheelEvent) => {
+            event.stopPropagation();
+
+            if (event.ctrlKey) {
+                event.preventDefault();
+            }
+        };
+
+        panel.addEventListener('wheel', onWheel, { passive: false });
+
+        return () => panel.removeEventListener('wheel', onWheel);
+    }, []);
 
     const slides = useMemo(
         () =>
@@ -202,10 +222,10 @@ export function CommitImageViewer() {
                     photo &&
                     isPanelOpen && (
                         <aside
+                            ref={keepWheelInPanel}
                             aria-label="Commit"
                             className="absolute inset-x-0 bottom-0 h-(--commit-panel-height) touch-auto overflow-y-auto overscroll-contain rounded-t-xl border-t bg-card text-card-foreground select-text lg:inset-x-auto lg:inset-y-0 lg:right-0 lg:h-auto lg:w-(--commit-panel-width) lg:rounded-none lg:border-t-0 lg:border-l"
                             onPointerDown={(event) => event.stopPropagation()}
-                            onWheel={(event) => event.stopPropagation()}
                             onKeyDown={(event) => {
                                 if (isTyping(event.target)) {
                                     event.stopPropagation();

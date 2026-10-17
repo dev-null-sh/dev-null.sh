@@ -60,10 +60,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: tmp/phpstan
-          key: ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock', 'phpstan.neon') }}-${{ github.sha }}
+          key: phpstan-cache-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock', 'phpstan.neon') }}-
-            ${{ runner.os }}-phpstan-
+            phpstan-cache-
 
       - name: Types
         run: composer test:types
@@ -140,4 +139,7 @@ jobs:
         run: bun run build
 
       - name: Tests
-        run: composer test:unit
+        # `--ci` keeps TIA's `locally()` mode off, so the full suite runs without fetching a baseline.
+        run: |
+          php -d memory_limit=-1 vendor/bin/pest --parallel --ci --coverage --exactly=100.0 --passthru-php="'-d' 'memory_limit=-1'"
+          bun run test:unit

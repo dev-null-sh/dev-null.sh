@@ -11,7 +11,7 @@ const shortcodeNames = Object.keys(shortcodeEmoji).sort(
 );
 
 const shortcodePattern = new RegExp(
-    `:(${shortcodeNames.map(escapeRegExp).join('|')}):?(?![A-Za-z0-9_])`,
+    `:(${shortcodeNames.map(escapeRegExp).join('|')}):`,
     'g',
 );
 
@@ -39,35 +39,31 @@ export type EmojiSuggestion = {
     emoji: string;
 };
 
-export function suggestEmoji(text: string): EmojiSuggestion | null {
-    const match = /:([A-Za-z0-9_+-]*)$/.exec(text);
-
-    if (match === null || match[1] === '') {
-        return null;
-    }
-
-    const partial = match[1].toLowerCase();
-
-    let best: { name: string; emoji: string } | null = null;
-
-    for (const [name, emoji] of Object.entries(shortcodeEmoji)) {
-        if (
-            name.startsWith(partial) &&
-            (best === null || name.length < best.name.length)
-        ) {
-            best = { name, emoji };
+/**
+ * The shortcodes that start with the query, then the ones with a later word starting with it, then the ones that only
+ * contain it, each shortest first.
+ */
+export function searchEmoji(query: string, limit = 8): EmojiSuggestion[] {
+    const partial = query.toLowerCase();
+    const rank = (name: string): number => {
+        if (name.startsWith(partial)) {
+            return 0;
         }
-    }
 
-    return best;
-}
+        return name.split(/[_-]/).some((word) => word.startsWith(partial))
+            ? 1
+            : 2;
+    };
 
-export function completeEmoji(text: string): string | null {
-    const suggestion = suggestEmoji(text);
-
-    if (suggestion === null) {
-        return null;
-    }
-
-    return text.replace(/:([A-Za-z0-9_+-]*)$/, suggestion.emoji);
+    return Object.keys(shortcodeEmoji)
+        .filter((name) => name.includes(partial))
+        .map((name) => ({ name, rank: rank(name) }))
+        .sort(
+            (left, right) =>
+                left.rank - right.rank ||
+                left.name.length - right.name.length ||
+                left.name.localeCompare(right.name),
+        )
+        .slice(0, limit)
+        .map(({ name }) => ({ name, emoji: shortcodeEmoji[name] }));
 }

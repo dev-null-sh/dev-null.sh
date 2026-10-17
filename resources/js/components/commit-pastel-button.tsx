@@ -124,7 +124,7 @@ export function CommitPastelButton({
                 className="size-5 shrink-0 object-contain"
             />
             <span
-                className="w-[4ch] truncate text-left tabular-nums"
+                className="min-w-[1ch] text-left tabular-nums"
                 title={String(count)}
             >
                 {count}

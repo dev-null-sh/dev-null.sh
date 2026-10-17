@@ -1,5 +1,6 @@
 import { useForm, usePage } from '@inertiajs/react';
 import { Flag } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { useId, useState } from 'react';
 import { store } from '@/actions/App/Http/Controllers/CommitReportController';
 import InputError from '@/components/input-error';
@@ -14,6 +15,11 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { Commit } from '@/types';
 
 const reasons = [
@@ -23,42 +29,70 @@ const reasons = [
     ['other', 'Something else'],
 ];
 
-export function CommitReportButton({ commit }: { commit: Commit }) {
+export function useCanReport(commit: Commit): boolean {
     const { auth } = usePage().props;
+
+    return (
+        auth.user !== null &&
+        commit.status === 'approved' &&
+        commit.user_id !== auth.user.id
+    );
+}
+
+export function CommitReportButton({ commit }: { commit: Commit }) {
     const [open, setOpen] = useState(false);
+
+    if (!useCanReport(commit)) {
+        return null;
+    }
+
+    return (
+        <CommitReportDialog commit={commit} open={open} onOpenChange={setOpen}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
+                        <button
+                            type="button"
+                            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            aria-label="Report commit"
+                        >
+                            <Flag aria-hidden className="size-4" />
+                        </button>
+                    </DialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Report commit</TooltipContent>
+            </Tooltip>
+        </CommitReportDialog>
+    );
+}
+
+export function CommitReportDialog({
+    commit,
+    open,
+    onOpenChange,
+    children,
+}: {
+    commit: Commit;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    children?: ReactNode;
+}) {
     const [failure, setFailure] = useState('');
     const id = useId();
     const form = useForm({ reason: '', details: '' });
-
-    if (
-        auth.user === null ||
-        commit.status !== 'approved' ||
-        commit.user_id === auth.user.id
-    ) {
-        return null;
-    }
 
     return (
         <Dialog
             open={open}
             onOpenChange={(next) => {
                 if (!form.processing) {
-                    setOpen(next);
+                    onOpenChange(next);
                     setFailure('');
                     form.clearErrors();
                 }
             }}
         >
-            <DialogTrigger asChild>
-                <button
-                    type="button"
-                    className="inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    aria-label="Report commit"
-                >
-                    <Flag className="size-3.5" />
-                    Report
-                </button>
-            </DialogTrigger>
+            {children}
             <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto bg-card motion-reduce:animate-none">
                 <DialogHeader className="text-left">
                     <DialogTitle>Report commit</DialogTitle>
@@ -78,7 +112,7 @@ export function CommitReportButton({ commit }: { commit: Commit }) {
                         form.submit(store(commit), {
                             preserveScroll: true,
                             onSuccess: () => {
-                                setOpen(false);
+                                onOpenChange(false);
                                 form.reset();
                             },
                             onHttpException: (response) => {
