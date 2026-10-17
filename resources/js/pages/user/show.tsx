@@ -261,7 +261,7 @@ export default function Show({
                     </li>
                 </ul>
 
-                <dl className="mt-4 flex gap-5 text-sm">
+                <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-sm">
                     {[
                         {
                             count: user.commits_count,
