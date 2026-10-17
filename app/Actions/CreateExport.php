@@ -43,6 +43,10 @@ final readonly class CreateExport
                 'company' => $user->company,
                 'has_sponsors_listing' => $user->has_sponsors_listing,
                 'preferred_lane' => $user->preferred_lane,
+                'pasteis_mode' => $user->pasteis_mode,
+                'pasteis_received' => $user->pasteis_received,
+                'pasteis_given_today' => $user->pasteis_given_today,
+                'pasteis_given_on' => $user->pasteis_given_on?->toDateString(),
                 'pinned_commit_id' => $user->pinned_commit_id,
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
@@ -69,7 +73,7 @@ final readonly class CreateExport
     {
         $commits = $user->commits()
             ->withTrashed()
-            ->select(['id', 'parent_id', 'quoted_commit_id', 'series_id', 'series_position', 'series_size', 'body', 'status', 'created_at', 'updated_at', 'deleted_at'])
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
             ->with('images:id,commit_id')
             ->lazyById(500);
 
@@ -78,11 +82,9 @@ final readonly class CreateExport
                 'id' => $commit->id,
                 'parent_id' => $commit->parent_id,
                 'quoted_commit_id' => $commit->quoted_commit_id,
-                'series_id' => $commit->series_id,
-                'series_position' => $commit->series_position,
-                'series_size' => $commit->series_size,
                 'body' => $commit->body,
                 'status' => $commit->status->value,
+                'pasteis_count' => $commit->pasteis_count,
                 'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                 'created_at' => $commit->created_at->toIso8601String(),
                 'updated_at' => $commit->updated_at->toIso8601String(),

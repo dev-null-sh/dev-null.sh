@@ -33,7 +33,6 @@ it('shows the commit page with the photo open', function (): void {
         ->assertInertia(fn ($page) => $page
             ->component('commit/show')
             ->where('commit.id', $commit->id)
-            ->where('series', [])
             ->has('replies.data', 1)
             ->where('photo.index', 1)
             ->where('photo.commit.id', $commit->id)
@@ -56,7 +55,6 @@ it('reloads the photo commit alone without loading its thread', function (): voi
                     ->where('commit.id', $commit->id)
                     ->missing('replies')
                     ->missing('ancestors')
-                    ->missing('series')
                     ->missing('photo'));
 
                 DB::disableQueryLog();
@@ -70,46 +68,6 @@ it('reloads the photo commit alone without loading its thread', function (): voi
     Commit::factory()->for($inThread, 'parent')->count(3)->create();
 
     expect($queries($inThread))->toBe($queries($alone));
-});
-
-it('opens series photos with the visible parts in order and replies folded', function (): void {
-    $parts = commitSeries(size: 5);
-    $parts[1]->delete();
-    $parts[3]->update(['status' => CommitStatus::Pending]);
-    $parts[4]->update(['status' => CommitStatus::Rejected]);
-    CommitImage::factory()->for($parts[0])->create();
-    Commit::factory()->for($parts[0], 'parent')->create();
-
-    $this->actingAs(User::factory()->create())
-        ->get(route('commit-photo.show', [$parts[0]->user, $parts[0], 1]))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->where('ancestors', [])
-            ->where('replies', null)
-            ->has('series', 2)
-            ->where('series.0.id', $parts[1]->id)
-            ->whereNot('series.0.deleted_at', null)
-            ->missing('series.0.body')
-            ->where('series.1.id', $parts[2]->id)
-            ->where('photo.commit.replies_count', 1));
-});
-
-it('opens a middle series photo between the other parts', function (): void {
-    $parts = commitSeries(size: 4);
-    CommitImage::factory()->for($parts[2])->create();
-
-    $this->actingAs(User::factory()->create())
-        ->get(route('commit-photo.show', [$parts[2]->user, $parts[2], 1]))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->has('ancestors', 2)
-            ->where('ancestors.0.id', $parts[0]->id)
-            ->where('ancestors.1.id', $parts[1]->id)
-            ->where('replies', null)
-            ->has('series', 1)
-            ->where('series.0.id', $parts[3]->id)
-            ->where('photo.commit.id', $parts[2]->id)
-            ->where('photo.commit.replies_count', 0));
 });
 
 it('does not show a photo the commit does not have', function (int $photo): void {

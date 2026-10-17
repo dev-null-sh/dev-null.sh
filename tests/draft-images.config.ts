@@ -9,7 +9,7 @@ export default defineConfig({
     },
     test: {
         include: [
-            'tests/Unit/SeriesStash.test.tsx',
+            'tests/Unit/DraftStash.test.tsx',
             'tests/Unit/ComposerDraft.test.tsx',
             'tests/Unit/QuoteDraft.test.tsx',
         ],

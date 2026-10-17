@@ -38,7 +38,8 @@ it('reads the term against the candidates with the decision model, keeping only 
         && $request['model'] === 'gpt-6-luna'
         && str_ends_with($request['input'], "Query: indexing strategies\n\nPosts:\n1. About indexing\n2. About something else")
         && array_column($request['questions'], 'name') === ['post_1', 'post_2']
-        && array_unique(array_column($request['questions'], 'type')) === ['predicate']);
+        && array_unique(array_column($request['questions'], 'type')) === ['predicate']
+        && count(array_filter(array_column($request['questions'], 'instructions'))) === 2);
 });
 
 it('keeps a candidate unless the decision model thinks it more likely irrelevant than not', function (float $probability, bool $isKept): void {

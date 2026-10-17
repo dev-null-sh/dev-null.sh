@@ -48,6 +48,10 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'company' => null,
         'has_sponsors_listing' => true,
         'preferred_lane' => 3,
+        'pasteis_mode' => true,
+        'pasteis_received' => 17,
+        'pasteis_given_today' => 6,
+        'pasteis_given_on' => '2026-10-15',
         'remember_token' => 'never-export-this-token',
     ]);
     $original = $user->fresh()->getAttributes();
@@ -79,6 +83,10 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'company' => null,
             'has_sponsors_listing' => true,
             'preferred_lane' => 3,
+            'pasteis_mode' => true,
+            'pasteis_received' => 17,
+            'pasteis_given_today' => 6,
+            'pasteis_given_on' => '2026-10-15',
             'pinned_commit_id' => null,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
@@ -115,7 +123,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $user = User::factory()->create();
     $other = User::factory()->create();
     $parent = Commit::factory()->for($other)->rejected()->create(['body' => 'Another developer private parent body']);
-    $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs."]);
+    $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs.", 'pasteis_count' => 3]);
     $pending = Commit::factory()->for($user)->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
     $reply = Commit::factory()->for($user)->create(['parent_id' => $parent->id]);
@@ -137,11 +145,9 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         'id' => $approved->id,
         'parent_id' => null,
         'quoted_commit_id' => null,
-        'series_id' => null,
-        'series_position' => null,
-        'series_size' => null,
         'body' => $approved->body,
         'status' => 'approved',
+        'pasteis_count' => 3,
         'images' => [],
         'created_at' => $approved->created_at->toIso8601String(),
         'updated_at' => $approved->updated_at->toIso8601String(),
@@ -217,20 +223,6 @@ it('exports the polls of live commits and votes without other voters', function 
             'created_at' => $vote->created_at->toIso8601String(),
         ]])
         ->and($response->streamedContent())->not->toContain($voter->id, $voter->username, $deleted->options[0]->label);
-});
-
-it('exports where each commit sits in its series', function (): void {
-    $user = User::factory()->create();
-    $parts = commitSeries($user, size: 2);
-
-    $response = $this->actingAs($user)->get(route('export'));
-    $commits = collect(json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR)['commits'])->keyBy('id');
-
-    expect($commits[$parts[1]->id])
-        ->parent_id->toBe($parts[0]->id)
-        ->series_id->toBe($parts[0]->series_id)
-        ->series_position->toBe(2)
-        ->series_size->toBe(2);
 });
 
 it('exports surviving replies and polls after another account is deleted', function (): void {

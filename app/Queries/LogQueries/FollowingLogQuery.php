@@ -12,8 +12,12 @@ use Illuminate\Database\Eloquent\Builder;
 
 final readonly class FollowingLogQuery implements LogQuery
 {
-    public function builder(User $user): CommitBuilder
+    public function builder(?User $user): CommitBuilder
     {
+        if (! $user instanceof User) {
+            return Commit::query()->whereRaw('1 = 0');
+        }
+
         $following = $user->following();
 
         return Commit::query()

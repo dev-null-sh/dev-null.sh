@@ -50,7 +50,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     const items: NavItem[] = [
         {
             title: 'Log',
-            href: hrefFor((_, log) => LogController.show(log)),
+            href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
             prefetch: false,
         },
@@ -203,8 +203,8 @@ export function AppNav({ onSearch }: { onSearch: () => void }) {
                 className="mb-8 rounded-md px-3 lg:px-3"
                 aria-label={
                     auth.log === null
-                        ? 'devnull, go to the home page'
-                        : 'devnull, go to your log'
+                        ? '/dev/null, go to the home page'
+                        : '/dev/null, go to your log'
                 }
             >
                 <AppLogoIcon className="size-7 fill-current lg:hidden" />
@@ -309,8 +309,8 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                 viewTransition
                 aria-label={
                     auth.log === null
-                        ? 'devnull, go to the home page'
-                        : 'devnull, go to your log'
+                        ? '/dev/null, go to the home page'
+                        : '/dev/null, go to your log'
                 }
             >
                 <AppLogo className="text-lg" />
@@ -320,7 +320,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                 <button
                     type="button"
                     onClick={onSearch}
-                    aria-label="Search developers"
+                    aria-label="Search"
                     className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                     <Search className="size-5" />

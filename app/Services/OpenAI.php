@@ -38,14 +38,19 @@ final readonly class OpenAI
         'sexual/minors' => 0.01,
     ];
 
+    /**
+     * A candidate the decision model puts at worse than even odds of being about the query is left out.
+     */
+    private const float RELEVANCE_THRESHOLD = 0.5;
+
     private const string MINORS_INSTRUCTIONS = <<<'TEXT'
-        You review images uploaded to devnull, a social network for developers, before they are published.
+        You review images uploaded to /dev/null, a social network for developers, before they are published.
         Answer whether any person in the images is, or could plausibly be, under 18 years old. That includes babies,
         children and teenagers, whether in photos, drawings, renders or any other depiction. When unsure, answer true.
         TEXT;
 
     private const string HARMFUL_INSTRUCTIONS = <<<'TEXT'
-        You review posts on devnull, a social network for developers, before they are published.
+        You review posts on /dev/null, a social network for developers, before they are published.
         Answer whether the post is harmful: a threat, including claims of having a bomb, weapon or explosive, or of
         planning an attack, even as a joke; violence, incitement or glorification of it; hate speech or harassment of a
         person or group; sexual content; encouragement of self-harm; or illegal activity. Developer jargon such as
@@ -110,9 +115,9 @@ final readonly class OpenAI
 
     /**
      * Whether each body is actually about the query, in the order they were given. The vector search returns the
-     * nearest by meaning, which can include posts that merely share a word; the decision model reads the term against
-     * each one. Anything but a clear no, such as a refusal or an answer that can't be read or doesn't line up, counts
-     * as relevant, so a flaky model never hides a post.
+     * nearest by meaning, which can include posts that merely share a word; the decision model is asked, for each post,
+     * whether it is more likely relevant than not. Anything but a clear answer, such as a refusal, a post the model
+     * skipped, or a probability that can't be read, counts as relevant, so a flaky model never hides a post.
      *
      * @param  list<string>  $bodies
      * @return list<bool>
@@ -123,33 +128,27 @@ final readonly class OpenAI
             return [];
         }
 
-        /** @var list<array{type: string, content?: list<array{type: string, text?: string}>}> $output */
-        $output = $this->request()
+        $questions = [];
+
+        foreach (array_keys($bodies) as $index) {
+            $questions[] = [
+                'name' => 'post_'.($index + 1),
+                'type' => 'predicate',
+                'instructions' => 'Is post '.($index + 1).' actually about what the query asks for?',
+            ];
+        }
+
+        $response = $this->request()
             ->timeout(60)
-            ->post('responses', [
+            ->post('decisions', [
                 'model' => self::DECISION_MODEL,
-                'input' => [
-                    ['role' => 'system', 'content' => self::RELEVANCE_INSTRUCTIONS],
-                    ['role' => 'user', 'content' => $this->relevancePrompt($query, $bodies)],
-                ],
-                'text' => ['format' => [
-                    'type' => 'json_schema',
-                    'name' => 'relevance',
-                    'strict' => true,
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'relevant' => ['type' => 'array', 'items' => ['type' => 'boolean']],
-                        ],
-                        'required' => ['relevant'],
-                        'additionalProperties' => false,
-                    ],
-                ]],
+                'input' => self::RELEVANCE_INSTRUCTIONS."\n\n".$this->relevancePrompt($query, $bodies),
+                'questions' => $questions,
             ])
             ->throw()
-            ->json('output', []);
+            ->json();
 
-        return $this->relevanceVerdicts($output, count($bodies));
+        return $this->relevanceVerdicts($response, count($bodies));
     }
 
     /**
@@ -280,52 +279,57 @@ final readonly class OpenAI
     }
 
     /**
-     * @param  list<array{type: string, content?: list<array{type: string, text?: string}>}>  $output
+     * One verdict per post, in the order they were given: kept unless the model put it at worse than even odds. A post
+     * the answer skips, and one whose probability can't be read, is kept.
+     *
      * @return list<bool>
      */
-    private function relevanceVerdicts(array $output, int $count): array
+    private function relevanceVerdicts(mixed $response, int $count): array
     {
-        foreach ($output as $item) {
-            foreach ($item['content'] ?? [] as $content) {
-                if ($content['type'] !== 'output_text') {
-                    continue;
-                }
+        $answers = is_array($response) ? ($response['answers'] ?? null) : null;
 
-                $verdicts = $this->verdictsFrom(json_decode($content['text'] ?? '', true), $count);
+        $probabilities = [];
 
-                if ($verdicts !== null) {
-                    return $verdicts;
+        if (is_array($answers)) {
+            foreach ($answers as $answer) {
+                $predicate = $this->predicateAnswer($answer);
+
+                if ($predicate !== null) {
+                    $probabilities[$predicate['name']] = $predicate['probability'];
                 }
             }
-        }
-
-        return array_fill(0, $count, true);
-    }
-
-    /**
-     * The verdicts are positional, one per post in the order given. A post the answer skips or answers with anything
-     * but a clear false counts as relevant.
-     *
-     * @return list<bool>|null
-     */
-    private function verdictsFrom(mixed $answer, int $count): ?array
-    {
-        if (! is_array($answer)) {
-            return null;
-        }
-
-        $relevant = $answer['relevant'] ?? null;
-
-        if (! is_array($relevant)) {
-            return null;
         }
 
         $verdicts = [];
 
         for ($index = 0; $index < $count; $index++) {
-            $verdicts[] = ($relevant[$index] ?? null) !== false;
+            $probability = $probabilities['post_'.($index + 1)] ?? null;
+
+            $verdicts[] = $probability === null || $probability >= self::RELEVANCE_THRESHOLD;
         }
 
         return $verdicts;
+    }
+
+    /**
+     * The name and probability of a predicate answer, or null for anything else: a refusal, an answer to another
+     * question, or a probability that can't be read as a number.
+     *
+     * @return array{name: string, probability: float}|null
+     */
+    private function predicateAnswer(mixed $answer): ?array
+    {
+        if (! is_array($answer) || ($answer['type'] ?? null) !== 'predicate') {
+            return null;
+        }
+
+        $name = $answer['name'] ?? null;
+        $probability = $answer['probability'] ?? null;
+
+        if (! is_string($name) || ! is_numeric($probability)) {
+            return null;
+        }
+
+        return ['name' => $name, 'probability' => (float) $probability];
     }
 }

@@ -11,7 +11,7 @@ use Inertia\Response;
 final readonly class SearchController
 {
     /**
-     * Results are mocked on the client until the page is wired to CommitSearchQuery.
+     * Results are fetched by the client from CommitSearchController, so the page renders before the embedding is paid for.
      */
     public function index(ListSearchRequest $request): Response
     {

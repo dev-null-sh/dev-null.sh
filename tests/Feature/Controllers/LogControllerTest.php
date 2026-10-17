@@ -179,11 +179,40 @@ it('returns not found for unknown logs', function (): void {
     $response->assertNotFound();
 });
 
-it('requires authentication', function (Log $log): void {
+it('lets guests read the public logs', function (Log $log): void {
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+
     $response = $this->get(route('log.show', $log));
 
-    $response->assertRedirectToRoute('home');
-})->with(Log::cases());
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('log/show')
+            ->where('log', $log->value)
+            ->has('commits.data', 1)
+            ->where('commits.data.0.id', $commit->id));
+})->with([Log::Latest, Log::Trending]);
+
+it('sends guests to sign in with GitHub for the following log', function (): void {
+    $this->get(route('log.show', Log::Following))
+        ->assertRedirect(route('login'));
+
+    $this->get(route('log.show', Log::Following), ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request())])
+        ->assertStatus(409)
+        ->assertHeader('X-Inertia-Location', route('login'));
+});
+
+it('counts newer commits on the trending log for guests', function (): void {
+    $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->create();
+
+    $this->get(route('log.show', [Log::Trending, 'since' => $older->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()->assertJsonPath('props.newCommitsCount', 1);
+});
 
 it('counts commits newer than a given commit', function (): void {
     $user = User::factory()->create();

@@ -1,6 +1,6 @@
 import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
@@ -12,7 +12,6 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useLastVisit } from '@/hooks/use-last-visit';
-import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
 import { readStorage, writeStorage } from '@/lib/storage';
@@ -35,18 +34,41 @@ export default function Show({
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
-    const { user } = useUser();
-    const { flash } = usePage();
-    const markerKey = `latest-marker:${user.id}:${log}`;
+    const {
+        flash,
+        props: { auth },
+    } = usePage();
+    const user = auth.user;
+    const viewerId = user?.id ?? 'guest';
+    const markerKey = `latest-marker:${viewerId}:${log}`;
     const [markerId, setMarkerId] = useState(
         () =>
             (flash.committed ? readStorage(markerKey) : '') ||
             (newestCommitId ?? ''),
     );
     const newestId = isRanked ? markerId || undefined : commits.data[0]?.id;
+    const tabsRef = useRef<HTMLDivElement>(null);
+    const [tabsHeight, setTabsHeight] = useState(0);
+
+    useEffect(() => {
+        const tabs = tabsRef.current;
+
+        if (!tabs) {
+            return;
+        }
+
+        const updateHeight = () =>
+            setTabsHeight(tabs.getBoundingClientRect().height);
+        updateHeight();
+
+        const observer = new ResizeObserver(updateHeight);
+        observer.observe(tabs);
+
+        return () => observer.disconnect();
+    }, []);
 
     useEffect(() => writeStorage(markerKey, markerId), [markerKey, markerId]);
-    const firstSeenId = useLastVisit(user.id, log, commits.data);
+    const firstSeenId = useLastVisit(viewerId, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
         30_000,
@@ -85,7 +107,7 @@ export default function Show({
                 const next =
                     newestOf(
                         (page.props.latestCommits as Commit[]).filter(
-                            (commit) => commit.user_id !== user.id,
+                            (commit) => commit.user_id !== user?.id,
                         ),
                     )?.id ?? markerId;
 
@@ -113,7 +135,10 @@ export default function Show({
         <>
             <Head title={titles[log]} />
 
-            <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]">
+            <div
+                ref={tabsRef}
+                className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]"
+            >
                 <h1 className="sr-only">{titles[log]}</h1>
                 <PageTabs
                     label="Logs"
@@ -136,25 +161,26 @@ export default function Show({
                         },
                     ]}
                 />
-
-                {newCommitsCount > 0 && (
-                    <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center pt-3">
-                        <button
-                            type="button"
-                            onClick={showNewCommits}
-                            className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
-                        >
-                            <ArrowUp className="size-4" />
-                            {newCommitsCount}{' '}
-                            {newCommitsCount === 1
-                                ? 'new commit'
-                                : 'new commits'}
-                        </button>
-                    </div>
-                )}
             </div>
 
-            <CommitComposer />
+            {user !== null && <CommitComposer />}
+
+            {newCommitsCount > 0 && (
+                <div
+                    className="sticky z-10 flex justify-center border-b bg-card py-3"
+                    style={{ top: tabsHeight }}
+                >
+                    <button
+                        type="button"
+                        onClick={showNewCommits}
+                        className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                    >
+                        <ArrowUp className="size-4" />
+                        {newCommitsCount}{' '}
+                        {newCommitsCount === 1 ? 'new commit' : 'new commits'}
+                    </button>
+                </div>
+            )}
 
             <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
                 <CommitFeed
@@ -195,7 +221,7 @@ export default function Show({
                         ) : (
                             <EmptyFeed command="fatal: no commits yet">
                                 Nobody has committed anything. Be the first.
-                                It's 280 characters; you'll be fine.
+                                It's just plain text; you'll be fine.
                             </EmptyFeed>
                         )
                     }

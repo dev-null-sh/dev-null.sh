@@ -4,6 +4,8 @@ import { refreshSharedState } from '@/hooks/use-shared-state';
 const fields = [
     'starred',
     'stars_count',
+    'pasteis_count',
+    'pasteis_received',
     'is_saved',
     'replies_count',
     'commits_count',

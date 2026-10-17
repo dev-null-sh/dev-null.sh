@@ -54,7 +54,7 @@ final readonly class UserAchievementsQuery
     {
         $visibleCommitsQuery = $user->commits()->visibleTo($viewer);
 
-        // Replies must be to other developers (excluding self-replies / series continuations), deleted parents included
+        // Replies must be to other developers (excluding self-replies), deleted parents included
         /** @var object{total_commits: int|string, has_max_payload: int|string|null, has_syntax: int|string|null, replies: int|string} $commitStats */
         $commitStats = (clone $visibleCommitsQuery)
             ->leftJoin('commits as parents', fn (JoinClause $join): JoinClause => $join

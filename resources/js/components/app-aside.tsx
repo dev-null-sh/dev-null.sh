@@ -15,7 +15,7 @@ import { show } from '@/routes/user';
 
 const rules = [
     'Everyone here signed in with GitHub.',
-    'Commits are plain text, 280 characters max.',
+    'Commits are plain text, up to 4,000 characters.',
     'No algorithm. Newest first.',
     'Profiles mirror GitHub. Edit yours there.',
 ];
@@ -43,7 +43,7 @@ export function AppAside({
                 data-test="search-button"
             >
                 <Search className="size-4" />
-                Search developers
+                Search
                 <kbd className="ml-auto rounded border border-b-2 bg-muted px-1.5 font-mono text-xs">
                     {keys.combo(keys.mod, 'K')}
                 </kbd>
@@ -55,7 +55,7 @@ export function AppAside({
                     className="rounded-xl border bg-card p-4"
                 >
                     <h2 id="aside-sign-in" className="font-semibold">
-                        New to devnull?
+                        New to /dev/null?
                     </h2>
                     <p className="mt-1 text-sm text-pretty text-muted-foreground">
                         Sign in with GitHub to follow developers, star commits,
@@ -151,7 +151,7 @@ export function AppAside({
 
             <section aria-labelledby="aside-rules" className="border-t pt-6">
                 <h2 id="aside-rules" className="mb-3 text-sm font-semibold">
-                    How devnull works
+                    How /dev/null works
                 </h2>
                 <ul className="space-y-2.5 text-sm">
                     {rules.map((rule) => (

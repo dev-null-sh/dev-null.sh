@@ -11,7 +11,7 @@ use App\Queries\CommitBuilder;
 
 final readonly class LatestLogQuery implements LogQuery
 {
-    public function builder(User $user): CommitBuilder
+    public function builder(?User $user): CommitBuilder
     {
         return Commit::query()
             ->visibleTo($user)

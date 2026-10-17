@@ -6,7 +6,7 @@ import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { CommitCard } from '@/components/commit-card';
 import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
 import AppLayout from '@/layouts/app-layout';
-import { searchMockCommits, suggestedQueries } from '@/lib/mock-search';
+import { searchCommits, suggestedQueries } from '@/lib/commit-search';
 import { laneColor } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -17,7 +17,7 @@ type Results = { term: string; commits: Commit[] };
 export default function Index({ query }: { query: string }) {
     const [draft, setDraft] = useState(query);
     const inputRef = useRef<HTMLInputElement>(null);
-    const { results, isWaiting } = useMockSearch(query);
+    const { results, isWaiting } = useCommitSearch(query);
 
     const search = (term: string) => {
         router.get(
@@ -97,7 +97,7 @@ Index.layout = AppLayout;
  * Keeps showing the previous results while the next ones load, and only reaches for a skeleton when there is nothing
  * to show yet and the wait is long enough to notice.
  */
-function useMockSearch(query: string) {
+function useCommitSearch(query: string) {
     const [results, setResults] = useState<Results | null>(null);
     const [isWaiting, setIsWaiting] = useState(false);
 
@@ -106,21 +106,25 @@ function useMockSearch(query: string) {
             return;
         }
 
-        let isCurrent = true;
+        const controller = new AbortController();
         const timeout = setTimeout(() => setIsWaiting(true), skeletonDelay);
 
-        void searchMockCommits(query).then((commits) => {
-            if (!isCurrent) {
-                return;
-            }
-
-            setResults({ term: query, commits });
-            setIsWaiting(false);
-            clearTimeout(timeout);
-        });
+        searchCommits(query, undefined, controller.signal)
+            .then((commits) => setResults({ term: query, commits }))
+            .catch(() => {
+                if (!controller.signal.aborted) {
+                    setResults({ term: query, commits: [] });
+                }
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) {
+                    setIsWaiting(false);
+                    clearTimeout(timeout);
+                }
+            });
 
         return () => {
-            isCurrent = false;
+            controller.abort();
             clearTimeout(timeout);
         };
     }, [query]);

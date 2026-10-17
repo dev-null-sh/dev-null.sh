@@ -9,6 +9,7 @@ use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitOpenGraphImageController;
+use App\Http\Controllers\CommitPastelController;
 use App\Http\Controllers\CommitPhotoController;
 use App\Http\Controllers\CommitPinController;
 use App\Http\Controllers\CommitPollVoteController;
@@ -18,14 +19,12 @@ use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitReportController;
 use App\Http\Controllers\CommitRestorationController;
 use App\Http\Controllers\CommitSearchController;
-use App\Http\Controllers\CommitSeriesController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
-use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
@@ -49,11 +48,13 @@ use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\UserLaneController;
 use App\Http\Controllers\UserMuteController;
 use App\Http\Controllers\UserOpenGraphImageController;
+use App\Http\Controllers\UserPasteisModeController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
 use App\Http\Middleware\RememberIntendedUrl;
+use App\Http\Middleware\SignInLocalDeveloper;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -62,7 +63,10 @@ use Inertia\Inertia;
 Route::get('commit', [ScriptController::class, 'show'])->name('cli-script.show');
 
 Route::middleware('guest')->group(function (): void {
-    Route::get('/', [HomeController::class, 'show'])->name('home');
+    // Guests land straight on the Trending log...
+    Route::get('/', [LogController::class, 'index'])
+        ->middleware(SignInLocalDeveloper::class)
+        ->name('home');
 
     // Session...
     Route::get('login', [SessionController::class, 'create'])
@@ -71,6 +75,10 @@ Route::middleware('guest')->group(function (): void {
         ->middleware('throttle:10,1')
         ->name('login.store');
 });
+
+// Log, where guests read Trending and Latest...
+Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
+Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
 
 // Public pages, readable by guests and crawlers...
 Route::middleware(RememberIntendedUrl::class)->group(function (): void {
@@ -134,6 +142,9 @@ Route::get('search/users', [UserSearchController::class, 'index'])
     ->middleware('throttle:people')
     ->name('user-search.index');
 
+// Search...
+Route::get('search', [SearchController::class, 'index'])->name('search.index');
+
 // Commit Search...
 Route::get('search/commits', [CommitSearchController::class, 'index'])
     ->middleware('throttle:search')
@@ -147,10 +158,6 @@ Route::middleware('auth')->group(function (): void {
     // Onboarding...
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
-
-    // Log...
-    Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
-    Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
 
     // Private saved commits...
     Route::get('saved', [BookmarkController::class, 'index'])->name('bookmark.index');
@@ -173,9 +180,6 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.store');
     Route::post('commits/preview', [CommitPreviewController::class, 'store'])
         ->name('commit-preview.store');
-    Route::post('commits/series', [CommitSeriesController::class, 'store'])
-        ->middleware(ThrottleCommits::class)
-        ->name('commit-series.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::post('commits/{commit}/restoration', [CommitRestorationController::class, 'store'])
@@ -190,6 +194,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->middleware('throttle:stars')
         ->name('commit-star.store');
+    Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
+        ->middleware('throttle:60,1')
+        ->name('commit-pastel.store');
     Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
         ->middleware('throttle:commit-reports')
         ->name('commit-report.store');
@@ -245,6 +252,8 @@ Route::middleware('auth')->group(function (): void {
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
+
+    Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');

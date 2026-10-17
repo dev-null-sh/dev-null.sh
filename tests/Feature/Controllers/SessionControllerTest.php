@@ -214,3 +214,26 @@ it('may destroy a session', function (): void {
 
     $this->assertGuest();
 });
+
+it('makes tom the first friend of a new user, but not of a returning one', function (): void {
+    fakeGitHubSponsorsListing(hasSponsorsListing: false);
+
+    Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat', 'name' => 'The Octocat']));
+
+    $this->get(route('login.store'));
+
+    $user = User::query()->where('github_id', '583231')->sole();
+    $tom = User::query()->where('username', 'tom')->sole();
+
+    expect($user->isFollowing($tom))->toBeTrue()
+        ->and($tom->isFollowing($user))->toBeTrue();
+
+    $returning = User::factory()->create(['github_id' => '1']);
+
+    Socialite::fake('github', GitHubUser::fake(['id' => '1', 'nickname' => $returning->username, 'name' => $returning->name]));
+
+    $this->post(route('logout'));
+    $this->get(route('login.store'));
+
+    expect($returning->isFollowing($tom))->toBeFalse();
+});

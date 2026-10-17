@@ -25,8 +25,7 @@ final class CommitBuilder extends Builder
      */
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
-        'series_id', 'series_position', 'series_size', 'quoted_commit_id', 'ai_decision', 'ai_categories', 'root_id',
-        'hot_score',
+        'quoted_commit_id', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count',
     ];
 
     /**
@@ -140,8 +139,7 @@ final class CommitBuilder extends Builder
             ->where(fn (self $query): self => $query
                 ->whereColumn('thread_replies.parent_id', $this->qualifyColumn('id'))
                 ->orWhereColumn('thread_replies.quoted_commit_id', $this->qualifyColumn('id')))
-            ->visibleInThreadTo($user)
-            ->exceptSeriesContinuations();
+            ->visibleInThreadTo($user);
 
         return $this->addSelect([$this->qualifyColumn('*')])->selectSub($replies, 'replies_count');
     }
@@ -170,29 +168,6 @@ final class CommitBuilder extends Builder
                 ->with('user')
                 ->withPollFor($viewer),
         ]);
-    }
-
-    /**
-     * Later parts of a series are replies to the part before them, yet they read as part of it rather than as replies.
-     */
-    public function exceptSeriesContinuations(): self
-    {
-        return $this->where(fn (self $query): self => $query
-            ->whereNull($this->qualifyColumn('series_position'))
-            ->orWhere($this->qualifyColumn('series_position'), 1));
-    }
-
-    /**
-     * A series is moderated as a whole, so the queue lists it once: under its first pending part.
-     */
-    public function exceptLaterPendingSeriesParts(): self
-    {
-        return $this->whereNotExists(fn (QueryBuilder $query): QueryBuilder => $query
-            ->from($this->getModel()->getTable(), 'earlier')
-            ->whereColumn('earlier.series_id', $this->qualifyColumn('series_id'))
-            ->whereColumn('earlier.series_position', '<', $this->qualifyColumn('series_position'))
-            ->where('earlier.status', CommitStatus::Pending)
-            ->whereNull('earlier.deleted_at'));
     }
 
     public function approved(): self
@@ -318,7 +293,6 @@ final class CommitBuilder extends Builder
     {
         return $relation
             ->visibleInThreadTo($user)
-            ->exceptSeriesContinuations()
             ->select($relation->getRelated()->qualifyColumns(['id', 'parent_id', 'quoted_commit_id', 'created_at']))
             ->newestFirst()
             ->limit(1);

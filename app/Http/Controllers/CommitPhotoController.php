@@ -9,7 +9,6 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitRepliesQuery;
-use App\Queries\CommitSeriesQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\RedirectResponse;
@@ -19,13 +18,11 @@ use Inertia\Response;
 
 final readonly class CommitPhotoController
 {
-    public function show(ShowCommitPhotoRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, int $photo, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, CommitSeriesQuery $series): RedirectResponse|Response
+    public function show(ShowCommitPhotoRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, int $photo, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
             return to_route('commit.show', [$user, $commit]);
         }
-
-        $isInSeries = $commit->series_id !== null;
 
         $focusedCommit = null;
         $getCommit = function () use (&$focusedCommit, $commit, $currentUser): Commit {
@@ -40,9 +37,8 @@ final readonly class CommitPhotoController
 
         return Inertia::render('commit/show', [
             'commit' => $getCommit,
-            'ancestors' => fn (): Collection => $isInSeries ? $series->before($commit, $currentUser) : $ancestors->get($commit, $currentUser),
-            'series' => fn (): Collection => $series->after($commit, $currentUser),
-            'replies' => fn (): ?CursorPaginator => $isInSeries ? null : $replies->paginate($commit, $currentUser),
+            'ancestors' => fn (): Collection => $ancestors->get($commit, $currentUser),
+            'replies' => fn (): CursorPaginator => $replies->paginate($commit, $currentUser),
             'photo' => fn (): array => [
                 'commit' => $getCommit(),
                 'index' => $photo - 1,
