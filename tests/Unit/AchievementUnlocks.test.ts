@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
     completedAchievementIds,
     newlyCompletedAchievementIds,
+    newlyUnlockedBadgeNames,
 } from '../../resources/js/lib/achievement-unlocks.ts';
 
 const achievements = {
@@ -48,4 +49,21 @@ await test('stays quiet when nothing new is unlocked', () => {
     const completed = completedAchievementIds(achievements);
 
     assert.deepEqual(newlyCompletedAchievementIds(completed, completed), []);
+    assert.deepEqual(
+        newlyUnlockedBadgeNames(completed, [
+            { id: 'hello', name: 'init', unlocked: true },
+            { id: 'streak', name: 'uptime', unlocked: false },
+        ]),
+        [],
+    );
+});
+
+await test('names only the badges that just unlocked', () => {
+    assert.deepEqual(
+        newlyUnlockedBadgeNames(completedAchievementIds(achievements), [
+            { id: 'hello', name: 'init', unlocked: true },
+            { id: 'streak', name: 'stargazer', unlocked: true },
+        ]),
+        ['stargazer'],
+    );
 });

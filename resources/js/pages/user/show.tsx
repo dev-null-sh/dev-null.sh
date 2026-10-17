@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
@@ -29,6 +30,7 @@ import AppLayout from '@/layouts/app-layout';
 import {
     completedAchievementIds,
     newlyCompletedAchievementIds,
+    newlyUnlockedBadgeNames,
 } from '@/lib/achievement-unlocks';
 import { commitStateKey } from '@/lib/commit-state';
 import { dropConfetti } from '@/lib/confetti';
@@ -95,11 +97,19 @@ export default function Show({
         const previous = seenAchievements.current;
         seenAchievements.current = completed;
 
-        if (
-            previous !== null &&
-            newlyCompletedAchievementIds(previous, completed).length > 0
-        ) {
+        if (previous === null) {
+            return;
+        }
+
+        if (newlyCompletedAchievementIds(previous, completed).length > 0) {
             dropConfetti({ edge: 'top' });
+        }
+
+        for (const name of newlyUnlockedBadgeNames(
+            previous,
+            achievements.badges,
+        )) {
+            toast('achievement unlocked 🎉', { description: name });
         }
     }, [achievements, isCurrentUser]);
 

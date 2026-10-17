@@ -20,3 +20,14 @@ export function newlyCompletedAchievementIds(
 
     return next.filter((id) => !seen.has(id));
 }
+
+export function newlyUnlockedBadgeNames(
+    previous: readonly string[],
+    badges: readonly { id: string; name: string; unlocked: boolean }[],
+): string[] {
+    const seen = new Set(previous);
+
+    return badges
+        .filter((badge) => badge.unlocked && !seen.has(`badge:${badge.id}`))
+        .map((badge) => badge.name);
+}
