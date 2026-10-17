@@ -49,6 +49,7 @@ export function CommitCard({
     isHighlighted = false,
     isGroupedWithPrevious = false,
     onAuthorHover,
+    onHover,
     actions,
     isFocused = false,
     canDelete = true,
@@ -68,6 +69,7 @@ export function CommitCard({
     isHighlighted?: boolean;
     isGroupedWithPrevious?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
+    onHover?: (isHovering: boolean) => void;
     actions?: ReactNode;
     isFocused?: boolean;
     canDelete?: boolean;
@@ -127,6 +129,11 @@ export function CommitCard({
             data-commit={commit.id}
             data-permalink={permalink.url}
             data-test="commit"
+            onPointerEnter={
+                onHover &&
+                ((event) => event.pointerType === 'mouse' && onHover(true))
+            }
+            onPointerLeave={onHover && (() => onHover(false))}
         >
             <div className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]">
                 <GraphRail
@@ -174,7 +181,11 @@ export function CommitCard({
                         hasVisibleReplies ? 'pt-3' : 'border-b py-3',
                     )}
                 >
-                    <div className="flex">
+                    <div
+                        className={cn('flex transition-opacity duration-200', {
+                            'opacity-50': isDimmed,
+                        })}
+                    >
                         <div className="min-w-0 flex-1">
                             <div className="flex items-baseline gap-1.5 text-[15px]">
                                 <UserPreview
@@ -445,7 +456,14 @@ export function CommitCard({
                                 'border-b pb-3': hasVisibleReplies,
                             })}
                         >
-                            <ThreadReplies thread={thread} depth={0} />
+                            <div
+                                className={cn(
+                                    'transition-opacity duration-200',
+                                    { 'opacity-50': isDimmed },
+                                )}
+                            >
+                                <ThreadReplies thread={thread} depth={0} />
+                            </div>
                         </div>
                     </>
                 )}
