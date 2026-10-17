@@ -410,6 +410,7 @@ it('includes the link previews of commits', function (Log $log): void {
                 'description' => 'The PHP framework for web artisans.',
                 'image_url' => 'https://laravel.com/og.png',
                 'site_name' => 'Laravel',
+                'is_pending' => false,
                 'embed' => null,
             ]));
 })->with(Log::cases());

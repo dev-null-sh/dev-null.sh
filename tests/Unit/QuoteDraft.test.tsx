@@ -132,15 +132,32 @@ test('quotes submit restored images and clear the complete draft only on success
         ['A restored screenshot', ''],
     ]);
 
+    const dropzone = elements(renderComposer(composer.props)).find(
+        (element) => element.props.onDragEnter !== undefined,
+    )!;
+    const dropped = new File(['dropped'], 'dropped.png', {
+        type: 'image/png',
+    });
+    (dropzone.props.onDrop as (event: unknown) => void)({
+        dataTransfer: { types: ['Files'], files: [dropped] },
+        preventDefault: vi.fn(),
+    });
+    assert.deepEqual(updateImages.mock.lastCall, [
+        [image, dropped],
+        ['A restored screenshot', ''],
+    ]);
+
     const onSuccess = form.props.onSuccess as (page: {
-        flash: { committed?: object };
+        flash: { toast?: { type: 'error'; message: string } };
     }) => void;
     updateImages.mockClear();
-    onSuccess({ flash: {} });
+    onSuccess({
+        flash: { toast: { type: 'error', message: 'Slow down' } },
+    });
     assert.equal(updateImages.mock.calls.length, 0);
     assert.equal(drop.mock.calls.length, 0);
 
-    onSuccess({ flash: { committed: { id: 'created' } } });
+    onSuccess({ flash: {} });
     assert.deepEqual(updateImages.mock.lastCall, [[], []]);
     assert.equal(drop.mock.calls.length, 1);
 

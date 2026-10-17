@@ -39,35 +39,23 @@ export type EmojiSuggestion = {
     emoji: string;
 };
 
-export function suggestEmoji(text: string): EmojiSuggestion | null {
-    const match = /:([A-Za-z0-9_+-]*)$/.exec(text);
+/**
+ * The shortcodes that start with the query, shortest first, then the ones that only contain it.
+ */
+export function searchEmoji(query: string, limit = 8): EmojiSuggestion[] {
+    const partial = query.toLowerCase();
+    const byLength = (left: string, right: string): number =>
+        left.length - right.length || left.localeCompare(right);
+    const names = Object.keys(shortcodeEmoji);
 
-    if (match === null || match[1] === '') {
-        return null;
-    }
-
-    const partial = match[1].toLowerCase();
-
-    let best: { name: string; emoji: string } | null = null;
-
-    for (const [name, emoji] of Object.entries(shortcodeEmoji)) {
-        if (
-            name.startsWith(partial) &&
-            (best === null || name.length < best.name.length)
-        ) {
-            best = { name, emoji };
-        }
-    }
-
-    return best;
-}
-
-export function completeEmoji(text: string): string | null {
-    const suggestion = suggestEmoji(text);
-
-    if (suggestion === null) {
-        return null;
-    }
-
-    return text.replace(/:([A-Za-z0-9_+-]*)$/, suggestion.emoji);
+    return [
+        ...names.filter((name) => name.startsWith(partial)).sort(byLength),
+        ...names
+            .filter(
+                (name) => !name.startsWith(partial) && name.includes(partial),
+            )
+            .sort(byLength),
+    ]
+        .slice(0, limit)
+        .map((name) => ({ name, emoji: shortcodeEmoji[name] }));
 }

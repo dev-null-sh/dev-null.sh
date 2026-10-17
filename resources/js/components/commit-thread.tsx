@@ -11,24 +11,22 @@ import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BodyCounter } from '@/components/body-counter';
-import { BookmarkButton } from '@/components/bookmark-button';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
+    ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
-import { CommitReportButton } from '@/components/commit-report-button';
+import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ComposerPreviewBody,
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
-import { CopyLinkButton } from '@/components/copy-link-button';
-import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -51,7 +49,6 @@ import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
-import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { hasModKey } from '@/lib/keyboard';
 import {
     characterCount,
@@ -348,8 +345,8 @@ export function ThreadActions({
 
     return (
         <>
-            <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px]">
-                <div className="flex flex-wrap items-center gap-0.5">
+            <div className="mt-1 -ml-2 flex flex-wrap items-center gap-0.5 text-[13px]">
+                <div className="flex flex-wrap items-center gap-0.5 max-md:contents">
                     {actions}
 
                     {!isDeleted(commit) && (
@@ -416,20 +413,12 @@ export function ThreadActions({
                     )}
                 </div>
 
-                <div className="ml-auto flex items-center gap-0.5">
-                    {!isDeleted(commit) && commit.is_saved !== undefined && (
-                        <BookmarkButton commit={commit} />
-                    )}
-                    {!isDeleted(commit) && (
-                        <CopyLinkButton
-                            commit={commit}
-                            keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
-                        />
-                    )}
-                    {!isDeleted(commit) && (
-                        <CommitReportButton commit={commit} />
-                    )}
-                </div>
+                {!isDeleted(commit) && (
+                    <CommitSecondaryActions
+                        commit={commit}
+                        keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
+                    />
+                )}
             </div>
 
             {thread.isReplying && !isDeleted(commit) && (
@@ -736,6 +725,11 @@ function CommitReply({
 
     const isOwn = reply.user_id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
+    const isQuote = reply.quoted_commit_id === parent.id;
+    const permalink = CommitController.show({
+        user: reply.user,
+        commit: reply,
+    });
 
     const deleteReply = async () => {
         try {
@@ -771,7 +765,12 @@ function CommitReply({
                         >
                             <UserAvatar
                                 user={reply.user}
-                                className="size-6 sm:size-7"
+                                className="size-6 ring-2 ring-(--lane) ring-offset-2 ring-offset-card sm:size-7"
+                                style={
+                                    {
+                                        '--lane': laneOf(reply),
+                                    } as CSSProperties
+                                }
                             />
                         </Link>
                     </UserPreview>
@@ -804,6 +803,15 @@ function CommitReply({
                                 @{reply.user.username}
                             </Link>
                         </UserPreview>
+                        {isQuote && (
+                            <Link
+                                href={permalink}
+                                className="shrink-0 font-mono text-xs text-primary hover:underline"
+                                data-test="quote-reply-label"
+                            >
+                                quoted
+                            </Link>
+                        )}
                         <span aria-hidden className="text-muted-foreground">
                             ·
                         </span>
@@ -812,10 +820,7 @@ function CommitReply({
                             author={reply.user}
                         >
                             <Link
-                                href={CommitController.show({
-                                    user: reply.user,
-                                    commit: reply,
-                                })}
+                                href={permalink}
                                 className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
                             >
                                 <time dateTime={reply.created_at}>
@@ -852,9 +857,10 @@ function CommitReply({
                         <p className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
                             <CornerDownRight className="size-3 shrink-0" />
                             <span className="truncate">
+                                {isQuote ? 'quoting' : 'replying to'}{' '}
                                 {isDeleted(parent)
-                                    ? 'replying to [deleted]'
-                                    : `replying to @${parent.user.username}`}
+                                    ? '[deleted]'
+                                    : `@${parent.user.username}`}
                             </span>
                         </p>
                     )}
@@ -866,7 +872,10 @@ function CommitReply({
                     />
                     <CommitImages commit={reply} />
                     {reply.link_preview && (
-                        <LinkPreview preview={reply.link_preview} />
+                        <LinkPreview
+                            commitId={reply.id}
+                            preview={reply.link_preview}
+                        />
                     )}
 
                     {isConfirming ? (
@@ -953,8 +962,8 @@ function ReplyComposer({
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
-    const isReplyable = characterCount(body.trim()) >= minBodyLength;
-    const suggestion = suggestEmoji(body);
+    const isReplyable =
+        images.length > 0 || characterCount(body.trim()) >= minBodyLength;
     const preview = useComposerPreview({
         body,
         textareaRef,
@@ -975,17 +984,6 @@ function ReplyComposer({
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (preview.handleShortcut(event)) {
-            return;
-        }
-
-        if (event.key === 'Tab' && suggestion !== null) {
-            const completed = completeEmoji(body);
-
-            if (completed !== null) {
-                event.preventDefault();
-                updateBody(completed);
-            }
-
             return;
         }
 
@@ -1049,9 +1047,13 @@ function ReplyComposer({
     return (
         <form
             onSubmit={submit}
-            className="mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
+            {...attachments.dropzone}
+            className="relative mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
             data-test="reply-composer"
         >
+            {attachments.isDraggingFiles && (
+                <ImageDropOverlay className="-inset-px" />
+            )}
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
                 Reply to @{parent.user.username}
             </label>
@@ -1066,8 +1068,6 @@ function ReplyComposer({
                     onValueChange={updateBody}
                     onKeyDown={onKeyDown}
                     onPaste={attachments.onPaste}
-                    onDragOver={attachments.onDragOver}
-                    onDrop={attachments.onDrop}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
                     maxLength={maxBodyLength}
                     placeholder={`Reply to @${parent.user.username}`}
@@ -1086,12 +1086,6 @@ function ReplyComposer({
                     />
                 )}
             </div>
-            {!preview.isPreviewing && (
-                <EmojiSuggestionHint
-                    suggestion={suggestion}
-                    className="mt-1 px-1"
-                />
-            )}
             <InputError
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"

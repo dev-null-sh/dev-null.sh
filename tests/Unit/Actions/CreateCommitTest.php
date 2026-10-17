@@ -183,6 +183,17 @@ it('queues ai review for a quote while preserving its images and chosen link car
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($quote->linkPreview));
 });
 
+it('does not embed commits without a body', function (): void {
+    config(['services.openai.key' => 'sk-test']);
+    Storage::fake();
+    Queue::fake();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(), '', images: [UploadedFile::fake()->image('screenshot.png', 10, 10)]);
+
+    Queue::assertPushed(ModerateCommit::class);
+    Queue::assertNotPushed(EmbedCommit::class);
+});
+
 it('does not ask the ai without an api key', function (): void {
     config(['services.openai.key' => null]);
     Queue::fake();

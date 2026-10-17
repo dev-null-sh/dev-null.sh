@@ -66,6 +66,23 @@ it('does not count the authenticated user relations when redirecting after a com
         ->each->not->toContain('count(*)');
 });
 
+it('rejects non-text commit bodies with a validation error', function (mixed $body): void {
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit.store'), ['body' => $body])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('body');
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and(LinkPreview::query()->count())->toBe(0);
+})->with([
+    'list' => [['Hello, world!']],
+    'object' => [['text' => 'Hello, world!']],
+    'empty array' => [[]],
+    'number' => [123],
+    'boolean' => [true],
+    'null' => [null],
+]);
+
 it('requires a body', function (): void {
     $user = User::factory()->create();
 
@@ -1072,7 +1089,7 @@ it('may attach images to a commit', function (): void {
             'body' => 'Look at this',
             'images' => [
                 UploadedFile::fake()->image('first.jpg', 40, 30),
-                UploadedFile::fake()->image('second.gif', 10, 10),
+                UploadedFile::fake()->image('second.png', 10, 10),
                 UploadedFile::fake()->image('third.webp', 10, 10),
             ],
         ]);
@@ -1085,6 +1102,63 @@ it('may attach images to a commit', function (): void {
     expect($commit->status)->toBe(CommitStatus::Pending)
         ->and($commit->images)->toHaveCount(3)
         ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
+});
+
+it('may commit images without a body', function (array $body): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            ...$body,
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->body)->toBe('')
+        ->and($commit->images)->toHaveCount(1);
+})->with([
+    'missing' => [[]],
+    'blank' => [['body' => '   ']],
+]);
+
+it('may commit images with a body shorter than 3 characters', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), [
+            'body' => 'ok',
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->body)->toBe('ok');
+});
+
+it('may quote a commit with only images', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), [
+            'quoted_commit_id' => $quoted->id,
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole())
+        ->body->toBe('')
+        ->quoted_commit_id->toBe($quoted->id);
 });
 
 it('may describe the images attached to a commit', function (): void {
@@ -1177,7 +1251,7 @@ it('may not attach more than three images to a commit', function (): void {
     expect($user->commits()->count())->toBe(0);
 });
 
-it('may only attach jpeg, png, gif or webp images to a commit', function (UploadedFile $file): void {
+it('may only attach jpeg, png or webp images to a commit', function (UploadedFile $file): void {
     Storage::fake();
 
     $user = User::factory()->create();
@@ -1195,6 +1269,7 @@ it('may only attach jpeg, png, gif or webp images to a commit', function (Upload
     'svg' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
     'html disguised as png' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.png', '<html><script>alert(1)</script></html>'),
     'bmp' => fn (): UploadedFile => UploadedFile::fake()->image('image.bmp', 10, 10),
+    'gif' => fn (): UploadedFile => UploadedFile::fake()->image('image.gif', 10, 10),
     'pdf' => fn (): UploadedFile => UploadedFile::fake()->create('document.pdf', 10, 'application/pdf'),
 ]);
 

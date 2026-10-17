@@ -12,6 +12,8 @@ export default defineConfig({
             'tests/Unit/DraftStash.test.tsx',
             'tests/Unit/ComposerDraft.test.tsx',
             'tests/Unit/QuoteDraft.test.tsx',
+            'tests/Unit/EmojiSearch.test.tsx',
+            'tests/Unit/QuoteReply.test.tsx',
         ],
     },
 });
