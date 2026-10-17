@@ -74,6 +74,7 @@ Route::middleware('guest')->group(function (): void {
 
     // Session...
     Route::get('login', [SessionController::class, 'create'])
+        ->middleware('throttle:10,1')
         ->name('login');
     Route::get('auth/github/callback', [SessionController::class, 'store'])
         ->middleware('throttle:10,1')
