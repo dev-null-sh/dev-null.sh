@@ -24,6 +24,10 @@ final readonly class Mentions
      */
     public function usernames(string $text): array
     {
+        if (! str_contains($text, '@')) {
+            return [];
+        }
+
         preg_match_all(self::Pattern, $this->codeSpans->withoutCode($text), $matches);
 
         return array_values(array_unique(array_map(strtolower(...), $matches[1])));
