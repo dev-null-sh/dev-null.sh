@@ -9,9 +9,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Lightbox from 'yet-another-react-lightbox';
 import type { ControllerRef } from 'yet-another-react-lightbox';
 import Counter from 'yet-another-react-lightbox/plugins/counter';
+import Download from 'yet-another-react-lightbox/plugins/download';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/plugins/counter.css';
 import 'yet-another-react-lightbox/styles.css';
+import { show as showCommitImage } from '@/actions/App/Http/Controllers/CommitImageController';
 import { CommitCard } from '@/components/commit-card';
 import { commitImageAlt } from '@/components/commit-images';
 import { isTyping } from '@/hooks/use-keyboard-shortcuts';
@@ -63,6 +65,12 @@ export function CommitImageViewer() {
                 alt: commitImageAlt(image, index, all.length),
                 width: image.width,
                 height: image.height,
+                download: {
+                    url: showCommitImage.url(image.id, {
+                        query: { download: 1 },
+                    }),
+                    filename: `${image.id}.webp`,
+                },
             })),
         [images],
     );
@@ -83,7 +91,9 @@ export function CommitImageViewer() {
                     }
                 },
             }}
-            plugins={hasMultipleImages ? [Counter, Zoom] : [Zoom]}
+            plugins={
+                hasMultipleImages ? [Counter, Zoom, Download] : [Zoom, Download]
+            }
             className={cn(
                 '[--commit-panel-height:0px] [--commit-panel-width:0px]',
                 isPanelOpen &&
