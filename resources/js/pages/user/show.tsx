@@ -80,6 +80,16 @@ export default function Show({
         commitStateKey('pasteis_received', user.id),
         pasteisReceived ?? 0,
     );
+    const [starsReceived] = useSharedState(
+        commitStateKey('stars_received', user.id),
+        starsCount,
+    );
+
+    useEffect(() => {
+        refreshSharedState(
+            new Map([[commitStateKey('stars_received', user.id), starsCount]]),
+        );
+    }, [user.id, starsCount]);
 
     useEffect(() => {
         if (pasteisReceived !== null) {
@@ -277,9 +287,9 @@ export default function Show({
                             href: UserFollowersController.index(user),
                         },
                         {
-                            count: formatCompactCount(starsCount),
-                            title: formatFullCount(starsCount),
-                            label: pluralize(starsCount, 'star', 'stars'),
+                            count: formatCompactCount(starsReceived),
+                            title: formatFullCount(starsReceived),
+                            label: pluralize(starsReceived, 'star', 'stars'),
                             href: null,
                         },
                     ].map((stat) => (
