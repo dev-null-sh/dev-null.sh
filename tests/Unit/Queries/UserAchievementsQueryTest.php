@@ -50,26 +50,26 @@ it('unlocks init badge upon first commit and awards xp', function (): void {
         ->and($result['xp'])->toBe(25);
 });
 
-it('unlocks max_payload badge for an exact 280-character post and handles multibyte unicode', function (): void {
+it('unlocks max_payload badge for a post at the maximum length and handles multibyte unicode', function (): void {
     $user = User::factory()->create();
 
-    // 279 characters -> not unlocked
+    // One character short of the maximum -> not unlocked
     $shortCommit = Commit::factory()->for($user)->create([
-        'body' => str_repeat('a', 279),
+        'body' => str_repeat('a', Commit::MAX_BODY_LENGTH - 1),
     ]);
 
     $result = resolve(UserAchievementsQuery::class)->get($user, $user);
     $badge = collect($result['badges'])->firstWhere('id', Achievement::MaxPayload->value);
     expect($badge['unlocked'])->toBeFalse();
 
-    // Delete short commit and create exact 280-character post with multibyte emojis
+    // Delete short commit and create a maximum-length post with multibyte emojis
     $shortCommit->forceDelete();
 
-    // 278 'a's + 2 multibyte rocket emojis (each 1 char length in UTF-8, 4 bytes) = exact 280 characters
-    $exact280Body = str_repeat('a', 278).'🚀🚀';
-    expect(mb_strlen($exact280Body))->toBe(280);
+    // 'a's + 2 multibyte rocket emojis (each 1 char length in UTF-8, 4 bytes) = exactly the maximum length
+    $maxLengthBody = str_repeat('a', Commit::MAX_BODY_LENGTH - 2).'🚀🚀';
+    expect(mb_strlen($maxLengthBody))->toBe(Commit::MAX_BODY_LENGTH);
 
-    Commit::factory()->for($user)->create(['body' => $exact280Body]);
+    Commit::factory()->for($user)->create(['body' => $maxLengthBody]);
 
     $result = resolve(UserAchievementsQuery::class)->get($user, $user);
     $badge = collect($result['badges'])->firstWhere('id', Achievement::MaxPayload->value);

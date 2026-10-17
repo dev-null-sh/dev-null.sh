@@ -68,31 +68,15 @@ function openFocusedCommit(): boolean {
     return true;
 }
 
-function focusComposer(log: Log): void {
-    const body = document.getElementById('body');
-
-    if (body) {
-        body.focus();
-
-        return;
-    }
-
-    router.visit(LogController.show(log), {
-        onFinish: () =>
-            requestAnimationFrame(() =>
-                document.getElementById('body')?.focus(),
-            ),
-    });
-}
-
 /**
- * Guests have no log, profile, or settings to go to, nor a composer, so those shortcuts take them to sign in.
+ * Guests have no log, profile, or settings to go to, so those shortcuts take them to sign in.
  */
 export function useKeyboardShortcuts(
     user: User | null,
     log: Log | null,
     onShowHelp: () => void,
     onSearch: () => void,
+    onCompose: () => void,
 ): void {
     useEffect(() => {
         let awaitingGoTo = false;
@@ -161,7 +145,7 @@ export function useKeyboardShortcuts(
             const actions: Record<string, () => void> = {
                 j: () => moveCommitFocus(1),
                 k: () => moveCommitFocus(-1),
-                c: () => (log === null ? signIn() : focusComposer(log)),
+                c: onCompose,
                 '/': onSearch,
                 '?': onShowHelp,
                 g: () => {
@@ -184,5 +168,5 @@ export function useKeyboardShortcuts(
             window.removeEventListener('keydown', onKeyDown);
             clearTimeout(goToTimeout);
         };
-    }, [user, log, onShowHelp, onSearch]);
+    }, [user, log, onShowHelp, onSearch, onCompose]);
 }

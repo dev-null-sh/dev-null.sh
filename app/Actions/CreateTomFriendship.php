@@ -8,7 +8,7 @@ use App\Enums\CommitStatus;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
-final readonly class BefriendTom
+final readonly class CreateTomFriendship
 {
     /**
      * Not numeric, so no GitHub account can ever own it and sign in as Tom.

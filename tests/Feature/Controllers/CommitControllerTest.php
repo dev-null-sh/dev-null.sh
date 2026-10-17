@@ -66,6 +66,23 @@ it('does not count the authenticated user relations when redirecting after a com
         ->each->not->toContain('count(*)');
 });
 
+it('rejects non-text commit bodies with a validation error', function (mixed $body): void {
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit.store'), ['body' => $body])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('body');
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and(LinkPreview::query()->count())->toBe(0);
+})->with([
+    'list' => [['Hello, world!']],
+    'object' => [['text' => 'Hello, world!']],
+    'empty array' => [[]],
+    'number' => [123],
+    'boolean' => [true],
+    'null' => [null],
+]);
+
 it('requires a body', function (): void {
     $user = User::factory()->create();
 

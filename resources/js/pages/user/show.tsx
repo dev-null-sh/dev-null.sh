@@ -24,11 +24,13 @@ import { PinCommitButton } from '@/components/pin-commit-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import {
     completedAchievementIds,
     newlyCompletedAchievementIds,
 } from '@/lib/achievement-unlocks';
+import { commitStateKey } from '@/lib/commit-state';
 import { dropConfetti } from '@/lib/confetti';
 import { laneColor } from '@/lib/utils';
 import type {
@@ -46,6 +48,7 @@ function pluralize(count: number, singular: string, plural: string) {
 
 export default function Show({
     user,
+    pasteisReceived,
     isFollowing,
     followsYou,
     isMuting,
@@ -57,6 +60,7 @@ export default function Show({
     pinnedCommit,
 }: {
     user: Profile;
+    pasteisReceived: number | null;
     isFollowing: boolean;
     followsYou: boolean;
     isMuting: boolean;
@@ -75,6 +79,10 @@ export default function Show({
     );
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
     const seenAchievements = useRef<string[] | null>(null);
+    const [pasteisCount] = useSharedState(
+        commitStateKey('pasteis_received', user.id),
+        pasteisReceived ?? 0,
+    );
 
     useEffect(() => {
         if (!isCurrentUser) {
@@ -94,6 +102,19 @@ export default function Show({
             dropConfetti({ edge: 'top' });
         }
     }, [achievements, isCurrentUser]);
+
+    useEffect(() => {
+        if (pasteisReceived !== null) {
+            refreshSharedState(
+                new Map([
+                    [
+                        commitStateKey('pasteis_received', user.id),
+                        pasteisReceived,
+                    ],
+                ]),
+            );
+        }
+    }, [user.id, pasteisReceived]);
 
     return (
         <>
@@ -301,6 +322,27 @@ export default function Show({
                         </div>
                     ))}
                 </dl>
+                {auth.pasteis && pasteisReceived !== null && (
+                    <p
+                        className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground"
+                        data-test="profile-pasteis-count"
+                    >
+                        <img
+                            src="/pastel-de-nata.svg"
+                            alt=""
+                            width={20}
+                            height={20}
+                            className="size-5 shrink-0 object-contain"
+                        />
+                        <span
+                            className="inline-block w-[4ch] truncate font-mono font-medium text-foreground tabular-nums"
+                            title={String(pasteisCount)}
+                        >
+                            {pasteisCount}
+                        </span>{' '}
+                        pastéis received
+                    </p>
+                )}
             </header>
 
             <ActivityGraph
@@ -328,6 +370,8 @@ export default function Show({
             <PageTabs
                 label="Profile feed"
                 preserveScroll
+                only={['tab', 'commits', 'pinnedCommit']}
+                reset={['commits']}
                 tabs={[
                     {
                         title: 'Commits',

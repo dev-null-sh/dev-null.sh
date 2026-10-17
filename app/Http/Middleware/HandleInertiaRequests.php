@@ -50,6 +50,10 @@ final class HandleInertiaRequests extends Middleware
                 'isAdmin' => $isAdmin,
                 'log' => fn (): ?Log => $request->user()?->log,
                 'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user) : 0,
+                'pasteis' => fn (): ?array => $user?->pasteis_mode ? [
+                    'remaining' => $user->pasteisRemaining(),
+                    'day' => today()->toDateString(),
+                ] : null,
             ],
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',

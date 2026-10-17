@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BodyCounter } from '@/components/body-counter';
-import { BookmarkButton } from '@/components/bookmark-button';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
     ImagePickerButton,
@@ -19,14 +18,14 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
-import { CommitReportButton } from '@/components/commit-report-button';
+import { CommitPastelButton } from '@/components/commit-pastel-button';
+import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ComposerPreviewBody,
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
-import { CopyLinkButton } from '@/components/copy-link-button';
 import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
@@ -346,8 +345,8 @@ export function ThreadActions({
 
     return (
         <>
-            <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px]">
-                <div className="flex flex-wrap items-center gap-0.5">
+            <div className="mt-1 -ml-2 flex flex-wrap items-center gap-0.5 text-[13px]">
+                <div className="flex flex-wrap items-center gap-0.5 max-md:contents">
                     {actions}
 
                     {!isDeleted(commit) && (
@@ -414,20 +413,12 @@ export function ThreadActions({
                     )}
                 </div>
 
-                <div className="ml-auto flex items-center gap-0.5">
-                    {!isDeleted(commit) && commit.is_saved !== undefined && (
-                        <BookmarkButton commit={commit} />
-                    )}
-                    {!isDeleted(commit) && (
-                        <CopyLinkButton
-                            commit={commit}
-                            keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
-                        />
-                    )}
-                    {!isDeleted(commit) && (
-                        <CommitReportButton commit={commit} />
-                    )}
-                </div>
+                {!isDeleted(commit) && (
+                    <CommitSecondaryActions
+                        commit={commit}
+                        keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
+                    />
+                )}
             </div>
 
             {thread.isReplying && !isDeleted(commit) && (
@@ -769,7 +760,12 @@ function CommitReply({
                         >
                             <UserAvatar
                                 user={reply.user}
-                                className="size-6 sm:size-7"
+                                className="size-6 ring-2 ring-(--lane) ring-offset-2 ring-offset-card sm:size-7"
+                                style={
+                                    {
+                                        '--lane': laneOf(reply),
+                                    } as CSSProperties
+                                }
                             />
                         </Link>
                     </UserPreview>
@@ -864,7 +860,10 @@ function CommitReply({
                     />
                     <CommitImages commit={reply} />
                     {reply.link_preview && (
-                        <LinkPreview preview={reply.link_preview} />
+                        <LinkPreview
+                            commitId={reply.id}
+                            preview={reply.link_preview}
+                        />
                     )}
 
                     {isConfirming ? (
@@ -893,10 +892,16 @@ function CommitReply({
                         <ThreadActions
                             thread={thread}
                             actions={
-                                <CommitStarButton
-                                    commit={reply}
-                                    className="px-2 py-0.5"
-                                />
+                                <>
+                                    <CommitStarButton
+                                        commit={reply}
+                                        className="px-2 py-0.5"
+                                    />
+                                    <CommitPastelButton
+                                        commit={reply}
+                                        className="px-2 py-0.5"
+                                    />
+                                </>
                             }
                         />
                     )}
