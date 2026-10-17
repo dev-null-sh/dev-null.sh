@@ -21,7 +21,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { confettiOrigin, dropConfetti } from '@/lib/confetti';
+import { dropConfetti } from '@/lib/confetti';
 import { cn } from '@/lib/utils';
 import type { Achievements } from '@/types';
 
@@ -121,9 +121,7 @@ export function AchievementsShelf({
                                         type="button"
                                         onClick={(event) => {
                                             if (badge.unlocked) {
-                                                dropConfetti(
-                                                    confettiOrigin(event),
-                                                );
+                                                dropConfetti({ edge: 'top' });
                                             }
 
                                             onInspect();
