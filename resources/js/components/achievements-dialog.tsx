@@ -21,7 +21,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { confettiOrigin, dropConfetti } from '@/lib/confetti';
+import { dropConfetti } from '@/lib/confetti';
 import { cn } from '@/lib/utils';
 import type { Achievements, Profile, User } from '@/types';
 
@@ -218,7 +218,7 @@ export function AchievementsDialog({
                                     type="button"
                                     className={className}
                                     onClick={(event) =>
-                                        dropConfetti(confettiOrigin(event))
+                                        dropConfetti({ edge: 'top' })
                                     }
                                 >
                                     {body}
@@ -312,7 +312,7 @@ export function AchievementsDialog({
                                     type="button"
                                     className={className}
                                     onClick={(event) =>
-                                        dropConfetti(confettiOrigin(event))
+                                        dropConfetti({ edge: 'top' })
                                     }
                                 >
                                     {body}
