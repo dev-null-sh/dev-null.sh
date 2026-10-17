@@ -217,9 +217,7 @@ export function AchievementsDialog({
                                     key={badge.id}
                                     type="button"
                                     className={className}
-                                    onClick={(event) =>
-                                        dropConfetti()
-                                    }
+                                    onClick={(_event) => dropConfetti()}
                                 >
                                     {body}
                                 </button>
@@ -311,9 +309,7 @@ export function AchievementsDialog({
                                     key={rank.rank}
                                     type="button"
                                     className={className}
-                                    onClick={(event) =>
-                                        dropConfetti()
-                                    }
+                                    onClick={(_event) => dropConfetti()}
                                 >
                                     {body}
                                 </button>

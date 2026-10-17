@@ -119,7 +119,7 @@ export function AchievementsShelf({
                                 <TooltipTrigger asChild>
                                     <button
                                         type="button"
-                                        onClick={(event) => {
+                                        onClick={(_event) => {
                                             if (badge.unlocked) {
                                                 dropConfetti();
                                             }
