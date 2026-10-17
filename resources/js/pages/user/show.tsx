@@ -8,8 +8,7 @@ import {
     MapPin,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
+import { useEffect, useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
@@ -27,13 +26,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
-import {
-    completedAchievementIds,
-    newlyCompletedAchievementIds,
-    newlyUnlockedBadgeNames,
-} from '@/lib/achievement-unlocks';
 import { commitStateKey } from '@/lib/commit-state';
-import { dropConfetti } from '@/lib/confetti';
 import { laneColor } from '@/lib/utils';
 import type {
     Achievements,
@@ -80,38 +73,10 @@ export default function Show({
         null,
     );
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
-    const seenAchievements = useRef<string[] | null>(null);
     const [pasteisCount] = useSharedState(
         commitStateKey('pasteis_received', user.id),
         pasteisReceived ?? 0,
     );
-
-    useEffect(() => {
-        if (!isCurrentUser) {
-            seenAchievements.current = null;
-
-            return;
-        }
-
-        const completed = completedAchievementIds(achievements);
-        const previous = seenAchievements.current;
-        seenAchievements.current = completed;
-
-        if (previous === null) {
-            return;
-        }
-
-        if (newlyCompletedAchievementIds(previous, completed).length > 0) {
-            dropConfetti({ edge: 'top' });
-        }
-
-        for (const name of newlyUnlockedBadgeNames(
-            previous,
-            achievements.badges,
-        )) {
-            toast('achievement unlocked 🎉', { description: name });
-        }
-    }, [achievements, isCurrentUser]);
 
     useEffect(() => {
         if (pasteisReceived !== null) {

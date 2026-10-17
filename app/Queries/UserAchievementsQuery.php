@@ -50,6 +50,22 @@ final readonly class UserAchievementsQuery
      *     }>
      * }
      */
+    /**
+     * @return list<string>
+     */
+    public function unlockedBadgeNames(User $user): array
+    {
+        $names = [];
+
+        foreach ($this->get($user, $user)['badges'] as $badge) {
+            if ($badge['unlocked']) {
+                $names[] = $badge['name'];
+            }
+        }
+
+        return $names;
+    }
+
     public function get(User $user, ?User $viewer, ?array $streaks = null): array
     {
         $visibleCommitsQuery = $user->commits()->visibleTo($viewer);
