@@ -161,9 +161,13 @@ export function ConversationThread({
 
             if (headLine.current === null) {
                 element.scrollTop = element.scrollHeight;
-            } else {
-                isPinned.current = false;
             }
+
+            isPinned.current =
+                element.scrollHeight -
+                    element.scrollTop -
+                    element.clientHeight <
+                48;
 
             return;
         }
@@ -324,6 +328,9 @@ export function ConversationThread({
             {(thread?.access ?? 'open') === 'open' ? (
                 <Composer
                     target={current}
+                    onSend={() => {
+                        isPinned.current = true;
+                    }}
                     isCompact={isCompact}
                     autoFocus={autoFocus}
                     typing={
@@ -766,11 +773,16 @@ function Composer({
     isCompact,
     autoFocus,
     typing,
+    onSend,
 }: {
     target: ChatTarget;
     isCompact: boolean;
     autoFocus: boolean;
     typing: string | null;
+    /**
+     * Called as the user pushes, so the thread follows their own message down.
+     */
+    onSend: () => void;
 }) {
     const id = `message-${targetKey(target).replace(':', '-')}`;
     const placeholder =
@@ -804,6 +816,7 @@ function Composer({
             return;
         }
 
+        onSend();
         sendMessage(target, trimmed);
         setBody('');
         showError(null);
