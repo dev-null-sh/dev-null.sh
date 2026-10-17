@@ -19,7 +19,7 @@ final readonly class OnboardingController
     public function show(ShowOnboardingRequest $request, #[CurrentUser] User $user, SuggestedUsersQuery $suggested): Response
     {
         return Inertia::render('onboarding/show', [
-            'preferredLane' => $user->preferred_lane,
+            'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),
             'suggestions' => fn (): Collection => $suggested->get($user, limit: 5),
             'commitScriptUrl' => route('cli-script.show'),

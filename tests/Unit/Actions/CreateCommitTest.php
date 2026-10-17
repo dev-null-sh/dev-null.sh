@@ -42,9 +42,9 @@ it('creates commits pending review', function (): void {
 it('stores emoji shortcodes as their emoji', function (): void {
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(), 'shipped it :heart :like :rocket:');
+    $commit = $action->handle(User::factory()->create(), 'shipped it :heart: :like: :rocket and :rocket:');
 
-    expect($commit->body)->toBe('shipped it ❤️ 👍 🚀');
+    expect($commit->body)->toBe('shipped it ❤️ 👍 :rocket and 🚀');
 });
 
 it('approves commits of admins right away', function (): void {
@@ -332,7 +332,7 @@ it('attaches no link preview without a url', function (): void {
 it('attaches a poll with its options in order', function (): void {
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(), 'Tabs or spaces?', poll: new NewPoll(['Tabs', 'Spaces', 'Both :fire'], PollDuration::ThreeDays));
+    $commit = $action->handle(User::factory()->create(), 'Tabs or spaces?', poll: new NewPoll(['Tabs', 'Spaces', 'Both :fire:'], PollDuration::ThreeDays));
 
     expect($commit->poll)
         ->duration->toBe(PollDuration::ThreeDays)
