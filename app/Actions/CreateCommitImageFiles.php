@@ -85,7 +85,7 @@ final readonly class CreateCommitImageFiles
     private function invalid(): ValidationException
     {
         return ValidationException::withMessages([
-            'images' => __('Images must be JPEG, PNG, or WebP files of at most :size pixels per side.', ['size' => CreateCommitImages::MAX_SOURCE_DIMENSION]),
+            'images' => 'Images must be JPEG, PNG, or WebP files of at most '.CreateCommitImages::MAX_SOURCE_DIMENSION.' pixels per side.',
         ]);
     }
 }

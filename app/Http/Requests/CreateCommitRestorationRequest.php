@@ -38,9 +38,9 @@ final class CreateCommitRestorationRequest extends FormRequest
                 $commit = $this->commit();
 
                 if (! $commit->trashed()) {
-                    $validator->errors()->add('undo', __('This commit is no longer deleted.'));
+                    $validator->errors()->add('undo', 'This commit is no longer deleted.');
                 } elseif (! $commit->isRestorable()) {
-                    $validator->errors()->add('undo', __('The 30-second undo window has expired.'));
+                    $validator->errors()->add('undo', 'The 30-second undo window has expired.');
                 }
             },
         ];

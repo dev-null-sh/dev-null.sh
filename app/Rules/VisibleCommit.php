@@ -19,7 +19,7 @@ final readonly class VisibleCommit implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (! is_string($value) || ! Commit::query()->visibleTo($this->user)->whereKey($value)->exists()) {
-            $fail($this->message ?? __('That commit is no longer available to reply to.'));
+            $fail($this->message ?? 'That commit is no longer available to reply to.');
         }
     }
 }

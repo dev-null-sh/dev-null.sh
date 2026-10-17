@@ -174,7 +174,7 @@ it('fails when the user denies access', function (): void {
     $response->assertRedirectToRoute('home')
         ->assertInertiaFlash('toast', [
             'type' => 'error',
-            'message' => __('Unable to sign in with GitHub. Please try again.'),
+            'message' => 'Unable to sign in with GitHub. Please try again.',
         ]);
 
     $this->assertGuest();
@@ -188,7 +188,7 @@ it('fails when the state is invalid', function (): void {
     $response->assertRedirectToRoute('home')
         ->assertInertiaFlash('toast', [
             'type' => 'error',
-            'message' => __('Unable to sign in with GitHub. Please try again.'),
+            'message' => 'Unable to sign in with GitHub. Please try again.',
         ]);
 
     $this->assertGuest();

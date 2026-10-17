@@ -32,7 +32,7 @@ final class CreateCommitReportRequest extends FormRequest
 
         return $commit->user_id !== $user->id
             ? Response::allow()
-            : Response::deny(__('You cannot report your own commit.'));
+            : Response::deny('You cannot report your own commit.');
     }
 
     /**

@@ -19,7 +19,7 @@ final readonly class UserTimezoneController
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __('Timezone saved.'),
+            'message' => 'Timezone saved.',
         ]);
 
         return back();

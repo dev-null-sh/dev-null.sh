@@ -82,7 +82,7 @@ final class CreateCommitRequest extends FormRequest
 
         return [
             'body' => $this->hasFile('images') ? self::BODY_WITH_IMAGES_RULES : self::BODY_RULES,
-            'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
+            'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...self::attachmentRules(),
         ];
@@ -116,7 +116,7 @@ final class CreateCommitRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'link_preview_url.in' => __('The link card must be one of the links in the body.'),
+            'link_preview_url.in' => 'The link card must be one of the links in the body.',
         ];
     }
 

@@ -187,7 +187,6 @@ export default function Show({
             <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
                 <CommitFeed
                     commits={commits}
-                    firstLane="var(--rail)"
                     firstSeenId={firstSeenId}
                     latestCommits={latestCommits}
                     isRanked={isRanked}

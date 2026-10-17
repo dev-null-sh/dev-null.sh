@@ -8,12 +8,17 @@ import { CommitBody } from '../../resources/js/components/commit-body';
 import { CommitComposer } from '../../resources/js/components/commit-composer';
 import { revokeObjectUrls } from '../../resources/js/components/commit-image-picker';
 import {
+    ComposerPollPreview,
     ComposerPreviewBody,
     useComposerPreview,
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
 
-function renderPage(content: ReactElement, pasteisMode = false): string {
+function renderPage(
+    content: ReactElement,
+    pasteisMode = false,
+    isAdmin = false,
+): string {
     return renderToStaticMarkup(
         <App
             initialComponent={() => content}
@@ -29,6 +34,7 @@ function renderPage(content: ReactElement, pasteisMode = false): string {
                             pasteis: pasteisMode
                                 ? { remaining: 0, day: '2026-10-16' }
                                 : null,
+                            isAdmin,
                         },
                     },
                     clearHistory: false,
@@ -236,6 +242,31 @@ void test('ordinary drafts retain preview without a sensitive text warning', () 
     assert.ok(markup.includes('data-test="preview-toggle"'));
     assert.ok(!markup.includes('aria-label="Sensitive text warning"'));
 });
+
+for (const isAdmin of [false, true]) {
+    void test(`previews a poll draft as ${isAdmin ? 'an open' : 'a pending'} poll`, () => {
+        const markup = renderPage(
+            <ComposerPollPreview
+                poll={{
+                    options: ['Bun :rocket:', '  ', 'Deno'],
+                    duration: 4320,
+                }}
+            />,
+            false,
+            isAdmin,
+        );
+        const poll = markup.match(/data-test="commit-poll"[\s\S]*/)?.[0];
+
+        assert.ok(poll);
+        assert.equal((poll.match(/<li/g) ?? []).length, 2);
+        assert.ok(poll.includes('Bun 🚀'));
+        assert.ok(poll.includes('Deno'));
+        assert.ok(!poll.includes('<input'));
+        assert.ok(
+            poll.includes(isAdmin ? '3d left' : 'Voting opens once approved'),
+        );
+    });
+}
 
 void test('previews attached image descriptions without a published photo link', () => {
     const images = [
