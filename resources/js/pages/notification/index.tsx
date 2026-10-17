@@ -29,6 +29,7 @@ import { FollowButton } from '@/components/follow-button';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
@@ -40,7 +41,12 @@ import {
     localDayKey,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
+import type {
+    CursorPaginated,
+    Notification,
+    NotificationGroup,
+    User,
+} from '@/types';
 
 type Filters = {
     type:
@@ -709,6 +715,10 @@ function NotificationContent({
     const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
     const isOwnCommit = notification.type === 'starred' || moderation;
+    // A star points at your own commit, so its stargazers link to their profiles instead.
+    const linksActors = notification.type === 'starred';
+    const opensProfile =
+        notification.type === 'followed' || (!summary && linksActors);
     const Icon = {
         followed: UserPlus,
         replied: MessageSquareReply,
@@ -728,13 +738,12 @@ function NotificationContent({
             aria-hidden
         />
     );
-    const href =
-        notification.type === 'followed'
-            ? show(actor)
-            : CommitController.show({
-                  user: isOwnCommit ? user : actor,
-                  commit: notification.commit,
-              });
+    const href = opensProfile
+        ? show(actor)
+        : CommitController.show({
+              user: isOwnCommit ? user : actor,
+              commit: notification.commit,
+          });
     const time = (
         <time
             dateTime={notification.created_at}
@@ -788,13 +797,15 @@ function NotificationContent({
             <div className="flex items-start gap-3">
                 <Link
                     href={href}
-                    className="flex min-w-0 flex-1 gap-2.5 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
+                    className="group/actor flex min-w-0 flex-1 gap-2.5 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                 >
                     <UserAvatar user={actor} className="size-7 shrink-0" />
                     <div className="min-w-0 flex-1">
                         <div className="flex h-7 items-center gap-1.5 text-[15px]">
                             <span
-                                className="truncate font-semibold"
+                                className={cn('truncate font-semibold', {
+                                    'group-hover/actor:underline': opensProfile,
+                                })}
                                 title={actor.name}
                             >
                                 {actor.name}
@@ -817,12 +828,110 @@ function NotificationContent({
                         {notification.type !== 'starred' && excerpt}
                     </div>
                 </Link>
-                {notification.type === 'followed' && (
-                    <FollowBackButton actor={actor} />
-                )}
+                {opensProfile && <FollowBackButton actor={actor} />}
             </div>
         );
     }
+
+    const header = (
+        <div className="flex h-10 items-center gap-2">
+            {moderation ? (
+                <span
+                    className={cn(
+                        'rounded-full px-2 py-0.5 font-mono text-xs',
+                        notification.type === 'rejected'
+                            ? 'bg-destructive/10 text-destructive'
+                            : 'bg-muted text-muted-foreground',
+                    )}
+                >
+                    {notification.type}
+                </span>
+            ) : (
+                <span className="flex -space-x-2" aria-hidden>
+                    {actors.map((stacked, position) => {
+                        const avatar = (
+                            <UserAvatar
+                                key={stacked.id}
+                                user={stacked}
+                                className="relative size-8 ring-2 ring-card"
+                                style={{
+                                    zIndex: actors.length - position,
+                                }}
+                            />
+                        );
+
+                        return linksActors ? (
+                            <ActorLink
+                                key={stacked.id}
+                                user={stacked}
+                                tabIndex={-1}
+                                className="rounded-full"
+                            >
+                                {avatar}
+                            </ActorLink>
+                        ) : (
+                            avatar
+                        );
+                    })}
+                    {actorsCount > actors.length && (
+                        <span className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card">
+                            +{actorsCount - actors.length}
+                        </span>
+                    )}
+                </span>
+            )}
+            {time}
+        </div>
+    );
+    const sentence = (
+        <p className="mt-1 text-[15px] wrap-anywhere">
+            {isNew && <span className="sr-only">New. </span>}
+            {moderation ? (
+                `${action}.`
+            ) : (
+                <>
+                    {linksActors ? (
+                        <ActorLink
+                            user={actor}
+                            className="truncate font-semibold hover:underline"
+                        >
+                            {actor.name}
+                        </ActorLink>
+                    ) : (
+                        <span
+                            className="inline-block max-w-full truncate align-bottom font-semibold"
+                            title={actor.name}
+                        >
+                            {actor.name}
+                        </span>
+                    )}{' '}
+                    {otherActors > 0 ? (
+                        `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
+                    ) : (
+                        <>
+                            <span
+                                className="inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
+                                title={`@${actor.username}`}
+                            >
+                                @{actor.username}
+                            </span>{' '}
+                        </>
+                    )}
+                    {linksActors ? (
+                        <Link
+                            href={href}
+                            data-notification-link
+                            className="rounded-md outline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                        >
+                            {action}
+                        </Link>
+                    ) : (
+                        action
+                    )}
+                </>
+            )}
+        </p>
+    );
 
     return (
         <div className="flex">
@@ -842,76 +951,31 @@ function NotificationContent({
             />
             <div className="min-w-0 flex-1 border-b py-3 pr-4">
                 <div className="flex items-start gap-3">
-                    <Link
-                        href={href}
-                        data-notification-link
-                        className="min-w-0 flex-1 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
-                    >
-                        <div className="flex h-10 items-center gap-2">
-                            {moderation ? (
-                                <span
-                                    className={cn(
-                                        'rounded-full px-2 py-0.5 font-mono text-xs',
-                                        notification.type === 'rejected'
-                                            ? 'bg-destructive/10 text-destructive'
-                                            : 'bg-muted text-muted-foreground',
-                                    )}
-                                >
-                                    {notification.type}
-                                </span>
-                            ) : (
-                                <span className="flex -space-x-2" aria-hidden>
-                                    {actors.map((stacked, position) => (
-                                        <UserAvatar
-                                            key={stacked.id}
-                                            user={stacked}
-                                            className="relative size-8 ring-2 ring-card"
-                                            style={{
-                                                zIndex:
-                                                    actors.length - position,
-                                            }}
-                                        />
-                                    ))}
-                                    {actorsCount > actors.length && (
-                                        <span className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card">
-                                            +{actorsCount - actors.length}
-                                        </span>
-                                    )}
-                                </span>
-                            )}
-                            {time}
+                    {linksActors ? (
+                        <div className="min-w-0 flex-1">
+                            {header}
+                            {sentence}
+                            <Link
+                                href={href}
+                                tabIndex={-1}
+                                data-notification-link
+                                className="block rounded-lg"
+                            >
+                                {excerpt}
+                            </Link>
                         </div>
-                        <p className="mt-1 text-[15px] wrap-anywhere">
-                            {isNew && <span className="sr-only">New. </span>}
-                            {moderation ? (
-                                `${action}.`
-                            ) : (
-                                <>
-                                    <span
-                                        className="inline-block max-w-full truncate align-bottom font-semibold"
-                                        title={actor.name}
-                                    >
-                                        {actor.name}
-                                    </span>{' '}
-                                    {otherActors > 0 ? (
-                                        `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
-                                    ) : (
-                                        <>
-                                            <span
-                                                className="inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
-                                                title={`@${actor.username}`}
-                                            >
-                                                @{actor.username}
-                                            </span>{' '}
-                                        </>
-                                    )}
-                                    {action}
-                                </>
-                            )}
-                        </p>
-                        {excerpt}
-                        {reason}
-                    </Link>
+                    ) : (
+                        <Link
+                            href={href}
+                            data-notification-link
+                            className="min-w-0 flex-1 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
+                        >
+                            {header}
+                            {sentence}
+                            {excerpt}
+                            {reason}
+                        </Link>
+                    )}
                     {notification.type === 'followed' && (
                         <span className="flex h-10 items-center">
                             <FollowBackButton actor={actor} />
@@ -921,6 +985,29 @@ function NotificationContent({
                 {children}
             </div>
         </div>
+    );
+}
+
+function ActorLink({
+    user,
+    className,
+    tabIndex,
+    children,
+}: {
+    user: User;
+    className?: string;
+    tabIndex?: number;
+    children: ReactNode;
+}) {
+    return (
+        <UserPreview
+            user={user}
+            className="inline-flex max-w-full align-bottom"
+        >
+            <Link href={show(user)} tabIndex={tabIndex} className={className}>
+                {children}
+            </Link>
+        </UserPreview>
     );
 }
 
