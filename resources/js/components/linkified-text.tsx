@@ -131,20 +131,16 @@ function CommitLink({
     url,
     username,
     commit,
+    isStatic,
 }: {
     url: string;
     username: string;
     commit: string;
+    isStatic: boolean;
 }) {
     const hash = shortHash(commit);
-
-    return (
-        <Link
-            href={CommitController.show({ user: username, commit })}
-            title={url}
-            aria-label={`@${username}’s commit ${hash}`}
-            className="text-primary hover:underline"
-        >
+    const label = (
+        <>
             <span className="text-[0px]">{url}</span>
             <span
                 aria-hidden="true"
@@ -160,6 +156,25 @@ function CommitLink({
                 </span>
                 {hash}
             </span>
+        </>
+    );
+
+    if (isStatic) {
+        return (
+            <span title={url} className="text-primary">
+                {label}
+            </span>
+        );
+    }
+
+    return (
+        <Link
+            href={CommitController.show({ user: username, commit })}
+            title={url}
+            aria-label={`@${username}’s commit ${hash}`}
+            className="text-primary hover:underline"
+        >
+            {label}
         </Link>
     );
 }
@@ -277,15 +292,16 @@ export function LinkifiedText({
                 pasteisMode,
                 isStatic,
             ),
-            isStatic ? (
-                linkText
-            ) : commitLink ? (
+            commitLink ? (
                 <CommitLink
                     key={match.index}
                     url={linkText}
                     username={commitLink[1]}
                     commit={commitLink[2].toLowerCase()}
+                    isStatic={isStatic}
                 />
+            ) : isStatic ? (
+                linkText
             ) : (
                 <a
                     key={match.index}
