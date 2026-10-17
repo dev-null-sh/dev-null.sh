@@ -7,6 +7,10 @@ use App\Models\User;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 
+beforeEach(function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+});
+
 function pushTo(User $sender, User $recipient, string $body = 'hello'): TestResponse
 {
     return test()->actingAs($sender)->postJson(route('conversation-message.store', $recipient), [

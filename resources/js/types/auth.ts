@@ -38,7 +38,12 @@ export type Auth = {
     log: Log | null;
     unreadNotificationsCount: number;
     unreadMessagesCount: number;
-    remotes: { from: RemotesFrom; pull_receipts: boolean } | null;
+    remotes: {
+        from: RemotesFrom;
+        pull_receipts: boolean;
+        requests: boolean;
+        everyone: boolean;
+    } | null;
     pasteis: { remaining: number; day: string } | null;
 };
 

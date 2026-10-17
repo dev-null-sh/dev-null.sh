@@ -91,7 +91,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'pasteis_received' => 17,
             'pasteis_given_today' => 6,
             'pasteis_given_on' => '2026-10-15',
-            'remotes_enabled' => false,
+            'remotes_enabled' => true,
             'remotes_from' => 'following',
             'pull_receipts' => true,
             'pinned_commit_id' => null,
@@ -401,8 +401,9 @@ it('also limits exports to five a minute per user independently of the hourly bu
 });
 
 it('exports the messages the user sent, and not the ones they received', function (): void {
-    $user = User::factory()->withRemotes()->create();
-    $partner = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create();
+    $partner = User::factory()->create(['username' => 'nunomaduro']);
+    $partner->following()->attach($user);
     sendChatMessage($user, $partner, 'merged it this morning');
     sendChatMessage($partner, $user, 'ship it');
 

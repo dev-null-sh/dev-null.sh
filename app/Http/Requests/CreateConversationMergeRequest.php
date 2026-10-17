@@ -20,7 +20,7 @@ final class CreateConversationMergeRequest extends FormRequest
         $partner = $this->route('partner');
         assert($partner instanceof User);
 
-        return $user->canMessage($partner) && $access->get($user, $partner) === PushAccess::Request
+        return config('remotes.requests') && $user->canMessage($partner) && $access->get($user, $partner) === PushAccess::Request
             ? Response::allow()
             : Response::denyAsNotFound();
     }

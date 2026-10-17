@@ -5,6 +5,10 @@ declare(strict_types=1);
 use App\Enums\RemotesFrom;
 use App\Models\User;
 
+beforeEach(function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+});
+
 it('lets the sender see when their messages were pulled', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create();

@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import { Search, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -59,6 +60,10 @@ export function InboxPanel({
         isLoadingMore,
         requests,
     } = useChat();
+    const { auth } = usePage().props;
+    const visibleTabs = tabs.filter(
+        ({ name }) => name !== 'fetched' || auth.remotes?.requests === true,
+    );
     const [tab, setTab] = useState<Tab>('open');
     const end = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState('');
@@ -194,7 +199,7 @@ export function InboxPanel({
                 aria-label="Conversations"
                 className="flex shrink-0 border-b"
             >
-                {tabs.map(({ name, label }) => (
+                {visibleTabs.map(({ name, label }) => (
                     <button
                         key={name}
                         type="button"

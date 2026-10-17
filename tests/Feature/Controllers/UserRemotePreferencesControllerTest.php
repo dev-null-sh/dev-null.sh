@@ -5,6 +5,10 @@ declare(strict_types=1);
 use App\Enums\RemotesFrom;
 use App\Models\User;
 
+beforeEach(function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+});
+
 it('saves who can push and whether pulls are shared', function (): void {
     $mark = User::factory()->withRemotes(RemotesFrom::Following)->create();
 
@@ -25,6 +29,6 @@ it('rejects invalid preferences', function (array $payload, string $error): void
 ]);
 
 it('is only for people with remotes on', function (): void {
-    $this->actingAs(User::factory()->create())->putJson(route('user-remote-preferences.update'), ['from' => 'everyone', 'pull_receipts' => true])
+    $this->actingAs(User::factory()->create(['remotes_enabled' => false]))->putJson(route('user-remote-preferences.update'), ['from' => 'everyone', 'pull_receipts' => true])
         ->assertNotFound();
 });

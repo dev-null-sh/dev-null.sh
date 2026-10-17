@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 use App\Models\User;
 
+beforeEach(function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+});
+
 it('moves a stashed conversation to the stashed tab, for you only', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);

@@ -14,14 +14,16 @@ final readonly class PushAccessQuery
 {
     /**
      * A fetched request must be merged before replying, and the sender waits until it is, even after it is dropped,
-     * so dropping stays private.
+     * so dropping stays private. While requests are off, a conversation can only start with someone who follows the
+     * user.
      */
-    public static function of(User $partner, ?ConversationParticipant $mine, ?ConversationParticipant $theirs): PushAccess
+    public static function of(User $user, User $partner, ?ConversationParticipant $mine, ?ConversationParticipant $theirs): PushAccess
     {
         return match (true) {
             ! $partner->remotes_enabled => PushAccess::Closed,
             $mine?->status === RemoteStatus::Fetched => PushAccess::Request,
             $theirs instanceof ConversationParticipant && $theirs->status !== RemoteStatus::Open => PushAccess::Waiting,
+            ! $theirs instanceof ConversationParticipant && ! config('remotes.requests') && ! $partner->acceptsRemotesFrom($user) => PushAccess::Restricted,
             default => PushAccess::Open,
         };
     }
@@ -33,6 +35,6 @@ final readonly class PushAccessQuery
             ->get()
             ->keyBy('user_id');
 
-        return self::of($partner, $participants->get($user->id), $participants->get($partner->id));
+        return self::of($user, $partner, $participants->get($user->id), $participants->get($partner->id));
     }
 }

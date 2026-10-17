@@ -11,6 +11,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
+ * Bodies are encrypted at rest with the app key, so database dumps and backups don't expose them. Rotating the key
+ * needs the old one in APP_PREVIOUS_KEYS, or older messages can no longer be read.
+ *
  * @property-read int $id
  * @property-read int $conversation_id
  * @property-read string $user_id
@@ -37,7 +40,7 @@ final class Message extends Model
             'conversation_id' => 'integer',
             'user_id' => 'string',
             'client_id' => 'string',
-            'body' => 'string',
+            'body' => 'encrypted',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

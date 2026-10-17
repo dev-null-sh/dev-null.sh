@@ -5,7 +5,7 @@ import { update } from '@/actions/App/Http/Controllers/UserRemotesController';
 import { cn } from '@/lib/utils';
 
 /**
- * Remotes are opt-in: nobody can message the user, and the Remotes page stays hidden, until they turn this on.
+ * Remotes are on by default. Turning them off hides the Remotes page and stops anyone messaging the user.
  */
 export function RemotesSetting() {
     const { auth } = usePage().props;
@@ -44,9 +44,9 @@ export function RemotesSetting() {
                         className="text-sm text-muted-foreground"
                     >
                         One-to-one messages with other developers. People you
-                        follow can push to you straight away; everyone else
-                        lands in Fetched until you merge them. You can change
-                        who can push, and whether you share pulls, from Remotes.
+                        follow can push to you, and you can push to people who
+                        follow you. Whether you share pulls (read receipts) is
+                        up to you, from Remotes.
                     </p>
                     <p className="text-sm text-muted-foreground">
                         When off, nobody can message you and Remotes is hidden.

@@ -104,8 +104,15 @@ final readonly class ConversationsQuery
         return $unread + $this->requestCount($user);
     }
 
+    /**
+     * Fetched requests waiting on the user, none while requests are turned off.
+     */
     public function requestCount(User $user): int
     {
+        if (! config('remotes.requests')) {
+            return 0;
+        }
+
         return ConversationParticipant::query()
             ->where('user_id', $user->id)
             ->where('status', RemoteStatus::Fetched)

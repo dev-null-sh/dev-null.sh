@@ -6,32 +6,34 @@ use App\Models\User;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
-it('is off by default, and hides remotes until turned on', function (): void {
+it('is on by default, and hides remotes once turned off', function (): void {
     $mark = User::factory()->create();
-    $nuno = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->create();
 
-    $this->actingAs($mark)->get(route('user-profile.edit'))
+    $this->actingAs($mark)->get(route('conversation.index'))->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.remotes.from', 'following')
+            ->where('auth.remotes.pull_receipts', true)
+            ->where('auth.remotes.requests', false)
+            ->where('auth.remotes.everyone', false));
+
+    $this->fromRoute('user-profile.edit')->put(route('user-remotes.update'), ['enabled' => false])
+        ->assertRedirectToRoute('user-profile.edit');
+
+    $this->get(route('user-profile.edit'))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('auth.remotes', null));
     $this->get(route('conversation.index'))->assertNotFound();
     $this->get(route('conversation.show', $nuno))->assertNotFound();
     $this->getJson(route('inbox.index'))->assertNotFound();
     $this->postJson(route('conversation-message.store', $nuno), ['body' => 'hi', 'client_id' => Str::uuid()->toString()])->assertNotFound();
 
-    $this->fromRoute('user-profile.edit')->put(route('user-remotes.update'), ['enabled' => true])
-        ->assertRedirectToRoute('user-profile.edit');
-
-    $this->get(route('conversation.index'))->assertOk()
-        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
-            ->where('auth.remotes.from', 'following')
-            ->where('auth.remotes.pull_receipts', true));
-
-    $this->put(route('user-remotes.update'), ['enabled' => false])->assertRedirect();
-    $this->get(route('conversation.index'))->assertNotFound();
+    $this->put(route('user-remotes.update'), ['enabled' => true])->assertRedirect();
+    $this->get(route('conversation.index'))->assertOk();
 });
 
 it('keeps people with remotes off out of reach', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->create(['username' => 'nunomaduro', 'remotes_enabled' => false]);
 
     $this->actingAs($mark)->postJson(route('conversation-message.store', $nuno), ['body' => 'hi', 'client_id' => Str::uuid()->toString()])
         ->assertForbidden()

@@ -32,7 +32,7 @@ final readonly class ConversationThreadQuery
             : new Collection();
         $mine = $participants->get($user->id);
         $theirs = $participants->get($partner->id);
-        $access = PushAccessQuery::of($partner, $mine, $theirs);
+        $access = PushAccessQuery::of($user, $partner, $mine, $theirs);
         $sharesReads = $user->pull_receipts && $partner->pull_receipts && $theirs?->status === RemoteStatus::Open;
 
         $messages = match (true) {

@@ -5,6 +5,10 @@ declare(strict_types=1);
 use App\Models\User;
 use Inertia\Testing\AssertableInertia;
 
+beforeEach(function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+});
+
 it('shows the inbox', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);

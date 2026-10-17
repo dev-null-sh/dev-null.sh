@@ -27,7 +27,7 @@ final class ListInboxRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tab' => ['nullable', Rule::enum(InboxTab::class)],
+            'tab' => ['nullable', config('remotes.requests') ? Rule::enum(InboxTab::class) : Rule::enum(InboxTab::class)->except(InboxTab::Fetched)],
             'q' => ['nullable', 'string', 'max:100'],
             'before' => ['nullable', 'integer', 'min:1'],
         ];

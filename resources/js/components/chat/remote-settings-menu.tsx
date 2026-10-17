@@ -32,7 +32,8 @@ export function RemoteSettingsMenu() {
         return null;
     }
 
-    const { from, pull_receipts: pullReceipts } = auth.remotes;
+    const { pull_receipts: pullReceipts, requests, everyone } = auth.remotes;
+    const from: RemotesFrom = everyone ? auth.remotes.from : 'following';
 
     const save = (preferences: { from: RemotesFrom; pull_receipts: boolean }) =>
         router.put(update.url(), preferences, {
@@ -58,30 +59,35 @@ export function RemoteSettingsMenu() {
                 <TooltipContent>Remote settings</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel className="font-mono text-xs font-normal text-muted-foreground">
-                    who can push to you
-                </DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                    value={from}
-                    onValueChange={(value) =>
-                        save({
-                            from: value as RemotesFrom,
-                            pull_receipts: pullReceipts,
-                        })
-                    }
-                >
-                    <DropdownMenuRadioItem value="following">
-                        People you follow
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="everyone">
-                        Everyone
-                    </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-                <p className="px-2 pb-2 text-xs text-muted-foreground">
-                    Anyone else lands in Fetched until you merge them. Requests
-                    already fetched stay there.
-                </p>
-                <DropdownMenuSeparator />
+                {everyone && (
+                    <>
+                        <DropdownMenuLabel className="font-mono text-xs font-normal text-muted-foreground">
+                            who can push to you
+                        </DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                            value={from}
+                            onValueChange={(value) =>
+                                save({
+                                    from: value as RemotesFrom,
+                                    pull_receipts: pullReceipts,
+                                })
+                            }
+                        >
+                            <DropdownMenuRadioItem value="following">
+                                People you follow
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="everyone">
+                                Everyone
+                            </DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                        <p className="px-2 pb-2 text-xs text-muted-foreground">
+                            {requests
+                                ? 'Anyone else lands in Fetched until you merge them. Requests already fetched stay there.'
+                                : 'Anyone else can push to you once you follow them.'}
+                        </p>
+                        <DropdownMenuSeparator />
+                    </>
+                )}
                 <DropdownMenuCheckboxItem
                     checked={pullReceipts}
                     onCheckedChange={(checked) =>

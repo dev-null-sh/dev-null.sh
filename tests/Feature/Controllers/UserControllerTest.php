@@ -8,6 +8,7 @@ use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia;
 
 it('renders a user profile', function (): void {
     $user = User::factory()->create(['username' => 'octocat', 'preferred_lane' => 4]);
@@ -621,4 +622,34 @@ it('preloads only replies visible to the profile visitor', function (): void {
         ->where('commits.data.0.reply_preview.data.0.id', $ownPending->id)
         ->where('commits.data.0.reply_preview.next_cursor', fn (string $cursor): bool => $cursor !== '')
         ->missing('commits.data.0.reply_preview.data.0.user.email'));
+});
+
+it('offers a remote only when the viewer could push to the profile', function (string $case, bool $canPush): void {
+    $viewer = User::factory()->create();
+    $profile = User::factory()->create();
+
+    if ($case !== 'they do not follow you') {
+        $profile->following()->attach($viewer);
+    }
+
+    match ($case) {
+        'you have remotes off' => $viewer->update(['remotes_enabled' => false]),
+        'they have remotes off' => $profile->update(['remotes_enabled' => false]),
+        default => null,
+    };
+
+    $this->actingAs($viewer)->get(route('user.show', $profile))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canPush', $canPush));
+})->with([
+    ['they follow you', true],
+    ['they do not follow you', false],
+    ['you have remotes off', false],
+    ['they have remotes off', false],
+]);
+
+it('offers guests and the profile owner no remote', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->get(route('user.show', $user))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canPush', false));
 });

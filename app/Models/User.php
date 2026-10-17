@@ -98,7 +98,7 @@ final class User extends Authenticatable
     protected $attributes = [
         'log' => Log::Following->value,
         'pasteis_mode' => false,
-        'remotes_enabled' => false,
+        'remotes_enabled' => true,
         'remotes_from' => RemotesFrom::Following->value,
         'pull_receipts' => true,
         'pasteis_received' => 0,
@@ -330,11 +330,12 @@ final class User extends Authenticatable
     }
 
     /**
-     * Whether a first message from the sender opens the conversation straight away, or waits fetched for a merge.
+     * Whether a first message from the sender opens the conversation straight away. When it doesn't, it waits
+     * fetched for a merge, or can't be sent at all while requests are off.
      */
     public function acceptsRemotesFrom(self $sender): bool
     {
-        return $this->remotes_from === RemotesFrom::Everyone || $this->isFollowing($sender);
+        return ($this->remotes_from === RemotesFrom::Everyone && config('remotes.everyone')) || $this->isFollowing($sender);
     }
 
     /**

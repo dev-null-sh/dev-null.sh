@@ -31,9 +31,15 @@ export type Thread = {
 };
 
 /**
- * What the composer can do: push, merge a fetched request first, wait for the partner to merge, or nothing.
+ * What the composer can do: push, merge a fetched request first, wait for the partner to merge, or nothing, either
+ * because the partner doesn't follow the user while requests are off, or has remotes off.
  */
-export type PushAccess = 'open' | 'request' | 'waiting' | 'closed';
+export type PushAccess =
+    | 'open'
+    | 'request'
+    | 'waiting'
+    | 'restricted'
+    | 'closed';
 
 export type InboxTab = 'open' | 'fetched' | 'stashed';
 

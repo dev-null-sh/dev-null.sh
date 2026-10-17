@@ -25,6 +25,11 @@ enum PushAccess: string
     case Waiting = 'waiting';
 
     /**
+     * The partner doesn't follow the user, and requests are turned off.
+     */
+    case Restricted = 'restricted';
+
+    /**
      * The partner has remotes turned off.
      */
     case Closed = 'closed';

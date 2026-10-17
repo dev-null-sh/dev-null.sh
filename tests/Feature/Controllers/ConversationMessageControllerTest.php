@@ -5,7 +5,13 @@ declare(strict_types=1);
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+
+beforeEach(function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+});
 
 it('starts one conversation between two people and keeps their messages in it', function (): void {
     $mark = User::factory()->withRemotes()->create();
@@ -118,4 +124,18 @@ it('requires authentication', function (): void {
 
     $this->postJson(route('conversation-message.store', $nuno), ['body' => 'hi', 'client_id' => Str::uuid()->toString()])->assertUnauthorized();
     $this->getJson(route('conversation-message.index', $nuno))->assertUnauthorized();
+});
+
+it('stores message bodies encrypted at rest', function (): void {
+    $mark = User::factory()->create();
+    $nuno = User::factory()->create();
+    $message = sendChatMessage($mark, $nuno, 'the deploy key is in 1password');
+
+    $stored = DB::table('messages')->where('id', $message->id)->value('body');
+
+    expect($stored)->not->toContain('1password')
+        ->and(Crypt::decryptString($stored))->toBe('the deploy key is in 1password');
+
+    $this->actingAs($nuno)->getJson(route('conversation-message.index', $mark))
+        ->assertJsonPath('messages.0.body', 'the deploy key is in 1password');
 });

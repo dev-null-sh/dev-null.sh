@@ -222,7 +222,8 @@ export function ConversationThread({
                             </li>
                         )}
                         {thread.messages.length === 0 &&
-                            thread.pending.length === 0 && (
+                            thread.pending.length === 0 &&
+                            thread.access === 'open' && (
                                 <li className="py-10 text-center font-mono text-[13px] text-muted-foreground">
                                     empty history. say hi to @{partner.username}
                                 </li>
@@ -838,9 +839,15 @@ function AccessBar({
                     </>
                 ) : (
                     <p className="min-w-0 flex-1 font-mono text-[13px] text-muted-foreground">
-                        {access === 'waiting'
-                            ? `pushed. waiting for @${partner.username} to merge your request`
-                            : `@${partner.username} isn't taking remotes`}
+                        {
+                            {
+                                waiting: `pushed. waiting for @${partner.username} to merge your request`,
+                                restricted: `@${partner.username} doesn't follow you, so you can't push to them yet`,
+                                closed: `@${partner.username} isn't taking remotes`,
+                                open: '',
+                                request: '',
+                            }[access]
+                        }
                     </p>
                 )}
             </div>

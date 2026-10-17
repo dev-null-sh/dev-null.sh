@@ -11,7 +11,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table): void {
-            $table->boolean('remotes_enabled')->default(false);
+            $table->boolean('remotes_enabled')->default(true);
             $table->string('remotes_from')->default('following');
             $table->boolean('pull_receipts')->default(true);
         });

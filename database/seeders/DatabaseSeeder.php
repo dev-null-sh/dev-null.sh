@@ -63,8 +63,8 @@ final class DatabaseSeeder extends Seeder
 
     /**
      * Remotes on for everyone, the local developer taking them from people they follow. With three of those: one
-     * conversation waiting on them, one where their reply was read, and one where it was not yet. And a request
-     * fetched from someone they don't follow.
+     * conversation waiting on them, one where their reply was read, and one where it was not yet. And, while
+     * requests are on, a request fetched from someone they don't follow.
      *
      * @param  Collection<int, User>  $users
      */
@@ -96,9 +96,11 @@ final class DatabaseSeeder extends Seeder
             [$localDeveloper, $unread, 'thanks! more coming soon', '-2 days 11:15'],
         ], $now);
 
-        $this->chat([
-            [$stranger, $localDeveloper, 'hey! loved your talk on polling, could I ask you a few questions about it?', 'today 08:02'],
-        ], $now);
+        if (config('remotes.requests')) {
+            $this->chat([
+                [$stranger, $localDeveloper, 'hey! loved your talk on polling, could I ask you a few questions about it?', 'today 08:02'],
+            ], $now);
+        }
     }
 
     /**

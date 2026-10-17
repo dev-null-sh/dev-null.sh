@@ -55,6 +55,8 @@ final class HandleInertiaRequests extends Middleware
                 'remotes' => fn (): ?array => $user?->remotes_enabled ? [
                     'from' => $user->remotes_from,
                     'pull_receipts' => $user->pull_receipts,
+                    'requests' => (bool) config('remotes.requests'),
+                    'everyone' => (bool) config('remotes.everyone'),
                 ] : null,
                 'pasteis' => fn (): ?array => $user?->pasteis_mode ? [
                     'remaining' => $user->pasteisRemaining(),

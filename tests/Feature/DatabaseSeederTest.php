@@ -27,13 +27,18 @@ it('reuses an existing local developer', function (): void {
         ->and($localDeveloper->followers()->count())->toBe(5);
 });
 
-it('gives the local developer conversations to read and reply to', function (): void {
+it('gives the local developer conversations to read and reply to', function (bool $requests, int $fetched, int $unread): void {
+    config(['remotes.requests' => $requests]);
+
     $this->seed(DatabaseSeeder::class);
 
     $localDeveloper = User::query()->where('github_id', 'local')->sole();
     $conversations = resolve(ConversationsQuery::class);
 
     expect($conversations->get($localDeveloper)['conversations'])->toHaveCount(3)
-        ->and($conversations->get($localDeveloper, InboxTab::Fetched)['conversations'])->toHaveCount(1)
-        ->and($conversations->unreadCount($localDeveloper))->toBe(3);
-});
+        ->and($conversations->get($localDeveloper, InboxTab::Fetched)['conversations'])->toHaveCount($fetched)
+        ->and($conversations->unreadCount($localDeveloper))->toBe($unread);
+})->with([
+    'requests off' => [false, 0, 2],
+    'requests on' => [true, 1, 3],
+]);

@@ -5,6 +5,10 @@ declare(strict_types=1);
 use App\Models\User;
 use App\Queries\ConversationsQuery;
 
+beforeEach(function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+});
+
 it('lists conversations by latest message with what is unread', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);

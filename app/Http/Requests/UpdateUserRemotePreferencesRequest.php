@@ -27,7 +27,7 @@ final class UpdateUserRemotePreferencesRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'from' => ['required', Rule::enum(RemotesFrom::class)],
+            'from' => ['required', config('remotes.everyone') ? Rule::enum(RemotesFrom::class) : Rule::enum(RemotesFrom::class)->only(RemotesFrom::Following)],
             'pull_receipts' => ['required', 'boolean'],
         ];
     }
