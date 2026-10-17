@@ -4,6 +4,7 @@ import {
     Box,
     ChevronRight,
     Cookie,
+    Croissant,
     FileCode,
     Flame,
     GitMerge,
@@ -39,6 +40,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     key: Key,
     cookie: Cookie,
     'bot-off': BotOff,
+    croissant: Croissant,
 };
 
 export function AchievementsShelf({
