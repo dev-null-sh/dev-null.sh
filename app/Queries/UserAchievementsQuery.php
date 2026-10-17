@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Enums\Achievement;
 use App\Enums\UnixRank;
+use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
@@ -60,11 +61,11 @@ final readonly class UserAchievementsQuery
             ->leftJoin('commits as parents', fn (JoinClause $join): JoinClause => $join
                 ->on('parents.id', '=', 'commits.parent_id')
                 ->where('parents.user_id', '!=', $user->id))
-            ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN length(commits.body) = 280 THEN 1 ELSE 0 END) as has_max_payload, MAX(CASE WHEN commits.body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax, COUNT(parents.id) as replies")
+            ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN length(commits.body) = ? THEN 1 ELSE 0 END) as has_max_payload, MAX(CASE WHEN commits.body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax, COUNT(parents.id) as replies", [Commit::MAX_BODY_LENGTH])
             ->first();
 
         $commitsCount = (int) ($commitStats->total_commits ?? 0);
-        $has280CharCommit = (bool) ($commitStats->has_max_payload ?? 0);
+        $hasMaxPayloadCommit = (bool) ($commitStats->has_max_payload ?? 0);
         $hasSyntaxCommit = (bool) ($commitStats->has_syntax ?? 0);
         $repliesCount = (int) ($commitStats->replies ?? 0);
 
@@ -158,7 +159,7 @@ final readonly class UserAchievementsQuery
                 'target' => Achievement::Pipe->target(),
             ],
             Achievement::MaxPayload->value => [
-                'progress' => $has280CharCommit ? 1 : 0,
+                'progress' => $hasMaxPayloadCommit ? 1 : 0,
                 'target' => Achievement::MaxPayload->target(),
             ],
             Achievement::AuthorizedKeys->value => [

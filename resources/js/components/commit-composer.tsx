@@ -43,8 +43,8 @@ import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn, laneColor } from '@/lib/utils';
 import type { User } from '@/types';
 
-function focusBody(): void {
-    requestAnimationFrame(() => document.getElementById('body')?.focus());
+function focusBody(id: string): void {
+    requestAnimationFrame(() => document.getElementById(id)?.focus());
 }
 
 function useCommitSchedule() {
@@ -63,6 +63,8 @@ function useCommitSchedule() {
 }
 
 function CommitComposerBody({
+    id,
+    isInDialog,
     user,
     stash,
     attachments,
@@ -77,6 +79,8 @@ function CommitComposerBody({
     onKeyDown,
     drop,
 }: {
+    id: string;
+    isInDialog: boolean;
     user: User;
     stash: UseStashReturn;
     attachments: ReturnType<typeof useImageAttachments>;
@@ -116,18 +120,23 @@ function CommitComposerBody({
                 lane={laneColor(user.lane)}
                 variant="staged"
                 isFilled={isFilled}
+                hasTail={!isInDialog}
                 node={<RailAvatar user={user} isStaged={!isFilled} />}
             />
 
-            <div className="flex min-w-0 flex-1 border-b pt-3 pr-4 pb-3">
+            <div
+                className={cn('flex min-w-0 flex-1 pt-3 pr-4 pb-3', {
+                    'border-b': !isInDialog,
+                })}
+            >
                 <div className="min-w-0 flex-1">
-                    <label htmlFor="body" className="sr-only">
+                    <label htmlFor={id} className="sr-only">
                         Body
                     </label>
                     <div className="grid">
                         <MentionTextarea
                             ref={textareaRef}
-                            id="body"
+                            id={id}
                             name="body"
                             rows={1}
                             value={body}
@@ -154,7 +163,7 @@ function CommitComposerBody({
                             }
                             autoComplete="off"
                             aria-invalid={error ? true : undefined}
-                            aria-describedby="body-count"
+                            aria-describedby={`${id}-count`}
                             className={cn(
                                 'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                 { invisible: preview.isPreviewing },
@@ -214,29 +223,30 @@ function CommitComposerBody({
 
                     {poll && (
                         <PollEditor
+                            id={`${id}-poll`}
                             poll={poll}
                             errors={errors}
                             onChange={setPoll}
                             onRemove={() => {
                                 setPoll(null);
-                                focusBody();
+                                focusBody(id);
                             }}
                         />
                     )}
 
                     {isScheduling && (
                         <div
-                            id="commit-schedule"
+                            id={`${id}-schedule`}
                             className="mt-3 space-y-2 rounded-lg border bg-muted/30 p-3"
                         >
                             <label
-                                htmlFor="scheduled-at"
+                                htmlFor={`${id}-scheduled-at`}
                                 className="text-sm font-medium"
                             >
                                 Submit at
                             </label>
                             <Input
-                                id="scheduled-at"
+                                id={`${id}-scheduled-at`}
                                 type="datetime-local"
                                 required
                                 value={scheduledAt}
@@ -253,13 +263,13 @@ function CommitComposerBody({
                                             : '',
                                     );
                                 }}
-                                aria-describedby="schedule-help schedule-error"
+                                aria-describedby={`${id}-schedule-help ${id}-schedule-error`}
                                 aria-invalid={
                                     errors.scheduled_at ? true : undefined
                                 }
                             />
                             <p
-                                id="schedule-help"
+                                id={`${id}-schedule-help`}
                                 className="text-xs leading-relaxed text-muted-foreground"
                             >
                                 {timezone}
@@ -273,7 +283,7 @@ function CommitComposerBody({
                                     : 'then submitted for review, not published automatically.'}
                             </p>
                             <InputError
-                                id="schedule-error"
+                                id={`${id}-schedule-error`}
                                 message={errors.scheduled_at}
                             />
                             <Link
@@ -309,7 +319,9 @@ function CommitComposerBody({
                                     setPoll(emptyPollDraft);
                                     requestAnimationFrame(() =>
                                         document
-                                            .getElementById('poll-option-0')
+                                            .getElementById(
+                                                `${id}-poll-option-0`,
+                                            )
                                             ?.focus(),
                                     );
                                 }}
@@ -341,7 +353,7 @@ function CommitComposerBody({
                                 <StashLabel
                                     onDrop={() => {
                                         drop();
-                                        focusBody();
+                                        focusBody(id);
                                     }}
                                     className="text-[13px]"
                                 />
@@ -352,7 +364,7 @@ function CommitComposerBody({
                             variant="ghost"
                             size="sm"
                             aria-expanded={isScheduling}
-                            aria-controls="commit-schedule"
+                            aria-controls={`${id}-schedule`}
                             disabled={
                                 processing ||
                                 (!isScheduling && (hasImages || poll !== null))
@@ -377,7 +389,7 @@ function CommitComposerBody({
                             Schedule
                         </Button>
                         <BodyCounter
-                            id="body-count"
+                            id={`${id}-count`}
                             body={body}
                             className="text-[13px]"
                         />
@@ -407,7 +419,15 @@ function CommitComposerBody({
     );
 }
 
-export function CommitComposer() {
+export function CommitComposer({
+    id = 'body',
+    isInDialog = false,
+    onCommitted,
+}: {
+    id?: string;
+    isInDialog?: boolean;
+    onCommitted?: () => void;
+}) {
     const schedule = useCommitSchedule();
     const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
         schedule;
@@ -492,13 +512,20 @@ export function CommitComposer() {
                 setIsScheduling(false);
                 attachments.clear();
                 setPoll(null);
-                focusBody();
+
+                if (onCommitted) {
+                    onCommitted();
+                } else {
+                    focusBody(id);
+                }
             }}
             data-test="commit-composer"
         >
             {({ processing, errors }) => (
                 <CommitComposerBody
                     key={draftVersion}
+                    id={id}
+                    isInDialog={isInDialog}
                     user={user}
                     stash={stash}
                     attachments={attachments}

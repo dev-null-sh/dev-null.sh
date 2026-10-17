@@ -4,7 +4,7 @@ author: nunomaduro
 
 inputs:
   body:
-    description: The commit, up to 280 characters.
+    description: The commit, up to 4,000 characters.
     required: true
   ssh-key:
     description: A private Ed25519 or RSA key without a passphrase, whose public key is on your GitHub account. Pass it from a secret.

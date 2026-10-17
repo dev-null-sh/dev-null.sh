@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import AppWordmark from '@/components/app-wordmark';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse } from '@/lib/code';
 import { shortenUrl } from '@/lib/urls';
@@ -145,6 +146,26 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         );
 }
 
+function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
+    return text
+        .split(
+            /(?<![\p{L}\p{M}\p{N}_./-])(\/dev\/null)(?![\p{L}\p{M}\p{N}_/-])/u,
+        )
+        .map((part, index) =>
+            index % 2 === 0 ? (
+                withPasteis(part, pasteisMode)
+            ) : (
+                <span
+                    key={`wordmark-${index}`}
+                    title={part}
+                    className="font-semibold tracking-tight whitespace-nowrap"
+                >
+                    <AppWordmark />
+                </span>
+            ),
+        );
+}
+
 function withMentions(
     text: string,
     offset: number,
@@ -156,7 +177,7 @@ function withMentions(
 
     for (const match of text.matchAll(mentionPattern)) {
         parts.push(
-            withPasteis(text.slice(position, match.index), pasteisMode),
+            ...withWordmarks(text.slice(position, match.index), pasteisMode),
             isStatic ? (
                 match[0]
             ) : (
@@ -178,7 +199,7 @@ function withMentions(
         position = match.index + match[0].length;
     }
 
-    parts.push(withPasteis(text.slice(position), pasteisMode));
+    parts.push(...withWordmarks(text.slice(position), pasteisMode));
 
     return parts;
 }

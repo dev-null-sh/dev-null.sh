@@ -16,8 +16,15 @@ test('to array', function (): void {
             'description',
             'image_url',
             'site_name',
+            'is_pending',
             'embed',
         ]);
+});
+
+it('is pending until it is fetched', function (): void {
+    expect(LinkPreview::factory()->create()->toArray()['is_pending'])->toBeTrue()
+        ->and(LinkPreview::factory()->fetched()->create()->toArray()['is_pending'])->toBeFalse()
+        ->and(LinkPreview::factory()->failed()->create()->toArray()['is_pending'])->toBeFalse();
 });
 
 it('has an embed when its link can be played in place', function (): void {
