@@ -51,12 +51,7 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({
-        props: {
-            auth: { user, isAdmin: false },
-            lang: {},
-        },
-    }),
+    usePage: () => ({ props: { auth: { user, isAdmin: false }, lang: {} } }),
     useHttp: () => ({ processing: false, transform: vi.fn(), submit: vi.fn() }),
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
@@ -252,7 +247,7 @@ test('removing restored images enables polls and successful posting resets the p
     }
 });
 
-test('schedules commits in UTC, including pasted images', () => {
+test('schedules in UTC with pasted images and the chosen link card', () => {
     let view = render();
     const schedule = view.fields.find(
         (element) => element.props['aria-controls'] === 'body-schedule',
@@ -270,11 +265,12 @@ test('schedules commits in UTC, including pasted images', () => {
     });
     assert.deepEqual(setCustomValidity.mock.lastCall, ['']);
     view = render();
+    const scheduledAt = new Date(date)
+        .toISOString()
+        .replace(/\.\d{3}Z$/, '+00:00');
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
-        scheduled_at: new Date(date)
-            .toISOString()
-            .replace(/\.\d{3}Z$/, '+00:00'),
+        scheduled_at: scheduledAt,
     });
     assert.equal(
         view.fields.some((element) => element.type === ImagePickerButton),
@@ -282,7 +278,7 @@ test('schedules commits in UTC, including pasted images', () => {
     );
     assert.equal(
         view.fields.some((element) => element.type === LinkCardPicker),
-        false,
+        true,
     );
     const textarea = view.fields.find(
         (element) => element.type === MentionTextarea,
@@ -294,23 +290,23 @@ test('schedules commits in UTC, including pasted images', () => {
     });
     assert.equal(preventDefault.mock.calls.length, 1);
     view = render();
-    const preview = view.fields.find(
-        (element) => element.type === ImagePickerPreviews,
-    )!;
-    assert.deepEqual(preview.props.images, [image]);
     assert.equal(
         view.fields.find(
             (element) => element.props['data-test'] === 'create-commit-button',
         )!.props.disabled,
         false,
     );
-    assert.deepEqual(view.form.props.transform({ body: draft.body }), {
-        body: draft.body,
+    assert.deepEqual(
+        view.fields.find((element) => element.type === ImagePickerPreviews)!
+            .props.images,
+        [image],
+    );
+    const data = { body: draft.body, link_preview_url: '' };
+    assert.deepEqual(view.form.props.transform(data), {
+        ...data,
         images: [image],
         image_descriptions: [''],
-        scheduled_at: new Date(date)
-            .toISOString()
-            .replace(/\.\d{3}Z$/, '+00:00'),
+        scheduled_at: scheduledAt,
     });
 });
 

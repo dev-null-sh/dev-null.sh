@@ -158,6 +158,7 @@ it('rejects invalid times and bodies', function (array $payload, string $field):
     'poll with one option' => [['poll' => ['options' => ['Tabs'], 'duration' => 1440]], 'poll.options'],
     'poll with images' => [['poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 1440], 'images' => [UploadedFile::fake()->image('a.png')]], 'poll'],
     'too many images' => [['images' => array_map(fn (int $i): UploadedFile => UploadedFile::fake()->image($i.'.png'), range(1, 4))], 'images'],
+    'link card not in the body' => [['link_preview_url' => 'https://example.com/elsewhere'], 'link_preview_url'],
     'svg image' => [['images' => [UploadedFile::fake()->create('a.svg', 1, 'image/svg+xml')]], 'images.0'],
 ]);
 
@@ -321,6 +322,24 @@ it('keeps the first link as the scheduled delivery preview', function (): void {
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
 });
 
+it('keeps the chosen link card, or none, for the scheduled delivery', function (string $choice, ?string $expected): void {
+    Queue::fake([UnfurlLink::class]);
+
+    $this->actingAs(User::factory()->create())->post(route('scheduled-commit.store'), [
+        'body' => 'Shipped https://example.com/first and https://example.com/second',
+        'scheduled_at' => now()->addDay()->toIso8601String(),
+        'link_preview_url' => $choice,
+    ])->assertSessionHasNoErrors();
+
+    $this->travel(1)->day();
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    expect(Commit::query()->sole()->linkPreview?->url)->toBe($expected);
+})->with([
+    'another link' => ['https://example.com/second', 'https://example.com/second'],
+    'no card' => ['', null],
+]);
+
 it('cancels a due item before claim and never submits it', function (): void {
     $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()]);
     $this->actingAs($scheduled->user)->delete(route('scheduled-commit.destroy', $scheduled))->assertRedirect();
@@ -381,7 +400,7 @@ it('rolls back a failed original create action and retries without loss or dupli
 
 it('rolls back creation if saving the delivery receipt fails', function (): void {
     config(['queue.default' => 'database']);
-    $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now(), 'body' => 'Read https://example.com/docs']);
+    $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now(), 'body' => 'Read https://example.com/docs', 'link_preview_url' => 'https://example.com/docs']);
     ScheduledCommit::updating(function (): void {
         throw new RuntimeException('Simulated receipt failure.');
     });

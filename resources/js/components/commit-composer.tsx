@@ -178,11 +178,7 @@ function CommitComposerBody({
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
-                                url={
-                                    isScheduling
-                                        ? (linkCard.links[0] ?? null)
-                                        : linkCard.link
-                                }
+                                url={linkCard.link}
                                 images={attachments.images}
                                 descriptions={attachments.descriptions}
                                 className="col-start-1 row-start-1 py-1.5"
@@ -337,13 +333,11 @@ function CommitComposerBody({
                             >
                                 <ChartBar className="size-5" />
                             </Button>
-                            {!isScheduling && (
-                                <LinkCardPicker
-                                    linkCard={linkCard}
-                                    disabled={processing}
-                                    className="-ml-3"
-                                />
-                            )}
+                            <LinkCardPicker
+                                linkCard={linkCard}
+                                disabled={processing}
+                                className="-ml-3"
+                            />
                             <PreviewToggle
                                 preview={preview}
                                 className="-ml-3"
