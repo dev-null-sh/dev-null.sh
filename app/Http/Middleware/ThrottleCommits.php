@@ -38,7 +38,7 @@ final readonly class ThrottleCommits
 
     private function slowDown(Request $request, int $retryAfter): Response
     {
-        $message = __('Slow down: 10 commits a minute. Even CI takes breaks.');
+        $message = 'Slow down: 10 commits a minute. Even CI takes breaks.';
 
         // The `devnull commit` script prints plain text...
         if ($request->routeIs('cli-commit.store')) {

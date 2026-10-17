@@ -13,12 +13,11 @@ final readonly class CommitImageController
 {
     public function show(ShowCommitImageRequest $request, CommitImage $commitImage): StreamedResponse
     {
-        return Storage::disk()->response($commitImage->path, headers: [
+        return Storage::disk()->response($commitImage->path, $commitImage->id.'.webp', headers: [
             'Content-Type' => 'image/webp',
-            'Content-Disposition' => 'inline',
             'Content-Security-Policy' => "default-src 'none'; sandbox",
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'private, max-age=3600',
-        ]);
+        ], disposition: $request->download() ? 'attachment' : 'inline');
     }
 }

@@ -17,6 +17,7 @@ export function useWhoToFollow() {
 
     const rememberShowsWhoToFollow = (shows: boolean): void => {
         setCookie('who_to_follow', String(shows));
+        router.flushAll();
     };
 
     const setShowsWhoToFollow = (shows: boolean): void => {

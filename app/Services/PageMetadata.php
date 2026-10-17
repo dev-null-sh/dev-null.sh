@@ -41,11 +41,11 @@ final readonly class PageMetadata
     public function home(): array
     {
         $url = route('home');
-        $description = __('A social network for developers. Sign in with GitHub, follow people who write code, and commit plain text to a shared log.');
+        $description = 'A social network for developers. Sign in with GitHub, follow people who write code, and commit plain text to a shared log.';
 
         return [
             'type' => 'website',
-            'title' => __('/dev/null: a social network for developers'),
+            'title' => '/dev/null: a social network for developers',
             'description' => $description,
             'url' => $url,
             'robots' => self::INDEXABLE,
@@ -54,7 +54,7 @@ final readonly class PageMetadata
                 'width' => OpenGraphCanvas::WIDTH,
                 'height' => OpenGraphCanvas::HEIGHT,
                 'type' => 'image/png',
-                'alt' => __('/dev/null: a social network for developers'),
+                'alt' => '/dev/null: a social network for developers',
             ]],
             'structuredData' => [
                 '@context' => 'https://schema.org',
@@ -78,6 +78,39 @@ final readonly class PageMetadata
                         'sameAs' => ['https://github.com/nunomaduro/dev-null.sh'],
                     ],
                 ],
+            ],
+        ];
+    }
+
+    /**
+     * The link preview and structured data of a static page, such as the terms of service or the privacy policy.
+     *
+     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
+     */
+    public function page(string $title, string $description, string $url): array
+    {
+        return [
+            'type' => 'website',
+            'title' => $title,
+            'description' => $description,
+            'url' => $url,
+            'robots' => self::INDEXABLE,
+            'images' => [[
+                'url' => url('/og.png'),
+                'width' => OpenGraphCanvas::WIDTH,
+                'height' => OpenGraphCanvas::HEIGHT,
+                'type' => 'image/png',
+                'alt' => $title,
+            ]],
+            'structuredData' => [
+                '@context' => 'https://schema.org',
+                '@type' => 'WebPage',
+                '@id' => $url,
+                'url' => $url,
+                'name' => $title,
+                'description' => $description,
+                'inLanguage' => str_replace('_', '-', app()->getLocale()),
+                'isPartOf' => ['@id' => route('home').'#website'],
             ],
         ];
     }
@@ -178,7 +211,7 @@ final readonly class PageMetadata
         return [
             'type' => 'profile',
             'title' => $title,
-            'description' => $user->bio ?? __("Read @:username's commits on /dev/null, a social network for developers.", ['username' => $user->username]),
+            'description' => $user->bio ?? "Read @{$user->username}'s commits on /dev/null, a social network for developers.",
             'url' => route('user.show', $user),
             'robots' => self::INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
@@ -216,15 +249,15 @@ final readonly class PageMetadata
     public function connections(User $user, string $type): array
     {
         $title = $type === 'followers'
-            ? __('People following :user on /dev/null', ['user' => $user->nameWithHandle()])
-            : __('People followed by :user on /dev/null', ['user' => $user->nameWithHandle()]);
+            ? "People following {$user->nameWithHandle()} on /dev/null"
+            : "People followed by {$user->nameWithHandle()} on /dev/null";
 
         return [
             'type' => 'profile',
             'title' => $title,
             'description' => $type === 'followers'
-                ? __('See who follows @:username on /dev/null, a social network for developers.', ['username' => $user->username])
-                : __('See who @:username follows on /dev/null, a social network for developers.', ['username' => $user->username]),
+                ? "See who follows @{$user->username} on /dev/null, a social network for developers."
+                : "See who @{$user->username} follows on /dev/null, a social network for developers.",
             'url' => route($type === 'followers' ? 'user-followers.index' : 'user-following.index', $user),
             'robots' => self::NOT_INDEXABLE,
             'images' => [$this->profileImage($user, $title)],

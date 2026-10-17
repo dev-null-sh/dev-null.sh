@@ -204,12 +204,12 @@ it('strips terminal escape sequences from the answers of devnull', function (): 
 });
 
 it('prints the errors of devnull', function (): void {
-    File::put("{$this->sandbox}/commit-response", "The body field must not be greater than 280 characters.\n");
+    File::put("{$this->sandbox}/commit-response", "The body field must not be greater than 4000 characters.\n");
 
     $result = ($this->runScript)($this->script, env: ['COMMIT_STATUS' => '422']);
 
     expect($result->exitCode())->toBe(1)
-        ->and($result->errorOutput())->toBe("devnull: The body field must not be greater than 280 characters.\n");
+        ->and($result->errorOutput())->toBe("devnull: The body field must not be greater than 4000 characters.\n");
 });
 
 it('runs nothing when the download is cut short', function (): void {

@@ -41,7 +41,7 @@ final class AppServiceProvider extends ServiceProvider
             if ($response->statusCode() === 419) {
                 Inertia::flash('toast', [
                     'type' => 'error',
-                    'message' => __('Page expired: your session timed out before that went through. Try again.'),
+                    'message' => 'Page expired: your session timed out before that went through. Try again.',
                 ]);
 
                 return back();
@@ -73,7 +73,7 @@ final class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(1)->by($user->id)->response(function (): RedirectResponse {
                 Inertia::flash('toast', [
                     'type' => 'error',
-                    'message' => __('You just synced. Try again in a minute.'),
+                    'message' => 'You just synced. Try again in a minute.',
                 ]);
 
                 return back();

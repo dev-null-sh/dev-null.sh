@@ -26,7 +26,7 @@ it('calculates initial rank and zero progress for a new user without activity', 
         ->and($result['level_progress'])->toBe(0)
         ->and($result['ranks'])->toHaveCount(6)
         ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
-        ->and($result['badges'])->toHaveCount(12);
+        ->and($result['badges'])->toHaveCount(11);
 
     foreach ($result['badges'] as $badge) {
         expect($badge['unlocked'])->toBeFalse()
@@ -48,35 +48,6 @@ it('unlocks init badge upon first commit and awards xp', function (): void {
         ->and($initBadge['progress'])->toBe(1)
         // XP: 10 (commit) + 15 (1-day streak) = 25
         ->and($result['xp'])->toBe(25);
-});
-
-it('unlocks max_payload badge for an exact 280-character post and handles multibyte unicode', function (): void {
-    $user = User::factory()->create();
-
-    // 279 characters -> not unlocked
-    $shortCommit = Commit::factory()->for($user)->create([
-        'body' => str_repeat('a', 279),
-    ]);
-
-    $result = resolve(UserAchievementsQuery::class)->get($user, $user);
-    $badge = collect($result['badges'])->firstWhere('id', Achievement::MaxPayload->value);
-    expect($badge['unlocked'])->toBeFalse();
-
-    // Delete short commit and create exact 280-character post with multibyte emojis
-    $shortCommit->forceDelete();
-
-    // 278 'a's + 2 multibyte rocket emojis (each 1 char length in UTF-8, 4 bytes) = exact 280 characters
-    $exact280Body = str_repeat('a', 278).'🚀🚀';
-    expect(mb_strlen($exact280Body))->toBe(280);
-
-    Commit::factory()->for($user)->create(['body' => $exact280Body]);
-
-    $result = resolve(UserAchievementsQuery::class)->get($user, $user);
-    $badge = collect($result['badges'])->firstWhere('id', Achievement::MaxPayload->value);
-
-    expect($badge)->not->toBeNull()
-        ->and($badge['unlocked'])->toBeTrue()
-        ->and($badge['progress'])->toBe(1);
 });
 
 it('unlocks authorized_keys badge when user has linked public ssh keys from github', function (): void {

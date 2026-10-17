@@ -3,20 +3,18 @@ import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
-import { BookmarkButton } from '@/components/bookmark-button';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
-import { CommitReportButton } from '@/components/commit-report-button';
+import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ThreadActions,
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
-import { CopyLinkButton } from '@/components/copy-link-button';
 import {
     GraphRail,
     RailAvatar,
@@ -25,6 +23,7 @@ import {
 } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
+import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
@@ -86,6 +85,7 @@ export function CommitCard({
     } = usePage();
     const now = useNow();
     const nodeRef = useRef<HTMLAnchorElement>(null);
+    const deleteButtonRef = useRef<HTMLButtonElement>(null);
     const thread = useThread(commit, initialReplies, loadsReplies);
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
@@ -96,6 +96,11 @@ export function CommitCard({
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
+
+    const cancelDeletion = () => {
+        setDeletion('idle');
+        deleteButtonRef.current?.focus();
+    };
 
     const deleteCommit = () => {
         setDeletion('deleting');
@@ -203,23 +208,23 @@ export function CommitCard({
                                 >
                                     ·
                                 </span>
-                                <Link
-                                    href={permalink}
-                                    className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
-                                    data-test="commit-permalink"
+                                <TimestampTooltip
+                                    date={commit.created_at}
+                                    author={commit.user}
                                 >
-                                    <time
-                                        dateTime={commit.created_at}
-                                        title={new Date(
-                                            commit.created_at,
-                                        ).toLocaleString()}
+                                    <Link
+                                        href={permalink}
+                                        className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
+                                        data-test="commit-permalink"
                                     >
-                                        {formatRelativeTime(
-                                            commit.created_at,
-                                            now,
-                                        )}
-                                    </time>
-                                </Link>
+                                        <time dateTime={commit.created_at}>
+                                            {formatRelativeTime(
+                                                commit.created_at,
+                                                now,
+                                            )}
+                                        </time>
+                                    </Link>
+                                </TimestampTooltip>
 
                                 {commit.status !== 'approved' && (
                                     <span
@@ -259,6 +264,7 @@ export function CommitCard({
 
                                     {isDeletable && (
                                         <button
+                                            ref={deleteButtonRef}
                                             type="button"
                                             onClick={() =>
                                                 setDeletion('confirming')
@@ -318,13 +324,25 @@ export function CommitCard({
                                 />
                             )}
                             {commit.link_preview && (
-                                <LinkPreview preview={commit.link_preview} />
+                                <LinkPreview
+                                    commitId={commit.id}
+                                    preview={commit.link_preview}
+                                />
                             )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
-                                    <time dateTime={commit.created_at}>
-                                        {formatFullDateTime(commit.created_at)}
-                                    </time>
+                                    <TimestampTooltip
+                                        date={commit.created_at}
+                                        author={commit.user}
+                                    >
+                                        <time dateTime={commit.created_at}>
+                                            {formatFullDateTime(
+                                                commit.created_at,
+                                                auth.user?.timezone ??
+                                                    undefined,
+                                            )}
+                                        </time>
+                                    </TimestampTooltip>
                                     <span aria-hidden> · </span>
                                     <span
                                         title={`Commit ${commit.id}`}
@@ -351,13 +369,7 @@ export function CommitCard({
                                             keyShortcut="q"
                                         />
                                     </div>
-                                    <div className="ml-auto flex items-center gap-0.5">
-                                        {commit.is_saved !== undefined && (
-                                            <BookmarkButton commit={commit} />
-                                        )}
-                                        <CopyLinkButton commit={commit} />
-                                        <CommitReportButton commit={commit} />
-                                    </div>
+                                    <CommitSecondaryActions commit={commit} />
                                 </div>
                             ) : (
                                 <ThreadActions
@@ -400,7 +412,7 @@ export function CommitCard({
                                     aria-label="Confirm delete"
                                     onKeyDown={(event) => {
                                         if (event.key === 'Escape') {
-                                            setDeletion('idle');
+                                            cancelDeletion();
                                         }
                                     }}
                                     className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
@@ -413,7 +425,7 @@ export function CommitCard({
                                         variant="ghost"
                                         size="sm"
                                         autoFocus
-                                        onClick={() => setDeletion('idle')}
+                                        onClick={cancelDeletion}
                                     >
                                         Cancel
                                     </Button>
