@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,9 +19,9 @@ final readonly class OnboardingController
     public function show(ShowOnboardingRequest $request, #[CurrentUser] User $user, SuggestedUsersQuery $suggested): Response
     {
         return Inertia::render('onboarding/show', [
-            'preferredLane' => $user->preferred_lane,
+            'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),
-            'suggestions' => $suggested->get($user, limit: 5),
+            'suggestions' => fn (): Collection => $suggested->get($user, limit: 5),
             'commitScriptUrl' => route('cli-script.show'),
         ]);
     }
