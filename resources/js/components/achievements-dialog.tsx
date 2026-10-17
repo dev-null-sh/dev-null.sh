@@ -312,7 +312,7 @@ export function AchievementsDialog({
                                     type="button"
                                     className={className}
                                     onClick={(event) =>
-                                        dropConfetti({ edge: 'top' })
+                                        dropConfetti()
                                     }
                                 >
                                     {body}
