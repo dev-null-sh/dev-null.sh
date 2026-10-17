@@ -18,7 +18,7 @@
         "view_achievements": "उपलब्धिहरू र Unix श्रेणी (rank) हेर्नुहोस्",
         "sponsor": "GitHub मा प्रायोजन गर्नुहोस्",
         "joined": ":date मा सामेल हुनुभयो",
-        "pasteis_received": "pastéis प्राप्त भयो",
+        "pasteis_received": "pastel प्राप्त भयो|pastéis प्राप्त भयो",
         "feed_label": "प्रोफाइल फिड",
         "tabs": {
             "commits": "कमिटहरू",

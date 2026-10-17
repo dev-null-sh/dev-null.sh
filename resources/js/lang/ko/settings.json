@@ -42,6 +42,9 @@
         "description": "그래프에서 나의 레인이에요. 커밋 옆의 레일과 노드, 아바타 둘레의 링, 핸들 앞의 점에 쓰여요. 자동을 선택하면 계정 ID에 따라 색이 정해져요.",
         "auto": "자동",
         "automatic": "자동 (:color)",
+        "custom": "사용자 지정",
+        "custom_color": "사용자 지정 색상",
+        "custom_color_value": "사용자 지정 색상 (:color)",
         "names": {
             "orange": "주황",
             "green": "초록",

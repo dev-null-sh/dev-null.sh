@@ -42,6 +42,9 @@
         "description": "Your lane on the graph: the rail and nodes beside your commits, the ring around your avatar, and the dot before your handle. Automatic picks one from your account id.",
         "auto": "Auto",
         "automatic": "Automatic (:color)",
+        "custom": "Custom",
+        "custom_color": "Custom color",
+        "custom_color_value": "Custom color (:color)",
         "names": {
             "orange": "Orange",
             "green": "Green",

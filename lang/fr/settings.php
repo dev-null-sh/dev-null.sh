@@ -51,6 +51,9 @@ return [
         'description' => "Ta voie sur le graphe : le rail et les nœuds à côté de tes commits, l'anneau autour de ton avatar et le point avant ton pseudo. Automatique en choisit une à partir de l'id de ton compte.",
         'auto' => 'Auto',
         'automatic' => 'Automatique (:color)',
+        'custom' => 'Perso',
+        'custom_color' => 'Couleur personnalisée',
+        'custom_color_value' => 'Couleur personnalisée (:color)',
         'names' => [
             'orange' => 'Orange',
             'green' => 'Vert',

@@ -51,6 +51,9 @@ return [
         'description' => 'Deine Spur im Graphen: die Linie und Knoten neben deinen Commits, der Ring um deinen Avatar und der Punkt vor deinem Handle. Automatisch wählt eine anhand deiner Konto-ID.',
         'auto' => 'Auto',
         'automatic' => 'Automatisch (:color)',
+        'custom' => 'Eigene',
+        'custom_color' => 'Eigene Farbe',
+        'custom_color_value' => 'Eigene Farbe (:color)',
         'names' => [
             'orange' => 'Orange',
             'green' => 'Grün',

@@ -51,6 +51,9 @@ return [
         'description' => 'Sua faixa no grafo: o trilho e os nós ao lado dos seus commits, o anel em volta do seu avatar e o ponto antes do seu handle. Automática escolhe uma a partir do ID da sua conta.',
         'auto' => 'Auto',
         'automatic' => 'Automática (:color)',
+        'custom' => 'Personalizada',
+        'custom_color' => 'Cor personalizada',
+        'custom_color_value' => 'Cor personalizada (:color)',
         'names' => [
             'orange' => 'Laranja',
             'green' => 'Verde',

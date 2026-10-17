@@ -1,7 +1,7 @@
 import { useLang } from '@erag/lang-sync-inertia/react';
-import { Form } from '@inertiajs/react';
+import { Form, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import UserLaneController from '@/actions/App/Http/Controllers/UserLaneController';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import Heading from '@/components/heading';
@@ -9,6 +9,13 @@ import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { useUser } from '@/hooks/use-user';
 import { cn, laneColor, withViewTransition } from '@/lib/utils';
+import type { Lane } from '@/types';
+
+const optionClassName =
+    'flex cursor-pointer flex-col items-center gap-1.5 rounded-md py-2 transition-colors hover:bg-accent has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50';
+
+const optionLabelClassName =
+    'text-xs text-muted-foreground peer-checked:font-medium peer-checked:text-foreground';
 
 export function LanePreview({ lane }: { lane: string }) {
     const { user } = useUser();
@@ -43,9 +50,9 @@ export function LaneOptions({
     automaticLane,
     onSelect,
 }: {
-    selected: number | null;
+    selected: Lane | null;
     automaticLane: number;
-    onSelect: (lane: number | null) => void;
+    onSelect: (lane: Lane | null) => void;
 }) {
     const { __ } = useLang();
     const laneNames = [
@@ -56,6 +63,12 @@ export function LaneOptions({
         __('settings.lane.names.rose'),
         __('settings.lane.names.ochre'),
     ];
+    const colorInputRef = useRef<HTMLInputElement>(null);
+    const [customColor, setCustomColor] = useState(
+        typeof selected === 'string' ? selected : null,
+    );
+    const isCustom = typeof selected === 'string';
+
     const options = [
         {
             value: null,
@@ -73,14 +86,35 @@ export function LaneOptions({
         })),
     ];
 
+    const openColorPicker = (radio: HTMLInputElement) => {
+        const colorInput = colorInputRef.current;
+
+        if (colorInput === null) {
+            return;
+        }
+
+        if (customColor === null) {
+            colorInput.value = getComputedStyle(radio)
+                .getPropertyValue('--lane')
+                .trim();
+        }
+
+        colorInput.showPicker();
+    };
+
+    const chooseCustomColor = (color: string) => {
+        setCustomColor(color);
+        onSelect(color);
+    };
+
     return (
         <fieldset>
             <legend className="sr-only">{__('settings.lane.title')}</legend>
-            <div className="grid max-w-md grid-cols-7 gap-1">
+            <div className="grid max-w-md grid-cols-4 gap-1 sm:grid-cols-8">
                 {options.map((option) => (
                     <label
                         key={option.label}
-                        className="flex cursor-pointer flex-col items-center gap-1.5 rounded-md py-2 transition-colors hover:bg-accent has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
+                        className={optionClassName}
                         style={
                             {
                                 '--lane': laneColor(option.lane),
@@ -119,11 +153,80 @@ export function LaneOptions({
                                 />
                             )}
                         </span>
-                        <span className="text-xs text-muted-foreground peer-checked:font-medium peer-checked:text-foreground">
+                        <span className={optionLabelClassName}>
                             {option.label}
                         </span>
                     </label>
                 ))}
+                <label
+                    className={cn(optionClassName, 'relative')}
+                    style={
+                        {
+                            '--lane':
+                                customColor ??
+                                laneColor(
+                                    typeof selected === 'number'
+                                        ? selected
+                                        : automaticLane,
+                                ),
+                        } as CSSProperties
+                    }
+                    data-test="custom-lane-option"
+                >
+                    <input
+                        type="radio"
+                        name="lane"
+                        value=""
+                        checked={isCustom}
+                        onChange={() => {
+                            if (customColor !== null) {
+                                onSelect(customColor);
+                            }
+                        }}
+                        onClick={(event) =>
+                            openColorPicker(event.currentTarget)
+                        }
+                        aria-label={
+                            customColor === null
+                                ? __('settings.lane.custom_color')
+                                : __('settings.lane.custom_color_value', {
+                                      color: customColor,
+                                  })
+                        }
+                        className="peer sr-only"
+                    />
+                    <input
+                        ref={colorInputRef}
+                        type="color"
+                        name={isCustom ? 'color' : undefined}
+                        defaultValue={customColor ?? undefined}
+                        onChange={(event) =>
+                            chooseCustomColor(event.target.value)
+                        }
+                        tabIndex={-1}
+                        aria-hidden
+                        className="pointer-events-none absolute bottom-0 left-1/2 size-px opacity-0"
+                        data-test="custom-lane-color"
+                    />
+                    <span
+                        className={cn(
+                            'relative flex size-7 items-center justify-center rounded-full',
+                            customColor === null
+                                ? 'bg-[conic-gradient(#f03e3e,#fd7e14,#fcc419,#51cf66,#22b8cf,#4c6ef5,#ae3ec9,#f03e3e)]'
+                                : 'bg-(--lane)',
+                        )}
+                    >
+                        {isCustom && (
+                            <span
+                                aria-hidden
+                                className="absolute -inset-1 rounded-full border-2 border-(--lane) in-place:[view-transition-name:lane-selected]"
+                            />
+                        )}
+                    </span>
+                    <span className={optionLabelClassName}>
+                        {__('settings.lane.custom')}
+                    </span>
+                </label>
             </div>
         </fieldset>
     );
@@ -133,10 +236,10 @@ export default function LanePicker({
     preferredLane,
     automaticLane,
 }: {
-    preferredLane: number | null;
+    preferredLane: Lane | null;
     automaticLane: number;
 }) {
-    const [selected, setSelected] = useState<number | null>(preferredLane);
+    const [selected, setSelected] = useState<Lane | null>(preferredLane);
     const { __ } = useLang();
 
     return (
@@ -151,6 +254,7 @@ export default function LanePicker({
             <Form
                 {...UserLaneController.update.form()}
                 options={{ preserveScroll: true }}
+                onSuccess={() => router.flushAll()}
                 className="mt-5"
             >
                 {({ processing, errors }) => (
@@ -158,12 +262,26 @@ export default function LanePicker({
                         <LaneOptions
                             selected={selected}
                             automaticLane={automaticLane}
-                            onSelect={(lane) =>
-                                void withViewTransition(() => setSelected(lane))
-                            }
+                            onSelect={(lane) => {
+                                if (
+                                    typeof lane === 'string' &&
+                                    typeof selected === 'string'
+                                ) {
+                                    setSelected(lane);
+
+                                    return;
+                                }
+
+                                void withViewTransition(() =>
+                                    setSelected(lane),
+                                );
+                            }}
                         />
 
-                        <InputError message={errors.lane} className="mt-2" />
+                        <InputError
+                            message={errors.lane ?? errors.color}
+                            className="mt-2"
+                        />
 
                         <Button
                             type="submit"

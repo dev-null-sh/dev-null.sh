@@ -51,6 +51,9 @@ return [
         'description' => '你在图谱上的泳道：你的提交旁的轨道和节点、头像周围的圆环，以及用户名前的圆点。“自动”会根据你的账号 ID 选择一种颜色。',
         'auto' => '自动',
         'automatic' => '自动（:color）',
+        'custom' => '自定义',
+        'custom_color' => '自定义颜色',
+        'custom_color_value' => '自定义颜色（:color）',
         'names' => [
             'orange' => '橙色',
             'green' => '绿色',

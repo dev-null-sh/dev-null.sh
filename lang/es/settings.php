@@ -51,6 +51,9 @@ return [
         'description' => 'Tu carril en el gráfico: la línea y los nodos junto a tus commits, el anillo alrededor de tu avatar y el punto antes de tu usuario. Automático elige uno a partir del id de tu cuenta.',
         'auto' => 'Auto',
         'automatic' => 'Automático (:color)',
+        'custom' => 'Personalizado',
+        'custom_color' => 'Color personalizado',
+        'custom_color_value' => 'Color personalizado (:color)',
         'names' => [
             'orange' => 'Naranja',
             'green' => 'Verde',

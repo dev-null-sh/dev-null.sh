@@ -28,7 +28,7 @@ it('shares the current language and the languages to choose from', function (): 
     $shared = new HandleInertiaRequests()->share(Request::create('/', 'GET'));
 
     expect($shared['locale'])->toBe('fr')
-        ->and($shared['locales'])->toHaveCount(10)
+        ->and($shared['locales'])->toHaveCount(11)
         ->and($shared['locales'][0])->toBe(['value' => 'en', 'label' => 'English'])
         ->and($shared['locales'][1])->toBe(['value' => 'hi', 'label' => 'हिन्दी']);
 });

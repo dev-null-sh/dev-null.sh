@@ -51,6 +51,9 @@ return [
         'description' => 'グラフ上のあなたのレーンです。コミットの横のレールとノード、アバターの周りのリング、ハンドルの前のドットに使われます。「自動」はアカウント ID から色を選びます。',
         'auto' => '自動',
         'automatic' => '自動（:color）',
+        'custom' => 'カスタム',
+        'custom_color' => 'カスタムカラー',
+        'custom_color_value' => 'カスタムカラー（:color）',
         'names' => [
             'orange' => 'オレンジ',
             'green' => 'グリーン',
