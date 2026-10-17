@@ -121,7 +121,7 @@ export function AchievementsShelf({
                                         type="button"
                                         onClick={(event) => {
                                             if (badge.unlocked) {
-                                                dropConfetti({ edge: 'top' });
+                                                dropConfetti();
                                             }
 
                                             onInspect();
