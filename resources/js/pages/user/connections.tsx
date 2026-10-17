@@ -1,39 +1,14 @@
-import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
-import type { CSSProperties } from 'react';
-import { useState } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { EmptyFeed } from '@/components/commit-feed';
-import { FollowButton } from '@/components/follow-button';
 import { PageTabs } from '@/components/page-tabs';
-import { Spinner } from '@/components/ui/spinner';
-import { UserAvatar } from '@/components/user-avatar';
+import type { ListedUser } from '@/components/user-list';
+import { UserList } from '@/components/user-list';
 import AppLayout from '@/layouts/app-layout';
-import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, User } from '@/types';
-
-type Connection = User & { is_followed: boolean };
-
-function ConnectionFollowButton({ person }: { person: Connection }) {
-    const [isFollowing, setIsFollowing] = useState(person.is_followed);
-
-    return (
-        <FollowButton
-            user={person}
-            isFollowing={isFollowing}
-            size="sm"
-            className="mt-4 min-w-24 shrink-0"
-            only={['auth']}
-            preserveState
-            onSuccess={() => {
-                setIsFollowing(!isFollowing);
-                router.flushAll();
-            }}
-        />
-    );
-}
 
 export default function Connections({
     user,
@@ -42,9 +17,8 @@ export default function Connections({
 }: {
     user: User;
     type: 'following' | 'followers';
-    users: CursorPaginated<Connection>;
+    users: CursorPaginated<ListedUser>;
 }) {
-    const { auth } = usePage().props;
     const title = type === 'following' ? 'Following' : 'Followers';
 
     return (
@@ -93,58 +67,7 @@ export default function Connections({
                     </EmptyFeed>
                 </div>
             ) : (
-                <InfiniteScroll
-                    data="users"
-                    onlyNext
-                    preserveUrl
-                    loading={
-                        <div className="flex justify-center py-6">
-                            <Spinner className="text-muted-foreground" />
-                        </div>
-                    }
-                >
-                    <ul className="divide-y">
-                        {users.data.map((person) => (
-                            <li
-                                key={person.id}
-                                className="flex items-start gap-3 pr-4 hover:bg-muted/50 sm:pr-6"
-                            >
-                                <Link
-                                    href={show(person)}
-                                    className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 sm:pl-6"
-                                >
-                                    <UserAvatar
-                                        user={person}
-                                        className="size-10 ring-2 ring-(--lane) ring-offset-2 ring-offset-card"
-                                        style={
-                                            {
-                                                '--lane': laneColor(
-                                                    person.lane,
-                                                ),
-                                            } as CSSProperties
-                                        }
-                                    />
-                                    <div className="min-w-0">
-                                        <p className="truncate font-medium">
-                                            {person.name}
-                                        </p>
-                                        <p className="truncate font-mono text-sm text-muted-foreground">
-                                            @{person.username}
-                                        </p>
-                                        {person.bio && (
-                                            <p className="mt-1 line-clamp-2 text-sm">
-                                                {person.bio}
-                                            </p>
-                                        )}
-                                    </div>
-                                </Link>
-                                {person.id !== auth.user?.id && (
-                                    <ConnectionFollowButton person={person} />
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                </InfiniteScroll>
+                <UserList data="users" users={users} />
             )}
         </>
     );

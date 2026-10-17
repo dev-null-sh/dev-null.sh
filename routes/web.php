@@ -22,6 +22,7 @@ use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
+use App\Http\Controllers\CommitStargazersController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
@@ -191,6 +192,9 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])
         ->middleware('throttle:pins')
         ->name('commit-pin.destroy');
+    Route::get('@{user:username}/commits/{commit}/stargazers', [CommitStargazersController::class, 'index'])
+        ->scopeBindings()
+        ->name('commit-stargazers.index');
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->middleware('throttle:stars')
         ->name('commit-star.store');

@@ -3,6 +3,7 @@ import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import CommitStargazersController from '@/actions/App/Http/Controllers/CommitStargazersController';
 import { BookmarkButton } from '@/components/bookmark-button';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
@@ -28,7 +29,9 @@ import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
+import { useSharedState } from '@/hooks/use-shared-state';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
+import { commitStateKey } from '@/lib/commit-state';
 import {
     cn,
     formatFullDateTime,
@@ -40,6 +43,33 @@ import {
 } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+
+// The count follows stars given anywhere on the page, so it appears with the first star.
+function StargazersLink({ commit }: { commit: Commit }) {
+    const [count] = useSharedState(
+        commitStateKey('stars_count', commit.id),
+        commit.stars_count,
+    );
+
+    if (count === 0) {
+        return null;
+    }
+
+    return (
+        <>
+            <span aria-hidden> · </span>
+            <Link
+                href={CommitStargazersController.index({
+                    user: commit.user,
+                    commit,
+                })}
+                className="whitespace-nowrap hover:text-foreground hover:underline"
+            >
+                {count} {count === 1 ? 'star' : 'stars'}
+            </Link>
+        </>
+    );
+}
 
 export function CommitCard({
     commit,
@@ -332,6 +362,9 @@ export function CommitCard({
                                     >
                                         commit {hash}
                                     </span>
+                                    {auth.user && (
+                                        <StargazersLink commit={commit} />
+                                    )}
                                 </p>
                             )}
 
