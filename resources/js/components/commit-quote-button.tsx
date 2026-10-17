@@ -29,7 +29,7 @@ import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
-import { characterCount, cn } from '@/lib/utils';
+import { characterCount, cn, isRejectedSubmission } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 export function CommitQuoteButton({
@@ -167,7 +167,7 @@ function QuoteComposer({
                 }
                 options={{ preserveScroll: true }}
                 onSuccess={(page) => {
-                    if (page.flash.committed) {
+                    if (!isRejectedSubmission(page.flash)) {
                         attachments.clear();
                         drop();
                         onClose();

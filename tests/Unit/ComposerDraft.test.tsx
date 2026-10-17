@@ -150,12 +150,14 @@ test('preserves restored images and link cards while preventing scheduling', () 
             1,
         );
 
-        form.props.onSuccess({ flash: {} });
+        form.props.onSuccess({
+            flash: { toast: { type: 'error', message: 'Slow down' } },
+        });
         assert.equal(draft.drop.mock.calls.length, 0);
         assert.deepEqual(draft.images, [image]);
         vi.stubGlobal('requestAnimationFrame', vi.fn());
         try {
-            form.props.onSuccess({ flash: { committed: { id: 'created' } } });
+            form.props.onSuccess({ flash: {} });
             assert.deepEqual(draft.images, []);
             assert.equal(draft.drop.mock.calls.length, 1);
         } finally {
@@ -219,13 +221,15 @@ test('removing restored images enables polls and successful posting resets the p
             poll: { options: ['Tabs', 'Spaces'], duration: 1440 },
         };
         assert.deepEqual(view.form.props.transform(data), data);
-        view.form.props.onSuccess({ flash: {} });
+        view.form.props.onSuccess({
+            flash: { toast: { type: 'error', message: 'Slow down' } },
+        });
         assert.equal(draft.drop.mock.calls.length, 0);
         assert.ok(
             render().fields.some((element) => element.type === PollEditor),
         );
 
-        view.form.props.onSuccess({ flash: { committed: { id: 'created' } } });
+        view.form.props.onSuccess({ flash: {} });
         assert.equal(draft.drop.mock.calls.length, 1);
         assert.deepEqual(draft.images, []);
         view = render();

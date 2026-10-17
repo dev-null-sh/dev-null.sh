@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -23,14 +24,14 @@ final readonly class DeleteUser
     /**
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author, so the replies under them keep their thread.
-     * The database cascades the image rows of erased commits, but the image files are erased here.
+     * The database cascades the image rows of erased commits and the user's scheduled commits, but the image files are erased here.
      */
     public function handle(User $user): void
     {
         $imagePaths = DB::transaction(function () use ($user): array {
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
-            $imagePaths = $this->imagePaths($user);
+            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user)];
 
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
@@ -90,6 +91,19 @@ final readonly class DeleteUser
             ->orWhereIn('commit_id', Commit::query()->withTrashed()->whereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id'))->select('id'))
             ->get(['path'])
             ->map(fn (CommitImage $image): string => $image->path)
+            ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function scheduledImagePaths(User $user): array
+    {
+        return ScheduledCommit::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('images')
+            ->get(['images'])
+            ->flatMap(fn (ScheduledCommit $scheduled): array => array_column($scheduled->images ?? [], 'path'))
             ->all();
     }
 }
