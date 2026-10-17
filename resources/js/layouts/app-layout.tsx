@@ -2,12 +2,17 @@ import { usePage, usePoll } from '@inertiajs/react';
 import { useCallback, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import { AppNav, MobileHeader, MobileNav } from '@/components/app-nav';
+import {
+    CommitComposerDialog,
+    focusVisibleComposer,
+} from '@/components/commit-composer-dialog';
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { SearchDialog } from '@/components/search-dialog';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTabSlide } from '@/hooks/use-tab-slide';
+import { signIn } from '@/lib/auth';
 import type { AppLayoutProps } from '@/types';
 
 export default function AppLayout({ children }: AppLayoutProps) {
@@ -17,16 +22,35 @@ export default function AppLayout({ children }: AppLayoutProps) {
     } = usePage();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
+    const [isComposing, setIsComposing] = useState(false);
     const showShortcuts = useCallback(() => setIsShowingShortcuts(true), []);
     const openSearch = useCallback(() => setIsSearching(true), []);
+    const isGuest = auth.user === null;
+    const compose = useCallback(() => {
+        if (isGuest) {
+            signIn();
 
-    useKeyboardShortcuts(auth.user, auth.log, showShortcuts, openSearch);
+            return;
+        }
+
+        if (!focusVisibleComposer()) {
+            setIsComposing(true);
+        }
+    }, [isGuest]);
+
+    useKeyboardShortcuts(
+        auth.user,
+        auth.log,
+        showShortcuts,
+        openSearch,
+        compose,
+    );
     useTabSlide();
 
     return (
         <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
             {component !== 'notification/index' && <NotificationCountPolling />}
-            <AppNav onSearch={openSearch} />
+            <AppNav onSearch={openSearch} onCompose={compose} />
 
             <main className="min-w-0 flex-1 bg-card pb-20 md:max-w-[620px] md:border-x md:pb-0">
                 <MobileHeader onSearch={openSearch} />
@@ -40,6 +64,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <CommitImageViewer />
 
             <SearchDialog open={isSearching} onOpenChange={setIsSearching} />
+
+            <CommitComposerDialog
+                open={isComposing}
+                onOpenChange={setIsComposing}
+            />
 
             <KeyboardShortcutsDialog
                 open={isShowingShortcuts}

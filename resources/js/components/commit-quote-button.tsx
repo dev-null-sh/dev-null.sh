@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { BodyCounter } from '@/components/body-counter';
 import {
+    ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
@@ -29,7 +30,7 @@ import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
-import { characterCount, cn } from '@/lib/utils';
+import { characterCount, cn, isRejectedSubmission } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 export function CommitQuoteButton({
@@ -118,7 +119,8 @@ function QuoteComposer({
     const secrets = useSecretWarning(body);
     const keys = useKeyLabels();
 
-    const isQuotable = characterCount(body.trim()) >= minBodyLength;
+    const isQuotable =
+        images.length > 0 || characterCount(body.trim()) >= minBodyLength;
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.key === 'Enter' && hasModKey(event) && isQuotable) {
@@ -142,9 +144,13 @@ function QuoteComposer({
                     event.preventDefault();
                 }
             }}
+            {...attachments.dropzone}
             className="gap-3 p-4 sm:max-w-xl sm:p-5"
             data-test="quote-composer"
         >
+            {attachments.isDraggingFiles && (
+                <ImageDropOverlay className="fixed" />
+            )}
             <DialogTitle className="text-base">
                 Quote @{commit.user.username}
             </DialogTitle>
@@ -167,7 +173,7 @@ function QuoteComposer({
                 }
                 options={{ preserveScroll: true }}
                 onSuccess={(page) => {
-                    if (page.flash.committed) {
+                    if (!isRejectedSubmission(page.flash)) {
                         attachments.clear();
                         drop();
                         onClose();
@@ -201,8 +207,6 @@ function QuoteComposer({
                                 onValueChange={updateBody}
                                 onKeyDown={submitOnModEnter}
                                 onPaste={attachments.onPaste}
-                                onDragOver={attachments.onDragOver}
-                                onDrop={attachments.onDrop}
                                 onFocus={
                                     isRestored ? moveCaretToEnd : undefined
                                 }
@@ -247,7 +251,7 @@ function QuoteComposer({
 
                             <QuotedCommit commit={commit} isPreview />
 
-                            <div className="sticky bottom-0 -mb-4 flex items-center justify-end gap-3 bg-background pt-3 pb-4 sm:-mb-5 sm:pb-5">
+                            <div className="sticky -bottom-4 -mb-4 flex items-center justify-end gap-3 bg-background pt-3 pb-4 sm:-bottom-5 sm:-mb-5 sm:pb-5">
                                 <div className="mr-auto flex items-center gap-2">
                                     <ImagePickerButton
                                         count={images.length}

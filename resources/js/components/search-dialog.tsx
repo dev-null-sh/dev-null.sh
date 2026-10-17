@@ -16,7 +16,11 @@ import {
     TooManySearches,
 } from '@/lib/commit-search';
 import { useKeyLabels } from '@/lib/keyboard';
-import { searchesCommits, searchIntent } from '@/lib/search-intent';
+import {
+    awaitsDeveloperName,
+    searchesCommits,
+    searchIntent,
+} from '@/lib/search-intent';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, User } from '@/types';
@@ -84,11 +88,16 @@ export function SearchDialog({
         developers.hasSearched(developerTerm) &&
         (commitTerm === '' || commits.hasSearched(commitTerm));
     const isEmpty = term === '';
+    const isAwaitingDeveloperName = awaitsDeveloperName(term);
     const isThrottled =
         developers.isThrottled(developerTerm) ||
         commits.isThrottled(commitTerm);
     const foundNothing =
-        !isEmpty && hasSearched && !isLoading && results.length === 0;
+        !isEmpty &&
+        !isAwaitingDeveloperName &&
+        hasSearched &&
+        !isLoading &&
+        results.length === 0;
     const options = isEmpty || foundNothing ? suggestionOptions : results;
 
     const type = (value: string) => {
@@ -231,7 +240,9 @@ export function SearchDialog({
                             role="status"
                             className="px-5 py-8 text-center text-sm text-muted-foreground"
                         >
-                            Searching…
+                            {isAwaitingDeveloperName
+                                ? 'Type a name or handle to find a developer'
+                                : 'Searching…'}
                         </div>
                     )}
 

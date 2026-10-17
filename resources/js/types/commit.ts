@@ -18,6 +18,7 @@ export type LinkPreview = {
     description: string | null;
     image_url: string | null;
     site_name: string | null;
+    is_pending: boolean;
     embed?: Embed | null;
 };
 
@@ -87,12 +88,15 @@ export type QuotedCommit = Pick<
     | 'user_id'
     | 'body'
     | 'body_segments'
+    | 'preview_segments'
     | 'status'
     | 'created_at'
     | 'deleted_at'
     | 'user'
     | 'replies_count'
     | 'poll'
+    | 'link_preview'
+    | 'images'
 >;
 
 export type DeletedCommit = {

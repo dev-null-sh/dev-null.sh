@@ -1,4 +1,4 @@
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, WrapText } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useClipboard } from '@/hooks/use-clipboard';
@@ -16,6 +16,7 @@ export function CodeBlock({
     const codeRef = useRef<HTMLPreElement>(null);
     const [, copy] = useClipboard();
     const [isCopied, setIsCopied] = useState(false);
+    const [isWrapped, setIsWrapped] = useState(false);
 
     useEffect(() => {
         if (!isCopied) {
@@ -47,61 +48,73 @@ export function CodeBlock({
     };
 
     return (
-        <div className="group/code relative my-2 rounded-md border bg-muted/60">
+        <div className="my-2 rounded-md border bg-muted/60">
+            {(language || isCopyable) && (
+                <div className="flex h-8 items-center justify-between gap-2 border-b pr-1 pl-3">
+                    <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground select-none">
+                        {language}
+                    </span>
+                    {isCopyable && (
+                        <div className="flex shrink-0 items-center gap-0.5">
+                            <button
+                                type="button"
+                                onClick={() => setIsWrapped(!isWrapped)}
+                                aria-label="Wrap lines"
+                                aria-pressed={isWrapped}
+                                title="Wrap lines"
+                                className={cn(
+                                    'grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                                    isWrapped && 'bg-muted text-foreground',
+                                )}
+                            >
+                                <WrapText className="size-3.5" aria-hidden />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={copyCode}
+                                aria-label="Copy code"
+                                title="Copy code"
+                                className={cn(
+                                    'relative grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                                    isCopied && 'text-foreground',
+                                )}
+                            >
+                                <Copy
+                                    className={cn(
+                                        'absolute size-3.5 transition-[opacity,scale,filter] duration-200 motion-reduce:transition-none',
+                                        isCopied &&
+                                            'scale-50 opacity-0 blur-[2px]',
+                                    )}
+                                    aria-hidden
+                                />
+                                <Check
+                                    className={cn(
+                                        'absolute size-3.5 transition-[opacity,scale,filter] duration-200 motion-reduce:transition-none',
+                                        !isCopied &&
+                                            'scale-50 opacity-0 blur-[2px]',
+                                    )}
+                                    aria-hidden
+                                />
+                            </button>
+                            <span role="status" className="sr-only">
+                                {isCopied ? 'Code copied to clipboard' : ''}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            )}
             {/* The server escapes the code while highlighting it. */}
             <pre
                 ref={codeRef}
                 tabIndex={isCopyable ? undefined : -1}
-                className="overflow-x-auto px-3 py-2.5 font-mono text-[13px] leading-normal wrap-normal whitespace-pre"
+                className={cn(
+                    'px-3 py-2.5 font-mono text-[13px] leading-normal',
+                    isWrapped
+                        ? 'overflow-x-hidden wrap-anywhere whitespace-pre-wrap'
+                        : 'overflow-x-auto wrap-normal whitespace-pre',
+                )}
                 dangerouslySetInnerHTML={{ __html: html }}
             />
-            <div className="absolute top-1.5 right-1.5 grid place-items-center *:[grid-area:1/1]">
-                {language && (
-                    <span
-                        className={cn(
-                            'rounded-sm bg-muted px-1.5 font-mono text-[11px] text-muted-foreground select-none',
-                            isCopyable &&
-                                'transition-opacity group-hover/code:opacity-0 group-has-focus-visible/code:opacity-0 [@media(hover:none)]:opacity-0',
-                            isCopied && 'opacity-0',
-                        )}
-                    >
-                        {language}
-                    </span>
-                )}
-                {isCopyable && (
-                    <>
-                        <button
-                            type="button"
-                            onClick={copyCode}
-                            aria-label="Copy code"
-                            title="Copy code"
-                            className={cn(
-                                'relative grid size-7 place-items-center rounded-md bg-muted text-muted-foreground opacity-0 transition group-hover/code:opacity-100 group-has-focus-visible/code:opacity-100 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [@media(hover:none)]:opacity-100',
-                                isCopied && 'text-foreground opacity-100',
-                            )}
-                        >
-                            <Copy
-                                className={cn(
-                                    'absolute size-3.5 transition-[opacity,scale,filter] duration-200 motion-reduce:transition-none',
-                                    isCopied && 'scale-50 opacity-0 blur-[2px]',
-                                )}
-                                aria-hidden
-                            />
-                            <Check
-                                className={cn(
-                                    'absolute size-3.5 transition-[opacity,scale,filter] duration-200 motion-reduce:transition-none',
-                                    !isCopied &&
-                                        'scale-50 opacity-0 blur-[2px]',
-                                )}
-                                aria-hidden
-                            />
-                        </button>
-                        <span role="status" className="sr-only">
-                            {isCopied ? 'Code copied to clipboard' : ''}
-                        </span>
-                    </>
-                )}
-            </div>
         </div>
     );
 }

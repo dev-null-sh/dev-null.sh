@@ -8,6 +8,7 @@ use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
+use App\Http\Controllers\CommitLinkPreviewController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPastelController;
 use App\Http\Controllers\CommitPhotoController;
@@ -54,6 +55,7 @@ use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
+use App\Http\Controllers\UserTimezoneController;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\SignInLocalDeveloper;
 use App\Http\Middleware\ThrottleCommits;
@@ -130,6 +132,8 @@ Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageCont
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
+    ->name('commit-link-preview.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');
@@ -254,6 +258,9 @@ Route::middleware('auth')->group(function (): void {
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
+
+    // User Timezone...
+    Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
 
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
 

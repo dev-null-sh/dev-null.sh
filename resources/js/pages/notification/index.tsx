@@ -931,7 +931,8 @@ function NotificationContent({
         />
     );
     const href =
-        notification.type === 'followed'
+        notification.type === 'followed' ||
+        (!summary && notification.type === 'starred')
             ? show(actor)
             : CommitController.show({
                   user: isOwnCommit ? user : actor,

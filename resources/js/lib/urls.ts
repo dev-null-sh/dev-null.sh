@@ -42,3 +42,22 @@ export function hostname(url: string): string {
         return url;
     }
 }
+
+/**
+ * GitHub serves avatars at 460px unless asked for less, so they are fetched at the size they are drawn.
+ */
+export function sizedAvatarUrl(url: string, pixels: number): string {
+    try {
+        const avatar = new URL(url);
+
+        if (avatar.hostname !== 'avatars.githubusercontent.com') {
+            return url;
+        }
+
+        avatar.searchParams.set('s', String(pixels));
+
+        return avatar.toString();
+    } catch {
+        return url;
+    }
+}

@@ -3,20 +3,18 @@ import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
-import { BookmarkButton } from '@/components/bookmark-button';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
-import { CommitReportButton } from '@/components/commit-report-button';
+import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ThreadActions,
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
-import { CopyLinkButton } from '@/components/copy-link-button';
 import {
     GraphRail,
     RailAvatar,
@@ -25,6 +23,7 @@ import {
 } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
+import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
@@ -203,23 +202,23 @@ export function CommitCard({
                                 >
                                     ·
                                 </span>
-                                <Link
-                                    href={permalink}
-                                    className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
-                                    data-test="commit-permalink"
+                                <TimestampTooltip
+                                    date={commit.created_at}
+                                    author={commit.user}
                                 >
-                                    <time
-                                        dateTime={commit.created_at}
-                                        title={new Date(
-                                            commit.created_at,
-                                        ).toLocaleString()}
+                                    <Link
+                                        href={permalink}
+                                        className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
+                                        data-test="commit-permalink"
                                     >
-                                        {formatRelativeTime(
-                                            commit.created_at,
-                                            now,
-                                        )}
-                                    </time>
-                                </Link>
+                                        <time dateTime={commit.created_at}>
+                                            {formatRelativeTime(
+                                                commit.created_at,
+                                                now,
+                                            )}
+                                        </time>
+                                    </Link>
+                                </TimestampTooltip>
 
                                 {commit.status !== 'approved' && (
                                     <span
@@ -318,13 +317,25 @@ export function CommitCard({
                                 />
                             )}
                             {commit.link_preview && (
-                                <LinkPreview preview={commit.link_preview} />
+                                <LinkPreview
+                                    commitId={commit.id}
+                                    preview={commit.link_preview}
+                                />
                             )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
-                                    <time dateTime={commit.created_at}>
-                                        {formatFullDateTime(commit.created_at)}
-                                    </time>
+                                    <TimestampTooltip
+                                        date={commit.created_at}
+                                        author={commit.user}
+                                    >
+                                        <time dateTime={commit.created_at}>
+                                            {formatFullDateTime(
+                                                commit.created_at,
+                                                auth.user?.timezone ??
+                                                    undefined,
+                                            )}
+                                        </time>
+                                    </TimestampTooltip>
                                     <span aria-hidden> · </span>
                                     <span
                                         title={`Commit ${commit.id}`}
@@ -351,13 +362,7 @@ export function CommitCard({
                                             keyShortcut="q"
                                         />
                                     </div>
-                                    <div className="ml-auto flex items-center gap-0.5">
-                                        {commit.is_saved !== undefined && (
-                                            <BookmarkButton commit={commit} />
-                                        )}
-                                        <CopyLinkButton commit={commit} />
-                                        <CommitReportButton commit={commit} />
-                                    </div>
+                                    <CommitSecondaryActions commit={commit} />
                                 </div>
                             ) : (
                                 <ThreadActions

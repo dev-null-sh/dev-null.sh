@@ -11,8 +11,13 @@ export type UseImageAttachmentsReturn = {
     readonly remove: (index: number) => void;
     readonly clear: () => void;
     readonly onPaste: (event: ClipboardEvent<HTMLElement>) => void;
-    readonly onDragOver: (event: DragEvent<HTMLElement>) => void;
-    readonly onDrop: (event: DragEvent<HTMLElement>) => void;
+    readonly isDraggingFiles: boolean;
+    readonly dropzone: {
+        readonly onDragEnter: (event: DragEvent<HTMLElement>) => void;
+        readonly onDragOver: (event: DragEvent<HTMLElement>) => void;
+        readonly onDragLeave: (event: DragEvent<HTMLElement>) => void;
+        readonly onDrop: (event: DragEvent<HTMLElement>) => void;
+    };
 };
 
 const hasFiles = (dataTransfer: DataTransfer): boolean =>
@@ -27,6 +32,7 @@ export function useImageAttachments(
     onChange: (images: File[], descriptions: string[]) => void,
 ): UseImageAttachmentsReturn {
     const [error, setError] = useState<string | null>(null);
+    const [dragDepth, setDragDepth] = useState(0);
 
     const attach = (files: File[]) => {
         if (files.length === 0) {
@@ -76,16 +82,32 @@ export function useImageAttachments(
                 attach(files);
             }
         },
-        onDragOver: (event) => {
-            if (hasFiles(event.dataTransfer)) {
-                event.preventDefault();
-            }
-        },
-        onDrop: (event) => {
-            if (hasFiles(event.dataTransfer)) {
-                event.preventDefault();
-                attach(Array.from(event.dataTransfer.files));
-            }
+        isDraggingFiles: dragDepth > 0,
+        dropzone: {
+            onDragEnter: (event) => {
+                if (hasFiles(event.dataTransfer)) {
+                    event.preventDefault();
+                    setDragDepth((depth) => depth + 1);
+                }
+            },
+            onDragOver: (event) => {
+                if (hasFiles(event.dataTransfer)) {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'copy';
+                }
+            },
+            onDragLeave: (event) => {
+                if (hasFiles(event.dataTransfer)) {
+                    setDragDepth((depth) => Math.max(0, depth - 1));
+                }
+            },
+            onDrop: (event) => {
+                if (hasFiles(event.dataTransfer)) {
+                    event.preventDefault();
+                    setDragDepth(0);
+                    attach(Array.from(event.dataTransfer.files));
+                }
+            },
         },
     };
 }

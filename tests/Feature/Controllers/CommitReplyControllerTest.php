@@ -13,6 +13,25 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
+it('rejects non-text reply bodies with a validation error', function (mixed $body): void {
+    $parent = Commit::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', $parent), ['body' => $body])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('body');
+
+    expect($parent->replies()->count())->toBe(0)
+        ->and(LinkPreview::query()->count())->toBe(0);
+})->with([
+    'list' => [['Hello, world!']],
+    'object' => [['text' => 'Hello, world!']],
+    'empty array' => [[]],
+    'number' => [123],
+    'boolean' => [true],
+    'null' => [null],
+]);
+
 it('lists visible replies oldest first with their own reply counts', function (): void {
     $viewer = User::factory()->create();
     $parent = Commit::factory()->create();
@@ -329,6 +348,26 @@ it('may attach images to a reply', function (): void {
         ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(2);
 });
 
+it('may reply with images without a body', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit-reply.store', $parent), [
+            'body' => '',
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ], ['Accept' => 'application/json'])
+        ->assertCreated();
+
+    $reply = $user->commits()->sole();
+
+    expect($reply->body)->toBe('')
+        ->and($reply->parent_id)->toBe($parent->id)
+        ->and($reply->images)->toHaveCount(1);
+});
+
 it('may describe the images attached to a reply', function (): void {
     Storage::fake();
 
@@ -370,7 +409,7 @@ it('may not describe an image of a reply in more than a thousand characters', fu
     expect($user->commits()->count())->toBe(0);
 });
 
-it('may only attach jpeg, png, gif or webp images to a reply', function (): void {
+it('may only attach jpeg, png or webp images to a reply', function (): void {
     Storage::fake();
 
     $user = User::factory()->create();
