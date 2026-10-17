@@ -23,6 +23,7 @@ import {
 } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
+import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
@@ -47,6 +48,7 @@ export function CommitCard({
     isHighlighted = false,
     isGroupedWithPrevious = false,
     onAuthorHover,
+    onHover,
     actions,
     isFocused = false,
     canDelete = true,
@@ -66,6 +68,7 @@ export function CommitCard({
     isHighlighted?: boolean;
     isGroupedWithPrevious?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
+    onHover?: (isHovering: boolean) => void;
     actions?: ReactNode;
     isFocused?: boolean;
     canDelete?: boolean;
@@ -84,6 +87,7 @@ export function CommitCard({
     } = usePage();
     const now = useNow();
     const nodeRef = useRef<HTMLAnchorElement>(null);
+    const deleteButtonRef = useRef<HTMLButtonElement>(null);
     const thread = useThread(commit, initialReplies, loadsReplies);
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
@@ -94,6 +98,11 @@ export function CommitCard({
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
+
+    const cancelDeletion = () => {
+        setDeletion('idle');
+        deleteButtonRef.current?.focus();
+    };
 
     const deleteCommit = () => {
         setDeletion('deleting');
@@ -125,6 +134,11 @@ export function CommitCard({
             data-commit={commit.id}
             data-permalink={permalink.url}
             data-test="commit"
+            onPointerEnter={
+                onHover &&
+                ((event) => event.pointerType === 'mouse' && onHover(true))
+            }
+            onPointerLeave={onHover && (() => onHover(false))}
         >
             <div className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]">
                 <GraphRail
@@ -172,7 +186,11 @@ export function CommitCard({
                         hasVisibleReplies ? 'pt-3' : 'border-b py-3',
                     )}
                 >
-                    <div className="flex">
+                    <div
+                        className={cn('flex transition-opacity duration-200', {
+                            'opacity-50': isDimmed,
+                        })}
+                    >
                         <div className="min-w-0 flex-1">
                             <div className="flex items-baseline gap-1.5 text-[15px]">
                                 <UserPreview
@@ -201,23 +219,23 @@ export function CommitCard({
                                 >
                                     ·
                                 </span>
-                                <Link
-                                    href={permalink}
-                                    className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
-                                    data-test="commit-permalink"
+                                <TimestampTooltip
+                                    date={commit.created_at}
+                                    author={commit.user}
                                 >
-                                    <time
-                                        dateTime={commit.created_at}
-                                        title={new Date(
-                                            commit.created_at,
-                                        ).toLocaleString()}
+                                    <Link
+                                        href={permalink}
+                                        className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
+                                        data-test="commit-permalink"
                                     >
-                                        {formatRelativeTime(
-                                            commit.created_at,
-                                            now,
-                                        )}
-                                    </time>
-                                </Link>
+                                        <time dateTime={commit.created_at}>
+                                            {formatRelativeTime(
+                                                commit.created_at,
+                                                now,
+                                            )}
+                                        </time>
+                                    </Link>
+                                </TimestampTooltip>
 
                                 {commit.status !== 'approved' && (
                                     <span
@@ -257,6 +275,7 @@ export function CommitCard({
 
                                     {isDeletable && (
                                         <button
+                                            ref={deleteButtonRef}
                                             type="button"
                                             onClick={() =>
                                                 setDeletion('confirming')
@@ -292,6 +311,7 @@ export function CommitCard({
                             )}
                             <FoldedCommitBody
                                 segments={commit.body_segments}
+                                mentions={commit.mentions}
                                 previewSegments={
                                     isFolded && !isFocused
                                         ? commit.preview_segments
@@ -323,9 +343,18 @@ export function CommitCard({
                             )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
-                                    <time dateTime={commit.created_at}>
-                                        {formatFullDateTime(commit.created_at)}
-                                    </time>
+                                    <TimestampTooltip
+                                        date={commit.created_at}
+                                        author={commit.user}
+                                    >
+                                        <time dateTime={commit.created_at}>
+                                            {formatFullDateTime(
+                                                commit.created_at,
+                                                auth.user?.timezone ??
+                                                    undefined,
+                                            )}
+                                        </time>
+                                    </TimestampTooltip>
                                     <span aria-hidden> · </span>
                                     <span
                                         title={`Commit ${commit.id}`}
@@ -395,7 +424,7 @@ export function CommitCard({
                                     aria-label="Confirm delete"
                                     onKeyDown={(event) => {
                                         if (event.key === 'Escape') {
-                                            setDeletion('idle');
+                                            cancelDeletion();
                                         }
                                     }}
                                     className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
@@ -408,7 +437,7 @@ export function CommitCard({
                                         variant="ghost"
                                         size="sm"
                                         autoFocus
-                                        onClick={() => setDeletion('idle')}
+                                        onClick={cancelDeletion}
                                     >
                                         Cancel
                                     </Button>
@@ -440,7 +469,14 @@ export function CommitCard({
                                 'border-b pb-3': hasVisibleReplies,
                             })}
                         >
-                            <ThreadReplies thread={thread} depth={0} />
+                            <div
+                                className={cn(
+                                    'transition-opacity duration-200',
+                                    { 'opacity-50': isDimmed },
+                                )}
+                            >
+                                <ThreadReplies thread={thread} depth={0} />
+                            </div>
                         </div>
                     </>
                 )}

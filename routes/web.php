@@ -23,22 +23,40 @@ use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
+use App\Http\Controllers\ConversationArchiveController;
+use App\Http\Controllers\ConversationController;
+use App\Http\Controllers\ConversationDropController;
+use App\Http\Controllers\ConversationMergeController;
+use App\Http\Controllers\ConversationMessageController;
+use App\Http\Controllers\ConversationReadController;
+use App\Http\Controllers\ConversationTypingController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
+use App\Http\Controllers\InboxController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\OrgArchiveController;
+use App\Http\Controllers\OrgController;
+use App\Http\Controllers\OrgMemberController;
+use App\Http\Controllers\OrgMessageController;
+use App\Http\Controllers\OrgReadController;
+use App\Http\Controllers\OrgTypingController;
+use App\Http\Controllers\PrivacyController;
+use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\TermsController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
@@ -52,8 +70,11 @@ use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPasteisModeController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
+use App\Http\Controllers\UserRemotePreferencesController;
+use App\Http\Controllers\UserRemotesController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
+use App\Http\Controllers\UserTimezoneController;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\SignInLocalDeveloper;
 use App\Http\Middleware\ThrottleCommits;
@@ -71,6 +92,7 @@ Route::middleware('guest')->group(function (): void {
 
     // Session...
     Route::get('login', [SessionController::class, 'create'])
+        ->middleware('throttle:10,1')
         ->name('login');
     Route::get('auth/github/callback', [SessionController::class, 'store'])
         ->middleware('throttle:10,1')
@@ -80,6 +102,10 @@ Route::middleware('guest')->group(function (): void {
 // Log, where guests read Trending and Latest...
 Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
 Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
+
+// Terms and privacy, readable by everyone...
+Route::get('terms', [TermsController::class, 'show'])->name('terms.show');
+Route::get('privacy', [PrivacyController::class, 'show'])->name('privacy.show');
 
 // Public pages, readable by guests and crawlers...
 Route::middleware(RememberIntendedUrl::class)->group(function (): void {
@@ -109,6 +135,13 @@ Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): 
 });
 
 // User...
+Route::get('mentions/{user}', [MentionController::class, 'show'])
+    ->whereUuid('user')
+    ->name('mention.show');
+Route::get('mentions/{user}/preview', [UserPreviewController::class, 'show'])
+    ->middleware('throttle:people')
+    ->whereUuid('user')
+    ->name('mention.preview');
 Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])
     ->middleware('throttle:people')
     ->name('user-preview.show');
@@ -144,9 +177,6 @@ Route::get('search', [SearchController::class, 'index'])
 Route::get('search/users', [UserSearchController::class, 'index'])
     ->middleware('throttle:people')
     ->name('user-search.index');
-
-// Search...
-Route::get('search', [SearchController::class, 'index'])->name('search.index');
 
 // Commit Search...
 Route::get('search/commits', [CommitSearchController::class, 'index'])
@@ -219,6 +249,50 @@ Route::middleware('auth')->group(function (): void {
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');
     Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('notification-group.show');
 
+    // Messages...
+    Route::get('remotes', [ConversationController::class, 'index'])->name('conversation.index');
+    Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
+    Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereNumber('org')->name('org.show');
+
+    Route::middleware('throttle:conversations')->group(function (): void {
+        Route::get('remotes/inbox', [InboxController::class, 'index'])->name('inbox.index');
+        Route::get('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'index'])
+            ->name('conversation-message.index');
+        Route::put('remotes/@{partner:username}/read', [ConversationReadController::class, 'update'])
+            ->name('conversation-read.update');
+        Route::put('remotes/@{partner:username}/typing', [ConversationTypingController::class, 'update'])
+            ->name('conversation-typing.update');
+        Route::post('remotes/@{partner:username}/merge', [ConversationMergeController::class, 'store'])
+            ->name('conversation-merge.store');
+        Route::post('remotes/@{partner:username}/drop', [ConversationDropController::class, 'store'])
+            ->name('conversation-drop.store');
+        Route::put('remotes/preferences', [UserRemotePreferencesController::class, 'update'])
+            ->name('user-remote-preferences.update');
+        Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('remote-candidate.index');
+        Route::post('remotes/orgs', [OrgController::class, 'store'])->name('org.store');
+        Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereNumber('org')->name('org.update');
+        Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereNumber('org')->name('org-message.index');
+        Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereNumber('org')->name('org-read.update');
+        Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereNumber('org')->name('org-typing.update');
+        Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereNumber('org')->name('org-archive.store');
+        Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereNumber('org')->name('org-archive.destroy');
+        Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereNumber('org')->name('org-member.store');
+        Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])->whereNumber('org')->withoutScopedBindings()->name('org-member.update');
+        Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])->whereNumber('org')->withoutScopedBindings()->name('org-member.destroy');
+        Route::post('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'store'])
+            ->name('conversation-archive.store');
+        Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
+            ->name('conversation-archive.destroy');
+    });
+
+    Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])
+        ->middleware('throttle:messages')
+        ->name('conversation-message.store');
+    Route::post('remotes/orgs/{org}/messages', [OrgMessageController::class, 'store'])
+        ->whereNumber('org')
+        ->middleware('throttle:messages')
+        ->name('org-message.store');
+
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
@@ -256,7 +330,12 @@ Route::middleware('auth')->group(function (): void {
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
 
+    // User Timezone...
+    Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
+
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
+
+    Route::put('settings/remotes', [UserRemotesController::class, 'update'])->name('user-remotes.update');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');

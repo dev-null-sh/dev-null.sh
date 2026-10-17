@@ -63,7 +63,7 @@ final readonly class CommitSearchQuery
 
     /**
      * The vector search is generous: the nearest by meaning can include posts that merely share a word with the term.
-     * The decision model reads the term against each candidate and keeps only the ones actually about it, so the
+     * The decision model reads the term against each candidate and keeps meaningful connections to it, so the
      * caller may get fewer than it asked for.
      *
      * @param  Collection<int, Commit>  $candidates

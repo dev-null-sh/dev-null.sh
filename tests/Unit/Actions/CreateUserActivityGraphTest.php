@@ -161,6 +161,14 @@ it('draws in the colors of the theme and the lane of the user', function (Activi
     'auto' => [ActivityGraphTheme::Auto, ['#ffffff', '#9c36b5', '@media (prefers-color-scheme: dark)', '#18181a', '#da77f2'], []],
 ]);
 
+it('draws in the custom color of the user in every theme', function (ActivityGraphTheme $theme): void {
+    $user = User::factory()->create(['lane_color' => '#1a2b3c']);
+
+    $svg = resolve(CreateUserActivityGraph::class)->handle($user, $theme);
+
+    expect($svg)->toContain('.lane{fill:#1a2b3c}', '.l4{fill:#1a2b3c}');
+})->with([ActivityGraphTheme::Light, ActivityGraphTheme::Dark]);
+
 it('mixes the lower levels from the lane into the card like the profile does', function (ActivityGraphTheme $theme, array $levels): void {
     $user = User::factory()->create(['preferred_lane' => 0]);
 

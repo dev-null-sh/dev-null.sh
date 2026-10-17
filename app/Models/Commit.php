@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $root_id
  * @property-read float $hot_score
  * @property-read string $body
+ * @property-read array<string, string>|null $mentions
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
  * @property-read string|null $quoted_commit_id
@@ -101,6 +102,7 @@ final class Commit extends Model
             'hot_score' => 'float',
             'pasteis_count' => 'integer',
             'body' => 'string',
+            'mentions' => 'array',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
             'quoted_commit_id' => 'string',
@@ -270,10 +272,10 @@ final class Commit extends Model
      */
     public function openGraphImageVersion(): string
     {
-        return hash('xxh3', implode(':', [
-            $this->updated_at->getTimestamp(),
+        return hash('xxh3', (string) json_encode([
+            $this->body,
             $this->replies_count,
-            $this->user?->updated_at->getTimestamp(),
+            $this->user?->openGraphIdentity(),
             $this->parent?->user?->username,
         ]));
     }

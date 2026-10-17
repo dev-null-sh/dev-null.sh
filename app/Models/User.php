@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Actions\CreateTomFriendship;
 use App\Enums\Log;
+use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -31,11 +32,16 @@ use Illuminate\Support\Facades\DB;
  * @property-read string|null $company
  * @property-read bool $has_sponsors_listing
  * @property-read int|null $preferred_lane
+ * @property-read string|null $lane_color
  * @property-read bool $pasteis_mode
+ * @property-read bool $remotes_enabled
+ * @property-read RemotesFrom $remotes_from
+ * @property-read bool $pull_receipts
  * @property-read int $pasteis_received
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read string|null $timezone
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
@@ -63,7 +69,11 @@ use Illuminate\Support\Facades\DB;
     'email',
     'remember_token',
     'preferred_lane',
+    'lane_color',
     'pasteis_mode',
+    'remotes_enabled',
+    'remotes_from',
+    'pull_receipts',
     'pasteis_received',
     'pasteis_given_today',
     'pasteis_given_on',
@@ -88,6 +98,9 @@ final class User extends Authenticatable
     protected $attributes = [
         'log' => Log::Following->value,
         'pasteis_mode' => false,
+        'remotes_enabled' => true,
+        'remotes_from' => RemotesFrom::Following->value,
+        'pull_receipts' => true,
         'pasteis_received' => 0,
         'pasteis_given_today' => 0,
         'pasteis_given_on' => null,
@@ -111,11 +124,16 @@ final class User extends Authenticatable
             'company' => 'string',
             'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
+            'lane_color' => 'string',
             'pasteis_mode' => 'boolean',
+            'remotes_enabled' => 'boolean',
+            'remotes_from' => RemotesFrom::class,
+            'pull_receipts' => 'boolean',
             'pasteis_received' => 'integer',
             'pasteis_given_today' => 'integer',
             'pasteis_given_on' => 'date',
             'pinned_commit_id' => 'string',
+            'timezone' => 'string',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
@@ -263,12 +281,23 @@ final class User extends Authenticatable
      */
     public function openGraphImageVersion(): string
     {
-        return hash('xxh3', implode(':', [
-            $this->updated_at->getTimestamp(),
+        return hash('xxh3', (string) json_encode([
+            ...$this->openGraphIdentity(),
+            $this->bio,
             $this->commits_count,
             $this->following_count,
             $this->followers_count,
         ]));
+    }
+
+    /**
+     * What every link preview image draws of the user, so saving anything else leaves them cached.
+     *
+     * @return list<int|string|null>
+     */
+    public function openGraphIdentity(): array
+    {
+        return [$this->name, $this->username, $this->avatar_url, $this->lane()];
     }
 
     /**
@@ -300,6 +329,25 @@ final class User extends Authenticatable
     public function hasBlockWith(self $user): bool
     {
         return $this->blockerIdWith($user) !== null;
+    }
+
+    /**
+     * Whether the user can have a conversation with someone at all: remotes on, someone else, and no block between
+     * them. Whether they may push to it right now is the conversation's own business.
+     */
+    public function canMessage(self $user): bool
+    {
+        return $this->remotes_enabled && ! $this->is($user) && ! $this->hasBlockWith($user);
+    }
+
+    /**
+     * Whether a first message from the sender opens the conversation straight away. When it doesn't, it waits
+     * fetched for a merge, or can't be sent at all while requests are off. Site admins can always reach anyone with
+     * remotes on.
+     */
+    public function acceptsRemotesFrom(self $sender): bool
+    {
+        return $sender->isAdmin() || ($this->remotes_from === RemotesFrom::Everyone && config('remotes.everyone')) || $this->isFollowing($sender);
     }
 
     /**
@@ -337,9 +385,14 @@ final class User extends Authenticatable
         return self::DAILY_PASTEIS - ($this->pasteis_given_on?->isToday() ? $this->pasteis_given_today : 0);
     }
 
-    public function lane(): int
+    public function lane(): int|string
     {
-        return $this->preferred_lane ?? $this->automaticLane();
+        return $this->preferredLane() ?? $this->automaticLane();
+    }
+
+    public function preferredLane(): int|string|null
+    {
+        return $this->lane_color ?? $this->preferred_lane;
     }
 
     /**

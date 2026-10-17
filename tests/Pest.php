@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
 use App\Jobs\UnfurlLink;
+use App\Models\Message;
 use App\Models\User;
 use App\Services\OpenAI;
 use Carbon\CarbonInterface;
@@ -28,6 +29,11 @@ pest()->extend(TestCase::class)
         $this->freezeTime();
     })
     ->in('Feature', 'Unit');
+
+pest()->tia()
+    ->locally()
+    ->baselined()
+    ->defaultBranch('production');
 
 expect()->extend('toBeOne', fn () => $this->toBe(1));
 
@@ -226,4 +232,50 @@ function queuedJob(string $queue, CarbonInterface $createdAt): void
         'available_at' => $createdAt->getTimestamp(),
         'created_at' => $createdAt->getTimestamp(),
     ]);
+}
+
+/**
+ * Sends a chat message the way the composer does, so tests start from real conversations.
+ */
+function sendChatMessage(User $sender, User $recipient, string $body = 'hello'): Message
+{
+    test()->actingAs($sender)->postJson(route('conversation-message.store', $recipient), [
+        'body' => $body,
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated();
+
+    return Message::query()->latest('id')->firstOrFail();
+}
+
+/**
+ * People who follow the maintainer, so they can be added to an org.
+ *
+ * @return list<User>
+ */
+function followersOf(User $maintainer, int $count): array
+{
+    return User::factory()->count($count)->create()->each(fn (User $follower) => $follower->following()->attach($maintainer))->all();
+}
+
+/**
+ * Creates an org the way the Remotes page does, and returns its id.
+ *
+ * @param  list<User>  $members
+ */
+function createOrg(User $maintainer, array $members, ?string $name = 'dev/null core'): int
+{
+    return test()->actingAs($maintainer)->postJson(route('org.store'), [
+        'name' => $name,
+        'members' => array_map(fn (User $member): string => $member->username, $members),
+    ])->assertCreated()->json('org.id');
+}
+
+function pushToOrg(User $sender, int $org, string $body = 'hello'): Message
+{
+    test()->actingAs($sender)->postJson(route('org-message.store', $org), [
+        'body' => $body,
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated();
+
+    return Message::query()->latest('id')->firstOrFail();
 }

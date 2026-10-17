@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\ConversationsQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
@@ -50,6 +51,13 @@ final class HandleInertiaRequests extends Middleware
                 'isAdmin' => $isAdmin,
                 'log' => fn (): ?Log => $request->user()?->log,
                 'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user) : 0,
+                'unreadMessagesCount' => fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0,
+                'remotes' => fn (): ?array => $user?->remotes_enabled ? [
+                    'from' => $user->remotes_from,
+                    'pull_receipts' => $user->pull_receipts,
+                    'requests' => (bool) config('remotes.requests'),
+                    'everyone' => (bool) config('remotes.everyone'),
+                ] : null,
                 'pasteis' => fn (): ?array => $user?->pasteis_mode ? [
                     'remaining' => $user->pasteisRemaining(),
                     'day' => today()->toDateString(),
@@ -58,7 +66,8 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            ...$user instanceof User && $showsWhoToFollow ? [
+            // Onboarding has no sidebar to show them in, and the people followed during it change who is suggested.
+            ...$user instanceof User && $showsWhoToFollow && ! $request->routeIs('onboarding.show') ? [
                 'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(
                     $user,
                     round: max(0, (int) $request->cookie('who_to_follow_round')),
