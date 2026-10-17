@@ -24,7 +24,7 @@ final readonly class CreateCommitImageSignedUrl
     /**
      * Only cloud storage serves files itself, and only while the credentials signing the URL outlive it: role credentials can expire first, which would leave the browser holding a dead URL.
      */
-    public function handle(CommitImage $commitImage): ?string
+    public function handle(CommitImage $commitImage, bool $download = false): ?string
     {
         $disk = Storage::disk();
 
@@ -41,7 +41,9 @@ final readonly class CreateCommitImageSignedUrl
 
         return $disk->temporaryUrl($commitImage->path, $expires, [
             'ResponseContentType' => 'image/webp',
-            'ResponseContentDisposition' => 'inline',
+            'ResponseContentDisposition' => $download
+                ? 'attachment; filename="'.$commitImage->id.'.webp"'
+                : 'inline',
             'ResponseCacheControl' => 'private, max-age='.self::MAX_AGE,
         ]);
     }

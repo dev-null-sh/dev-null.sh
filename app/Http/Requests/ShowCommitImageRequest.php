@@ -31,7 +31,9 @@ final class ShowCommitImageRequest extends FormRequest
             return Response::denyAsNotFound();
         }
 
-        $this->signedUrl = $commit->imagesAreVisibleTo(null) ? $action->handle($commitImage) : null;
+        $this->signedUrl = $commit->imagesAreVisibleTo(null)
+            ? $action->handle($commitImage, $this->download())
+            : null;
 
         return $this->signedUrl !== null || Storage::disk()->exists($commitImage->path)
             ? Response::allow()
