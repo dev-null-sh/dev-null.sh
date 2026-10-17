@@ -32,6 +32,8 @@ final class UserFactory extends Factory
             'company' => fake()->company(),
             'has_sponsors_listing' => false,
             'preferred_lane' => null,
+            'timezone' => null,
+            'lane_color' => null,
             'pinned_commit_id' => null,
             'onboarded_at' => now(),
             'remember_token' => Str::random(10),

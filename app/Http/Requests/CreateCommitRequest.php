@@ -56,7 +56,7 @@ final class CreateCommitRequest extends FormRequest
             'images.*' => [
                 'required',
                 'image',
-                File::types(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
+                File::types(['image/jpeg', 'image/png', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
                 Rule::dimensions()
                     ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
                     ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),

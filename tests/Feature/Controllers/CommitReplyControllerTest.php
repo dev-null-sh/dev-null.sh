@@ -409,7 +409,7 @@ it('may not describe an image of a reply in more than a thousand characters', fu
     expect($user->commits()->count())->toBe(0);
 });
 
-it('may only attach jpeg, png, gif or webp images to a reply', function (): void {
+it('may only attach jpeg, png or webp images to a reply', function (): void {
     Storage::fake();
 
     $user = User::factory()->create();
