@@ -28,6 +28,7 @@ test('to array', function (): void {
             'root_id',
             'hot_score',
             'pasteis_count',
+            'disparages_php',
             'body_segments',
             'preview_segments',
         ]);

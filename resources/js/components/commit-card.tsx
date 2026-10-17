@@ -16,6 +16,7 @@ import {
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
+import { CommunityNote } from '@/components/community-note';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import {
     GraphRail,
@@ -320,6 +321,7 @@ export function CommitCard({
                             {commit.link_preview && (
                                 <LinkPreview preview={commit.link_preview} />
                             )}
+                            {commit.disparages_php && <CommunityNote />}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                     <time dateTime={commit.created_at}>

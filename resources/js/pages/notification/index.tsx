@@ -8,6 +8,7 @@ import {
     MessageSquareReply,
     Quote,
     Star,
+    TriangleAlert,
     UserPlus,
     X,
 } from 'lucide-react';
@@ -707,7 +708,9 @@ function NotificationContent({
             ? actorsCount - 1
             : 0;
     const moderation =
-        notification.type === 'approved' || notification.type === 'rejected';
+        notification.type === 'approved' ||
+        notification.type === 'rejected' ||
+        notification.type === 'warned';
     const isOwnCommit = notification.type === 'starred' || moderation;
     const Icon = {
         followed: UserPlus,
@@ -717,6 +720,7 @@ function NotificationContent({
         mentioned: AtSign,
         approved: Check,
         rejected: X,
+        warned: TriangleAlert,
     }[notification.type];
     const icon = (
         <Icon
@@ -752,6 +756,7 @@ function NotificationContent({
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
+        warned: 'Your commit claims PHP is worse than another language, so a community note was added',
     }[notification.type];
     const excerpt =
         notification.type === 'followed' ? null : isOwnCommit ? (

@@ -79,6 +79,7 @@ export type Commit = {
     images?: CommitImage[];
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
+    disparages_php: boolean;
 };
 
 export type QuotedCommit = Pick<

@@ -66,7 +66,7 @@ final readonly class NotificationGroupsQuery
                 'stars' => ['starred'],
                 'mentions' => ['mentioned'],
                 'follows' => ['followed'],
-                'moderation' => ['approved', 'rejected'],
+                'moderation' => ['approved', 'rejected', 'warned'],
                 default => [],
             }));
 

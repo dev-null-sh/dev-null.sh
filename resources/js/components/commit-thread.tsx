@@ -22,6 +22,7 @@ import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitReportButton } from '@/components/commit-report-button';
 import { CommitStarButton } from '@/components/commit-star-button';
+import { CommunityNote } from '@/components/community-note';
 import {
     ComposerPreviewBody,
     PreviewToggle,
@@ -867,6 +868,7 @@ function CommitReply({
                     {reply.link_preview && (
                         <LinkPreview preview={reply.link_preview} />
                     )}
+                    {reply.disparages_php && <CommunityNote />}
 
                     {isConfirming ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-destructive/8 px-3 py-1.5 text-sm">

@@ -91,7 +91,14 @@ it('stores that the ai would approve a commit it does not flag', function (): vo
         && $request['text']['format']['name'] === 'harmful'
         && $request['input'][1]['content'] === [['type' => 'input_text', 'text' => 'Shipped a new feature']]);
 
-    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
+        && $request['text']['format']['name'] === 'disparages_php'
+        && $request['input'][1]['content'] === [['type' => 'input_text', 'text' => 'Shipped a new feature']]);
+
+    Http::assertSentCount(3);
+
+    expect($commit->disparages_php)->toBeFalse()
+        ->and(Notification::query()->where('commit_id', $commit->id)->exists())->toBeFalse();
 });
 
 it('auto-approves clean commits only for authors with an approved commit', function (CommitStatus $previousStatus, bool $sameAuthor, bool $deleted, bool $anonymous, CommitStatus $expected): void {
@@ -331,6 +338,61 @@ it('flags text when the reasoning model gives no clear answer', function (array 
     expect($commit->refresh())
         ->ai_decision->toBe(CommitStatus::Rejected)
         ->ai_categories->toBe(['harmful-text']);
+})->with('unclear answers');
+
+it('adds a community note to a commit claiming php is worse, and warns its author, without rejecting it', function (): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(['disparages_php' => reviewResponse('disparages_php', true)]),
+    ]);
+
+    $commit = Commit::factory()->pending()->create(['body' => 'JavaScript is better than PHP']);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->disparages_php->toBeTrue()
+        ->ai_decision->toBe(CommitStatus::Approved)
+        ->ai_categories->toBe([])
+        ->status->toBe(CommitStatus::Pending);
+
+    $notification = Notification::query()->where('commit_id', $commit->id)->sole();
+
+    expect($notification)
+        ->type->toBe(NotificationType::Warned)
+        ->recipient_id->toBe($commit->user_id)
+        ->actor_id->toBe($commit->user_id);
+});
+
+it('warns the author of a commit only once', function (): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(['disparages_php' => reviewResponse('disparages_php', true)]),
+    ]);
+
+    $commit = Commit::factory()->pending()->create(['body' => 'PHP is dead']);
+
+    dispatch_sync(new ModerateCommit($commit));
+    dispatch_sync(new ModerateCommit($commit->refresh()));
+
+    expect(Notification::query()->where('commit_id', $commit->id)->count())->toBe(1);
+});
+
+it('adds no community note when the reasoning model gives no clear answer about php', function (array $response): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(['disparages_php' => $response]),
+    ]);
+
+    $commit = Commit::factory()->pending()->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->disparages_php->toBeFalse()
+        ->ai_decision->toBe(CommitStatus::Approved);
+
+    expect(Notification::query()->where('commit_id', $commit->id)->exists())->toBeFalse();
 })->with('unclear answers');
 
 it('skips commits that were moderated in the meantime', function (): void {
