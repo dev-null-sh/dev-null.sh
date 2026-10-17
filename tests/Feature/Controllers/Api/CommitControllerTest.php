@@ -97,6 +97,7 @@ it('includes the link preview without internal fields', function (): void {
             'description' => $preview->description,
             'image_url' => $preview->image_url,
             'site_name' => $preview->site_name,
+            'is_pending' => false,
             'embed' => null,
         ]);
 });
@@ -113,6 +114,7 @@ it('includes the embed of the link preview', function (): void {
             'src' => 'https://open.spotify.com/embed/track/4cOdK2wGLETKBW3PvgPWqT',
             'aspect_ratio' => null,
             'height' => 152,
+            'poster' => null,
         ]);
 });
 

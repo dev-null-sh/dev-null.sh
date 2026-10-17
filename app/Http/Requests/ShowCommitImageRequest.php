@@ -34,4 +34,9 @@ final class ShowCommitImageRequest extends FormRequest
     {
         return [];
     }
+
+    public function download(): bool
+    {
+        return $this->boolean('download');
+    }
 }

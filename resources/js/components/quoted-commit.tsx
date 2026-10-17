@@ -1,7 +1,9 @@
 import { Link } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
+import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
+import { LinkPreview } from '@/components/link-preview';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
@@ -69,10 +71,19 @@ export function QuotedCommit({
             </span>
             <CommitBodyExcerpt
                 segments={commit.body_segments}
+                previewSegments={commit.preview_segments}
                 className="mt-1 max-h-60"
             />
+            {commit.images && <CommitImages images={commit.images} />}
             {commit.poll && (
                 <CommitPoll commit={commit} poll={commit.poll} isStatic />
+            )}
+            {commit.link_preview && (
+                <LinkPreview
+                    commitId={commit.id}
+                    preview={commit.link_preview}
+                    isStatic
+                />
             )}
         </>
     );

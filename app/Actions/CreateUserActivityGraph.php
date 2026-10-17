@@ -140,7 +140,7 @@ final readonly class CreateUserActivityGraph
         return $labels;
     }
 
-    private function styles(ActivityGraphTheme $theme, int $lane): string
+    private function styles(ActivityGraphTheme $theme, int|string $lane): string
     {
         return match ($theme) {
             ActivityGraphTheme::Light => $this->palette(self::LIGHT, $lane),
@@ -152,18 +152,20 @@ final readonly class CreateUserActivityGraph
     /**
      * @param  array{card: string, border: string, ink: string, muted: string, empty: string, lanes: list<string>}  $palette
      */
-    private function palette(array $palette, int $lane): string
+    private function palette(array $palette, int|string $lane): string
     {
+        $color = is_string($lane) ? $lane : $palette['lanes'][$lane];
+
         $rules = [
             '.card' => "fill:{$palette['card']};stroke:{$palette['border']}",
             '.ink' => "fill:{$palette['ink']}",
             '.muted' => "fill:{$palette['muted']}",
-            '.lane' => "fill:{$palette['lanes'][$lane]}",
+            '.lane' => "fill:{$color}",
             '.l0' => "fill:{$palette['empty']}",
         ];
 
         foreach (self::LEVEL_MIX as $level => $amount) {
-            $rules[".l{$level}"] = 'fill:'.$this->mix($palette['lanes'][$lane], $palette['card'], $amount);
+            $rules[".l{$level}"] = 'fill:'.$this->mix($color, $palette['card'], $amount);
         }
 
         return implode('', array_map(

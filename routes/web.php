@@ -8,6 +8,7 @@ use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
+use App\Http\Controllers\CommitLinkPreviewController;
 use App\Http\Controllers\CommitOpenGraphImageController;
 use App\Http\Controllers\CommitPastelController;
 use App\Http\Controllers\CommitPhotoController;
@@ -32,12 +33,14 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\TermsController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
@@ -53,6 +56,7 @@ use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
+use App\Http\Controllers\UserTimezoneController;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\SignInLocalDeveloper;
 use App\Http\Middleware\ThrottleCommits;
@@ -79,6 +83,10 @@ Route::middleware('guest')->group(function (): void {
 // Log, where guests read Trending and Latest...
 Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
 Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
+
+// Terms and privacy, readable by everyone...
+Route::get('terms', [TermsController::class, 'show'])->name('terms.show');
+Route::get('privacy', [PrivacyController::class, 'show'])->name('privacy.show');
 
 // Public pages, readable by guests and crawlers...
 Route::middleware(RememberIntendedUrl::class)->group(function (): void {
@@ -129,6 +137,8 @@ Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageCont
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
+    ->name('commit-link-preview.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');
@@ -141,9 +151,6 @@ Route::get('search', [SearchController::class, 'index'])
 Route::get('search/users', [UserSearchController::class, 'index'])
     ->middleware('throttle:people')
     ->name('user-search.index');
-
-// Search...
-Route::get('search', [SearchController::class, 'index'])->name('search.index');
 
 // Commit Search...
 Route::get('search/commits', [CommitSearchController::class, 'index'])
@@ -252,6 +259,9 @@ Route::middleware('auth')->group(function (): void {
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');
+
+    // User Timezone...
+    Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
 
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
 

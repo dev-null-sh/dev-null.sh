@@ -8,8 +8,8 @@ use App\Models\User;
 
 final readonly class UpdateUserLane
 {
-    public function handle(User $user, ?int $lane): void
+    public function handle(User $user, ?int $lane, ?string $color): void
     {
-        $user->update(['preferred_lane' => $lane]);
+        $user->update(['preferred_lane' => $lane, 'lane_color' => $color]);
     }
 }

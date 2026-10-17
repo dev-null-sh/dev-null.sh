@@ -5,13 +5,15 @@ import {
     PanelRightClose,
     PanelRightOpen,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Lightbox from 'yet-another-react-lightbox';
 import type { ControllerRef } from 'yet-another-react-lightbox';
 import Counter from 'yet-another-react-lightbox/plugins/counter';
+import Download from 'yet-another-react-lightbox/plugins/download';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/plugins/counter.css';
 import 'yet-another-react-lightbox/styles.css';
+import { show as showCommitImage } from '@/actions/App/Http/Controllers/CommitImageController';
 import { CommitCard } from '@/components/commit-card';
 import { commitImageAlt } from '@/components/commit-images';
 import { isTyping } from '@/hooks/use-keyboard-shortcuts';
@@ -56,6 +58,26 @@ export function CommitImageViewer() {
         return () => document.removeEventListener('keydown', onKeyDown);
     }, [isOpen]);
 
+    // The lightbox cancels sideways wheel events natively to swipe between photos, before React sees them, so the panel
+    // stops them natively too, or its code blocks can't scroll horizontally. Pinches still must not zoom the page.
+    const keepWheelInPanel = useCallback((panel: HTMLElement | null) => {
+        if (!panel) {
+            return;
+        }
+
+        const onWheel = (event: WheelEvent) => {
+            event.stopPropagation();
+
+            if (event.ctrlKey) {
+                event.preventDefault();
+            }
+        };
+
+        panel.addEventListener('wheel', onWheel, { passive: false });
+
+        return () => panel.removeEventListener('wheel', onWheel);
+    }, []);
+
     const slides = useMemo(
         () =>
             (images ?? []).map((image, index, all) => ({
@@ -63,6 +85,12 @@ export function CommitImageViewer() {
                 alt: commitImageAlt(image, index, all.length),
                 width: image.width,
                 height: image.height,
+                download: {
+                    url: showCommitImage.url(image.id, {
+                        query: { download: 1 },
+                    }),
+                    filename: `${image.id}.webp`,
+                },
             })),
         [images],
     );
@@ -83,7 +111,9 @@ export function CommitImageViewer() {
                     }
                 },
             }}
-            plugins={hasMultipleImages ? [Counter, Zoom] : [Zoom]}
+            plugins={
+                hasMultipleImages ? [Counter, Zoom, Download] : [Zoom, Download]
+            }
             className={cn(
                 '[--commit-panel-height:0px] [--commit-panel-width:0px]',
                 isPanelOpen &&
@@ -192,10 +222,10 @@ export function CommitImageViewer() {
                     photo &&
                     isPanelOpen && (
                         <aside
+                            ref={keepWheelInPanel}
                             aria-label="Commit"
                             className="absolute inset-x-0 bottom-0 h-(--commit-panel-height) touch-auto overflow-y-auto overscroll-contain rounded-t-xl border-t bg-card text-card-foreground select-text lg:inset-x-auto lg:inset-y-0 lg:right-0 lg:h-auto lg:w-(--commit-panel-width) lg:rounded-none lg:border-t-0 lg:border-l"
                             onPointerDown={(event) => event.stopPropagation()}
-                            onWheel={(event) => event.stopPropagation()}
                             onKeyDown={(event) => {
                                 if (isTyping(event.target)) {
                                     event.stopPropagation();

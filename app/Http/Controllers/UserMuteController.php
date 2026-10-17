@@ -21,7 +21,7 @@ final readonly class UserMuteController
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __("Muted @:username. You won't see their commits or hear from them, and they won't know.", ['username' => $user->username]),
+            'message' => "Muted @{$user->username}. You won't see their commits or hear from them, and they won't know.",
         ]);
 
         return back();
@@ -33,7 +33,7 @@ final readonly class UserMuteController
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => __('Unmuted @:username.', ['username' => $user->username]),
+            'message' => "Unmuted @{$user->username}.",
         ]);
 
         return back();

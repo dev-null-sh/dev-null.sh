@@ -7,6 +7,7 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Queries\LatestLogCommitsQuery;
@@ -141,7 +142,7 @@ it('does not count the authenticated user relations when reloading only commits'
 
     expect(collect(DB::getQueryLog())
         ->pluck('query')
-        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*') || str_starts_with($query, 'select * from (select "commits".*'))
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits"."id", "commits"."user_id"') || str_starts_with($query, 'select * from (select "commits"."id"'))
         ->all())
         ->not->toBeEmpty()
         ->each->not->toContain('count(*)');
@@ -410,6 +411,7 @@ it('includes the link previews of commits', function (Log $log): void {
                 'description' => 'The PHP framework for web artisans.',
                 'image_url' => 'https://laravel.com/og.png',
                 'site_name' => 'Laravel',
+                'is_pending' => false,
                 'embed' => null,
             ]));
 })->with(Log::cases());
@@ -438,6 +440,23 @@ it('includes the quoted commits with their authors', function (Log $log): void {
             ->where('commits.data.2.quoted_commit.user.username', 'octocat'))
         ->assertDontSee('A rejected quoted commit')
         ->assertDontSee('A deleted quoted commit');
+})->with(Log::cases());
+
+it('includes the images and link previews of quoted commits', function (Log $log): void {
+    $user = User::factory()->create();
+    $linkPreview = LinkPreview::factory()->fetched()->create(['title' => 'Laravel']);
+    $quoted = Commit::factory()->for($linkPreview)->create(['created_at' => now()->subHour()]);
+    CommitImage::factory()->for($quoted)->create(['width' => 1600, 'height' => 900]);
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.quoted_commit.link_preview.title', 'Laravel')
+            ->has('commits.data.0.quoted_commit.images', 1)
+            ->where('commits.data.0.quoted_commit.images.0.width', 1600));
 })->with(Log::cases());
 
 it('loads the quoted commits of a log without a query per commit', function (Log $log): void {

@@ -58,6 +58,7 @@ final readonly class CreateWorldReply
             $reply = $world->commits()->create([
                 'body' => "Hello, {$author->name}.",
                 'parent_id' => $commit->id,
+                'root_id' => $commit->threadRootId(),
                 'status' => CommitStatus::Approved,
             ]);
 
