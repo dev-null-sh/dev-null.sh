@@ -33,9 +33,6 @@ return [
         'help_admin' => ':timezone. Em até 30 dias. Privado até o envio; seu commit será aprovado automaticamente.',
         'help_review' => ':timezone. Em até 30 dias. Privado até o envio; depois vai para revisão, sem publicação automática.',
         'scheduled_commits' => 'Commits agendados →',
-        'images_unsupported' => 'Ainda não dá para agendar imagens. Remova-as para agendar este commit.',
-        'images_unsupported_title' => 'Ainda não dá para agendar imagens',
-        'polls_unsupported' => 'Ainda não dá para agendar enquetes',
     ],
 
     'poll' => [

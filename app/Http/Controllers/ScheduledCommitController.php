@@ -30,6 +30,8 @@ final readonly class ScheduledCommitController
                     ...($scheduled->submitted_at === null && $scheduled->body !== null
                         ? ['body' => $scheduled->body, ...$bodies->segments($scheduled->body)]
                         : ['body' => null, 'body_segments' => [], 'preview_segments' => null]),
+                    'poll_options' => $scheduled->poll['options'] ?? null,
+                    'image_count' => count($scheduled->images ?? []),
                     'scheduled_at' => $scheduled->scheduled_at->toIso8601String(),
                     'submitted_at' => $scheduled->submitted_at?->toIso8601String(),
                     'status' => $scheduled->submitted_at === null ? 'scheduled' : ($scheduled->commit === null || $scheduled->commit->trashed() ? 'deleted' : $scheduled->commit->status->value),
@@ -39,7 +41,7 @@ final readonly class ScheduledCommitController
 
     public function store(CreateScheduledCommitRequest $request, #[CurrentUser] User $user, CreateScheduledCommit $action): RedirectResponse
     {
-        $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc());
+        $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll());
 
         Inertia::flash('scheduled', true);
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Commit scheduled. Only you can see it until it is submitted.')]);

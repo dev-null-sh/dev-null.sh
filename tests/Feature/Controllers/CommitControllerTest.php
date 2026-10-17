@@ -1104,6 +1104,63 @@ it('may attach images to a commit', function (): void {
         ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
 });
 
+it('may commit images without a body', function (array $body): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            ...$body,
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ]);
+
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->body)->toBe('')
+        ->and($commit->images)->toHaveCount(1);
+})->with([
+    'missing' => [[]],
+    'blank' => [['body' => '   ']],
+]);
+
+it('may commit images with a body shorter than 3 characters', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), [
+            'body' => 'ok',
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->body)->toBe('ok');
+});
+
+it('may quote a commit with only images', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), [
+            'quoted_commit_id' => $quoted->id,
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole())
+        ->body->toBe('')
+        ->quoted_commit_id->toBe($quoted->id);
+});
+
 it('may describe the images attached to a commit', function (): void {
     Storage::fake();
 

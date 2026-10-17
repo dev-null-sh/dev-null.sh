@@ -106,6 +106,8 @@
     "scheduled": {
         "title": "Commits agendados",
         "back_to_log": "Voltar ao log",
+        "poll_options": "Opções da enquete",
+        "images": ":count imagem|:count imagens",
         "private": "Privado",
         "intro": "Só você vê esta lista. No horário agendado, cada commit passa pelo processo de revisão de sempre. Agendar não é aprovar.",
         "times_in": "Horários em :timezone",

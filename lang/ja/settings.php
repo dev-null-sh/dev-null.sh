@@ -120,6 +120,8 @@ return [
     'scheduled' => [
         'title' => '予約済みのコミット',
         'back_to_log' => 'ログに戻る',
+        'poll_options' => '投票の選択肢',
+        'images' => '画像:count枚|画像:count枚',
         'private' => '非公開',
         'intro' => 'この一覧はあなたにしか表示されません。予約した時刻になると、各コミットは通常の審査に回ります。予約は承認ではありません。',
         'times_in' => '時刻は :timezone で表示',

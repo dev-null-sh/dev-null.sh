@@ -33,9 +33,6 @@ return [
         'help_admin' => ':timezone. 30일 이내. 제출 전까지 비공개이며, 커밋은 자동으로 승인돼요.',
         'help_review' => ':timezone. 30일 이내. 제출 전까지 비공개이며, 제출 후 검토를 거쳐요. 자동으로 게시되지 않아요.',
         'scheduled_commits' => '예약된 커밋 →',
-        'images_unsupported' => '아직 이미지는 예약할 수 없어요. 이 커밋을 예약하려면 이미지를 삭제해 주세요.',
-        'images_unsupported_title' => '아직 이미지는 예약할 수 없어요',
-        'polls_unsupported' => '아직 투표는 예약할 수 없어요',
     ],
 
     'poll' => [

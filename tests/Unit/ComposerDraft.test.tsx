@@ -54,14 +54,7 @@ vi.doMock('@inertiajs/react', async () => ({
     usePage: () => ({
         props: {
             auth: { user, isAdmin: false },
-            lang: {
-                composer: {
-                    schedule: {
-                        images_unsupported:
-                            "Images can't be scheduled yet. Remove them to schedule this commit.",
-                    },
-                },
-            },
+            lang: {},
         },
     }),
     useHttp: () => ({ processing: false, transform: vi.fn(), submit: vi.fn() }),
@@ -126,7 +119,7 @@ beforeEach(() => {
     draft.descriptions = [];
 });
 
-test('preserves restored images and link cards while preventing scheduling', () => {
+test('preserves restored images and link cards and allows scheduling them', () => {
     draft.images = [image];
     draft.descriptions = ['A restored screenshot'];
     const { form, fields } = render();
@@ -150,7 +143,7 @@ test('preserves restored images and link cards while preventing scheduling', () 
     const schedule = fields.find(
         (element) => element.props['aria-controls'] === 'body-schedule',
     )!;
-    assert.equal(schedule.props.disabled, true);
+    assert.equal(schedule.props.disabled, false);
     assert.equal(
         fields.find(
             (element) => element.props['data-test'] === 'add-poll-button',
@@ -213,7 +206,7 @@ test('removing restored images enables polls and successful posting resets the p
             view.fields.find(
                 (element) => element.props['aria-controls'] === 'body-schedule',
             )!.props.disabled,
-            true,
+            false,
         );
         const textarea = view.fields.find(
             (element) => element.type === MentionTextarea,
@@ -259,7 +252,7 @@ test('removing restored images enables polls and successful posting resets the p
     }
 });
 
-test('schedules plain text in UTC and keeps pasted images visible until removed before scheduling', () => {
+test('schedules commits in UTC, including pasted images', () => {
     let view = render();
     const schedule = view.fields.find(
         (element) => element.props['aria-controls'] === 'body-schedule',
@@ -285,7 +278,7 @@ test('schedules plain text in UTC and keeps pasted images visible until removed 
     });
     assert.equal(
         view.fields.some((element) => element.type === ImagePickerButton),
-        false,
+        true,
     );
     assert.equal(
         view.fields.some((element) => element.type === LinkCardPicker),
@@ -301,29 +294,24 @@ test('schedules plain text in UTC and keeps pasted images visible until removed 
     });
     assert.equal(preventDefault.mock.calls.length, 1);
     view = render();
-    const submit = view.fields.find(
-        (element) => element.props['data-test'] === 'create-commit-button',
-    )!;
-    assert.equal(submit.props.disabled, true);
     const preview = view.fields.find(
         (element) => element.type === ImagePickerPreviews,
     )!;
     assert.deepEqual(preview.props.images, [image]);
-    assert.ok(
-        view.fields.some(
-            (element) =>
-                element.props.message ===
-                "Images can't be scheduled yet. Remove them to schedule this commit.",
-        ),
-    );
-    (preview.props.onRemove as (index: number) => void)(0);
-    view = render();
     assert.equal(
         view.fields.find(
             (element) => element.props['data-test'] === 'create-commit-button',
         )!.props.disabled,
         false,
     );
+    assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+        body: draft.body,
+        images: [image],
+        image_descriptions: [''],
+        scheduled_at: new Date(date)
+            .toISOString()
+            .replace(/\.\d{3}Z$/, '+00:00'),
+    });
 });
 
 test('retains restored images while sensitive text requires explicit approval', () => {

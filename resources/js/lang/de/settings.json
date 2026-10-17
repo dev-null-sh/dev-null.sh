@@ -106,6 +106,8 @@
     "scheduled": {
         "title": "Geplante Commits",
         "back_to_log": "Zurück zum Log",
+        "poll_options": "Umfrageoptionen",
+        "images": ":count Bild|:count Bilder",
         "private": "Privat",
         "intro": "Nur du siehst diese Liste. Zur geplanten Zeit durchläuft jeder Commit die übliche Prüfung. Planen ist keine Freigabe.",
         "times_in": "Zeiten in :timezone",

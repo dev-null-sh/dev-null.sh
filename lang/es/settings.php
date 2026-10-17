@@ -120,6 +120,8 @@ return [
     'scheduled' => [
         'title' => 'Commits programados',
         'back_to_log' => 'Volver al log',
+        'poll_options' => 'Opciones de la encuesta',
+        'images' => ':count imagen|:count imágenes',
         'private' => 'Privado',
         'intro' => 'Solo tú puedes ver esta lista. A la hora programada, cada commit pasa por el proceso de revisión habitual. Programar no es aprobar.',
         'times_in' => 'Horas en :timezone',

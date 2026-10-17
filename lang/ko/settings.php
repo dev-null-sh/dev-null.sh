@@ -120,6 +120,8 @@ return [
     'scheduled' => [
         'title' => '예약된 커밋',
         'back_to_log' => '로그로 돌아가기',
+        'poll_options' => '투표 항목',
+        'images' => '이미지 :count장|이미지 :count장',
         'private' => '비공개',
         'intro' => '이 목록은 나만 볼 수 있어요. 예약된 시간이 되면 각 커밋은 일반 검토 과정을 거쳐요. 예약은 승인이 아니에요.',
         'times_in' => ':timezone 기준 시간',

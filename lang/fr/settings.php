@@ -120,6 +120,8 @@ return [
     'scheduled' => [
         'title' => 'Commits programmés',
         'back_to_log' => 'Retour au log',
+        'poll_options' => 'Options du sondage',
+        'images' => ':count image|:count images',
         'private' => 'Privé',
         'intro' => "Toi seul peux voir cette liste. À l'heure prévue, chaque commit passe par le processus de validation habituel. Programmer n'est pas approuver.",
         'times_in' => 'Fuseau horaire : :timezone',

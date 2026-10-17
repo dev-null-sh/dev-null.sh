@@ -33,9 +33,6 @@ return [
         'help_admin' => ':timezone. Within 30 days. Private until submitted; your commit will be approved automatically.',
         'help_review' => ':timezone. Within 30 days. Private until submitted; then submitted for review, not published automatically.',
         'scheduled_commits' => 'Scheduled commits →',
-        'images_unsupported' => "Images can't be scheduled yet. Remove them to schedule this commit.",
-        'images_unsupported_title' => "Images can't be scheduled yet",
-        'polls_unsupported' => 'Polls cannot be scheduled yet',
     ],
 
     'poll' => [

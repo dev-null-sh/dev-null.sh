@@ -33,9 +33,6 @@ return [
         'help_admin' => ':timezone。30 天以内。提交前仅自己可见；你的提交将自动通过审核。',
         'help_review' => ':timezone。30 天以内。提交前仅自己可见；到时会提交审核，不会自动发布。',
         'scheduled_commits' => '定时提交 →',
-        'images_unsupported' => '暂不支持定时发布图片。移除图片后才能定时提交。',
-        'images_unsupported_title' => '暂不支持定时发布图片',
-        'polls_unsupported' => '暂不支持定时发布投票',
     ],
 
     'poll' => [

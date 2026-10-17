@@ -106,6 +106,8 @@
     "scheduled": {
         "title": "Scheduled commits",
         "back_to_log": "Back to Log",
+        "poll_options": "Poll options",
+        "images": ":count image|:count images",
         "private": "Private",
         "intro": "Only you can see this list. At the scheduled time, each commit goes through the usual review process. Scheduling is not approval.",
         "times_in": "Times in :timezone",

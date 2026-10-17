@@ -33,9 +33,6 @@ return [
         'help_admin' => ':timezone. Dentro de 30 días. Privado hasta que se envíe; tu commit se aprobará automáticamente.',
         'help_review' => ':timezone. Dentro de 30 días. Privado hasta que se envíe; luego pasará a revisión, no se publicará automáticamente.',
         'scheduled_commits' => 'Commits programados →',
-        'images_unsupported' => 'Aún no se pueden programar imágenes. Quítalas para programar este commit.',
-        'images_unsupported_title' => 'Aún no se pueden programar imágenes',
-        'polls_unsupported' => 'Aún no se pueden programar encuestas',
     ],
 
     'poll' => [

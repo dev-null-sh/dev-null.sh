@@ -33,9 +33,6 @@ return [
         'help_admin' => ':timezone. Innerhalb von 30 Tagen. Privat bis zum Absenden; dein Commit wird automatisch freigegeben.',
         'help_review' => ':timezone. Innerhalb von 30 Tagen. Privat bis zum Absenden; danach wird er zur Prüfung eingereicht, nicht automatisch veröffentlicht.',
         'scheduled_commits' => 'Geplante Commits →',
-        'images_unsupported' => 'Bilder können noch nicht geplant werden. Entferne sie, um diesen Commit zu planen.',
-        'images_unsupported_title' => 'Bilder können noch nicht geplant werden',
-        'polls_unsupported' => 'Umfragen können noch nicht geplant werden',
     ],
 
     'poll' => [

@@ -120,6 +120,8 @@ return [
     'scheduled' => [
         'title' => '定时提交',
         'back_to_log' => '返回日志',
+        'poll_options' => '投票选项',
+        'images' => ':count 张图片|:count 张图片',
         'private' => '私密',
         'intro' => '只有你能看到这个列表。到了设定时间，每条提交都会经过常规审核流程。定时不等于审核通过。',
         'times_in' => '时间以 :timezone 显示',

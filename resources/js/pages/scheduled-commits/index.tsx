@@ -1,6 +1,6 @@
 import { useLang } from '@erag/lang-sync-inertia/react';
 import { Head, Link, router, usePoll } from '@inertiajs/react';
-import { ArrowLeft, Clock3, LockKeyhole } from 'lucide-react';
+import { ArrowLeft, Clock3, ImageIcon, LockKeyhole } from 'lucide-react';
 import { useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
@@ -8,6 +8,7 @@ import { FoldedCommitBody } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
+import { emojify } from '@/lib/emoji';
 import type { BodySegment } from '@/types';
 
 type ScheduledCommit = {
@@ -15,6 +16,8 @@ type ScheduledCommit = {
     body: string | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
+    poll_options: string[] | null;
+    image_count: number;
     scheduled_at: string;
     submitted_at: string | null;
     status: 'scheduled' | 'pending' | 'approved' | 'rejected' | 'deleted';
@@ -32,7 +35,7 @@ export default function Index({
     const now = useNow();
     const [canceling, setCanceling] = useState<string | null>(null);
     usePoll(30_000, { only: ['scheduledCommits'] });
-    const { __ } = useLang();
+    const { __, transChoice } = useLang();
 
     const labels = {
         pending: __('settings.scheduled.status.pending'),
@@ -173,6 +176,37 @@ export default function Index({
                                         }
                                         className="text-[15px]"
                                     />
+                                )}
+                                {scheduled.poll_options && (
+                                    <ul
+                                        aria-label={__(
+                                            'settings.scheduled.poll_options',
+                                        )}
+                                        className="space-y-2"
+                                    >
+                                        {scheduled.poll_options.map(
+                                            (option) => (
+                                                <li
+                                                    key={option}
+                                                    className="rounded-md border px-3 py-2 text-[15px] [overflow-wrap:anywhere]"
+                                                >
+                                                    {emojify(option)}
+                                                </li>
+                                            ),
+                                        )}
+                                    </ul>
+                                )}
+                                {scheduled.image_count > 0 && (
+                                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                        <ImageIcon
+                                            className="size-4"
+                                            aria-hidden="true"
+                                        />
+                                        {transChoice(
+                                            'settings.scheduled.images',
+                                            scheduled.image_count,
+                                        )}
+                                    </p>
                                 )}
                                 {scheduled.status === 'scheduled' && (
                                     <p className="text-xs text-muted-foreground">

@@ -33,9 +33,6 @@ return [
         'help_admin' => ':timezone。30日以内。送信されるまで非公開で、コミットは自動的に承認されます。',
         'help_review' => ':timezone。30日以内。送信されるまで非公開で、その後審査に回ります。自動では公開されません。',
         'scheduled_commits' => '予約済みのコミット →',
-        'images_unsupported' => '画像はまだ予約できません。このコミットを予約するには画像を削除してください。',
-        'images_unsupported_title' => '画像はまだ予約できません',
-        'polls_unsupported' => '投票はまだ予約できません',
     ],
 
     'poll' => [
