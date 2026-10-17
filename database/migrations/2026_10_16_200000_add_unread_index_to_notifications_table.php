@@ -8,8 +8,8 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
-     * Counting unread notifications and marking them as read only look at the few unread notifications of a recipient,
-     * which this index finds without going through everything they were ever notified about.
+     * Every page counts the unread notifications, starting from the oldest one, which is quick to find among a few unread
+     * rows but slow among a long read history.
      */
     public function up(): void
     {

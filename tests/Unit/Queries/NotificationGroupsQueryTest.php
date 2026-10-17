@@ -275,6 +275,34 @@ it('groups replies under the top of their thread when a recorded thread root is 
         ->and($groups[0]->event_count)->toBe(3);
 });
 
+it('counts no unread groups without grouping anything when everything is read', function (): void {
+    $user = User::factory()->create();
+    starAt(User::factory()->create(), Commit::factory()->for($user)->create(), 1);
+    Notification::query()->update(['read_at' => now()]);
+
+    DB::enableQueryLog();
+
+    expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(0)
+        ->and(DB::getQueryLog())->toHaveCount(1);
+});
+
+it('counts the same unread groups as grouping the whole history', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    [$first, $second, $third] = User::factory()->count(3)->create()->all();
+
+    followAt($first, $user, 300);
+    followAt($second, $user, 270);
+    starAt(User::factory()->create(), $commit, 180);
+    followAt($third, $user, 60);
+    Notification::query()->where('actor_id', $first->id)->update(['read_at' => now()]);
+
+    $query = resolve(NotificationGroupsQuery::class);
+    $wholeHistory = $query->events($user)->where('group_rank', 1)->where('unread_count', '>', 0)->count();
+
+    expect($query->unreadCount($user))->toBe(3)->toBe($wholeHistory);
+});
+
 it('compiles the grouping window for each database dialect with bound recipient and filter values', function (string $driver, string $gap): void {
     $user = User::factory()->make(['id' => '019c1234-5678-7000-8000-123456789abc']);
     $original = DB::getDefaultConnection();
