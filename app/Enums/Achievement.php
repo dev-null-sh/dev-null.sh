@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+use App\Models\Commit;
+
 enum Achievement: string
 {
     case Init = 'init';
@@ -50,7 +52,7 @@ enum Achievement: string
             self::Stargazer => 'Starred 10 commits by other developers.',
             self::Superstar => 'Received 25 stars on your commits.',
             self::Pipe => 'Joined conversations with 5 replies to other developers.',
-            self::MaxPayload => 'Committed an exact 280-character post.',
+            self::MaxPayload => 'Committed an exact '.number_format(Commit::MAX_BODY_LENGTH).'-character post.',
             self::AuthorizedKeys => 'Provisioned a public SSH key from GitHub.',
         };
     }

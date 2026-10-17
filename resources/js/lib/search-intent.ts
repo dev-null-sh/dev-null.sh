@@ -41,6 +41,13 @@ export function searchesCommits(intent: SearchIntent): boolean {
 }
 
 /**
+ * A lone "@" announces a developer search but has nothing to search for yet.
+ */
+export function awaitsDeveloperName(term: string): boolean {
+    return term.trim() === '@';
+}
+
+/**
  * "Daniel Kim" has a space like a topic does, but two or three capitalised words read as a name.
  */
 function looksLikeFullName(text: string): boolean {
