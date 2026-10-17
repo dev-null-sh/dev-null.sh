@@ -152,7 +152,7 @@ function CommitLink({
             >
                 {/* The mark never wraps onto a line of its own. */}
                 <span className="whitespace-nowrap text-muted-foreground">
-                    <AppLogoIcon className="inline-block size-[1.15em] fill-foreground align-[-0.25em]" />{' '}
+                    <AppLogoIcon className="mr-[0.2em] inline-block size-[1.15em] fill-foreground align-[-0.25em]" />
                     {username.charAt(0)}
                 </span>
                 <span className="text-muted-foreground">

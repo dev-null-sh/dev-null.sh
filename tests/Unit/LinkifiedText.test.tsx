@@ -87,7 +87,7 @@ void test('shows a dev/null commit link as its author and short hash', () => {
     assert.ok(markup.includes('aria-label="@Hacksore’s commit 5149ca8"'));
     assert.equal(
         markup.replace(/<[^>]+>/g, ''),
-        `same root cause as ${commitUrl} Hacksore/5149ca8.`,
+        `same root cause as ${commitUrl}Hacksore/5149ca8.`,
     );
     assert.equal(
         markup
