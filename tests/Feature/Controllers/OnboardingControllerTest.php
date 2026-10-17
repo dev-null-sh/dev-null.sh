@@ -54,8 +54,8 @@ it('suggests developers to follow', function (): void {
                 ->isEmpty()));
 });
 
-it('leaves the suggestions out of the deferred props it loads afterwards', function (): void {
-    $user = User::factory()->notOnboarded()->create();
+it('leaves the suggestions out of partial reloads that do not ask for them', function (): void {
+    $user = User::factory()->notOnboarded()->create(['preferred_lane' => 1]);
     User::factory()->count(6)->has(Commit::factory())->create();
 
     DB::enableQueryLog();
@@ -64,12 +64,12 @@ it('leaves the suggestions out of the deferred props it loads afterwards', funct
         'X-Inertia' => 'true',
         'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
         'X-Inertia-Partial-Component' => 'onboarding/show',
-        'X-Inertia-Partial-Data' => 'suggestedUsers',
+        'X-Inertia-Partial-Data' => 'preferredLane',
     ])->get(route('onboarding.show'))->assertOk()
-        ->assertJsonCount(3, 'props.suggestedUsers')
+        ->assertJsonPath('props.preferredLane', 1)
         ->assertJsonMissingPath('props.suggestions');
 
-    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'as "followed_by_following_count"')))->toHaveCount(2);
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'as "followed_by_following_count"')))->toBeEmpty();
 });
 
 it('is not found once the user has onboarded', function (): void {
