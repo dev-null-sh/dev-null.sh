@@ -15,6 +15,7 @@ use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\TheAlgorithm;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -359,6 +360,20 @@ it('stores the images of a commit', function (): void {
 
     expect($commit->images()->count())->toBe(1)
         ->and($commit->status)->toBe(CommitStatus::Pending);
+});
+
+it('erases the stored images when the commit fails to save', function (): void {
+    Storage::fake();
+
+    expect(fn (): Commit => resolve(CreateCommit::class)->handle(
+        User::factory()->create(),
+        'Look at this',
+        images: [UploadedFile::fake()->image('photo.jpg', 10, 10)],
+        poll: new NewPoll(['Tabs', str_repeat('a', NewPoll::MaxOptionLength + 1)], PollDuration::OneHour),
+    ))->toThrow(QueryException::class);
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and(Storage::disk()->allFiles())->toBe([]);
 });
 
 it('files replies under the top-level commit of their thread', function (): void {

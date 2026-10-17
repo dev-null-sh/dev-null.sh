@@ -26,7 +26,7 @@ final readonly class CommitRestorationController
             'user',
             'linkPreview',
             'images',
-            'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->with('user')->withPollFor($user),
+            'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->with(['user', 'linkPreview', 'images'])->withPollFor($user),
             'parent' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->with('user'),
         ])->findOrFail($commit->id);
 

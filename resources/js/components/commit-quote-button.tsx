@@ -251,7 +251,7 @@ function QuoteComposer({
 
                             <QuotedCommit commit={commit} isPreview />
 
-                            <div className="sticky bottom-0 -mb-4 flex items-center justify-end gap-3 bg-background pt-3 pb-4 sm:-mb-5 sm:pb-5">
+                            <div className="sticky -bottom-4 -mb-4 flex items-center justify-end gap-3 bg-background pt-3 pb-4 sm:-bottom-5 sm:-mb-5 sm:pb-5">
                                 <div className="mr-auto flex items-center gap-2">
                                     <ImagePickerButton
                                         count={images.length}
