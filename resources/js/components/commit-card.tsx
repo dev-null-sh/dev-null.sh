@@ -3,20 +3,18 @@ import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
-import { BookmarkButton } from '@/components/bookmark-button';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
-import { CommitReportButton } from '@/components/commit-report-button';
+import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import {
     ThreadActions,
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
-import { CopyLinkButton } from '@/components/copy-link-button';
 import {
     GraphRail,
     RailAvatar,
@@ -318,7 +316,10 @@ export function CommitCard({
                                 />
                             )}
                             {commit.link_preview && (
-                                <LinkPreview preview={commit.link_preview} />
+                                <LinkPreview
+                                    commitId={commit.id}
+                                    preview={commit.link_preview}
+                                />
                             )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
@@ -351,13 +352,7 @@ export function CommitCard({
                                             keyShortcut="q"
                                         />
                                     </div>
-                                    <div className="ml-auto flex items-center gap-0.5">
-                                        {commit.is_saved !== undefined && (
-                                            <BookmarkButton commit={commit} />
-                                        )}
-                                        <CopyLinkButton commit={commit} />
-                                        <CommitReportButton commit={commit} />
-                                    </div>
+                                    <CommitSecondaryActions commit={commit} />
                                 </div>
                             ) : (
                                 <ThreadActions

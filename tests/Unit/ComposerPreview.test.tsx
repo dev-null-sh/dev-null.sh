@@ -205,7 +205,7 @@ void test('retains the link card picker and scheduling beside preview', () => {
         'https://first.example.com https://second.example.com',
     );
     const schedule = markup.match(
-        /<button[^>]*aria-controls="commit-schedule"[^>]*>/,
+        /<button[^>]*aria-controls="body-schedule"[^>]*>/,
     )?.[0];
 
     assert.equal(

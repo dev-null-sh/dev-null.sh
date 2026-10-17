@@ -54,3 +54,19 @@ for (const body of [
         assert.deepEqual(typedLinks(body), []);
     });
 }
+
+void test('renders /dev/null as the wordmark while keeping its text', () => {
+    const text = 'piped to /dev/null, then /dev/null. (/dev/null)';
+    const markup = renderToStaticMarkup(<LinkifiedText text={text} />);
+
+    assert.equal(markup.match(/title="\/dev\/null"/g)?.length, 3);
+    assert.equal(markup.replace(/<[^>]+>/g, ''), text);
+});
+
+void test('leaves /dev/null inside longer paths, words, URLs and usernames as text', () => {
+    const text =
+        '/dev/nullable /dev/null/log a/dev/null /dev/null_1 /DEV/NULL https://example.com/dev/null @devnull';
+    const markup = renderToStaticMarkup(<LinkifiedText text={text} />);
+
+    assert.ok(!markup.includes('title="/dev/null"'));
+});

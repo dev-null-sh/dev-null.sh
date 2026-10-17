@@ -375,6 +375,8 @@ export default function Show({
             <PageTabs
                 label="Profile feed"
                 preserveScroll
+                only={['tab', 'commits', 'pinnedCommit']}
+                reset={['commits']}
                 tabs={[
                     {
                         title: 'Commits',

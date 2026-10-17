@@ -99,7 +99,7 @@ function elements(node: ReactNode): Element[] {
 
 function render() {
     cursor = 0;
-    const form = CommitComposer();
+    const form = CommitComposer({});
     const fields = elements(
         form.props.children({ processing: false, errors: {} }),
     );
@@ -136,7 +136,7 @@ test('preserves restored images and link cards while preventing scheduling', () 
         )!;
         assert.equal(picker.props.count, 1);
         const schedule = fields.find(
-            (element) => element.props['aria-controls'] === 'commit-schedule',
+            (element) => element.props['aria-controls'] === 'body-schedule',
         )!;
         assert.equal(schedule.props.disabled, true);
         assert.equal(
@@ -198,7 +198,7 @@ test('removing restored images enables polls and successful posting resets the p
         assert.equal(
             view.fields.find(
                 (element) =>
-                    element.props['aria-controls'] === 'commit-schedule',
+                    element.props['aria-controls'] === 'body-schedule',
             )!.props.disabled,
             true,
         );
@@ -247,14 +247,14 @@ test('removing restored images enables polls and successful posting resets the p
 test('schedules plain text in UTC and keeps pasted images visible until removed before scheduling', () => {
     let view = render();
     const schedule = view.fields.find(
-        (element) => element.props['aria-controls'] === 'commit-schedule',
+        (element) => element.props['aria-controls'] === 'body-schedule',
     )!;
     assert.equal(schedule.props.disabled, false);
     (schedule.props.onClick as () => void)();
     view = render();
     const date = '2026-10-17T10:30';
     const dateInput = view.fields.find(
-        (element) => element.props.id === 'scheduled-at',
+        (element) => element.props.id === 'body-scheduled-at',
     )!;
     const setCustomValidity = vi.fn();
     (dateInput.props.onChange as (event: unknown) => void)({

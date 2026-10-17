@@ -22,11 +22,13 @@ const durations = [
 ];
 
 export function PollEditor({
+    id,
     poll,
     errors,
     onChange,
     onRemove,
 }: {
+    id: string;
     poll: PollDraft;
     errors: Record<string, string | undefined>;
     onChange: (poll: PollDraft) => void;
@@ -46,7 +48,7 @@ export function PollEditor({
             options: poll.options.filter((_, current) => current !== index),
         });
         requestAnimationFrame(() =>
-            document.getElementById(`poll-option-${index - 1}`)?.focus(),
+            document.getElementById(`${id}-option-${index - 1}`)?.focus(),
         );
     };
 
@@ -54,7 +56,7 @@ export function PollEditor({
         onChange({ ...poll, options: [...poll.options, ''] });
         requestAnimationFrame(() =>
             document
-                .getElementById(`poll-option-${poll.options.length}`)
+                .getElementById(`${id}-option-${poll.options.length}`)
                 ?.focus(),
         );
     };
@@ -77,13 +79,13 @@ export function PollEditor({
                         <div key={index}>
                             <div className="flex items-center gap-2">
                                 <label
-                                    htmlFor={`poll-option-${index}`}
+                                    htmlFor={`${id}-option-${index}`}
                                     className="sr-only"
                                 >
                                     Option {index + 1}
                                 </label>
                                 <input
-                                    id={`poll-option-${index}`}
+                                    id={`${id}-option-${index}`}
                                     name="poll[options][]"
                                     value={option}
                                     onChange={(event) =>
