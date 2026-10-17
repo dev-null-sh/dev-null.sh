@@ -1,11 +1,3 @@
-type ConfettiOrigin = { x: number; y: number } | { edge: 'top' };
-
-type ConfettiEvent = {
-    clientX: number;
-    clientY: number;
-    currentTarget: EventTarget & Element;
-};
-
 type Particle = {
     x: number;
     y: number;
@@ -35,9 +27,7 @@ let particles: Particle[] = [];
 let frame = 0;
 
 function resize(): void {
-    if (!canvas || !context) {
-        return;
-    }
+    if (!canvas || !context) return;
 
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.floor(window.innerWidth * ratio);
@@ -46,9 +36,7 @@ function resize(): void {
 }
 
 function ensureCanvas(): void {
-    if (canvas) {
-        return;
-    }
+    if (canvas) return;
 
     canvas = document.createElement('canvas');
     canvas.setAttribute('aria-hidden', 'true');
@@ -65,9 +53,7 @@ function ensureCanvas(): void {
 }
 
 function clearCanvas(): void {
-    if (!canvas) {
-        return;
-    }
+    if (!canvas) return;
 
     window.removeEventListener('resize', resize);
     canvas.remove();
@@ -77,9 +63,7 @@ function clearCanvas(): void {
 }
 
 function tick(): void {
-    if (!context) {
-        return;
-    }
+    if (!context) return;
 
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -117,48 +101,26 @@ function tick(): void {
 
     if (particles.length === 0) {
         clearCanvas();
-
         return;
     }
 
     frame = window.requestAnimationFrame(tick);
 }
 
-export function confettiOrigin(event: ConfettiEvent): { x: number; y: number } {
-    if (event.clientX !== 0 || event.clientY !== 0) {
-        return { x: event.clientX, y: event.clientY };
-    }
-
-    const rect = event.currentTarget.getBoundingClientRect();
-
-    return {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-    };
-}
-
-export function dropConfetti(origin: ConfettiOrigin): void {
-    if (typeof document === 'undefined') {
-        return;
-    }
-
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        return;
-    }
+export function dropConfetti(): void {
+    if (typeof document === 'undefined') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     ensureCanvas();
 
-    const fromTop = 'edge' in origin;
-    const count = fromTop ? 90 : 42;
+    const count = 150;
 
     for (let index = 0; index < count; index++) {
         particles.push({
-            x: fromTop
-                ? Math.random() * window.innerWidth
-                : origin.x + (Math.random() - 0.5) * 28,
-            y: fromTop ? -10 - Math.random() * 24 : origin.y,
-            vx: (Math.random() - 0.5) * (fromTop ? 1.6 : 2.4),
-            vy: fromTop ? 1.6 + Math.random() * 2.6 : 0.6 + Math.random() * 1.8,
+            x: Math.random() * window.innerWidth,
+            y: -10 - Math.random() * 24,
+            vx: (Math.random() - 0.5) * 1.6,
+            vy: 1.6 + Math.random() * 2.6,
             width: 6 + Math.random() * 4,
             height: 8 + Math.random() * 6,
             rotation: Math.random() * Math.PI,
