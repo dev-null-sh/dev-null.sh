@@ -145,17 +145,20 @@ export default function Show({
                                 {canPush && (
                                     <Button
                                         variant="outline"
-                                        className="min-w-24"
+                                        className="sm:min-w-24"
                                         asChild
                                     >
                                         <Link
                                             href={ConversationController.show(
                                                 user,
                                             )}
+                                            aria-label={`Remote @${user.username}`}
                                             data-test="profile-remote"
                                         >
                                             <MessagesSquare />
-                                            Remote
+                                            <span className="hidden sm:inline">
+                                                Remote
+                                            </span>
                                         </Link>
                                     </Button>
                                 )}

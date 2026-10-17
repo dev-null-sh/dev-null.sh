@@ -212,8 +212,14 @@ export function OrgHeader({
                 data-test="org-member-stack"
             >
                 <MemberStack
-                    users={members.map((member) => member.user)}
-                    max={isCompact ? 3 : 4}
+                    users={members
+                        .map((member) => member.user)
+                        .toSorted(
+                            (a, b) =>
+                                Number(a.id === user.id) -
+                                Number(b.id === user.id),
+                        )}
+                    max={isCompact ? 2 : 4}
                     avatarClassName={isCompact ? 'size-6' : 'size-8'}
                 />
                 <span className="min-w-0">

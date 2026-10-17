@@ -886,7 +886,8 @@ export async function searchConversations(
 }
 
 /**
- * Developers to message or add to an org, each with the reason they can't be, if there is one.
+ * Developers to message or add to an org, each with the reason they can't be, if there is one. Those who can be
+ * picked come first.
  */
 export async function searchCandidates(
     term: string,
@@ -902,7 +903,13 @@ export async function searchCandidates(
         return [];
     }
 
-    return ((await response.json()) as { candidates: Candidate[] }).candidates;
+    const { candidates } = (await response.json()) as {
+        candidates: Candidate[];
+    };
+
+    return candidates.toSorted(
+        (a, b) => Number(a.reason !== null) - Number(b.reason !== null),
+    );
 }
 
 /**
