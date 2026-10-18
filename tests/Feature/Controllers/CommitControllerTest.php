@@ -256,6 +256,18 @@ it('may delete own commit while viewing one of its photos', function (): void {
     $this->assertSoftDeleted($commit);
 });
 
+it('redirects to author profile when deleting own commit from page with query parameters', function (): void {
+    $commit = Commit::factory()->create();
+
+    $response = $this->actingAs($commit->user)
+        ->from(route('commit.show', [$commit->user, $commit]).'?ref=timeline')
+        ->delete(route('commit.destroy', $commit));
+
+    $response->assertRedirectToRoute('user.show', $commit->user);
+
+    $this->assertSoftDeleted($commit);
+});
+
 it('tells users their commit is pending review', function (): void {
     $user = User::factory()->create();
 
