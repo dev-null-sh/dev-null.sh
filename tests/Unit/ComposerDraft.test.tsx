@@ -411,3 +411,48 @@ test('previews restored images and descriptions while keeping them attached when
         image_descriptions: ['A restored screenshot'],
     });
 });
+
+test('cancelling a schedule clears the chosen time and commits now', () => {
+    const toggle = () =>
+        render().fields.find(
+            (element) => element.props['aria-controls'] === 'body-schedule',
+        )!;
+    const label = (element: Element) =>
+        React.Children.toArray(element.props.children as ReactNode)
+            .filter((child) => typeof child === 'string')
+            .join('');
+    const submit = () =>
+        render().fields.find(
+            (element) => element.props['data-test'] === 'create-commit-button',
+        )!;
+    const isScheduling = () =>
+        render().fields.some(
+            (element) => element.props.id === 'body-scheduled-at',
+        );
+
+    assert.equal(label(toggle()), 'Schedule');
+    (toggle().props.onClick as () => void)();
+    (
+        render().fields.find(
+            (element) => element.props.id === 'body-scheduled-at',
+        )!.props.onChange as (event: unknown) => void
+    )({ target: { value: '2026-10-17T10:30', setCustomValidity: vi.fn() } });
+    assert.equal(label(toggle()), 'Cancel');
+    assert.equal(label(submit()), 'Schedule commit');
+
+    (toggle().props.onClick as () => void)();
+    assert.equal(isScheduling(), false);
+    assert.equal(label(toggle()), 'Schedule');
+    assert.equal(label(submit()), 'Commit');
+    assert.deepEqual(render().form.props.transform({ body: draft.body }), {
+        body: draft.body,
+    });
+
+    (toggle().props.onClick as () => void)();
+    assert.equal(
+        render().fields.find(
+            (element) => element.props.id === 'body-scheduled-at',
+        )!.props.value,
+        '',
+    );
+});

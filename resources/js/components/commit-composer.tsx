@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
+import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
 import {
     ImageDropOverlay,
@@ -299,34 +300,37 @@ function CommitComposerBody({
                                 onPick={attachments.attach}
                                 className="-ml-2"
                             />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                disabled={
-                                    processing || poll !== null || hasImages
-                                }
-                                onClick={() => {
-                                    setPoll(emptyPollDraft);
-                                    requestAnimationFrame(() =>
-                                        document
-                                            .getElementById(
-                                                `${id}-poll-option-0`,
-                                            )
-                                            ?.focus(),
-                                    );
-                                }}
-                                aria-label="Add poll"
-                                title={
+                            <ActionTooltip
+                                label={
                                     hasImages
                                         ? 'A commit can have images or a poll, not both'
                                         : 'Add poll'
                                 }
-                                className="text-muted-foreground"
-                                data-test="add-poll-button"
                             >
-                                <ChartBar className="size-5" />
-                            </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={
+                                        processing || poll !== null || hasImages
+                                    }
+                                    onClick={() => {
+                                        setPoll(emptyPollDraft);
+                                        requestAnimationFrame(() =>
+                                            document
+                                                .getElementById(
+                                                    `${id}-poll-option-0`,
+                                                )
+                                                ?.focus(),
+                                        );
+                                    }}
+                                    aria-label="Add poll"
+                                    className="text-muted-foreground"
+                                    data-test="add-poll-button"
+                                >
+                                    <ChartBar className="size-5" />
+                                </Button>
+                            </ActionTooltip>
                             <LinkCardPicker
                                 linkCard={linkCard}
                                 disabled={processing}
@@ -346,49 +350,68 @@ function CommitComposerBody({
                                 />
                             )}
                         </div>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-expanded={isScheduling}
-                            aria-controls={`${id}-schedule`}
-                            disabled={processing}
-                            onClick={() => {
-                                setTimezone(
-                                    Intl.DateTimeFormat().resolvedOptions()
-                                        .timeZone,
-                                );
-                                setIsScheduling(!isScheduling);
-                            }}
-                            className="gap-1.5 px-2 text-muted-foreground"
-                        >
-                            <Clock3 className="size-3.5" aria-hidden="true" />
-                            Schedule
-                        </Button>
                         <BodyCounter
                             id={`${id}-count`}
                             body={body}
                             className="text-[13px]"
                         />
-                        <Button
-                            type="submit"
-                            disabled={processing || !isSubmittable}
-                            title={
-                                isScheduling
-                                    ? `Schedule commit (${keys.combo(keys.mod, keys.enter)})`
-                                    : `Commit (${keys.combo(keys.mod, keys.enter)})`
-                            }
-                            className="min-w-[7.5rem]"
-                            data-test="create-commit-button"
-                        >
-                            {isScheduling
-                                ? processing
-                                    ? 'Scheduling…'
-                                    : 'Schedule commit'
-                                : processing
-                                  ? 'Committing…'
-                                  : 'Commit'}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <ActionTooltip
+                                label={
+                                    isScheduling
+                                        ? 'Commit now instead'
+                                        : 'Schedule for later'
+                                }
+                            >
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    aria-expanded={isScheduling}
+                                    aria-controls={`${id}-schedule`}
+                                    disabled={processing}
+                                    onClick={() => {
+                                        setTimezone(
+                                            Intl.DateTimeFormat().resolvedOptions()
+                                                .timeZone,
+                                        );
+                                        setScheduledAt('');
+                                        setIsScheduling(!isScheduling);
+                                    }}
+                                    className="min-w-[6.5rem] gap-1.5 px-2 text-muted-foreground"
+                                    data-test="schedule-toggle"
+                                >
+                                    {!isScheduling && (
+                                        <Clock3
+                                            className="size-3.5"
+                                            aria-hidden="true"
+                                        />
+                                    )}
+                                    {isScheduling ? 'Cancel' : 'Schedule'}
+                                </Button>
+                            </ActionTooltip>
+                            <ActionTooltip
+                                label={
+                                    isScheduling ? 'Schedule commit' : 'Commit'
+                                }
+                                shortcut={keys.combo(keys.mod, keys.enter)}
+                            >
+                                <Button
+                                    type="submit"
+                                    disabled={processing || !isSubmittable}
+                                    className="min-w-[7.5rem]"
+                                    data-test="create-commit-button"
+                                >
+                                    {isScheduling
+                                        ? processing
+                                            ? 'Scheduling…'
+                                            : 'Schedule commit'
+                                        : processing
+                                          ? 'Committing…'
+                                          : 'Commit'}
+                                </Button>
+                            </ActionTooltip>
+                        </div>
                     </div>
                 </div>
             </div>
