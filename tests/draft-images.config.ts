@@ -17,6 +17,7 @@ export default defineConfig({
             'tests/Unit/EmojiShortcodes.test.tsx',
             'tests/Unit/QuoteReply.test.tsx',
             'tests/Unit/ProfileTabs.test.tsx',
+            'tests/Unit/AuthorStars.test.tsx',
         ],
     },
 });

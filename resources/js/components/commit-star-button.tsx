@@ -7,6 +7,7 @@ import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
+import { changeAuthorStars } from '@/lib/author-stars';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
 import { formatCount } from '@/lib/numbers';
@@ -112,6 +113,8 @@ export function CommitStarButton({
         }
 
         const next = !starred;
+        const before = count;
+        const authorStars = changeAuthorStars(commit.user_id, next);
 
         setStarred(next);
         setCount((current) => Math.max(0, current + (next ? 1 : -1)));
@@ -133,10 +136,12 @@ export function CommitStarButton({
 
             setStarred(response.starred);
             setCount(response.stars_count);
+            authorStars.settle(before, response.stars_count);
             router.flushAll();
         } catch {
             setStarred(!next);
             setCount((current) => Math.max(0, current + (next ? -1 : 1)));
+            authorStars.revert();
         } finally {
             finishMutation();
         }
