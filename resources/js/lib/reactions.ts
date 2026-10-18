@@ -104,3 +104,25 @@ export function summarizeReactions(
 
     return [...byEmoji.values()];
 }
+
+export type Tap = { x: number; y: number; time: number };
+
+/**
+ * The emoji a double tap on a message leaves, or takes back.
+ */
+export const doubleTapReaction = '❤️';
+
+const doubleTapWithin = 300;
+
+const doubleTapDistance = 24;
+
+/**
+ * Whether a tap lands soon enough after, and close enough to, the one before to count as a double tap.
+ */
+export function isDoubleTap(previous: Tap | null, tap: Tap): boolean {
+    return (
+        previous !== null &&
+        tap.time - previous.time <= doubleTapWithin &&
+        Math.hypot(tap.x - previous.x, tap.y - previous.y) <= doubleTapDistance
+    );
+}

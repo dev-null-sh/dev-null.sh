@@ -28,7 +28,7 @@ import {
     ReactionBar,
     ReactionChips,
     ReactionSheet,
-    useLongPress,
+    useTouchReactions,
 } from '@/components/chat/message-reactions';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { EventLine, typingText } from '@/components/chat/org';
@@ -62,6 +62,7 @@ import {
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
+import { doubleTapReaction } from '@/lib/reactions';
 import type { ReactionUsage } from '@/lib/reactions';
 import {
     characterCount,
@@ -810,8 +811,13 @@ function BubbleWithMeta({
         onReact !== null && bubble.kind === 'message'
             ? (emoji: string) => onReact(bubble.message.id, emoji)
             : null;
-    const longPress = useLongPress(
-        reactToThis === null ? null : () => setIsReacting(true),
+    const touch = useTouchReactions(
+        reactToThis === null
+            ? null
+            : {
+                  onLongPress: () => setIsReacting(true),
+                  onDoubleTap: () => reactToThis(doubleTapReaction),
+              },
     );
 
     return (
@@ -827,7 +833,7 @@ function BubbleWithMeta({
                                 reactToThis !== null,
                         },
                     )}
-                    {...longPress}
+                    {...touch}
                 >
                     {reactToThis !== null && (
                         <ReactionBar

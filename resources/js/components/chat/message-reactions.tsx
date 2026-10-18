@@ -10,9 +10,10 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { emojiName, searchEmojiByUse } from '@/lib/emoji';
-import type { ReactionUsage } from '@/lib/reactions';
+import type { ReactionUsage, Tap } from '@/lib/reactions';
 import {
     frequentReactions,
+    isDoubleTap,
     quickReactions,
     summarizeReactions,
 } from '@/lib/reactions';
@@ -502,20 +503,25 @@ function EmojiCell({
 }
 
 /**
- * Pressing and holding a message on a touch screen. Moving the finger, as scrolling or swiping to reply does,
- * cancels it, and the tap that ends a long press doesn't also follow a link in the message.
+ * Pressing and holding a message on a touch screen, and tapping it twice. Moving the finger, as scrolling or swiping
+ * to reply does, cancels either, taps on links and buttons in the message don't count towards a double tap, and the
+ * tap that ends a long press doesn't also follow a link.
  */
-export function useLongPress(onLongPress: (() => void) | null) {
+export function useTouchReactions(
+    gestures: { onLongPress: () => void; onDoubleTap: () => void } | null,
+) {
     const timer = useRef<number | undefined>(undefined);
     const start = useRef<{ x: number; y: number } | null>(null);
+    const lastTap = useRef<Tap | null>(null);
     const didLongPress = useRef(false);
+    const didDoubleTap = useRef(false);
 
     const cancel = () => {
         window.clearTimeout(timer.current);
         start.current = null;
     };
 
-    if (onLongPress === null) {
+    if (gestures === null) {
         return {};
     }
 
@@ -530,8 +536,9 @@ export function useLongPress(onLongPress: (() => void) | null) {
             timer.current = window.setTimeout(() => {
                 didLongPress.current = true;
                 start.current = null;
+                lastTap.current = null;
                 navigator.vibrate?.(8);
-                onLongPress();
+                gestures.onLongPress();
             }, longPressDelay);
         },
         onPointerMove: (event: PointerEvent) => {
@@ -543,10 +550,46 @@ export function useLongPress(onLongPress: (() => void) | null) {
                 ) > 10
             ) {
                 cancel();
+                lastTap.current = null;
             }
         },
-        onPointerUp: cancel,
-        onPointerCancel: cancel,
+        onPointerUp: (event: PointerEvent) => {
+            const isTap =
+                start.current !== null &&
+                !(event.target as Element).closest('a, button, input, img');
+
+            cancel();
+
+            if (!isTap) {
+                return;
+            }
+
+            const tap = {
+                x: event.clientX,
+                y: event.clientY,
+                time: event.timeStamp,
+            };
+
+            if (isDoubleTap(lastTap.current, tap)) {
+                lastTap.current = null;
+                didDoubleTap.current = true;
+                navigator.vibrate?.(8);
+                gestures.onDoubleTap();
+            } else {
+                lastTap.current = tap;
+            }
+        },
+        onPointerCancel: () => {
+            cancel();
+            lastTap.current = null;
+        },
+        // The browser would follow a double tap with mouse events that select the word under the finger.
+        onTouchEnd: (event: { preventDefault: () => void }) => {
+            if (didDoubleTap.current) {
+                didDoubleTap.current = false;
+                event.preventDefault();
+            }
+        },
         onContextMenu: (event: { preventDefault: () => void }) => {
             if (start.current !== null || didLongPress.current) {
                 event.preventDefault();
@@ -589,6 +632,7 @@ export function ReactionSheet({
     onReact: (emoji: string) => void;
 }) {
     const [isPicking, setIsPicking] = useState(false);
+    const isArmed = useRef(false);
 
     const react = (emoji: string) => {
         onOpenChange(false);
@@ -607,7 +651,20 @@ export function ReactionSheet({
                 <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
                 <DialogPrimitive.Content
                     aria-describedby={undefined}
-                    onOpenAutoFocus={(event) => event.preventDefault()}
+                    onOpenAutoFocus={(event) => {
+                        event.preventDefault();
+                        isArmed.current = false;
+                    }}
+                    // The finger that long pressed lifts over the sheet, which must not count as a tap on it.
+                    onPointerDownCapture={() => {
+                        isArmed.current = true;
+                    }}
+                    onClickCapture={(event) => {
+                        if (!isArmed.current && event.detail > 0) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                        }
+                    }}
                     className="pointer-events-none fixed inset-0 z-50 flex flex-col px-3 pt-[max(1rem,env(safe-area-inset-top))] outline-none"
                     data-test="reaction-sheet"
                 >

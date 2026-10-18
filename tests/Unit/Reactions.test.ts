@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
     frequentReactions,
+    isDoubleTap,
     quickReactions,
     summarizeReactions,
     withReactionUse,
@@ -91,4 +92,13 @@ await test('groups reactions by emoji in the order they were first left', () => 
         ],
     );
     assert.deepEqual(summarizeReactions(undefined, 'mark'), []);
+});
+
+await test('takes two quick taps close together as a double tap', () => {
+    const first = { x: 100, y: 200, time: 1_000 };
+
+    assert.equal(isDoubleTap(first, { x: 108, y: 195, time: 1_250 }), true);
+    assert.equal(isDoubleTap(first, { x: 100, y: 200, time: 1_400 }), false);
+    assert.equal(isDoubleTap(first, { x: 160, y: 200, time: 1_100 }), false);
+    assert.equal(isDoubleTap(null, first), false);
 });
