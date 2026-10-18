@@ -468,11 +468,11 @@ final class User extends Authenticatable
     /**
      * Whether a first message from the sender opens the conversation straight away. When it doesn't, it waits
      * fetched for a merge, or can't be sent at all while requests are off. Site admins can always reach anyone with
-     * remotes on.
+     * remotes on. Whether this user follows the sender is looked up unless it was already, for many people at once.
      */
-    public function acceptsRemotesFrom(self $sender): bool
+    public function acceptsRemotesFrom(self $sender, ?bool $follows = null): bool
     {
-        return $sender->isAdmin() || ($this->remotes_from === RemotesFrom::Everyone && config('remotes.everyone')) || $this->isFollowing($sender);
+        return $sender->isAdmin() || ($this->remotes_from === RemotesFrom::Everyone && config('remotes.everyone')) || ($follows ?? $this->isFollowing($sender));
     }
 
     /**
