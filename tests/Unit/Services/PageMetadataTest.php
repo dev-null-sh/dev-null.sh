@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Models\Talk;
 use App\Models\User;
 use App\Services\PageMetadata;
 
@@ -69,3 +70,29 @@ it('omits public metadata for unsaved or partial commits', function (Closure $fa
     'unsaved' => fn (): Commit => Commit::factory()->make(['user_id' => null]),
     'partial' => fn (): Commit => Commit::query()->findOrFail(Commit::factory()->pending()->create()->id, ['id', 'user_id', 'parent_id', 'status', 'deleted_at']),
 ]);
+
+it('builds public metadata for a published talk', function (): void {
+    $user = User::factory()->create(['username' => 'speaker', 'name' => 'Ada']);
+    $talk = Talk::factory()->for($user)->create([
+        'title' => 'Hexagonal Laravel',
+        'description' => 'Boundaries that keep apps maintainable.',
+    ]);
+    $talk->forceFill([
+        'commit_id' => Commit::factory()->for($user)->create()->id,
+        'published_at' => now(),
+    ])->save();
+
+    $metadata = resolve(PageMetadata::class)->talk($talk);
+
+    expect($metadata)->toMatchArray([
+        'type' => 'website',
+        'title' => "Hexagonal Laravel · {$user->nameWithHandle()}",
+        'description' => 'Boundaries that keep apps maintainable.',
+        'url' => route('talk.show', [$user, $talk]),
+        'robots' => 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
+    ]);
+});
+
+it('omits public metadata for unpublished talks', function (): void {
+    expect(resolve(PageMetadata::class)->talk(Talk::factory()->create()))->toBeNull();
+});
