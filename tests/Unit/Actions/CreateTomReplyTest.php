@@ -100,12 +100,10 @@ it('discards a generated answer if its parent changes while the model is running
     Tom::assertPrompted('@tom hello');
 })->with(['deleted', 'rejected', 'blocked']);
 
-it('retries provider failures without retaining their content in the exception', function (): void {
+it('retries failed or blank responses without retaining provider content', function (?string $response): void {
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
-    Tom::fake(function (): never {
-        throw new RuntimeException('sensitive provider response');
-    });
+    Tom::fake(fn (): string => $response ?? throw new RuntimeException('sensitive provider response'));
 
     $job = new ReplyAsTom($commit->id);
     expect(fn () => $job->handle(resolve(CreateTomReply::class)))
@@ -115,4 +113,8 @@ it('retries provider failures without retaining their content in the exception',
     Tom::fake(['Back online. :-D']);
     $job->handle(resolve(CreateTomReply::class));
     expect($commit->replies()->sole()->body)->toBe('Back online. :-D');
-});
+})->with([
+    'provider failure' => [null],
+    'empty reply' => [''],
+    'whitespace-only reply' => [" \t\n\u{00A0}"],
+]);
