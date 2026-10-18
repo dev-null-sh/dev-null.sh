@@ -21,7 +21,12 @@ final readonly class NotificationGroupsQuery
 
     private const int STACKED_ACTORS = 3;
 
-    /** @return CursorPaginator<int, Notification> */
+    /**
+     * Quotes show the commit they quote, which is always the recipient's own, so only the recipient's commits load
+     * there: a reply that quotes someone else never brings along a commit the recipient may not see.
+     *
+     * @return CursorPaginator<int, Notification>
+     */
     public function paginate(User $user, string $type = 'all', ?CarbonImmutable $through = null): CursorPaginator
     {
         $order = 'PARTITION BY group_id ORDER BY CASE WHEN actor_position = 1 THEN 0 ELSE 1 END, created_at DESC, id DESC
@@ -35,7 +40,7 @@ final readonly class NotificationGroupsQuery
             ->with([
                 'actor' => fn (BelongsTo $query): BelongsTo => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
-                'commit',
+                'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereBelongsTo($user),
             ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable
