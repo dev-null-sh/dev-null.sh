@@ -30,7 +30,7 @@ import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
-import { formatCompactCount, formatFullCount } from '@/lib/numbers';
+import { formatCount } from '@/lib/numbers';
 import { laneColor } from '@/lib/utils';
 import type {
     Achievements,
@@ -319,8 +319,7 @@ export default function Show({
                             href: UserFollowersController.index(user),
                         },
                         {
-                            count: formatCompactCount(starsReceived),
-                            title: formatFullCount(starsReceived),
+                            count: formatCount(starsReceived),
                             label: pluralize(starsReceived, 'star', 'stars'),
                             href: null,
                         },
@@ -341,10 +340,7 @@ export default function Show({
                                     stat.label
                                 )}
                             </dt>
-                            <dd
-                                className="font-mono font-medium tabular-nums"
-                                title={stat.title}
-                            >
+                            <dd className="font-mono font-medium tabular-nums">
                                 {stat.href ? (
                                     <Link
                                         href={stat.href}
