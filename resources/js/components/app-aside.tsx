@@ -34,7 +34,7 @@ export function AppAside({
             <button
                 type="button"
                 onClick={onSearch}
-                className="-mb-2 flex h-11 items-center gap-2.5 rounded-full border bg-card px-4 py-2.5 text-[15px] text-muted-foreground transition-colors hover:border-input hover:text-foreground"
+                className="-mb-2 flex h-11 items-center gap-2.5 rounded-lg border bg-card px-4 py-2.5 text-[15px] text-muted-foreground transition-colors hover:border-input hover:text-foreground"
                 data-test="search-button"
             >
                 <Search className="size-4" />
