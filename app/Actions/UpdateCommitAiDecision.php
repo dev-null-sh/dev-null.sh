@@ -26,7 +26,7 @@ final readonly class UpdateCommitAiDecision
 
     /**
      * Asks the AI whether the commit, images included, should be approved. The decision is mostly a hint for
-     * moderators: a clean commit is approved when its author already has an approved commit, and it is rejected,
+     * moderators: a clean commit is approved unless its author has recent reports, and it is rejected,
      * without a reason, when the AI is all but certain. Failures, such as timeouts or rate limits, are thrown, so the
      * caller can try again later.
      */
@@ -57,11 +57,7 @@ final readonly class UpdateCommitAiDecision
             $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Rejected, onlyPending: true);
         }
 
-        if ($categories === [] && $commit->user_id !== null && Commit::query()
-            ->where('user_id', $commit->user_id)
-            ->whereKeyNot($commit->id)
-            ->approved()
-            ->exists()) {
+        if ($categories === [] && $commit->user !== null && ! $commit->user->hasRecentReports()) {
             $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Approved, onlyPending: true);
         }
     }

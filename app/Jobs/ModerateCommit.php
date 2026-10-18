@@ -37,7 +37,9 @@ final class ModerateCommit implements ShouldQueue
         }
 
         if ($this->commit->user?->hasGoodReputation()) {
-            $updateCommitStatuses->handle([$this->commit->id], CommitStatus::Approved, onlyPending: true);
+            if (! $this->commit->user->hasRecentReports()) {
+                $updateCommitStatuses->handle([$this->commit->id], CommitStatus::Approved, onlyPending: true);
+            }
 
             return;
         }
