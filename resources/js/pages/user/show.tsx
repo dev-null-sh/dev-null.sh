@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowUpRight,
     Building2,
@@ -11,6 +11,7 @@ import {
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
+import TalkController from '@/actions/App/Http/Controllers/TalkController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
@@ -24,6 +25,7 @@ import { GitHubIcon } from '@/components/github-icon';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileShareButton } from '@/components/profile-share-button';
+import { TalkCard } from '@/components/talk-card';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -38,6 +40,7 @@ import type {
     CursorPaginated,
     Profile,
     Streaks,
+    TalkSummary,
 } from '@/types';
 
 function pluralize(count: number, singular: string, plural: string) {
@@ -55,6 +58,7 @@ export default function Show({
     streaks,
     achievements,
     commits,
+    talks,
     tab,
     pinnedCommit,
 }: {
@@ -68,7 +72,8 @@ export default function Show({
     streaks: Streaks;
     achievements: Achievements;
     commits: CursorPaginated<Commit>;
-    tab: 'commits' | 'replies';
+    talks: CursorPaginated<TalkSummary>;
+    tab: 'commits' | 'replies' | 'talks';
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
@@ -374,8 +379,8 @@ export default function Show({
             <PageTabs
                 label="Profile feed"
                 preserveScroll
-                only={['tab', 'commits', 'pinnedCommit']}
-                reset={['commits']}
+                only={['tab', 'commits', 'talks', 'pinnedCommit']}
+                reset={['commits', 'talks']}
                 tabs={[
                     {
                         title: 'Commits',
@@ -387,52 +392,101 @@ export default function Show({
                         href: show(user, { query: { tab: 'replies' } }),
                         isActive: tab === 'replies',
                     },
+                    {
+                        title: 'Talks',
+                        href: show(user, { query: { tab: 'talks' } }),
+                        isActive: tab === 'talks',
+                    },
                 ]}
             />
 
-            <CommitFeed
-                key={`${user.id}:${tab}`}
-                commits={commits}
-                pinnedCommit={tab === 'commits' ? pinnedCommit : null}
-                threadActions={
-                    isCurrentUser && tab === 'commits'
-                        ? (commit) => (
-                              <PinCommitButton
-                                  commit={commit}
-                                  isPinned={commit.id === pinnedCommit?.id}
-                              />
-                          )
-                        : undefined
-                }
-                highlightedPeriod={highlightedPeriod}
-                end={
-                    tab === 'replies'
-                        ? isCurrentUser
-                            ? 'That was your first reply.'
-                            : `That's @${user.username}'s first reply.`
-                        : isCurrentUser
-                          ? 'That was your first commit. Everyone starts somewhere.'
-                          : `That's @${user.username}'s root commit.`
-                }
-                empty={
-                    tab === 'replies' ? (
-                        <EmptyFeed command="fatal: no replies yet">
+            {tab === 'talks' ? (
+                <>
+                    {isCurrentUser && (
+                        <div className="border-b px-5 py-3 sm:px-6">
+                            <Button asChild size="sm" variant="outline">
+                                <Link href={TalkController.index()}>
+                                    Manage talks
+                                </Link>
+                            </Button>
+                        </div>
+                    )}
+                    {talks.data.length === 0 ? (
+                        <EmptyFeed command="fatal: no talks yet">
                             {isCurrentUser
-                                ? 'Your replies show up here. Join a conversation from your log.'
-                                : `@${user.username} hasn't replied to anything yet.`}
-                        </EmptyFeed>
-                    ) : isCurrentUser ? (
-                        <EmptyFeed command="fatal: you do not have any commits yet">
-                            Your commits show up here. Make your first one from
-                            your log.
+                                ? 'Your talks show up here. Publish one from Manage talks.'
+                                : `@${user.username} hasn't published any talks yet.`}
                         </EmptyFeed>
                     ) : (
-                        <EmptyFeed command="fatal: no commits yet">
-                            @{user.username} hasn't committed anything yet.
-                        </EmptyFeed>
-                    )
-                }
-            />
+                        <InfiniteScroll
+                            data="talks"
+                            onlyNext
+                            preserveUrl
+                            loading={
+                                <div
+                                    role="status"
+                                    aria-label="Loading more talks"
+                                    className="px-5 py-6 text-sm text-muted-foreground sm:px-6"
+                                >
+                                    Loading…
+                                </div>
+                            }
+                        >
+                            {talks.data.map((talk) => (
+                                <TalkCard
+                                    key={talk.id}
+                                    talk={talk}
+                                    user={user}
+                                />
+                            ))}
+                        </InfiniteScroll>
+                    )}
+                </>
+            ) : (
+                <CommitFeed
+                    key={`${user.id}:${tab}`}
+                    commits={commits}
+                    pinnedCommit={tab === 'commits' ? pinnedCommit : null}
+                    threadActions={
+                        isCurrentUser && tab === 'commits'
+                            ? (commit) => (
+                                  <PinCommitButton
+                                      commit={commit}
+                                      isPinned={commit.id === pinnedCommit?.id}
+                                  />
+                              )
+                            : undefined
+                    }
+                    highlightedPeriod={highlightedPeriod}
+                    end={
+                        tab === 'replies'
+                            ? isCurrentUser
+                                ? 'That was your first reply.'
+                                : `That's @${user.username}'s first reply.`
+                            : isCurrentUser
+                              ? 'That was your first commit. Everyone starts somewhere.'
+                              : `That's @${user.username}'s root commit.`
+                    }
+                    empty={
+                        tab === 'replies' ? (
+                            <EmptyFeed command="fatal: no replies yet">
+                                {isCurrentUser
+                                    ? 'Your replies show up here. Join a conversation from your log.'
+                                    : `@${user.username} hasn't replied to anything yet.`}
+                            </EmptyFeed>
+                        ) : isCurrentUser ? (
+                            <EmptyFeed command="fatal: you do not have any commits yet">
+                                Your commits show up here. Make your first one
+                                from your log.
+                            </EmptyFeed>
+                        ) : (
+                            <EmptyFeed command="fatal: no commits yet">
+                                @{user.username} hasn't committed anything yet.
+                            </EmptyFeed>
+                        )
+                    }
+                />
+            )}
         </>
     );
 }

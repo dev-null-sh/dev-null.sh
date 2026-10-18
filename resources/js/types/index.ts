@@ -8,4 +8,5 @@ export type * from './navigation';
 export type * from './notification';
 export type * from './operations';
 export type * from './streak';
+export type * from './talk';
 export type * from './ui';

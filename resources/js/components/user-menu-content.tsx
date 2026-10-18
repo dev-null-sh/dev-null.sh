@@ -5,6 +5,7 @@ import {
     Bookmark,
     FileText,
     LogOut,
+    Presentation,
     Settings,
     Shield,
     UserRound,
@@ -13,6 +14,7 @@ import AboutController from '@/actions/App/Http/Controllers/AboutController';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
+import TalkController from '@/actions/App/Http/Controllers/TalkController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import {
     DropdownMenuGroup,
@@ -70,6 +72,16 @@ export function UserMenuContent({ user }: Props) {
                     >
                         <UserRound className="mr-2" />
                         Profile
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={TalkController.index()}
+                        onClick={cleanup}
+                    >
+                        <Presentation className="mr-2" />
+                        Talks
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
