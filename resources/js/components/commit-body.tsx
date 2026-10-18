@@ -1,4 +1,5 @@
 import { usePage } from '@inertiajs/react';
+import { ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { CodeBlock } from '@/components/code-block';
 import { LinkifiedText } from '@/components/linkified-text';
@@ -55,6 +56,35 @@ export function CommitBody({
                                 language={segment.language}
                                 isCopyable={!isStatic}
                             />
+                        );
+                    case 'details':
+                        return (
+                            <details
+                                key={index}
+                                className="group my-2 rounded-md border bg-muted/60"
+                                data-test="commit-details"
+                            >
+                                <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-3 py-2 text-[15px] font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+                                    <ChevronRight
+                                        className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none"
+                                        aria-hidden
+                                    />
+                                    <span className="min-w-0">
+                                        <LinkifiedText
+                                            text={emojify(segment.summary)}
+                                            mentions={mentions}
+                                            pasteisMode={Boolean(auth.pasteis)}
+                                            isStatic={isStatic}
+                                        />
+                                    </span>
+                                </summary>
+                                <CommitBody
+                                    segments={segment.segments}
+                                    mentions={mentions}
+                                    isStatic={isStatic}
+                                    className="border-t px-3 py-2"
+                                />
+                            </details>
                         );
                 }
             })}

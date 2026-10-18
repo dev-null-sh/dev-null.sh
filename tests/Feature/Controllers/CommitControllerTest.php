@@ -588,6 +588,28 @@ it('shows the commit and its replies split into prose and highlighted code', fun
             ->missing('replies.data.0.body_segments.2'));
 });
 
+it('shows a commit with a details block, its own prose and code cut up the same way', function (): void {
+    $commit = Commit::factory()->create(['body' => "<details>\n<summary>Why it took all day</summary>\n\nIt was `DNS`:\n```php\n\$name = '<b>';\n```\n</details>"]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.body_segments', [
+                [
+                    'type' => 'details',
+                    'summary' => 'Why it took all day',
+                    'segments' => [
+                        ['type' => 'text', 'text' => 'It was '],
+                        ['type' => 'code', 'code' => 'DNS'],
+                        ['type' => 'text', 'text' => ':'],
+                        ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-variable">$name</span> = <span class="hl-value">\'&lt;b&gt;\'</span>;'],
+                    ],
+                ],
+            ]));
+});
+
 it('shows the star count and whether the viewer starred the commit and its ancestors', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();

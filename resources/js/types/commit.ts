@@ -50,7 +50,8 @@ export type CommitImage = {
 export type BodySegment =
     | { type: 'text'; text: string }
     | { type: 'code'; code: string }
-    | { type: 'block'; language: string | null; html: string };
+    | { type: 'block'; language: string | null; html: string }
+    | { type: 'details'; summary: string; segments: BodySegment[] };
 
 export type Commit = {
     id: string;

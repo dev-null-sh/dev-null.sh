@@ -204,6 +204,13 @@ it('skips urls in code', function (): void {
         ->and($urls->first('only `https://example.com` here'))->toBeNull();
 });
 
+it('finds urls in a details block, but not in the code it holds', function (): void {
+    $urls = resolve(Urls::class);
+
+    expect($urls->all("<details>\n<summary>See laravel.com</summary>\n\nand `https://code.example.com`\nthen https://example.org\n</details>"))
+        ->toBe(['https://laravel.com', 'https://example.org']);
+});
+
 it('shortens urls for display', function (string $url, string $shortened): void {
     $urls = resolve(Urls::class);
 
