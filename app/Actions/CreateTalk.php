@@ -33,9 +33,7 @@ final readonly class CreateTalk
         $recordingUrl = $this->normalizeUrl($recordingUrl);
         $eventName = $eventName === null ? null : mb_trim($eventName);
 
-        if ($slidesUrl === null && $recordingUrl === null) {
-            throw new InvalidArgumentException('A talk needs a slides URL, a recording URL, or both.');
-        }
+        throw_if($slidesUrl === null && $recordingUrl === null, InvalidArgumentException::class, 'A talk needs a slides URL, a recording URL, or both.');
 
         return DB::transaction(function () use ($user, $title, $description, $presentedOn, $slidesUrl, $recordingUrl, $eventName): Talk {
             $talk = Talk::query()->create([
@@ -51,7 +49,7 @@ final readonly class CreateTalk
             $commit = $this->createCommit->handle(
                 $user,
                 $this->commitBody($talk),
-                linkPreview: $talk->recording_url ?? $talk->slides_url,
+                linkPreview: $recordingUrl ?? $slidesUrl,
             );
 
             $talk->forceFill([

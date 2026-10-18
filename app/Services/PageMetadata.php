@@ -207,11 +207,11 @@ final readonly class PageMetadata
      */
     public function talk(Talk $talk): ?array
     {
-        $user = $talk->user;
-
-        if (! $talk->isPublished() || ! $user instanceof User) {
+        if (! $talk->isPublished()) {
             return null;
         }
+
+        $user = $talk->user;
 
         return [
             'type' => 'website',

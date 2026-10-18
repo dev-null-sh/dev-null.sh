@@ -13,7 +13,7 @@ final readonly class LatestTalksQuery
     /**
      * Recent published talks anyone can browse from the aside explorer.
      *
-     * @return Collection<int, array{id: string, title: string, event_name: string|null, presented_on: string, user: array{id: string, username: string, name: string, avatar_url: string|null, lane: int|null}}>
+     * @return Collection<int, array{id: string, title: string, event_name: string|null, presented_on: string, user: array{id: string, username: string, name: string, avatar_url: string|null, lane: int|string}}>
      */
     public function get(?User $viewer, int $limit = 5): Collection
     {

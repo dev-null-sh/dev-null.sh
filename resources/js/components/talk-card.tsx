@@ -11,7 +11,9 @@ export function TalkCard({
     talk: TalkSummary;
     user: Pick<User, 'id' | 'username' | 'name'>;
 }) {
-    const hasRecordingPreview = Boolean(talk.recording_url && talk.recording_embed);
+    const hasRecordingPreview = Boolean(
+        talk.recording_url && talk.recording_embed,
+    );
     const hasSlidesPreview = Boolean(talk.slides_url && talk.slides_embed);
 
     return (

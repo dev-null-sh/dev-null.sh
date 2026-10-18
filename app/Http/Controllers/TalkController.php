@@ -57,7 +57,7 @@ final readonly class TalkController
 
     public function store(CreateTalkRequest $request, #[CurrentUser] User $user, CreateTalk $action): RedirectResponse
     {
-        $talk = $action->handle(
+        $action->handle(
             $user,
             $request->string('title')->value(),
             $request->string('description')->value(),

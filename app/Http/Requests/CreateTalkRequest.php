@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Models\Talk;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -30,6 +31,9 @@ final class CreateTalkRequest extends FormRequest
         ];
     }
 
+    /**
+     * @return array<int, Closure(Validator): void>
+     */
     public function after(): array
     {
         return [

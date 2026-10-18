@@ -15,7 +15,7 @@ final readonly class GoogleSlides implements EmbedProvider
 {
     public function embed(Url $url): ?Embed
     {
-        if (! in_array($url->getAsciiHost(), ['docs.google.com'], true)) {
+        if ($url->getAsciiHost() !== 'docs.google.com') {
             return null;
         }
 

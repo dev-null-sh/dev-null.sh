@@ -14,7 +14,11 @@ type ExplorerTalk = TalkSummary & {
     };
 };
 
-export default function Index({ talks }: { talks: CursorPaginated<ExplorerTalk> }) {
+export default function Index({
+    talks,
+}: {
+    talks: CursorPaginated<ExplorerTalk>;
+}) {
     return (
         <>
             <Head title="Talks" />

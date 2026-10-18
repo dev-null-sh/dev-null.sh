@@ -17,9 +17,8 @@ final class ShowTalkRequest extends FormRequest
         assert($talk instanceof Talk);
 
         $user = $this->user();
-        assert($user === null || $user instanceof User);
 
-        return $talk->isVisibleTo($user)
+        return $talk->isVisibleTo($user instanceof User ? $user : null)
             ? Response::allow()
             : Response::denyAsNotFound();
     }
