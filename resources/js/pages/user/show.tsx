@@ -400,6 +400,7 @@ export default function Show({
             <PageTabs
                 label="Profile feed"
                 preserveScroll
+                preserveState
                 only={['tab', 'commits', 'pinnedCommit']}
                 reset={['commits']}
                 tabs={[
