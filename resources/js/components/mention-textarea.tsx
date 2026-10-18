@@ -68,14 +68,19 @@ const mirroredProperties = [
     'tab-size',
 ];
 
-function triggerAt(textarea: HTMLTextAreaElement): Trigger | null {
+function triggerAt(
+    textarea: HTMLTextAreaElement,
+    suggestsMentions: boolean,
+): Trigger | null {
     if (textarea.selectionStart !== textarea.selectionEnd) {
         return null;
     }
 
     const caret = textarea.selectionStart;
     const before = textarea.value.slice(0, caret);
-    const mention = before.match(mentionBeforeCaretPattern);
+    const mention = suggestsMentions
+        ? before.match(mentionBeforeCaretPattern)
+        : null;
 
     if (mention) {
         return {
@@ -204,8 +209,9 @@ function Highlighted({ text, query }: { text: string; query: string }) {
 }
 
 /**
- * A textarea that suggests developers to mention as soon as "@" is typed, right under the "@", suggests emoji for the
- * ":shortcode" being typed, and turns emoji shortcodes into emoji as they are typed.
+ * A textarea that suggests developers to mention as soon as "@" is typed, right under the "@", unless it doesn't
+ * suggest mentions, suggests emoji for the ":shortcode" being typed, and turns emoji shortcodes into emoji as they
+ * are typed.
  */
 export function MentionTextarea({
     ref,
@@ -215,11 +221,13 @@ export function MentionTextarea({
     onSelect,
     onBlur,
     maxLength,
+    suggestsMentions = true,
     ...props
 }: Omit<ComponentProps<'textarea'>, 'value' | 'onChange'> & {
     ref?: Ref<HTMLTextAreaElement>;
     value: string;
     onValueChange: (value: string) => void;
+    suggestsMentions?: boolean;
 }) {
     const id = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -248,7 +256,7 @@ export function MentionTextarea({
     };
 
     const track = (textarea: HTMLTextAreaElement) => {
-        const next = triggerAt(textarea);
+        const next = triggerAt(textarea, suggestsMentions);
 
         if (!next) {
             close();

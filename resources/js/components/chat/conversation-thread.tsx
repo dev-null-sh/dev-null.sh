@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { EventLine, typingText } from '@/components/chat/org';
+import { MentionTextarea } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
@@ -36,7 +37,6 @@ import {
     cn,
     formatDayLabel,
     laneColor,
-    limitCharacters,
     localDayKey,
 } from '@/lib/utils';
 import type { Message, OrgMember, PushAccess, User } from '@/types';
@@ -910,18 +910,15 @@ function Composer({
                 <label htmlFor={id} className="sr-only">
                     {placeholder}
                 </label>
-                <textarea
+                <MentionTextarea
                     id={id}
                     ref={input}
                     rows={1}
                     autoFocus={autoFocus}
                     value={body}
-                    onChange={(event) => {
-                        const value = limitCharacters(
-                            event.target.value,
-                            maxLength,
-                        );
-
+                    maxLength={maxLength}
+                    suggestsMentions={false}
+                    onValueChange={(value) => {
                         setBody(value);
 
                         if (

@@ -9,12 +9,18 @@ use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\EmojiShortcodes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 final readonly class CreateMessage
 {
+    public function __construct(private EmojiShortcodes $emojiShortcodes)
+    {
+        //
+    }
+
     /**
      * Makes the message the conversation's latest, for every member's inbox.
      */
@@ -36,6 +42,8 @@ final readonly class CreateMessage
      */
     public function handle(User $sender, Conversation $conversation, string $body, string $clientId): Message
     {
+        $body = $this->emojiShortcodes->replace($body);
+
         $message = DB::transaction(function () use ($sender, $conversation, $body, $clientId): Message {
             $message = Message::query()->createOrFirst(
                 ['user_id' => $sender->id, 'client_id' => $clientId],

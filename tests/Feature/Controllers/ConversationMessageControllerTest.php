@@ -44,6 +44,17 @@ it('stores a retried message only once', function (): void {
         ->and(Message::query()->count())->toBe(1);
 });
 
+it('stores emoji shortcodes as their emoji', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+
+    $this->actingAs($mark)->postJson(route('conversation-message.store', $nuno), [
+        'body' => 'shipped it :heart: :like: :rocket and `:rocket:`',
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated()
+        ->assertJsonPath('message.body', 'shipped it ❤️ 👍 :rocket and `:rocket:`');
+});
+
 it('rejects invalid messages', function (array $payload, string $error): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create();
