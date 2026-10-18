@@ -16,7 +16,7 @@ enum Log: string
     case Trending = 'trending';
 
     /**
-     * A ranked log is not newest first, so the newest commits are offered on top of it instead.
+     * A ranked log is not newest first, so it does not offer the newest commits: the Latest log does.
      */
     public function isRanked(): bool
     {
