@@ -7,6 +7,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { typedProse } from '@/lib/code';
 import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
+import { suggestionPosition } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
 import type { User } from '@/types';
@@ -22,15 +23,9 @@ type Suggestions = {
     users: User[];
 };
 
-type Position = {
-    left: number;
-    top?: number;
-    bottom?: number;
-};
+type Position = ReturnType<typeof suggestionPosition>;
 
 const debounce = 120;
-const menuWidth = 288;
-const menuHeight = 320;
 const cache = new Map<string, User[]>();
 
 // The "@handle" being typed right before the caret. Keep the rules in sync with app/Services/Mentions.php.
@@ -136,15 +131,18 @@ function characterRect(textarea: HTMLTextAreaElement, index: number) {
 
 function positionFor(textarea: HTMLTextAreaElement, index: number): Position {
     const character = characterRect(textarea, index);
-    const left = Math.min(
-        Math.max(character.left - 12, 8),
-        window.innerWidth - menuWidth - 8,
-    );
+    const viewport = window.visualViewport;
 
-    return character.bottom + 6 + menuHeight > window.innerHeight &&
-        character.top > menuHeight
-        ? { left, bottom: window.innerHeight - character.top + 6 }
-        : { left, top: character.bottom + 6 };
+    return suggestionPosition(
+        character,
+        {
+            left: viewport?.offsetLeft ?? 0,
+            top: viewport?.offsetTop ?? 0,
+            width: viewport?.width ?? window.innerWidth,
+            height: viewport?.height ?? window.innerHeight,
+        },
+        window.innerHeight,
+    );
 }
 
 async function fetchSuggestions(
@@ -312,12 +310,17 @@ export function MentionTextarea({
             passive: true,
         });
         window.addEventListener('resize', reposition);
+        const viewport = window.visualViewport;
+        viewport?.addEventListener('resize', reposition);
+        viewport?.addEventListener('scroll', reposition);
 
         return () => {
             window.removeEventListener('scroll', reposition, {
                 capture: true,
             });
             window.removeEventListener('resize', reposition);
+            viewport?.removeEventListener('resize', reposition);
+            viewport?.removeEventListener('scroll', reposition);
         };
     }, [trigger]);
 
@@ -490,7 +493,7 @@ export function MentionTextarea({
             {isOpen &&
                 createPortal(
                     <div
-                        className="pointer-events-auto fixed z-50 w-72 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
+                        className="pointer-events-auto fixed z-50 flex flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
                         style={position}
                         onMouseDown={(event) => event.preventDefault()}
                         data-mention-suggestions
@@ -502,7 +505,7 @@ export function MentionTextarea({
                                 id={listId}
                                 role="listbox"
                                 aria-label="Insert an emoji"
-                                className="max-h-80 overflow-y-auto p-1.5"
+                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
                             >
                                 {emojis.map((emoji, index) => (
                                     <li
@@ -558,7 +561,7 @@ export function MentionTextarea({
                                 id={listId}
                                 role="listbox"
                                 aria-label="Mention a developer"
-                                className="max-h-80 overflow-y-auto p-1.5"
+                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
                             >
                                 {current?.query === '' && (
                                     <li
