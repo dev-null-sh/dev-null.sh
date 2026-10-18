@@ -5,6 +5,7 @@
         "allowImportingTsExtensions": true
     },
     "include": [
+        "../resources/js/**/*.d.ts",
         "Unit/**/*.test.ts",
         "Unit/CommitPhoto.test.tsx",
         "Unit/DraftStash.test.tsx",
@@ -24,6 +25,7 @@
         "Unit/VoiceSpeed.test.tsx",
         "Unit/VoiceNoteSpeed.test.tsx",
         "Unit/OrgMentionSuggestions.test.tsx",
+        "Unit/Search.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]

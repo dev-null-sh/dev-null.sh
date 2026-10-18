@@ -6,8 +6,14 @@ import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { CommitCard } from '@/components/commit-card';
 import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
+import { SearchError } from '@/components/search-error';
+import type { SearchFailure } from '@/components/search-error';
 import AppLayout from '@/layouts/app-layout';
-import { searchCommits, suggestedQueries } from '@/lib/commit-search';
+import {
+    searchCommits,
+    suggestedQueries,
+    TooManySearches,
+} from '@/lib/commit-search';
 import { laneColor } from '@/lib/utils';
 import type { Commit } from '@/types';
 
@@ -20,7 +26,7 @@ export default function Index({ query }: { query: string }) {
     const recentSearches = useRecentSearches(userId);
     const [draft, setDraft] = useState(query);
     const inputRef = useRef<HTMLInputElement>(null);
-    const { results, isWaiting } = useCommitSearch(query);
+    const { results, isWaiting, failure, retry } = useCommitSearch(query);
 
     const search = (term: string) => {
         router.get(
@@ -88,7 +94,26 @@ export default function Index({ query }: { query: string }) {
             </header>
 
             {query !== '' && (
-                <SearchResults results={results} isWaiting={isWaiting} />
+                <>
+                    {failure !== null && (
+                        <SearchError
+                            reason={failure}
+                            onRetry={() => {
+                                retry();
+                                inputRef.current?.focus();
+                            }}
+                            className="border-b px-4 py-4 sm:px-6"
+                        />
+                    )}
+                    {failure === null ||
+                    (results !== null && results.commits.length > 0) ? (
+                        <SearchResults
+                            results={results}
+                            query={query}
+                            isWaiting={isWaiting}
+                        />
+                    ) : null}
+                </>
             )}
             {recentSearches.length > 0 && (
                 <Suggestions onPick={pick} recent={recentSearches} />
@@ -107,6 +132,12 @@ Index.layout = AppLayout;
 function useCommitSearch(query: string) {
     const [results, setResults] = useState<Results | null>(null);
     const [isWaiting, setIsWaiting] = useState(false);
+    const [attempt, setAttempt] = useState(0);
+    const [failed, setFailed] = useState<{
+        term: string;
+        attempt: number;
+        reason: SearchFailure;
+    } | null>(null);
 
     useEffect(() => {
         if (query === '') {
@@ -117,10 +148,22 @@ function useCommitSearch(query: string) {
         const timeout = setTimeout(() => setIsWaiting(true), skeletonDelay);
 
         searchCommits(query, undefined, controller.signal)
-            .then((commits) => setResults({ term: query, commits }))
-            .catch(() => {
+            .then((commits) => {
                 if (!controller.signal.aborted) {
-                    setResults({ term: query, commits: [] });
+                    setResults({ term: query, commits });
+                    setFailed(null);
+                }
+            })
+            .catch((error: unknown) => {
+                if (!controller.signal.aborted) {
+                    setFailed({
+                        term: query,
+                        attempt,
+                        reason:
+                            error instanceof TooManySearches
+                                ? 'throttled'
+                                : 'failed',
+                    });
                 }
             })
             .finally(() => {
@@ -133,17 +176,29 @@ function useCommitSearch(query: string) {
         return () => {
             controller.abort();
             clearTimeout(timeout);
+            setIsWaiting(false);
+            setFailed(null);
         };
-    }, [query]);
+    }, [query, attempt]);
 
-    return { results, isWaiting };
+    return {
+        results,
+        isWaiting,
+        failure:
+            failed?.term === query && failed.attempt === attempt
+                ? failed.reason
+                : null,
+        retry: () => setAttempt((current) => current + 1),
+    };
 }
 
 function SearchResults({
     results,
+    query,
     isWaiting,
 }: {
     results: Results | null;
+    query: string;
     isWaiting: boolean;
 }) {
     if (results === null) {
@@ -161,6 +216,12 @@ function SearchResults({
                     {results.commits.length === 1 ? 'match' : 'matches'}
                 </span>
             </div>
+
+            {results.term !== query && (
+                <p className="border-b px-4 py-3 text-sm text-muted-foreground sm:px-6">
+                    Showing previous results for “{results.term}”.
+                </p>
+            )}
 
             {results.commits.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
