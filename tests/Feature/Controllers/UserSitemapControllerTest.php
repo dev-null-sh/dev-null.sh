@@ -3,12 +3,14 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Repo;
 use App\Models\User;
 
 it('lists the profiles with approved commits', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
     Commit::factory()->for($user)->create();
     Commit::factory()->for(User::factory()->state(['username' => 'pending_only']))->pending()->create();
+    Commit::factory()->for(User::factory()->state(['username' => 'repo_only']))->for(Repo::factory())->create();
     User::factory()->create(['username' => 'no_commits']);
 
     $response = $this->get(route('user-sitemap.show', 1));
@@ -18,6 +20,7 @@ it('lists the profiles with approved commits', function (): void {
         ->assertSee('<loc>'.route('user.show', $user).'</loc>', false)
         ->assertSee('<lastmod>'.$user->updated_at->toAtomString().'</lastmod>', false)
         ->assertDontSee('pending_only')
+        ->assertDontSee('repo_only')
         ->assertDontSee('no_commits');
 });
 

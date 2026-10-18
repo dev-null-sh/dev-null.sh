@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
+use App\Models\Repo;
+use App\Models\RepoContributor;
 use App\Models\User;
 use App\Queries\LogQueries\LatestLogQuery;
 
@@ -52,4 +54,15 @@ it('leaves out commits by muted people and across blocks', function (): void {
     $commits = resolve(LatestLogQuery::class)->builder($user)->get();
 
     expect($commits->modelKeys())->toBe([$visible->id]);
+});
+
+it('leaves out repo commits, even for the repo contributors', function (): void {
+    $repo = Repo::factory()->create();
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($contributor)->for($repo)->create();
+
+    $commits = resolve(LatestLogQuery::class)->builder($contributor)->get();
+
+    expect($commits->modelKeys())->toBe([$commit->id]);
 });

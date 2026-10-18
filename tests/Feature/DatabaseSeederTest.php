@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Enums\InboxTab;
+use App\Enums\RepoRole;
+use App\Models\RepoContributor;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
 use Database\Seeders\DatabaseSeeder;
@@ -42,3 +44,16 @@ it('gives the local developer conversations to read and reply to', function (boo
     'requests off' => [false, 0, 3],
     'requests on' => [true, 1, 4],
 ]);
+
+it('gives the local developer a repo they maintain with two of their followers', function (): void {
+    $this->seed(DatabaseSeeder::class);
+
+    $localDeveloper = User::query()->where('github_id', 'local')->sole();
+    $repo = $localDeveloper->repos()->sole();
+    $contributors = $repo->contributors()->where('user_id', '!=', $localDeveloper->id)->get();
+
+    expect($repo->isMaintainedBy($localDeveloper))->toBeTrue()
+        ->and($contributors)->toHaveCount(2)
+        ->and($contributors->every(fn (RepoContributor $contributor): bool => $contributor->role === RepoRole::Contributor && $contributor->user->isFollowing($localDeveloper)))->toBeTrue()
+        ->and($repo->commits()->count())->toBe(3);
+});

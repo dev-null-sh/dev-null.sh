@@ -11,6 +11,8 @@ use App\Actions\UpdateCommitHotScores;
 use App\Actions\UpdateConversationReadThrough;
 use App\Enums\RemotesFrom;
 use App\Models\Commit;
+use App\Models\Repo;
+use App\Models\RepoContributor;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -63,6 +65,29 @@ final class DatabaseSeeder extends Seeder
         $localDeveloper->followers()->syncWithoutDetaching($users->random(5)->modelKeys());
 
         $this->converse($localDeveloper, $users);
+        $this->collaborate($localDeveloper);
+    }
+
+    /**
+     * A repo the local developer maintains with two of their followers, with a few commits only the three of them see.
+     */
+    private function collaborate(User $localDeveloper): void
+    {
+        [$first, $second] = $localDeveloper->followers()->take(2)->get()->all();
+
+        $repo = Repo::factory()->create(['name' => 'dev/null', 'slug' => 'dev-null', 'description' => 'The social network for developers.']);
+
+        RepoContributor::factory()->for($repo)->for($localDeveloper)->maintainer()->create();
+        RepoContributor::factory()->for($repo)->for($first)->create();
+        RepoContributor::factory()->for($repo)->for($second)->create();
+
+        foreach ([
+            [$localDeveloper, 'repos are in: commits here are only seen by the three of us', '-2 days'],
+            [$first, 'nice. moving the release notes in here', '-1 day'],
+            [$second, 'the polling fix is ready for review', '-2 hours'],
+        ] as [$author, $body, $at]) {
+            Commit::factory()->for($author)->for($repo)->create(['body' => $body, 'created_at' => Date::now()->modify($at)]);
+        }
     }
 
     /**

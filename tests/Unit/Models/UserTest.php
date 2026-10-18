@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Enums\RepoRole;
 use App\Models\Commit;
+use App\Models\Repo;
+use App\Models\RepoContributor;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +53,16 @@ it('has ssh keys', function (): void {
     expect($user->sshKeys)->toHaveCount(2);
 });
 
+it('has repos', function (): void {
+    $user = User::factory()->create();
+    $repo = Repo::factory()->create();
+    RepoContributor::factory()->for($repo)->for($user)->maintainer()->create();
+    RepoContributor::factory()->create();
+
+    expect($user->repos->modelKeys())->toBe([$repo->id])
+        ->and($user->repos->sole()->pivot->getAttribute('role'))->toBe(RepoRole::Maintainer->value);
+});
+
 it('has following and followers', function (): void {
     $user = User::factory()->create();
     $followed = User::factory()->create();
@@ -94,10 +107,11 @@ it('does not count deleted commits', function (): void {
         ->and($user->loadPublicCounts()->commits_count)->toBe(1);
 });
 
-it('loads public counts with approved commits only', function (): void {
+it('loads public counts with approved commits outside repos only', function (): void {
     $user = User::factory()->has(Commit::factory())->create();
     Commit::factory()->for($user)->pending()->create();
     Commit::factory()->for($user)->rejected()->create();
+    Commit::factory()->for($user)->for(Repo::factory())->create();
     $user->following()->attach(User::factory()->count(2)->create());
     User::factory()->create()->following()->attach($user);
 

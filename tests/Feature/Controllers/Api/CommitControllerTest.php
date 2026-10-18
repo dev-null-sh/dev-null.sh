@@ -6,6 +6,7 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Repo;
 use App\Models\User;
 
 it('shows an approved commit to anyone', function (): void {
@@ -155,6 +156,7 @@ it('returns not found for commits that are not public', function (Closure $facto
     'pending' => [fn (): Commit => Commit::factory()->pending()->create(['body' => 'Waiting for review'])],
     'rejected' => [fn (): Commit => Commit::factory()->rejected()->create(['body' => 'Waiting for review'])],
     'deleted' => [fn (): Commit => tap(Commit::factory()->create(['body' => 'Waiting for review']))->delete()],
+    'in a repo' => [fn (): Commit => Commit::factory()->for(Repo::factory())->create(['body' => 'Waiting for review'])],
 ]);
 
 it('returns not found for unknown and malformed ids', function (string $id): void {

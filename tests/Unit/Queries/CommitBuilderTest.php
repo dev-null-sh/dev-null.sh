@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\Poll;
+use App\Models\Repo;
+use App\Models\RepoContributor;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -51,6 +53,18 @@ it('scopes commits to the approved ones for guests', function (): void {
     Commit::factory()->rejected()->create();
 
     expect(Commit::query()->visibleTo(null)->pluck('id')->all())->toBe([$approved->id]);
+});
+
+it('leaves repo commits out of what anyone sees, their contributors included', function (): void {
+    $repo = Repo::factory()->create();
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($repo)->create();
+    Commit::factory()->for($contributor)->for($repo)->pending()->create();
+
+    expect(Commit::query()->visibleTo($contributor)->pluck('id')->all())->toBe([$commit->id])
+        ->and(Commit::query()->visibleTo(null)->pluck('id')->all())->toBe([$commit->id])
+        ->and(Commit::query()->outsideRepos()->pluck('id')->all())->toBe([$commit->id]);
 });
 
 it('loads the star count and whether the viewer starred', function (): void {

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Repo;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -62,6 +63,7 @@ it('returns not found for commits that are not approved', function (Closure $fac
 })->with([
     'pending' => [fn (): Commit => Commit::factory()->pending()->create()],
     'rejected' => [fn (): Commit => Commit::factory()->rejected()->create()],
+    'in a repo' => [fn (): Commit => Commit::factory()->for(Repo::factory())->create()],
 ]);
 
 it('returns not found for a commit under another username', function (): void {

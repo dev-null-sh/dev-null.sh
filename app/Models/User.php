@@ -60,6 +60,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, Notification> $notifications
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read Collection<int, PollVote> $pollVotes
+ * @property-read Collection<int, Repo> $repos
  * @property-read int $commits_count
  * @property-read int $following_count
  * @property-read int $followers_count
@@ -188,6 +189,14 @@ final class User extends Authenticatable
     }
 
     /**
+     * @return BelongsToMany<Repo, $this>
+     */
+    public function repos(): BelongsToMany
+    {
+        return $this->belongsToMany(Repo::class, 'repo_contributors')->withPivot('role')->withTimestamps();
+    }
+
+    /**
      * @return BelongsToMany<Commit, $this>
      */
     public function starredCommits(): BelongsToMany
@@ -288,11 +297,11 @@ final class User extends Authenticatable
     }
 
     /**
-     * Counts what anyone may see about the user, so only approved commits.
+     * Counts what anyone may see about the user, so only approved commits outside repos.
      */
     public function loadPublicCounts(): self
     {
-        return $this->fillCounts($this->commits()->approved()->count());
+        return $this->fillCounts($this->commits()->approved()->outsideRepos()->count());
     }
 
     /**

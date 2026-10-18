@@ -20,6 +20,7 @@ final readonly class CreateUserFeed
     {
         $commits = $user->commits()
             ->approved()
+            ->outsideRepos()
             ->topLevel()
             ->with('images')
             ->latest()

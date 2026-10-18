@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Repo;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
@@ -38,6 +39,7 @@ it('serves the public top-level commits of a user as an atom feed', function ():
     Commit::factory()->for($user)->pending()->create(['body' => 'Pending commit']);
     Commit::factory()->for($user)->rejected()->create(['body' => 'Rejected commit']);
     Commit::factory()->for($user)->create(['body' => 'Deleted commit'])->delete();
+    Commit::factory()->for($user)->for(Repo::factory())->create(['body' => 'Repo commit']);
     Commit::factory()->create(['body' => 'Someone else']);
 
     $response = $this->get('/@octocat/feed.atom');
@@ -48,6 +50,7 @@ it('serves the public top-level commits of a user as an atom feed', function ():
         ->assertDontSee('Pending commit')
         ->assertDontSee('Rejected commit')
         ->assertDontSee('Deleted commit')
+        ->assertDontSee('Repo commit')
         ->assertDontSee('Someone else');
 
     $feed = atomFeed($response);

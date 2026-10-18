@@ -7,6 +7,8 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Repo;
+use App\Models\RepoContributor;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
@@ -29,6 +31,7 @@ test('to array', function (): void {
             'root_id',
             'hot_score',
             'pasteis_count',
+            'repo_id',
             'body_segments',
             'preview_segments',
             'is_checking',
@@ -81,6 +84,22 @@ it('is visible when approved or owned', function (): void {
         ->and($pending->isVisibleTo($viewer))->toBeFalse()
         ->and($rejected->isVisibleTo($author))->toBeTrue()
         ->and($rejected->isVisibleTo($viewer))->toBeFalse();
+});
+
+it('is only visible to the contributors of its repo', function (): void {
+    $repo = Repo::factory()->create();
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+    $author = RepoContributor::factory()->for($repo)->create()->user;
+    $commit = Commit::factory()->for($author)->for($repo)->create();
+
+    expect($commit->isVisibleTo($contributor))->toBeTrue()
+        ->and($commit->isVisibleTo($author))->toBeTrue()
+        ->and($commit->isVisibleTo(User::factory()->create()))->toBeFalse()
+        ->and($commit->isVisibleTo(null))->toBeFalse();
+
+    $repo->contributors()->where('user_id', $author->id)->delete();
+
+    expect($commit->isVisibleTo($author))->toBeFalse();
 });
 
 it('deletes stars with the commit', function (): void {

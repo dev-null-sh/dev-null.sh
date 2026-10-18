@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Repo;
 
 it('lists approved commits only', function (): void {
     $commit = Commit::factory()->create();
@@ -11,6 +12,8 @@ it('lists approved commits only', function (): void {
     $rejected = Commit::factory()->rejected()->create();
     $deleted = Commit::factory()->create();
     $deleted->delete();
+
+    $inRepo = Commit::factory()->for(Repo::factory())->create();
 
     $response = $this->get(route('commit-sitemap.show', 1));
 
@@ -20,7 +23,8 @@ it('lists approved commits only', function (): void {
         ->assertSee('<lastmod>'.$commit->updated_at->toAtomString().'</lastmod>', false)
         ->assertDontSee($pending->id)
         ->assertDontSee($rejected->id)
-        ->assertDontSee($deleted->id);
+        ->assertDontSee($deleted->id)
+        ->assertDontSee($inRepo->id);
 });
 
 it('lists the images of approved commits', function (): void {

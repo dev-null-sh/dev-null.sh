@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $user_id
  * @property-read string|null $parent_id
  * @property-read string|null $root_id
+ * @property-read string|null $repo_id
  * @property-read float $hot_score
  * @property-read string $body
  * @property-read array<string, string>|null $mentions
@@ -43,6 +44,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int $pasteis_count
  * @property-read bool $starred
  * @property-read User|null $user
+ * @property-read Repo|null $repo
  * @property-read Collection<int, User> $stars
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
@@ -105,6 +107,7 @@ final class Commit extends Model
             'user_id' => 'string',
             'parent_id' => 'string',
             'root_id' => 'string',
+            'repo_id' => 'string',
             'hot_score' => 'float',
             'pasteis_count' => 'integer',
             'body' => 'string',
@@ -148,6 +151,14 @@ final class Commit extends Model
     }
 
     /**
+     * @return BelongsTo<Repo, $this>
+     */
+    public function repo(): BelongsTo
+    {
+        return $this->belongsTo(Repo::class);
+    }
+
+    /**
      * @return BelongsToMany<User, $this>
      */
     public function stars(): BelongsToMany
@@ -156,10 +167,15 @@ final class Commit extends Model
     }
 
     /**
-     * Approved commits are visible to everyone but people across a block. Authors can also see their own.
+     * Approved commits are visible to everyone but people across a block. Authors can also see their own. Repo commits
+     * are only ever visible to the repo's contributors.
      */
     public function isVisibleTo(?User $user): bool
     {
+        if ($this->repo_id !== null && (! $user instanceof User || ! $user->repos()->whereKey($this->repo_id)->exists())) {
+            return false;
+        }
+
         if ($user instanceof User && $this->user_id === $user->id) {
             return true;
         }

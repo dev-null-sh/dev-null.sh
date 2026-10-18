@@ -26,6 +26,7 @@ final class CommitBuilder extends Builder
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
         'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count',
+        'repo_id',
     ];
 
     /**
@@ -55,15 +56,16 @@ final class CommitBuilder extends Builder
 
     /**
      * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
-     * A block hides each one's commits from the other.
+     * A block hides each one's commits from the other. Repo commits stay inside their repo, so lists never show them, while
+     * its contributors still open them by link (Commit::isVisibleTo()).
      */
     public function visibleTo(?User $user): self
     {
         if (! $user instanceof User) {
-            return $this->where($this->qualifyColumn('status'), CommitStatus::Approved);
+            return $this->outsideRepos()->where($this->qualifyColumn('status'), CommitStatus::Approved);
         }
 
-        return $this->where(fn (Builder $query): Builder => $query
+        return $this->outsideRepos()->where(fn (Builder $query): Builder => $query
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
             ->orWhere($this->qualifyColumn('user_id'), $user->id))
             ->where(fn (Builder $query): Builder => $query
@@ -104,6 +106,11 @@ final class CommitBuilder extends Builder
             ->where(fn (self $query): self => $query
                 ->whereNull($query->getModel()->getQualifiedDeletedAtColumn())
                 ->orWhereExists($replies));
+    }
+
+    public function outsideRepos(): self
+    {
+        return $this->whereNull($this->qualifyColumn('repo_id'));
     }
 
     public function topLevel(): self

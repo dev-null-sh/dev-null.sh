@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Repo;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -17,6 +18,7 @@ it('lists the public top-level commits of a user, newest first', function (): vo
     Commit::factory()->for($user)->pending()->create();
     Commit::factory()->for($user)->rejected()->create();
     Commit::factory()->for($user)->create()->delete();
+    Commit::factory()->for($user)->for(Repo::factory())->create();
     Commit::factory()->create();
 
     $response = $this->getJson('/api/v1/users/octocat/commits');
