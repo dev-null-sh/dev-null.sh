@@ -1,4 +1,5 @@
 import { ChevronDown, Plus, X } from 'lucide-react';
+import { EmojiInput } from '@/components/emoji-input';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -86,15 +87,12 @@ export function PollEditor({
                                 >
                                     Option {index + 1}
                                 </label>
-                                <input
+                                <EmojiInput
                                     id={`${id}-option-${index}`}
                                     name="poll[options][]"
                                     value={option}
-                                    onChange={(event) =>
-                                        updateOption(
-                                            index,
-                                            event.currentTarget.value,
-                                        )
+                                    onValueChange={(value) =>
+                                        updateOption(index, value)
                                     }
                                     maxLength={maxOptionLength}
                                     placeholder={`Option ${index + 1}`}

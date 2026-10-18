@@ -1,4 +1,4 @@
-import { mapTypedProse } from '@/lib/code';
+import { mapTypedProse, typedProse } from '@/lib/code';
 import emojiShortcodes from '@/lib/emoji-shortcodes.json?raw';
 
 const shortcodeEmoji = JSON.parse(emojiShortcodes) as Record<string, string>;
@@ -32,6 +32,25 @@ export function emojifyInput(
         text: emojifyTyped(text),
         caret: emojifyTyped(text.slice(0, caret)).length,
     };
+}
+
+// The ":shortcode" being typed in prose right before the caret, from two characters on so times like 10:30 stay quiet.
+const emojiBeforeCaretPattern =
+    /(?:^|[^\p{L}\p{N}_:])(:([A-Za-z0-9_+-]{2,}))$/u;
+
+/**
+ * The ":shortcode" being typed at the end of the text before the caret, with where its colon is, unless it's in code.
+ */
+export function emojiQueryBefore(
+    before: string,
+): { start: number; query: string } | null {
+    const match = (typedProse(before).at(-1) ?? '').match(
+        emojiBeforeCaretPattern,
+    );
+
+    return match
+        ? { start: before.length - match[1].length, query: match[2] }
+        : null;
 }
 
 export type EmojiSuggestion = {

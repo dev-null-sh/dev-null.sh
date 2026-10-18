@@ -1,12 +1,15 @@
 import type { ComponentProps, KeyboardEvent, Ref, SyntheticEvent } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionSuggestionController';
+import {
+    EmojiSuggestionList,
+    Highlighted,
+    SuggestionPopover,
+} from '@/components/emoji-suggestions';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
-import { typedProse } from '@/lib/code';
 import type { EmojiSuggestion } from '@/lib/emoji';
-import { emojifyInput, searchEmoji } from '@/lib/emoji';
+import { emojifyInput, emojiQueryBefore, searchEmoji } from '@/lib/emoji';
 import { suggestionPosition } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
@@ -35,10 +38,6 @@ export function clearMentionSuggestionsCache(): void {
 // The "@handle" being typed right before the caret. Keep the rules in sync with app/Services/Mentions.php.
 const mentionBeforeCaretPattern =
     /(?:^|[^\p{L}\p{N}_./@-])@([A-Za-z0-9][A-Za-z0-9-]{0,38}|)$/u;
-
-// The ":shortcode" being typed in prose right before the caret, from two characters on so times like 10:30 stay quiet.
-const emojiBeforeCaretPattern =
-    /(?:^|[^\p{L}\p{N}_:])(:([A-Za-z0-9_+-]{2,}))$/u;
 
 // Every style that changes where text wraps, so the mirror below wraps exactly like the textarea.
 const mirroredProperties = [
@@ -89,13 +88,9 @@ function triggerAt(
         };
     }
 
-    const emoji = (typedProse(before).at(-1) ?? '').match(
-        emojiBeforeCaretPattern,
-    );
+    const emoji = emojiQueryBefore(before);
 
-    return emoji
-        ? { kind: 'emoji', start: caret - emoji[1].length, query: emoji[2] }
-        : null;
+    return emoji ? { kind: 'emoji', ...emoji } : null;
 }
 
 /**
@@ -175,40 +170,6 @@ async function fetchSuggestions(
     cache.set(`${org ?? ''}:${query.toLowerCase()}`, data.users);
 
     return data.users;
-}
-
-/**
- * Where the query matches the text, preferring the start of a word, so ":art" marks "arts" in "martial_arts".
- */
-function matchIndex(text: string, query: string): number {
-    const lower = text.toLowerCase();
-    const first = query === '' ? -1 : lower.indexOf(query);
-
-    for (let at = first; at !== -1; at = lower.indexOf(query, at + 1)) {
-        if (at === 0 || /[^\p{L}\p{N}]/u.test(lower[at - 1])) {
-            return at;
-        }
-    }
-
-    return first;
-}
-
-function Highlighted({ text, query }: { text: string; query: string }) {
-    const index = matchIndex(text, query);
-
-    if (index === -1) {
-        return text;
-    }
-
-    return (
-        <>
-            {text.slice(0, index)}
-            <span className="text-foreground">
-                {text.slice(index, index + query.length)}
-            </span>
-            {text.slice(index + query.length)}
-        </>
-    );
 }
 
 /**
@@ -497,172 +458,116 @@ export function MentionTextarea({
                 aria-activedescendant={activeId}
             />
 
-            {isOpen &&
-                createPortal(
-                    <div
-                        className="pointer-events-auto fixed z-50 flex flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
-                        style={position}
-                        onMouseDown={(event) => event.preventDefault()}
-                        data-mention-suggestions
-                        data-test="mention-suggestions"
-                    >
-                        {trigger?.kind === 'emoji' ? (
-                            <ul
-                                ref={listRef}
-                                id={listId}
-                                role="listbox"
-                                aria-label="Insert an emoji"
-                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
-                            >
-                                {emojis.map((emoji, index) => (
-                                    <li
-                                        key={emoji.name}
-                                        id={`${id}-emoji-${emoji.name}`}
-                                        role="option"
-                                        aria-selected={index === activeIndex}
-                                        onMouseMove={() =>
-                                            setActiveIndex(index)
-                                        }
-                                        onClick={() => selectEmoji(emoji)}
-                                        className={cn(
-                                            'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5',
-                                            {
-                                                'bg-accent':
-                                                    index === activeIndex,
-                                            },
-                                        )}
-                                        data-test="emoji-suggestion"
-                                    >
-                                        <span
-                                            aria-hidden
-                                            className="w-6 shrink-0 text-center text-lg leading-none"
-                                        >
-                                            {emoji.emoji}
-                                        </span>
-                                        <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-muted-foreground">
-                                            :
+            {isOpen && (
+                <SuggestionPopover position={position}>
+                    {trigger?.kind === 'emoji' ? (
+                        <EmojiSuggestionList
+                            ref={listRef}
+                            id={listId}
+                            optionId={(emoji) => `${id}-emoji-${emoji.name}`}
+                            emojis={emojis}
+                            query={emojiQuery}
+                            activeIndex={activeIndex}
+                            onActivate={setActiveIndex}
+                            onSelect={selectEmoji}
+                        />
+                    ) : suggestions.length > 0 ? (
+                        <ul
+                            ref={listRef}
+                            id={listId}
+                            role="listbox"
+                            aria-label="Mention a developer"
+                            className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
+                        >
+                            {current?.key === `${org ?? ''}:` && (
+                                <li
+                                    role="presentation"
+                                    className="px-2.5 pt-1 pb-1.5 text-xs text-muted-foreground"
+                                >
+                                    {org ? 'Members' : 'People you follow'}
+                                </li>
+                            )}
+                            {suggestions.map((user, index) => (
+                                <li
+                                    key={user.id}
+                                    id={`${id}-mention-${user.id}`}
+                                    role="option"
+                                    aria-selected={index === activeIndex}
+                                    onMouseMove={() => setActiveIndex(index)}
+                                    onClick={() => select(user)}
+                                    className={cn(
+                                        'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2',
+                                        {
+                                            'bg-accent': index === activeIndex,
+                                        },
+                                    )}
+                                    data-test="mention-suggestion"
+                                >
+                                    <UserAvatar
+                                        user={user}
+                                        className="size-8 shrink-0"
+                                    />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-semibold">
                                             <Highlighted
-                                                text={emoji.name}
-                                                query={emojiQuery}
+                                                text={user.name}
+                                                query={query ?? ''}
                                             />
-                                            :
                                         </span>
-                                        <kbd
-                                            aria-hidden
-                                            className={cn(
-                                                'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
-                                                {
-                                                    'opacity-100':
-                                                        index === activeIndex,
-                                                },
-                                            )}
-                                        >
-                                            ↵
-                                        </kbd>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : suggestions.length > 0 ? (
-                            <ul
-                                ref={listRef}
-                                id={listId}
-                                role="listbox"
-                                aria-label="Mention a developer"
-                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
-                            >
-                                {current?.key === `${org ?? ''}:` && (
-                                    <li
-                                        role="presentation"
-                                        className="px-2.5 pt-1 pb-1.5 text-xs text-muted-foreground"
-                                    >
-                                        {org ? 'Members' : 'People you follow'}
-                                    </li>
-                                )}
-                                {suggestions.map((user, index) => (
-                                    <li
-                                        key={user.id}
-                                        id={`${id}-mention-${user.id}`}
-                                        role="option"
-                                        aria-selected={index === activeIndex}
-                                        onMouseMove={() =>
-                                            setActiveIndex(index)
-                                        }
-                                        onClick={() => select(user)}
-                                        className={cn(
-                                            'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2',
-                                            {
-                                                'bg-accent':
-                                                    index === activeIndex,
-                                            },
-                                        )}
-                                        data-test="mention-suggestion"
-                                    >
-                                        <UserAvatar
-                                            user={user}
-                                            className="size-8 shrink-0"
-                                        />
-                                        <span className="min-w-0 flex-1">
-                                            <span className="block truncate text-sm font-semibold">
+                                        <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                                            <span
+                                                aria-hidden
+                                                className="size-1.5 shrink-0 rounded-full"
+                                                style={{
+                                                    background: laneColor(
+                                                        user.lane,
+                                                    ),
+                                                }}
+                                            />
+                                            <span className="truncate">
+                                                @
                                                 <Highlighted
-                                                    text={user.name}
+                                                    text={user.username}
                                                     query={query ?? ''}
                                                 />
                                             </span>
-                                            <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
-                                                <span
-                                                    aria-hidden
-                                                    className="size-1.5 shrink-0 rounded-full"
-                                                    style={{
-                                                        background: laneColor(
-                                                            user.lane,
-                                                        ),
-                                                    }}
-                                                />
-                                                <span className="truncate">
-                                                    @
-                                                    <Highlighted
-                                                        text={user.username}
-                                                        query={query ?? ''}
-                                                    />
-                                                </span>
-                                            </span>
                                         </span>
-                                        <kbd
-                                            aria-hidden
-                                            className={cn(
-                                                'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
-                                                {
-                                                    'opacity-100':
-                                                        index === activeIndex,
-                                                },
-                                            )}
-                                        >
-                                            ↵
-                                        </kbd>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <div
-                                role="status"
-                                className="px-4 py-3 text-sm text-muted-foreground"
-                            >
-                                {isSearching ? (
-                                    <span className="flex items-center gap-2">
-                                        <Spinner className="size-3.5" />
-                                        Searching…
                                     </span>
-                                ) : (
-                                    <span className="font-mono text-[13px]">
-                                        fatal: no developers match '
-                                        {trigger?.query}'
-                                    </span>
-                                )}
-                            </div>
-                        )}
-                    </div>,
-                    document.body,
-                )}
+                                    <kbd
+                                        aria-hidden
+                                        className={cn(
+                                            'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
+                                            {
+                                                'opacity-100':
+                                                    index === activeIndex,
+                                            },
+                                        )}
+                                    >
+                                        ↵
+                                    </kbd>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div
+                            role="status"
+                            className="px-4 py-3 text-sm text-muted-foreground"
+                        >
+                            {isSearching ? (
+                                <span className="flex items-center gap-2">
+                                    <Spinner className="size-3.5" />
+                                    Searching…
+                                </span>
+                            ) : (
+                                <span className="font-mono text-[13px]">
+                                    fatal: no developers match '{trigger?.query}
+                                    '
+                                </span>
+                            )}
+                        </div>
+                    )}
+                </SuggestionPopover>
+            )}
         </>
     );
 }
