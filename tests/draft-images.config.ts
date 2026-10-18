@@ -16,6 +16,7 @@ export default defineConfig({
             'tests/Unit/EmojiSearch.test.tsx',
             'tests/Unit/EmojiShortcodes.test.tsx',
             'tests/Unit/QuoteReply.test.tsx',
+            'tests/Unit/SearchDialogComposition.test.tsx',
         ],
     },
 });
