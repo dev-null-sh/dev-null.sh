@@ -13,4 +13,5 @@ export type NavItem = {
     hasIndicator?: boolean;
     badge?: number;
     prefetch?: boolean;
+    cacheFor?: InertiaLinkProps['cacheFor'];
 };

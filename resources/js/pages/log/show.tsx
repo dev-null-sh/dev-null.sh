@@ -1,7 +1,15 @@
-import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
+import {
+    Head,
+    Link,
+    router,
+    useHttp,
+    usePage,
+    usePoll,
+} from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import UserLogController from '@/actions/App/Http/Controllers/UserLogController';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
@@ -16,6 +24,7 @@ import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
+import { logCacheFor } from '@/lib/log';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
@@ -74,9 +83,61 @@ export default function Show({
         { autoStart: newestId !== undefined },
     );
 
-    // Showing a log remembers it, so pages prefetched before it still carry the previous log in their shared props.
+    const saveLog = useHttp<{ log: Log }, { log: Log }>({ log });
+
+    const prefetchOtherLogs = () =>
+        logs
+            .filter(
+                (other) =>
+                    other !== log && (user !== null || other !== 'following'),
+            )
+            .forEach((other) =>
+                router.prefetch(
+                    LogController.show(other),
+                    {},
+                    { cacheFor: logCacheFor },
+                ),
+            );
+
+    const rememberLog = useEffectEvent(() => {
+        if (user === null || auth.log === log) {
+            return;
+        }
+
+        saveLog.transform(() => ({ log }));
+        saveLog.submit(UserLogController.update()).then(
+            () => router.replaceProp('auth.log', log),
+            () => {},
+        );
+    });
+
+    const cancelRememberLog = useEffectEvent(() => saveLog.cancel());
+
+    const checkNewCommits = useEffectEvent(() => {
+        if (newestId === undefined) {
+            return;
+        }
+
+        router.reload({
+            only: ['newCommitsCount'],
+            data: { since: newestId },
+            preserveUrl: true,
+        });
+    });
+
+    const showLog = useEffectEvent(() => {
+        prefetchOtherLogs();
+        checkNewCommits();
+    });
+
     useEffect(() => {
-        router.flushAll();
+        showLog();
+        const remember = window.setTimeout(rememberLog, 500);
+
+        return () => {
+            window.clearTimeout(remember);
+            cancelRememberLog();
+        };
     }, [log]);
 
     useEffect(
@@ -109,7 +170,7 @@ export default function Show({
                 <h1 className="sr-only">{titles[log]}</h1>
                 <PageTabs
                     label="Logs"
-                    prefetch={false}
+                    cacheFor={logCacheFor}
                     tabs={[
                         {
                             title: 'Following',
@@ -206,6 +267,8 @@ const titles: Record<Log, string> = {
     latest: 'Latest',
     trending: 'Trending',
 };
+
+const logs = Object.keys(titles) as Log[];
 
 function Suggestions({ suggestions }: { suggestions: Commit[] }) {
     return (

@@ -7,12 +7,14 @@ export function PageTabs({
     tabs,
     preserveScroll = false,
     prefetch = true,
+    cacheFor,
     only,
     reset,
 }: {
     label: string;
     preserveScroll?: boolean;
     prefetch?: boolean;
+    cacheFor?: InertiaLinkProps['cacheFor'];
     only?: InertiaLinkProps['only'];
     reset?: string[];
     tabs: {
@@ -30,6 +32,7 @@ export function PageTabs({
                     key={tab.title}
                     href={tab.href}
                     prefetch={prefetch}
+                    cacheFor={cacheFor}
                     viewTransition
                     preserveScroll={preserveScroll}
                     only={only}

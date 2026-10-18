@@ -78,6 +78,7 @@ use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\UserLaneController;
+use App\Http\Controllers\UserLogController;
 use App\Http\Controllers\UserMuteController;
 use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPasteisModeController;
@@ -374,6 +375,9 @@ Route::middleware('auth')->group(function (): void {
     Route::get('settings/export', ExportController::class)
         ->middleware(['throttle:exports', 'throttle:5,1'])
         ->name('export');
+
+    // User Log...
+    Route::put('settings/log', [UserLogController::class, 'update'])->name('user-log.update');
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');

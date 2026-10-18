@@ -146,30 +146,18 @@ it('does not count the authenticated user relations when reloading only commits'
         ->each->not->toContain('count(*)');
 });
 
-it('remembers the last visited log', function (Log $log): void {
+it('does not remember a log by showing it, so a prefetch cannot change it', function (Log $log): void {
     $user = User::factory()->create(['log' => $log === Log::Following ? Log::Trending : Log::Following]);
+    $remembered = $user->log;
 
     $response = $this->actingAs($user)
         ->get(route('log.show', $log));
 
     $response->assertOk()
-        ->assertInertia(fn ($page) => $page->where('auth.log', $log->value));
+        ->assertInertia(fn ($page) => $page->where('auth.log', $remembered->value));
 
-    expect($user->refresh()->log)->toBe($log);
+    expect($user->refresh()->log)->toBe($remembered);
 })->with(Log::cases());
-
-it('does not update the user when the log is unchanged', function (): void {
-    $user = User::factory()->create(['log' => Log::Trending]);
-    $updatedAt = $user->updated_at;
-
-    $this->travel(1)->minute();
-
-    $this->actingAs($user)
-        ->get(route('log.show', Log::Trending))
-        ->assertOk();
-
-    expect($user->refresh()->updated_at->equalTo($updatedAt))->toBeTrue();
-});
 
 it('returns not found for unknown logs', function (): void {
     $response = $this->actingAs(User::factory()->create())
@@ -620,4 +608,36 @@ it('preloads the latest reply per feed commit with a cursor to the older replies
             ->assertJsonPath('data.0.body', 'Older reply')
             ->assertJsonPath('next_cursor', null);
     }
+});
+
+it('sends the remembered log once per user', function (): void {
+    $user = User::factory()->create(['log' => Log::Latest]);
+    $headers = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+    ];
+
+    $this->actingAs($user)->withHeaders($headers)->get('/log/trending')
+        ->assertOk()
+        ->assertJsonPath('props.auth.log', Log::Latest->value)
+        ->assertJsonPath("onceProps.log:{$user->id}.prop", 'auth.log');
+
+    $this->actingAs($user)
+        ->withHeaders([...$headers, 'X-Inertia-Except-Once-Props' => "log:{$user->id}"])
+        ->get('/log/trending')
+        ->assertOk()
+        ->assertJsonMissingPath('props.auth.log');
+});
+
+it('sends a guest a fresh log after the user signs out', function (): void {
+    $user = User::factory()->create(['log' => Log::Latest]);
+
+    $this->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Except-Once-Props' => "log:{$user->id}",
+    ])->get('/log/trending')
+        ->assertOk()
+        ->assertJsonPath('props.auth.log', null)
+        ->assertJsonPath('onceProps.log:guest.prop', 'auth.log');
 });

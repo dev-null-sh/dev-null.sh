@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Actions\UpdateUserLog;
 use App\Enums\Log;
 use App\Http\Requests\ShowLogRequest;
 use App\Models\Commit;
@@ -23,9 +22,9 @@ final readonly class LogController
     /**
      * Guests land straight on the Trending log, with the home page's link preview.
      */
-    public function index(ShowLogRequest $request, SuggestedCommitsQuery $suggested, LatestLogCommitsQuery $latest, UpdateUserLog $action, PageMetadata $metadata): Response|SymfonyResponse
+    public function index(ShowLogRequest $request, SuggestedCommitsQuery $suggested, LatestLogCommitsQuery $latest, PageMetadata $metadata): Response|SymfonyResponse
     {
-        $response = $this->show($request, null, Log::Trending, $suggested, $latest, $action);
+        $response = $this->show($request, null, Log::Trending, $suggested, $latest);
 
         return $response instanceof Response ? $response->withViewData(['preview' => $metadata->home()]) : $response;
     }
@@ -33,14 +32,10 @@ final readonly class LogController
     /**
      * Guests read Trending and Latest, while Following takes them to sign in with GitHub.
      */
-    public function show(ShowLogRequest $request, #[CurrentUser] ?User $user, Log $log, SuggestedCommitsQuery $suggested, LatestLogCommitsQuery $latest, UpdateUserLog $action): Response|SymfonyResponse
+    public function show(ShowLogRequest $request, #[CurrentUser] ?User $user, Log $log, SuggestedCommitsQuery $suggested, LatestLogCommitsQuery $latest): Response|SymfonyResponse
     {
-        if (! $user instanceof User) {
-            if ($log === Log::Following) {
-                return Inertia::location(route('login'));
-            }
-        } elseif ($user->log !== $log) {
-            $action->handle($user, $log);
+        if (! $user instanceof User && $log === Log::Following) {
+            return Inertia::location(route('login'));
         }
 
         return Inertia::render('log/show', [

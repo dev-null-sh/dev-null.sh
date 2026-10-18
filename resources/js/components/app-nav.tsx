@@ -48,6 +48,7 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
+import { logCacheFor } from '@/lib/log';
 import { browserTimeZone, cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
@@ -76,7 +77,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Log',
             href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
-            prefetch: false,
+            cacheFor: logCacheFor,
         },
         {
             title: 'Notifications',
@@ -177,6 +178,7 @@ function NavLink({
             <Link
                 href={item.href}
                 prefetch={item.prefetch ?? true}
+                cacheFor={item.cacheFor}
                 viewTransition
                 aria-current={item.isActive ? 'page' : undefined}
                 title={title}
@@ -276,6 +278,8 @@ export function AppNav({
                             ? home()
                             : LogController.show(auth.log)
                     }
+                    prefetch={auth.log !== null}
+                    cacheFor={logCacheFor}
                     viewTransition
                     className="mb-8 grid grid-rows-[36px_20px] gap-y-1 rounded-md px-3"
                     aria-label={
@@ -435,6 +439,8 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
         <div className="flex h-14 items-center justify-between border-b px-4 md:hidden">
             <Link
                 href={auth.log === null ? home() : LogController.show(auth.log)}
+                prefetch={auth.log !== null}
+                cacheFor={logCacheFor}
                 viewTransition
                 aria-label={
                     auth.log === null
