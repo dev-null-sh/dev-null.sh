@@ -53,12 +53,16 @@ final readonly class NotificationGroupsQuery
      * Whether two unread notifications share a group only depends on what happened between them, so grouping from the
      * oldest unread one onward counts the same groups as grouping the whole history, which every page would pay for.
      */
-    public function unreadCount(User $user): int
+    public function unreadCount(User $user, string $type = 'all'): int
     {
+        if ($type === 'none') {
+            return 0;
+        }
+
         $oldestUnread = $this->visible($user)->unread()->oldest()->first();
 
         return $oldestUnread instanceof Notification
-            ? $this->groupsSince($user, $oldestUnread->created_at)->where('group_rank', 1)->where('unread_count', '>', 0)->count()
+            ? $this->groupsSince($user, $oldestUnread->created_at, $type)->where('group_rank', 1)->where('unread_count', '>', 0)->count()
             : 0;
     }
 

@@ -7,11 +7,19 @@ namespace App\Http\Requests;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 
 final class ListNotificationsRequest extends FormRequest
 {
     public const string TYPE_RULE = 'regex:/\A(?:all|none|(?:replies|quotes|stars|mentions|follows|moderation)(?:,(?:replies|quotes|stars|mentions|follows|moderation))*)\z/';
+
+    public static function rememberedType(Request $request, User $user): string
+    {
+        $type = $request->cookie('notification_types_'.$user->id, 'all');
+
+        return is_string($type) && preg_match(mb_substr(self::TYPE_RULE, 6), $type) === 1 ? $type : 'all';
+    }
 
     public function authorize(): bool
     {
@@ -38,9 +46,7 @@ final class ListNotificationsRequest extends FormRequest
             return $type;
         }
 
-        $type = $this->cookie($cookie, 'all');
-
-        return is_string($type) && preg_match(mb_substr(self::TYPE_RULE, 6), $type) === 1 ? $type : 'all';
+        return self::rememberedType($this, $user);
     }
 
     public function through(): ?CarbonImmutable

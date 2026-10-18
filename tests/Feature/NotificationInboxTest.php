@@ -30,6 +30,37 @@ it('polls only the unread count outside the inbox without acknowledging activity
     expect($notice->refresh()->read_at)->toBeNull();
 });
 
+it('filters the menu count using the current users saved notification types', function (string $type, int $expected): void {
+    $user = User::factory()->create();
+    $thread = Commit::factory()->for($user)->create();
+    $reply = Notification::factory()->for($user, 'recipient')->replied($thread)->create();
+    Notification::factory()->for($user, 'recipient')->for($reply->commit, 'commit')->mentioned()->read()->create();
+    Notification::factory()->for($user, 'recipient')->replied($thread)->create();
+    Notification::factory()->for($user, 'recipient')->create();
+    Notification::factory()->for($user, 'recipient')->starred()->create();
+
+    $this->actingAs($user)->withCookie('notification_types_'.$user->id, $type)
+        ->withCookie('notification_types_'.User::factory()->create()->id, 'none')
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount',
+        ])->get(route('log.show', ['log' => 'trending', 'type' => 'none']))->assertOk()
+        ->assertJsonPath('props.auth.unreadNotificationsCount', $expected);
+
+    expect($reply->refresh()->read_at)->toBeNull();
+})->with([
+    'all types' => ['all', 3],
+    'one type with grouped replies' => ['replies', 1],
+    'multiple types' => ['replies,stars', 2],
+    'only read matches in an unread group' => ['mentions', 0],
+    'no matching type' => ['quotes', 0],
+    'no selected types' => ['none', 0],
+    'invalid saved filter' => ['invalid', 3],
+    'partially invalid saved filter' => ['replies,invalid', 3],
+]);
+
 it('refreshes the entire loaded inbox window without losing older pages', function (): void {
     $user = User::factory()->create();
     $notices = collect();
