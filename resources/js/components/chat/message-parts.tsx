@@ -1,10 +1,13 @@
 import { Image, Reply } from 'lucide-react';
 import type { PointerEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
+import { show as showMessageImage } from '@/actions/App/Http/Controllers/MessageImageController';
 import MessageLinkPreviewController from '@/actions/App/Http/Controllers/MessageLinkPreviewController';
 import { CommitBody } from '@/components/commit-body';
 import { objectUrlFor } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
+import type { ShownImage } from '@/components/commit-images';
+import { ImageViewer } from '@/components/image-viewer';
 import { LinkPreview } from '@/components/link-preview';
 import { bodySegments } from '@/lib/code';
 import { cn, laneColor } from '@/lib/utils';
@@ -46,25 +49,41 @@ export function MessageText({
     );
 }
 
+const isUnsent = (images: MessageImage[] | File[]): images is File[] =>
+    images[0] instanceof File;
+
+const downloadUrl = (image: ShownImage): string =>
+    showMessageImage.url(image.id, { query: { download: 1 } });
+
 export function MessageImages({ images }: { images: MessageImage[] | File[] }) {
+    const [viewedIndex, setViewedIndex] = useState<number | null>(null);
+
     if (images.length === 0) {
         return null;
     }
 
     return (
         <div className="w-64 max-w-full sm:w-72 [&_img]:max-h-80 [&>div]:mt-0">
-            <CommitImages
-                isLinked={!(images[0] instanceof File)}
-                images={images.map((image) =>
-                    image instanceof File
-                        ? {
-                              id: objectUrlFor(image),
-                              url: objectUrlFor(image),
-                              description: null,
-                          }
-                        : image,
-                )}
-            />
+            {isUnsent(images) ? (
+                <CommitImages
+                    images={images.map((image) => ({
+                        id: objectUrlFor(image),
+                        url: objectUrlFor(image),
+                        description: null,
+                    }))}
+                />
+            ) : (
+                <>
+                    <CommitImages images={images} onOpen={setViewedIndex} />
+                    <ImageViewer
+                        images={images}
+                        index={viewedIndex}
+                        onView={setViewedIndex}
+                        onClose={() => setViewedIndex(null)}
+                        downloadUrl={downloadUrl}
+                    />
+                </>
+            )}
         </div>
     );
 }
@@ -173,8 +192,12 @@ export function Repliable({
         return children;
     }
 
-    const onPointerDown = (event: PointerEvent) => {
-        if (event.pointerType === 'touch') {
+    // The image viewer is portalled out of the message, but React still bubbles its swipes up to here.
+    const onPointerDown = (event: PointerEvent<HTMLElement>) => {
+        if (
+            event.pointerType === 'touch' &&
+            event.currentTarget.contains(event.target as Node)
+        ) {
             start.current = {
                 x: event.clientX,
                 y: event.clientY,
