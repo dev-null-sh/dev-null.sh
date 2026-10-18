@@ -216,6 +216,33 @@ it('counts the stars a user received once, for the stats and the achievements', 
         ->toHaveCount(1);
 });
 
+it('reloads the star total after a starred commit is deleted or restored', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $starred = Commit::factory()->for($user)->create();
+    $other = Commit::factory()->for($user)->create();
+
+    User::factory()->count(2)->create()->each(fn (User $stargazer) => $stargazer->starredCommits()->attach($starred));
+    User::factory()->create()->starredCommits()->attach($other);
+
+    $reload = ['user', 'activity', 'streaks', 'achievements', 'starsCount'];
+
+    $this->actingAs($user)
+        ->get('/@octocat')
+        ->assertInertia(fn ($page) => $page->where('starsCount', 3));
+
+    $this->delete(route('commit.destroy', $starred))->assertRedirect();
+
+    $this->get('/@octocat')->assertInertia(fn ($page) => $page->reloadOnly($reload, fn ($reload) => $reload
+        ->where('starsCount', 1)
+        ->where('achievements.xp_breakdown.stars_received.count', 1)));
+
+    $this->post(route('commit-restoration.store', $starred))->assertRedirect();
+
+    $this->get('/@octocat')->assertInertia(fn ($page) => $page->reloadOnly($reload, fn ($reload) => $reload
+        ->where('starsCount', 3)
+        ->where('achievements.xp_breakdown.stars_received.count', 3)));
+});
+
 it('does not compute the streaks when reloading only commits', function (string $tab): void {
     $user = User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
     Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create();

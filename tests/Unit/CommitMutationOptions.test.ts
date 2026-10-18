@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+    commitMutationOptions,
     restoreFeedCommit,
     updateQuotedCommits,
 } from '../../resources/js/lib/commit-mutation-options.ts';
@@ -105,4 +106,11 @@ void test('restoring a target also refreshes its embeds while preserving the loa
         restored,
     );
     assert.equal(rows.filter((row) => row.id === target.id).length, 1);
+});
+
+void test('deleting or restoring a commit reloads the profile star total along with the achievements', () => {
+    const { only } = commitMutationOptions('user/show');
+
+    assert.ok(only.includes('starsCount'));
+    assert.ok(only.includes('achievements'));
 });
