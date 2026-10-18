@@ -9,6 +9,7 @@ import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
+import { formatCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -166,7 +167,7 @@ export function CommitStarButton({
                     )}
                 />
                 <span data-test="star-count" className="min-w-[1ch] text-left">
-                    {count > 0 ? count : ''}
+                    {count > 0 ? formatCount(count) : ''}
                 </span>
             </button>
         </ActionTooltip>
@@ -205,7 +206,7 @@ function StarCount({
             >
                 <Star aria-hidden className="size-4" />
                 <span data-test="star-count" className="min-w-[1ch] text-left">
-                    {count > 0 ? count : ''}
+                    {count > 0 ? formatCount(count) : ''}
                 </span>
             </span>
         </ActionTooltip>
