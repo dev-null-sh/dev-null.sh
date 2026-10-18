@@ -7,6 +7,7 @@ import UserFollowersController from '@/actions/App/Http/Controllers/UserFollower
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { ChangelogPopover } from '@/components/changelog-popover';
 import { GitHubIcon } from '@/components/github-icon';
+import { TalksExplorer } from '@/components/talks-explorer';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
@@ -164,6 +165,8 @@ export function AppAside({
             )}
 
             <WhoToFollow />
+
+            <TalksExplorer />
 
             <div className="mt-auto space-y-2 text-sm text-muted-foreground">
                 <button

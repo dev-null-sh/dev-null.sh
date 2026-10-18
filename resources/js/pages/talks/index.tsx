@@ -1,13 +1,22 @@
 import { Form, Head, Link } from '@inertiajs/react';
-import { ArrowLeft, Presentation } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
 import TalkController from '@/actions/App/Http/Controllers/TalkController';
+import { EmptyFeed } from '@/components/commit-feed';
 import InputError from '@/components/input-error';
 import { TalkCard } from '@/components/talk-card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
-import type { TalkSummary } from '@/types';
+import type { TalkLinkKind, TalkSummary } from '@/types';
 
 const fieldClassName =
     'block w-full rounded-md border bg-transparent px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50 md:text-[15px]';
@@ -22,6 +31,7 @@ export default function Index({
     };
 }) {
     const { user } = useUser();
+    const [linkKind, setLinkKind] = useState<TalkLinkKind>('slides');
 
     return (
         <>
@@ -90,18 +100,32 @@ export default function Index({
 
                                 <div className="space-y-2">
                                     <Label htmlFor="link_kind">Link type</Label>
-                                    <select
-                                        id="link_kind"
+                                    <input
+                                        type="hidden"
                                         name="link_kind"
-                                        required
-                                        defaultValue="slides"
-                                        className={fieldClassName}
+                                        value={linkKind}
+                                    />
+                                    <Select
+                                        value={linkKind}
+                                        onValueChange={(value) =>
+                                            setLinkKind(value as TalkLinkKind)
+                                        }
                                     >
-                                        <option value="slides">Slides</option>
-                                        <option value="recording">
-                                            Recording
-                                        </option>
-                                    </select>
+                                        <SelectTrigger
+                                            id="link_kind"
+                                            className="h-auto w-full py-2 text-base md:text-[15px]"
+                                        >
+                                            <SelectValue placeholder="Link type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="slides">
+                                                Slides
+                                            </SelectItem>
+                                            <SelectItem value="recording">
+                                                Recording
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                     <InputError message={errors.link_kind} />
                                 </div>
                             </div>
@@ -142,12 +166,11 @@ export default function Index({
             </section>
 
             {talks.data.length === 0 ? (
-                <div className="space-y-3 px-6 py-14 text-center">
-                    <Presentation className="mx-auto size-6 text-muted-foreground" />
-                    <p className="font-medium">No talks yet</p>
-                    <p className="text-sm text-muted-foreground">
-                        Your published talks will show up here.
-                    </p>
+                <div className="px-6 py-16 text-center sm:px-12">
+                    <EmptyFeed command="fatal: no talks yet">
+                        Your published talks will show up here after you publish
+                        one above.
+                    </EmptyFeed>
                 </div>
             ) : (
                 <div>

@@ -1,5 +1,6 @@
 import type { Auth, SuggestedUser } from '@/types/auth';
 import type { Commit } from '@/types/commit';
+import type { TalkExplorerItem } from '@/types/talk';
 import type { CommittedFlash, DeletedFlash, FlashToast } from '@/types/ui';
 
 declare module '@inertiajs/core' {
@@ -19,6 +20,7 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
             suggestedUsers?: SuggestedUser[];
+            latestTalks?: TalkExplorerItem[];
             [key: string]: unknown;
         };
     }

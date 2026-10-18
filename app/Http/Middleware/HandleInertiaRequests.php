@@ -9,6 +9,7 @@ use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
+use App\Queries\LatestTalksQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
@@ -73,6 +74,9 @@ final class HandleInertiaRequests extends Middleware
                     $user,
                     round: max(0, (int) $request->cookie('who_to_follow_round')),
                 ))->once(),
+            ] : [],
+            ...! $request->routeIs('onboarding.show') ? [
+                'latestTalks' => Inertia::defer(fn (): Collection => resolve(LatestTalksQuery::class)->get($user))->once(),
             ] : [],
         ];
     }

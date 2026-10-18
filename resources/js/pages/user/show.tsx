@@ -401,23 +401,36 @@ export default function Show({
             />
 
             {tab === 'talks' ? (
-                <>
-                    {isCurrentUser && (
-                        <div className="border-b px-5 py-3 sm:px-6">
-                            <Button asChild size="sm" variant="outline">
-                                <Link href={TalkController.index()}>
-                                    Manage talks
-                                </Link>
-                            </Button>
-                        </div>
-                    )}
-                    {talks.data.length === 0 ? (
+                talks.data.length === 0 ? (
+                    <div className="px-6 py-16 text-center sm:px-12">
                         <EmptyFeed command="fatal: no talks yet">
-                            {isCurrentUser
-                                ? 'Your talks show up here. Publish one from Manage talks.'
-                                : `@${user.username} hasn't published any talks yet.`}
+                            {isCurrentUser ? (
+                                <>
+                                    Your talks show up here.{' '}
+                                    <Link
+                                        href={TalkController.index()}
+                                        className="underline underline-offset-4 hover:text-foreground"
+                                    >
+                                        Publish one
+                                    </Link>
+                                    .
+                                </>
+                            ) : (
+                                `@${user.username} hasn't published any talks yet.`
+                            )}
                         </EmptyFeed>
-                    ) : (
+                    </div>
+                ) : (
+                    <>
+                        {isCurrentUser && (
+                            <div className="border-b px-5 py-3 sm:px-6">
+                                <Button asChild size="sm" variant="outline">
+                                    <Link href={TalkController.index()}>
+                                        Manage talks
+                                    </Link>
+                                </Button>
+                            </div>
+                        )}
                         <InfiniteScroll
                             data="talks"
                             onlyNext
@@ -440,8 +453,8 @@ export default function Show({
                                 />
                             ))}
                         </InfiniteScroll>
-                    )}
-                </>
+                    </>
+                )
             ) : (
                 <CommitFeed
                     key={`${user.id}:${tab}`}
