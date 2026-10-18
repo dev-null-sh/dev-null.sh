@@ -111,11 +111,11 @@ The command defaults to `KNOWLEDGE_BASE.md`. Pass another repository-relative Ma
 
 Each non-empty section becomes a row in `knowledge_base_sections`, storing its source path, position, heading hierarchy, Markdown content, and vector embedding. All heading levels create boundaries; parent headings accompany child sections in the embedding input. Empty headings create no rows, and headings inside code blocks or blockquotes do not split sections.
 
-Rerun the command after editing a file. It uses the existing OpenAI service to embed only new or changed sections, reusing vectors when both content and heading hierarchy are unchanged, even if a section moved. It atomically updates or inserts rows and removes sections no longer present. Other files are left alone; a failed import preserves the previous data. The reported count is the number of newly generated embeddings. Unchanged imports make no paid requests. Keep sections small enough for the embedding model's input limit; there is no additional size-based splitting. This prepares knowledge for retrieval without implementing Tom's planned DeepSeek bot.
+Rerun the command after editing a file. It uses the existing OpenAI service to embed only new or changed sections, reusing vectors when both content and heading hierarchy are unchanged, even if a section moved. It atomically updates or inserts rows and removes sections no longer present. Other files are left alone; a failed import preserves the previous data. The reported count is the number of newly generated embeddings. Unchanged imports make no paid requests. Keep sections small enough for the embedding model's input limit; there is no additional size-based splitting. Tom uses this indexed knowledge through his search tool.
 
 #### Internal semantic search
 
-Inject `App\Queries\KnowledgeBaseSearchQuery` into an internal caller, such as a future agent tool:
+Inject `App\Queries\KnowledgeBaseSearchQuery` into an internal caller:
 
 ```php
 $sections = $knowledgeBaseSearchQuery->get('Who is Tom?', limit: 5);
@@ -125,7 +125,17 @@ The query uses the Laravel AI SDK to generate query embeddings, with the same Op
 
 The default limit is five. Blank queries and nonpositive limits return no results without calling OpenAI; short terms such as `AI` are supported. The SDK caches trimmed query embeddings for an hour and shares compatible cached queries with commit search, but section results are read fresh so imports immediately affect retrieval. Provider errors propagate to the caller rather than looking like an empty knowledge base.
 
-These are nearest matches, not a guarantee of relevance or a calibrated confidence score. There is no similarity cutoff or post-specific relevance classifier; the future agent must assess whether the returned sections answer the question. This adds no public endpoint, agent tool registration, or DeepSeek integration.
+These are nearest matches, not a guarantee of relevance or a calibrated confidence score. There is no similarity cutoff or post-specific relevance classifier; Tom is instructed to assess whether the returned sections answer the question. The query has no public endpoint.
+
+#### Tom's public replies
+
+Set `OPENCODE_API_KEY` alongside `OPENAI_API_KEY`, keep the queue worker running, and index the knowledge base and commits. The existing `@tom` account is identified by its nonnumeric GitHub ID, not merely its username. No new AI conversation tables or migrations are needed.
+
+Tom's scope is simple friendly chat and answers about the platform or public posts. Greetings, thanks, jokes and small talk need no search. Factual platform and post answers use the search tools; unrelated tasks, general coding help and professional advice are outside his role.
+
+An approved commit or reply mentioning `@tom` queues a reply. Pending mentions wait for approval. Tom uses the Laravel AI SDK with DeepSeek V4.1 Flash (`deepseek-v4.1-flash`) through OpenCode Zen's OpenAI-compatible API at `https://opencode.ai/zen/v1`, in non-thinking mode, with two read-only tools: `SearchKnowledgeBase` and `SearchCommits`. Commit searches run as a public viewer, never with access to the mention author's pending or rejected posts. Replies go through the normal commit creation, moderation, embedding and notification pipeline. Failures retry without logging provider response bodies; the same mention never gets a second reply, even if the first was deleted.
+
+Continue by tagging Tom in a reply. He sees at most twelve public ancestor posts on that branch and at most 12,000 characters including the current question, not sibling branches, other threads or private messages. Each turn has three model steps, at most two calls per search tool, five commit excerpts per commit search, and three knowledge-base excerpts per knowledge search. He has no web or write tools. No OpenCode key means new mentions do not queue bot work.
 
 #### Automatic production updates
 

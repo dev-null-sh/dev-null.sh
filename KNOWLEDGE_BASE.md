@@ -63,7 +63,7 @@ This file documents the platform's features, stack, and stories. Feature entries
 
 ## Features
 
-These entries cover the app's public, signed-in, and administrator features. Configuration-dependent options are called out explicitly. Each entry includes implementation references so its behavior can be checked when the app changes. Knowledge-base retrieval is internal infrastructure, not the public commit search; Tom's question-answering bot is still planned.
+These entries cover the app's public, signed-in, and administrator features. Configuration-dependent options are called out explicitly. Each entry includes implementation references so its behavior can be checked when the app changes. Knowledge-base retrieval powers Tom's public question-answering replies, separately from the public commit search.
 
 ### Public browsing and GitHub sign-in
 
@@ -75,7 +75,7 @@ Sources: [web routes](routes/web.php), [signup configuration](config/signup.php)
 
 ### First-time setup
 
-The first GitHub sign-in opens a short onboarding flow: review your mirrored profile, choose a color, follow suggested developers, and learn about the composer, keyboard shortcuts, and terminal commits. Skip setup at any step or finish it to continue to the app. Completed or skipped setup does not appear again. New users also start with Tom as a mutual follow; Tom is the platform's fictional welcome profile, not an implemented AI assistant.
+The first GitHub sign-in opens a short onboarding flow: review your mirrored profile, choose a color, follow suggested developers, and learn about the composer, keyboard shortcuts, and terminal commits. Skip setup at any step or finish it to continue to the app. Completed or skipped setup does not appear again. New users also start with Tom as a mutual follow; Tom is the platform's fictional welcome bot. Tag @tom in a public commit to ask about the platform or find posts on a topic when the OpenCode integration is configured.
 
 Sources: [onboarding page](resources/js/pages/onboarding/show.tsx), [sign-in tests](tests/Feature/Controllers/SessionControllerTest.php).
 
@@ -370,7 +370,7 @@ Sources: [public page routes](routes/web.php), [About](resources/js/pages/about/
 
 ### Hello world replies
 
-An approved commit whose entire text is **hello world**, including variants such as **Hello, World!**, can receive an automatic **“Hello, {name}.”** reply from **@world**. A pending commit waits for approval. The bot replies only once to that commit. It is a small greeting feature, separate from Tom and the planned knowledge-base assistant.
+An approved commit whose entire text is **hello world**, including variants such as **Hello, World!**, can receive an automatic **“Hello, {name}.”** reply from **@world**. A pending commit waits for approval. The bot replies only once to that commit. It is a small greeting feature, separate from Tom's question-answering role.
 
 Sources: [greeting matching](app/Services/HelloWorld.php), [world reply](app/Actions/CreateWorldReply.php).
 
@@ -388,13 +388,13 @@ Sources: [greeting matching](app/Services/HelloWorld.php), [world reply](app/Act
 | Asset tooling | **Vite+ / Vite** builds frontend assets; **Bun** manages frontend dependencies and runs scripts. |
 | PHP dependencies | **Composer** manages backend dependencies. |
 | Testing and quality | **Pest**, **PHPStan / Larastan**, **TypeScript**, **Laravel Pint**, **Rector**, and frontend formatting and linting through **Vite+**. |
-| Existing AI services | **Laravel AI SDK** generates and caches semantic search query embeddings through **OpenAI**. The existing OpenAI integration handles batch embeddings, commit relevance checks, and moderation. This is separate from Tom's planned DeepSeek role. |
+| AI services | **Laravel AI SDK** runs Tom with **DeepSeek Flash** through **OpenCode Zen** and generates and caches semantic search query embeddings through **OpenAI**. The existing OpenAI integration handles batch embeddings, commit relevance checks, and moderation. |
 
 The repository defaults to database-backed queues, cache, and sessions. File storage is configurable, with local and S3-compatible storage supported. These are repository defaults and supported options, not a claim about every production environment setting.
 
 The knowledge base is split into Markdown sections by heading and stored with vector embeddings in PostgreSQL. An hourly scheduled job refreshes new or changed sections in production, so knowledge-base changes are picked up within an hour of being deployed. Unchanged sections reuse their embeddings.
 
-An [internal semantic search query](README.md#internal-semantic-search) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Results preserve source paths, heading context, and Markdown content for a future agent to use. This is retrieval infrastructure only: there is no public search endpoint, and Tom's DeepSeek bot remains planned.
+An [internal semantic search query](README.md#internal-semantic-search) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
 
 Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [database configuration](config/database.php), [setup requirements](README.md#getting-started), [queue configuration](config/queue.php), [cache configuration](config/cache.php), [session configuration](config/session.php), [storage configuration](config/filesystems.php), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
 
@@ -424,11 +424,15 @@ Sources: [Laravel News's livestream announcement](https://laravel-news.com/socia
 
 Tom is a fictional profile inspired by **MySpace Tom**. He is everyone's mutual at the beginning: the familiar face who is already there when you arrive.
 
-Originally, Tom had no particular purpose beyond that nod to MySpace. The plan now is to give him one: **Tom will become a bot powered by DeepSeek, using this knowledge base to answer questions about /dev/null, its stack, and its lore.**
+Originally, Tom had no particular purpose beyond that nod to MySpace. He now has a narrowly scoped bot implementation powered by **DeepSeek Flash through OpenCode Zen**: simple friendly chat, explaining /dev/null's features, origins, stack and lore using this knowledge base, or finding public commits about a topic using semantic search. Greetings, thanks, jokes and small talk get a friendly reply without a search. He is not a general-purpose assistant: unrelated tasks, coding help and professional advice are outside his role. This requires configured provider credentials and a running queue worker; it is not a claim that a particular deployment has enabled him.
 
-That bot role is planned, not a claim that the DeepSeek integration is already implemented. Tom is a fictional platform character, not the real MySpace Tom.
+Tag **@tom** in a public commit or reply. Once it is approved, Tom can reply under that commit, at most once. Mentions in code do not summon him. Tag him again in a reply to continue. His replies use the normal commit moderation and notification pipeline. He does not reply to himself, across a block, in private messages, or to deleted or unapproved commits.
 
-Source: the project team's account of Tom's origin and intended role.
+Tom remembers at most twelve public ancestor posts, with a 12,000-character budget shared with the current question. This follows the current reply branch, not sibling branches or other threads. Older context drops out; there is no separate permanent AI memory. Search results are bounded and only public commits are exposed, never pending, rejected or deleted posts. He has no browsing or write tools.
+
+Tom is a simple, friendly robot man of few words. Small talk usually gets one short sentence; platform answers usually get one to three short sentences, with more detail only when asked. His dated personality comes through in occasional, varied text-style emoticons made from keyboard characters like people used in 2007, a few words about rust, or a tiny mechanical sound, not hardware monologues. He uses neither modern pictographic emoji nor em dashes. Near his context limit he may mention his 2012 RAM when he actually needs a recap. He is a fictional AI platform character, not the real MySpace Tom.
+
+Sources: the project team's account of Tom's origin and personality, [agent](app/Ai/Agents/Tom.php), [reply action](app/Actions/CreateTomReply.php), [queued replies](app/Jobs/ReplyAsTom.php).
 
 ### Pastéis de nata
 
