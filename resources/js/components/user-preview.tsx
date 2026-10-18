@@ -106,6 +106,7 @@ export function UserPreview({
     const previewRef = useRef<HTMLDivElement>(null);
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const isMenuOpen = useRef(false);
+    const isPointerOver = useRef(false);
     const [position, setPosition] = useState<Position | null>(null);
     const [isOpen, setIsOpen] = useState(false);
     const [data, setData] = useState<PreviewData | null>(
@@ -152,6 +153,11 @@ export function UserPreview({
         }
 
         timer.current = setTimeout(close, closeDelay);
+    };
+
+    const changeHover = (isHovering: boolean) => {
+        isPointerOver.current = isHovering;
+        onHoverChange?.(isHovering);
     };
 
     const keepOpen = () => {
@@ -226,7 +232,7 @@ export function UserPreview({
                         return;
                     }
 
-                    onHoverChange?.(true);
+                    changeHover(true);
                     scheduleOpen();
                 }}
                 onPointerLeave={(event) => {
@@ -234,7 +240,7 @@ export function UserPreview({
                         return;
                     }
 
-                    onHoverChange?.(false);
+                    changeHover(false);
                     scheduleClose();
                 }}
                 className={className}
@@ -254,7 +260,7 @@ export function UserPreview({
                                 return;
                             }
 
-                            onHoverChange?.(true);
+                            changeHover(true);
                             keepOpen();
                         }}
                         onPointerLeave={(event) => {
@@ -262,7 +268,7 @@ export function UserPreview({
                                 return;
                             }
 
-                            onHoverChange?.(false);
+                            changeHover(false);
                             scheduleClose();
                         }}
                         data-state={isOpen ? 'open' : 'closed'}
@@ -285,6 +291,10 @@ export function UserPreview({
                             onMenuOpenChange={(isOpen) => {
                                 isMenuOpen.current = isOpen;
                                 clearTimeout(timer.current);
+
+                                if (!isOpen && !isPointerOver.current) {
+                                    scheduleClose();
+                                }
                             }}
                         />
                     </div>,

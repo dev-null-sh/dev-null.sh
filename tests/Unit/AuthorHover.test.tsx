@@ -7,10 +7,11 @@ import type {
     ReactElement,
     ReactNode,
 } from 'react';
-import { afterAll, test, vi } from 'vite-plus/test';
+import { afterAll, afterEach, test, vi } from 'vite-plus/test';
 import type { User } from '../../resources/js/types';
 
 let showPreview = false;
+const stateChanges: unknown[] = [];
 
 vi.doMock('react', () => ({
     ...React,
@@ -23,7 +24,7 @@ vi.doMock('react', () => ({
             : initial === null && showPreview
               ? { left: 0, top: 0 }
               : initial,
-        () => {},
+        (value: unknown) => stateChanges.push(value),
     ],
 }));
 vi.doMock('react-dom', async () => ({
@@ -38,6 +39,10 @@ const { UserPreview } =
 vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
 vi.stubGlobal('document', { body: {} });
 afterAll(() => vi.unstubAllGlobals());
+afterEach(() => {
+    vi.useRealTimers();
+    stateChanges.length = 0;
+});
 
 const surfaces = {
     rail: (onHoverChange: (hovering: boolean) => void) =>
@@ -104,3 +109,63 @@ for (const [name, render] of Object.entries(surfaces)) {
         assert.deepEqual(changes, [true, false]);
     });
 }
+
+function renderPreviewPanel() {
+    showPreview = true;
+    const preview = UserPreview({
+        user: { id: 'author', username: 'author' } as User,
+        children: 'Author',
+    });
+    showPreview = false;
+
+    const panel = React.Children.toArray(
+        preview.props.children,
+    )[1] as ReactElement<
+        HTMLAttributes<HTMLElement> & {
+            children: ReactElement<{
+                onMenuOpenChange: (isOpen: boolean) => void;
+            }>;
+        }
+    >;
+
+    return {
+        ...panel.props,
+        onMenuOpenChange: panel.props.children.props.onMenuOpenChange,
+    };
+}
+
+test('profile preview closes when its menu is dismissed after the mouse left', () => {
+    vi.useFakeTimers();
+    const panel = renderPreviewPanel();
+
+    panel.onPointerEnter?.({
+        pointerType: 'mouse',
+    } as PointerEvent<HTMLElement>);
+    panel.onMenuOpenChange(true);
+    panel.onPointerLeave?.({
+        pointerType: 'mouse',
+    } as PointerEvent<HTMLElement>);
+    vi.runAllTimers();
+    stateChanges.length = 0;
+
+    panel.onMenuOpenChange(false);
+    vi.runAllTimers();
+
+    assert.ok(stateChanges.includes(false));
+});
+
+test('profile preview stays open when its menu is dismissed under the mouse', () => {
+    vi.useFakeTimers();
+    const panel = renderPreviewPanel();
+
+    panel.onPointerEnter?.({
+        pointerType: 'mouse',
+    } as PointerEvent<HTMLElement>);
+    panel.onMenuOpenChange(true);
+    stateChanges.length = 0;
+
+    panel.onMenuOpenChange(false);
+    vi.runAllTimers();
+
+    assert.ok(!stateChanges.includes(false));
+});
