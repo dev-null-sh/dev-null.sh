@@ -185,7 +185,7 @@ it('redirects download requests to a signed cloud storage url with attachment di
     expect($url)->toStartWith('https://images.s3.amazonaws.com/'.$image->path.'?')
         ->and($query)->toHaveKey('X-Amz-Signature')
         ->toHaveKey('response-content-disposition')
-        ->and($query['response-content-disposition'])->toBe('attachment; filename='.$image->id.'.webp');
+        ->and($query['response-content-disposition'])->toBe('attachment; filename="'.$image->id.'.webp"');
 });
 
 it('streams images of pending commits instead of handing out a signed url', function (): void {
