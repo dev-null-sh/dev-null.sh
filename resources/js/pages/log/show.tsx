@@ -22,14 +22,12 @@ export default function Show({
     log,
     commits,
     isRanked,
-    latestCommits,
     newCommitsCount = 0,
     suggestions,
 }: {
     log: Log;
     commits: CursorPaginated<Commit>;
     isRanked: boolean;
-    latestCommits: Commit[];
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
@@ -156,7 +154,6 @@ export default function Show({
                 <CommitFeed
                     commits={commits}
                     firstSeenId={firstSeenId}
-                    latestCommits={latestCommits}
                     isRanked={isRanked}
                     end="That's the root commit. There's nothing before it."
                     interlude={(lane, isDimmed) => (
