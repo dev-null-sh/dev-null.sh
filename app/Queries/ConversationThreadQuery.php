@@ -91,7 +91,7 @@ final readonly class ConversationThreadQuery
     {
         $query = $conversation->messages()
             ->where('id', '>', $visibleFrom)
-            ->with($withPeople ? ['user', 'subject'] : []);
+            ->with([...Message::SHOWN_WITH, ...$withPeople ? ['user', 'subject'] : []]);
 
         $messages = $after === null
             ? $query->where('id', '<', $before ?? PHP_INT_MAX)->orderByDesc('id')->limit(self::PAGE + 1)->get()->reverse()->values()

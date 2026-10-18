@@ -9,6 +9,7 @@ import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
@@ -874,7 +875,9 @@ function CommitReply({
                     <CommitImages commit={reply} />
                     {reply.link_preview && (
                         <LinkPreview
-                            commitId={reply.id}
+                            refreshUrl={CommitLinkPreviewController.show.url(
+                                reply.id,
+                            )}
                             preview={reply.link_preview}
                         />
                     )}

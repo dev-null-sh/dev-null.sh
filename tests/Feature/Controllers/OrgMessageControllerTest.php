@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use Illuminate\Support\Str;
 
 it('lets members push, read, and see who pulled', function (): void {
     $mark = User::factory()->create();
@@ -69,4 +70,21 @@ it('keeps non-members out', function (): void {
     $org = createOrg($mark, [$nuno]);
 
     $this->actingAs(User::factory()->create())->postJson(route('org-message.store', $org), ['body' => 'hi', 'client_id' => fake()->uuid()])->assertNotFound();
+});
+
+it('replies only to messages in the history the member can see', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno]);
+    $before = pushToOrg($nuno, $org, 'from before taylor joined');
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $after = pushToOrg($nuno, $org, 'welcome taylor');
+
+    $this->actingAs($taylor)->postJson(route('org-message.store', $org), ['body' => 'hi', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $before->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('reply_to_id');
+
+    $this->postJson(route('org-message.store', $org), ['body' => 'thanks!', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $after->id])
+        ->assertCreated()
+        ->assertJsonPath('message.reply_to.user_id', $nuno->id)
+        ->assertJsonPath('message.reply_to.body', 'welcome taylor');
 });

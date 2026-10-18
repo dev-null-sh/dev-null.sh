@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
@@ -80,7 +81,7 @@ export function QuotedCommit({
             )}
             {commit.link_preview && (
                 <LinkPreview
-                    commitId={commit.id}
+                    refreshUrl={CommitLinkPreviewController.show.url(commit.id)}
                     preview={commit.link_preview}
                     isStatic
                 />

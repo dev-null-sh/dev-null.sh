@@ -97,13 +97,17 @@ function CommitImageThumbnail({
     );
 }
 
+/**
+ * A commit's images open in its photo viewer. Other images, like a message's, open on their own when linked.
+ */
 type CommitImagesProps =
-    | { commit: Commit; images?: never }
-    | { commit?: never; images: ShownImage[] };
+    | { commit: Commit; images?: never; isLinked?: never }
+    | { commit?: never; images: ShownImage[]; isLinked?: boolean };
 
 export function CommitImages({
     commit,
     images: draftImages,
+    isLinked = false,
 }: CommitImagesProps) {
     const images = commit ? (commit.images ?? []) : draftImages;
 
@@ -157,6 +161,16 @@ export function CommitImages({
                             event.preventDefault();
                             openCommitPhoto(commit, index);
                         }}
+                        className={className}
+                    >
+                        {thumbnail}
+                    </a>
+                ) : isLinked ? (
+                    <a
+                        key={image.id}
+                        href={image.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className={className}
                     >
                         {thumbnail}

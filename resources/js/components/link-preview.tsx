@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { show } from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { LinkEmbed } from '@/components/link-embed';
 import { Skeleton } from '@/components/ui/skeleton';
 import { hostname } from '@/lib/urls';
@@ -8,11 +7,11 @@ import type { LinkPreview as LinkPreviewData } from '@/types';
 const POLL_DELAYS = [1000, 2000, 3000, 5000, 8000, 13000];
 
 /**
- * A link is unfurled in the background after its commit is posted, so a pending preview is fetched again until the
- * page behind it has been read, instead of only showing up after a reload.
+ * A link is unfurled in the background after its commit or message is posted, so a pending preview is fetched again
+ * from the refresh URL until the page behind it has been read, instead of only showing up after a reload.
  */
 function useFetchedLinkPreview(
-    commitId: string,
+    refreshUrl: string,
     preview: LinkPreviewData,
 ): { preview: LinkPreviewData; isWaiting: boolean } {
     const [fetched, setFetched] = useState<LinkPreviewData | null>(null);
@@ -28,7 +27,7 @@ function useFetchedLinkPreview(
 
         const poll = async (attempt: number) => {
             try {
-                const response = await fetch(show.url(commitId), {
+                const response = await fetch(refreshUrl, {
                     headers: { Accept: 'application/json' },
                     cache: 'no-store',
                     signal: controller.signal,
@@ -71,7 +70,7 @@ function useFetchedLinkPreview(
             window.clearTimeout(timeout);
             controller.abort();
         };
-    }, [commitId, preview.is_pending]);
+    }, [refreshUrl, preview.is_pending]);
 
     const current =
         preview.is_pending && fetched?.url === preview.url ? fetched : preview;
@@ -105,16 +104,16 @@ function LinkPreviewSkeleton() {
 }
 
 export function LinkPreview({
-    commitId,
+    refreshUrl,
     preview: initialPreview,
     isStatic = false,
 }: {
-    commitId: string;
+    refreshUrl: string;
     preview: LinkPreviewData;
     isStatic?: boolean;
 }) {
     const { preview, isWaiting } = useFetchedLinkPreview(
-        commitId,
+        refreshUrl,
         initialPreview,
     );
     const [isImageBroken, setIsImageBroken] = useState(false);

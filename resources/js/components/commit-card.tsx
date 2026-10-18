@@ -3,6 +3,7 @@ import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
@@ -337,7 +338,9 @@ export function CommitCard({
                             )}
                             {commit.link_preview && (
                                 <LinkPreview
-                                    commitId={commit.id}
+                                    refreshUrl={CommitLinkPreviewController.show.url(
+                                        commit.id,
+                                    )}
                                     preview={commit.link_preview}
                                 />
                             )}

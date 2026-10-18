@@ -25,7 +25,16 @@ final readonly class OrgMessageController
 
     public function store(CreateOrgMessageRequest $request, #[CurrentUser] User $user, Conversation $org, CreateMessage $action): JsonResponse
     {
-        $message = $action->handle($user, $org, $request->string('body')->value(), $request->string('client_id')->value());
+        $message = $action->handle(
+            $user,
+            $org,
+            $request->string('body')->value(),
+            $request->string('client_id')->value(),
+            $request->replyTo(),
+            $request->images(),
+            $request->imageDescriptions(),
+            $request->linkPreview(),
+        );
 
         return response()->json(['message' => $message], 201);
     }

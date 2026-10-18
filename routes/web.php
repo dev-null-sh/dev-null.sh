@@ -37,6 +37,8 @@ use App\Http\Controllers\InboxController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
+use App\Http\Controllers\MessageImageController;
+use App\Http\Controllers\MessageLinkPreviewController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
@@ -253,6 +255,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('remotes', [ConversationController::class, 'index'])->name('conversation.index');
     Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
     Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereUuid('org')->name('org.show');
+    Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])->whereUuid('messageImage')->name('message-image.show');
 
     Route::middleware('throttle:conversations')->group(function (): void {
         Route::get('remotes/inbox', [InboxController::class, 'index'])->name('inbox.index');
@@ -283,6 +286,9 @@ Route::middleware('auth')->group(function (): void {
             ->name('conversation-archive.store');
         Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
             ->name('conversation-archive.destroy');
+        Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
+            ->whereNumber('message')
+            ->name('message-link-preview.show');
     });
 
     Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])

@@ -18,6 +18,7 @@ import type {
     InboxPage,
     InboxTab,
     Message,
+    MessageReply,
     OrgMember,
     OrgRef,
     OrgRole,
@@ -34,9 +35,25 @@ export type ChatTarget =
     | { kind: 'direct'; partner: User }
     | { kind: 'org'; org: OrgRef };
 
+/**
+ * What the composer pushes: the body, the message it replies to, its images, and the link chosen for its card, which
+ * is the first link when undefined, or none when null.
+ */
+export type MessageDraft = {
+    body: string;
+    replyTo: MessageReply | null;
+    images: File[];
+    descriptions: string[];
+    linkPreviewUrl: string | null | undefined;
+};
+
 export type PendingMessage = {
     client_id: string;
     body: string;
+    reply_to: MessageReply | null;
+    images: File[];
+    image_descriptions: string[];
+    link_preview_url: string | null | undefined;
     created_at: string;
     status: 'staged' | 'rejected';
 };
@@ -55,6 +72,10 @@ export type ThreadState = {
     is_archived: boolean;
     access: PushAccess;
     pending: PendingMessage[];
+    /**
+     * The message the composer is replying to, kept while the user moves between the dock and Remotes.
+     */
+    replyingTo: MessageReply | null;
     /**
      * Where the user had read up to when they opened the conversation, kept while it stays open.
      */
@@ -224,23 +245,29 @@ export class ChatRequestError extends Error {
     }
 }
 
+/**
+ * Sends JSON, or a form when there are files in it, which gets longer to upload.
+ */
 async function request<T>(
     url: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-    body?: object,
+    body?: object | FormData,
 ): Promise<T> {
+    const isForm = body instanceof FormData;
     const response = await fetch(url, {
         method,
         headers: {
             Accept: 'application/json',
-            'Content-Type': 'application/json',
+            ...(isForm ? {} : { 'Content-Type': 'application/json' }),
             'X-Requested-With': 'XMLHttpRequest',
             'X-XSRF-TOKEN': xsrfToken(),
         },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(body === undefined
+            ? {}
+            : { body: isForm ? body : JSON.stringify(body) }),
         cache: 'no-store',
         credentials: 'same-origin',
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(isForm ? 60_000 : 10_000),
     });
 
     if (!response.ok) {
@@ -392,6 +419,7 @@ function emptyThread(target: ChatTarget): ThreadState {
         is_archived: false,
         access: 'open',
         pending: [],
+        replyingTo: null,
         head: 0,
         headUntil: 0,
         isLoaded: false,
@@ -725,7 +753,7 @@ async function deliver(
         const { message } = await request<{ message: Message }>(
             urls(target).store,
             'POST',
-            { body: pending.body, client_id: pending.client_id },
+            payloadOf(pending),
         );
 
         lastActivity.set(key, Date.now());
@@ -754,17 +782,53 @@ async function deliver(
     }
 }
 
+function payloadOf(pending: PendingMessage): object | FormData {
+    const fields = {
+        body: pending.body,
+        client_id: pending.client_id,
+        ...(pending.reply_to === null
+            ? {}
+            : { reply_to_id: pending.reply_to.id }),
+        ...(pending.link_preview_url === undefined
+            ? {}
+            : { link_preview_url: pending.link_preview_url ?? '' }),
+    };
+
+    if (pending.images.length === 0) {
+        return fields;
+    }
+
+    const form = new FormData();
+
+    Object.entries(fields).forEach(([name, value]) =>
+        form.append(name, String(value)),
+    );
+    pending.images.forEach((image, index) => {
+        form.append('images[]', image);
+        form.append(
+            `image_descriptions[${index}]`,
+            pending.image_descriptions[index]?.trim() ?? '',
+        );
+    });
+
+    return form;
+}
+
 /**
  * Shows the message straight away as staged, then swaps in the stored message once the server has it.
  */
-export function sendMessage(target: ChatTarget, body: string): void {
+export function sendMessage(target: ChatTarget, draft: MessageDraft): void {
     const key = targetKey(target);
 
     rememberTarget(target);
 
     const pending: PendingMessage = {
         client_id: crypto.randomUUID(),
-        body,
+        body: draft.body,
+        reply_to: draft.replyTo,
+        images: draft.images,
+        image_descriptions: draft.descriptions,
+        link_preview_url: draft.linkPreviewUrl,
         created_at: new Date().toISOString(),
         status: 'staged',
     };
@@ -774,6 +838,13 @@ export function sendMessage(target: ChatTarget, body: string): void {
         pending: [...thread.pending, pending],
     }));
     void deliver(target, pending);
+}
+
+export function setReplyingTo(
+    target: ChatTarget,
+    reply: MessageReply | null,
+): void {
+    updateThread(targetKey(target), () => ({ replyingTo: reply }));
 }
 
 /**
