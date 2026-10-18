@@ -68,7 +68,7 @@ export default function Show({
     streaks: Streaks;
     achievements: Achievements;
     commits: CursorPaginated<Commit>;
-    tab: 'commits' | 'replies';
+    tab: 'commits' | 'replies' | 'stars';
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
@@ -387,6 +387,15 @@ export default function Show({
                         href: show(user, { query: { tab: 'replies' } }),
                         isActive: tab === 'replies',
                     },
+                    ...(isCurrentUser
+                        ? [
+                              {
+                                  title: 'Stars',
+                                  href: show(user, { query: { tab: 'stars' } }),
+                                  isActive: tab === 'stars',
+                              },
+                          ]
+                        : []),
                 ]}
             />
 
@@ -404,18 +413,25 @@ export default function Show({
                           )
                         : undefined
                 }
-                highlightedPeriod={highlightedPeriod}
+                highlightedPeriod={tab === 'stars' ? null : highlightedPeriod}
                 end={
-                    tab === 'replies'
-                        ? isCurrentUser
-                            ? 'That was your first reply.'
-                            : `That's @${user.username}'s first reply.`
-                        : isCurrentUser
-                          ? 'That was your first commit. Everyone starts somewhere.'
-                          : `That's @${user.username}'s root commit.`
+                    tab === 'stars'
+                        ? 'That was the first commit you starred.'
+                        : tab === 'replies'
+                          ? isCurrentUser
+                              ? 'That was your first reply.'
+                              : `That's @${user.username}'s first reply.`
+                          : isCurrentUser
+                            ? 'That was your first commit. Everyone starts somewhere.'
+                            : `That's @${user.username}'s root commit.`
                 }
                 empty={
-                    tab === 'replies' ? (
+                    tab === 'stars' ? (
+                        <EmptyFeed command="fatal: no starred commits yet">
+                            Star a commit to find it here. Only you can see what
+                            you starred.
+                        </EmptyFeed>
+                    ) : tab === 'replies' ? (
                         <EmptyFeed command="fatal: no replies yet">
                             {isCurrentUser
                                 ? 'Your replies show up here. Join a conversation from your log.'

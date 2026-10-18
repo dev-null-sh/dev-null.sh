@@ -12,6 +12,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\PushAccessQuery;
+use App\Queries\StarredCommitsQuery;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
@@ -28,7 +29,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, StarredCommitsQuery $starred, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -62,14 +63,14 @@ final readonly class UserController
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
             'tab' => $request->tab(...),
-            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
+            'pinnedCommit' => fn (): ?Commit => $request->tab() !== 'commits' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
                 ->withReplyPreviews($currentUser)
                 ->withCardDataFor($currentUser)
                 ->find($user->pinned_commit_id),
-            'commits' => Inertia::scroll(fn () => $user->commits()
+            'commits' => Inertia::scroll(fn () => $request->tab() === 'stars' ? $starred->builder($user)->cursorPaginate(20)->appends(['tab' => 'stars']) : $user->commits()
                 ->visibleTo($currentUser)
                 ->when(
                     $request->tab() === 'replies',
