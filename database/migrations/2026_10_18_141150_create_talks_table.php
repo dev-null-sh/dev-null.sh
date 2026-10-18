@@ -17,13 +17,15 @@ return new class extends Migration
             $table->string('title', 200);
             $table->string('description', 4000);
             $table->date('presented_on');
-            $table->string('link_url', 2048);
-            $table->string('link_kind', 20);
+            $table->string('slides_url', 2048)->nullable();
+            $table->string('recording_url', 2048)->nullable();
             $table->string('event_name', 200)->nullable();
+            $table->boolean('is_unlisted')->default(false);
             $table->timestamp('published_at')->nullable();
             $table->timestamps();
             $table->index(['user_id', 'published_at']);
             $table->index(['user_id', 'created_at']);
+            $table->index(['published_at', 'is_unlisted']);
         });
     }
 };

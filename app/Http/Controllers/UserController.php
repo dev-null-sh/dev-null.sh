@@ -16,6 +16,7 @@ use App\Queries\PushAccessQuery;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
+use App\Services\Embeds;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -30,7 +31,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, PageMetadata $metadata, Embeds $embeds): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -101,21 +102,33 @@ final readonly class UserController
                     fn ($query) => $query
                         ->whereNotNull('published_at')
                         ->whereNotNull('commit_id')
+                        ->when(
+                            $currentUser?->id !== $user->id,
+                            fn ($query) => $query->where('is_unlisted', false),
+                        )
                         ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser)),
                 )
                 ->latest('presented_on')
                 ->latest('id')
                 ->cursorPaginate(20)
-                ->through(fn (Talk $talk): array => [
-                    'id' => $talk->id,
-                    'title' => $talk->title,
-                    'description' => $talk->description,
-                    'presented_on' => $talk->presented_on->toDateString(),
-                    'link_url' => $talk->link_url,
-                    'link_kind' => $talk->link_kind->value,
-                    'event_name' => $talk->event_name,
-                    'published_at' => $talk->published_at?->toIso8601String(),
-                ])
+                ->through(function (Talk $talk) use ($embeds): array {
+                    $recordingEmbed = is_string($talk->recording_url) ? $embeds->for($talk->recording_url) : null;
+                    $slidesEmbed = is_string($talk->slides_url) ? $embeds->for($talk->slides_url) : null;
+
+                    return [
+                        'id' => $talk->id,
+                        'title' => $talk->title,
+                        'description' => $talk->description,
+                        'presented_on' => $talk->presented_on->toDateString(),
+                        'slides_url' => $talk->slides_url,
+                        'recording_url' => $talk->recording_url,
+                        'event_name' => $talk->event_name,
+                        'is_unlisted' => $talk->is_unlisted,
+                        'published_at' => $talk->published_at?->toIso8601String(),
+                        'recording_embed' => $recordingEmbed?->toArray(),
+                        'slides_embed' => $slidesEmbed?->toArray(),
+                    ];
+                })
                 ->appends(['tab' => $request->tab()])),
         ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->user($getCountedUser())]);
     }

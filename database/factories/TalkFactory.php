@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
-use App\Enums\TalkLinkKind;
 use App\Models\Talk;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/** @extends Factory<Talk> */
+/**
+ * @extends Factory<Talk>
+ */
 final class TalkFactory extends Factory
 {
+    protected $model = Talk::class;
+
     /** @return array<string, mixed> */
     public function definition(): array
     {
@@ -20,16 +23,10 @@ final class TalkFactory extends Factory
             'title' => fake()->sentence(4),
             'description' => fake()->paragraph(),
             'presented_on' => fake()->date(),
-            'link_url' => fake()->url(),
-            'link_kind' => TalkLinkKind::Slides,
+            'slides_url' => 'https://example.com/'.fake()->slug(),
+            'recording_url' => null,
             'event_name' => fake()->optional()->company(),
+            'is_unlisted' => false,
         ];
-    }
-
-    public function published(): static
-    {
-        return $this->state(fn (): array => [
-            'published_at' => now(),
-        ]);
     }
 }

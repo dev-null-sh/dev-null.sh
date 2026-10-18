@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Enums\TalkLinkKind;
+use App\Enums\TalkVisibility;
 use App\Models\Talk;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 final readonly class CreateTalk
 {
@@ -23,30 +24,41 @@ final readonly class CreateTalk
         string $title,
         string $description,
         CarbonInterface $presentedOn,
-        string $linkUrl,
-        TalkLinkKind $linkKind,
+        ?string $slidesUrl = null,
+        ?string $recordingUrl = null,
         ?string $eventName = null,
+        TalkVisibility $visibility = TalkVisibility::Public,
     ): Talk {
         $title = mb_trim($title);
         $description = mb_trim($description);
-        $linkUrl = mb_trim($linkUrl);
+        $slidesUrl = $this->normalizeUrl($slidesUrl);
+        $recordingUrl = $this->normalizeUrl($recordingUrl);
         $eventName = $eventName === null ? null : mb_trim($eventName);
 
-        return DB::transaction(function () use ($user, $title, $description, $presentedOn, $linkUrl, $linkKind, $eventName): Talk {
+        if ($slidesUrl === null && $recordingUrl === null) {
+            throw new InvalidArgumentException('A talk needs a slides URL, a recording URL, or both.');
+        }
+
+        return DB::transaction(function () use ($user, $title, $description, $presentedOn, $slidesUrl, $recordingUrl, $eventName, $visibility): Talk {
             $talk = Talk::query()->create([
                 'user_id' => $user->id,
                 'title' => $title,
                 'description' => $description,
                 'presented_on' => $presentedOn->toDateString(),
-                'link_url' => $linkUrl,
-                'link_kind' => $linkKind,
+                'slides_url' => $slidesUrl,
+                'recording_url' => $recordingUrl,
                 'event_name' => $eventName === '' ? null : $eventName,
+                'is_unlisted' => $visibility === TalkVisibility::Unlisted,
             ]);
+
+            if ($visibility === TalkVisibility::Private) {
+                return $talk->refresh();
+            }
 
             $commit = $this->createCommit->handle(
                 $user,
                 $this->commitBody($talk),
-                linkPreview: $talk->link_url,
+                linkPreview: $talk->recording_url ?? $talk->slides_url,
             );
 
             $talk->forceFill([
@@ -71,8 +83,26 @@ final readonly class CreateTalk
         $lines[] = '';
         $lines[] = Str::limit($talk->description, 300);
         $lines[] = '';
-        $lines[] = $talk->link_url;
+
+        if (is_string($talk->recording_url)) {
+            $lines[] = $talk->recording_url;
+        }
+
+        if (is_string($talk->slides_url)) {
+            $lines[] = $talk->slides_url;
+        }
 
         return implode("\n", $lines);
+    }
+
+    private function normalizeUrl(?string $url): ?string
+    {
+        if ($url === null) {
+            return null;
+        }
+
+        $url = mb_trim($url);
+
+        return $url === '' ? null : $url;
     }
 }

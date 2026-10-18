@@ -13,12 +13,13 @@ final readonly class LatestTalksQuery
     /**
      * Recent published talks anyone can browse from the aside explorer.
      *
-     * @return Collection<int, array{id: string, title: string, event_name: string|null, presented_on: string, link_kind: string, user: array{id: string, username: string, name: string, avatar_url: string|null, lane: int|null}}>
+     * @return Collection<int, array{id: string, title: string, event_name: string|null, presented_on: string, user: array{id: string, username: string, name: string, avatar_url: string|null, lane: int|null}}>
      */
     public function get(?User $viewer, int $limit = 5): Collection
     {
         return Talk::query()
             ->whereNotNull('published_at')
+            ->where('is_unlisted', false)
             ->whereNotNull('commit_id')
             ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer)->approved())
             ->with(['user:id,username,name,avatar_url,preferred_lane,lane_color'])
@@ -31,7 +32,6 @@ final readonly class LatestTalksQuery
                 'title' => $talk->title,
                 'event_name' => $talk->event_name,
                 'presented_on' => $talk->presented_on->toDateString(),
-                'link_kind' => $talk->link_kind->value,
                 'user' => [
                     'id' => $talk->user->id,
                     'username' => $talk->user->username,

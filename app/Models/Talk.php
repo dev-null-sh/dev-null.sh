@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Enums\TalkLinkKind;
 use Carbon\CarbonInterface;
 use Database\Factories\TalkFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -20,16 +19,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $title
  * @property-read string $description
  * @property-read CarbonInterface $presented_on
- * @property-read string $link_url
- * @property-read TalkLinkKind $link_kind
+ * @property-read string|null $slides_url
+ * @property-read string|null $recording_url
  * @property-read string|null $event_name
+ * @property-read bool $is_unlisted
  * @property-read CarbonInterface|null $published_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read User $user
  * @property-read Commit|null $commit
  */
-#[Fillable(['user_id', 'title', 'description', 'presented_on', 'link_url', 'link_kind', 'event_name'])]
+#[Fillable(['user_id', 'title', 'description', 'presented_on', 'slides_url', 'recording_url', 'event_name', 'is_unlisted'])]
 final class Talk extends Model
 {
     /** @use HasFactory<TalkFactory> */
@@ -50,7 +50,7 @@ final class Talk extends Model
     {
         return [
             'presented_on' => 'immutable_date',
-            'link_kind' => TalkLinkKind::class,
+            'is_unlisted' => 'boolean',
             'published_at' => 'immutable_datetime',
         ];
     }
@@ -60,9 +60,19 @@ final class Talk extends Model
         return $this->published_at !== null && $this->commit_id !== null;
     }
 
+    public function isDraft(): bool
+    {
+        return ! $this->isPublished();
+    }
+
+    public function isDiscoverable(): bool
+    {
+        return $this->isPublished() && ! $this->is_unlisted;
+    }
+
     public function isVisibleTo(?User $user): bool
     {
-        if (! $this->isPublished()) {
+        if ($this->isDraft()) {
             return $user?->id === $this->user_id;
         }
 
