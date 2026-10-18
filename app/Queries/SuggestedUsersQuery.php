@@ -51,10 +51,11 @@ final readonly class SuggestedUsersQuery
             ->limit($limit * 10)
             ->get();
 
-        // Ranked before looking for commits, so only the most followed are looked up rather than every candidate.
+        // Ranked before looking for commits, so only the most followed are looked up rather than every candidate. A NOT IN
+        // over everyone the user's follows follow is too big for Postgres to hash, so it would rescan it for every user.
         $popularPool = User::query()
             ->fromSub($this->candidates($user, $followingIds)
-                ->whereNotIn('users.id', $followedByFollowing)
+                ->whereNotExists($followedByFollowing->clone()->whereColumn($following->getQualifiedRelatedPivotKeyName(), 'users.id'))
                 ->select('users.*')
                 ->selectRaw('0 as followed_by_following_count')
                 ->addSelect(['followers_count' => $this->followersCount($following)])
