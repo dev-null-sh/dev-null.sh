@@ -137,6 +137,10 @@ An approved commit or reply mentioning `@tom` queues a reply. Pending mentions w
 
 Continue by tagging Tom in a reply. He sees at most twelve public ancestor posts on that branch and at most 12,000 characters including the current question, not sibling branches, other threads or private messages. Each turn has three model steps, at most two calls per search tool, five commit excerpts per commit search, and three knowledge-base excerpts per knowledge search. He has no web or write tools. No OpenCode key means new mentions do not queue bot work.
 
+Tom's job timeout is 600 seconds. The outbound request budget can reach 520 seconds: three model steps at up to 40 seconds each, four query embeddings at up to 70 seconds each, and two relevance checks at up to 60 seconds each. Model and embedding budgets include the SDK's one retry and up to ten seconds of backoff. The remaining time allows for database and queue work; normal replies do not wait for this ceiling.
+
+The database, Redis and Beanstalkd connections default to a 660-second `retry_after`, keeping jobs reserved beyond Tom's timeout. If you override `DB_QUEUE_RETRY_AFTER`, `REDIS_QUEUE_RETRY_AFTER` or `BEANSTALKD_QUEUE_RETRY_AFTER`, keep the value at least 660 seconds; for SQS, configure its visibility timeout to at least 660 seconds. Restart workers after deploying these settings. This reservation applies to every job on the connection, so a worker crash can delay redelivery of other jobs until it expires.
+
 #### Automatic production updates
 
 The scheduler dispatches the `App\Jobs\EmbedKnowledgeBase` job every hour, so changes to `KNOWLEDGE_BASE.md` are embedded within an hour of being deployed. The job reads the file from the running release and only embeds new or changed sections, so runs with no changes make no OpenAI requests. Only one import per source runs at a time. A failed run is retried by the queue, leaves existing sections untouched, and is picked up again on the next hour.

@@ -57,6 +57,28 @@ it('queues a mention only after approval and ignores code mentions', function ()
     Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $commit->id);
 });
 
+it('keeps a Tom reply reserved beyond its full provider budget and job timeout', function (): void {
+    $queue = Queue::connection('database');
+    $queue->push(new ReplyAsTom(fake()->uuid()), queue: 'tom-timeout');
+
+    $job = $queue->pop('tom-timeout');
+
+    expect($job)->not->toBeNull();
+    expect($job->timeout())->toBeGreaterThan(520);
+
+    foreach (['database', 'beanstalkd', 'redis'] as $connection) {
+        expect(config()->integer('queue.connections.'.$connection.'.retry_after'))->toBeGreaterThan($job->timeout());
+    }
+
+    $this->travel($job->timeout())->seconds();
+    expect($queue->pop('tom-timeout'))->toBeNull();
+
+    $this->travel(config()->integer('queue.connections.database.retry_after') - $job->timeout())->seconds();
+    $retry = $queue->pop('tom-timeout');
+    expect($retry?->getJobId())->toBe($job->getJobId());
+    expect($retry?->attempts())->toBe(2);
+});
+
 it('does not prompt for ineligible mentions', function (string $case): void {
     Tom::fake()->preventStrayPrompts();
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
