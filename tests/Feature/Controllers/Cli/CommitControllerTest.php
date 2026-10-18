@@ -240,6 +240,16 @@ it('keeps the images in the order they were signed', function (): void {
     expect($this->user->commits()->sole()->images->pluck('width')->all())->toBe([40, 10]);
 });
 
+it('accepts an empty or short body when images are attached', function (string $body): void {
+    Storage::fake();
+
+    $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
+
+    postSignedCommitWithImages(signedCommit($this->keyPair, $body, imageHashes: imageHashes($images)), $images)->assertCreated();
+
+    expect($this->user->commits()->sole()->body)->toBe($body);
+})->with(['', 'ok']);
+
 it('rejects a payload sent as a text field next to the images', function (): void {
     $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
     $commit = signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes($images));
