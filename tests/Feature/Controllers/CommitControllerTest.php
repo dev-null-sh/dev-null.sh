@@ -610,6 +610,22 @@ it('shows a commit with a details block, its own prose and code cut up the same 
             ]));
 });
 
+it('keeps the markup of a details block out of the page', function (): void {
+    $commit = Commit::factory()->create(['body' => "<details>\n<summary><img src=x onerror=alert(1)></summary>\n\n<script>alert(2)</script>\n</details>"]);
+
+    $response = $this->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertDontSee('<img src=x', false)
+        ->assertDontSee('<script>alert(2)</script>', false)
+        ->assertSee('\u003Cimg src=x onerror=alert(1)\u003E', false);
+
+    $description = Str::betweenFirst((string) $response->getContent(), '<meta property="og:description" content="', '"');
+
+    expect($description)->toContain('&lt;img src=x onerror=alert(1)&gt;')
+        ->and($description)->toContain('&lt;script&gt;alert(2)&lt;/script&gt;');
+});
+
 it('shows the star count and whether the viewer starred the commit and its ancestors', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();

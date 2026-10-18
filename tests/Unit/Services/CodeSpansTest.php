@@ -107,6 +107,14 @@ it('escapes html inside highlighted code', function (): void {
     expect($html)->not->toContain('<img')->toContain('&lt;');
 });
 
+it('escapes html inside a code block a details block holds', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    $html = $codeSpans->highlight("<details>\n<summary>How</summary>\n\n```html\n<img src=x onerror=alert(1)>\n```\n</details>")[0]['segments'][0]['html'];
+
+    expect($html)->not->toContain('<img')->toContain('&lt;');
+});
+
 it('highlights a language written in any case and keeps the label as written', function (): void {
     $codeSpans = resolve(CodeSpans::class);
 
@@ -183,6 +191,21 @@ it('reads a details block as a segment holding its summary and its own segments'
         ],
     ]);
 });
+
+it('reads the markup a details block is written with as text, never as more markup', function (string $text, string $summary): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->highlight($text))->toBe([
+        [
+            'type' => 'details',
+            'summary' => $summary,
+            'segments' => [['type' => 'text', 'text' => '<script>alert(2)</script>']],
+        ],
+    ]);
+})->with([
+    'markup in the summary' => ["<details>\n<summary><script>alert(1)</script></summary>\n\n<script>alert(2)</script>\n</details>", '<script>alert(1)</script>'],
+    'a closing tag in the summary' => ["<details>\n<summary>a</summary></summary>\n\n<script>alert(2)</script>\n</details>", 'a</summary>'],
+]);
 
 it('drops the line breaks around a details block', function (string $lineBreak): void {
     $codeSpans = resolve(CodeSpans::class);

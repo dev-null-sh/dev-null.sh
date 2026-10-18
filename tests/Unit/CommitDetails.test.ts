@@ -86,6 +86,27 @@ void test('reaches the summary and the prose of a details block, but not its cod
     );
 });
 
+void test('escapes the code a details block holds and keeps its summary as written', () => {
+    assert.deepEqual(
+        bodySegments(
+            '<details>\n<summary><script>alert(1)</script></summary>\n\n```html\n<img src=x onerror=alert(1)>\n```\n</details>',
+        ),
+        [
+            {
+                type: 'details',
+                summary: '<script>alert(1)</script>',
+                segments: [
+                    {
+                        type: 'block',
+                        language: 'html',
+                        html: '&lt;img src=x onerror=alert(1)&gt;',
+                    },
+                ],
+            },
+        ],
+    );
+});
+
 void test('keeps the prose of a details block and drops its code', () => {
     assert.deepEqual(
         typedProse(
