@@ -6,8 +6,10 @@ namespace App\Models;
 
 use App\Enums\OrgRole;
 use App\Enums\RemoteStatus;
+use App\Models\Scopes\WithoutBannedAuthors;
 use Carbon\CarbonInterface;
 use Database\Factories\ConversationParticipantFactory;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,6 +29,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
+#[ScopedBy(WithoutBannedAuthors::class)]
 final class ConversationParticipant extends Model
 {
     /** @use HasFactory<ConversationParticipantFactory> */

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Enums\RemotesFrom;
+use App\Models\Ban;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia;
 
@@ -66,6 +68,31 @@ it('hides conversations you cannot have', function (): void {
 
     $this->actingAs($mark)->get(route('conversation.show', $nuno))->assertNotFound();
     $this->get(route('conversation.show', $mark))->assertNotFound();
+});
+
+it('leaves conversations and requests from banned people out of the inbox until the ban is lifted', function (): void {
+    $mark = User::factory()->withRemotes(RemotesFrom::Following)->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $taylor = User::factory()->withRemotes()->create();
+    $mark->following()->attach($nuno);
+    sendChatMessage($nuno, $mark, 'ship it');
+    sendChatMessage($taylor, $mark, 'hey, saw your polling PR');
+
+    Ban::factory()->create(['github_id' => $nuno->github_id]);
+    Ban::factory()->create(['github_id' => $taylor->github_id]);
+
+    $this->actingAs($mark)->getJson(route('inbox.index'))
+        ->assertJsonPath('conversations', [])
+        ->assertJsonPath('unread', 0)
+        ->assertJsonPath('requests', 0);
+    $this->getJson(route('inbox.index', ['tab' => 'fetched']))->assertJsonPath('conversations', []);
+
+    Ban::query()->delete();
+
+    $this->getJson(route('inbox.index'))
+        ->assertJsonCount(1, 'conversations')
+        ->assertJsonPath('unread', 2)
+        ->assertJsonPath('requests', 1);
 });
 
 it('requires authentication', function (): void {

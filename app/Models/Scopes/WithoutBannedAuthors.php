@@ -5,16 +5,18 @@ declare(strict_types=1);
 namespace App\Models\Scopes;
 
 use App\Models\Commit;
+use App\Models\ConversationParticipant;
+use App\Models\Message;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
- * Hides what banned users committed, everywhere, until the ban is lifted. Commits whose author deleted their account
- * have no user, so they stay.
+ * Hides what banned users committed and pushed, and the orgs they're in, everywhere, until the ban is lifted. Commits
+ * whose author deleted their account have no user, so they stay.
  *
- * @implements Scope<Commit>
+ * @implements Scope<Commit|Message|ConversationParticipant>
  */
 final readonly class WithoutBannedAuthors implements Scope
 {

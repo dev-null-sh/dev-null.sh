@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\OrgEvent;
+use App\Models\Ban;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
@@ -98,6 +99,30 @@ it('shows an org only to its members', function (): void {
 
     $this->actingAs(User::factory()->create())->get(route('org.show', $org))->assertNotFound();
     $this->getJson(route('org-message.index', $org))->assertNotFound();
+});
+
+it('leaves banned members and what they pushed out of an org until the ban is lifted', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno, $taylor]);
+    pushToOrg($nuno, $org, 'from nuno');
+    pushToOrg($taylor, $org, 'from taylor');
+
+    Ban::factory()->create(['github_id' => $nuno->github_id]);
+
+    $this->actingAs($mark)->get(route('org.show', $org))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->has('thread.members', 2)
+            ->has('thread.messages', 2)
+            ->where('thread.messages.1.body', 'from taylor'));
+    $this->getJson(route('inbox.index'))->assertJsonCount(2, 'conversations.0.members');
+
+    Ban::query()->delete();
+
+    $this->get(route('org.show', $org))->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+        ->has('thread.members', 3)
+        ->has('thread.messages', 3));
 });
 
 it('lets maintainers rename the org', function (): void {

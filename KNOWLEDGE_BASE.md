@@ -354,7 +354,9 @@ Commits and replies undergo automated moderation and may be pending, approved, o
 
 Administrators have a moderation queue for reviewing and approving or rejecting commits, including bulk decisions, plus a reports queue for user-reported content. Moderators can dismiss reports or reject reported commits. These are restricted tools, not controls every account receives.
 
-Sources: [moderation access](app/Http/Requests/ShowModerationRequest.php), [moderation controller](app/Http/Controllers/ModerationController.php), [status transitions](app/Actions/UpdateCommitStatuses.php), [reports controller](app/Http/Controllers/ReportedCommitController.php).
+Moderators can also ban an account from the menu on its profile or hover card. A ban is tied to the GitHub account, so renaming on GitHub or deleting the /dev/null account does not get around it. A banned person is signed out and cannot sign back in, and their profile, commits, replies, Remotes messages and org memberships are hidden from everyone. Nothing is deleted, so lifting a ban brings it all back. There is no unban control in the app.
+
+Sources: [moderation access](app/Http/Requests/ShowModerationRequest.php), [moderation controller](app/Http/Controllers/ModerationController.php), [status transitions](app/Actions/UpdateCommitStatuses.php), [reports controller](app/Http/Controllers/ReportedCommitController.php), [bans](app/Http/Controllers/UserBanController.php).
 
 ### Operations dashboard
 

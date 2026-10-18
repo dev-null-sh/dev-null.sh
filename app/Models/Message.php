@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\OrgEvent;
+use App\Models\Scopes\WithoutBannedAuthors;
 use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
 use Database\Factories\MessageFactory;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 use Illuminate\Database\Eloquent\Attributes\Visible;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -40,6 +42,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
+#[ScopedBy(WithoutBannedAuthors::class)]
 #[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'created_at', 'user', 'subject', 'linkPreview', 'images', 'reactions'])]
 final class Message extends Model
 {

@@ -48,7 +48,7 @@ final readonly class ConversationsQuery
             ->whereNotNull('mine.last_message_at')
             ->where(fn (Builder $query): Builder => $query
                 ->where('conversations.kind', ConversationKind::Org)
-                ->orWhereNotIn('theirs.user_id', $user->idsAcrossBlocks()))
+                ->orWhereIn('theirs.user_id', User::query()->select('id')->whereNotIn('id', $user->idsAcrossBlocks())))
             ->when($term !== '', fn (Builder $query): Builder => $query->where(fn (Builder $query): Builder => $query
                 ->whereIn('theirs.user_id', $this->matching($escaped))
                 ->orWhereRaw("LOWER(conversations.name) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
@@ -129,6 +129,9 @@ final readonly class ConversationsQuery
             ->whereNotIn('conversation_id', ConversationParticipant::query()
                 ->select('conversation_id')
                 ->whereIn('user_id', $user->idsAcrossBlocks()))
+            ->whereIn('conversation_id', ConversationParticipant::query()
+                ->select('conversation_id')
+                ->where('user_id', '!=', $user->id))
             ->count();
     }
 
