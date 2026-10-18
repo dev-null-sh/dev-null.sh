@@ -53,7 +53,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return (
         <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
             {component !== 'notification/index' && <NotificationCountPolling />}
-            <AppNav onSearch={openSearch} onCompose={compose} />
+            <AppNav
+                onSearch={openSearch}
+                onCompose={compose}
+                onShowShortcuts={showShortcuts}
+            />
 
             <main
                 className={cn(
@@ -61,16 +65,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     { 'md:max-w-[940px]': isMessages },
                 )}
             >
-                <MobileHeader onSearch={openSearch} />
+                <MobileHeader
+                    onSearch={openSearch}
+                    onShowShortcuts={showShortcuts}
+                />
                 <CommitStarPolling>{children}</CommitStarPolling>
             </main>
 
-            {!isMessages && (
-                <AppAside
-                    onShowShortcuts={showShortcuts}
-                    onSearch={openSearch}
-                />
-            )}
+            {!isMessages && <AppAside onSearch={openSearch} />}
 
             <MobileNav />
 

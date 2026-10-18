@@ -1,32 +1,43 @@
+import { useRef } from 'react';
+import { CharacterShortcutsPreference } from '@/components/character-shortcuts-preference';
 import {
     Dialog,
     DialogContent,
     DialogDescription,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { useCharacterShortcuts } from '@/hooks/use-character-shortcuts';
 import type { KeyLabels } from '@/lib/keyboard';
 import { useKeyLabels } from '@/lib/keyboard';
 
-type Shortcut = { keys: string[]; label: string };
+type Shortcut = { keys: string[]; label: string; characterOnly?: boolean };
 
 const shortcuts = (keys: KeyLabels): Shortcut[] => [
-    { keys: ['j'], label: 'Next commit' },
-    { keys: ['k'], label: 'Previous commit' },
-    { keys: ['y'], label: 'Copy link to the focused commit' },
+    { keys: ['j'], label: 'Next commit', characterOnly: true },
+    { keys: ['k'], label: 'Previous commit', characterOnly: true },
+    {
+        keys: ['y'],
+        label: 'Copy link to the focused commit',
+        characterOnly: true,
+    },
     { keys: ['↵'], label: 'Open the focused commit' },
-    { keys: ['r'], label: 'Reply to commit' },
-    { keys: ['q'], label: 'Quote commit' },
-    { keys: ['o'], label: 'Show or hide replies' },
-    { keys: ['c'], label: 'Write a commit' },
+    { keys: ['r'], label: 'Reply to commit', characterOnly: true },
+    { keys: ['q'], label: 'Quote commit', characterOnly: true },
+    { keys: ['o'], label: 'Show or hide replies', characterOnly: true },
+    { keys: ['c'], label: 'Write a commit', characterOnly: true },
     { keys: [keys.mod, 'K'], label: 'Search developers and commits' },
-    { keys: ['/'], label: 'Search developers and commits' },
+    {
+        keys: ['/'],
+        label: 'Search developers and commits',
+        characterOnly: true,
+    },
     { keys: [keys.mod, '↵'], label: 'Commit (in the composer)' },
     { keys: [keys.mod, keys.shift, 'P'], label: 'Preview (in the composer)' },
-    { keys: ['g', 'l'], label: 'Go to your log' },
-    { keys: ['g', 'e'], label: 'Go to trending' },
-    { keys: ['g', 'p'], label: 'Go to your profile' },
-    { keys: ['g', 's'], label: 'Go to settings' },
-    { keys: ['?'], label: 'Show this list' },
+    { keys: ['g', 'l'], label: 'Go to your log', characterOnly: true },
+    { keys: ['g', 'e'], label: 'Go to trending', characterOnly: true },
+    { keys: ['g', 'p'], label: 'Go to your profile', characterOnly: true },
+    { keys: ['g', 's'], label: 'Go to settings', characterOnly: true },
+    { keys: ['?'], label: 'Show this list', characterOnly: true },
 ];
 
 const moderationShortcuts: Shortcut[] = [
@@ -69,18 +80,42 @@ export function KeyboardShortcutsDialog({
     canModerate: boolean;
 }) {
     const keys = useKeyLabels();
+    const characterShortcuts = useCharacterShortcuts();
+    const returnFocus = useRef<HTMLElement | null>(null);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-sm">
+            <DialogContent
+                className="sm:max-w-sm"
+                onOpenAutoFocus={() => {
+                    returnFocus.current =
+                        document.activeElement instanceof HTMLElement
+                            ? document.activeElement
+                            : null;
+                }}
+                onCloseAutoFocus={(event) => {
+                    if (returnFocus.current?.isConnected) {
+                        event.preventDefault();
+                        returnFocus.current.focus();
+                    }
+                }}
+            >
                 <DialogTitle>Keyboard shortcuts</DialogTitle>
                 <DialogDescription>
-                    They work anywhere except while you're typing.
+                    Character shortcuts work outside text fields and dialogs.
+                    Commit actions require focus on a commit.
                 </DialogDescription>
 
-                <ShortcutList shortcuts={shortcuts(keys)} />
+                <CharacterShortcutsPreference />
 
-                {canModerate && (
+                <ShortcutList
+                    shortcuts={shortcuts(keys).filter(
+                        (shortcut) =>
+                            characterShortcuts || !shortcut.characterOnly,
+                    )}
+                />
+
+                {canModerate && characterShortcuts && (
                     <section aria-labelledby="moderation-shortcuts">
                         <h3
                             id="moderation-shortcuts"

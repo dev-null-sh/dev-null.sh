@@ -10,6 +10,7 @@ import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { useCharacterShortcuts } from '@/hooks/use-character-shortcuts';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
@@ -74,6 +75,7 @@ function ModerationActions({
         onError?: (message: string) => void,
     ) => void;
 }) {
+    const characterShortcuts = useCharacterShortcuts();
     const [showReason, setShowReason] = useState(false);
     const [reason, setReason] = useState('');
     const [error, setError] = useState('');
@@ -96,15 +98,17 @@ function ModerationActions({
                     size="sm"
                     disabled={isDisabled}
                     onClick={() => onModerate(CommitApprovalController.store)}
-                    aria-keyshortcuts="a"
+                    aria-keyshortcuts={characterShortcuts ? 'a' : undefined}
                     data-test="approve-commit-button"
                 >
                     <Check />
                     Approve
-                    <Keycap
-                        label="a"
-                        className="border-primary-foreground/30 bg-primary-foreground/15"
-                    />
+                    {characterShortcuts && (
+                        <Keycap
+                            label="a"
+                            className="border-primary-foreground/30 bg-primary-foreground/15"
+                        />
+                    )}
                 </Button>
                 <Button
                     variant="outline"
@@ -117,12 +121,14 @@ function ModerationActions({
                             setError,
                         )
                     }
-                    aria-keyshortcuts="x"
+                    aria-keyshortcuts={characterShortcuts ? 'x' : undefined}
                     data-test="reject-commit-button"
                 >
                     <X />
                     Reject
-                    <Keycap label="x" className="bg-muted" />
+                    {characterShortcuts && (
+                        <Keycap label="x" className="bg-muted" />
+                    )}
                 </Button>
                 {!showReason && (
                     <Button
