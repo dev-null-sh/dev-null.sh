@@ -21,6 +21,7 @@ const reply = (id: string): Commit =>
         created_at: new Date().toISOString(),
         status: 'approved',
         body_segments: [{ type: 'text', text: `Visible reply ${id}` }],
+        preview_segments: null,
         replies_count: 0,
         user: { id: 'author', name: 'Author', username: 'author', lane: 1, timezone: null },
     }) as Commit;
