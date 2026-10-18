@@ -41,6 +41,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useThread } from '@/hooks/use-chat';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import {
@@ -988,6 +989,7 @@ function Composer({
     onSend: () => void;
 }) {
     const id = `message-${targetKey(target).replace(':', '-')}`;
+    const isMobile = useIsMobile();
     const placeholder =
         target.kind === 'direct'
             ? `Message @${target.partner.username}`
@@ -1033,7 +1035,12 @@ function Composer({
         linkCard.reset();
         setReplyingTo(target, null);
         showError(null);
-        input.current?.focus();
+
+        if (isMobile) {
+            input.current?.blur();
+        } else {
+            input.current?.focus();
+        }
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
