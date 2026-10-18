@@ -57,7 +57,7 @@ const quote: NotificationGroup = {
     },
 };
 
-async function renderInbox(notifications: NotificationGroup[]) {
+async function renderInbox(notifications: NotificationGroup[], type = 'all') {
     const result = await createInertiaApp({
         page: {
             component: 'notification/index',
@@ -83,7 +83,7 @@ async function renderInbox(notifications: NotificationGroup[]) {
                     next_cursor: null,
                     prev_cursor: null,
                 }}
-                filters={{ type: 'all' }}
+                filters={{ type }}
                 readAt={timestamp}
             />
         ),
@@ -103,7 +103,7 @@ void test('renders quote notifications with their label and quoting commit desti
     assert.match(html, /My quote commentary/);
     assert.match(
         html,
-        /<a[^>]*href="\/notifications\?type=quotes"[^>]*><span[^>]*>Quotes<\/span><\/a>/,
+        /<button[^>]*aria-pressed="true"[^>]*>Quotes<\/button>/,
     );
 });
 
@@ -174,4 +174,21 @@ void test('renders highlighted notification blocks without a nested copy button'
         /<pre[^>]*><span class="hl-keyword">return<\/span> &quot;:fire:&quot;;<\/pre>/,
     );
     assert.doesNotMatch(html, /Copy code/);
+});
+
+
+void test('renders all notification categories as enabled toggle buttons by default', async () => {
+    const body = await renderInbox([]);
+    assert.equal((body.match(/aria-pressed="true"/g) ?? []).length, 6);
+    assert.doesNotMatch(body, /aria-current="page"|role="tab"/);
+});
+
+void test('renders independent category selections and the all-off empty state', async () => {
+    const selected = await renderInbox([], 'replies,mentions');
+    assert.equal((selected.match(/aria-pressed="true"/g) ?? []).length, 2);
+    assert.equal((selected.match(/aria-pressed="false"/g) ?? []).length, 4);
+    const none = await renderInbox([], 'none');
+    assert.equal((none.match(/aria-pressed="false"/g) ?? []).length, 6);
+    assert.match(none, /All categories are turned off/);
+    assert.match(none, /Show all notifications/);
 });

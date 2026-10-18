@@ -512,3 +512,42 @@ it('groups surviving activity through an authorless ancestor without exposing it
     $this->getJson(route('notification-group.show', $latest))->assertOk()
         ->assertJsonCount(2, 'data')->assertDontSee('Deleted private ancestor');
 });
+
+it('combines category filters and applies them to expanded groups', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->for($root, 'parent')->create();
+    $mention = Commit::factory()->for($root, 'parent')->create();
+    $notification = Notification::factory()->for($user, 'recipient')->for($reply, 'commit')->create(['type' => NotificationType::Replied]);
+    Notification::factory()->for($user, 'recipient')->for($mention, 'commit')->create(['type' => NotificationType::Mentioned]);
+    Notification::factory()->for($user, 'recipient')->create();
+
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'replies,mentions']))
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
+            ->where('notifications.data.0.event_count', 2)->where('filters.type', 'replies,mentions'));
+    $this->getJson(route('notification-group.show', [$notification, 'type' => 'replies,mentions']))
+        ->assertOk()->assertJsonCount(2, 'data');
+});
+
+it('remembers selected categories for the current account including no categories', function (): void {
+    $user = User::factory()->create();
+    Notification::factory()->for($user, 'recipient')->create();
+    $cookie = 'notification_types_'.$user->id;
+
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'none']))
+        ->assertCookie($cookie, 'none')
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 0)->where('filters.type', 'none'));
+    $this->withCookie($cookie, 'none')->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 0)->where('filters.type', 'none'));
+    $this->get(route('notification.index', ['type' => 'all']))
+        ->assertCookie($cookie, 'all')
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)->where('filters.type', 'all'));
+    $this->actingAs(User::factory()->create())->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page->where('filters.type', 'all'));
+});
+
+it('rejects invalid combinations of categories', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('notification.index', ['type' => 'replies,secret']))
+        ->assertUnprocessable()->assertJsonValidationErrors('type');
+});

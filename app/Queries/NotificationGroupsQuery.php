@@ -97,7 +97,7 @@ final readonly class NotificationGroupsQuery
                 'identified.group_id',
                 fn (QueryBuilder $query): QueryBuilder => $query->from('identified')->where('id', $member->id)->select('group_id'),
             ))
-            ->when($type !== 'all', fn (NotificationBuilder $query): NotificationBuilder => $query->whereIn('type', match ($type) {
+            ->when($type !== 'all', fn (NotificationBuilder $query): NotificationBuilder => $query->whereIn('type', array_merge(...array_map(fn (string $category): array => match ($category) {
                 'replies' => ['replied'],
                 'quotes' => ['quoted'],
                 'stars' => ['starred'],
@@ -105,7 +105,7 @@ final readonly class NotificationGroupsQuery
                 'follows' => ['followed'],
                 'moderation' => ['approved', 'rejected'],
                 default => [],
-            }));
+            }, explode(',', $type)))));
 
         $gap = match (DB::connection($visible->getModel()->getConnectionName())->getDriverName()) {
             'mysql', 'mariadb' => 'TIMESTAMPDIFF(SECOND, previous_match_at, created_at)',
