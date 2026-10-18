@@ -57,6 +57,7 @@ export function CommitCard({
     previousLane,
     isDimmed = false,
     isPreviousDimmed = false,
+    isHovered = false,
     isHighlighted = false,
     isGroupedWithPrevious = false,
     onAuthorHover,
@@ -79,6 +80,7 @@ export function CommitCard({
     previousLane?: string;
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
+    isHovered?: boolean;
     isHighlighted?: boolean;
     isGroupedWithPrevious?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
@@ -145,8 +147,8 @@ export function CommitCard({
     return (
         <article
             className={cn(
-                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
-                { 'bg-primary-soft/60': isHighlighted },
+                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none',
+                { 'bg-accent': isHovered, 'bg-primary-soft/60': isHighlighted },
                 deletion === 'deleting'
                     ? 'grid-rows-[0fr] opacity-0 delay-400'
                     : 'grid-rows-[1fr]',

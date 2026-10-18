@@ -1,6 +1,6 @@
 import { InfiniteScroll, router, usePage } from '@inertiajs/react';
 import { Pin } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { FocusEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
@@ -52,27 +52,48 @@ export function CommitFeed({
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
-    const [highlightedCommit, setHighlightedCommit] = useState<string | null>(
-        null,
-    );
-    const unhighlightTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    const [hoveredCommit, setHoveredCommit] = useState<string | null>(null);
+    const [focusedCommit, setFocusedCommit] = useState<string | null>(null);
+    const unhoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-    useEffect(() => () => clearTimeout(unhighlightTimer.current), []);
+    useEffect(() => () => clearTimeout(unhoverTimer.current), []);
 
-    const highlightCommit = (commitId: string, isHovering: boolean) => {
-        clearTimeout(unhighlightTimer.current);
+    const hoverCommit = (commitId: string, isHovering: boolean) => {
+        clearTimeout(unhoverTimer.current);
 
         if (isHovering) {
-            setHighlightedCommit(commitId);
+            setHoveredCommit(commitId);
 
             return;
         }
 
-        // Crossing a day marker between two commits shouldn't flash the whole feed back on.
-        unhighlightTimer.current = setTimeout(
-            () => setHighlightedCommit(null),
-            150,
+        // Crossing a day marker between two commits shouldn't flash the accent off.
+        unhoverTimer.current = setTimeout(() => setHoveredCommit(null), 150);
+    };
+
+    const syncFocusedCommit = (event: FocusEvent<HTMLDivElement>) => {
+        const commit = (event.target as HTMLElement).closest('[data-commit]');
+
+        if (!(commit instanceof HTMLElement)) {
+            return;
+        }
+
+        const target = event.target;
+        setFocusedCommit(
+            target instanceof HTMLElement && target.matches(':focus-visible')
+                ? (commit.dataset.commit ?? null)
+                : null,
         );
+    };
+
+    const clearFocusedCommit = (event: FocusEvent<HTMLDivElement>) => {
+        const next = event.relatedTarget;
+
+        if (next instanceof Node && event.currentTarget.contains(next)) {
+            return;
+        }
+
+        setFocusedCommit(null);
     };
 
     useEffect(
@@ -139,7 +160,7 @@ export function CommitFeed({
     const isDimmed = (commit: Commit) =>
         highlightedAuthor !== null
             ? commit.user_id !== highlightedAuthor
-            : highlightedCommit !== null && commit.id !== highlightedCommit;
+            : focusedCommit !== null && commit.id !== focusedCommit;
 
     const lastCommit = listed.at(-1) ?? pinnedCommit;
     const interludeIndex = Math.min(interludeAfter, listed.length) - 1;
@@ -151,6 +172,7 @@ export function CommitFeed({
             commit={commit}
             endsWithDot
             isDimmed={isDimmed(commit)}
+            isHovered={hoveredCommit === commit.id}
             isHighlighted={
                 highlightedPeriod !== null &&
                 commit.created_at.startsWith(highlightedPeriod)
@@ -161,12 +183,15 @@ export function CommitFeed({
             onAuthorHover={(isHovering) =>
                 setHighlightedAuthor(isHovering ? commit.user_id : null)
             }
-            onHover={(isHovering) => highlightCommit(commit.id, isHovering)}
+            onHover={(isHovering) => hoverCommit(commit.id, isHovering)}
         />
     );
 
     return (
-        <>
+        <div
+            onFocusCapture={syncFocusedCommit}
+            onBlurCapture={clearFocusedCommit}
+        >
             {pinnedCommit && (
                 <section aria-label="Pinned commit">
                     <div className="flex">
@@ -180,8 +205,9 @@ export function CommitFeed({
                         commit={pinnedCommit}
                         endsWithDot
                         isDimmed={isDimmed(pinnedCommit)}
+                        isHovered={hoveredCommit === pinnedCommit.id}
                         onHover={(isHovering) =>
-                            highlightCommit(pinnedCommit.id, isHovering)
+                            hoverCommit(pinnedCommit.id, isHovering)
                         }
                         isHighlighted={
                             highlightedPeriod !== null &&
@@ -248,7 +274,7 @@ export function CommitFeed({
                     </p>
                 </div>
             )}
-        </>
+        </div>
     );
 }
 
