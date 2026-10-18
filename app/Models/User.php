@@ -63,6 +63,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read int $commits_count
  * @property-read int $following_count
  * @property-read int $followers_count
+ * @property-read CarbonInterface|null $last_active_at
  */
 #[Hidden([
     'github_id',
@@ -78,6 +79,7 @@ use Illuminate\Support\Facades\DB;
     'pasteis_given_today',
     'pasteis_given_on',
     'pinned_commit_id',
+    'last_active_at',
     'github_synced_at',
     'log',
     'onboarded_at',
@@ -138,6 +140,7 @@ final class User extends Authenticatable
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
             'remember_token' => 'string',
+            'last_active_at' => 'datetime',
             'github_synced_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
