@@ -569,6 +569,38 @@ it('shows a commit with its ancestors and reply count', function (): void {
             ->missing('commit.user.email'));
 });
 
+it('shows the thread the author wrote after the commit and leaves it out of its replies', function (): void {
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+    $second = Commit::factory()->for($commit, 'parent')->for($author)->create(['created_at' => now()->subMinutes(2)]);
+    $reply = Commit::factory()->for($commit, 'parent')->create(['created_at' => now()->subMinute()]);
+    $third = Commit::factory()->for($second, 'parent')->for($author)->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$author, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('commit/show')
+            ->where('commit.replies_count', 1)
+            ->where('commit.continuation_id', $second->id)
+            ->has('continuation.data', 2)
+            ->where('continuation.data.0.id', $second->id)
+            ->where('continuation.data.0.replies_count', 0)
+            ->where('continuation.data.1.id', $third->id)
+            ->where('continuation.data.1.user.username', $author->username)
+            ->where('continuation.position', 1)
+            ->where('continuation.length', 2)
+            ->where('continuation.is_capped', false)
+            ->where('continuation.next_id', null)
+            ->where('replies', null));
+
+    $this->getJson(route('commit-reply.index', [$commit, 'except' => $second->id]))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+});
+
 it('shows the commit and its replies split into prose and highlighted code', function (): void {
     $commit = Commit::factory()->create(['body' => "Run `make` :fire\n```php\n\$name = '<b>';\n```"]);
     Commit::factory()->for($commit, 'parent')->create(['body' => 'try `make test`']);

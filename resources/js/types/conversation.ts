@@ -19,6 +19,19 @@ export type MessageImage = {
     description: string | null;
 };
 
+export type MessageReaction = {
+    user_id: string;
+    emoji: string;
+};
+
+/**
+ * The reactions of a message that changed since the version a poll last saw.
+ */
+export type MessageReactionChange = {
+    id: number;
+    reactions: MessageReaction[];
+};
+
 export type Message = {
     id: number;
     user_id: string;
@@ -30,6 +43,7 @@ export type Message = {
     mentions?: Record<string, string> | null;
     link_preview?: LinkPreview | null;
     images?: MessageImage[];
+    reactions?: MessageReaction[];
     event?: OrgEvent | null;
     subject_id?: string | null;
     user?: User;
@@ -79,6 +93,8 @@ export type ConversationSummary = {
 export type Thread = {
     messages: Message[];
     has_older: boolean;
+    reactions_version: number;
+    reaction_changes: MessageReactionChange[];
     read_through_id: number;
     partner_read_through_id: number;
     partner_read_at: string | null;
@@ -90,6 +106,8 @@ export type Thread = {
 export type OrgThread = {
     messages: Message[];
     has_older: boolean;
+    reactions_version: number;
+    reaction_changes: MessageReactionChange[];
     read_through_id: number;
     members: OrgMember[];
     typing: string[];

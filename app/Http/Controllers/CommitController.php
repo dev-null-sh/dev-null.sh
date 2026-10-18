@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
+use App\Dto\ThreadContinuation;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
@@ -13,6 +14,7 @@ use App\Http\Requests\ShowCommitRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
+use App\Queries\CommitContinuationQuery;
 use App\Queries\CommitRepliesQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -28,8 +30,22 @@ final readonly class CommitController
     /**
      * Commits are public, so guests and crawlers read the same page, with the commit's link preview and the replies shown under it as structured data.
      */
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies, PageMetadata $metadata): Response
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies, PageMetadata $metadata): Response
     {
+        $focusedCommit = null;
+        $getCommit = function () use (&$focusedCommit, $commit, $currentUser): Commit {
+            return $focusedCommit ??= Commit::query()
+                ->withVisibleReplyCount($currentUser)
+                ->withContinuationId($currentUser)
+                ->withCardDataFor($currentUser)
+                ->findOrFail($commit->id);
+        };
+
+        $threadContinuation = null;
+        $getContinuation = function () use (&$threadContinuation, $continuation, $getCommit, $currentUser): ThreadContinuation {
+            return $threadContinuation ??= $continuation->get($getCommit(), $currentUser);
+        };
+
         $threadReplies = null;
         $getReplies = function () use (&$threadReplies, $replies, $commit, $currentUser): CursorPaginator {
             return $threadReplies ??= $replies->paginate($commit, $currentUser);
@@ -41,12 +57,10 @@ final readonly class CommitController
         );
 
         return Inertia::render('commit/show', [
-            'commit' => fn (): Commit => Commit::query()
-                ->withVisibleReplyCount($currentUser)
-                ->withCardDataFor($currentUser)
-                ->findOrFail($commit->id),
+            'commit' => $getCommit,
             'ancestors' => fn (): Collection => $ancestors->get($commit, $currentUser),
-            'replies' => $getReplies,
+            'continuation' => $getContinuation,
+            'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? $getReplies() : null,
         ])->withViewData(['preview' => $preview]);
     }
 

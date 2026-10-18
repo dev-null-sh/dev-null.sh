@@ -5,9 +5,11 @@ declare(strict_types=1);
 use App\Enums\Log;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\BookmarkController;
+use App\Http\Controllers\BrandController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
+use App\Http\Controllers\CommitContinuationController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitLinkPreviewController;
@@ -44,6 +46,7 @@ use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
+use App\Http\Controllers\MessageReactionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
@@ -122,6 +125,9 @@ Route::get('privacy', [PrivacyController::class, 'show'])->name('privacy.show');
 // How /dev/null was built, readable by everyone...
 Route::get('about', [AboutController::class, 'show'])->name('about.show');
 
+// Logos, colors, and backgrounds, downloadable by everyone...
+Route::get('brand', [BrandController::class, 'show'])->name('brand.show');
+
 // What was merged into production, readable by everyone...
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
 
@@ -191,6 +197,8 @@ Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');
+Route::get('commits/{commit}/continuation', [CommitContinuationController::class, 'index'])
+    ->name('commit-continuation.index');
 
 // Search...
 Route::get('search', [SearchController::class, 'index'])
@@ -303,14 +311,14 @@ Route::middleware('auth')->group(function (): void {
         Route::put('remotes/preferences', [UserRemotePreferencesController::class, 'update'])
             ->name('user-remote-preferences.update');
         Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('remote-candidate.index');
-        Route::post('remotes/orgs', [OrgController::class, 'store'])->name('org.store');
+        Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware('throttle:messages')->name('org.store');
         Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereUuid('org')->name('org.update');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
-        Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereUuid('org')->name('org-member.store');
+        Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereUuid('org')->middleware('throttle:messages')->name('org-member.store');
         Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])->whereUuid('org')->withoutScopedBindings()->name('org-member.update');
         Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])->whereUuid('org')->withoutScopedBindings()->name('org-member.destroy');
         Route::post('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'store'])
@@ -320,6 +328,13 @@ Route::middleware('auth')->group(function (): void {
         Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
             ->whereNumber('message')
             ->name('message-link-preview.show');
+        Route::get('remotes/reactions', [MessageReactionController::class, 'index'])->name('message-reaction.index');
+        Route::post('remotes/messages/{message}/reactions', [MessageReactionController::class, 'store'])
+            ->whereNumber('message')
+            ->name('message-reaction.store');
+        Route::delete('remotes/messages/{message}/reactions', [MessageReactionController::class, 'destroy'])
+            ->whereNumber('message')
+            ->name('message-reaction.destroy');
     });
 
     Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])

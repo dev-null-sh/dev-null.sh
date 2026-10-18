@@ -16,6 +16,11 @@ return [
     |
     */
 
+    'fathom' => [
+        'token' => env('FATHOM_API_TOKEN'),
+        'site_id' => env('FATHOM_SITE_ID', 'HTQONOPD'),
+    ],
+
     'github' => [
         'client_id' => env('GITHUB_CLIENT_ID'),
         'client_secret' => env('GITHUB_CLIENT_SECRET'),

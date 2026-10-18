@@ -29,15 +29,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read string|null $link_preview_id
  * @property-read OrgEvent|null $event
  * @property-read string|null $subject_id
+ * @property-read int $reactions_version
  * @property-read User $user
  * @property-read User|null $subject
  * @property-read Message|null $replyTo
  * @property-read LinkPreview|null $linkPreview
  * @property-read Collection<int, MessageImage> $images
+ * @property-read Collection<int, MessageReaction> $reactions
+ * @property-read Conversation $conversation
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
-#[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'created_at', 'user', 'subject', 'linkPreview', 'images'])]
+#[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'created_at', 'user', 'subject', 'linkPreview', 'images', 'reactions'])]
 final class Message extends Model
 {
     /** @use HasFactory<MessageFactory> */
@@ -46,9 +49,9 @@ final class Message extends Model
     public const int MAX_LENGTH = 2000;
 
     /**
-     * What a message is shown with in a thread: its link card, its images, and the message it replies to.
+     * What a message is shown with in a thread: its link card, its images, its reactions, and the message it replies to.
      */
-    public const array SHOWN_WITH = ['linkPreview', 'images', 'replyTo.images'];
+    public const array SHOWN_WITH = ['linkPreview', 'images', 'reactions', 'replyTo.images'];
 
     /**
      * @return array<string, string>
@@ -66,9 +69,18 @@ final class Message extends Model
             'link_preview_id' => 'string',
             'event' => OrgEvent::class,
             'subject_id' => 'string',
+            'reactions_version' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @return BelongsTo<Conversation, $this>
+     */
+    public function conversation(): BelongsTo
+    {
+        return $this->belongsTo(Conversation::class);
     }
 
     /**
@@ -111,6 +123,16 @@ final class Message extends Model
     public function images(): HasMany
     {
         return $this->hasMany(MessageImage::class)->orderBy('position');
+    }
+
+    /**
+     * In the order they were left, so a reaction's chip keeps its place.
+     *
+     * @return HasMany<MessageReaction, $this>
+     */
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(MessageReaction::class)->orderBy('id');
     }
 
     /**

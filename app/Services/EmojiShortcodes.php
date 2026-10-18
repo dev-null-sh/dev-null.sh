@@ -33,6 +33,16 @@ final readonly class EmojiShortcodes
     }
 
     /**
+     * Every emoji a shortcode stands for, once each.
+     *
+     * @return list<string>
+     */
+    public function emoji(): array
+    {
+        return array_values(array_unique($this->map));
+    }
+
+    /**
      * @return array<string, string>
      */
     private function load(): array

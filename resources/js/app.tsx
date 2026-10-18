@@ -8,6 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
 import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
+import { registerServiceWorker } from '@/lib/service-worker';
 import '../css/app.css';
 
 const appName = import.meta.env.VITE_APP_NAME || '/dev/null';
@@ -22,6 +23,8 @@ void createInertiaApp({
             import.meta.glob<ComponentType>('./pages/**/*.tsx'),
         ),
     setup({ el, App, props }) {
+        registerServiceWorker(props.initialPage.version);
+
         const root = createRoot(el);
 
         root.render(

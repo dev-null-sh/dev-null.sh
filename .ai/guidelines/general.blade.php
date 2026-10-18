@@ -6,6 +6,11 @@
 - Migrations only go up: never write a `down` method. To undo a migration, write a new one.
 - Use the Laravel AI SDK for new AI features and semantic search query embeddings. Load the `ai-sdk-development` skill and keep the embedding provider, model, and dimensions compatible with the stored vectors.
 
+## Minimal code
+
+- Write the least code that does the job: no private helpers, extra cache layers, or defensive checks the feature doesn't need. If a method can be inlined or a branch removed without losing behavior, do it.
+- Prefer Laravel collections and the framework's typed accessors over hand-written array handling: `collect(...)->map(...)` instead of building arrays in loops, `$response->collect()` / `$response->fluent()` with `->integer()` / `->string()` instead of `is_array` / `is_numeric` checks and `(int)` casts.
+
 ## Knowledge base maintenance
 
 - Before finishing any change, check whether `KNOWLEDGE_BASE.md` needs updating to reflect it. Update the relevant sections in the same change when stack, hosting, repository details, platform behavior, or lore have changed; leave it alone when they have not.

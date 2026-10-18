@@ -4,7 +4,7 @@ const compactFormatter = new Intl.NumberFormat('en-US', {
 });
 
 export function formatCount(count: number): string {
-    return count > 1000
+    return count >= 1000
         ? compactFormatter.format(count).toLowerCase()
         : String(count);
 }

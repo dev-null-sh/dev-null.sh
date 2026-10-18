@@ -108,7 +108,7 @@ export const storyAfter: StoryEvent[] = [
             },
             id: '01a144ea-a3c5-724f-82e0-92f9b4b973c0',
             body: 'What’s up everyone! Laravel forever. 🔥',
-            stars: 384,
+            stars: 392,
             replies: 78,
         },
     },
@@ -144,8 +144,8 @@ export const storyAfter: StoryEvent[] = [
             },
             id: '01a14c0f-65e2-706b-9a16-20650373748c',
             body: 'This is really well done',
-            stars: 85,
-            replies: 11,
+            stars: 97,
+            replies: 14,
         },
     },
     {
@@ -171,12 +171,12 @@ export const storyAfter: StoryEvent[] = [
  * Everyone with a commit on production, most commits first. Bots and agents are left out.
  */
 export const storyContributors: StoryContributor[] = [
-    { login: 'xHeaven', commits: 177 },
-    { login: 'nunomaduro', commits: 142 },
+    { login: 'xHeaven', commits: 185 },
+    { login: 'nunomaduro', commits: 165 },
     { login: 'mnapoli', commits: 54 },
-    { login: 'brendt', commits: 29 },
+    { login: 'brendt', commits: 34 },
     { login: 'MrPunyapal', commits: 14 },
-    { login: 'paulinevos', commits: 8 },
+    { login: 'paulinevos', commits: 9 },
     { login: 'sadiqk2', commits: 8 },
     { login: 'simonhamp', commits: 7 },
     { login: 'hbenabdallah', commits: 5 },

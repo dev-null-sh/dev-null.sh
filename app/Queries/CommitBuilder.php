@@ -153,7 +153,33 @@ final class CommitBuilder extends Builder
         $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user);
 
         return $this->with(['replies' => $newest, 'quotes' => $newest])
+            ->withContinuationId($user)
             ->afterQuery(fn (Collection $commits): Collection => $this->attachReplyPreviews($commits, $user));
+    }
+
+    /**
+     * The author's earliest reply to their own commit is shown on its own, so it is left out of the replies count.
+     */
+    public function withContinuationId(?User $user): self
+    {
+        $earliest = (new Commit)->setTable('earliest_reply')->newQuery()
+            ->from((new Commit)->getTable().' as earliest_reply')
+            ->select('earliest_reply.id')
+            ->whereColumn('earliest_reply.parent_id', $this->qualifyColumn('id'))
+            ->whereColumn('earliest_reply.user_id', $this->qualifyColumn('user_id'))
+            ->oldest('earliest_reply.created_at')
+            ->oldest('earliest_reply.id')
+            ->limit(1);
+
+        $next = (new Commit)->setTable('next_commit')->newQuery()
+            ->from((new Commit)->getTable().' as next_commit')
+            ->select('next_commit.id')
+            ->where('next_commit.id', $earliest)
+            ->visibleTo($user)
+            ->withoutMutedAuthorsFor($user);
+
+        return $this->addSelect(['continuation_id' => $next])
+            ->afterQuery(fn (Collection $commits): Collection => $this->countOutContinuation($commits));
     }
 
     /**
@@ -295,7 +321,22 @@ final class CommitBuilder extends Builder
             ->visibleInThreadTo($user)
             ->select($relation->getRelated()->qualifyColumns(['id', 'parent_id', 'quoted_commit_id', 'created_at']))
             ->newestFirst()
-            ->limit(1);
+            ->limit(2);
+    }
+
+    /**
+     * @param  Collection<int, Commit>  $commits
+     * @return Collection<int, Commit>
+     */
+    private function countOutContinuation(Collection $commits): Collection
+    {
+        foreach ($commits as $commit) {
+            if (! $commit->trashed() && $commit->hasAttribute('replies_count') && $commit->hasAttribute('continuation_id') && $commit->continuation_id !== null) {
+                $commit->setAttribute('replies_count', $commit->replies_count - 1);
+            }
+        }
+
+        return $commits;
     }
 
     /**
@@ -306,6 +347,7 @@ final class CommitBuilder extends Builder
     {
         $previewed = $commits->filter(fn (Commit $commit): bool => $commit->relationLoaded('replies') && $commit->relationLoaded('quotes'));
         $newest = $previewed->mapWithKeys(fn (Commit $commit): array => [$commit->id => $commit->replies->merge($commit->quotes)
+            ->reject(fn (Commit $reply): bool => $reply->id === $commit->continuation_id)
             ->sortByDesc(fn (Commit $reply): string => $reply->created_at->format('Y-m-d H:i:s.u').$reply->id)
             ->first()]);
         $ids = $newest->filter()->map(fn (Commit $reply): string => $reply->id)->values()->all();
@@ -313,6 +355,7 @@ final class CommitBuilder extends Builder
             ->withTrashed()
             ->whereKey($ids)
             ->withVisibleReplyCount($user)
+            ->withContinuationId($user)
             ->withCardDataFor($user)
             ->without('quotedCommit')
             ->get()
