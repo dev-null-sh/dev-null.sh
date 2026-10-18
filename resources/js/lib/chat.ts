@@ -320,7 +320,7 @@ function withFirstPage(
 
 async function fetchInbox(
     tab: InboxTab,
-    before?: number,
+    before?: string,
 ): Promise<InboxPage & { unread: number; requests: number }> {
     return request(
         InboxController.index.url({
@@ -695,7 +695,7 @@ function touchInbox(target: ChatTarget, message: Message): void {
     }
 
     const summary: ConversationSummary = {
-        id: existing?.id ?? 0,
+        id: existing?.id ?? '',
         kind: target.kind,
         name: existing?.name ?? null,
         partner: target.kind === 'direct' ? target.partner : null,
@@ -891,7 +891,7 @@ export async function searchConversations(
  */
 export async function searchCandidates(
     term: string,
-    scope: { for: 'remote' | 'org' } | { org: number },
+    scope: { for: 'remote' | 'org' } | { org: string },
     signal: AbortSignal,
 ): Promise<Candidate[]> {
     const response = await fetch(
@@ -1055,7 +1055,7 @@ export async function createOrg(
     name: string,
     members: string[],
 ): Promise<OrgRef> {
-    const { org } = await request<{ org: { id: number } }>(
+    const { org } = await request<{ org: { id: string } }>(
         OrgController.store.url(),
         'POST',
         { name, members },

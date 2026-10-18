@@ -252,7 +252,7 @@ Route::middleware('auth')->group(function (): void {
     // Messages...
     Route::get('remotes', [ConversationController::class, 'index'])->name('conversation.index');
     Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
-    Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereNumber('org')->name('org.show');
+    Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereUuid('org')->name('org.show');
 
     Route::middleware('throttle:conversations')->group(function (): void {
         Route::get('remotes/inbox', [InboxController::class, 'index'])->name('inbox.index');
@@ -270,15 +270,15 @@ Route::middleware('auth')->group(function (): void {
             ->name('user-remote-preferences.update');
         Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('remote-candidate.index');
         Route::post('remotes/orgs', [OrgController::class, 'store'])->name('org.store');
-        Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereNumber('org')->name('org.update');
-        Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereNumber('org')->name('org-message.index');
-        Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereNumber('org')->name('org-read.update');
-        Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereNumber('org')->name('org-typing.update');
-        Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereNumber('org')->name('org-archive.store');
-        Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereNumber('org')->name('org-archive.destroy');
-        Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereNumber('org')->name('org-member.store');
-        Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])->whereNumber('org')->withoutScopedBindings()->name('org-member.update');
-        Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])->whereNumber('org')->withoutScopedBindings()->name('org-member.destroy');
+        Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereUuid('org')->name('org.update');
+        Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
+        Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
+        Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
+        Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
+        Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
+        Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereUuid('org')->name('org-member.store');
+        Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])->whereUuid('org')->withoutScopedBindings()->name('org-member.update');
+        Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])->whereUuid('org')->withoutScopedBindings()->name('org-member.destroy');
         Route::post('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'store'])
             ->name('conversation-archive.store');
         Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
@@ -289,7 +289,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:messages')
         ->name('conversation-message.store');
     Route::post('remotes/orgs/{org}/messages', [OrgMessageController::class, 'store'])
-        ->whereNumber('org')
+        ->whereUuid('org')
         ->middleware('throttle:messages')
         ->name('org-message.store');
 

@@ -262,7 +262,7 @@ function followersOf(User $maintainer, int $count): array
  *
  * @param  list<User>  $members
  */
-function createOrg(User $maintainer, array $members, ?string $name = 'dev/null core'): int
+function createOrg(User $maintainer, array $members, ?string $name = 'dev/null core'): string
 {
     return test()->actingAs($maintainer)->postJson(route('org.store'), [
         'name' => $name,
@@ -270,7 +270,7 @@ function createOrg(User $maintainer, array $members, ?string $name = 'dev/null c
     ])->assertCreated()->json('org.id');
 }
 
-function pushToOrg(User $sender, int $org, string $body = 'hello'): Message
+function pushToOrg(User $sender, string $org, string $body = 'hello'): Message
 {
     test()->actingAs($sender)->postJson(route('org-message.store', $org), [
         'body' => $body,

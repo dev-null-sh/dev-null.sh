@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * needs the old one in APP_PREVIOUS_KEYS, or older messages can no longer be read.
  *
  * @property-read int $id
- * @property-read int $conversation_id
+ * @property-read string $conversation_id
  * @property-read string $user_id
  * @property-read string $client_id
  * @property-read string $body
@@ -43,7 +43,7 @@ final class Message extends Model
     {
         return [
             'id' => 'integer',
-            'conversation_id' => 'integer',
+            'conversation_id' => 'string',
             'user_id' => 'string',
             'client_id' => 'string',
             'body' => 'encrypted',

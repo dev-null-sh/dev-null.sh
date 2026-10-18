@@ -29,7 +29,7 @@ final class ListInboxRequest extends FormRequest
         return [
             'tab' => ['nullable', config('remotes.requests') ? Rule::enum(InboxTab::class) : Rule::enum(InboxTab::class)->except(InboxTab::Fetched)],
             'q' => ['nullable', 'string', 'max:100'],
-            'before' => ['nullable', 'integer', 'min:1'],
+            'before' => ['nullable', 'uuid'],
         ];
     }
 
@@ -43,8 +43,8 @@ final class ListInboxRequest extends FormRequest
         return $this->string('q')->trim()->ltrim('@')->lower()->value();
     }
 
-    public function beforeId(): ?int
+    public function beforeId(): ?string
     {
-        return $this->filled('before') ? $this->integer('before') : null;
+        return $this->filled('before') ? $this->string('before')->value() : null;
     }
 }

@@ -29,7 +29,7 @@ export type OrgEvent =
     | 'demoted'
     | 'inherited';
 
-export type OrgRef = { id: number; name: string | null };
+export type OrgRef = { id: string; name: string | null };
 
 export type OrgMember = {
     user: User;
@@ -38,7 +38,7 @@ export type OrgMember = {
 };
 
 export type ConversationSummary = {
-    id: number;
+    id: string;
     kind: ConversationKind;
     name: string | null;
     partner: User | null;

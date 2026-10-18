@@ -32,7 +32,7 @@ final class ListRemoteCandidatesRequest extends FormRequest
     {
         return [
             'q' => ['nullable', 'string', 'max:100'],
-            'org' => ['nullable', 'integer'],
+            'org' => ['nullable', 'uuid'],
             'for' => ['nullable', 'in:remote,org'],
         ];
     }
@@ -44,7 +44,7 @@ final class ListRemoteCandidatesRequest extends FormRequest
     public function org(): ?Conversation
     {
         return match (true) {
-            $this->filled('org') => Conversation::query()->whereKey($this->integer('org'))->firstOrFail(),
+            $this->filled('org') => Conversation::query()->whereKey($this->string('org')->value())->firstOrFail(),
             $this->input('for') === 'org' => new Conversation(['kind' => ConversationKind::Org]),
             default => null,
         };
