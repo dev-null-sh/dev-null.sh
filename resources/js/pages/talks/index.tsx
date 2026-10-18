@@ -1,5 +1,4 @@
-import { Form, Head, Link } from '@inertiajs/react';
-import { ArrowLeft } from 'lucide-react';
+import { Form, Head, InfiniteScroll } from '@inertiajs/react';
 import { useState } from 'react';
 import TalkController from '@/actions/App/Http/Controllers/TalkController';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -14,170 +13,199 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
-import type { TalkLinkKind, TalkSummary } from '@/types';
+import type { CursorPaginated, TalkLinkKind, TalkSummary } from '@/types';
 
 const fieldClassName =
     'block w-full rounded-md border bg-transparent px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50 md:text-[15px]';
 
-export default function Index({
-    talks,
-}: {
-    talks: {
-        data: TalkSummary[];
-        prev_page_url: string | null;
-        next_page_url: string | null;
+type ExplorerTalk = TalkSummary & {
+    user: {
+        id: string;
+        username: string;
+        name: string;
+        avatar_url: string | null;
+        lane: number | string;
     };
-}) {
-    const { user } = useUser();
+};
+
+export default function Index({ talks }: { talks: CursorPaginated<ExplorerTalk> }) {
     const [linkKind, setLinkKind] = useState<TalkLinkKind>('slides');
+    const [isPublishing, setIsPublishing] = useState(false);
 
     return (
         <>
             <Head title="Talks" />
-            <div className="flex h-14 items-center gap-3 border-b px-4">
-                <Link
-                    href={`/@${user.username}?tab=talks`}
-                    aria-label="Back to profile talks"
-                    className="rounded-md p-2 text-muted-foreground hover:bg-accent"
-                >
-                    <ArrowLeft className="size-4" />
-                </Link>
+            <div className="flex h-14 items-center justify-between gap-3 border-b px-4">
                 <h1 className="font-semibold">Talks</h1>
+                <Button
+                    type="button"
+                    size="sm"
+                    variant={isPublishing ? 'outline' : 'default'}
+                    onClick={() => setIsPublishing((open) => !open)}
+                >
+                    {isPublishing ? 'Cancel' : 'Publish talk'}
+                </Button>
             </div>
 
-            <section className="border-b px-5 py-5 sm:px-6">
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                    Publish a talk with a title, summary, date, and a link to
-                    your slides or recording. It appears on your profile and in
-                    the log as a commit others can discuss.
-                </p>
+            {isPublishing && (
+                <section className="border-b px-5 py-5 sm:px-6">
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                        Share a talk with a title, summary, date, and a link to
+                        your slides or recording. It appears here and on your
+                        profile.
+                    </p>
 
-                <Form
-                    {...TalkController.store.form()}
-                    className="mt-5 space-y-4"
-                >
-                    {({ processing, errors }) => (
-                        <>
-                            <div className="space-y-2">
-                                <Label htmlFor="title">Title</Label>
-                                <input
-                                    id="title"
-                                    name="title"
-                                    required
-                                    maxLength={200}
-                                    className={fieldClassName}
-                                />
-                                <InputError message={errors.title} />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="description">Description</Label>
-                                <textarea
-                                    id="description"
-                                    name="description"
-                                    required
-                                    maxLength={4000}
-                                    rows={4}
-                                    className={`${fieldClassName} min-h-24 resize-y`}
-                                />
-                                <InputError message={errors.description} />
-                            </div>
-
-                            <div className="grid gap-4 sm:grid-cols-2">
+                    <Form
+                        {...TalkController.store.form()}
+                        className="mt-5 space-y-4"
+                    >
+                        {({ processing, errors }) => (
+                            <>
                                 <div className="space-y-2">
-                                    <Label htmlFor="presented_on">Date</Label>
+                                    <Label htmlFor="title">Title</Label>
                                     <input
-                                        id="presented_on"
-                                        name="presented_on"
-                                        type="date"
+                                        id="title"
+                                        name="title"
                                         required
+                                        maxLength={200}
                                         className={fieldClassName}
                                     />
-                                    <InputError message={errors.presented_on} />
+                                    <InputError message={errors.title} />
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="link_kind">Link type</Label>
-                                    <input
-                                        type="hidden"
-                                        name="link_kind"
-                                        value={linkKind}
+                                    <Label htmlFor="description">
+                                        Description
+                                    </Label>
+                                    <textarea
+                                        id="description"
+                                        name="description"
+                                        required
+                                        maxLength={4000}
+                                        rows={4}
+                                        className={`${fieldClassName} min-h-24 resize-y`}
                                     />
-                                    <Select
-                                        value={linkKind}
-                                        onValueChange={(value) =>
-                                            setLinkKind(value as TalkLinkKind)
-                                        }
-                                    >
-                                        <SelectTrigger
-                                            id="link_kind"
-                                            className="h-auto w-full py-2 text-base md:text-[15px]"
-                                        >
-                                            <SelectValue placeholder="Link type" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="slides">
-                                                Slides
-                                            </SelectItem>
-                                            <SelectItem value="recording">
-                                                Recording
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <InputError message={errors.link_kind} />
+                                    <InputError message={errors.description} />
                                 </div>
-                            </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="link_url">Link URL</Label>
-                                <input
-                                    id="link_url"
-                                    name="link_url"
-                                    type="url"
-                                    required
-                                    placeholder="https://"
-                                    maxLength={2048}
-                                    className={fieldClassName}
-                                />
-                                <InputError message={errors.link_url} />
-                            </div>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="presented_on">
+                                            Date
+                                        </Label>
+                                        <input
+                                            id="presented_on"
+                                            name="presented_on"
+                                            type="date"
+                                            required
+                                            className={fieldClassName}
+                                        />
+                                        <InputError
+                                            message={errors.presented_on}
+                                        />
+                                    </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="event_name">
-                                    Event name (optional)
-                                </Label>
-                                <input
-                                    id="event_name"
-                                    name="event_name"
-                                    maxLength={200}
-                                    className={fieldClassName}
-                                />
-                                <InputError message={errors.event_name} />
-                            </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="link_kind">
+                                            Link type
+                                        </Label>
+                                        <input
+                                            type="hidden"
+                                            name="link_kind"
+                                            value={linkKind}
+                                        />
+                                        <Select
+                                            value={linkKind}
+                                            onValueChange={(value) =>
+                                                setLinkKind(
+                                                    value as TalkLinkKind,
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                id="link_kind"
+                                                className="h-auto w-full py-2 text-base md:text-[15px]"
+                                            >
+                                                <SelectValue placeholder="Link type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="slides">
+                                                    Slides
+                                                </SelectItem>
+                                                <SelectItem value="recording">
+                                                    Recording
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <InputError
+                                            message={errors.link_kind}
+                                        />
+                                    </div>
+                                </div>
 
-                            <Button type="submit" disabled={processing}>
-                                Publish talk
-                            </Button>
-                        </>
-                    )}
-                </Form>
-            </section>
+                                <div className="space-y-2">
+                                    <Label htmlFor="link_url">Link URL</Label>
+                                    <input
+                                        id="link_url"
+                                        name="link_url"
+                                        type="url"
+                                        required
+                                        placeholder="https://"
+                                        maxLength={2048}
+                                        className={fieldClassName}
+                                    />
+                                    <InputError message={errors.link_url} />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="event_name">
+                                        Event name (optional)
+                                    </Label>
+                                    <input
+                                        id="event_name"
+                                        name="event_name"
+                                        maxLength={200}
+                                        className={fieldClassName}
+                                    />
+                                    <InputError message={errors.event_name} />
+                                </div>
+
+                                <Button type="submit" disabled={processing}>
+                                    Publish talk
+                                </Button>
+                            </>
+                        )}
+                    </Form>
+                </section>
+            )}
 
             {talks.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command="fatal: no talks yet">
-                        Your published talks will show up here after you publish
-                        one above.
+                        Published talks from developers show up here. Publish
+                        one to get started.
                     </EmptyFeed>
                 </div>
             ) : (
-                <div>
+                <InfiniteScroll
+                    data="talks"
+                    onlyNext
+                    preserveUrl
+                    loading={
+                        <div
+                            role="status"
+                            aria-label="Loading more talks"
+                            className="px-5 py-6 text-sm text-muted-foreground sm:px-6"
+                        >
+                            Loading…
+                        </div>
+                    }
+                >
                     {talks.data.map((talk) => (
-                        <TalkCard key={talk.id} talk={talk} user={user} />
+                        <TalkCard key={talk.id} talk={talk} user={talk.user} />
                     ))}
-                </div>
+                </InfiniteScroll>
             )}
         </>
     );

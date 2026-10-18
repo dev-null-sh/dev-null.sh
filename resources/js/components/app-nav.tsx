@@ -8,6 +8,7 @@ import {
     History,
     Menu,
     MessagesSquare,
+    Presentation,
     Search,
     Settings2,
     ShieldCheck,
@@ -22,6 +23,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
+import TalkController from '@/actions/App/Http/Controllers/TalkController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
@@ -91,6 +93,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             icon: UserRound,
         },
         {
+            title: 'Talks',
+            href: hrefFor(() => TalkController.index()),
+            icon: Presentation,
+            prefetch: false,
+        },
+        {
             title: 'Saved',
             href: hrefFor(() => BookmarkController.index()),
             icon: Bookmark,
@@ -129,7 +137,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                   ? isCurrentOrParentUrl('/log')
                   : item.title === 'Remotes'
                     ? isCurrentOrParentUrl('/remotes')
-                    : isCurrentUrl(item.href)),
+                    : item.title === 'Talks'
+                      ? isCurrentOrParentUrl('/talks')
+                      : isCurrentUrl(item.href)),
     }));
 }
 
@@ -433,7 +443,7 @@ export function MobileNav() {
     const [isChangelogOpen, setIsChangelogOpen] = useState(false);
     const allItems = useNavItems();
     const menuItems = allItems.filter((item) =>
-        ['Profile', 'Settings', 'Operations'].includes(item.title),
+        ['Profile', 'Talks', 'Settings', 'Operations'].includes(item.title),
     );
     const items = allItems.filter(
         (item) =>

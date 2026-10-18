@@ -13,12 +13,12 @@ use App\Http\Requests\ShowTalkRequest;
 use App\Models\Commit;
 use App\Models\Talk;
 use App\Models\User;
+use App\Queries\CommitBuilder;
 use App\Queries\CommitRepliesQuery;
 use App\Services\PageMetadata;
 use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Contracts\Pagination\CursorPaginator;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -28,13 +28,24 @@ final readonly class TalkController
     public function index(ListTalkRequest $request, #[CurrentUser] User $user): Response
     {
         return Inertia::render('talks/index', [
-            'talks' => fn (): LengthAwarePaginator => Talk::query()
-                ->where('user_id', $user->id)
-                ->with('commit')
-                ->latest('presented_on')
+            'talks' => Inertia::scroll(fn (): CursorPaginator => Talk::query()
+                ->whereNotNull('published_at')
+                ->whereNotNull('commit_id')
+                ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user)->approved())
+                ->with(['user:id,username,name,avatar_url,preferred_lane,lane_color', 'commit'])
+                ->latest('published_at')
                 ->latest('id')
-                ->paginate(20)
-                ->through(fn (Talk $talk): array => $this->summary($talk)),
+                ->cursorPaginate(20)
+                ->through(fn (Talk $talk): array => [
+                    ...$this->summary($talk),
+                    'user' => [
+                        'id' => $talk->user->id,
+                        'username' => $talk->user->username,
+                        'name' => $talk->user->name,
+                        'avatar_url' => $talk->user->avatar_url,
+                        'lane' => $talk->user->lane(),
+                    ],
+                ])),
         ]);
     }
 

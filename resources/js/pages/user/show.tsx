@@ -11,7 +11,6 @@ import {
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
-import TalkController from '@/actions/App/Http/Controllers/TalkController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
@@ -404,33 +403,13 @@ export default function Show({
                 talks.data.length === 0 ? (
                     <div className="px-6 py-16 text-center sm:px-12">
                         <EmptyFeed command="fatal: no talks yet">
-                            {isCurrentUser ? (
-                                <>
-                                    Your talks show up here.{' '}
-                                    <Link
-                                        href={TalkController.index()}
-                                        className="underline underline-offset-4 hover:text-foreground"
-                                    >
-                                        Publish one
-                                    </Link>
-                                    .
-                                </>
-                            ) : (
-                                `@${user.username} hasn't published any talks yet.`
-                            )}
+                            {isCurrentUser
+                                ? 'Your talks show up here. Publish one from Talks in the side menu.'
+                                : `@${user.username} hasn't published any talks yet.`}
                         </EmptyFeed>
                     </div>
                 ) : (
                     <>
-                        {isCurrentUser && (
-                            <div className="border-b px-5 py-3 sm:px-6">
-                                <Button asChild size="sm" variant="outline">
-                                    <Link href={TalkController.index()}>
-                                        Manage talks
-                                    </Link>
-                                </Button>
-                            </div>
-                        )}
                         <InfiniteScroll
                             data="talks"
                             onlyNext
