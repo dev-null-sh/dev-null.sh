@@ -599,6 +599,78 @@ test('picking a suggestion with Enter starts an empty issue, and the shortcut op
     }
 });
 
+for (const command of ['/bug', '/feature']) {
+    test(`${command} refuses image attachments and restores them when returning to a commit`, () => {
+        let view = render();
+        const textarea = () =>
+            view.fields.find((element) => element.type === MentionTextarea)!;
+        (textarea().props.onValueChange as (value: string) => void)(
+            `${command} A text-only issue`,
+        );
+        draft.body = 'A text-only issue';
+        view = render();
+
+        assert.equal(textarea().props.onPaste, undefined);
+        assert.equal(
+            view.fields.some((element) => element.type === ImagePickerButton),
+            false,
+        );
+
+        const dropzone = view.fields.find(
+            (element) => element.props.onDrop !== undefined,
+        )!;
+        const dropped = {
+            dataTransfer: {
+                types: ['Files'],
+                files: [image],
+                dropEffect: 'copy',
+            },
+            preventDefault: vi.fn(),
+        };
+        (dropzone.props.onDragOver as (event: unknown) => void)(dropped);
+        (dropzone.props.onDrop as (event: unknown) => void)(dropped);
+        assert.equal(dropped.preventDefault.mock.calls.length, 2);
+        assert.equal(dropped.dataTransfer.dropEffect, 'none');
+        assert.deepEqual(draft.images, []);
+        assert.equal(
+            render().fields.some(
+                (element) => element.type === ImageDropOverlay,
+            ),
+            false,
+        );
+
+        const text = {
+            dataTransfer: {
+                types: ['text/plain'],
+                files: [],
+                dropEffect: 'copy',
+            },
+            preventDefault: vi.fn(),
+        };
+        (dropzone.props.onDrop as (event: unknown) => void)(text);
+        assert.equal(text.preventDefault.mock.calls.length, 0);
+
+        const badge = view.fields.find(
+            (element) => element.type === IssueCommandBadge,
+        )!;
+        vi.stubGlobal('requestAnimationFrame', vi.fn());
+        try {
+            (badge.props.onExit as () => void)();
+        } finally {
+            vi.unstubAllGlobals();
+        }
+        view = render();
+
+        const pasted = {
+            clipboardData: { files: [image] },
+            preventDefault: vi.fn(),
+        };
+        (textarea().props.onPaste as (event: unknown) => void)(pasted);
+        assert.equal(pasted.preventDefault.mock.calls.length, 1);
+        assert.deepEqual(draft.images, [image]);
+    });
+}
+
 test('a draft that mentions a bug suggests /bug, keeps the text when used, and can be dismissed', () => {
     draft.body = 'The search has a bug when going back';
     let hint = render().fields.find(
