@@ -34,9 +34,11 @@ final class NotificationFactory extends Factory
     {
         return $this
             ->afterMaking(fn (Notification $notification): Notification => $notification->forceFill([
-                'key' => $notification->type === NotificationType::Starred
-                    ? 'starred:'.$notification->commit_id.':'.$notification->actor_id
-                    : $notification->type->value.':'.($notification->commit_id ?? $notification->actor_id),
+                'key' => match ($notification->type) {
+                    NotificationType::Starred => 'starred:'.$notification->commit_id.':'.$notification->actor_id,
+                    NotificationType::LeveledUp => 'leveled_up:'.$notification->level,
+                    default => $notification->type->value.':'.($notification->commit_id ?? $notification->actor_id),
+                },
             ]))
             ->afterCreating(function (Notification $notification): void {
                 if ($notification->type === NotificationType::Followed) {
@@ -47,6 +49,18 @@ final class NotificationFactory extends Factory
                     $notification->actor()->firstOrFail()->starredCommits()->syncWithoutDetaching([$notification->commit_id]);
                 }
             });
+    }
+
+    /**
+     * The recipient reaching the given level, as their own actor.
+     */
+    public function leveledUp(int $level): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'actor_id' => $attributes['recipient_id'],
+            'type' => NotificationType::LeveledUp,
+            'level' => $level,
+        ]);
     }
 
     /**

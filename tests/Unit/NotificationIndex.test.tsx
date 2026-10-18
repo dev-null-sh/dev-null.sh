@@ -304,3 +304,27 @@ void test('keeps an expanded star as one link to the profile', async () => {
     assert.equal(body.match(/<a\b/g)?.length, 1);
     assert.match(body, /<a [^>]*href="\/@mnapoli"/);
 });
+
+void test('says which level and rank a level-up reached, linking to the profile', async () => {
+    const leveledUp = {
+        ...notification,
+        id: 'level',
+        group_id: 'level',
+        type: 'leveled_up',
+        commit_id: null,
+        subject_id: null,
+        commit: null,
+        level: 5,
+        rank: 'wheel',
+        rank_description: 'Member of the trusted wheel administrative group',
+    } as NotificationGroup;
+    const body = await render([leveledUp]);
+
+    assert.match(
+        body,
+        /data-test="level-chip"[^>]*>Lv\. <!-- -->5<!-- --> · <!-- -->wheel</,
+    );
+    assert.match(body, /You reached level 5: wheel<\/a>\./);
+    assert.match(body, /Member of the trusted wheel administrative group/);
+    assert.match(body, /<a[^>]*href="\/@mnapoli"/);
+});

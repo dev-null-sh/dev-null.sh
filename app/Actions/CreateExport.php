@@ -30,7 +30,7 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, sessions: Collection<int, stdClass>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, notifications: Generator<int, array<string, int|string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
@@ -223,27 +223,28 @@ final readonly class CreateExport
     }
 
     /**
-     * Moderators stay anonymous, as they are on the notifications page.
+     * Moderators stay anonymous, as they are on the notifications page, and level-ups are the user's own doing.
      *
-     * @return Generator<int, array<string, string|null>>
+     * @return Generator<int, array<string, int|string|null>>
      */
     private function notifications(User $user): Generator
     {
-        /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, read_at: string|null, created_at: string}> $notifications */
+        /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
         $notifications = $user->notifications()
             ->join('users as actors', 'actors.id', '=', 'notifications.actor_id')
             ->toBase()
-            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.read_at', 'notifications.created_at', 'actors.username as actor'])
+            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actors.username as actor'])
             ->lazyById(500, 'notifications.id', 'id');
 
         foreach ($notifications as $notification) {
-            $isModeration = in_array($notification->type, [NotificationType::Approved->value, NotificationType::Rejected->value], true);
+            $isModeration = in_array($notification->type, [NotificationType::Approved->value, NotificationType::Rejected->value, NotificationType::LeveledUp->value], true);
 
             yield [
                 'type' => $notification->type,
                 'actor' => $isModeration ? null : $notification->actor,
                 'commit_id' => $notification->commit_id,
                 'reason' => $notification->reason,
+                'level' => $notification->level === null ? null : (int) $notification->level,
                 'read_at' => $notification->read_at === null ? null : CarbonImmutable::parse($notification->read_at)->toIso8601String(),
                 'created_at' => CarbonImmutable::parse($notification->created_at)->toIso8601String(),
             ];

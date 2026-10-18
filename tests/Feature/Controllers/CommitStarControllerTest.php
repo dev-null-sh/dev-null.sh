@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Jobs\CheckUserLevel;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 it('may star a commit', function (): void {
     $user = User::factory()->create();
@@ -87,6 +89,7 @@ it('may unstar a commit', function (): void {
 });
 
 it('counts the stars on the pivot table alone', function (): void {
+    Queue::fake([CheckUserLevel::class]);
     $user = User::factory()->create();
     $commit = Commit::factory()->create();
     User::factory()->create()->starredCommits()->attach($commit);

@@ -5,6 +5,7 @@ import {
     AtSign,
     Check,
     ChevronDown,
+    ChevronsUp,
     MessageSquareReply,
     Quote,
     Star,
@@ -76,7 +77,7 @@ const filterOptions: {
     {
         type: 'all',
         label: 'All',
-        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, and moderation updates for your commits will show up here.',
+        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, and moderation updates for your commits will show up here.',
     },
     {
         type: 'replies',
@@ -840,8 +841,10 @@ export function NotificationContent({
         notification.type === 'replied' ||
         notification.type === 'quoted' ||
         notification.type === 'mentioned';
+    const level = notification.type === 'leveled_up' ? notification : null;
     const Icon = {
         followed: UserPlus,
+        leveled_up: ChevronsUp,
         replied: MessageSquareReply,
         quoted: Quote,
         starred: Star,
@@ -861,6 +864,7 @@ export function NotificationContent({
     );
     const href =
         notification.type === 'followed' ||
+        notification.type === 'leveled_up' ||
         (!summary && notification.type === 'starred')
             ? show(actor)
             : CommitController.show({
@@ -886,9 +890,15 @@ export function NotificationContent({
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
+        leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
     }[notification.type];
     const excerpt =
-        notification.type === 'followed' || isImageOnly ? null : isOwnCommit ? (
+        notification.type === 'followed' ||
+        isImageOnly ? null : notification.type === 'leveled_up' ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+                {notification.rank_description}
+            </p>
+        ) : isOwnCommit ? (
             <OwnCommitExcerpt segments={notification.commit.body_segments} />
         ) : (
             <CommitBodyExcerpt
@@ -1122,7 +1132,19 @@ export function NotificationContent({
                         ) : (
                             <>
                                 <div className="flex h-10 items-center gap-2">
-                                    {moderation ? (
+                                    {level ? (
+                                        <span
+                                            className="rounded-full border px-2 py-0.5 font-mono text-xs font-medium"
+                                            style={{
+                                                borderColor: `${laneColor(actor.lane)}40`,
+                                                backgroundColor: `${laneColor(actor.lane)}15`,
+                                                color: laneColor(actor.lane),
+                                            }}
+                                            data-test="level-chip"
+                                        >
+                                            Lv. {level.level} · {level.rank}
+                                        </span>
+                                    ) : moderation ? (
                                         <span
                                             className={cn(
                                                 'rounded-full px-2 py-0.5 font-mono text-xs',
@@ -1181,6 +1203,7 @@ export function NotificationContent({
                                             </span>
                                         )}
                                         {!moderation &&
+                                            !level &&
                                             (grouped ? (
                                                 <>
                                                     <Link
@@ -1219,7 +1242,7 @@ export function NotificationContent({
                                                 </>
                                             ))}
                                         {rowLink}
-                                        {moderation && '.'}
+                                        {(moderation || level) && '.'}
                                     </p>
                                     {starredImages[0] && (
                                         <img
