@@ -9,6 +9,7 @@ use App\Enums\PushAccess;
 use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
 use App\Models\Commit;
+use App\Models\Talk;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\PushAccessQuery;
@@ -19,6 +20,7 @@ use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -62,7 +64,7 @@ final readonly class UserController
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
             'tab' => $request->tab(...),
-            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
+            'pinnedCommit' => fn (): ?Commit => in_array($request->tab(), ['replies', 'talks'], true) || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
@@ -72,14 +74,18 @@ final readonly class UserController
             'commits' => Inertia::scroll(fn () => $user->commits()
                 ->visibleTo($currentUser)
                 ->when(
-                    $request->tab() === 'replies',
-                    fn (CommitBuilder $query): CommitBuilder => $query
-                        ->whereNotNull('parent_id')
-                        ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
-                            ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser))
-                            ->with('user')]),
-                    fn (CommitBuilder $query): CommitBuilder => $query->topLevel()
-                        ->when($user->pinned_commit_id, fn (CommitBuilder $query, string $id): CommitBuilder => $query->whereKeyNot($id)),
+                    $request->tab() === 'talks',
+                    fn (CommitBuilder $query): CommitBuilder => $query->whereRaw('0 = 1'),
+                    fn (CommitBuilder $query): CommitBuilder => $query->when(
+                        $request->tab() === 'replies',
+                        fn (CommitBuilder $query): CommitBuilder => $query
+                            ->whereNotNull('parent_id')
+                            ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
+                                ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser))
+                                ->with('user')]),
+                        fn (CommitBuilder $query): CommitBuilder => $query->topLevel()
+                            ->when($user->pinned_commit_id, fn (CommitBuilder $query, string $id): CommitBuilder => $query->whereKeyNot($id)),
+                    ),
                 )
                 ->withVisibleReplyCount($currentUser)
                 ->withReplyPreviews($currentUser)
@@ -87,6 +93,29 @@ final readonly class UserController
                 ->latest()
                 ->latest('id')
                 ->cursorPaginate(20)
+                ->appends(['tab' => $request->tab()])),
+            'talks' => Inertia::scroll(fn (): CursorPaginator => $user->talks()
+                ->when(
+                    $request->tab() !== 'talks',
+                    fn ($query) => $query->whereRaw('0 = 1'),
+                    fn ($query) => $query
+                        ->whereNotNull('published_at')
+                        ->whereNotNull('commit_id')
+                        ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser)),
+                )
+                ->latest('presented_on')
+                ->latest('id')
+                ->cursorPaginate(20)
+                ->through(fn (Talk $talk): array => [
+                    'id' => $talk->id,
+                    'title' => $talk->title,
+                    'description' => $talk->description,
+                    'presented_on' => $talk->presented_on->toDateString(),
+                    'link_url' => $talk->link_url,
+                    'link_kind' => $talk->link_kind->value,
+                    'event_name' => $talk->event_name,
+                    'published_at' => $talk->published_at?->toIso8601String(),
+                ])
                 ->appends(['tab' => $request->tab()])),
         ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->user($getCountedUser())]);
     }
