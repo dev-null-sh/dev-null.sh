@@ -12,6 +12,7 @@ import {
     UserRound,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
@@ -405,13 +406,41 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     );
 }
 
+/**
+ * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
+ */
 export function MobileNav() {
     const items = useNavItems().filter(
         (item) => !['Saved', 'Operations'].includes(item.title),
     );
+    const nav = useRef<HTMLElement>(null);
+
+    useLayoutEffect(() => {
+        const element = nav.current;
+
+        if (element === null) {
+            return;
+        }
+
+        const root = document.documentElement;
+        const observer = new ResizeObserver(() =>
+            root.style.setProperty(
+                '--mobile-nav-height',
+                `${element.getBoundingClientRect().height}px`,
+            ),
+        );
+
+        observer.observe(element, { box: 'border-box' });
+
+        return () => {
+            observer.disconnect();
+            root.style.removeProperty('--mobile-nav-height');
+        };
+    }, []);
 
     return (
         <nav
+            ref={nav}
             aria-label="Main"
             className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden"
         >
