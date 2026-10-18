@@ -1,4 +1,4 @@
-import { Form, Head, Link, router } from '@inertiajs/react';
+import { Form, Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowUpRight, Download, RefreshCw } from 'lucide-react';
 import ExportController from '@/actions/App/Http/Controllers/ExportController';
 import UserProfileController from '@/actions/App/Http/Controllers/UserProfileController';
@@ -9,6 +9,8 @@ import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
 import { PasteisModeSetting } from '@/components/pasteis-mode-setting';
 import { RemotesSetting } from '@/components/remotes-setting';
+import { SponsorsOrgSetting } from '@/components/sponsors-org-setting';
+import type { SponsorsOrg } from '@/components/sponsors-org-setting';
 import TimezonePicker from '@/components/timezone-picker';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -26,14 +28,17 @@ export default function Edit({
     githubSyncedAt,
     activityGraphUrl,
     profileUrl,
+    sponsorsOrg,
 }: {
     preferredLane: Lane | null;
     automaticLane: number;
     githubSyncedAt: string | null;
     activityGraphUrl: string;
     profileUrl: string;
+    sponsorsOrg: SponsorsOrg | null;
 }) {
     const { user } = useUser();
+    const { auth } = usePage().props;
     const now = useNow();
 
     return (
@@ -112,6 +117,11 @@ export default function Edit({
             <PasteisModeSetting />
 
             <RemotesSetting />
+
+            {auth.remotes !== null &&
+                (user.has_sponsors_listing || sponsorsOrg !== null) && (
+                    <SponsorsOrgSetting org={sponsorsOrg} />
+                )}
 
             <ActivityGraphEmbed
                 activityGraphUrl={activityGraphUrl}

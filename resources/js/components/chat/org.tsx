@@ -1,8 +1,18 @@
 import { Link } from '@inertiajs/react';
-import { Check, Ellipsis, Search, UserPlus, X } from 'lucide-react';
+import {
+    Check,
+    Ellipsis,
+    Eye,
+    EyeOff,
+    RefreshCw,
+    Search,
+    UserPlus,
+    X,
+} from 'lucide-react';
 import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import SponsorshipSyncController from '@/actions/App/Http/Controllers/SponsorshipSyncController';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -29,12 +39,22 @@ import {
     removeOrgMember,
     renameOrg,
     searchCandidates,
+    setOrgMembershipHidden,
     setOrgMemberRole,
 } from '@/lib/chat';
 import type { Candidate } from '@/lib/chat';
+import { sponsorsFromLabels } from '@/lib/sponsors';
 import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Message, OrgMember, OrgRef, OrgRole, User } from '@/types';
+import { edit } from '@/routes/user-profile';
+import type {
+    Message,
+    OrgMember,
+    OrgRef,
+    OrgRole,
+    OrgSponsors,
+    User,
+} from '@/types';
 
 export const maxMembers = 15;
 
@@ -199,6 +219,7 @@ export function OrgHeader({
     const thread = threads[`org:${org.id}`];
     const current = thread?.target.kind === 'org' ? thread.target.org : org;
     const members = thread?.members ?? [];
+    const sponsors = thread?.sponsors ?? null;
     const title = orgTitle(current, members, user);
 
     return (
@@ -234,7 +255,9 @@ export function OrgHeader({
                     </span>
                     {!isCompact && (
                         <span className="block truncate font-mono text-xs text-muted-foreground tabular-nums">
-                            org · {members.length || '–'} members
+                            {sponsors === null
+                                ? `org · ${members.length || '–'} members`
+                                : `sponsors · ${members.length + sponsors.hidden_count || '–'} members`}
                         </span>
                     )}
                 </span>
@@ -251,6 +274,7 @@ export function OrgHeader({
             <OrgMembersDialog
                 org={current}
                 members={members}
+                sponsors={sponsors}
                 role={thread?.role ?? null}
                 user={user}
                 open={isShowingMembers}
@@ -258,6 +282,72 @@ export function OrgHeader({
                 onLeft={onLeft}
             />
         </>
+    );
+}
+
+export type RevealedBy = 'push' | 'react';
+
+/**
+ * Asks a sponsor hiding their membership before what they do shows the other sponsors that they're in the org.
+ */
+export function RevealMembershipDialog({
+    org,
+    user,
+    by,
+    open,
+    onCancel,
+    onRevealed,
+}: {
+    org: OrgRef;
+    user: User;
+    by: RevealedBy;
+    open: boolean;
+    onCancel: () => void;
+    onRevealed: () => void;
+}) {
+    const [isSaving, setIsSaving] = useState(false);
+
+    const reveal = async () => {
+        setIsSaving(true);
+
+        try {
+            await setOrgMembershipHidden(org, user, false);
+            onRevealed();
+        } catch (error) {
+            toast.error(errorOf(error));
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
+            <DialogContent className="sm:max-w-sm" data-test="org-reveal">
+                <div className="space-y-2">
+                    <DialogTitle>Show your membership?</DialogTitle>
+                    <DialogDescription>
+                        {by === 'push' ? 'Pushing' : 'Reacting'} shows the other
+                        sponsors that you're in this org. You can hide again
+                        from the members list, but what you{' '}
+                        {by === 'push' ? 'pushed' : 'reacted to'} keeps your
+                        name.
+                    </DialogDescription>
+                </div>
+                <div className="flex justify-end gap-2">
+                    <Button variant="ghost" onClick={onCancel}>
+                        Cancel
+                    </Button>
+                    <Button
+                        className="min-w-36"
+                        disabled={isSaving}
+                        onClick={() => void reveal()}
+                        data-test="org-reveal-confirm"
+                    >
+                        {by === 'push' ? 'Show and push' : 'Show and react'}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -269,11 +359,13 @@ function errorOf(error: unknown): string {
 
 /**
  * Everyone in the org with their role. Maintainers rename the org, add and remove people, and promote or demote
- * them; anyone can leave.
+ * them; anyone can leave. A sponsors org fills itself, so nobody adds or promotes anyone in it, and its sponsors
+ * choose whether the others see them.
  */
 export function OrgMembersDialog({
     org,
     members,
+    sponsors,
     role,
     user,
     open,
@@ -282,6 +374,7 @@ export function OrgMembersDialog({
 }: {
     org: OrgRef;
     members: OrgMember[];
+    sponsors: OrgSponsors | null;
     role: OrgRole | null;
     user: User;
     open: boolean;
@@ -289,6 +382,10 @@ export function OrgMembersDialog({
     onLeft: () => void;
 }) {
     const isMaintainer = role === 'maintainer';
+    const isSponsors = sponsors !== null;
+    const isHidden =
+        members.find((member) => member.user.id === user.id)?.is_hidden ??
+        false;
     const [name, setName] = useState(org.name ?? '');
     const [isSaving, setIsSaving] = useState(false);
     const [isAdding, setIsAdding] = useState(false);
@@ -346,7 +443,13 @@ export function OrgMembersDialog({
                             {org.name ?? 'Org'}
                         </DialogTitle>
                         <DialogDescription className="font-mono text-xs tabular-nums">
-                            {members.length}/{maxMembers} members
+                            {sponsors === null
+                                ? `${members.length}/${maxMembers} members`
+                                : sponsorsDescription(
+                                      members.length,
+                                      sponsors,
+                                      isMaintainer,
+                                  )}
                         </DialogDescription>
                         {isMaintainer && (
                             <form
@@ -392,6 +495,7 @@ export function OrgMembersDialog({
                                 org={org}
                                 member={member}
                                 user={user}
+                                isSponsors={isSponsors}
                                 canManage={
                                     isMaintainer && member.user.id !== user.id
                                 }
@@ -404,7 +508,24 @@ export function OrgMembersDialog({
                     </ul>
 
                     <div className="flex items-center gap-2 border-t px-5 py-3">
-                        {isMaintainer && (
+                        {isSponsors && isMaintainer && (
+                            <Button variant="outline" asChild>
+                                <a
+                                    href={SponsorshipSyncController.create.url()}
+                                >
+                                    <RefreshCw className="size-4" />
+                                    Sync from GitHub
+                                </a>
+                            </Button>
+                        )}
+                        {isSponsors && !isMaintainer && (
+                            <VisibilityButton
+                                org={org}
+                                user={user}
+                                isHidden={isHidden}
+                            />
+                        )}
+                        {!isSponsors && isMaintainer && (
                             <Button
                                 variant="outline"
                                 disabled={members.length >= maxMembers}
@@ -420,25 +541,33 @@ export function OrgMembersDialog({
                                 Add people
                             </Button>
                         )}
-                        <Button
-                            variant={
-                                isConfirmingLeave ? 'destructive' : 'ghost'
-                            }
-                            className="ml-auto min-w-28"
-                            onClick={() =>
-                                isConfirmingLeave
-                                    ? void leave()
-                                    : setIsConfirmingLeave(true)
-                            }
-                            data-test="org-leave"
-                        >
-                            {isConfirmingLeave ? 'Leave for good' : 'Leave org'}
-                        </Button>
+                        {isSponsors && isMaintainer ? (
+                            <Button variant="ghost" className="ml-auto" asChild>
+                                <Link href={edit()}>Settings</Link>
+                            </Button>
+                        ) : (
+                            <Button
+                                variant={
+                                    isConfirmingLeave ? 'destructive' : 'ghost'
+                                }
+                                className="ml-auto min-w-28"
+                                onClick={() =>
+                                    isConfirmingLeave
+                                        ? void leave()
+                                        : setIsConfirmingLeave(true)
+                                }
+                                data-test="org-leave"
+                            >
+                                {isConfirmingLeave
+                                    ? 'Leave for good'
+                                    : 'Leave org'}
+                            </Button>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>
 
-            {isMaintainer && (
+            {isMaintainer && !isSponsors && (
                 <OrgPeopleDialog
                     mode={{ kind: 'add', org, members }}
                     open={open && isAdding}
@@ -450,16 +579,81 @@ export function OrgMembersDialog({
     );
 }
 
+function sponsorsDescription(
+    shown: number,
+    sponsors: OrgSponsors,
+    isMaintainer: boolean,
+): string {
+    if (isMaintainer) {
+        return `${shown - 1} ${shown === 2 ? 'sponsor' : 'sponsors'} · ${sponsorsFromLabels[sponsors.from].toLowerCase()}`;
+    }
+
+    return sponsors.hidden_count === 0
+        ? `${shown} members`
+        : `${shown + sponsors.hidden_count} members · ${sponsors.hidden_count} hidden`;
+}
+
+/**
+ * Showing or hiding the user's membership from the other sponsors. The label swaps, so the button keeps its width.
+ */
+function VisibilityButton({
+    org,
+    user,
+    isHidden,
+}: {
+    org: OrgRef;
+    user: User;
+    isHidden: boolean;
+}) {
+    const [isSaving, setIsSaving] = useState(false);
+
+    const toggle = async () => {
+        setIsSaving(true);
+
+        try {
+            await setOrgMembershipHidden(org, user, !isHidden);
+        } catch (error) {
+            toast.error(errorOf(error));
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Button
+            variant="outline"
+            className="min-w-44"
+            disabled={isSaving}
+            onClick={() => void toggle()}
+            title={
+                isHidden
+                    ? 'Only you and the maintainer see that you are in this org'
+                    : 'Everyone in this org sees that you are in it'
+            }
+            data-test="org-visibility"
+        >
+            {isHidden ? (
+                <Eye className="size-4" />
+            ) : (
+                <EyeOff className="size-4" />
+            )}
+            {isHidden ? 'Show my membership' : 'Hide my membership'}
+        </Button>
+    );
+}
+
 function MemberRow({
     org,
     member,
     user,
+    isSponsors,
     canManage,
     isLastMaintainer,
 }: {
     org: OrgRef;
     member: OrgMember;
     user: User;
+    isSponsors: boolean;
     canManage: boolean;
     isLastMaintainer: boolean;
 }) {
@@ -506,6 +700,15 @@ function MemberRow({
                 </Link>
                 <span className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
                     <span className="truncate">@{member.user.username}</span>
+                    {member.is_hidden && (
+                        <span
+                            className="flex shrink-0 items-center gap-1"
+                            title="Hidden from the other sponsors"
+                        >
+                            · <EyeOff aria-hidden className="size-3" />
+                            hidden
+                        </span>
+                    )}
                 </span>
             </span>
             <span
@@ -514,10 +717,18 @@ function MemberRow({
                     member.role === 'maintainer'
                         ? 'bg-primary-soft text-primary'
                         : 'bg-muted text-muted-foreground',
+                    { 'line-through': member.sponsorship === 'lapsed' },
                 )}
+                title={
+                    member.sponsorship === 'lapsed'
+                        ? 'Their sponsorship has lapsed'
+                        : undefined
+                }
                 data-test="org-member-role"
             >
-                {member.role ?? 'contributor'}
+                {member.role === 'maintainer' || !isSponsors
+                    ? (member.role ?? 'contributor')
+                    : (member.sponsorship ?? 'sponsor')}
             </span>
             <span className="grid size-8 shrink-0 place-items-center">
                 {canManage &&
@@ -533,7 +744,8 @@ function MemberRow({
                                 <Ellipsis className="size-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-52">
-                                {member.role === 'maintainer' ? (
+                                {isSponsors ? null : member.role ===
+                                  'maintainer' ? (
                                     <DropdownMenuItem
                                         disabled={isLastMaintainer}
                                         onSelect={() =>
@@ -563,7 +775,7 @@ function MemberRow({
                                         Make maintainer
                                     </DropdownMenuItem>
                                 )}
-                                <DropdownMenuSeparator />
+                                {!isSponsors && <DropdownMenuSeparator />}
                                 <DropdownMenuItem
                                     variant="destructive"
                                     onSelect={() =>

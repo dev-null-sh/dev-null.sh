@@ -2,10 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateSponsorsOrg;
+use App\Actions\UpdateSponsorsOrgMembers;
 use App\Dto\SshPublicKey;
+use App\Enums\SponsorsFrom;
 use App\Jobs\UnfurlLink;
+use App\Models\Conversation;
 use App\Models\Device;
 use App\Models\Message;
+use App\Models\Sponsorship;
 use App\Models\User;
 use App\Services\OpenAI;
 use App\Services\SignedCommits;
@@ -179,6 +184,57 @@ function fakeGitHubSponsorsListing(bool $hasSponsorsListing = false): void
             'hasSponsorsListing' => $hasSponsorsListing,
         ]]]),
     ]);
+}
+
+/**
+ * GitHub's answer to the sponsors query: the listing, and the sponsorships on either side.
+ *
+ * @param  list<array<string, mixed>>  $sponsoring
+ * @param  list<array<string, mixed>>  $sponsors
+ */
+function fakeGitHubSponsors(bool $hasSponsorsListing = true, array $sponsoring = [], array $sponsors = []): void
+{
+    Http::fake([
+        'api.github.com/graphql' => Http::response(['data' => ['viewer' => [
+            'hasSponsorsListing' => $hasSponsorsListing,
+            'sponsoring' => ['pageInfo' => ['hasNextPage' => false, 'endCursor' => null], 'nodes' => $sponsoring],
+            'sponsors' => ['pageInfo' => ['hasNextPage' => false, 'endCursor' => null], 'nodes' => $sponsors],
+        ]]]),
+    ]);
+}
+
+/**
+ * A Sponsorship node as the GraphQL API returns it, with the account on the other side.
+ *
+ * @return array<string, mixed>
+ */
+function sponsorshipNode(User|int $account, bool $isOneTime = false, bool $isActive = true, ?CarbonInterface $sponsoredAt = null): array
+{
+    return [
+        'createdAt' => ($sponsoredAt ?? now()->subMonths(3))->toIso8601String(),
+        'tierSelectedAt' => null,
+        'isActive' => $isActive,
+        'isOneTimePayment' => $isOneTime,
+        'account' => ['databaseId' => $account instanceof User ? (int) $account->github_id : $account],
+    ];
+}
+
+/**
+ * A sponsors org with the given people sponsoring its maintainer every month, let in as the org takes them.
+ *
+ * @param  list<User>  $sponsors
+ */
+function createSponsorsOrg(User $maintainer, array $sponsors = [], SponsorsFrom $from = SponsorsFrom::Active): Conversation
+{
+    $org = resolve(CreateSponsorsOrg::class)->handle($maintainer, $from);
+
+    foreach ($sponsors as $sponsor) {
+        Sponsorship::factory()->create(['sponsorable_id' => $maintainer->id, 'sponsor_id' => $sponsor->id]);
+    }
+
+    resolve(UpdateSponsorsOrgMembers::class)->handle($org);
+
+    return $org->refresh();
 }
 
 /**

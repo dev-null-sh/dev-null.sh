@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateOrCreateUser;
+use App\Enums\OrgRole;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -142,9 +143,26 @@ it('marks users with a sponsors listing', function (): void {
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/graphql'
         && $request->hasHeader('Authorization', 'Bearer gho_octocat')
-        && $request['query'] === 'query { viewer { hasSponsorsListing } }');
+        && $request['variables'] === ['sponsoring' => true, 'sponsoringAfter' => null, 'sponsors' => false, 'sponsorsAfter' => null]);
 
     Log::shouldNotHaveReceived('warning');
+});
+
+it('reads the sponsorships of the user, and their own sponsors while they run a sponsors org', function (): void {
+    $maintainer = User::factory()->create(['github_id' => '583231', 'has_sponsors_listing' => true]);
+    $org = createSponsorsOrg($maintainer);
+    $sponsor = User::factory()->create();
+
+    fakeGitHubSponsors(sponsors: [sponsorshipNode($sponsor)]);
+
+    resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake([
+        'id' => '583231',
+        'token' => 'gho_octocat',
+    ]));
+
+    expect($org->roleOf($sponsor))->toBe(OrgRole::Contributor);
+
+    Http::assertSent(fn (Request $request): bool => $request['variables']['sponsors'] === true);
 });
 
 it('unmarks users without a sponsors listing', function (): void {
@@ -197,7 +215,7 @@ it('keeps the last known sponsors listing when github cannot say', function (Clo
 
     Log::shouldHaveReceived('warning')
         ->once()
-        ->with('Could not check the GitHub Sponsors listing.', Mockery::on(fn (array $context): bool => $context['username'] === 'octocat'));
+        ->with('Could not read GitHub Sponsors.', Mockery::on(fn (array $context): bool => $context['username'] === 'octocat'));
 })->with([
     'server error' => fn () => Http::response(status: 502),
     'graphql error' => fn () => Http::response(['errors' => [['message' => 'API rate limit exceeded']]]),
@@ -224,7 +242,7 @@ it('logs why github could not say', function (): void {
 
     Log::shouldHaveReceived('warning')
         ->once()
-        ->with('Could not check the GitHub Sponsors listing.', [
+        ->with('Could not read GitHub Sponsors.', [
             'username' => 'octocat',
             'status' => 200,
             'errors' => $errors,

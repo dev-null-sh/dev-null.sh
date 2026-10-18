@@ -27,8 +27,10 @@ final class UpdateOrgMemberRequest extends FormRequest
         assert($member instanceof User);
 
         return match (true) {
-            ! $user->remotes_enabled || ! $org->roleOf($user) instanceof OrgRole || ! $org->roleOf($member) instanceof OrgRole => Response::denyAsNotFound(),
+            ! $user->remotes_enabled || ! $org->roleOf($user) instanceof OrgRole => Response::denyAsNotFound(),
             ! $org->isMaintainedBy($user) => Response::deny('Only maintainers can change roles.'),
+            $org->isSponsors() => Response::deny('A sponsors org keeps its one maintainer.'),
+            ! $org->roleOf($member) instanceof OrgRole => Response::denyAsNotFound(),
             default => Response::allow(),
         };
     }

@@ -70,11 +70,32 @@ export type OrgEvent =
 
 export type OrgRef = { id: string; name: string | null };
 
+/**
+ * Who a sponsors org takes in: monthly sponsors, active sponsors (one-time ones for 30 days), or everyone who has
+ * sponsored.
+ */
+export type SponsorsFrom = 'monthly' | 'active' | 'everyone';
+
+/**
+ * How a member sponsors the maintainer, which only the maintainer sees.
+ */
+export type Sponsorship = 'monthly' | 'one-time' | 'lapsed';
+
 export type OrgMember = {
     user: User;
     role: OrgRole | null;
     read_through_id: number;
+    /**
+     * Whether they keep their membership from the other sponsors. Only they and the maintainer see members who do.
+     */
+    is_hidden: boolean;
+    sponsorship: Sponsorship | null;
 };
+
+/**
+ * A sponsors org fills itself from the maintainer's GitHub sponsors. The count is of the members the user can't see.
+ */
+export type OrgSponsors = { from: SponsorsFrom; hidden_count: number };
 
 export type ConversationSummary = {
     id: string;
@@ -114,6 +135,7 @@ export type OrgThread = {
     is_archived: boolean;
     role: OrgRole | null;
     access: PushAccess;
+    sponsors: OrgSponsors | null;
 };
 
 /**

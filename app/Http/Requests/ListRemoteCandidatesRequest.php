@@ -20,9 +20,11 @@ final class ListRemoteCandidatesRequest extends FormRequest
 
         $org = $this->org();
 
-        return $user->remotes_enabled && (! $org instanceof Conversation || ! $org->exists || $org->roleOf($user) instanceof OrgRole)
-            ? Response::allow()
-            : Response::denyAsNotFound();
+        return match (true) {
+            ! $user->remotes_enabled || ($org instanceof Conversation && $org->exists && ! $org->roleOf($user) instanceof OrgRole) => Response::denyAsNotFound(),
+            $org?->isSponsors() === true => Response::deny('Sponsors join and leave with their sponsorship.'),
+            default => Response::allow(),
+        };
     }
 
     /**

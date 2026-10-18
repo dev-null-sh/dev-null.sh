@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $user_id
  * @property-read RemoteStatus $status
  * @property-read OrgRole|null $role
+ * @property-read bool $is_hidden
  * @property-read int $visible_from_id
  * @property-read CarbonInterface|null $last_message_at
  * @property-read int $read_through_id
@@ -39,6 +40,7 @@ final class ConversationParticipant extends Model
         'status' => 'open',
         'visible_from_id' => 0,
         'read_through_id' => 0,
+        'is_hidden' => false,
     ];
 
     /**
@@ -52,6 +54,7 @@ final class ConversationParticipant extends Model
             'user_id' => 'string',
             'status' => RemoteStatus::class,
             'role' => OrgRole::class,
+            'is_hidden' => 'boolean',
             'visible_from_id' => 'integer',
             'last_message_at' => 'datetime',
             'read_through_id' => 'integer',
@@ -60,6 +63,14 @@ final class ConversationParticipant extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Someone hiding their membership is only seen by themselves and the maintainer of the sponsors org.
+     */
+    public function isVisibleTo(User $viewer, bool $showsHidden): bool
+    {
+        return ! $this->is_hidden || $showsHidden || $this->user_id === $viewer->id;
     }
 
     /**

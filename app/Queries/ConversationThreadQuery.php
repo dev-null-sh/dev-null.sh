@@ -8,10 +8,12 @@ use App\Actions\UpdateConversationTyping;
 use App\Enums\OrgRole;
 use App\Enums\PushAccess;
 use App\Enums\RemoteStatus;
+use App\Enums\SponsorsFrom;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\MessageReaction;
+use App\Models\Sponsorship;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -56,13 +58,18 @@ final readonly class ConversationThreadQuery
 
     /**
      * An org the user is in, from where their history starts. Each member's reads show only when both share pulls.
+     * In a sponsors org, members hiding their membership are left out for everyone but themselves and the maintainer,
+     * who also sees how each sponsor sponsors.
      *
-     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess}
+     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int, is_hidden: bool, sponsorship: 'monthly'|'one-time'|'lapsed'|null}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess, sponsors: array{from: SponsorsFrom, hidden_count: int}|null}
      */
     public function org(User $user, Conversation $org, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
     {
-        $participants = $org->participants()->with('user')->oldest('id')->get();
-        $mine = $participants->firstOrFail(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id);
+        $everyone = $org->participants()->with('user')->oldest('id')->get();
+        $mine = $everyone->firstOrFail(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id);
+        $showsHidden = $org->isSponsors() && $mine->role === OrgRole::Maintainer;
+        $participants = $everyone->filter(fn (ConversationParticipant $participant): bool => $participant->isVisibleTo($user, $showsHidden))->values();
+        $sponsorships = $showsHidden ? $user->sponsorshipsAsMaintainer()->get()->keyBy('sponsor_id') : new EloquentCollection();
         [$messages, $hasOlder] = $this->page($org, $mine->visible_from_id, $after, $before, withPeople: true);
 
         return [
@@ -75,6 +82,8 @@ final readonly class ConversationThreadQuery
                 'user' => $participant->user,
                 'role' => $participant->role,
                 'read_through_id' => $user->pull_receipts && $participant->user->pull_receipts ? $participant->read_through_id : 0,
+                'is_hidden' => $participant->is_hidden,
+                'sponsorship' => $this->sponsorship($sponsorships->get($participant->user_id)),
             ])->values()->toBase(),
             'typing' => $participants
                 ->reject(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id)
@@ -85,7 +94,24 @@ final readonly class ConversationThreadQuery
             'is_archived' => $mine->archived_at !== null,
             'role' => $mine->role,
             'access' => PushAccess::Open,
+            'sponsors' => $org->sponsors_from instanceof SponsorsFrom ? [
+                'from' => $org->sponsors_from,
+                'hidden_count' => $everyone->count() - $participants->count(),
+            ] : null,
         ];
+    }
+
+    /**
+     * @return 'monthly'|'one-time'|'lapsed'|null
+     */
+    private function sponsorship(?Sponsorship $sponsorship): ?string
+    {
+        return match (true) {
+            ! $sponsorship instanceof Sponsorship => null,
+            ! $sponsorship->isActive() => 'lapsed',
+            $sponsorship->is_one_time => 'one-time',
+            default => 'monthly',
+        };
     }
 
     /**

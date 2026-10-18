@@ -11,6 +11,7 @@ use App\Models\Device;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\PollVote;
+use App\Models\Sponsorship;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -109,6 +110,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'muting' => [],
         'blocking' => [],
         'messages' => [],
+        'sponsoring' => [],
+        'sponsors' => [],
         'notifications' => [],
         'ssh_keys' => [],
         'devices' => [],
@@ -274,6 +277,24 @@ it('exports following and follower usernames without private identity fields', f
             $followed->email, $followed->github_id, $followed->id, $followed->remember_token,
             $follower->email, $follower->id, $stranger->username,
         );
+});
+
+it('exports sponsorships on both sides by handle', function (): void {
+    $user = User::factory()->create();
+    $maintainer = User::factory()->create(['username' => 'demo-maintainer']);
+    $sponsor = User::factory()->create(['username' => 'demo-sponsor']);
+    Sponsorship::factory()->create(['sponsorable_id' => $maintainer->id, 'sponsor_id' => $user->id]);
+    Sponsorship::factory()->oneTime()->create(['sponsorable_id' => $user->id, 'sponsor_id' => $sponsor->id, 'left_at' => now()]);
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['sponsoring'])->toBe([['username' => 'demo-maintainer', 'is_one_time' => false, 'lapses_at' => null, 'left_at' => null]])
+        ->and($data['sponsors'])->toBe([[
+            'username' => 'demo-sponsor',
+            'is_one_time' => true,
+            'lapses_at' => now()->addDays(Sponsorship::ONE_TIME_DAYS)->toIso8601String(),
+            'left_at' => now()->toIso8601String(),
+        ]]);
 });
 
 it('exports received notifications without revealing moderators', function (): void {

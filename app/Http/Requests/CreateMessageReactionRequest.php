@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\OrgRole;
 use App\Enums\PushAccess;
+use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\User;
 use App\Queries\PushAccessQuery;
@@ -20,8 +20,8 @@ use Illuminate\Validation\Rules\In;
 final class CreateMessageReactionRequest extends FormRequest
 {
     /**
-     * Reacting pushes to the conversation, so it takes what pushing does: an org role, or an open conversation with
-     * the partner. Events can't be reacted to.
+     * Reacting pushes to the conversation, so it takes what pushing does: a membership the org can see, or an open
+     * conversation with the partner. Events can't be reacted to.
      */
     public function authorize(PushAccessQuery $access): Response
     {
@@ -38,7 +38,13 @@ final class CreateMessageReactionRequest extends FormRequest
         $conversation = $message->conversation;
 
         if ($conversation->isOrg()) {
-            return $conversation->roleOf($user) instanceof OrgRole ? Response::allow() : Response::denyAsNotFound();
+            $membership = $conversation->membershipOf($user);
+
+            return match (true) {
+                ! $membership instanceof ConversationParticipant => Response::denyAsNotFound(),
+                $membership->is_hidden => Response::deny('Show your membership to react.'),
+                default => Response::allow(),
+            };
         }
 
         $partner = $conversation->participants()->whereNot('user_id', $user->id)->sole()->user;

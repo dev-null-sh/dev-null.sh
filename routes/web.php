@@ -60,6 +60,7 @@ use App\Http\Controllers\OrgMemberController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
+use App\Http\Controllers\OrgVisibilityController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
@@ -68,6 +69,8 @@ use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\SponsorshipSyncController;
+use App\Http\Controllers\SponsorsOrgController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
@@ -308,6 +311,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
+        Route::put('remotes/orgs/{org}/visibility', [OrgVisibilityController::class, 'update'])->whereUuid('org')->name('org-visibility.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
         Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereUuid('org')->middleware('throttle:messages')->name('org-member.store');
@@ -380,6 +384,19 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
 
     Route::put('settings/remotes', [UserRemotesController::class, 'update'])->name('user-remotes.update');
+
+    // Sponsors Org...
+    Route::post('settings/sponsors-org', [SponsorsOrgController::class, 'store'])->name('sponsors-org.store');
+    Route::put('settings/sponsors-org', [SponsorsOrgController::class, 'update'])->name('sponsors-org.update');
+    Route::delete('settings/sponsors-org', [SponsorsOrgController::class, 'destroy'])->name('sponsors-org.destroy');
+    Route::get('settings/sponsors-org/sync', [SponsorshipSyncController::class, 'create'])
+        ->middleware('throttle:10,1')
+        ->name('sponsorship-sync.create');
+
+    // GitHub only redirects under the sign-in callback's path...
+    Route::get('auth/github/callback/sponsors', [SponsorshipSyncController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('sponsorship-sync.store');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');

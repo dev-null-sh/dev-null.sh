@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\ScheduledCommit;
@@ -45,6 +46,8 @@ final readonly class DeleteUser
 
             $user->commits()->delete();
             $user->commits()->withTrashed()->update(['user_id' => null]);
+
+            Conversation::sponsorsOrgOf($user)?->delete();
 
             $user->delete();
 
@@ -110,14 +113,18 @@ final readonly class DeleteUser
     }
 
     /**
-     * The images the user sent in remotes, whose messages go along with them.
+     * The images the user sent in remotes, whose messages go along with them, and every image in their sponsors org,
+     * which goes too.
      *
      * @return array<int, string>
      */
     private function messageImagePaths(User $user): array
     {
         return MessageImage::query()
-            ->whereIn('message_id', Message::query()->where('user_id', $user->id)->select('id'))
+            ->whereIn('message_id', Message::query()
+                ->where('user_id', $user->id)
+                ->orWhere('conversation_id', Conversation::sponsorsOrgOf($user)?->id)
+                ->select('id'))
             ->get(['path'])
             ->map(fn (MessageImage $image): string => $image->path)
             ->all();

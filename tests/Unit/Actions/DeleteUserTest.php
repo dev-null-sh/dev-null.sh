@@ -6,12 +6,14 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Conversation;
 use App\Models\Device;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
+use App\Models\Sponsorship;
 use App\Models\User;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\DB;
@@ -161,6 +163,23 @@ it('erases the images a deleted user sent in remotes, keeping the images sent to
 
     expect(Storage::disk()->allFiles('message-images'))->toBe([$received->path])
         ->and(MessageImage::query()->pluck('id')->all())->toBe([$received->id]);
+});
+
+it('erases the sponsors org of a deleted maintainer, with its images and sponsors', function (): void {
+    Storage::fake();
+
+    $maintainer = User::factory()->create();
+    $sponsor = User::factory()->create();
+    $org = createSponsorsOrg($maintainer, [$sponsor]);
+    $org->participants()->where('user_id', $sponsor->id)->update(['is_hidden' => false]);
+    $image = MessageImage::factory()->for(pushToOrg($sponsor, $org->id))->create();
+    Storage::disk()->put($image->path, 'image');
+
+    resolve(DeleteUser::class)->handle($maintainer);
+
+    expect(Conversation::query()->find($org->id))->toBeNull()
+        ->and(Sponsorship::query()->count())->toBe(0)
+        ->and(Storage::disk()->allFiles('message-images'))->toBe([]);
 });
 
 it('lowers the threads the deleted user starred or replied to', function (): void {
