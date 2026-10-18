@@ -46,6 +46,7 @@ export default defineConfig({
             'tests/Unit/VoiceSpeed.test.tsx',
             'tests/Unit/VoiceNoteSpeed.test.tsx',
             'tests/Unit/OrgMentionSuggestions.test.tsx',
+            'tests/Unit/LinkifiedKeys.test.tsx',
         ],
     },
 });

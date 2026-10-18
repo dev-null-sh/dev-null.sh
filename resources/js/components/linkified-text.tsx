@@ -255,7 +255,11 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         );
 }
 
-function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
+function withWordmarks(
+    text: string,
+    offset: number,
+    pasteisMode: boolean,
+): ReactNode[] {
     return text
         .split(
             /(?<![\p{L}\p{M}\p{N}_./-])(\/dev\/null)(?![\p{L}\p{M}\p{N}_/-])/u,
@@ -265,7 +269,7 @@ function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
                 withPasteis(part, pasteisMode)
             ) : (
                 <span
-                    key={`wordmark-${index}`}
+                    key={`wordmark-${offset}-${index}`}
                     title={part}
                     className="font-semibold tracking-tight whitespace-nowrap"
                 >
@@ -293,7 +297,11 @@ function withMentions(
                 : null;
 
         parts.push(
-            ...withWordmarks(text.slice(position, match.index), pasteisMode),
+            ...withWordmarks(
+                text.slice(position, match.index),
+                offset + position,
+                pasteisMode,
+            ),
             isStatic || !userId ? (
                 match[0]
             ) : (
@@ -316,7 +324,9 @@ function withMentions(
         position = match.index + match[0].length;
     }
 
-    parts.push(...withWordmarks(text.slice(position), pasteisMode));
+    parts.push(
+        ...withWordmarks(text.slice(position), offset + position, pasteisMode),
+    );
 
     return parts;
 }
