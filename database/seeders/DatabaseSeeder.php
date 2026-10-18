@@ -7,12 +7,12 @@ namespace Database\Seeders;
 use App\Actions\CreateConversation;
 use App\Actions\CreateMessage;
 use App\Actions\CreateOrg;
+use App\Actions\CreateRepo;
+use App\Actions\CreateRepoContributor;
 use App\Actions\UpdateCommitHotScores;
 use App\Actions\UpdateConversationReadThrough;
 use App\Enums\RemotesFrom;
 use App\Models\Commit;
-use App\Models\Repo;
-use App\Models\RepoContributor;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -27,6 +27,8 @@ final class DatabaseSeeder extends Seeder
         private readonly CreateConversation $createConversation,
         private readonly CreateMessage $createMessage,
         private readonly CreateOrg $createOrg,
+        private readonly CreateRepo $createRepo,
+        private readonly CreateRepoContributor $createRepoContributor,
         private readonly UpdateConversationReadThrough $updateConversationReadThrough,
     ) {
         //
@@ -75,11 +77,10 @@ final class DatabaseSeeder extends Seeder
     {
         [$first, $second] = $localDeveloper->followers()->take(2)->get()->all();
 
-        $repo = Repo::factory()->create(['name' => 'dev/null', 'slug' => 'dev-null', 'description' => 'The social network for developers.']);
+        $repo = $this->createRepo->handle($localDeveloper, 'dev/null', 'dev-null', 'The social network for developers.');
 
-        RepoContributor::factory()->for($repo)->for($localDeveloper)->maintainer()->create();
-        RepoContributor::factory()->for($repo)->for($first)->create();
-        RepoContributor::factory()->for($repo)->for($second)->create();
+        $this->createRepoContributor->handle($repo, $first);
+        $this->createRepoContributor->handle($repo, $second);
 
         foreach ([
             [$localDeveloper, 'repos are in: commits here are only seen by the three of us', '-2 days'],

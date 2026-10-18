@@ -38,9 +38,45 @@ final class Repo extends Model
         return $this->contributors()->where('user_id', $user->id)->first()?->role;
     }
 
+    /**
+     * Contributors, maintainers included, see the repo and its commits, and post to it.
+     */
+    public function hasContributor(User $user): bool
+    {
+        return $this->roleOf($user) instanceof RepoRole;
+    }
+
+    /**
+     * Maintainers add and remove contributors, promote and demote them, and delete any commit in the repo.
+     */
     public function isMaintainedBy(User $user): bool
     {
         return $this->roleOf($user) === RepoRole::Maintainer;
+    }
+
+    /**
+     * A maintainer can only add people who follow them and aren't in the repo yet.
+     */
+    public function canAdd(User $maintainer, User $user): bool
+    {
+        return $user->isFollowing($maintainer) && ! $this->hasContributor($user);
+    }
+
+    /**
+     * A repo always keeps a maintainer, so its last one can't be demoted. Leaving instead hands it to the
+     * longest-standing contributor.
+     */
+    public function isLastMaintainer(User $user): bool
+    {
+        return $this->isMaintainedBy($user) && $this->contributors()->where('role', RepoRole::Maintainer)->count() === 1;
+    }
+
+    /**
+     * On top of authors deleting their own, maintainers delete any commit in their repo.
+     */
+    public function canDeleteCommit(User $user, Commit $commit): bool
+    {
+        return $commit->repo_id === $this->id && $this->isMaintainedBy($user);
     }
 
     /**

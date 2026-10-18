@@ -74,3 +74,57 @@ it('leaves the repo when a contributor is deleted', function (): void {
     expect(RepoContributor::query()->count())->toBe(0)
         ->and(Repo::query()->count())->toBe(1);
 });
+
+it('knows who contributes to it', function (): void {
+    $repo = Repo::factory()->create();
+    $maintainer = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+
+    expect($repo->hasContributor($maintainer))->toBeTrue()
+        ->and($repo->hasContributor($contributor))->toBeTrue()
+        ->and($repo->hasContributor(User::factory()->create()))->toBeFalse();
+});
+
+it('only lets a maintainer add people who follow them and are not in yet', function (): void {
+    $repo = Repo::factory()->create();
+    $maintainer = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
+    $follower = User::factory()->create();
+    $follower->following()->attach($maintainer);
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+    $contributor->following()->attach($maintainer);
+    $followed = User::factory()->create();
+    $maintainer->following()->attach($followed);
+
+    expect($repo->canAdd($maintainer, $follower))->toBeTrue()
+        ->and($repo->canAdd($maintainer, $contributor))->toBeFalse()
+        ->and($repo->canAdd($maintainer, $followed))->toBeFalse()
+        ->and($repo->canAdd($maintainer, User::factory()->create()))->toBeFalse();
+});
+
+it('knows its last maintainer', function (): void {
+    $repo = Repo::factory()->create();
+    $maintainer = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+
+    expect($repo->isLastMaintainer($maintainer))->toBeTrue()
+        ->and($repo->isLastMaintainer($contributor))->toBeFalse();
+
+    $other = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
+
+    expect($repo->isLastMaintainer($maintainer))->toBeFalse()
+        ->and($repo->isLastMaintainer($other))->toBeFalse();
+});
+
+it('lets maintainers delete any commit in the repo', function (): void {
+    $repo = Repo::factory()->create();
+    $maintainer = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+    $commit = Commit::factory()->for($contributor)->for($repo)->create();
+    $elsewhere = Commit::factory()->for(Repo::factory())->create();
+    $outside = Commit::factory()->create();
+
+    expect($repo->canDeleteCommit($maintainer, $commit))->toBeTrue()
+        ->and($repo->canDeleteCommit($contributor, $commit))->toBeFalse()
+        ->and($repo->canDeleteCommit($maintainer, $elsewhere))->toBeFalse()
+        ->and($repo->canDeleteCommit($maintainer, $outside))->toBeFalse();
+});
