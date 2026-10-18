@@ -6,6 +6,8 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Message;
+use App\Models\MessageImage;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
@@ -133,6 +135,21 @@ it('erases the images of a deleted user and of the replies under their commits',
 
     expect(collect(Storage::disk()->allFiles('commit-images'))->sort()->values()->all())->toBe($kept)
         ->and(CommitImage::query()->pluck('path')->sort()->values()->all())->toBe($kept);
+});
+
+it('erases the images a deleted user sent in remotes, keeping the images sent to them', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $sent = MessageImage::factory()->for(Message::factory()->for($user))->create();
+    $received = MessageImage::factory()->create();
+    Storage::disk()->put($sent->path, 'image');
+    Storage::disk()->put($received->path, 'image');
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Storage::disk()->allFiles('message-images'))->toBe([$received->path])
+        ->and(MessageImage::query()->pluck('id')->all())->toBe([$received->id]);
 });
 
 it('lowers the threads the deleted user starred or replied to', function (): void {

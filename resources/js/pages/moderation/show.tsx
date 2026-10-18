@@ -192,6 +192,7 @@ export default function Show({
                     ? { reason: reason ?? '' }
                     : {},
             preserveScroll: true,
+            only: ['commits', 'hasUnmoderatedCommits'],
             reset: ['commits'],
             onSuccess: () =>
                 requestAnimationFrame(() => {
@@ -245,6 +246,7 @@ export default function Show({
         router.visit(ModerationController.update(), {
             data: { commits: selectedIds },
             preserveScroll: true,
+            only: ['commits', 'hasUnmoderatedCommits'],
             reset: ['commits'],
             onStart: () => setApproving(true),
             onSuccess: () => setSelected(new Set()),

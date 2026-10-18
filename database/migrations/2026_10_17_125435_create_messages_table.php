@@ -24,9 +24,4 @@ return new class extends Migration
             $table->index(['conversation_id', 'id']);
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('messages');
-    }
 };

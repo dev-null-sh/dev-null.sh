@@ -91,16 +91,17 @@ function ConversationRow({
             ? orgTitle(conversation, conversation.members, user)
             : `@${partner.username}`;
     const isMine = lastMessage?.user_id === user.id && !lastMessage.event;
+    const lastBody = lastMessage?.body || 'sent an image';
     const preview =
         lastMessage === null
             ? ''
             : lastMessage.event
               ? eventText(lastMessage, user)
               : isMine
-                ? `you: ${lastMessage.body}`
+                ? `you: ${lastBody}`
                 : partner === null
-                  ? `${lastMessage.user?.name.split(' ')[0] ?? 'someone'}: ${lastMessage.body}`
-                  : lastMessage.body;
+                  ? `${lastMessage.user?.name.split(' ')[0] ?? 'someone'}: ${lastBody}`
+                  : lastBody;
     const className = cn(
         'relative grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 text-left transition-colors hover:bg-accent focus-visible:-outline-offset-2',
         isCompact ? 'px-3.5 py-2.5' : 'px-4 py-3',
@@ -121,7 +122,15 @@ function ConversationRow({
             ) : (
                 <UserAvatar
                     user={partner}
-                    className={isCompact ? 'size-8' : 'size-10'}
+                    className={cn(
+                        'ring-2 ring-(--lane)',
+                        isCompact ? 'size-8' : 'size-10',
+                    )}
+                    style={
+                        {
+                            '--lane': laneColor(partner.lane),
+                        } as React.CSSProperties
+                    }
                 />
             )}
             <span className="min-w-0">
@@ -152,11 +161,6 @@ function ConversationRow({
                             {partner.name}
                         </span>
                         <span className="flex min-w-0 shrink-[4] items-center gap-1 font-mono text-xs text-muted-foreground">
-                            <span
-                                aria-hidden
-                                className="size-1.5 shrink-0 rounded-full"
-                                style={{ background: laneColor(partner.lane) }}
-                            />
                             <span className="truncate">
                                 @{partner.username}
                             </span>

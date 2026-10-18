@@ -12,17 +12,16 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
+import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
-import { readStorage, writeStorage } from '@/lib/storage';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
     log,
     commits,
     isRanked,
-    newestCommitId,
     latestCommits,
     newCommitsCount = 0,
     suggestions,
@@ -30,27 +29,21 @@ export default function Show({
     log: Log;
     commits: CursorPaginated<Commit>;
     isRanked: boolean;
-    newestCommitId: string | null;
     latestCommits: Commit[];
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
     const {
-        flash,
         props: { auth },
     } = usePage();
     const user = auth.user;
     const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
-    const markerKey = `latest-marker:${viewerId}:${log}`;
-    const [markerId, setMarkerId] = useState(
-        () =>
-            (flash.committed ? readStorage(markerKey) : '') ||
-            (newestCommitId ?? ''),
-    );
-    const newestId = isRanked ? markerId || undefined : commits.data[0]?.id;
+    const newestId = isRanked ? undefined : commits.data[0]?.id;
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
+    const feedRef = useRef<HTMLDivElement>(null);
+    useLaneSwipe(feedRef, log);
 
     useEffect(() => {
         const tabs = tabsRef.current;
@@ -69,7 +62,6 @@ export default function Show({
         return () => observer.disconnect();
     }, []);
 
-    useEffect(() => writeStorage(markerKey, markerId), [markerKey, markerId]);
     const firstSeenId = useLastVisit(viewerId, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
@@ -96,33 +88,6 @@ export default function Show({
             }),
         [stopPolling],
     );
-
-    const showNewCommits = () =>
-        isRanked ? prependNewCommits() : reloadNewestFirst();
-
-    const prependNewCommits = () =>
-        router.reload({
-            only: ['latestCommits'],
-            data: { since: newestId },
-            preserveUrl: true,
-            onSuccess: (page) => {
-                const next =
-                    newestOf(
-                        (page.props.latestCommits as Commit[]).filter(
-                            (commit) => commit.user_id !== user?.id,
-                        ),
-                    )?.id ?? markerId;
-
-                setMarkerId(next);
-                router.replaceProp('newCommitsCount', 0);
-                router.reload({
-                    only: ['newCommitsCount'],
-                    data: { since: next },
-                    preserveUrl: true,
-                });
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            },
-        });
 
     const reloadNewestFirst = () =>
         router.reload({
@@ -174,7 +139,7 @@ export default function Show({
                 >
                     <button
                         type="button"
-                        onClick={showNewCommits}
+                        onClick={reloadNewestFirst}
                         className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                     >
                         <ArrowUp className="size-4" />
@@ -184,7 +149,10 @@ export default function Show({
                 </div>
             )}
 
-            <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
+            <div
+                ref={feedRef}
+                className="[view-transition-class:tab-content] [view-transition-name:log-feed]"
+            >
                 <CommitFeed
                     commits={commits}
                     firstSeenId={firstSeenId}
@@ -237,21 +205,6 @@ const titles: Record<Log, string> = {
     latest: 'Latest',
     trending: 'Trending',
 };
-
-/**
- * Commits fetched earlier are older than the ones fetched last, so the newest of all is where the next fetch starts.
- */
-function newestOf(commits: Commit[]): Commit | undefined {
-    return commits.reduce<Commit | undefined>(
-        (newest, commit) =>
-            newest === undefined ||
-            commit.created_at > newest.created_at ||
-            (commit.created_at === newest.created_at && commit.id > newest.id)
-                ? commit
-                : newest,
-        undefined,
-    );
-}
 
 function Suggestions({ suggestions }: { suggestions: Commit[] }) {
     return (

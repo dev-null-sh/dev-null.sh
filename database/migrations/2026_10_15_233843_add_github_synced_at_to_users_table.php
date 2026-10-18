@@ -14,11 +14,4 @@ return new class extends Migration
             $table->timestamp('github_synced_at')->nullable();
         });
     }
-
-    public function down(): void
-    {
-        Schema::table('users', function (Blueprint $table): void {
-            $table->dropColumn('github_synced_at');
-        });
-    }
 };

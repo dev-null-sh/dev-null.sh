@@ -25,6 +25,18 @@ it('creates an org with people who follow the maintainer', function (): void {
         ->assertJsonPath('conversations.0.members.0.role', 'maintainer');
 });
 
+it('identifies orgs by uuids', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+
+    $org = createOrg($mark, [$nuno]);
+
+    expect($org)->toBeUuid();
+
+    $this->actingAs($mark)->get('/remotes/orgs/'.$org)->assertOk();
+    $this->actingAs($mark)->get('/remotes/orgs/1')->assertNotFound();
+});
+
 it('says why people cannot be added', function (string $case, string $reason): void {
     $mark = User::factory()->create();
     [$nuno] = followersOf($mark, 1);

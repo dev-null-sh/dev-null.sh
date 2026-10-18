@@ -31,6 +31,7 @@ test('to array', function (): void {
             'pasteis_count',
             'body_segments',
             'preview_segments',
+            'is_checking',
         ]);
 });
 

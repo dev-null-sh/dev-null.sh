@@ -24,9 +24,9 @@ final readonly class ConversationsQuery
      * One page of a tab, newest first, continuing before a conversation when scrolling down. The term matches the
      * partner's name or handle, already lowercased and without a leading @.
      *
-     * @return array{conversations: Collection<int, array{id: int, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}>, has_more: bool}
+     * @return array{conversations: Collection<int, array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}>, has_more: bool}
      */
-    public function get(User $user, InboxTab $tab = InboxTab::Open, string $term = '', ?int $before = null): array
+    public function get(User $user, InboxTab $tab = InboxTab::Open, string $term = '', ?string $before = null): array
     {
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
         $cursor = $before === null ? null : ConversationParticipant::query()
@@ -133,7 +133,7 @@ final readonly class ConversationsQuery
     }
 
     /**
-     * @return array{id: int, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}
+     * @return array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}
      */
     private function summary(User $user, Conversation $conversation): array
     {

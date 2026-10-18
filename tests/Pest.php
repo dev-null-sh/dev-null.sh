@@ -7,6 +7,7 @@ use App\Jobs\UnfurlLink;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\OpenAI;
+use App\Services\SignedCommits;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -179,18 +180,28 @@ function fakeGitHubSponsorsListing(bool $hasSponsorsListing = false): void
 }
 
 /**
+ * @param  list<string>  $imageHashes
  * @return array{payload: string, signature: string}
  */
-function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = ''): array
+function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = '', array $imageHashes = []): array
 {
-    $payload = implode("\n", [
+    $lines = [
         $timestamp ?? now()->getTimestamp(),
         $nonce ?? bin2hex(random_bytes(16)),
         $replyTo,
-        $body,
-    ]);
+    ];
 
-    return ['payload' => $payload, 'signature' => $keyPair->sign($payload)];
+    if ($imageHashes !== []) {
+        $lines[] = implode(',', $imageHashes);
+    }
+
+    $lines[] = $body;
+
+    $payload = implode("\n", $lines);
+
+    $namespace = $imageHashes === [] ? SignedCommits::Namespace : SignedCommits::ImagesNamespace;
+
+    return ['payload' => $payload, 'signature' => $keyPair->sign($payload, $namespace)];
 }
 
 function fakeAvatar(): string
@@ -262,7 +273,7 @@ function followersOf(User $maintainer, int $count): array
  *
  * @param  list<User>  $members
  */
-function createOrg(User $maintainer, array $members, ?string $name = 'dev/null core'): int
+function createOrg(User $maintainer, array $members, ?string $name = 'dev/null core'): string
 {
     return test()->actingAs($maintainer)->postJson(route('org.store'), [
         'name' => $name,
@@ -270,7 +281,7 @@ function createOrg(User $maintainer, array $members, ?string $name = 'dev/null c
     ])->assertCreated()->json('org.id');
 }
 
-function pushToOrg(User $sender, int $org, string $body = 'hello'): Message
+function pushToOrg(User $sender, string $org, string $body = 'hello'): Message
 {
     test()->actingAs($sender)->postJson(route('org-message.store', $org), [
         'body' => $body,

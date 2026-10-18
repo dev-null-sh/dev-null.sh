@@ -27,9 +27,4 @@ return new class extends Migration
             $table->index(['user_id', 'status', 'last_message_at']);
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('conversation_participants');
-    }
 };

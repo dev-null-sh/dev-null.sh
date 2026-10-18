@@ -1,9 +1,11 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
+import AboutController from '@/actions/App/Http/Controllers/AboutController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import { ChangelogPopover } from '@/components/changelog-popover';
 import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -11,6 +13,7 @@ import { WhoToFollow } from '@/components/who-to-follow';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
 import { useKeyLabels } from '@/lib/keyboard';
+import { formatCount } from '@/lib/numbers';
 import { laneColor } from '@/lib/utils';
 import { login } from '@/routes';
 import { show } from '@/routes/user';
@@ -34,7 +37,7 @@ export function AppAside({
             <button
                 type="button"
                 onClick={onSearch}
-                className="-mb-2 flex h-11 items-center gap-2.5 rounded-full border bg-card px-4 py-2.5 text-[15px] text-muted-foreground transition-colors hover:border-input hover:text-foreground"
+                className="-mb-2 flex h-11 items-center gap-2.5 rounded-lg border bg-card px-4 py-2.5 text-[15px] text-muted-foreground transition-colors hover:border-input hover:text-foreground"
                 data-test="search-button"
             >
                 <Search className="size-4" />
@@ -146,7 +149,7 @@ export function AppAside({
                                         href={stat.href}
                                         className="group-hover:underline"
                                     >
-                                        {stat.count}
+                                        {formatCount(stat.count)}
                                     </Link>
                                 </dd>
                             </div>
@@ -173,20 +176,29 @@ export function AppAside({
                         ?
                     </kbd>
                 </button>
-                <nav aria-label="Legal" className="flex gap-4">
+                <div className="flex gap-4">
                     <Link
-                        href={TermsController.show()}
+                        href={AboutController.show()}
                         className="transition-colors hover:text-foreground"
                     >
-                        Terms
+                        About
                     </Link>
-                    <Link
-                        href={PrivacyController.show()}
-                        className="transition-colors hover:text-foreground"
-                    >
-                        Privacy
-                    </Link>
-                </nav>
+                    <nav aria-label="Legal" className="flex gap-4">
+                        <Link
+                            href={TermsController.show()}
+                            className="transition-colors hover:text-foreground"
+                        >
+                            Terms
+                        </Link>
+                        <Link
+                            href={PrivacyController.show()}
+                            className="transition-colors hover:text-foreground"
+                        >
+                            Privacy
+                        </Link>
+                    </nav>
+                    <ChangelogPopover />
+                </div>
             </div>
         </aside>
     );

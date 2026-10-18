@@ -84,6 +84,12 @@ test('controllers are cruddy by design, or invokable', function (): void {
     }
 });
 
+test('migrations only go up', function (): void {
+    foreach (File::files(database_path('migrations')) as $file) {
+        expect(method_exists(require $file->getPathname(), 'down'))->toBeFalse("{$file->getFilename()} may not have a down method.");
+    }
+});
+
 test('form requests are named after the controller method they serve', function (): void {
     foreach (File::allFiles(app_path('Http/Requests')) as $file) {
         expect($file->getFilenameWithoutExtension())->toMatch('/^(List|Show|Create|Update|Delete)[A-Z]\w*Request$/');

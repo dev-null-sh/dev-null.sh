@@ -71,6 +71,12 @@ final class Commit extends Model
 
     public const int RESTORABLE_SECONDS = 30;
 
+    /**
+     * Moderation retries a failed check twice, the last time ten minutes later, so a pending commit older than this has
+     * been through every attempt.
+     */
+    public const int CHECKING_MINUTES = 15;
+
     public const int MIN_BODY_LENGTH = 3;
 
     public const int MAX_BODY_LENGTH = 4000;
@@ -117,7 +123,8 @@ final class Commit extends Model
 
     /**
      * A deleted commit only ever leaves a tombstone behind: never its author or body. Otherwise, the body also comes split
-     * into segments, for rendering.
+     * into segments, for rendering, and whether it is still being checked, so its author knows how long it might stay
+     * pending.
      *
      * @return array<mixed>
      */
@@ -129,7 +136,7 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return [...parent::toArray(), ...resolve(CommitBodies::class)->segments($this->body)];
+        return [...parent::toArray(), ...resolve(CommitBodies::class)->segments($this->body), 'is_checking' => $this->isBeingChecked()];
     }
 
     /**
@@ -159,6 +166,18 @@ final class Commit extends Model
 
         return $this->status === CommitStatus::Approved
             && (! $user instanceof User || ! $this->user instanceof User || ! $user->hasBlockWith($this->user));
+    }
+
+    /**
+     * A pending commit is being checked until its moderation job leaves an AI decision behind. After that, or once every
+     * attempt has had its chance, it simply waits for a moderator.
+     */
+    public function isBeingChecked(): bool
+    {
+        return $this->status === CommitStatus::Pending
+            && $this->ai_decision === null
+            && filled(config('services.openai.key'))
+            && $this->created_at->greaterThan(now()->subMinutes(self::CHECKING_MINUTES));
     }
 
     public function isRestorable(): bool

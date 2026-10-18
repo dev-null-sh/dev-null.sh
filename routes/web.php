@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Http\Controllers\AboutController;
 use App\Http\Controllers\BookmarkController;
+use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitController;
@@ -23,6 +25,7 @@ use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
+use App\Http\Controllers\CommitStatusController;
 use App\Http\Controllers\ConversationArchiveController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationDropController;
@@ -34,9 +37,13 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\InboxController;
+use App\Http\Controllers\IssueController;
+use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
+use App\Http\Controllers\MessageImageController;
+use App\Http\Controllers\MessageLinkPreviewController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
@@ -76,7 +83,6 @@ use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
 use App\Http\Controllers\UserTimezoneController;
 use App\Http\Middleware\RememberIntendedUrl;
-use App\Http\Middleware\SignInLocalDeveloper;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -86,14 +92,19 @@ Route::get('commit', [ScriptController::class, 'show'])->name('cli-script.show')
 
 Route::middleware('guest')->group(function (): void {
     // Guests land straight on the Trending log...
-    Route::get('/', [LogController::class, 'index'])
-        ->middleware(SignInLocalDeveloper::class)
-        ->name('home');
+    Route::get('/', [LogController::class, 'index'])->name('home');
 
     // Session...
-    Route::get('login', [SessionController::class, 'create'])
-        ->middleware('throttle:10,1')
-        ->name('login');
+    if (app()->isLocal()) {
+        // Locally, signing in asks for any username in a modal, without GitHub...
+        Route::get('login', [LocalSessionController::class, 'create'])->name('login');
+        Route::post('login/local', [LocalSessionController::class, 'store'])->name('local-login.store');
+    } else {
+        Route::get('login', [SessionController::class, 'create'])
+            ->middleware('throttle:10,1')
+            ->name('login');
+    }
+
     Route::get('auth/github/callback', [SessionController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('login.store');
@@ -106,6 +117,12 @@ Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
 // Terms and privacy, readable by everyone...
 Route::get('terms', [TermsController::class, 'show'])->name('terms.show');
 Route::get('privacy', [PrivacyController::class, 'show'])->name('privacy.show');
+
+// How /dev/null was built, readable by everyone...
+Route::get('about', [AboutController::class, 'show'])->name('about.show');
+
+// What was merged into production, readable by everyone...
+Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
 
 // Public pages, readable by guests and crawlers...
 Route::middleware(RememberIntendedUrl::class)->group(function (): void {
@@ -165,6 +182,8 @@ Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show']
     ->name('commit-image.show');
 Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
     ->name('commit-link-preview.show');
+Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
+    ->name('commit-status.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');
@@ -184,6 +203,10 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
     ->name('commit-search.index');
 
 Route::middleware('auth')->group(function (): void {
+    Route::post('issues', [IssueController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('issue.store');
+
     // Session...
     Route::post('logout', [SessionController::class, 'destroy'])
         ->name('logout');
@@ -252,7 +275,8 @@ Route::middleware('auth')->group(function (): void {
     // Messages...
     Route::get('remotes', [ConversationController::class, 'index'])->name('conversation.index');
     Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
-    Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereNumber('org')->name('org.show');
+    Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereUuid('org')->name('org.show');
+    Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])->whereUuid('messageImage')->name('message-image.show');
 
     Route::middleware('throttle:conversations')->group(function (): void {
         Route::get('remotes/inbox', [InboxController::class, 'index'])->name('inbox.index');
@@ -270,26 +294,29 @@ Route::middleware('auth')->group(function (): void {
             ->name('user-remote-preferences.update');
         Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('remote-candidate.index');
         Route::post('remotes/orgs', [OrgController::class, 'store'])->name('org.store');
-        Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereNumber('org')->name('org.update');
-        Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereNumber('org')->name('org-message.index');
-        Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereNumber('org')->name('org-read.update');
-        Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereNumber('org')->name('org-typing.update');
-        Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereNumber('org')->name('org-archive.store');
-        Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereNumber('org')->name('org-archive.destroy');
-        Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereNumber('org')->name('org-member.store');
-        Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])->whereNumber('org')->withoutScopedBindings()->name('org-member.update');
-        Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])->whereNumber('org')->withoutScopedBindings()->name('org-member.destroy');
+        Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereUuid('org')->name('org.update');
+        Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
+        Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
+        Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
+        Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
+        Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
+        Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereUuid('org')->name('org-member.store');
+        Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])->whereUuid('org')->withoutScopedBindings()->name('org-member.update');
+        Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])->whereUuid('org')->withoutScopedBindings()->name('org-member.destroy');
         Route::post('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'store'])
             ->name('conversation-archive.store');
         Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
             ->name('conversation-archive.destroy');
+        Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
+            ->whereNumber('message')
+            ->name('message-link-preview.show');
     });
 
     Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])
         ->middleware('throttle:messages')
         ->name('conversation-message.store');
     Route::post('remotes/orgs/{org}/messages', [OrgMessageController::class, 'store'])
-        ->whereNumber('org')
+        ->whereUuid('org')
         ->middleware('throttle:messages')
         ->name('org-message.store');
 

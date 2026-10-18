@@ -1,10 +1,35 @@
 import type { User } from '@/types/auth';
+import type { BodySegment, LinkPreview } from '@/types/commit';
+
+/**
+ * The message a reply answers, as much as its ghost shows.
+ */
+export type MessageReply = {
+    id: number;
+    user_id: string;
+    body: string;
+    images_count: number;
+};
+
+export type MessageImage = {
+    id: string;
+    url: string;
+    width: number;
+    height: number;
+    description: string | null;
+};
 
 export type Message = {
     id: number;
     user_id: string;
     client_id: string;
     body: string;
+    body_segments?: BodySegment[];
+    reply_to_id?: number | null;
+    reply_to?: MessageReply | null;
+    mentions?: Record<string, string> | null;
+    link_preview?: LinkPreview | null;
+    images?: MessageImage[];
     event?: OrgEvent | null;
     subject_id?: string | null;
     user?: User;
@@ -29,7 +54,7 @@ export type OrgEvent =
     | 'demoted'
     | 'inherited';
 
-export type OrgRef = { id: number; name: string | null };
+export type OrgRef = { id: string; name: string | null };
 
 export type OrgMember = {
     user: User;
@@ -38,7 +63,7 @@ export type OrgMember = {
 };
 
 export type ConversationSummary = {
-    id: number;
+    id: string;
     kind: ConversationKind;
     name: string | null;
     partner: User | null;

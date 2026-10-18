@@ -53,13 +53,14 @@ final readonly class CreateCommit
         return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
+            $hasGoodReputation = $user->hasGoodReputation();
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
                 'mentions' => $this->mentionedUsers->get($body),
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
-                'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
+                'status' => $user->isAdmin() || ($hasGoodReputation && ! $user->hasRecentReports()) ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
                 'quoted_commit_id' => $quotedCommit?->id,
                 'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),
@@ -85,7 +86,7 @@ final readonly class CreateCommit
             }
 
             $this->createWorldReply->handle($commit);
-            if ($commit->status === CommitStatus::Pending && filled(config('services.openai.key'))) {
+            if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation && filled(config('services.openai.key'))) {
                 dispatch(new ModerateCommit($commit))->afterCommit();
             }
 

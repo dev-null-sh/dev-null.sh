@@ -32,11 +32,6 @@ return new class extends Migration
             });
     }
 
-    public function down(): void
-    {
-        // Keep captured identities until the column itself is rolled back.
-    }
-
     /**
      * Freeze the parser here so future application changes cannot change this backfill.
      *

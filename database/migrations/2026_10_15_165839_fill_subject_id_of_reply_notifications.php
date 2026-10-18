@@ -14,9 +14,4 @@ return new class extends Migration
             ->whereNull('subject_id')
             ->update(['subject_id' => DB::raw('(select parent_id from commits where commits.id = notifications.commit_id)')]);
     }
-
-    public function down(): void
-    {
-        DB::table('notifications')->where('type', 'replied')->update(['subject_id' => null]);
-    }
 };

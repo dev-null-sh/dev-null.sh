@@ -14,11 +14,4 @@ return new class extends Migration
             $table->json('mentions')->nullable();
         });
     }
-
-    public function down(): void
-    {
-        Schema::table('commits', function (Blueprint $table): void {
-            $table->dropColumn('mentions');
-        });
-    }
 };

@@ -10,13 +10,14 @@ use App\Enums\RemoteStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\ConversationFactory;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * @property-read int $id
+ * @property-read string $id
  * @property-read ConversationKind $kind
  * @property-read string|null $pair
  * @property-read string|null $name
@@ -39,6 +40,8 @@ final class Conversation extends Model
 {
     /** @use HasFactory<ConversationFactory> */
     use HasFactory;
+
+    use HasUuids;
 
     /**
      * An org holds the maintainer and up to fourteen others.
@@ -90,7 +93,7 @@ final class Conversation extends Model
     public function casts(): array
     {
         return [
-            'id' => 'integer',
+            'id' => 'string',
             'kind' => ConversationKind::class,
             'pair' => 'string',
             'name' => 'string',

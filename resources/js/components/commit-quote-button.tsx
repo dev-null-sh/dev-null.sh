@@ -3,6 +3,7 @@ import { Quote } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
 import {
     ImageDropOverlay,
@@ -52,37 +53,38 @@ export function CommitQuoteButton({
 
     return (
         <>
-            <button
-                type="button"
-                onClick={() => {
-                    if (auth.user === null) {
-                        signIn();
+            <ActionTooltip label="Quote" shortcut={keyShortcut}>
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (auth.user === null) {
+                            signIn();
 
-                        return;
-                    }
+                            return;
+                        }
 
-                    setIsOpen(true);
-                }}
-                aria-haspopup="dialog"
-                aria-keyshortcuts={keyShortcut}
-                title={keyShortcut ? `Quote (${keyShortcut})` : 'Quote'}
-                className={cn(
-                    'flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                    className,
-                )}
-                data-test="quote-button"
-            >
-                <Quote className="size-4" />
-                <span className="sr-only sm:not-sr-only">Quote</span>
-                {hasStash && (
-                    <span
-                        title="You have an unsent quote here"
-                        className="font-mono text-[11px] opacity-70"
-                    >
-                        {'stash@{0}'}
-                    </span>
-                )}
-            </button>
+                        setIsOpen(true);
+                    }}
+                    aria-haspopup="dialog"
+                    aria-keyshortcuts={keyShortcut}
+                    className={cn(
+                        'flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        className,
+                    )}
+                    data-test="quote-button"
+                >
+                    <Quote className="size-4" />
+                    <span className="sr-only sm:not-sr-only">Quote</span>
+                    {hasStash && (
+                        <span
+                            title="You have an unsent quote here"
+                            className="font-mono text-[11px] opacity-70"
+                        >
+                            {'stash@{0}'}
+                        </span>
+                    )}
+                </button>
+            </ActionTooltip>
 
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 {isOpen && (

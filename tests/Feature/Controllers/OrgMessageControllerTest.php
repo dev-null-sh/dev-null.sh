@@ -3,6 +3,10 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 it('lets members push, read, and see who pulled', function (): void {
     $mark = User::factory()->create();
@@ -70,3 +74,41 @@ it('keeps non-members out', function (): void {
 
     $this->actingAs(User::factory()->create())->postJson(route('org-message.store', $org), ['body' => 'hi', 'client_id' => fake()->uuid()])->assertNotFound();
 });
+
+it('replies only to messages in the history the member can see', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno]);
+    $before = pushToOrg($nuno, $org, 'from before taylor joined');
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $after = pushToOrg($nuno, $org, 'welcome taylor');
+
+    $this->actingAs($taylor)->postJson(route('org-message.store', $org), ['body' => 'hi', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $before->id])
+        ->assertUnprocessable()->assertJsonValidationErrors('reply_to_id');
+
+    $this->postJson(route('org-message.store', $org), ['body' => 'thanks!', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $after->id])
+        ->assertCreated()
+        ->assertJsonPath('message.reply_to.user_id', $nuno->id)
+        ->assertJsonPath('message.reply_to.body', 'welcome taylor');
+});
+
+it('pushes images and the link card the member chose', function (?string $choice, ?string $url): void {
+    Queue::fake();
+    Storage::fake();
+
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+
+    $this->actingAs($nuno)->post(route('org-message.store', $org), [
+        'body' => 'release notes at https://laravel.com/docs and https://github.com/laravel',
+        'client_id' => Str::uuid()->toString(),
+        'link_preview_url' => $choice,
+        'images' => [UploadedFile::fake()->image('notes.png', 20, 20)],
+    ], ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonPath('message.link_preview.url', $url)
+        ->assertJsonCount(1, 'message.images');
+})->with([
+    'another link' => ['https://github.com/laravel', 'https://github.com/laravel'],
+    'no card' => ['', null],
+]);

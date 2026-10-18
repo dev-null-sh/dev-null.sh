@@ -7,6 +7,8 @@ namespace App\Actions;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\Message;
+use App\Models\MessageImage;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
@@ -31,7 +33,7 @@ final readonly class DeleteUser
         $imagePaths = DB::transaction(function () use ($user): array {
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
-            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user)];
+            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user)];
 
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
@@ -104,6 +106,20 @@ final readonly class DeleteUser
             ->whereNotNull('images')
             ->get(['images'])
             ->flatMap(fn (ScheduledCommit $scheduled): array => array_column($scheduled->images ?? [], 'path'))
+            ->all();
+    }
+
+    /**
+     * The images the user sent in remotes, whose messages go along with them.
+     *
+     * @return array<int, string>
+     */
+    private function messageImagePaths(User $user): array
+    {
+        return MessageImage::query()
+            ->whereIn('message_id', Message::query()->where('user_id', $user->id)->select('id'))
+            ->get(['path'])
+            ->map(fn (MessageImage $image): string => $image->path)
             ->all();
     }
 }

@@ -1,8 +1,10 @@
 import { Link } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
+import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { LinkPreview } from '@/components/link-preview';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
@@ -56,18 +58,7 @@ export function QuotedCommit({
                 >
                     {formatRelativeTime(commit.created_at, now)}
                 </time>
-                {commit.status !== 'approved' && (
-                    <span
-                        className={cn(
-                            'shrink-0 rounded-full px-1.5 font-mono text-[11px]',
-                            commit.status === 'pending'
-                                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                                : 'bg-destructive/10 text-destructive',
-                        )}
-                    >
-                        {commit.status}
-                    </span>
-                )}
+                <CommitStatusBadge commit={commit} size="small" isStatic />
             </span>
             <CommitBodyExcerpt
                 segments={commit.body_segments}
@@ -80,7 +71,7 @@ export function QuotedCommit({
             )}
             {commit.link_preview && (
                 <LinkPreview
-                    commitId={commit.id}
+                    refreshUrl={CommitLinkPreviewController.show.url(commit.id)}
                     preview={commit.link_preview}
                     isStatic
                 />

@@ -62,6 +62,7 @@ export type Commit = {
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
     status: CommitStatus;
+    is_checking?: boolean;
     created_at: string;
     updated_at: string;
     deleted_at?: null;
@@ -92,6 +93,7 @@ export type QuotedCommit = Pick<
     | 'body_segments'
     | 'preview_segments'
     | 'status'
+    | 'is_checking'
     | 'created_at'
     | 'deleted_at'
     | 'user'

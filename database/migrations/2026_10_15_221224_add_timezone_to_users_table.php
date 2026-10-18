@@ -14,11 +14,4 @@ return new class extends Migration
             $table->string('timezone')->nullable();
         });
     }
-
-    public function down(): void
-    {
-        Schema::table('users', function (Blueprint $table): void {
-            $table->dropColumn('timezone');
-        });
-    }
 };

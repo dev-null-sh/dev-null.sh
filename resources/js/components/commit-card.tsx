@@ -3,6 +3,7 @@ import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
@@ -10,6 +11,7 @@ import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
+import { CommitStatusBadge } from '@/components/commit-status-badge';
 import {
     ThreadActions,
     ThreadReplies,
@@ -25,6 +27,11 @@ import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
@@ -237,24 +244,7 @@ export function CommitCard({
                                     </Link>
                                 </TimestampTooltip>
 
-                                {commit.status !== 'approved' && (
-                                    <span
-                                        className={cn(
-                                            'shrink-0 self-center rounded-full px-2 py-0.5 font-mono text-xs',
-                                            commit.status === 'pending'
-                                                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                                                : 'bg-destructive/10 text-destructive',
-                                        )}
-                                        title={
-                                            commit.status === 'pending'
-                                                ? 'Only you can see this commit until it is approved.'
-                                                : 'This commit was rejected. Only you can see it.'
-                                        }
-                                        data-test="commit-status"
-                                    >
-                                        {commit.status}
-                                    </span>
-                                )}
+                                <CommitStatusBadge commit={commit} />
 
                                 <span className="relative ml-auto flex shrink-0 items-center self-center">
                                     <Link
@@ -274,19 +264,27 @@ export function CommitCard({
                                     </Link>
 
                                     {isDeletable && (
-                                        <button
-                                            ref={deleteButtonRef}
-                                            type="button"
-                                            onClick={() =>
-                                                setDeletion('confirming')
-                                            }
-                                            aria-label="Delete commit"
-                                            title="Delete commit"
-                                            className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:commit-hover:opacity-100 sm:commit-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
-                                            data-test="delete-commit-button"
-                                        >
-                                            <Trash2 className="size-4" />
-                                        </button>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button
+                                                    ref={deleteButtonRef}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setDeletion(
+                                                            'confirming',
+                                                        )
+                                                    }
+                                                    aria-label="Delete commit"
+                                                    className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:commit-hover:opacity-100 sm:commit-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                                                    data-test="delete-commit-button"
+                                                >
+                                                    <Trash2 className="size-4" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                Delete commit
+                                            </TooltipContent>
+                                        </Tooltip>
                                     )}
                                 </span>
                             </div>
@@ -337,7 +335,9 @@ export function CommitCard({
                             )}
                             {commit.link_preview && (
                                 <LinkPreview
-                                    commitId={commit.id}
+                                    refreshUrl={CommitLinkPreviewController.show.url(
+                                        commit.id,
+                                    )}
                                     preview={commit.link_preview}
                                 />
                             )}

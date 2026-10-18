@@ -1028,17 +1028,6 @@ it('keeps the default link preview for signed-in users on a commit', function ()
         ->assertDontSee('og:url', false);
 });
 
-it('returns to the intended commit after local sign in', function (): void {
-    app()->instance('env', 'local');
-    config()->set('app.auto_login', true);
-
-    $commit = Commit::factory()->create();
-
-    $this->get(route('commit.show', [$commit->user, $commit]))->assertRedirectToRoute('home');
-
-    $this->get(route('home'))->assertRedirect(route('commit.show', [$commit->user, $commit]));
-});
-
 it('queues a link preview for a commit with a link', function (): void {
     Queue::fake();
 

@@ -74,16 +74,16 @@ it('does not queue the erasure again for a commit already deleted', function ():
     Queue::assertNothingPushed();
 });
 
-it('removes the reports on a deleted commit and keeps the reports on its replies and quotes', function (): void {
+it('keeps reports on a deleted commit and its replies and quotes', function (): void {
     $commit = Commit::factory()->create();
-    CommitReport::factory()->for($commit)->create();
+    $report = CommitReport::factory()->for($commit)->create();
     $replyReport = CommitReport::factory()->for(Commit::factory()->for($commit, 'parent'))->create();
     $quoteReport = CommitReport::factory()->for(Commit::factory()->for($commit, 'quotedCommit'))->create();
 
     resolve(DeleteCommit::class)->handle($commit);
 
     expect(CommitReport::query()->pluck('id')->sort()->values()->all())
-        ->toBe(collect([$replyReport->id, $quoteReport->id])->sort()->values()->all());
+        ->toBe(collect([$report->id, $replyReport->id, $quoteReport->id])->sort()->values()->all());
 });
 
 it('lowers the thread when a reply is deleted', function (): void {
@@ -108,7 +108,7 @@ it('lowers the quoted thread when a quote is deleted', function (): void {
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
 });
 
-it('keeps report cleanup while applying the undo window to images', function (bool $undo): void {
+it('keeps reports while applying the undo window to images', function (bool $undo): void {
     Storage::fake();
     Queue::fake();
 
@@ -119,7 +119,7 @@ it('keeps report cleanup while applying the undo window to images', function (bo
 
     $deleted = resolve(DeleteCommit::class)->handle($commit);
 
-    $this->assertModelMissing($report);
+    $this->assertModelExists($report);
     $this->assertModelExists($image);
     Storage::disk()->assertExists($image->path);
 
@@ -132,7 +132,7 @@ it('keeps report cleanup while applying the undo window to images', function (bo
     $this->travel(1)->seconds();
     resolve(DeleteCommitImages::class)->handle($deleted);
 
-    $this->assertModelMissing($report);
+    $this->assertModelExists($report);
 
     if ($undo) {
         $this->assertNotSoftDeleted($commit);

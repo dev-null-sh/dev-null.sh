@@ -3,11 +3,13 @@ import { Star } from 'lucide-react';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Ref } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
+import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
+import { formatCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -141,33 +143,34 @@ export function CommitStarButton({
     };
 
     return (
-        <button
-            ref={setElement}
-            aria-disabled={request.processing}
-            type="button"
-            onClick={toggle}
-            aria-pressed={starred}
-            aria-label={starLabel(starred, count)}
-            title={starred ? 'Unstar' : 'Star'}
-            className={cn(
-                'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                starred && 'text-primary hover:text-primary',
-                className,
-            )}
-            data-test="star-commit-button"
-        >
-            <Star
-                onAnimationEnd={() => setIsAnimating(false)}
+        <ActionTooltip label={starred ? 'Unstar' : 'Star'}>
+            <button
+                ref={setElement}
+                aria-disabled={request.processing}
+                type="button"
+                onClick={toggle}
+                aria-pressed={starred}
+                aria-label={starLabel(starred, count)}
                 className={cn(
-                    'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
-                    starred && 'fill-current',
-                    isAnimating && 'motion-safe:animate-star-pop',
+                    'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                    starred && 'text-primary hover:text-primary',
+                    className,
                 )}
-            />
-            <span data-test="star-count" className="min-w-[1ch] text-left">
-                {count > 0 ? count : ''}
-            </span>
-        </button>
+                data-test="star-commit-button"
+            >
+                <Star
+                    onAnimationEnd={() => setIsAnimating(false)}
+                    className={cn(
+                        'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
+                        starred && 'fill-current',
+                        isAnimating && 'motion-safe:animate-star-pop',
+                    )}
+                />
+                <span data-test="star-count" className="min-w-[1ch] text-left">
+                    {count > 0 ? formatCount(count) : ''}
+                </span>
+            </button>
+        </ActionTooltip>
     );
 }
 
@@ -189,22 +192,23 @@ function StarCount({
             : `${count} ${count === 1 ? 'star' : 'stars'}`;
 
     return (
-        <span
-            ref={ref}
-            role="img"
-            aria-label={label}
-            title={label}
-            className={cn(
-                'inline-flex cursor-default items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground',
-                count === 0 && 'text-muted-foreground/50',
-                className,
-            )}
-            data-test="star-count-readonly"
-        >
-            <Star aria-hidden className="size-4" />
-            <span data-test="star-count" className="min-w-[1ch] text-left">
-                {count > 0 ? count : ''}
+        <ActionTooltip label={label}>
+            <span
+                ref={ref}
+                role="img"
+                aria-label={label}
+                className={cn(
+                    'inline-flex cursor-default items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground',
+                    count === 0 && 'text-muted-foreground/50',
+                    className,
+                )}
+                data-test="star-count-readonly"
+            >
+                <Star aria-hidden className="size-4" />
+                <span data-test="star-count" className="min-w-[1ch] text-left">
+                    {count > 0 ? formatCount(count) : ''}
+                </span>
             </span>
-        </span>
+        </ActionTooltip>
     );
 }

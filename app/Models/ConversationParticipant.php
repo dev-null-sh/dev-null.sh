@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property-read int $id
- * @property-read int $conversation_id
+ * @property-read string $conversation_id
  * @property-read string $user_id
  * @property-read RemoteStatus $status
  * @property-read OrgRole|null $role
@@ -48,7 +48,7 @@ final class ConversationParticipant extends Model
     {
         return [
             'id' => 'integer',
-            'conversation_id' => 'integer',
+            'conversation_id' => 'string',
             'user_id' => 'string',
             'status' => RemoteStatus::class,
             'role' => OrgRole::class,

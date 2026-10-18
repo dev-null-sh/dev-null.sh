@@ -22,6 +22,11 @@ return [
         'redirect' => env('GITHUB_REDIRECT_URI', '/auth/github/callback'),
     ],
 
+    'github_app' => [
+        'id' => env('GITHUB_APP_ID'),
+        'private_key' => env('GITHUB_APP_PRIVATE_KEY'),
+    ],
+
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
     ],

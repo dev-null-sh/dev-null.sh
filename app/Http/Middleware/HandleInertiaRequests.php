@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Enums\Log;
+use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
@@ -50,7 +51,7 @@ final class HandleInertiaRequests extends Middleware
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $isAdmin,
                 'log' => fn (): ?Log => $request->user()?->log,
-                'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user) : 0,
+                'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0,
                 'unreadMessagesCount' => fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0,
                 'remotes' => fn (): ?array => $user?->remotes_enabled ? [
                     'from' => $user->remotes_from,

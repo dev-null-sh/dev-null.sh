@@ -25,7 +25,16 @@ final readonly class ConversationMessageController
 
     public function store(CreateConversationMessageRequest $request, #[CurrentUser] User $user, User $partner, CreateConversation $createConversation, CreateMessage $action): JsonResponse
     {
-        $message = $action->handle($user, $createConversation->handle($user, $partner), $request->string('body')->value(), $request->string('client_id')->value());
+        $message = $action->handle(
+            $user,
+            $createConversation->handle($user, $partner),
+            $request->string('body')->value(),
+            $request->string('client_id')->value(),
+            $request->replyTo(),
+            $request->images(),
+            $request->imageDescriptions(),
+            $request->linkPreview(),
+        );
 
         return response()->json(['message' => $message], 201);
     }

@@ -1,6 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
+    BookOpen,
     Bookmark,
     FileText,
     LogOut,
@@ -8,6 +9,7 @@ import {
     Shield,
     UserRound,
 } from 'lucide-react';
+import AboutController from '@/actions/App/Http/Controllers/AboutController';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
@@ -96,6 +98,16 @@ export function UserMenuContent({ user }: Props) {
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={AboutController.show()}
+                        onClick={cleanup}
+                    >
+                        <BookOpen className="mr-2" />
+                        About
+                    </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full cursor-pointer"

@@ -1,5 +1,6 @@
 import { ImagePlus, X } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
+import { ActionTooltip } from '@/components/action-tooltip';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -104,19 +105,20 @@ export function ImagePickerButton({
                 }}
                 data-test="commit-image-input"
             />
-            <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled={disabled || count >= maxImages}
-                onClick={() => inputRef.current?.click()}
-                aria-label="Attach images"
-                title={`Attach up to ${maxImages} images`}
-                className={cn('text-muted-foreground', className)}
-                data-test="attach-images-button"
-            >
-                <ImagePlus className="size-5" />
-            </Button>
+            <ActionTooltip label={`Attach up to ${maxImages} images`}>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={disabled || count >= maxImages}
+                    onClick={() => inputRef.current?.click()}
+                    aria-label="Attach images"
+                    className={cn('text-muted-foreground', className)}
+                    data-test="attach-images-button"
+                >
+                    <ImagePlus className="size-5" />
+                </Button>
+            </ActionTooltip>
         </>
     );
 }

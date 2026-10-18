@@ -10,6 +10,7 @@ import {
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
+import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { SearchDialog } from '@/components/search-dialog';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTabSlide } from '@/hooks/use-tab-slide';
@@ -92,6 +93,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 onOpenChange={setIsShowingShortcuts}
                 canModerate={auth.isAdmin}
             />
+
+            {isGuest && <LocalSignInDialog />}
         </div>
     );
 }

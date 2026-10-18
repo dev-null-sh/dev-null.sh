@@ -29,14 +29,14 @@ final readonly class CreateCommitImageFiles
      * @param  array<int, string|null>  $descriptions
      * @return list<array{path: string, width: int, height: int, description: string|null, position: int}>
      */
-    public function handle(array $images, array $descriptions = []): array
+    public function handle(array $images, array $descriptions = [], string $directory = 'commit-images'): array
     {
         $optimized = array_map($this->optimize(...), array_slice($images, 0, CreateCommitImages::MAX_IMAGES));
 
         $files = [];
 
         foreach ($optimized as $position => $image) {
-            $path = $image->storeAs('commit-images', Str::uuid7()->toString().'.webp');
+            $path = $image->storeAs($directory, Str::uuid7()->toString().'.webp');
             assert(is_string($path));
 
             DB::afterRollBack(fn (): bool => Storage::disk()->delete($path));

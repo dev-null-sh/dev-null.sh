@@ -30,6 +30,37 @@ it('polls only the unread count outside the inbox without acknowledging activity
     expect($notice->refresh()->read_at)->toBeNull();
 });
 
+it('filters the menu count using the current users saved notification types', function (string $type, int $expected): void {
+    $user = User::factory()->create();
+    $thread = Commit::factory()->for($user)->create();
+    $reply = Notification::factory()->for($user, 'recipient')->replied($thread)->create();
+    Notification::factory()->for($user, 'recipient')->for($reply->commit, 'commit')->mentioned()->read()->create();
+    Notification::factory()->for($user, 'recipient')->replied($thread)->create();
+    Notification::factory()->for($user, 'recipient')->create();
+    Notification::factory()->for($user, 'recipient')->starred()->create();
+
+    $this->actingAs($user)->withCookie('notification_types_'.$user->id, $type)
+        ->withCookie('notification_types_'.User::factory()->create()->id, 'none')
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount',
+        ])->get(route('log.show', ['log' => 'trending', 'type' => 'none']))->assertOk()
+        ->assertJsonPath('props.auth.unreadNotificationsCount', $expected);
+
+    expect($reply->refresh()->read_at)->toBeNull();
+})->with([
+    'all types' => ['all', 3],
+    'one type with grouped replies' => ['replies', 1],
+    'multiple types' => ['replies,stars', 2],
+    'only read matches in an unread group' => ['mentions', 0],
+    'no matching type' => ['quotes', 0],
+    'no selected types' => ['none', 0],
+    'invalid saved filter' => ['invalid', 3],
+    'partially invalid saved filter' => ['replies,invalid', 3],
+]);
+
 it('refreshes the entire loaded inbox window without losing older pages', function (): void {
     $user = User::factory()->create();
     $notices = collect();
@@ -140,6 +171,7 @@ it('orders tied timestamps by the latest notification id', function (): void {
 });
 
 it('groups follows across people within a rolling hour and bumps the group', function (): void {
+    $this->travelTo(today()->setTime(12, 0));
     $user = User::factory()->create();
     $first = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinutes(100)]);
     Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinutes(50)]);
@@ -154,6 +186,7 @@ it('groups follows across people within a rolling hour and bumps the group', fun
 });
 
 it('splits follows after an interrupted gap longer than an hour regardless of filters', function (int $seconds, int $groups): void {
+    $this->travelTo(today()->setTime(12, 0));
     $user = User::factory()->create();
     $old = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subSeconds($seconds)]);
     Notification::factory()->for($user, 'recipient')->replied()->create(['created_at' => now()->subSecond()]);
@@ -170,9 +203,10 @@ it('splits follows after an interrupted gap longer than an hour regardless of fi
         ->assertOk()->assertJsonCount($groups === 1 ? 2 : 1, 'data');
 })->with(['exactly one hour' => [3600, 1], 'one second too long' => [3601, 2], 'two days' => [172800, 2]]);
 
-it('extends the newest follow group after days without intervening relevant activity', function (): void {
+it('extends the newest follow group after hours without intervening relevant activity', function (): void {
+    $this->travelTo(today()->setTime(12, 0));
     $user = User::factory()->create();
-    $old = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subDays(2)]);
+    $old = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subHours(6)]);
     Notification::factory()->replied()->create(['created_at' => now()->subHour()]);
     $hidden = Notification::factory()->for($user, 'recipient')->replied()->create(['created_at' => now()->subMinute()]);
     $hidden->commit->delete();
@@ -182,6 +216,24 @@ it('extends the newest follow group after days without intervening relevant acti
     $this->actingAs($user)->get(route('notification.index'))->assertInertia(fn ($page) => $page
         ->has('notifications.data', 1)->where('notifications.data.0.id', $latest->id)
         ->where('notifications.data.0.event_count', 2)->where('notifications.data.0.group_id', $old->id));
+});
+
+it('never groups follows across days, even when they keep coming', function (): void {
+    $this->travelTo(today()->setTime(0, 30));
+    $user = User::factory()->create();
+    $old = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinutes(50)]);
+    $yesterday = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinutes(40)]);
+    $latest = Notification::factory()->for($user, 'recipient')->create();
+
+    expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(2);
+
+    foreach (['all', 'follows'] as $type) {
+        $this->actingAs($user)->get(route('notification.index', ['type' => $type]))->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 2)
+            ->where('notifications.data.0.id', $latest->id)->where('notifications.data.0.event_count', 1)
+            ->where('notifications.data.1.id', $yesterday->id)->where('notifications.data.1.group_id', $old->id)
+            ->where('notifications.data.1.event_count', 2));
+    }
 });
 
 it('extends an old conversation only when it is still the newest group', function (bool $interrupted): void {
@@ -427,8 +479,6 @@ it('includes quotes in the inbox and filters their history without reading hidde
     $hidden->commit->update(['status' => CommitStatus::Pending]);
     Notification::factory()->for($user, 'recipient')->replied()->create();
 
-    expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(2);
-
     $this->actingAs($user)->get(route('notification.index'))->assertOk()
         ->assertInertia(fn ($page) => $page->has('notifications.data', 2));
     $this->get(route('notification.index', ['type' => 'quotes']))->assertOk()
@@ -492,4 +542,43 @@ it('groups surviving activity through an authorless ancestor without exposing it
             ->where('notifications.data.0.event_count', 2));
     $this->getJson(route('notification-group.show', $latest))->assertOk()
         ->assertJsonCount(2, 'data')->assertDontSee('Deleted private ancestor');
+});
+
+it('combines category filters and applies them to expanded groups', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->for($root, 'parent')->create();
+    $mention = Commit::factory()->for($root, 'parent')->create();
+    $notification = Notification::factory()->for($user, 'recipient')->for($reply, 'commit')->create(['type' => NotificationType::Replied]);
+    Notification::factory()->for($user, 'recipient')->for($mention, 'commit')->create(['type' => NotificationType::Mentioned]);
+    Notification::factory()->for($user, 'recipient')->create();
+
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'replies,mentions']))
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
+            ->where('notifications.data.0.event_count', 2)->where('filters.type', 'replies,mentions'));
+    $this->getJson(route('notification-group.show', [$notification, 'type' => 'replies,mentions']))
+        ->assertOk()->assertJsonCount(2, 'data');
+});
+
+it('remembers selected categories for the current account including no categories', function (): void {
+    $user = User::factory()->create();
+    Notification::factory()->for($user, 'recipient')->create();
+    $cookie = 'notification_types_'.$user->id;
+
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'none']))
+        ->assertCookie($cookie, 'none')
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 0)->where('filters.type', 'none'));
+    $this->withCookie($cookie, 'none')->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 0)->where('filters.type', 'none'));
+    $this->get(route('notification.index', ['type' => 'all']))
+        ->assertCookie($cookie, 'all')
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)->where('filters.type', 'all'));
+    $this->actingAs(User::factory()->create())->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page->where('filters.type', 'all'));
+});
+
+it('rejects invalid combinations of categories', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('notification.index', ['type' => 'replies,secret']))
+        ->assertUnprocessable()->assertJsonValidationErrors('type');
 });

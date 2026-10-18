@@ -1,4 +1,4 @@
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, X } from 'lucide-react';
 import type {
     ClipboardEvent,
     FormEvent,
@@ -7,6 +7,7 @@ import type {
 } from 'react';
 import {
     memo,
+    useCallback,
     useEffect,
     useLayoutEffect,
     useMemo,
@@ -14,13 +15,34 @@ import {
     useState,
 } from 'react';
 import { toast } from 'sonner';
+import {
+    MessageImages,
+    MessageLinkCard,
+    MessageText,
+    Repliable,
+    ReplyButton,
+    ReplyGhost,
+} from '@/components/chat/message-parts';
+import type { Author } from '@/components/chat/message-parts';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { EventLine, typingText } from '@/components/chat/org';
+import {
+    ImageDropOverlay,
+    ImagePickerButton,
+    ImagePickerPreviews,
+} from '@/components/commit-image-picker';
+import { LinkCardPicker } from '@/components/link-card-picker';
+import { MentionTextarea } from '@/components/mention-textarea';
+import { SecretWarning } from '@/components/secret-warning';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useThread } from '@/hooks/use-chat';
+import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useLinkCard } from '@/hooks/use-link-card';
+import { useSecretWarning } from '@/hooks/use-secret-warning';
+import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import {
     settleRequest,
     loadOlderMessages,
@@ -28,6 +50,7 @@ import {
     pingTyping,
     retryMessage,
     sendMessage,
+    setReplyingTo,
     targetKey,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
@@ -36,10 +59,15 @@ import {
     cn,
     formatDayLabel,
     laneColor,
-    limitCharacters,
     localDayKey,
 } from '@/lib/utils';
-import type { Message, OrgMember, PushAccess, User } from '@/types';
+import type {
+    Message,
+    MessageReply,
+    OrgMember,
+    PushAccess,
+    User,
+} from '@/types';
 
 const maxLength = 2000;
 
@@ -139,6 +167,56 @@ export function ConversationThread({
         ],
     );
     const contentKey = `${latestId}:${pending.length}:${pending.map((item) => item.status).join()}`;
+    const isOpen = (thread?.access ?? 'open') === 'open';
+    const draft = useMessageDraft(user, current);
+    const replyingTo = thread?.replyingTo ?? null;
+    const members = thread?.members;
+
+    const authorOf = useCallback(
+        (userId: string): Author => {
+            if (userId === user.id) {
+                return { name: 'You', lane: user.lane, isMe: true };
+            }
+
+            const person =
+                current.kind === 'direct'
+                    ? current.partner
+                    : (members?.find((member) => member.user.id === userId)
+                          ?.user ??
+                      messages.find((message) => message.user_id === userId)
+                          ?.user);
+
+            return {
+                name: person?.name ?? 'Someone',
+                lane: person?.lane ?? 0,
+                isMe: false,
+            };
+        },
+        [user, current, members, messages],
+    );
+
+    const jumpTo = useCallback((id: number) => {
+        const bubble = scroller.current?.querySelector<HTMLElement>(
+            `[data-message-id="${id}"]`,
+        );
+
+        if (!bubble) {
+            return;
+        }
+
+        bubble.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        bubble.dataset.flash = '';
+        window.setTimeout(() => delete bubble.dataset.flash, 1200);
+    }, []);
+
+    const replyTo = useCallback(
+        (reply: MessageReply) => {
+            setReplyingTo(target, reply);
+            draft.input.current?.focus();
+        },
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [targetKey(target)],
+    );
 
     useEffect(() => {
         if (isVisible && thread?.isLoaded && isPinned.current) {
@@ -211,7 +289,9 @@ export function ConversationThread({
             }
         });
 
+        // The scroller shrinks too when the composer grows, as a message wraps or a reply or images are added.
         observer.observe(content);
+        observer.observe(element);
 
         return () => observer.disconnect();
     }, [thread?.isLoaded]);
@@ -260,6 +340,7 @@ export function ConversationThread({
                     : `Org ${current.org.name ?? ''}`.trim()
             }
             className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+            {...(isOpen ? draft.attachments.dropzone : {})}
         >
             {header}
 
@@ -308,6 +389,9 @@ export function ConversationThread({
                                 target={target}
                                 headLine={headLine}
                                 isCompact={isCompact}
+                                authorOf={authorOf}
+                                onJump={jumpTo}
+                                onReply={isOpen ? replyTo : null}
                             />
                         ))}
                     </ol>
@@ -325,9 +409,20 @@ export function ConversationThread({
                 </button>
             )}
 
-            {(thread?.access ?? 'open') === 'open' ? (
+            {isOpen && draft.attachments.isDraggingFiles && (
+                <ImageDropOverlay className="inset-2" />
+            )}
+
+            {isOpen ? (
                 <Composer
                     target={current}
+                    draft={draft}
+                    replyingTo={replyingTo}
+                    replyAuthor={
+                        replyingTo === null
+                            ? null
+                            : authorOf(replyingTo.user_id)
+                    }
                     onSend={() => {
                         isPinned.current = true;
                     }}
@@ -467,6 +562,9 @@ const ThreadItem = memo(function ThreadItem({
     target,
     headLine,
     isCompact,
+    authorOf,
+    onJump,
+    onReply,
 }: {
     item: Item;
     pulls: Pulls;
@@ -475,6 +573,9 @@ const ThreadItem = memo(function ThreadItem({
     target: ChatTarget;
     headLine: React.RefObject<HTMLDivElement | null>;
     isCompact: boolean;
+    authorOf: (userId: string) => Author;
+    onJump: (id: number) => void;
+    onReply: ((reply: MessageReply) => void) | null;
 }) {
     if (item.kind === 'day') {
         return (
@@ -522,15 +623,18 @@ const ThreadItem = memo(function ThreadItem({
                     className="flex max-w-full min-w-0 items-center gap-1.5 px-1.5 pb-0.5 text-xs text-muted-foreground"
                     title={item.author.name}
                 >
-                    <UserAvatar user={item.author} className="size-4" />
+                    <UserAvatar
+                        user={item.author}
+                        className="size-4 ring-1 ring-(--lane)"
+                        style={
+                            {
+                                '--lane': laneColor(item.author.lane),
+                            } as React.CSSProperties
+                        }
+                    />
                     <span className="truncate font-medium text-foreground">
                         {item.author.name}
                     </span>
-                    <span
-                        aria-hidden
-                        className="size-1.5 shrink-0 rounded-full"
-                        style={{ background: laneColor(item.author.lane) }}
-                    />
                 </span>
             )}
             {item.bubbles.map((bubble, index) => {
@@ -545,13 +649,15 @@ const ThreadItem = memo(function ThreadItem({
                         key={key}
                         bubble={bubble}
                         isMine={item.isMine}
-                        isFirst={index === 0}
                         isLast={isLast}
                         isLatestMine={key === lastMine}
                         pulls={pulls}
                         user={user}
                         target={target}
                         isCompact={isCompact}
+                        authorOf={authorOf}
+                        onJump={onJump}
+                        onReply={onReply}
                     />
                 );
             })}
@@ -580,26 +686,40 @@ function lastMineOf(
 function BubbleWithMeta({
     bubble,
     isMine,
-    isFirst,
     isLast,
     isLatestMine,
     pulls,
     user,
     target,
     isCompact,
+    authorOf,
+    onJump,
+    onReply,
 }: {
     bubble: Bubble;
     isMine: boolean;
-    isFirst: boolean;
     isLast: boolean;
     isLatestMine: boolean;
     pulls: Pulls;
     user: User;
     target: ChatTarget;
     isCompact: boolean;
+    authorOf: (userId: string) => Author;
+    onJump: (id: number) => void;
+    onReply: ((reply: MessageReply) => void) | null;
 }) {
-    const body =
-        bubble.kind === 'message' ? bubble.message.body : bubble.pending.body;
+    const message =
+        bubble.kind === 'message'
+            ? bubble.message
+            : { body: bubble.pending.body, mentions: null };
+    const reply =
+        bubble.kind === 'message'
+            ? (bubble.message.reply_to ?? null)
+            : bubble.pending.reply_to;
+    const images =
+        bubble.kind === 'message'
+            ? (bubble.message.images ?? [])
+            : bubble.pending.images;
     const pulledBy =
         bubble.kind === 'message' && target.kind === 'org'
             ? pulls.members
@@ -623,29 +743,86 @@ function BubbleWithMeta({
             ? target.partner.lane
             : (pulledBy[0]?.lane ?? user.lane);
 
+    const isOnPrimary = isMine && status !== 'staged' && status !== 'rejected';
+    const side = isMine ? 'mine' : 'theirs';
+    const replyToThis =
+        onReply !== null && bubble.kind === 'message'
+            ? () =>
+                  onReply({
+                      id: bubble.message.id,
+                      user_id: bubble.message.user_id,
+                      body: bubble.message.body,
+                      images_count: images.length,
+                  })
+            : null;
+
     return (
         <>
-            <div
-                className={cn(
-                    'w-fit max-w-[85%] rounded-[18px] px-3.5 py-2 wrap-anywhere whitespace-pre-wrap transition-[background-color,color,outline-color] duration-200',
-                    isCompact ? 'max-w-[88%] px-3 py-1.5' : 'sm:max-w-[78%]',
-                    isMine
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-foreground',
-                    {
-                        'rounded-tr-md': isMine && !isFirst,
-                        'rounded-br-md': isMine && !isLast,
-                        'rounded-tl-md': !isMine && !isFirst,
-                        'rounded-bl-md': !isMine && !isLast,
-                        'bg-transparent text-foreground outline-[1.5px] -outline-offset-[1.5px] outline-primary outline-dashed':
-                            status === 'staged',
-                        'bg-transparent text-foreground outline-[1.5px] -outline-offset-[1.5px] outline-destructive outline-solid':
-                            status === 'rejected',
-                    },
-                )}
-            >
-                {body}
-            </div>
+            <Repliable isMine={isMine} onReply={replyToThis}>
+                <div
+                    className={cn(
+                        'flex max-w-[85%] min-w-0 flex-col gap-1',
+                        isCompact ? 'max-w-[88%]' : 'sm:max-w-[78%]',
+                        isMine ? 'items-end' : 'items-start',
+                    )}
+                >
+                    {reply !== null && (
+                        <ReplyGhost
+                            reply={reply}
+                            author={authorOf(reply.user_id)}
+                            side={side}
+                            onJump={onJump}
+                        />
+                    )}
+                    {images.length > 0 && (
+                        <div className="relative max-w-full">
+                            <MessageImages images={images} />
+                            {replyToThis !== null && message.body === '' && (
+                                <ReplyButton
+                                    isMine={isMine}
+                                    onReply={replyToThis}
+                                />
+                            )}
+                        </div>
+                    )}
+                    {message.body !== '' && (
+                        <div
+                            data-message-id={
+                                bubble.kind === 'message'
+                                    ? bubble.message.id
+                                    : undefined
+                            }
+                            className={cn(
+                                'relative w-fit max-w-full min-w-0 rounded-lg px-3.5 py-2 wrap-anywhere ring-primary ring-offset-2 ring-offset-background transition-[background-color,color,outline-color,box-shadow] duration-200 data-flash:ring-2',
+                                isCompact && 'px-3 py-1.5',
+                                isMine
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-muted text-foreground',
+                                {
+                                    'bg-transparent text-foreground outline-[1.5px] -outline-offset-[1.5px] outline-primary outline-dashed':
+                                        status === 'staged',
+                                    'bg-transparent text-foreground outline-[1.5px] -outline-offset-[1.5px] outline-destructive outline-solid':
+                                        status === 'rejected',
+                                },
+                            )}
+                        >
+                            <MessageText
+                                message={message}
+                                isMine={isOnPrimary}
+                            />
+                            {replyToThis !== null && (
+                                <ReplyButton
+                                    isMine={isMine}
+                                    onReply={replyToThis}
+                                />
+                            )}
+                        </div>
+                    )}
+                    {bubble.kind === 'message' && (
+                        <MessageLinkCard message={bubble.message} />
+                    )}
+                </div>
+            </Repliable>
 
             {status === 'rejected' ? (
                 <MetaLine className="text-destructive">
@@ -765,17 +942,43 @@ function timeOf(date: string): string {
 }
 
 /**
+ * The draft being written to a conversation: its body and images, kept per conversation across pages and the dock,
+ * the link chosen for its card, and any secrets found in it.
+ */
+function useMessageDraft(user: User, target: ChatTarget) {
+    const stash = useStash(user.id, `remote:${targetKey(target)}`);
+    const attachments = useImageAttachments(
+        stash.images,
+        stash.descriptions,
+        stash.updateImages,
+    );
+    const linkCard = useLinkCard(stash.body);
+    const secrets = useSecretWarning(stash.body);
+    const input = useRef<HTMLTextAreaElement>(null);
+
+    return { stash, attachments, linkCard, secrets, input };
+}
+
+type MessageDraftState = ReturnType<typeof useMessageDraft>;
+
+/**
  * Counts characters once the message nears the limit, and refuses a paste that would cross it rather than
- * quietly cutting it short.
+ * quietly cutting it short. Pasted or picked images go along with the message, and Escape lets go of a reply.
  */
 function Composer({
     target,
+    draft,
+    replyingTo,
+    replyAuthor,
     isCompact,
     autoFocus,
     typing,
     onSend,
 }: {
     target: ChatTarget;
+    draft: MessageDraftState;
+    replyingTo: MessageReply | null;
+    replyAuthor: Author | null;
     isCompact: boolean;
     autoFocus: boolean;
     typing: string | null;
@@ -790,13 +993,15 @@ function Composer({
             ? `Message @${target.partner.username}`
             : `Message ${target.org.name ?? 'the org'}`;
     const lane = target.kind === 'direct' ? target.partner.lane : 0;
-    const [body, setBody] = useState('');
+    const { stash, attachments, linkCard, secrets, input } = draft;
+    const body = stash.body;
     const [error, setError] = useState<string | null>(null);
-    const input = useRef<HTMLTextAreaElement>(null);
     const errorTimer = useRef<number | undefined>(undefined);
     const trimmed = body.trim();
     const length = characterCount(body);
     const isCounting = length >= countFrom;
+    const hasImages = attachments.images.length > 0;
+    const shownError = error ?? attachments.error;
 
     useEffect(() => () => window.clearTimeout(errorTimer.current), []);
 
@@ -812,18 +1017,37 @@ function Composer({
     const submit = (event?: FormEvent) => {
         event?.preventDefault();
 
-        if (trimmed === '') {
+        if ((trimmed === '' && !hasImages) || !secrets.beforeSubmit()) {
             return;
         }
 
         onSend();
-        sendMessage(target, trimmed);
-        setBody('');
+        sendMessage(target, {
+            body: trimmed,
+            replyTo: replyingTo,
+            images: attachments.images,
+            descriptions: attachments.descriptions,
+            linkPreviewUrl: linkCard.isChosen ? linkCard.link : undefined,
+        });
+        stash.drop();
+        linkCard.reset();
+        setReplyingTo(target, null);
         showError(null);
         input.current?.focus();
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (event.defaultPrevented) {
+            return;
+        }
+
+        if (event.key === 'Escape' && replyingTo !== null) {
+            event.preventDefault();
+            setReplyingTo(target, null);
+
+            return;
+        }
+
         if (
             event.key === 'Enter' &&
             !event.shiftKey &&
@@ -834,6 +1058,12 @@ function Composer({
     };
 
     const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+        attachments.onPaste(event);
+
+        if (event.defaultPrevented) {
+            return;
+        }
+
         const pasted = event.clipboardData.getData('text');
         const field = event.currentTarget;
         const kept =
@@ -860,14 +1090,14 @@ function Composer({
                 style={{ '--lane': laneColor(lane) } as never}
             >
                 <span className="flex min-w-0 flex-1 items-center gap-2">
-                    {error !== null ? (
+                    {shownError !== null ? (
                         <span
                             role="alert"
                             className="truncate text-destructive"
-                            title={error}
+                            title={shownError}
                             data-test="message-error"
                         >
-                            {error}
+                            {shownError}
                         </span>
                     ) : (
                         typing !== null && (
@@ -886,6 +1116,10 @@ function Composer({
                         )
                     )}
                 </span>
+                <LinkCardPicker
+                    linkCard={linkCard}
+                    className="-mr-1.5 h-6 max-w-40 shrink px-1.5 text-xs [&_svg]:size-3.5"
+                />
                 {isCounting && (
                     <span
                         aria-label={`${maxLength - length} characters left`}
@@ -903,58 +1137,107 @@ function Composer({
             <form
                 onSubmit={submit}
                 className={cn(
-                    'flex shrink-0 items-end gap-2 border-t',
+                    'flex shrink-0 flex-col gap-2 border-t',
                     isCompact ? 'p-2.5' : 'px-4 py-3',
                 )}
             >
-                <label htmlFor={id} className="sr-only">
-                    {placeholder}
-                </label>
-                <textarea
-                    id={id}
-                    ref={input}
-                    rows={1}
-                    autoFocus={autoFocus}
-                    value={body}
-                    onChange={(event) => {
-                        const value = limitCharacters(
-                            event.target.value,
-                            maxLength,
-                        );
-
-                        setBody(value);
-
-                        if (
-                            error !== null &&
-                            characterCount(value) < maxLength
-                        ) {
-                            showError(null);
-                        }
-
-                        if (value.trim() !== '') {
-                            pingTyping(target);
-                        }
-                    }}
-                    onPaste={onPaste}
-                    onKeyDown={onKeyDown}
-                    placeholder={placeholder}
-                    aria-invalid={error !== null || undefined}
-                    className={cn(
-                        'field-sizing-content max-h-40 min-h-10 min-w-0 flex-1 resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
-                        { 'min-h-9 py-1.5 md:text-sm': isCompact },
-                    )}
-                    data-test="message-input"
+                <SecretWarning
+                    body={body}
+                    findings={secrets.findings}
+                    textarea={input}
+                    onChange={stash.updateBody}
+                    confirming={secrets.confirming}
+                    onConfirmingChange={secrets.setConfirming}
+                    onApprove={secrets.approve}
                 />
-                <Button
-                    type="submit"
-                    disabled={trimmed === ''}
-                    className={cn(
-                        'shrink-0',
-                        isCompact ? 'h-9 min-w-16' : 'h-10 min-w-20',
-                    )}
-                >
-                    Push
-                </Button>
+                {replyingTo !== null && replyAuthor !== null && (
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <ReplyGhost
+                            reply={replyingTo}
+                            author={replyAuthor}
+                            side="theirs"
+                            isDraft
+                        />
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setReplyingTo(target, null);
+                                input.current?.focus();
+                            }}
+                            aria-label="Cancel reply"
+                            title="Cancel reply (Esc)"
+                            className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                            data-test="cancel-reply"
+                        >
+                            <X aria-hidden className="size-4" />
+                        </button>
+                    </div>
+                )}
+                {hasImages && (
+                    <div className="[&>div]:mt-0">
+                        <ImagePickerPreviews
+                            images={attachments.images}
+                            descriptions={attachments.descriptions}
+                            onDescribe={attachments.describe}
+                            onRemove={attachments.remove}
+                        />
+                    </div>
+                )}
+                <div className="flex items-end gap-2">
+                    <label htmlFor={id} className="sr-only">
+                        {placeholder}
+                    </label>
+                    <ImagePickerButton
+                        count={attachments.images.length}
+                        onPick={attachments.attach}
+                        className={cn(
+                            '-mx-1 shrink-0',
+                            isCompact ? 'size-9' : 'size-10',
+                        )}
+                    />
+                    <MentionTextarea
+                        id={id}
+                        ref={input}
+                        rows={1}
+                        autoFocus={autoFocus}
+                        value={body}
+                        maxLength={maxLength}
+                        onValueChange={(value) => {
+                            stash.updateBody(value);
+
+                            if (
+                                error !== null &&
+                                characterCount(value) < maxLength
+                            ) {
+                                showError(null);
+                            }
+
+                            if (value.trim() !== '') {
+                                pingTyping(target);
+                            }
+                        }}
+                        onFocus={moveCaretToEnd}
+                        onPaste={onPaste}
+                        onKeyDown={onKeyDown}
+                        placeholder={placeholder}
+                        aria-invalid={shownError !== null || undefined}
+                        className={cn(
+                            'field-sizing-content max-h-40 min-h-10 min-w-0 flex-1 resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
+                            { 'min-h-9 py-1.5 md:text-sm': isCompact },
+                        )}
+                        data-test="message-input"
+                    />
+                    <Button
+                        type="submit"
+                        disabled={trimmed === '' && !hasImages}
+                        className={cn(
+                            'shrink-0',
+                            isCompact ? 'h-9 min-w-16' : 'h-10 min-w-20',
+                        )}
+                    >
+                        Push
+                    </Button>
+                </div>
             </form>
         </>
     );
@@ -1057,10 +1340,10 @@ function ThreadSkeleton({ isCompact }: { isCompact: boolean }) {
                 isCompact ? 'p-3' : 'p-4',
             )}
         >
-            <Skeleton className="h-9 w-48 rounded-[18px]" />
-            <Skeleton className="h-9 w-64 self-end rounded-[18px]" />
-            <Skeleton className="h-9 w-40 self-end rounded-[18px]" />
-            <Skeleton className="h-9 w-56 rounded-[18px]" />
+            <Skeleton className="h-9 w-48 rounded-lg" />
+            <Skeleton className="h-9 w-64 self-end rounded-lg" />
+            <Skeleton className="h-9 w-40 self-end rounded-lg" />
+            <Skeleton className="h-9 w-56 rounded-lg" />
         </div>
     );
 }

@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
+import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
 import {
     ImageDropOverlay,
@@ -19,14 +20,24 @@ import {
 } from '@/components/composer-preview';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
+import type { UseIssueCommandReturn } from '@/components/issue-command';
+import {
+    IssueCommandBadge,
+    IssueCommandHint,
+    IssueCommandSuggestions,
+    useIssueCommand,
+} from '@/components/issue-command';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import type { PollDraft } from '@/components/poll-editor';
 import { emptyPollDraft, PollEditor } from '@/components/poll-editor';
+import {
+    isExistingLocalTime,
+    SchedulePicker,
+} from '@/components/schedule-picker';
 import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
@@ -80,6 +91,7 @@ function CommitComposerBody({
     secrets,
     isSubmittable,
     processing,
+    issue,
     errors,
     onKeyDown,
     drop,
@@ -96,6 +108,7 @@ function CommitComposerBody({
     secrets: ReturnType<typeof useSecretWarning>;
     isSubmittable: boolean;
     processing: boolean;
+    issue: UseIssueCommandReturn;
     errors: Record<string, string>;
     onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
     drop: () => void;
@@ -114,8 +127,14 @@ function CommitComposerBody({
     const hasImages = attachments.images.length > 0;
     const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
     const error = errors.body ?? errors.link_preview_url;
+    const scheduleError =
+        errors.scheduled_at ??
+        (scheduledAt && !isExistingLocalTime(scheduledAt)
+            ? 'This time does not exist in your timezone. Choose another time.'
+            : undefined);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
+    const isIssue = issue.command !== null;
 
     return (
         <div
@@ -142,6 +161,15 @@ function CommitComposerBody({
                     <label htmlFor={id} className="sr-only">
                         Body
                     </label>
+                    {issue.command && (
+                        <IssueCommandBadge
+                            command={issue.command}
+                            onExit={() => {
+                                issue.exit();
+                                focusBody(id);
+                            }}
+                        />
+                    )}
                     <div className="grid">
                         <MentionTextarea
                             ref={textareaRef}
@@ -149,7 +177,7 @@ function CommitComposerBody({
                             name="body"
                             rows={1}
                             value={body}
-                            onValueChange={updateBody}
+                            onValueChange={issue.change}
                             onPaste={
                                 poll === null ? attachments.onPaste : undefined
                             }
@@ -160,7 +188,8 @@ function CommitComposerBody({
                             onFocus={isRestored ? moveCaretToEnd : undefined}
                             maxLength={maxBodyLength}
                             placeholder={
-                                poll ? 'Ask a question' : 'What did you ship?'
+                                issue.command?.placeholder ??
+                                (poll ? 'Ask a question' : 'What did you ship?')
                             }
                             autoComplete="off"
                             aria-invalid={error ? true : undefined}
@@ -180,6 +209,28 @@ function CommitComposerBody({
                             />
                         )}
                     </div>
+
+                    {issue.hint && (
+                        <IssueCommandHint
+                            command={issue.hint}
+                            onUse={(kind) => {
+                                issue.start(kind, body);
+                                focusBody(id);
+                            }}
+                            onDismiss={issue.dismissHint}
+                        />
+                    )}
+
+                    {issue.suggestions.length > 0 && (
+                        <IssueCommandSuggestions
+                            suggestions={issue.suggestions}
+                            selected={issue.selected}
+                            onPick={(kind) => {
+                                issue.start(kind, '');
+                                focusBody(id);
+                            }}
+                        />
+                    )}
 
                     <SecretWarning
                         body={body}
@@ -241,28 +292,12 @@ function CommitComposerBody({
                             >
                                 Submit at
                             </label>
-                            <Input
+                            <SchedulePicker
                                 id={`${id}-scheduled-at`}
-                                type="datetime-local"
-                                required
                                 value={scheduledAt}
-                                onChange={(event) => {
-                                    const value = event.target.value;
-                                    setScheduledAt(value);
-                                    const date = new Date(value);
-                                    const pad = (n: number) =>
-                                        String(n).padStart(2, '0');
-                                    const local = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-                                    event.target.setCustomValidity(
-                                        value && local !== value
-                                            ? 'This time does not exist in your timezone. Choose another time.'
-                                            : '',
-                                    );
-                                }}
-                                aria-describedby={`${id}-schedule-help ${id}-schedule-error`}
-                                aria-invalid={
-                                    errors.scheduled_at ? true : undefined
-                                }
+                                onChange={setScheduledAt}
+                                invalid={scheduleError ? true : undefined}
+                                describedBy={`${id}-schedule-help ${id}-schedule-error`}
                             />
                             <p
                                 id={`${id}-schedule-help`}
@@ -280,7 +315,7 @@ function CommitComposerBody({
                             </p>
                             <InputError
                                 id={`${id}-schedule-error`}
-                                message={errors.scheduled_at}
+                                message={scheduleError}
                             />
                             <Link
                                 href={ScheduledCommitController.index()}
@@ -291,104 +326,143 @@ function CommitComposerBody({
                         </div>
                     )}
 
-                    <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
-                        <div className="mr-auto flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-                            <ImagePickerButton
-                                count={attachments.images.length}
-                                disabled={processing || poll !== null}
-                                onPick={attachments.attach}
-                                className="-ml-2"
-                            />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                disabled={
-                                    processing || poll !== null || hasImages
-                                }
-                                onClick={() => {
-                                    setPoll(emptyPollDraft);
-                                    requestAnimationFrame(() =>
-                                        document
-                                            .getElementById(
-                                                `${id}-poll-option-0`,
-                                            )
-                                            ?.focus(),
-                                    );
-                                }}
-                                aria-label="Add poll"
-                                title={
-                                    hasImages
-                                        ? 'A commit can have images or a poll, not both'
-                                        : 'Add poll'
-                                }
-                                className="text-muted-foreground"
-                                data-test="add-poll-button"
-                            >
-                                <ChartBar className="size-5" />
-                            </Button>
-                            <LinkCardPicker
-                                linkCard={linkCard}
-                                disabled={processing}
-                                className="-ml-3"
-                            />
-                            <PreviewToggle
-                                preview={preview}
-                                className="-ml-3"
-                            />
+                    <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 sm:flex-nowrap">
+                        <div className="flex min-w-0 flex-1 items-center gap-x-1 max-sm:basis-full">
+                            {!isIssue && (
+                                <>
+                                    <ImagePickerButton
+                                        count={attachments.images.length}
+                                        disabled={processing || poll !== null}
+                                        onPick={attachments.attach}
+                                        className="-ml-2"
+                                    />
+                                    <ActionTooltip
+                                        label={
+                                            hasImages
+                                                ? 'A commit can have images or a poll, not both'
+                                                : 'Add poll'
+                                        }
+                                    >
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={
+                                                processing ||
+                                                poll !== null ||
+                                                hasImages
+                                            }
+                                            onClick={() => {
+                                                setPoll(emptyPollDraft);
+                                                requestAnimationFrame(() =>
+                                                    document
+                                                        .getElementById(
+                                                            `${id}-poll-option-0`,
+                                                        )
+                                                        ?.focus(),
+                                                );
+                                            }}
+                                            aria-label="Add poll"
+                                            className="text-muted-foreground"
+                                            data-test="add-poll-button"
+                                        >
+                                            <ChartBar className="size-5" />
+                                        </Button>
+                                    </ActionTooltip>
+                                    <ActionTooltip
+                                        label={
+                                            isScheduling
+                                                ? "Don't schedule"
+                                                : 'Schedule for later'
+                                        }
+                                    >
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            aria-label="Schedule"
+                                            aria-expanded={isScheduling}
+                                            aria-controls={`${id}-schedule`}
+                                            disabled={processing}
+                                            onClick={() => {
+                                                setTimezone(
+                                                    Intl.DateTimeFormat().resolvedOptions()
+                                                        .timeZone,
+                                                );
+                                                setScheduledAt('');
+                                                setIsScheduling(!isScheduling);
+                                            }}
+                                            className="text-muted-foreground aria-expanded:bg-primary-soft aria-expanded:text-primary aria-expanded:hover:bg-primary-soft aria-expanded:hover:text-primary"
+                                            data-test="schedule-toggle"
+                                        >
+                                            <Clock3 className="size-5" />
+                                        </Button>
+                                    </ActionTooltip>
+                                    <LinkCardPicker
+                                        linkCard={linkCard}
+                                        disabled={processing}
+                                        labelClassName="max-sm:sr-only"
+                                    />
+                                    <PreviewToggle preview={preview} />
+                                </>
+                            )}
                             {isRestored && (
                                 <StashLabel
                                     onDrop={() => {
                                         drop();
                                         focusBody(id);
                                     }}
-                                    className="text-[13px]"
+                                    className="ml-2 text-[13px]"
                                 />
                             )}
                         </div>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            aria-expanded={isScheduling}
-                            aria-controls={`${id}-schedule`}
-                            disabled={processing}
-                            onClick={() => {
-                                setTimezone(
-                                    Intl.DateTimeFormat().resolvedOptions()
-                                        .timeZone,
-                                );
-                                setIsScheduling(!isScheduling);
-                            }}
-                            className="gap-1.5 px-2 text-muted-foreground"
-                        >
-                            <Clock3 className="size-3.5" aria-hidden="true" />
-                            Schedule
-                        </Button>
                         <BodyCounter
                             id={`${id}-count`}
                             body={body}
                             className="text-[13px]"
                         />
-                        <Button
-                            type="submit"
-                            disabled={processing || !isSubmittable}
-                            title={
-                                isScheduling
-                                    ? `Schedule commit (${keys.combo(keys.mod, keys.enter)})`
-                                    : `Commit (${keys.combo(keys.mod, keys.enter)})`
-                            }
-                            className="min-w-[7.5rem]"
-                            data-test="create-commit-button"
-                        >
-                            {isScheduling
-                                ? processing
-                                    ? 'Scheduling…'
-                                    : 'Schedule commit'
-                                : processing
-                                  ? 'Committing…'
-                                  : 'Commit'}
-                        </Button>
+                        {isIssue ? (
+                            <ActionTooltip
+                                label="Open issue"
+                                shortcut={keys.combo(keys.mod, keys.enter)}
+                            >
+                                <Button
+                                    type="button"
+                                    disabled={
+                                        issue.processing || !isSubmittable
+                                    }
+                                    onClick={() => void issue.submit()}
+                                    className="min-w-[7.5rem]"
+                                    data-test="open-issue-button"
+                                >
+                                    {issue.processing
+                                        ? 'Opening…'
+                                        : 'Open issue'}
+                                </Button>
+                            </ActionTooltip>
+                        ) : (
+                            <ActionTooltip
+                                label={
+                                    isScheduling ? 'Schedule commit' : 'Commit'
+                                }
+                                shortcut={keys.combo(keys.mod, keys.enter)}
+                            >
+                                <Button
+                                    type="submit"
+                                    disabled={processing || !isSubmittable}
+                                    className="min-w-[7.5rem]"
+                                    data-test="create-commit-button"
+                                >
+                                    {isScheduling
+                                        ? processing
+                                            ? 'Scheduling…'
+                                            : 'Schedule commit'
+                                        : processing
+                                          ? 'Committing…'
+                                          : 'Commit'}
+                                </Button>
+                            </ActionTooltip>
+                        )}
                     </div>
                 </div>
             </div>
@@ -432,10 +506,30 @@ export function CommitComposer({
         (poll === null ||
             poll.options.every((option) => option.trim().length > 0));
 
+    const isSubmittable =
+        isCommittable &&
+        (!isScheduling ||
+            (scheduledAt !== '' && isExistingLocalTime(scheduledAt)));
+
+    const issue = useIssueCommand({
+        body,
+        updateBody: stash.updateBody,
+        enabled: !hasImages && poll === null && !isScheduling,
+        hasSecrets: secrets.findings.length > 0,
+        onCreated: () => {
+            drop();
+            focusBody(id);
+        },
+    });
+
     useEffect(() => discardSeriesStash(user.id), [user.id]);
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (event.key === 'Enter' && hasModKey(event) && isCommittable) {
+        if (issue.handleKeyDown(event, isCommittable)) {
+            return;
+        }
+
+        if (event.key === 'Enter' && hasModKey(event) && isSubmittable) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
         }
@@ -446,7 +540,7 @@ export function CommitComposer({
             {...(isScheduling
                 ? ScheduledCommitController.store.form()
                 : CommitController.store.form())}
-            onBefore={secrets.beforeSubmit}
+            onBefore={() => issue.command === null && secrets.beforeSubmit()}
             transform={(data) => ({
                 ...data,
                 ...(hasImages && {
@@ -480,24 +574,27 @@ export function CommitComposer({
             data-test="commit-composer"
         >
             {({ processing, errors }) => (
-                <CommitComposerBody
-                    key={draftVersion}
-                    id={id}
-                    isInDialog={isInDialog}
-                    user={user}
-                    stash={stash}
-                    attachments={attachments}
-                    linkCard={linkCard}
-                    schedule={schedule}
-                    poll={poll}
-                    setPoll={setPoll}
-                    secrets={secrets}
-                    isSubmittable={isCommittable}
-                    processing={processing}
-                    errors={errors}
-                    onKeyDown={onKeyDown}
-                    drop={drop}
-                />
+                <fieldset disabled={issue.processing} className="contents">
+                    <CommitComposerBody
+                        key={draftVersion}
+                        id={id}
+                        isInDialog={isInDialog}
+                        user={user}
+                        stash={stash}
+                        attachments={attachments}
+                        linkCard={linkCard}
+                        schedule={schedule}
+                        poll={poll}
+                        setPoll={setPoll}
+                        secrets={secrets}
+                        isSubmittable={isSubmittable}
+                        processing={processing}
+                        issue={issue}
+                        errors={errors}
+                        onKeyDown={onKeyDown}
+                        drop={drop}
+                    />
+                </fieldset>
             )}
         </Form>
     );

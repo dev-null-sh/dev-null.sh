@@ -27,7 +27,7 @@ import AppLayout from '@/layouts/app-layout';
 import { seedInbox, seedThread, targetKey } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
 import { setChatDocked, useChatDock } from '@/lib/chat-dock';
-import { cn } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { InboxPage, OrgRef, OrgThread, Thread, User } from '@/types';
 
@@ -92,7 +92,7 @@ export default function Index({
                 }
             />
 
-            <div className="flex h-[calc(100dvh-8.5rem)] min-h-0 md:h-svh">
+            <div className="flex min-h-0 bg-card max-md:fixed max-md:inset-x-0 max-md:top-14 max-md:bottom-[var(--mobile-nav-height,4.5rem)] md:h-svh">
                 <section
                     aria-label="Conversations"
                     className={cn(
@@ -265,7 +265,15 @@ function ThreadHeader({
                 href={show(partner)}
                 className="flex min-w-0 items-center gap-3 rounded-lg"
             >
-                <UserAvatar user={partner} className="size-9" />
+                <UserAvatar
+                    user={partner}
+                    className="size-9 ring-2 ring-(--lane)"
+                    style={
+                        {
+                            '--lane': laneColor(partner.lane),
+                        } as React.CSSProperties
+                    }
+                />
                 <span className="min-w-0">
                     <span
                         className="block truncate text-[15px] font-semibold hover:underline"

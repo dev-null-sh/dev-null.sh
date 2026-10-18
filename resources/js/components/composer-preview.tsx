@@ -3,6 +3,7 @@ import { Eye, Link2 } from 'lucide-react';
 import type { KeyboardEvent, RefObject } from 'react';
 import { useId, useState } from 'react';
 import CommitPreviewController from '@/actions/App/Http/Controllers/CommitPreviewController';
+import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitBody } from '@/components/commit-body';
 import { objectUrlFor } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
@@ -131,23 +132,27 @@ export function PreviewToggle({
     const keys = useKeyLabels();
 
     return (
-        <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => preview.toggle()}
-            aria-pressed={preview.isPreviewing}
-            aria-label="Preview"
-            aria-keyshortcuts="Meta+Shift+P Control+Shift+P"
-            title={`Preview (${keys.combo(keys.mod, keys.shift, 'P')})`}
-            className={cn(
-                'text-muted-foreground aria-pressed:bg-primary-soft aria-pressed:text-primary aria-pressed:hover:bg-primary-soft aria-pressed:hover:text-primary',
-                className,
-            )}
-            data-test="preview-toggle"
+        <ActionTooltip
+            label={preview.isPreviewing ? 'Edit' : 'Preview'}
+            shortcut={keys.combo(keys.mod, keys.shift, 'P')}
         >
-            <Eye className="size-5" />
-        </Button>
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => preview.toggle()}
+                aria-pressed={preview.isPreviewing}
+                aria-label="Preview"
+                aria-keyshortcuts="Meta+Shift+P Control+Shift+P"
+                className={cn(
+                    'text-muted-foreground aria-pressed:bg-primary-soft aria-pressed:text-primary aria-pressed:hover:bg-primary-soft aria-pressed:hover:text-primary',
+                    className,
+                )}
+                data-test="preview-toggle"
+            >
+                <Eye className="size-5" />
+            </Button>
+        </ActionTooltip>
     );
 }
 
