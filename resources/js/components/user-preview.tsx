@@ -212,7 +212,8 @@ export function UserPreview({
         }
 
         const overflow =
-            previewRef.current.getBoundingClientRect().bottom -
+            position.top +
+            previewRef.current.offsetHeight -
             (window.innerHeight - viewportMargin);
         const top = Math.max(position.top - overflow, viewportMargin);
 
