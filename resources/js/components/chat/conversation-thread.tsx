@@ -62,6 +62,7 @@ import {
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
+import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
 import type { ReactionUsage } from '@/lib/reactions';
 import {
@@ -160,9 +161,9 @@ export function ConversationThread({
         () => itemsOf(messages, pending, head, headUntil, user, isOrg),
         [messages, pending, head, headUntil, user, isOrg],
     );
-    const lastMine = useMemo(
-        () => lastMineOf(messages, pending, user),
-        [messages, pending, user],
+    const statusMessage = useMemo(
+        () => statusMessageOf(messages, pending, user, isOrg),
+        [messages, pending, user, isOrg],
     );
     const pulls = useMemo<Pulls>(
         () => ({
@@ -411,7 +412,7 @@ export function ConversationThread({
                                 key={item.key}
                                 item={item}
                                 pulls={pulls}
-                                lastMine={lastMine}
+                                statusMessage={statusMessage}
                                 user={user}
                                 target={target}
                                 headLine={headLine}
@@ -586,7 +587,7 @@ function itemsOf(
 const ThreadItem = memo(function ThreadItem({
     item,
     pulls,
-    lastMine,
+    statusMessage,
     user,
     target,
     headLine,
@@ -599,7 +600,7 @@ const ThreadItem = memo(function ThreadItem({
 }: {
     item: Item;
     pulls: Pulls;
-    lastMine: string | null;
+    statusMessage: string | null;
     user: User;
     target: ChatTarget;
     headLine: React.RefObject<HTMLDivElement | null>;
@@ -683,7 +684,7 @@ const ThreadItem = memo(function ThreadItem({
                         bubble={bubble}
                         isMine={item.isMine}
                         isLast={isLast}
-                        isLatestMine={key === lastMine}
+                        showsStatus={key === statusMessage}
                         pulls={pulls}
                         user={user}
                         target={target}
@@ -700,29 +701,11 @@ const ThreadItem = memo(function ThreadItem({
     );
 });
 
-function lastMineOf(
-    messages: Message[],
-    pendingMessages: PendingMessage[],
-    user: User,
-): string | null {
-    const pending = pendingMessages.at(-1);
-
-    if (pending) {
-        return pending.client_id;
-    }
-
-    return (
-        messages.findLast(
-            (message) => message.user_id === user.id && !message.event,
-        )?.client_id ?? null
-    );
-}
-
 function BubbleWithMeta({
     bubble,
     isMine,
     isLast,
-    isLatestMine,
+    showsStatus,
     pulls,
     user,
     target,
@@ -736,7 +719,7 @@ function BubbleWithMeta({
     bubble: Bubble;
     isMine: boolean;
     isLast: boolean;
-    isLatestMine: boolean;
+    showsStatus: boolean;
     pulls: Pulls;
     user: User;
     target: ChatTarget;
@@ -760,14 +743,10 @@ function BubbleWithMeta({
         bubble.kind === 'message'
             ? (bubble.message.images ?? [])
             : bubble.pending.images;
-    const pulledBy =
+    const { pulledBy, total } =
         bubble.kind === 'message' && target.kind === 'org'
-            ? pulls.members
-                  .filter(
-                      (member) => member.read_through_id >= bubble.message.id,
-                  )
-                  .map((member) => member.user)
-            : [];
+            ? pullsOf(pulls.members, bubble.message)
+            : { pulledBy: [], total: 0 };
     const status =
         bubble.kind === 'pending'
             ? bubble.pending.status
@@ -956,7 +935,7 @@ function BubbleWithMeta({
                         retry
                     </button>
                 </MetaLine>
-            ) : isMine && isLatestMine ? (
+            ) : isMine && showsStatus ? (
                 <MetaLine>
                     <MessageStatusGlyph
                         status={status}
@@ -972,10 +951,7 @@ function BubbleWithMeta({
                         {pulledBy.length > 0 && ' by'}
                     </span>
                     {pulledBy.length > 0 && (
-                        <PulledBy
-                            users={pulledBy}
-                            total={pulls.members.length}
-                        />
+                        <PulledBy users={pulledBy} total={total} />
                     )}
                 </MetaLine>
             ) : (
@@ -985,6 +961,12 @@ function BubbleWithMeta({
                         <time dateTime={bubble.message.created_at}>
                             {timeOf(bubble.message.created_at)}
                         </time>
+                        {showsStatus && pulledBy.length > 0 && (
+                            <>
+                                <span>· pulled by</span>
+                                <PulledBy users={pulledBy} total={total} />
+                            </>
+                        )}
                     </MetaLine>
                 )
             )}
