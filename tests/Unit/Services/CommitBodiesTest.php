@@ -16,6 +16,7 @@ it('collapses runs of blank lines in the prose into one', function (string $body
     'mixed line endings' => ["a\r\nb\rc\n\n\rd", "a\nb\nc\n\nd"],
     'blank lines in a code block' => ["a\n```py\ndef a():\n    pass\n\n\ndef b():\n    pass\n```\nb", "a\n```py\ndef a():\n    pass\n\n\ndef b():\n    pass\n```\nb"],
     'blank lines around a code block' => ["a\n\n\n\n```\ncode\n```\n\n\n\nb", "a\n\n```\ncode\n```\n\nb"],
+    'blank lines in a details block' => ["a\n<details>\n<summary>Why</summary>\n\nb\n\n\n\nc\n</details>", "a\n<details>\n<summary>Why</summary>\n\nb\n\nc\n</details>"],
 ]);
 
 it('has no excerpt for a body short enough to show whole', function (string $body): void {
@@ -25,6 +26,7 @@ it('has no excerpt for a body short enough to show whole', function (string $bod
     '280 characters' => str_repeat('a', 280),
     '280 multibyte characters' => str_repeat('🚀', 280),
     '8 lines' => implode("\n", range(1, 8)),
+    'details block' => "<details>\n<summary>Why it took all day</summary>\n\nIt was DNS.\n</details>",
 ]);
 
 it('cuts a long body at the last whitespace that fits', function (string $body, string $excerpt): void {
@@ -65,4 +67,18 @@ it('keeps the first lines of a code block that the body starts with', function (
 
 it('cuts inline code short when the body starts with it', function (): void {
     expect(resolve(CommitBodies::class)->excerpt('`'.str_repeat('a', 300).'` done'))->toBe('`'.str_repeat('a', 278).'`…');
+});
+
+it('ends the excerpt at the summary of a details block that does not fit', function (string $body, string $excerpt): void {
+    expect(resolve(CommitBodies::class)->excerpt($body))->toBe($excerpt);
+})->with([
+    'details block' => ["<details>\n<summary>Why it took all day</summary>\n\n".str_repeat("and again\n", 40).'</details>', 'Why it took all day…'],
+    'after prose' => ["shipped it\n\n<details>\n<summary>How it went</summary>\n\n".str_repeat('word ', 200)."\n</details>", "shipped it\n\nHow it went…"],
+    'summary too long to fit' => ["<details>\n<summary>".str_repeat('a', 290)."</summary>\n\n".str_repeat("and again\n", 40).'</details>', str_repeat('a', 280).'…'],
+]);
+
+it('keeps a details block that fits, with the ellipsis on a line of its own', function (): void {
+    $body = "a\n\n<details>\n<summary>How it went</summary>\n\ntiny\n</details>\n\n".str_repeat('more prose ', 40);
+
+    expect(resolve(CommitBodies::class)->excerpt($body))->toBe("a\n\n<details>\n<summary>How it went</summary>\n\ntiny\n</details>\n…");
 });

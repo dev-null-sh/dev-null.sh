@@ -52,3 +52,10 @@ it('leaves shortcodes in code untouched', function (): void {
     expect($emoji->replace("ship :fire: `a ? b :like:` and\n```php\nx :heart:\n```"))
         ->toBe("ship 🔥 `a ? b :like:` and\n```php\nx :heart:\n```");
 });
+
+it('replaces shortcodes in a details block, leaving its code and tags as they are', function (): void {
+    $emoji = resolve(EmojiShortcodes::class);
+
+    expect($emoji->replace("a\n<details>\n<summary>ship it :rocket:</summary>\n\n:fire: and `:heart:`\n</details>"))
+        ->toBe("a\n<details>\n<summary>ship it 🚀</summary>\n\n🔥 and `:heart:`\n</details>");
+});

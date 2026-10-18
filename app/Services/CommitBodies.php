@@ -9,6 +9,8 @@ use Illuminate\Container\Attributes\Scoped;
 
 /**
  * Scoped, like the CodeSpans it relies on, so that a page of commits shares one.
+ *
+ * @phpstan-import-type BodySegment from CodeSpans
  */
 #[Scoped]
 final readonly class CommitBodies
@@ -22,7 +24,7 @@ final readonly class CommitBodies
      * The body split into prose, inline code and highlighted code blocks, for rendering, and so is its excerpt when it
      * is too long to show whole in a list.
      *
-     * @return array{body_segments: list<array<string, string|null>>, preview_segments: list<array<string, string|null>>|null}
+     * @return array{body_segments: list<BodySegment>, preview_segments: list<BodySegment>|null}
      */
     public function segments(string $body): array
     {
@@ -46,7 +48,8 @@ final readonly class CommitBodies
     /**
      * The start of a body too long to show whole in a list, or null when it fits: at most Commit::PREVIEW_LENGTH
      * characters and Commit::PREVIEW_LINES lines, cut at a word boundary. Code is never cut through: the excerpt
-     * ends before it, unless the body starts with it, in which case a code block keeps its first lines.
+     * ends before it, unless the body starts with it, in which case a code block keeps its first lines. A details
+     * block is never cut through either: what doesn't fit of it comes back as its summary.
      */
     public function excerpt(string $body): ?string
     {
@@ -70,9 +73,11 @@ final readonly class CommitBodies
             }
 
             $isFirst = mb_trim($excerpt) === '';
+            $summary = $this->codeSpans->summary($part);
 
             $excerpt .= match (true) {
                 $index % 2 === 0 => $this->cutProse($part, $limit, $isFirst),
+                $summary !== null => $this->cutSummary($summary, $limit, $isFirst),
                 $isFirst => $this->cutCode($part, $limit),
                 default => '',
             };
@@ -82,8 +87,17 @@ final readonly class CommitBodies
 
         $excerpt = mb_rtrim($excerpt);
 
-        // There is always more after the excerpt. After a code block, the ellipsis goes on a line of its own.
-        return str_ends_with($excerpt, '```') ? $excerpt."\n…" : $excerpt.'…';
+        // There is always more after the excerpt. After a block, the ellipsis goes on a line of its own.
+        return str_ends_with($excerpt, '```') || str_ends_with($excerpt, '</details>') ? $excerpt."\n…" : $excerpt.'…';
+    }
+
+    /**
+     * Keeps the summary of a details block that doesn't fit: the summary is what the reader sees of it, and the rest is
+     * one click away.
+     */
+    private function cutSummary(string $summary, int $limit, bool $isFirst): string
+    {
+        return mb_strlen($summary) <= $limit ? $summary : $this->cutProse($summary, $limit, $isFirst);
     }
 
     /**

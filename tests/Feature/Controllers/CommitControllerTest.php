@@ -588,6 +588,44 @@ it('shows the commit and its replies split into prose and highlighted code', fun
             ->missing('replies.data.0.body_segments.2'));
 });
 
+it('shows a commit with a details block, its own prose and code cut up the same way', function (): void {
+    $commit = Commit::factory()->create(['body' => "<details>\n<summary>Why it took all day</summary>\n\nIt was `DNS`:\n```php\n\$name = '<b>';\n```\n</details>"]);
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.body_segments', [
+                [
+                    'type' => 'details',
+                    'summary' => 'Why it took all day',
+                    'segments' => [
+                        ['type' => 'text', 'text' => 'It was '],
+                        ['type' => 'code', 'code' => 'DNS'],
+                        ['type' => 'text', 'text' => ':'],
+                        ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-variable">$name</span> = <span class="hl-value">\'&lt;b&gt;\'</span>;'],
+                    ],
+                ],
+            ]));
+});
+
+it('keeps the markup of a details block out of the page', function (): void {
+    $commit = Commit::factory()->create(['body' => "<details>\n<summary><img src=x onerror=alert(1)></summary>\n\n<script>alert(2)</script>\n</details>"]);
+
+    $response = $this->get(route('commit.show', [$commit->user, $commit]));
+
+    $response->assertOk()
+        ->assertDontSee('<img src=x', false)
+        ->assertDontSee('<script>alert(2)</script>', false)
+        ->assertSee('\u003Cimg src=x onerror=alert(1)\u003E', false);
+
+    $description = Str::betweenFirst((string) $response->getContent(), '<meta property="og:description" content="', '"');
+
+    expect($description)->toContain('&lt;img src=x onerror=alert(1)&gt;')
+        ->and($description)->toContain('&lt;script&gt;alert(2)&lt;/script&gt;');
+});
+
 it('shows the star count and whether the viewer starred the commit and its ancestors', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();

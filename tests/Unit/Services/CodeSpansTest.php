@@ -107,6 +107,14 @@ it('escapes html inside highlighted code', function (): void {
     expect($html)->not->toContain('<img')->toContain('&lt;');
 });
 
+it('escapes html inside a code block a details block holds', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    $html = $codeSpans->highlight("<details>\n<summary>How</summary>\n\n```html\n<img src=x onerror=alert(1)>\n```\n</details>")[0]['segments'][0]['html'];
+
+    expect($html)->not->toContain('<img')->toContain('&lt;');
+});
+
 it('highlights a language written in any case and keeps the label as written', function (): void {
     $codeSpans = resolve(CodeSpans::class);
 
@@ -140,4 +148,112 @@ it('accepts fences of more than three backticks', function (): void {
     ])->and($codeSpans->highlight("```\n// test\n````"))->toBe([
         ['type' => 'block', 'language' => null, 'html' => '// test'],
     ]);
+});
+
+it('takes a details block as a part of its own', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->split("look:\n<details>\n<summary>Why</summary>\n\nbody\n</details>\nnice"))->toBe([
+        "look:\n",
+        "<details>\n<summary>Why</summary>\n\nbody\n</details>",
+        "\nnice",
+    ]);
+});
+
+it('leaves something that only looks like a details block as prose', function (string $text): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->split($text))->toBe([$text]);
+})->with([
+    'never closed' => "<details>\n<summary>Why</summary>\n\nbody",
+    'no summary' => "<details>\n\nbody\n</details>",
+    'summary on the line the block opens with' => "<details><summary>Why</summary>\n\nbody\n</details>",
+    'attributes' => "<details open>\n<summary>Why</summary>\n\nbody\n</details>",
+    'indented' => " <details>\n<summary>Why</summary>\n\nbody\n</details>",
+    'closed on the summary line' => "<details>\n<summary>Why</summary></details>",
+]);
+
+it('reads a details block as a segment holding its summary and its own segments', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    $segments = $codeSpans->highlight("<details>\n<summary>Why it took all day</summary>\n\nIt was DNS `dig`.\n\n```php\necho 1;\n```\n</details>");
+
+    expect($segments)->toBe([
+        [
+            'type' => 'details',
+            'summary' => 'Why it took all day',
+            'segments' => [
+                ['type' => 'text', 'text' => 'It was DNS '],
+                ['type' => 'code', 'code' => 'dig'],
+                ['type' => 'text', 'text' => ".\n"],
+                ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-keyword">echo</span> 1;'],
+            ],
+        ],
+    ]);
+});
+
+it('reads the markup a details block is written with as text, never as more markup', function (string $text, string $summary): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->highlight($text))->toBe([
+        [
+            'type' => 'details',
+            'summary' => $summary,
+            'segments' => [['type' => 'text', 'text' => '<script>alert(2)</script>']],
+        ],
+    ]);
+})->with([
+    'markup in the summary' => ["<details>\n<summary><script>alert(1)</script></summary>\n\n<script>alert(2)</script>\n</details>", '<script>alert(1)</script>'],
+    'a closing tag in the summary' => ["<details>\n<summary>a</summary></summary>\n\n<script>alert(2)</script>\n</details>", 'a</summary>'],
+]);
+
+it('drops the line breaks around a details block', function (string $lineBreak): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    $segments = $codeSpans->highlight(implode($lineBreak, ['before', '<details>', '<summary>Why</summary>', '', 'body', '</details>', 'after']));
+
+    expect($segments)->toBe([
+        ['type' => 'text', 'text' => 'before'],
+        ['type' => 'details', 'summary' => 'Why', 'segments' => [['type' => 'text', 'text' => 'body']]],
+        ['type' => 'text', 'text' => 'after'],
+    ]);
+})->with([
+    'lf' => "\n",
+    'crlf' => "\r\n",
+]);
+
+it('keeps a body of two details blocks apart', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->highlight("<details>\n<summary>a</summary>\n\nb\n</details>\n\n<details>\n<summary>c</summary>\n\nd\n</details>"))->toBe([
+        ['type' => 'details', 'summary' => 'a', 'segments' => [['type' => 'text', 'text' => 'b']]],
+        ['type' => 'details', 'summary' => 'c', 'segments' => [['type' => 'text', 'text' => 'd']]],
+    ]);
+});
+
+it('maps the prose in a details block, leaving its tags and its code as written', function (string $lineBreak): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    $block = implode($lineBreak, ['<details>', '<summary>hi</summary>', '', 'hi `hi`', '</details>']);
+
+    expect($codeSpans->mapProse($block, mb_strtoupper(...)))
+        ->toBe(implode($lineBreak, ['<details>', '<summary>HI</summary>', '', 'HI `hi`', '</details>']));
+})->with([
+    'lf' => "\n",
+    'crlf' => "\r\n",
+]);
+
+it('keeps the summary and the prose of a details block when the code comes off', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->withoutCode("<details>\n<summary>hi</summary>\n\nsee `a.com` and b.com\n</details>"))
+        ->toBe("\nhi\n\nsee \n and b.com\n\n");
+});
+
+it('takes the summary of a details block, and nothing from anything else', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->summary("<details>\n<summary>Why</summary>\n\nbody\n</details>"))->toBe('Why')
+        ->and($codeSpans->summary('`code`'))->toBeNull()
+        ->and($codeSpans->summary("```php\necho 1;\n```"))->toBeNull();
 });

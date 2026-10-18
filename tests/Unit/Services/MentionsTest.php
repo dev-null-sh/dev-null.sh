@@ -52,3 +52,10 @@ it('skips mentions in code', function (): void {
     expect($mentions->usernames("thanks @taylorotwell for `@Override`\n```java\n@Deprecated\nvoid run() {}\n```"))
         ->toBe(['taylorotwell']);
 });
+
+it('finds mentions in a details block, but not in the code it holds', function (): void {
+    $mentions = resolve(Mentions::class);
+
+    expect($mentions->usernames("<details>\n<summary>cc @nuno</summary>\n\nthanks @taylorotwell for `@Override`\n```java\n@Deprecated\nvoid run() {}\n```\n</details>"))
+        ->toBe(['nuno', 'taylorotwell']);
+});
