@@ -31,6 +31,12 @@ composer dev
 
 Run `composer test` before opening a pull request.
 
+## Public Statistics
+
+`/statistics` is readable without signing in. It shows current account totals, approved non-deleted commits (including replies), and daily public commit counts for the last 30 UTC dates, including today. Zero-activity days are included, and the chart has an expandable table of exact counts.
+
+The counts and last-updated timestamp are cached together for five minutes using the configured cache store. A new UTC day starts a fresh daily window. Refreshing the page reads the cached snapshot until it expires.
+
 ## License
 
 /dev/null is open-sourced software licensed under the **[MIT license](composer.json)**.

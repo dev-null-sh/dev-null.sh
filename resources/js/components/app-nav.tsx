@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     Activity,
     Bell,
+    ChartNoAxesColumn,
     Star,
     GitCommitVertical,
     History,
@@ -22,6 +23,7 @@ import ModerationController from '@/actions/App/Http/Controllers/ModerationContr
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
+import StatisticsController from '@/actions/App/Http/Controllers/StatisticsController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
@@ -58,7 +60,7 @@ const navLabelClassName =
     'max-w-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] nav-wide:max-w-40 nav-wide:opacity-100 motion-reduce:transition-none';
 
 /**
- * Guests see the same items, each taking them to sign in.
+ * Guests can read public pages; account sections take them to sign in.
  */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
     const { auth, hasUnmoderatedCommits } = usePage().props;
@@ -108,6 +110,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             icon: Star,
             prefetch: false,
         },
+        {
+            title: 'Statistics',
+            href: StatisticsController.show(),
+            icon: ChartNoAxesColumn,
+            prefetch: false,
+        },
         ...(auth.isAdmin
             ? [
                   {
@@ -134,7 +142,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
     return items.map((item) => ({
         ...item,
         isActive:
-            user !== null &&
+            (user !== null || item.title === 'Statistics') &&
             (item.title === 'Settings'
                 ? isCurrentOrParentUrl('/settings')
                 : item.title === 'Log'
@@ -167,7 +175,12 @@ function NavLink({
     if (auth.user === null) {
         return (
             <NavTooltip label={iconsOnly ? item.title : null}>
-                <a href={toUrl(item.href)} title={title} className={className}>
+                <a
+                    href={toUrl(item.href)}
+                    aria-current={item.isActive ? 'page' : undefined}
+                    title={title}
+                    className={className}
+                >
                     {children}
                 </a>
             </NavTooltip>
@@ -444,6 +457,9 @@ export function AppNav({
 
 export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     const { auth } = usePage().props;
+    const { isCurrentUrl } = useCurrentUrl();
+    const statistics = StatisticsController.show();
+    const isStatistics = isCurrentUrl(statistics);
 
     return (
         <div className="flex h-14 items-center justify-between border-b px-4 md:hidden">
@@ -460,6 +476,19 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
             </Link>
 
             <div className="flex items-center gap-1">
+                <Link
+                    href={statistics}
+                    viewTransition
+                    aria-label="Statistics"
+                    aria-current={isStatistics ? 'page' : undefined}
+                    className={cn(
+                        'rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        isStatistics &&
+                            'bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary',
+                    )}
+                >
+                    <ChartNoAxesColumn className="size-5" />
+                </Link>
                 <button
                     type="button"
                     onClick={onSearch}
@@ -540,6 +569,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     const items = allItems.filter(
         (item) =>
             item.title !== 'Starred' &&
+            item.title !== 'Statistics' &&
             !menuItems.some((menuItem) => menuItem.title === item.title),
     );
     const nav = useRef<HTMLElement>(null);
