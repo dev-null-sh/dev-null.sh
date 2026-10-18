@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 it('lets members push, read, and see who pulled', function (): void {
@@ -88,3 +91,24 @@ it('replies only to messages in the history the member can see', function (): vo
         ->assertJsonPath('message.reply_to.user_id', $nuno->id)
         ->assertJsonPath('message.reply_to.body', 'welcome taylor');
 });
+
+it('pushes images and the link card the member chose', function (?string $choice, ?string $url): void {
+    Queue::fake();
+    Storage::fake();
+
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+
+    $this->actingAs($nuno)->post(route('org-message.store', $org), [
+        'body' => 'release notes at https://laravel.com/docs and https://github.com/laravel',
+        'client_id' => Str::uuid()->toString(),
+        'link_preview_url' => $choice,
+        'images' => [UploadedFile::fake()->image('notes.png', 20, 20)],
+    ], ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonPath('message.link_preview.url', $url)
+        ->assertJsonCount(1, 'message.images');
+})->with([
+    'another link' => ['https://github.com/laravel', 'https://github.com/laravel'],
+    'no card' => ['', null],
+]);
