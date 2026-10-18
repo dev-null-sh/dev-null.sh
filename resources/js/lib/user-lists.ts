@@ -11,6 +11,8 @@ export function visitWithErrorToast(
 ) {
     router.visit(action, {
         preserveScroll: true,
+        // Keeps open menus open, so several lists can be ticked in a row.
+        preserveState: true,
         onHttpException: (response) => !toastWhenThrottled(response),
         onError: (errors) => {
             const message = Object.values(errors)[0];
