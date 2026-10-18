@@ -27,7 +27,7 @@ AUTO_LOGIN=true
 
 Run `composer dev` and visit `http://localhost:8000` (or your configured `APP_URL`). Auto-login only works in the local environment.
 
-To try something from another developer's side, such as mentions, messages, or blocks, visit `/local/@{username}` to sign in as them. Run `php artisan db:seed` first to get developers to switch between.
+To try something from another developer's side, such as mentions, messages, or blocks, visit `/local/@{username}` to sign in as them, or run `php artisan local:sign-in` to search for a developer and get the link. Run `php artisan db:seed` first to get developers to switch between.
 
 ### GitHub login
 
