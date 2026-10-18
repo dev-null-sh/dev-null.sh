@@ -416,14 +416,24 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     );
 }
 
-export function MobileCommitButton({ onCompose }: { onCompose: () => void }) {
+export function MobileCommitButton({
+    isHidden,
+    onCompose,
+}: {
+    isHidden: boolean;
+    onCompose: () => void;
+}) {
     return (
         <Button
             type="button"
             onClick={onCompose}
+            inert={isHidden}
             aria-label="Write a commit"
             title="Write a commit"
-            className="fixed right-4 bottom-[calc(var(--mobile-nav-height,4.5rem)+1rem)] z-20 size-14 rounded-full shadow-lg [view-transition-name:mobile-commit-button] md:hidden"
+            className={cn(
+                'absolute right-4 bottom-full mb-4 size-14 rounded-full shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                { 'pointer-events-none opacity-0': isHidden },
+            )}
             data-test="mobile-commit-button"
         >
             <SquarePen className="size-6" />
@@ -434,7 +444,7 @@ export function MobileCommitButton({ onCompose }: { onCompose: () => void }) {
 /**
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
-export function MobileNav() {
+export function MobileNav({ children }: { children?: ReactNode }) {
     const { auth } = usePage().props;
     const timeZone = auth.user?.timezone ?? browserTimeZone();
     const {
@@ -486,6 +496,7 @@ export function MobileNav() {
             aria-label="Main"
             className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden"
         >
+            {children}
             {items.map((item) => (
                 <NavLink
                     key={item.title}

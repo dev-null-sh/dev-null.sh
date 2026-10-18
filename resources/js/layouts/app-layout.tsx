@@ -17,6 +17,7 @@ import { CommitStarPolling } from '@/components/commit-star-polling';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { SearchDialog } from '@/components/search-dialog';
+import { useIsComposerInView } from '@/hooks/use-composer-visibility';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
@@ -35,6 +36,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const openSearch = useCallback(() => setIsSearching(true), []);
     const isGuest = auth.user === null;
     const isMessages = component.startsWith('conversation/');
+    const hasComposer = component === 'log/show' && !isGuest;
+    const isComposerInView = useIsComposerInView();
     const compose = useCallback(() => {
         if (isGuest) {
             signIn();
@@ -78,9 +81,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 />
             )}
 
-            {!isMessages && <MobileCommitButton onCompose={compose} />}
-
-            <MobileNav />
+            <MobileNav>
+                {!isMessages && (
+                    <MobileCommitButton
+                        isHidden={hasComposer && isComposerInView}
+                        onCompose={compose}
+                    />
+                )}
+            </MobileNav>
 
             <CommitImageViewer />
 

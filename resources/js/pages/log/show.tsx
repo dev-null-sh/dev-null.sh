@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
+import { useComposerVisibility } from '@/hooks/use-composer-visibility';
 import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
@@ -41,7 +42,9 @@ export default function Show({
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
+    const composerRef = useRef<HTMLDivElement>(null);
     useLaneSwipe(feedRef, log);
+    useComposerVisibility(composerRef, tabsHeight);
 
     useEffect(() => {
         const tabs = tabsRef.current;
@@ -128,7 +131,11 @@ export default function Show({
                 />
             </div>
 
-            {user !== null && <CommitComposer key={commitDialogClosedCount} />}
+            {user !== null && (
+                <div ref={composerRef}>
+                    <CommitComposer key={commitDialogClosedCount} />
+                </div>
+            )}
 
             {newCommitsCount > 0 && (
                 <div
