@@ -12,7 +12,7 @@ beforeEach(function (): void {
 
 it('returns that the authors own pending commit is being checked', function (): void {
     $author = User::factory()->create();
-    $commit = Commit::factory()->for($author)->pending()->create();
+    $commit = Commit::factory()->for($author)->pending()->create(['ai_decision' => CommitStatus::Pending]);
 
     $this->actingAs($author)
         ->getJson(route('commit-status.show', $commit))
@@ -34,6 +34,7 @@ it('returns that a checked pending commit awaits a moderator', function (): void
 it('returns that a pending commit is no longer being checked once every attempt has had its chance', function (): void {
     $author = User::factory()->create();
     $commit = Commit::factory()->for($author)->pending()->create([
+        'ai_decision' => CommitStatus::Pending,
         'created_at' => now()->subMinutes(Commit::CHECKING_MINUTES + 1),
     ]);
 
@@ -43,9 +44,7 @@ it('returns that a pending commit is no longer being checked once every attempt 
         ->assertExactJson(['status' => 'pending', 'is_checking' => false]);
 });
 
-it('returns that a pending commit is not being checked without moderation', function (): void {
-    config(['services.openai.key' => null]);
-
+it('returns that a pending commit is not being checked when no check was queued', function (): void {
     $author = User::factory()->create();
     $commit = Commit::factory()->for($author)->pending()->create();
 

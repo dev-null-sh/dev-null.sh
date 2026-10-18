@@ -27,12 +27,13 @@ final class ModerateCommit implements ShouldQueue
     }
 
     /**
-     * A commit that was moderated or deleted in the meantime no longer needs the AI's decision. Once every attempt
-     * has failed, the commit is simply left without one.
+     * A commit that was moderated or deleted in the meantime no longer needs the AI's decision.
      */
     public function handle(UpdateCommitAiDecision $action, UpdateCommitStatuses $updateCommitStatuses): void
     {
         if ($this->commit->status !== CommitStatus::Pending || $this->commit->trashed()) {
+            $this->leaveUnchecked();
+
             return;
         }
 
@@ -41,9 +42,30 @@ final class ModerateCommit implements ShouldQueue
                 $updateCommitStatuses->handle([$this->commit->id], CommitStatus::Approved, onlyPending: true);
             }
 
+            $this->leaveUnchecked();
+
             return;
         }
 
         $action->handle($this->commit);
+    }
+
+    /**
+     * Once every attempt has failed, the commit is left without a decision and simply waits for a moderator.
+     */
+    public function failed(): void
+    {
+        $this->leaveUnchecked();
+    }
+
+    /**
+     * Clears only the pending AI decision, so a decision written in the meantime stays.
+     */
+    private function leaveUnchecked(): void
+    {
+        Commit::withTrashed()
+            ->whereKey($this->commit->id)
+            ->where('ai_decision', CommitStatus::Pending)
+            ->update(['ai_decision' => null]);
     }
 }

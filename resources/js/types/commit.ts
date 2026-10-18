@@ -82,7 +82,7 @@ export type Commit = {
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
-    ai_decision?: Exclude<CommitStatus, 'pending'> | null;
+    ai_decision?: CommitStatus | null;
     ai_categories?: string[] | null;
 };
 

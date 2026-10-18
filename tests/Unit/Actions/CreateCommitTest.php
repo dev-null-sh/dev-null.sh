@@ -79,7 +79,7 @@ it('skips ai review only when all reputation requirements are met', function (in
 
     expect($commit->refresh())
         ->status->toBe($approved ? CommitStatus::Approved : CommitStatus::Pending)
-        ->ai_decision->toBeNull()
+        ->ai_decision->toBe($approved ? null : CommitStatus::Pending)
         ->and($commit->poll->opened_at?->toIso8601String())->toBe($approved ? now()->toIso8601String() : null);
 
     if ($approved) {
@@ -242,9 +242,12 @@ it('does not ask the ai without an api key', function (): void {
 
     $action = resolve(CreateCommit::class);
 
-    $action->handle(User::factory()->create(), 'Initial commit');
+    $commit = $action->handle(User::factory()->create(), 'Initial commit');
 
     Queue::assertNotPushed(ModerateCommit::class);
+    expect($commit->refresh())
+        ->ai_decision->toBeNull()
+        ->isBeingChecked()->toBeFalse();
 });
 
 it('attaches a link preview for the first url in the body', function (): void {
@@ -487,7 +490,9 @@ it('gives recent reports precedence over reputation while keeping the ai exempti
     $approved = $reputable && $dismissed;
 
     expect($commit->status)->toBe($approved ? CommitStatus::Approved : CommitStatus::Pending)
-        ->and($commit->poll->opened_at !== null)->toBe($approved);
+        ->and($commit->poll->opened_at !== null)->toBe($approved)
+        ->and($commit->ai_decision)->toBe($reputable ? null : CommitStatus::Pending)
+        ->and($commit->isBeingChecked())->toBe(! $reputable);
 
     if ($reputable) {
         Queue::assertNotPushed(ModerateCommit::class);

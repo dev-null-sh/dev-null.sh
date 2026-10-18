@@ -361,10 +361,10 @@ it('flags text when the reasoning model gives no clear answer', function (array 
         ->ai_categories->toBe(['harmful-text']);
 })->with('unclear answers');
 
-it('skips commits that were moderated in the meantime', function (): void {
+it('skips commits that were moderated in the meantime, and stops checking them', function (): void {
     Http::fake();
 
-    $commit = Commit::factory()->create();
+    $commit = Commit::factory()->create(['ai_decision' => CommitStatus::Pending]);
 
     dispatch_sync(new ModerateCommit($commit));
 
@@ -378,7 +378,7 @@ it('approves queued commits without calling the ai when the author has good repu
 
     $user = User::factory()->create(['created_at' => now()->subHour()->subSecond()]);
     Commit::factory()->for($user)->create();
-    $commit = Commit::factory()->for($user)->pending()->create();
+    $commit = Commit::factory()->for($user)->pending()->create(['ai_decision' => CommitStatus::Pending]);
     followersOf($user, 10);
 
     dispatch_sync(new ModerateCommit($commit));
@@ -393,21 +393,24 @@ it('approves queued commits without calling the ai when the author has good repu
 it('skips commits that were deleted in the meantime', function (): void {
     Http::fake();
 
-    $commit = Commit::factory()->pending()->create();
+    $commit = Commit::factory()->pending()->create(['ai_decision' => CommitStatus::Pending]);
     $commit->delete();
 
     dispatch_sync(new ModerateCommit($commit));
 
     Http::assertNothingSent();
+
+    expect($commit->refresh()->ai_decision)->toBeNull();
 });
 
-it('throws when the ai is unavailable, so the job is retried', function (): void {
+it('throws when the ai is unavailable, so the job is retried while the commit is still being checked', function (): void {
     Http::fake(['api.openai.com/v1/moderations' => Http::response([], 503)]);
 
-    $commit = Commit::factory()->pending()->create();
+    $commit = Commit::factory()->pending()->create(['ai_decision' => CommitStatus::Pending]);
 
-    expect(fn () => dispatch_sync(new ModerateCommit($commit)))->toThrow(RequestException::class)
-        ->and($commit->refresh()->ai_decision)->toBeNull();
+    expect(fn () => app()->call([new ModerateCommit($commit), 'handle']))->toThrow(RequestException::class)
+        ->and($commit->refresh()->ai_decision)->toBe(CommitStatus::Pending)
+        ->and($commit->isBeingChecked())->toBeTrue();
 });
 
 it('holds clean commits when their author has a recent undismissed report', function (int $reportAge, bool $dismissed, bool $deleted, bool $sameAuthor, bool $held): void {
@@ -448,7 +451,7 @@ it('keeps reputable authors with recent reports pending without calling the ai',
     $user = User::factory()->create(['created_at' => now()->subHours(2)]);
     $reported = Commit::factory()->for($user)->create();
     followersOf($user, 10);
-    $commit = Commit::factory()->for($user)->pending()->create();
+    $commit = Commit::factory()->for($user)->pending()->create(['ai_decision' => CommitStatus::Pending]);
     CommitReport::factory()->for($reported)->create();
 
     dispatch_sync(new ModerateCommit($commit));
@@ -477,3 +480,16 @@ it('checks reports submitted while the ai is reviewing a commit', function (): v
         ->ai_decision->toBe(CommitStatus::Approved)
         ->status->toBe(CommitStatus::Pending);
 });
+
+it('stops checking a commit once every attempt has failed, keeping a decision written in the meantime', function (?CommitStatus $decision, ?CommitStatus $kept): void {
+    $commit = Commit::factory()->pending()->create(['ai_decision' => $decision]);
+
+    new ModerateCommit($commit)->failed();
+
+    expect($commit->refresh())
+        ->ai_decision->toBe($kept)
+        ->isBeingChecked()->toBeFalse();
+})->with([
+    'still pending' => [CommitStatus::Pending, null],
+    'decided meanwhile' => [CommitStatus::Rejected, CommitStatus::Rejected],
+]);

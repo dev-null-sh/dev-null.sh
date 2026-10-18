@@ -170,14 +170,13 @@ final class Commit extends Model
     }
 
     /**
-     * A pending commit is being checked until its moderation job leaves an AI decision behind. After that, or once every
-     * attempt has had its chance, it simply waits for a moderator.
+     * A pending commit is being checked while its moderation job holds a pending AI decision. The time bound covers a
+     * job that was lost before it could leave a decision or clear the pending one.
      */
     public function isBeingChecked(): bool
     {
         return $this->status === CommitStatus::Pending
-            && $this->ai_decision === null
-            && filled(config('services.openai.key'))
+            && $this->ai_decision === CommitStatus::Pending
             && $this->created_at->greaterThan(now()->subMinutes(self::CHECKING_MINUTES));
     }
 
