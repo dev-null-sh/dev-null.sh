@@ -295,7 +295,7 @@ function withMentions(
 
         parts.push(
             ...withWordmarks(text.slice(position, match.index), pasteisMode),
-            isStatic || !userId ? (
+            isStatic ? (
                 match[0]
             ) : githubMentions ? (
                 // A GitHub bio's "@name" would be an organization or user, so it links to GitHub, not to a devnull profile.
@@ -309,6 +309,8 @@ function withMentions(
                 >
                     {match[0]}
                 </a>
+            ) : !userId ? (
+                match[0]
             ) : (
                 <UserPreview
                     key={`mention-${offset + match.index}`}

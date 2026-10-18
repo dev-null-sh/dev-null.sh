@@ -440,16 +440,19 @@ for (const link of [
     });
 }
 
-void test('links a mention to its site profile by default and to GitHub for a GitHub bio', () => {
+void test('links a captured mention by identity by default and a GitHub bio mention to GitHub without one', () => {
+    const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
     const text = 'Fan of @withastro';
-    const site = renderToStaticMarkup(<LinkifiedText text={text} />);
+    const site = renderToStaticMarkup(
+        <LinkifiedText text={text} mentions={{ withastro: id }} />,
+    );
     const github = renderToStaticMarkup(
         <LinkifiedText text={text} githubMentions />,
     );
 
-    assert.match(site, /href="\/@withastro"/);
+    assert.ok(site.includes(`href="/mentions/${id}"`));
     assert.ok(!site.includes('github.com'));
-    assert.match(github, /href="https:\/\/github\.com\/withastro"/);
-    assert.match(github, /target="_blank"/);
-    assert.ok(!github.includes('href="/@withastro"'));
+    assert.ok(github.includes('href="https://github.com/withastro"'));
+    assert.ok(github.includes('target="_blank"'));
+    assert.ok(!github.includes('/mentions/'));
 });
