@@ -153,6 +153,14 @@ final class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<Talk, $this>
+     */
+    public function talks(): HasMany
+    {
+        return $this->hasMany(Talk::class);
+    }
+
+    /**
      * Reports keep an author in moderation for seven days, even if the reported commit is deleted.
      */
     public function hasRecentReports(): bool
