@@ -20,6 +20,7 @@ import {
     MessageLinkCard,
     MessageText,
     Repliable,
+    ReplyButton,
     ReplyGhost,
 } from '@/components/chat/message-parts';
 import type { Author } from '@/components/chat/message-parts';
@@ -741,23 +742,20 @@ function BubbleWithMeta({
 
     const isOnPrimary = isMine && status !== 'staged' && status !== 'rejected';
     const side = isMine ? 'mine' : 'theirs';
+    const replyToThis =
+        onReply !== null && bubble.kind === 'message'
+            ? () =>
+                  onReply({
+                      id: bubble.message.id,
+                      user_id: bubble.message.user_id,
+                      body: bubble.message.body,
+                      images_count: images.length,
+                  })
+            : null;
 
     return (
         <>
-            <Repliable
-                isMine={isMine}
-                onReply={
-                    onReply !== null && bubble.kind === 'message'
-                        ? () =>
-                              onReply({
-                                  id: bubble.message.id,
-                                  user_id: bubble.message.user_id,
-                                  body: bubble.message.body,
-                                  images_count: images.length,
-                              })
-                        : null
-                }
-            >
+            <Repliable isMine={isMine} onReply={replyToThis}>
                 <div
                     className={cn(
                         'flex max-w-[85%] min-w-0 flex-col gap-1',
@@ -773,7 +771,17 @@ function BubbleWithMeta({
                             onJump={onJump}
                         />
                     )}
-                    <MessageImages images={images} />
+                    {images.length > 0 && (
+                        <div className="relative max-w-full">
+                            <MessageImages images={images} />
+                            {replyToThis !== null && message.body === '' && (
+                                <ReplyButton
+                                    isMine={isMine}
+                                    onReply={replyToThis}
+                                />
+                            )}
+                        </div>
+                    )}
                     {message.body !== '' && (
                         <div
                             data-message-id={
@@ -799,6 +807,12 @@ function BubbleWithMeta({
                                 message={message}
                                 isMine={isOnPrimary}
                             />
+                            {replyToThis !== null && (
+                                <ReplyButton
+                                    isMine={isMine}
+                                    onReply={replyToThis}
+                                />
+                            )}
                         </div>
                     )}
                     {bubble.kind === 'message' && (

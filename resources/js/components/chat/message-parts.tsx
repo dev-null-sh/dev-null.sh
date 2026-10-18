@@ -155,7 +155,7 @@ export function ReplyGhost({
 }
 
 /**
- * Shows a reply button beside the message on hover or focus, and lets touch users swipe the message right to reply.
+ * Lets touch users swipe a message right to reply, and shows its reply button on hover or focus.
  */
 export function Repliable({
     isMine,
@@ -210,13 +210,10 @@ export function Repliable({
 
     return (
         <div
-            className={cn(
-                'group/message flex w-full touch-pan-y items-center gap-1.5',
-                {
-                    'flex-row-reverse': isMine,
-                    'transition-transform duration-200': offset === 0,
-                },
-            )}
+            className={cn('group/message flex w-full touch-pan-y', {
+                'justify-end': isMine,
+                'transition-transform duration-200': offset === 0,
+            })}
             style={
                 offset > 0
                     ? { transform: `translateX(${offset}px)` }
@@ -228,16 +225,33 @@ export function Repliable({
             onPointerCancel={() => end(false)}
         >
             {children}
-            <button
-                type="button"
-                onClick={onReply}
-                aria-label="Reply"
-                title="Reply"
-                className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground opacity-0 transition-opacity group-hover/message:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 pointer-coarse:hidden"
-                data-test="reply-button"
-            >
-                <Reply aria-hidden className="size-4" />
-            </button>
         </div>
+    );
+}
+
+/**
+ * Sits just outside the end of the bubble it belongs to, vertically centred on it, so it takes no room in the thread.
+ */
+export function ReplyButton({
+    isMine,
+    onReply,
+}: {
+    isMine: boolean;
+    onReply: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onReply}
+            aria-label="Reply"
+            title="Reply"
+            className={cn(
+                'absolute top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-muted-foreground opacity-0 transition-opacity group-hover/message:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 pointer-coarse:hidden',
+                isMine ? 'right-full mr-1.5' : 'left-full ml-1.5',
+            )}
+            data-test="reply-button"
+        >
+            <Reply aria-hidden className="size-4" />
+        </button>
     );
 }
