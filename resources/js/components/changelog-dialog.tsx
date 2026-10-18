@@ -14,34 +14,39 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { Changelog, ChangelogDay } from '@/lib/changelog';
+import type {
+    Changelog,
+    ChangelogDay,
+    ChangelogPullRequest,
+} from '@/lib/changelog';
 import { changelogDayHeading, changelogDays } from '@/lib/changelog';
+import { cn } from '@/lib/utils';
 
 const shownPerDay = 5;
 
 function DaySection({
     day,
     timeZone,
+    isRevealed,
 }: {
     day: ChangelogDay;
     timeZone: string;
+    isRevealed: boolean;
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const firstRevealedLink = useRef<HTMLAnchorElement>(null);
     const heading = changelogDayHeading(day.date, timeZone);
     const shown = day.pullRequests.slice(0, shownPerDay);
     const hidden = day.pullRequests.slice(shownPerDay);
-    const avatars = new Map(
-        day.pullRequests.map((pullRequest) => [
-            pullRequest.author.login,
-            pullRequest.author.avatar,
-        ]),
-    );
-
     return (
         <section
+            data-day={day.date}
             aria-label={`${heading.title}, ${heading.date}`}
-            className="grid gap-4 border-b py-5 last:border-b-0 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-5"
+            className={cn(
+                'grid gap-4 border-b py-5 last:border-b-0 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-5',
+                isRevealed &&
+                    'motion-safe:transition-[opacity,translate] motion-safe:duration-300 motion-safe:ease-out starting:translate-y-1 starting:opacity-0',
+            )}
         >
             <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 sm:sticky sm:top-5 sm:block sm:self-start">
                 <div>
@@ -59,17 +64,17 @@ function DaySection({
                     </span>
                 </p>
                 <ul className="flex w-full flex-wrap gap-1 sm:mt-2.5">
-                    {day.authors.map((login) => (
+                    {day.authors.map((author) => (
                         <li
-                            key={login}
+                            key={author.login}
                             className="flex rounded-full"
                             style={{
-                                boxShadow: `0 0 0 1.5px ${changelogLaneColor(login)}`,
+                                boxShadow: `0 0 0 1.5px ${changelogLaneColor(author)}`,
                             }}
                         >
                             <ChangelogAvatar
-                                login={login}
-                                avatar={avatars.get(login) ?? ''}
+                                login={author.login}
+                                avatar={author.avatar}
                                 size={20}
                             />
                         </li>
@@ -88,7 +93,7 @@ function DaySection({
                             <div className="min-h-0 overflow-hidden">
                                 <ChangelogLane
                                     pullRequests={hidden}
-                                    previousLogin={shown.at(-1)?.author.login}
+                                    previousAuthor={shown.at(-1)?.author}
                                     firstLinkRef={firstRevealedLink}
                                     timeZone={timeZone}
                                 />
@@ -149,18 +154,27 @@ export function ChangelogDialog({
     onOpenChange,
     changelog,
     hasFailed,
+    isLoadingOlder,
+    hasOlderFailed,
+    onLoadOlder,
     timeZone,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     changelog: Changelog | null;
     hasFailed: boolean;
+    isLoadingOlder: boolean;
+    hasOlderFailed: boolean;
+    onLoadOlder: (onLoaded: (added: ChangelogPullRequest[]) => void) => void;
     timeZone: string;
 }) {
+    const [revealedDays, setRevealedDays] = useState<Set<string>>(new Set());
+    const scroller = useRef<HTMLDivElement>(null);
     const pullRequests = changelog?.pullRequests ?? [];
     const contributors = new Set(
         pullRequests.map((pullRequest) => pullRequest.author.login),
     ).size;
+    const days = changelogDays(pullRequests, timeZone);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -172,7 +186,10 @@ export function ChangelogDialog({
                         <span className="font-mono">production</span>.
                     </DialogDescription>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 [overflow-anchor:none]">
+                <div
+                    ref={scroller}
+                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 [overflow-anchor:none]"
+                >
                     {hasFailed ? (
                         <p className="py-10 text-center text-sm text-muted-foreground">
                             GitHub couldn't be reached. Try again in a minute.
@@ -184,13 +201,52 @@ export function ChangelogDialog({
                             Nothing has been merged yet.
                         </p>
                     ) : (
-                        changelogDays(pullRequests, timeZone).map((day) => (
-                            <DaySection
-                                key={day.date}
-                                day={day}
-                                timeZone={timeZone}
-                            />
-                        ))
+                        <>
+                            {days.map((day) => (
+                                <DaySection
+                                    key={day.date}
+                                    day={day}
+                                    timeZone={timeZone}
+                                    isRevealed={revealedDays.has(day.date)}
+                                />
+                            ))}
+                            {changelog.olderBefore !== null && (
+                                <div className="flex justify-center border-t py-5">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={isLoadingOlder}
+                                        className="h-8 min-w-40 text-xs"
+                                        onClick={() =>
+                                            onLoadOlder((added) => {
+                                                const addedDays = changelogDays(
+                                                    added,
+                                                    timeZone,
+                                                ).map((day) => day.date);
+
+                                                setRevealedDays(
+                                                    new Set(addedDays),
+                                                );
+                                                scroller.current
+                                                    ?.querySelector<HTMLAnchorElement>(
+                                                        `[data-day="${addedDays[0]}"] a[href*="/pull/"]`,
+                                                    )
+                                                    ?.focus({
+                                                        preventScroll: true,
+                                                    });
+                                            })
+                                        }
+                                    >
+                                        {isLoadingOlder
+                                            ? 'Loading…'
+                                            : hasOlderFailed
+                                              ? "Couldn't load, try again"
+                                              : 'Show older days'}
+                                    </Button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
                 <div className="flex items-center justify-between gap-4 border-t px-5 py-2.5 text-xs text-muted-foreground">

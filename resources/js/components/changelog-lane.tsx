@@ -1,6 +1,6 @@
 import { ArrowUpRight } from 'lucide-react';
 import type { Ref } from 'react';
-import type { ChangelogPullRequest } from '@/lib/changelog';
+import type { ChangelogAuthor, ChangelogPullRequest } from '@/lib/changelog';
 import { authorLane } from '@/lib/changelog';
 import {
     cn,
@@ -9,8 +9,8 @@ import {
     laneColor,
 } from '@/lib/utils';
 
-export function changelogLaneColor(login: string): string {
-    return laneColor(authorLane(login));
+export function changelogLaneColor(author: ChangelogAuthor): string {
+    return laneColor(authorLane(author));
 }
 
 function avatarUrl(avatar: string, size: number): string {
@@ -76,19 +76,19 @@ function PullRequestLink({
 
 /**
  * The merges on one lane, each dot and segment in the color of whoever merged it. A lane can carry on from the merge
- * before it (previousLogin) and into what comes after it (continues), so a split list still reads as one line.
+ * before it (previousAuthor) and into what comes after it (continues), so a split list still reads as one line.
  */
 export function ChangelogLane({
     pullRequests,
     isCompact = false,
-    previousLogin,
+    previousAuthor,
     continues = false,
     firstLinkRef,
     timeZone,
 }: {
     pullRequests: ChangelogPullRequest[];
     isCompact?: boolean;
-    previousLogin?: string;
+    previousAuthor?: ChangelogAuthor;
     continues?: boolean;
     firstLinkRef?: Ref<HTMLAnchorElement>;
     timeZone?: string;
@@ -96,11 +96,11 @@ export function ChangelogLane({
     return (
         <ol>
             {pullRequests.map((pullRequest, index) => {
-                const color = changelogLaneColor(pullRequest.author.login);
+                const color = changelogLaneColor(pullRequest.author);
                 const before =
                     index === 0
-                        ? previousLogin
-                        : pullRequests[index - 1].author.login;
+                        ? previousAuthor
+                        : pullRequests[index - 1].author;
                 const hasTail = continues || index < pullRequests.length - 1;
 
                 return (

@@ -21,7 +21,11 @@ function pullRequest(
         sha: 'c897f86700000000000000000000000000000000',
         commit_url: 'https://github.com/nunomaduro/dev-null.sh/commit/c897f86700000000000000000000000000000000',
         merged_at: mergedAt,
-        author: { login, avatar: `https://avatars.githubusercontent.com/u/${number}` },
+        author: {
+            login,
+            avatar: `https://avatars.githubusercontent.com/u/${number}`,
+            lane: null,
+        },
     };
 }
 
@@ -40,7 +44,7 @@ void test('groups merges by the reader’s calendar day, newest first, with who 
         days.map((day) => ({
             date: day.date,
             numbers: day.pullRequests.map((pullRequest) => pullRequest.number),
-            authors: day.authors,
+            authors: day.authors.map((author) => author.login),
         })),
         [
             { date: '2026-10-18', numbers: [377, 310, 376], authors: ['xHeaven', 'simonhamp'] },
@@ -56,13 +60,22 @@ void test('puts a merge on the day it was in the reader’s time zone', () => {
     assert.equal(changelogDays(merges, 'America/Los_Angeles')[0].date, '2026-10-17');
 });
 
-void test('gives each author the same lane every time', () => {
-    const lane = authorLane('xHeaven');
+void test('keeps the lane an author chose on /dev/null', () => {
+    assert.equal(authorLane({ login: 'xHeaven', lane: 4 }), 4);
+    assert.equal(authorLane({ login: 'xHeaven', lane: '#ff2d20' }), '#ff2d20');
+});
 
-    assert.equal(authorLane('xHeaven'), lane);
-    assert.ok(Number.isInteger(lane) && lane >= 0 && lane < 6);
+void test('gives an author who isn’t on /dev/null the same lane every time', () => {
+    const lane = authorLane({ login: 'xHeaven', lane: null });
+
+    assert.equal(authorLane({ login: 'xHeaven', lane: null }), lane);
+    assert.ok(typeof lane === 'number' && Number.isInteger(lane) && lane >= 0 && lane < 6);
     assert.notEqual(
-        new Set(['xHeaven', 'simonhamp', 'ahosker', 'MrPunyapal', 'camilleislasse', 'robelsust'].map(authorLane)).size,
+        new Set(
+            ['xHeaven', 'simonhamp', 'ahosker', 'MrPunyapal', 'camilleislasse', 'robelsust'].map((login) =>
+                authorLane({ login, lane: null }),
+            ),
+        ).size,
         1,
     );
 });

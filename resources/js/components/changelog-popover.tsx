@@ -34,12 +34,6 @@ function Summary({
     }
 
     const heading = changelogDayHeading(day.date, timeZone);
-    const avatars = new Map(
-        day.pullRequests.map((pullRequest) => [
-            pullRequest.author.login,
-            pullRequest.author.avatar,
-        ]),
-    );
     const latest = (changelog.pullRequests ?? []).slice(0, latestCount);
 
     return (
@@ -59,18 +53,18 @@ function Summary({
                     </p>
                 </div>
                 <ul className="flex pb-0.5">
-                    {day.authors.slice(0, 6).map((login, index) => (
+                    {day.authors.slice(0, 6).map((author, index) => (
                         <li
-                            key={login}
+                            key={author.login}
                             className="-ml-1.5 flex rounded-full first:ml-0"
                             style={{
                                 zIndex: 6 - index,
-                                boxShadow: `0 0 0 2px var(--popover), 0 0 0 3.5px ${changelogLaneColor(login)}`,
+                                boxShadow: `0 0 0 2px var(--popover), 0 0 0 3.5px ${changelogLaneColor(author)}`,
                             }}
                         >
                             <ChangelogAvatar
-                                login={login}
-                                avatar={avatars.get(login) ?? ''}
+                                login={author.login}
+                                avatar={author.avatar}
                                 size={18}
                             />
                         </li>
@@ -109,7 +103,14 @@ function SummarySkeleton() {
 export function ChangelogPopover() {
     const { auth } = usePage().props;
     const timeZone = auth.user?.timezone ?? browserTimeZone();
-    const { changelog, hasFailed, load } = useChangelog();
+    const {
+        changelog,
+        hasFailed,
+        isLoadingOlder,
+        hasOlderFailed,
+        load,
+        loadOlder,
+    } = useChangelog(timeZone);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     return (
@@ -180,6 +181,9 @@ export function ChangelogPopover() {
                 onOpenChange={setIsDialogOpen}
                 changelog={changelog}
                 hasFailed={hasFailed}
+                isLoadingOlder={isLoadingOlder}
+                hasOlderFailed={hasOlderFailed}
+                onLoadOlder={loadOlder}
                 timeZone={timeZone}
             />
         </>

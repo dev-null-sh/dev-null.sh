@@ -7,18 +7,28 @@ export type ChangelogPullRequest = {
     sha: string;
     commit_url: string;
     merged_at: string;
-    author: { login: string; avatar: string };
+    author: ChangelogAuthor;
+};
+
+/**
+ * Someone who merged a pull request. The lane is the one they chose on /dev/null, or null when they aren't on it.
+ */
+export type ChangelogAuthor = {
+    login: string;
+    avatar: string;
+    lane: number | string | null;
 };
 
 export type Changelog = {
     pullRequests: ChangelogPullRequest[] | null;
+    olderBefore: string | null;
     commitsUrl: string;
 };
 
 export type ChangelogDay = {
     date: string;
     pullRequests: ChangelogPullRequest[];
-    authors: string[];
+    authors: ChangelogAuthor[];
 };
 
 const laneCount = 6;
@@ -46,8 +56,12 @@ export function changelogDays(
 
         day.pullRequests.push(pullRequest);
 
-        if (!day.authors.includes(pullRequest.author.login)) {
-            day.authors.push(pullRequest.author.login);
+        if (
+            !day.authors.some(
+                (author) => author.login === pullRequest.author.login,
+            )
+        ) {
+            day.authors.push(pullRequest.author);
         }
     }
 
@@ -55,12 +69,18 @@ export function changelogDays(
 }
 
 /**
- * Authors of pull requests may not be on /dev/null, so their lane comes from their GitHub login instead of a profile.
+ * The lane an author chose on /dev/null, or, for someone who isn't on it, one that always follows from their login.
  */
-export function authorLane(login: string): number {
+export function authorLane(
+    author: Pick<ChangelogAuthor, 'login' | 'lane'>,
+): number | string {
+    if (author.lane !== null) {
+        return author.lane;
+    }
+
     let hash = 0;
 
-    for (const character of login.toLowerCase()) {
+    for (const character of author.login.toLowerCase()) {
         hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
     }
 
