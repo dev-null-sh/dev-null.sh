@@ -30,17 +30,24 @@ function isHintDismissed(): boolean {
 export function useIssueCommand({
     body,
     updateBody,
+    kind,
+    setKind,
+    isOpening,
+    setIsOpening,
     enabled,
     hasSecrets,
     onCreated,
 }: {
     body: string;
     updateBody: (body: string) => void;
+    kind: IssueKind | null;
+    setKind: (kind: IssueKind | null) => void;
+    isOpening: boolean;
+    setIsOpening: (isOpening: boolean) => void;
     enabled: boolean;
     hasSecrets: boolean;
     onCreated: () => void;
 }) {
-    const [kind, setKind] = useState<IssueKind | null>(null);
     const [selected, setSelected] = useState(0);
     const [dismissed, setDismissed] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(isHintDismissed);
@@ -73,7 +80,7 @@ export function useIssueCommand({
     };
 
     const submit = async () => {
-        if (command === null || request.processing) {
+        if (command === null || request.processing || isOpening) {
             return;
         }
 
@@ -85,6 +92,7 @@ export function useIssueCommand({
         }
 
         request.transform(() => ({ command: command.name, body }));
+        setIsOpening(true);
 
         try {
             const issue = await request.submit(store(), {
@@ -118,6 +126,8 @@ export function useIssueCommand({
             });
         } catch {
             // The callbacks explain the failure; the draft stays an issue for a retry.
+        } finally {
+            setIsOpening(false);
         }
     };
 
@@ -199,7 +209,7 @@ export function useIssueCommand({
             }
         },
         selected: selected % Math.max(suggestions.length, 1),
-        processing: request.processing,
+        processing: request.processing || isOpening,
         change,
         start,
         exit: () => setKind(null),

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
-import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
@@ -36,7 +35,6 @@ export default function Show({
         props: { auth },
     } = usePage();
     const user = auth.user;
-    const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
     const newestId = isRanked ? undefined : commits.data[0]?.id;
     const tabsRef = useRef<HTMLDivElement>(null);
@@ -133,7 +131,7 @@ export default function Show({
 
             {user !== null && (
                 <div ref={composerRef}>
-                    <CommitComposer key={commitDialogClosedCount} />
+                    <CommitComposer />
                 </div>
             )}
 

@@ -5,11 +5,8 @@ import {
     DialogDescription,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { useSharedState } from '@/hooks/use-shared-state';
 
 const bodyId = 'commit-dialog-body';
-
-const closedCountKey = 'commit-dialog:closed_count';
 
 /**
  * Focuses the composer at the top of the log when it is on screen, rather than opening the dialog over it.
@@ -33,16 +30,6 @@ export function focusVisibleComposer(): boolean {
     return true;
 }
 
-/**
- * The dialog writes to the same stash as the composer on the log, so that composer remounts with this as its key to
- * show the draft as the dialog left it.
- */
-export function useCommitDialogClosedCount(): number {
-    const [closedCount] = useSharedState<number>(closedCountKey, 0);
-
-    return closedCount;
-}
-
 export function CommitComposerDialog({
     open,
     onOpenChange,
@@ -50,18 +37,8 @@ export function CommitComposerDialog({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
-    const [, setClosedCount] = useSharedState<number>(closedCountKey, 0);
-
-    const close = () => {
-        onOpenChange(false);
-        setClosedCount((count) => count + 1);
-    };
-
     return (
-        <Dialog
-            open={open}
-            onOpenChange={(isOpen) => (isOpen ? onOpenChange(true) : close())}
-        >
+        <Dialog open={open} onOpenChange={onOpenChange}>
             {open && (
                 <DialogContent
                     onOpenAutoFocus={(event) => {
@@ -99,7 +76,7 @@ export function CommitComposerDialog({
                     <CommitComposer
                         id={bodyId}
                         isInDialog
-                        onCommitted={close}
+                        onCommitted={() => onOpenChange(false)}
                     />
                 </DialogContent>
             )}

@@ -12,13 +12,15 @@ const draft = {
     images: [] as File[],
     descriptions: [] as string[],
     isRestored: true,
+    dropCount: 0,
     updateBody: vi.fn(),
     updateImages: vi.fn((images: File[], descriptions: string[]) => {
         draft.images = images;
         draft.descriptions = descriptions;
     }),
-    drop: vi.fn(),
+    drop: vi.fn(() => parts.clear()),
 };
+const parts = new Map<string, unknown>();
 const user = { id: 'viewer', username: 'viewer', lane: 1 };
 const http = {
     processing: false,
@@ -62,11 +64,27 @@ vi.doMock('@inertiajs/react', async () => ({
 vi.doMock('../../resources/js/hooks/use-user', () => ({
     useUser: () => ({ user }),
 }));
-vi.doMock('../../resources/js/hooks/use-stash', () => ({
-    useStash: () => draft,
-    moveCaretToEnd: vi.fn(),
-    discardSeriesStash: vi.fn(),
-}));
+vi.doMock('../../resources/js/hooks/use-stash', () => {
+    const noParts: Record<string, unknown> = {
+        poll: null,
+        issueKind: null,
+        isScheduling: false,
+        scheduledAt: '',
+        timezone: '',
+        linkCard: undefined,
+        isOpeningIssue: false,
+    };
+
+    return {
+        useStash: () => draft,
+        useDraftPart: (_userId: string, _name: string, part: string) => [
+            parts.has(part) ? parts.get(part) : noParts[part],
+            (value: unknown) => parts.set(part, value),
+        ],
+        moveCaretToEnd: vi.fn(),
+        discardSeriesStash: vi.fn(),
+    };
+});
 
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
@@ -119,6 +137,7 @@ beforeEach(() => {
     draft.body = 'A restored draft https://example.com';
     draft.images = [];
     draft.descriptions = [];
+    parts.clear();
 });
 
 test('preserves restored images and link cards and allows scheduling them', () => {
@@ -506,6 +525,16 @@ test('picking a suggestion with Enter starts an empty issue, and the shortcut op
         command: '/bug',
         body: 'Search loses its filters',
     });
+
+    state = [];
+    const otherComposer = render();
+    keyDown(otherComposer, 'Enter', { metaKey: true });
+    assert.equal(http.submit.mock.calls.length, 1);
+    assert.equal(
+        otherComposer.fields.find((element) => element.type === 'fieldset')
+            ?.props.disabled,
+        true,
+    );
 });
 
 test('a draft that mentions a bug suggests /bug, keeps the text when used, and can be dismissed', () => {
@@ -534,6 +563,7 @@ test('a draft that mentions a bug suggests /bug, keeps the text when used, and c
     );
 
     state = [];
+    parts.clear();
     hint = render().fields.find(
         (element) => element.type === IssueCommandHint,
     )!;

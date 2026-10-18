@@ -25,10 +25,17 @@ const storedImages = new Map<
 
 let state: unknown[] = [];
 let cursor = 0;
+let cleanups: (() => void)[] = [];
 
 vi.doMock('react', () => ({
     ...React,
-    useEffect: (effect: () => void) => effect(),
+    useEffect: (effect: () => (() => void) | void) => {
+        const cleanup = effect();
+
+        if (cleanup) {
+            cleanups.push(cleanup);
+        }
+    },
     useState: (initial: unknown) => {
         const index = cursor++;
 
@@ -85,7 +92,7 @@ vi.doMock('../../resources/js/lib/image-storage', () => ({
     },
 }));
 
-const { clearStashes, useHasStash, useStash } =
+const { clearStashes, useDraftPart, useHasStash, useStash } =
     await import('../../resources/js/hooks/use-stash');
 
 test('restores draft images, preserves them through body edits, and drops the complete draft', async () => {
@@ -327,4 +334,189 @@ test('drafts release image URLs on replacement, drop and logout while keeping re
             hooks.clearStashes('url-owner');
             revoke.mockRestore();
         }
+});
+
+test('the log composer and the dialog share one live draft, so closing the dialog needs no remount', () => {
+    const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
+    const key = 'stash:author:shared';
+    const composer = () => {
+        let own: unknown[] = [];
+
+        return () => {
+            state = own;
+            cursor = 0;
+            const draft = useStash('author', 'shared');
+            own = state;
+
+            return draft;
+        };
+    };
+    const log = composer();
+    const dialog = composer();
+    vi.stubGlobal('window', { addEventListener() {} });
+
+    try {
+        log().updateBody(token);
+        assert.equal(dialog().body, token);
+        assert.equal(bodies.has(key), false);
+
+        dialog().updateBody('Typed in the dialog');
+        assert.equal(log().body, 'Typed in the dialog');
+
+        assert.equal(log().dropCount, 0);
+        dialog().drop();
+        assert.equal(log().body, '');
+        assert.equal(log().dropCount, 1);
+
+        clearStashes('author');
+        assert.equal(log().body, '');
+        assert.equal(dialog().body, '');
+    } finally {
+        clearStashes('author');
+        vi.unstubAllGlobals();
+    }
+});
+
+test('a draft is read from storage again once no composer shows it, so another tab can change it', () => {
+    const key = 'stash:author:tabs';
+    bodies.set(key, 'Written here');
+    state = [];
+    cleanups = [];
+    cursor = 0;
+
+    try {
+        assert.equal(useStash('author', 'tabs').body, 'Written here');
+        cleanups.forEach((cleanup) => cleanup());
+        bodies.set(key, 'Changed in another tab');
+
+        state = [];
+        cursor = 0;
+        assert.equal(useStash('author', 'tabs').body, 'Changed in another tab');
+    } finally {
+        clearStashes('author');
+    }
+});
+
+test('the log composer and the dialog share the rest of the draft, and a drop resets it for both', () => {
+    const poll = { options: ['Tabs', 'Spaces'], duration: 60 };
+    state = [];
+    cursor = 0;
+    vi.stubGlobal('window', { addEventListener() {} });
+
+    try {
+        useStash('author', 'commit');
+        useDraftPart('author', 'commit', 'poll')[1](poll);
+        useDraftPart('author', 'commit', 'issueKind')[1]('bug');
+        useDraftPart('author', 'commit', 'isScheduling')[1](true);
+        useDraftPart('author', 'commit', 'linkCard')[1](null);
+
+        assert.deepEqual(useDraftPart('author', 'commit', 'poll')[0], poll);
+        assert.equal(useDraftPart('author', 'commit', 'issueKind')[0], 'bug');
+        assert.equal(useDraftPart('author', 'commit', 'isScheduling')[0], true);
+        assert.equal(useDraftPart('author', 'commit', 'linkCard')[0], null);
+        assert.equal(useDraftPart('another', 'commit', 'poll')[0], null);
+
+        useStash('author', 'commit').drop();
+
+        assert.equal(useDraftPart('author', 'commit', 'poll')[0], null);
+        assert.equal(useDraftPart('author', 'commit', 'issueKind')[0], null);
+        assert.equal(useDraftPart('author', 'commit', 'isScheduling')[0], false);
+        assert.equal(useDraftPart('author', 'commit', 'linkCard')[0], undefined);
+
+        useDraftPart('author', 'commit', 'poll')[1](poll);
+        clearStashes('author');
+        assert.equal(useDraftPart('author', 'commit', 'poll')[0], null);
+    } finally {
+        clearStashes('author');
+        vi.unstubAllGlobals();
+    }
+});
+
+test('the log composer and the dialog agree on whether the draft is restored', () => {
+    const key = 'stash:author:restored';
+    const composer = () => {
+        let own: unknown[] = [];
+
+        return () => {
+            state = own;
+            cursor = 0;
+            const draft = useStash('author', 'restored');
+            own = state;
+
+            return draft;
+        };
+    };
+    const log = composer();
+    const dialog = composer();
+    bodies.set(key, 'Saved before reload');
+    vi.stubGlobal('window', { addEventListener() {} });
+
+    try {
+        assert.equal(log().isRestored, true);
+        assert.equal(dialog().isRestored, true);
+
+        dialog().updateBody('');
+        assert.equal(log().isRestored, false);
+
+        log().updateBody('Typed after the page loaded');
+        assert.equal(log().isRestored, false);
+        assert.equal(dialog().isRestored, false);
+    } finally {
+        clearStashes('author');
+        vi.unstubAllGlobals();
+    }
+});
+
+test('a composer that finishes after it unmounts leaves nothing in memory, so storage is read again', () => {
+    const key = 'stash:author:late';
+    bodies.set(key, 'Written here');
+    state = [];
+    cleanups = [];
+    cursor = 0;
+    vi.stubGlobal('window', { addEventListener() {} });
+
+    try {
+        const draft = useStash('author', 'late');
+        const [, setKind] = useDraftPart('author', 'late', 'issueKind');
+        cleanups.forEach((cleanup) => cleanup());
+
+        setKind('bug');
+        draft.drop();
+        bodies.set(key, 'Changed in another tab');
+
+        state = [];
+        cursor = 0;
+        const remounted = useStash('author', 'late');
+        assert.equal(remounted.body, 'Changed in another tab');
+        assert.equal(remounted.dropCount, 0);
+        assert.equal(useDraftPart('author', 'late', 'issueKind')[0], null);
+    } finally {
+        clearStashes('author');
+        vi.unstubAllGlobals();
+    }
+});
+
+test('a stored draft with a secret stays in the editor while it leaves storage', () => {
+    const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
+    const key = 'stash:author:stored-secret';
+    bodies.set(key, token);
+    state = [];
+    cleanups = [];
+    cursor = 0;
+    vi.stubGlobal('window', { addEventListener() {} });
+
+    try {
+        useStash('author', 'stored-secret');
+        assert.equal(bodies.has(key), false);
+
+        state = [];
+        cursor = 0;
+        const draft = useStash('author', 'stored-secret');
+        assert.equal(draft.body, token);
+        assert.equal(draft.isRestored, true);
+    } finally {
+        cleanups.forEach((cleanup) => cleanup());
+        clearStashes('author');
+        vi.unstubAllGlobals();
+    }
 });

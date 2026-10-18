@@ -11,10 +11,17 @@ export type UseLinkCardReturn = {
 
 /**
  * Keeps which link of a commit being written gets the link card: the first one, unless the author chose another
- * link that is still in the body, or no card at all.
+ * link that is still in the body, or no card at all. A composer that shares its draft passes the shared choice.
  */
-export function useLinkCard(body: string): UseLinkCardReturn {
-    const [choice, setChoice] = useState<string | null>();
+export function useLinkCard(
+    body: string,
+    shared?: [
+        string | null | undefined,
+        (choice: string | null | undefined) => void,
+    ],
+): UseLinkCardReturn {
+    const local = useState<string | null>();
+    const [choice, setChoice] = shared ?? local;
     const links = typedLinks(body);
     const chosen =
         choice === null || (choice !== undefined && links.includes(choice))

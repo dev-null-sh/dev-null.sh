@@ -1,16 +1,18 @@
 import type { FocusEvent } from 'react';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import {
     maxImages,
     pickImages,
     revokeObjectUrls,
 } from '@/components/commit-image-picker';
+import type { PollDraft } from '@/components/poll-editor';
 import type { StoredImages } from '@/lib/image-storage';
 import {
     deleteStoredImages,
     readStoredImages,
     writeStoredImages,
 } from '@/lib/image-storage';
+import type { IssueKind } from '@/lib/issue-commands';
 import { stashableBody } from '@/lib/sensitive-text';
 import { readStorage, storedKeys, writeStorage } from '@/lib/storage';
 
@@ -19,13 +21,47 @@ export type UseStashReturn = {
     readonly images: File[];
     readonly descriptions: string[];
     readonly isRestored: boolean;
+    readonly dropCount: number;
     readonly updateBody: (body: string) => void;
     readonly updateImages: (images: File[], descriptions?: string[]) => void;
     readonly drop: () => void;
 };
 
+/**
+ * The rest of a commit draft, besides its body and images. It is never stored, so it is lost on reload.
+ */
+export type DraftParts = {
+    poll: PollDraft | null;
+    issueKind: IssueKind | null;
+    isScheduling: boolean;
+    scheduledAt: string;
+    timezone: string;
+    linkCard: string | null | undefined;
+    isOpeningIssue: boolean;
+};
+
+const noParts: DraftParts = {
+    poll: null,
+    issueKind: null,
+    isScheduling: false,
+    scheduledAt: '',
+    timezone: '',
+    linkCard: undefined,
+    isOpeningIssue: false,
+};
+
 const listeners = new Set<() => void>();
 const pending = new Map<string, string>();
+/**
+ * Every composer on a key edits the same draft, so the log composer shows what the dialog typed without remounting.
+ * A body with a secret lives only here, never in storage. Once no composer shows the key, it is read from storage
+ * again, so a draft changed in another tab is not overwritten.
+ */
+const drafts = new Map<string, string>();
+const restored = new Map<string, boolean>();
+const parts = new Map<string, Partial<DraftParts>>();
+const drops = new Map<string, number>();
+const composers = new Map<string, number>();
 const images = new Map<string, StoredImages>();
 const restoredImageKeys = new Set<string>();
 const noImages: StoredImages = { images: [], descriptions: [] };
@@ -41,7 +77,33 @@ const keyFor = (userId: string, name: string): string =>
 const read = (key: string): string =>
     pending.has(key) ? (pending.get(key) ?? '') : readStorage(key);
 
+const draftFor = (key: string): string =>
+    drafts.has(key) ? (drafts.get(key) ?? '') : read(key);
+
 const imagesFor = (key: string): StoredImages => images.get(key) ?? noImages;
+
+/**
+ * A draft found when the first composer on the key mounts is restored. The first edit fixes that answer, so text
+ * typed after mount never counts as restored once it is flushed to storage.
+ */
+const isRestoredDraft = (key: string): boolean =>
+    restored.get(key) ?? (read(key) !== '' || imagesFor(key).images.length > 0);
+
+const fixRestored = (key: string, next?: boolean): void => {
+    if (composers.has(key)) {
+        restored.set(key, next ?? isRestoredDraft(key));
+    }
+};
+
+const writeDraft = (key: string, next: string): void => {
+    if (!composers.has(key)) {
+        return;
+    }
+
+    fixRestored(key);
+    drafts.set(key, next);
+    notify();
+};
 
 const useDraftImages = (key: string) => {
     const draftImages = useSyncExternalStore(
@@ -169,10 +231,21 @@ export function discardSeriesStash(userId: string): void {
 export function clearStashes(userId: string): void {
     const prefix = prefixFor(userId);
 
-    [...pending.keys(), ...storedKeys()]
+    [
+        ...pending.keys(),
+        ...storedKeys(),
+        ...drafts.keys(),
+        ...restored.keys(),
+        ...parts.keys(),
+        ...drops.keys(),
+    ]
         .filter((key) => key.startsWith(prefix))
         .forEach((key) => {
             pending.delete(key);
+            drafts.delete(key);
+            restored.delete(key);
+            parts.delete(key);
+            drops.delete(key);
             writeStorage(key, '');
         });
 
@@ -203,16 +276,82 @@ export function useHasStash(userId: string | null, name: string): boolean {
     );
 }
 
+/**
+ * Every composer on the key shares the part, and dropping the draft resets it.
+ */
+export function useDraftPart<P extends keyof DraftParts>(
+    userId: string,
+    name: string,
+    part: P,
+): [DraftParts[P], (next: DraftParts[P]) => void] {
+    const key = keyFor(userId, name);
+    const value = useSyncExternalStore(
+        subscribe,
+        () => {
+            const current = parts.get(key);
+
+            return current !== undefined && part in current
+                ? (current[part] as DraftParts[P])
+                : noParts[part];
+        },
+        () => noParts[part],
+    );
+
+    const setValue = (next: DraftParts[P]): void => {
+        if (!composers.has(key)) {
+            return;
+        }
+
+        parts.set(key, { ...parts.get(key), [part]: next });
+        notify();
+    };
+
+    return [value, setValue];
+}
+
 export function useStash(userId: string, name: string): UseStashReturn {
     const key = keyFor(userId, name);
-    const [body, setBody] = useState(() => read(key));
-    const { draftImages, descriptions, isImagesRestored } = useDraftImages(key);
-    const [isDraftRestored, setIsDraftRestored] = useState(
-        () => body !== '' || draftImages.length > 0,
+    const body = useSyncExternalStore(
+        subscribe,
+        () => draftFor(key),
+        () => read(key),
     );
+    const setBody = (next: string): void => writeDraft(key, next);
+    const dropCount = useSyncExternalStore(
+        subscribe,
+        () => drops.get(key) ?? 0,
+        () => 0,
+    );
+    const isDraftRestored = useSyncExternalStore(
+        subscribe,
+        () => isRestoredDraft(key),
+        () => false,
+    );
+    const { draftImages, descriptions, isImagesRestored } = useDraftImages(key);
+
+    useEffect(() => {
+        composers.set(key, (composers.get(key) ?? 0) + 1);
+
+        return () => {
+            const left = (composers.get(key) ?? 1) - 1;
+
+            if (left > 0) {
+                composers.set(key, left);
+
+                return;
+            }
+
+            composers.delete(key);
+            drafts.delete(key);
+            restored.delete(key);
+            parts.delete(key);
+            drops.delete(key);
+        };
+    }, [key]);
 
     useEffect(() => {
         if (body !== '' && stashableBody(body) === '') {
+            writeDraft(key, body);
             discardBody(key);
         }
     }, [body, key]);
@@ -222,7 +361,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
 
         if (next === '') {
             if (draftImages.length === 0) {
-                setIsDraftRestored(false);
+                fixRestored(key, false);
             }
 
             discardBody(key);
@@ -238,16 +377,18 @@ export function useStash(userId: string, name: string): UseStashReturn {
     };
 
     const updateImages = (next: File[], descriptions: string[] = []): void => {
-        if (next.length === 0 && body === '') {
-            setIsDraftRestored(false);
-        }
-
+        fixRestored(key, next.length === 0 && body === '' ? false : undefined);
         storeImages(key, next, descriptions);
     };
 
     const drop = (): void => {
-        setBody('');
-        setIsDraftRestored(false);
+        if (composers.has(key)) {
+            drops.set(key, (drops.get(key) ?? 0) + 1);
+            parts.delete(key);
+            setBody('');
+            restored.set(key, false);
+        }
+
         discardBody(key);
         storeImages(key, []);
     };
@@ -259,6 +400,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
         isRestored:
             (isDraftRestored || isImagesRestored) &&
             (body !== '' || draftImages.length > 0),
+        dropCount,
         updateBody,
         updateImages,
         drop,

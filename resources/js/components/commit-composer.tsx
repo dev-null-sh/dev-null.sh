@@ -1,7 +1,7 @@
 import { Form, Link, usePage } from '@inertiajs/react';
 import { ChartBar, Clock3 } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
@@ -46,6 +46,7 @@ import type { UseStashReturn } from '@/hooks/use-stash';
 import {
     discardSeriesStash,
     moveCaretToEnd,
+    useDraftPart,
     useStash,
 } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -63,10 +64,18 @@ function focusBody(id: string): void {
     requestAnimationFrame(() => document.getElementById(id)?.focus());
 }
 
-function useCommitSchedule() {
-    const [isScheduling, setIsScheduling] = useState(false);
-    const [scheduledAt, setScheduledAt] = useState('');
-    const [timezone, setTimezone] = useState('');
+function useCommitSchedule(userId: string) {
+    const [isScheduling, setIsScheduling] = useDraftPart(
+        userId,
+        'commit',
+        'isScheduling',
+    );
+    const [scheduledAt, setScheduledAt] = useDraftPart(
+        userId,
+        'commit',
+        'scheduledAt',
+    );
+    const [timezone, setTimezone] = useDraftPart(userId, 'commit', 'timezone');
 
     return {
         isScheduling,
@@ -479,25 +488,21 @@ export function CommitComposer({
     isInDialog?: boolean;
     onCommitted?: () => void;
 }) {
-    const schedule = useCommitSchedule();
-    const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
-        schedule;
     const { user } = useUser();
+    const schedule = useCommitSchedule(user.id);
+    const { isScheduling, scheduledAt } = schedule;
     const stash = useStash(user.id, 'commit');
     const { body } = stash;
-    const linkCard = useLinkCard(body);
-    const [draftVersion, setDraftVersion] = useState(0);
-    const drop = () => {
-        stash.drop();
-        linkCard.reset();
-        setDraftVersion((version) => version + 1);
-    };
+    const linkCard = useLinkCard(
+        body,
+        useDraftPart(user.id, 'commit', 'linkCard'),
+    );
     const attachments = useImageAttachments(
         stash.images,
         stash.descriptions,
         stash.updateImages,
     );
-    const [poll, setPoll] = useState<PollDraft | null>(null);
+    const [poll, setPoll] = useDraftPart(user.id, 'commit', 'poll');
     const secrets = useSecretWarning(body);
 
     const hasImages = attachments.images.length > 0;
@@ -511,13 +516,27 @@ export function CommitComposer({
         (!isScheduling ||
             (scheduledAt !== '' && isExistingLocalTime(scheduledAt)));
 
+    const [issueKind, setIssueKind] = useDraftPart(
+        user.id,
+        'commit',
+        'issueKind',
+    );
+    const [isOpeningIssue, setIsOpeningIssue] = useDraftPart(
+        user.id,
+        'commit',
+        'isOpeningIssue',
+    );
     const issue = useIssueCommand({
         body,
         updateBody: stash.updateBody,
+        kind: issueKind,
+        setKind: setIssueKind,
+        isOpening: isOpeningIssue,
+        setIsOpening: setIsOpeningIssue,
         enabled: !hasImages && poll === null && !isScheduling,
         hasSecrets: secrets.findings.length > 0,
         onCreated: () => {
-            drop();
+            stash.drop();
             focusBody(id);
         },
     });
@@ -559,11 +578,8 @@ export function CommitComposer({
                     return;
                 }
 
-                drop();
-                setScheduledAt('');
-                setIsScheduling(false);
+                stash.drop();
                 attachments.clear();
-                setPoll(null);
 
                 if (onCommitted) {
                     onCommitted();
@@ -576,7 +592,7 @@ export function CommitComposer({
             {({ processing, errors }) => (
                 <fieldset disabled={issue.processing} className="contents">
                     <CommitComposerBody
-                        key={draftVersion}
+                        key={stash.dropCount}
                         id={id}
                         isInDialog={isInDialog}
                         user={user}
@@ -592,7 +608,7 @@ export function CommitComposer({
                         issue={issue}
                         errors={errors}
                         onKeyDown={onKeyDown}
-                        drop={drop}
+                        drop={stash.drop}
                     />
                 </fieldset>
             )}
