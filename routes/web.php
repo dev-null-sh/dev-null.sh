@@ -35,6 +35,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\InboxController;
+use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
@@ -101,6 +102,9 @@ Route::middleware('guest')->group(function (): void {
         ->middleware('throttle:10,1')
         ->name('login.store');
 });
+
+// Locally, with auto login enabled, sign in as any developer to try things from both sides...
+Route::get('local/@{user:username}', [LocalSessionController::class, 'store'])->name('local-session.store');
 
 // Log, where guests read Trending and Latest...
 Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
