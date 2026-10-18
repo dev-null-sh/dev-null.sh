@@ -20,6 +20,11 @@ const draft = {
     drop: vi.fn(),
 };
 const user = { id: 'viewer', username: 'viewer', lane: 1 };
+const http = {
+    processing: false,
+    transform: vi.fn(),
+    submit: vi.fn(() => new Promise(() => {})),
+};
 
 vi.doMock('react', () => ({
     ...React,
@@ -52,7 +57,7 @@ vi.doMock('react', () => ({
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
     usePage: () => ({ props: { auth: { user, isAdmin: false } } }),
-    useHttp: () => ({ processing: false, transform: vi.fn(), submit: vi.fn() }),
+    useHttp: () => http,
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
     useUser: () => ({ user }),
@@ -65,6 +70,8 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
 
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
+const { IssueCommandBadge, IssueCommandHint, IssueCommandSuggestions } =
+    await import('../../resources/js/components/issue-command');
 const { ImageDropOverlay, ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
 const { ComposerPreviewBody, PreviewToggle } =
@@ -408,6 +415,162 @@ test('previews restored images and descriptions while keeping them attached when
     });
 });
 
+function keyDown(
+    view: ReturnType<typeof render>,
+    key: string,
+    modifiers: { metaKey?: boolean } = {},
+) {
+    const event = {
+        key,
+        metaKey: false,
+        ctrlKey: false,
+        shiftKey: false,
+        ...modifiers,
+        nativeEvent: { isComposing: false },
+        currentTarget: { selectionStart: 0, selectionEnd: 0 },
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+    };
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props.onKeyDown as (event: unknown) => void)(event);
+    return event;
+}
+
+test('typing a command and a space turns the draft into an issue, and backspace turns it back into a commit', () => {
+    draft.body = '/bu';
+    let view = render();
+    const suggestions = view.fields.find(
+        (element) => element.type === IssueCommandSuggestions,
+    )!;
+    assert.deepEqual(
+        (suggestions.props.suggestions as { name: string }[]).map(
+            (command) => command.name,
+        ),
+        ['/bug'],
+    );
+
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props.onValueChange as (value: string) => void)(
+        '/bug The timeline jumps',
+    );
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), [
+        'The timeline jumps',
+    ]);
+    draft.body = 'The timeline jumps';
+
+    view = render();
+    const find = (key: string, value: unknown) =>
+        view.fields.find((element) => element.props[key] === value);
+    assert.ok(
+        view.fields.some((element) => element.type === IssueCommandBadge),
+    );
+    assert.ok(find('data-test', 'open-issue-button'));
+    assert.equal(find('data-test', 'create-commit-button'), undefined);
+    assert.equal(
+        view.fields.some((element) => element.type === ImagePickerButton),
+        false,
+    );
+    assert.equal(find('data-test', 'add-poll-button'), undefined);
+    assert.equal(view.form.props.onBefore(), false);
+
+    keyDown(view, 'Backspace');
+    view = render();
+    assert.equal(
+        view.fields.some((element) => element.type === IssueCommandBadge),
+        false,
+    );
+    assert.ok(
+        view.fields.some(
+            (element) => element.props['data-test'] === 'create-commit-button',
+        ),
+    );
+    assert.equal(view.form.props.onBefore(), true);
+});
+
+test('picking a suggestion with Enter starts an empty issue, and the shortcut opens it instead of committing', () => {
+    draft.body = '/';
+    keyDown(render(), 'ArrowDown');
+    const enter = keyDown(render(), 'Enter');
+    assert.equal(enter.preventDefault.mock.calls.length, 1);
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
+
+    draft.body = 'Search loses its filters';
+    keyDown(render(), 'Enter', { metaKey: true });
+    assert.equal(http.submit.mock.calls.length, 1);
+    const payload = http.transform.mock.calls[0][0] as () => unknown;
+    assert.deepEqual(payload(), {
+        command: '/bug',
+        body: 'Search loses its filters',
+    });
+});
+
+test('a draft that mentions a bug suggests /bug, keeps the text when used, and can be dismissed', () => {
+    draft.body = 'The search has a bug when going back';
+    let hint = render().fields.find(
+        (element) => element.type === IssueCommandHint,
+    )!;
+    assert.equal((hint.props.command as { name: string }).name, '/bug');
+
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        (hint.props.onUse as (kind: string) => void)('bug');
+    } finally {
+        vi.unstubAllGlobals();
+    }
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), [
+        'The search has a bug when going back',
+    ]);
+    let view = render();
+    assert.ok(
+        view.fields.some((element) => element.type === IssueCommandBadge),
+    );
+    assert.equal(
+        view.fields.some((element) => element.type === IssueCommandHint),
+        false,
+    );
+
+    state = [];
+    hint = render().fields.find(
+        (element) => element.type === IssueCommandHint,
+    )!;
+    (hint.props.onDismiss as () => void)();
+    view = render();
+    assert.equal(
+        view.fields.some((element) => element.type === IssueCommandHint),
+        false,
+    );
+});
+
+test('commands are not offered while the draft has images, a poll or a schedule', () => {
+    draft.images = [image];
+    draft.body = '/';
+    const view = render();
+    assert.equal(
+        view.fields.some((element) => element.type === IssueCommandSuggestions),
+        false,
+    );
+    draft.body = 'Found a bug';
+    assert.equal(
+        render().fields.some((element) => element.type === IssueCommandHint),
+        false,
+    );
+    draft.body = '/';
+
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props.onValueChange as (value: string) => void)('/bug ');
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['/bug ']);
+    assert.equal(
+        render().fields.some((element) => element.type === IssueCommandBadge),
+        false,
+    );
+});
+
 test('turning scheduling off clears the chosen time and commits now', () => {
     const find = (key: string, value: unknown) =>
         render().fields.find((element) => element.props[key] === value);
@@ -419,9 +582,11 @@ test('turning scheduling off clears the chosen time and commits now', () => {
 
     (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
     assert.equal(submit().props.disabled, true);
-    (find('id', 'body-scheduled-at')!.props.onChange as (value: string) => void)(
-        '2026-10-17T10:30',
-    );
+    (
+        find('id', 'body-scheduled-at')!.props.onChange as (
+            value: string,
+        ) => void
+    )('2026-10-17T10:30');
     assert.equal(submit().props.disabled, false);
     assert.equal(label(submit()), 'Schedule commit');
 

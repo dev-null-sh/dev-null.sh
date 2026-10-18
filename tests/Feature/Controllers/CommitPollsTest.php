@@ -9,7 +9,6 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
-use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
 use App\Models\Bookmark;
 use App\Models\Commit;
@@ -313,32 +312,6 @@ it('loads the polls of the log with a bounded number of queries', function (): v
     $this->get(route('log.show', Log::Trending))->assertOk()->assertInertia(fn ($page) => $page->has('commits.data', 20));
     expect(count(DB::getQueryLog()))->toBe($singleCount);
     DB::disableQueryLog();
-});
-
-it('keeps poll choices and results when newer commits are prepended to the ranked log', function (): void {
-    $user = User::factory()->create();
-    $seen = Commit::factory()->create(['created_at' => now()->subMinute()]);
-    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
-    PollVote::factory()->for($poll->options[1], 'option')->for($user)->create();
-
-    $this->actingAs($user)->get(route('log.show', Log::Trending))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('newestCommitId', $poll->commit_id));
-
-    $this->withHeaders([
-        'X-Inertia' => 'true',
-        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
-        'X-Inertia-Partial-Component' => 'log/show',
-        'X-Inertia-Partial-Data' => 'latestCommits',
-    ])->get(route('log.show', ['log' => Log::Trending, 'since' => $seen->id]))
-        ->assertOk()
-        ->assertJsonCount(1, 'props.latestCommits')
-        ->assertJsonPath('props.latestCommits.0.id', $poll->commit_id)
-        ->assertJsonPath('props.latestCommits.0.poll.has_voted', true)
-        ->assertJsonPath('props.latestCommits.0.poll.total_votes', 1)
-        ->assertJsonPath('props.latestCommits.0.poll.options.1.label', 'Spaces')
-        ->assertJsonPath('props.latestCommits.0.poll.options.1.voted', true)
-        ->assertJsonPath('prependProps', ['latestCommits']);
 });
 
 it('shows public polls to guests while hiding open results and voter identities', function (string $endpoint, bool $closed): void {

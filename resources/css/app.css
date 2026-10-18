@@ -234,6 +234,8 @@
 
     body {
         @apply bg-background text-foreground;
+        /* Installed on a phone with a notch, the page reaches the screen's edges; keep the content out of them. */
+        padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
         caret-color: var(--primary);
         font-feature-settings: 'ss01', 'cv11';
     }
@@ -341,6 +343,12 @@ html body[data-scroll-locked] {
 
 [data-sonner-toaster] {
     view-transition-name: toasts;
+}
+
+@media (pointer: coarse) {
+    :root[data-lane-swipe] {
+        overscroll-behavior-x: none;
+    }
 }
 
 @media (prefers-reduced-motion: no-preference) {

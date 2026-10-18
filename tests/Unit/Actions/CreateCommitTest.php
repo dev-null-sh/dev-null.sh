@@ -11,6 +11,7 @@ use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\CommitReport;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
@@ -470,3 +471,27 @@ it('keeps a poll on a quote while only approved quotes lift its thread', functio
             1e-9,
         );
 })->with([false, true]);
+
+it('gives recent reports precedence over reputation while keeping the ai exemption', function (bool $reputable, bool $dismissed): void {
+    config(['services.openai.key' => 'sk-test']);
+    Queue::fake();
+    $user = User::factory()->create(['created_at' => now()->subHours(2)]);
+    $reported = Commit::factory()->for($user)->create();
+    if ($reputable) {
+        followersOf($user, 10);
+    }
+
+    CommitReport::factory()->for($reported)->create(['dismissed_at' => $dismissed ? now() : null]);
+
+    $commit = resolve(CreateCommit::class)->handle($user, 'Another commit', poll: new NewPoll(['Yes', 'No'], PollDuration::OneHour));
+    $approved = $reputable && $dismissed;
+
+    expect($commit->status)->toBe($approved ? CommitStatus::Approved : CommitStatus::Pending)
+        ->and($commit->poll->opened_at !== null)->toBe($approved);
+
+    if ($reputable) {
+        Queue::assertNotPushed(ModerateCommit::class);
+    } else {
+        Queue::assertPushed(ModerateCommit::class);
+    }
+})->with([true, false])->with([true, false]);

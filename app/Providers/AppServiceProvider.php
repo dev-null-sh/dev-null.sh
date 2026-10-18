@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Contracts\Services\DnsResolver;
 use App\Models\User;
+use App\Services\CodeTheme;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\JsonResponse;
@@ -15,12 +16,14 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
+use Tempest\Highlight\Highlighter;
 
 final class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
+        $this->app->bind(Highlighter::class, fn (): Highlighter => new Highlighter(new CodeTheme()));
     }
 
     public function boot(): void

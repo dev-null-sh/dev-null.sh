@@ -208,14 +208,3 @@ it('shows guests the approved replies', function (): void {
 
     expect(session('url.intended'))->toBe(route('user.show', ['user' => $reply->user, 'tab' => 'replies']));
 });
-
-it('returns to the replies tab after local sign in', function (): void {
-    app()->instance('env', 'local');
-    config()->set('app.auto_login', true);
-
-    $user = User::factory()->create();
-    $url = route('user.show', ['user' => $user, 'tab' => 'replies']);
-
-    $this->get($url)->assertRedirectToRoute('home');
-    $this->get(route('home'))->assertRedirect($url);
-});

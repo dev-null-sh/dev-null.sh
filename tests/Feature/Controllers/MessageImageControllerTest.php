@@ -37,6 +37,21 @@ it('serves images only to the people in the conversation', function (): void {
     $this->actingAs(User::factory()->create())->get(route('message-image.show', $image))->assertNotFound();
 });
 
+it('downloads the image with a webp filename', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $image = storedMessageImage(sendChatMessage($mark, $nuno));
+
+    $this->actingAs($nuno)->get(route('message-image.show', ['messageImage' => $image, 'download' => 1]))
+        ->assertOk()
+        ->assertDownload($image->id.'.webp')
+        ->assertStreamedContent(Storage::disk()->get($image->path));
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('message-image.show', ['messageImage' => $image, 'download' => 1]))
+        ->assertNotFound();
+});
+
 it('keeps images out of the history an org member cannot see', function (): void {
     $mark = User::factory()->create();
     [$nuno, $taylor] = followersOf($mark, 2);

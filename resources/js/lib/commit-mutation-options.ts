@@ -15,6 +15,7 @@ export function commitMutationOptions(component: string) {
             'commit',
             'pinnedCommit',
             'ancestors',
+            'continuation',
             'hasUnmoderatedCommits',
             ...(component === 'moderation/show' ? ['commits'] : []),
         ],

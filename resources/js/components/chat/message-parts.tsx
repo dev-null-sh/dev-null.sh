@@ -1,10 +1,14 @@
-import { Image, Reply } from 'lucide-react';
-import type { PointerEvent, ReactNode } from 'react';
+import { Image, Reply, SmilePlus } from 'lucide-react';
+import type { PointerEvent, ReactNode, RefObject } from 'react';
 import { useRef, useState } from 'react';
+import { show as showMessageImage } from '@/actions/App/Http/Controllers/MessageImageController';
 import MessageLinkPreviewController from '@/actions/App/Http/Controllers/MessageLinkPreviewController';
+import { preloadEmojiGroups } from '@/components/chat/message-reactions';
 import { CommitBody } from '@/components/commit-body';
 import { objectUrlFor } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
+import type { ShownImage } from '@/components/commit-images';
+import { ImageViewer } from '@/components/image-viewer';
 import { LinkPreview } from '@/components/link-preview';
 import { bodySegments } from '@/lib/code';
 import { cn, laneColor } from '@/lib/utils';
@@ -46,25 +50,41 @@ export function MessageText({
     );
 }
 
+const isUnsent = (images: MessageImage[] | File[]): images is File[] =>
+    images[0] instanceof File;
+
+const downloadUrl = (image: ShownImage): string =>
+    showMessageImage.url(image.id, { query: { download: 1 } });
+
 export function MessageImages({ images }: { images: MessageImage[] | File[] }) {
+    const [viewedIndex, setViewedIndex] = useState<number | null>(null);
+
     if (images.length === 0) {
         return null;
     }
 
     return (
         <div className="w-64 max-w-full sm:w-72 [&_img]:max-h-80 [&>div]:mt-0">
-            <CommitImages
-                isLinked={!(images[0] instanceof File)}
-                images={images.map((image) =>
-                    image instanceof File
-                        ? {
-                              id: objectUrlFor(image),
-                              url: objectUrlFor(image),
-                              description: null,
-                          }
-                        : image,
-                )}
-            />
+            {isUnsent(images) ? (
+                <CommitImages
+                    images={images.map((image) => ({
+                        id: objectUrlFor(image),
+                        url: objectUrlFor(image),
+                        description: null,
+                    }))}
+                />
+            ) : (
+                <>
+                    <CommitImages images={images} onOpen={setViewedIndex} />
+                    <ImageViewer
+                        images={images}
+                        index={viewedIndex}
+                        onView={setViewedIndex}
+                        onClose={() => setViewedIndex(null)}
+                        downloadUrl={downloadUrl}
+                    />
+                </>
+            )}
         </div>
     );
 }
@@ -173,8 +193,12 @@ export function Repliable({
         return children;
     }
 
-    const onPointerDown = (event: PointerEvent) => {
-        if (event.pointerType === 'touch') {
+    // The image viewer is portalled out of the message, but React still bubbles its swipes up to here.
+    const onPointerDown = (event: PointerEvent<HTMLElement>) => {
+        if (
+            event.pointerType === 'touch' &&
+            event.currentTarget.contains(event.target as Node)
+        ) {
             start.current = {
                 x: event.clientX,
                 y: event.clientY,
@@ -230,28 +254,72 @@ export function Repliable({
 }
 
 /**
- * Sits just outside the end of the bubble it belongs to, vertically centred on it, so it takes no room in the thread.
+ * Reply and react, just outside the end of the bubble they belong to and vertically centred on it, so they take no
+ * room in the thread. They show on hover or focus, and stay while the reaction tray under the message is open.
  */
-export function ReplyButton({
+export function BubbleActions({
     isMine,
     onReply,
+    onReact,
+    isReacting,
+    reactRef,
+    trayId,
 }: {
     isMine: boolean;
-    onReply: () => void;
+    onReply: (() => void) | null;
+    onReact: (() => void) | null;
+    isReacting: boolean;
+    reactRef: RefObject<HTMLButtonElement | null>;
+    trayId: string;
 }) {
+    if (onReply === null && onReact === null) {
+        return null;
+    }
+
+    const button =
+        'grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
+
     return (
-        <button
-            type="button"
-            onClick={onReply}
-            aria-label="Reply"
-            title="Reply"
+        <div
+            data-open={isReacting ? '' : undefined}
             className={cn(
-                'absolute top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-muted-foreground opacity-0 transition-opacity group-hover/message:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 pointer-coarse:hidden',
-                isMine ? 'right-full mr-1.5' : 'left-full ml-1.5',
+                'absolute top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/message:opacity-100 has-focus-visible:opacity-100 data-open:opacity-100 pointer-coarse:hidden',
+                isMine
+                    ? 'right-full mr-1.5 flex-row-reverse'
+                    : 'left-full ml-1.5',
             )}
-            data-test="reply-button"
+            data-test="bubble-actions"
         >
-            <Reply aria-hidden className="size-4" />
-        </button>
+            {onReply !== null && (
+                <button
+                    type="button"
+                    onClick={onReply}
+                    aria-label="Reply"
+                    title="Reply"
+                    className={button}
+                    data-test="reply-button"
+                >
+                    <Reply aria-hidden className="size-4" />
+                </button>
+            )}
+            {onReact !== null && (
+                <button
+                    ref={reactRef}
+                    type="button"
+                    onClick={onReact}
+                    onPointerEnter={() => void preloadEmojiGroups()}
+                    aria-label="React"
+                    title="React"
+                    aria-expanded={isReacting}
+                    aria-controls={trayId}
+                    className={cn(button, {
+                        'bg-accent text-foreground': isReacting,
+                    })}
+                    data-test="react-button"
+                >
+                    <SmilePlus aria-hidden className="size-4" />
+                </button>
+            )}
+        </div>
     );
 }

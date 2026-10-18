@@ -26,6 +26,7 @@ import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
 import { GitHubIcon } from '@/components/github-icon';
+import { LogoMenu } from '@/components/logo-menu';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -234,22 +235,28 @@ export function AppNav({
 
     return (
         <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
-            <Link
-                href={auth.log === null ? home() : LogController.show(auth.log)}
-                viewTransition
-                className="mb-8 rounded-md px-3 lg:px-3"
-                aria-label={
-                    auth.log === null
-                        ? '/dev/null, go to the home page'
-                        : '/dev/null, go to your log'
-                }
-            >
-                <AppLogoIcon className="size-7 fill-current lg:hidden" />
-                <AppLogo className="hidden text-[1.75rem] font-bold tracking-[-0.03em] lg:inline-flex" />
-                <span className="mt-1 hidden text-sm text-muted-foreground lg:block">
-                    a social network for devs
-                </span>
-            </Link>
+            <LogoMenu>
+                <Link
+                    href={
+                        auth.log === null
+                            ? home()
+                            : LogController.show(auth.log)
+                    }
+                    viewTransition
+                    className="mb-8 rounded-md px-3 lg:px-3"
+                    aria-label={
+                        auth.log === null
+                            ? '/dev/null, go to the home page'
+                            : '/dev/null, go to your log'
+                    }
+                >
+                    <AppLogoIcon className="size-7 fill-current lg:hidden" />
+                    <AppLogo className="hidden text-[1.75rem] font-bold tracking-[-0.03em] lg:inline-flex" />
+                    <span className="mt-1 hidden text-sm text-muted-foreground lg:block">
+                        a social network for devs
+                    </span>
+                </Link>
+            </LogoMenu>
 
             <nav aria-label="Main" className="flex flex-col gap-1">
                 {items.map((item) => (
@@ -416,10 +423,35 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     );
 }
 
+export function MobileCommitButton({
+    isHidden,
+    onCompose,
+}: {
+    isHidden: boolean;
+    onCompose: () => void;
+}) {
+    return (
+        <Button
+            type="button"
+            onClick={onCompose}
+            inert={isHidden}
+            aria-label="Write a commit"
+            title="Write a commit"
+            className={cn(
+                'absolute right-4 bottom-full mb-4 size-14 rounded-full shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                { 'pointer-events-none opacity-0': isHidden },
+            )}
+            data-test="mobile-commit-button"
+        >
+            <SquarePen className="size-6" />
+        </Button>
+    );
+}
+
 /**
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
-export function MobileNav() {
+export function MobileNav({ children }: { children?: ReactNode }) {
     const { auth } = usePage().props;
     const timeZone = auth.user?.timezone ?? browserTimeZone();
     const {
@@ -471,6 +503,7 @@ export function MobileNav() {
             aria-label="Main"
             className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden"
         >
+            {children}
             {items.map((item) => (
                 <NavLink
                     key={item.title}

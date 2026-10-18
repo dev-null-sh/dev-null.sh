@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
+import AboutController from '@/actions/App/Http/Controllers/AboutController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
@@ -12,6 +13,7 @@ import { WhoToFollow } from '@/components/who-to-follow';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
 import { useKeyLabels } from '@/lib/keyboard';
+import { formatCount } from '@/lib/numbers';
 import { laneColor } from '@/lib/utils';
 import { login } from '@/routes';
 import { show } from '@/routes/user';
@@ -147,7 +149,7 @@ export function AppAside({
                                         href={stat.href}
                                         className="group-hover:underline"
                                     >
-                                        {stat.count}
+                                        {formatCount(stat.count)}
                                     </Link>
                                 </dd>
                             </div>
@@ -175,6 +177,12 @@ export function AppAside({
                     </kbd>
                 </button>
                 <div className="flex gap-4">
+                    <Link
+                        href={AboutController.show()}
+                        className="transition-colors hover:text-foreground"
+                    >
+                        About
+                    </Link>
                     <nav aria-label="Legal" className="flex gap-4">
                         <Link
                             href={TermsController.show()}

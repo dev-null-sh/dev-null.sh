@@ -15,16 +15,16 @@ final readonly class OpenAI
      */
     public const int EMBEDDING_DIMENSIONS = 1536;
 
+    public const string EMBEDDING_MODEL = 'text-embedding-3-small';
+
     private const string MODERATION_MODEL = 'omni-moderation-latest';
 
-    private const string REVIEW_MODEL = 'gpt-6-astra';
+    private const string REVIEW_MODEL = 'gpt-6.1-sol';
 
     /**
      * The efficient model, for the relevance verdict on every candidate of every search.
      */
     private const string DECISION_MODEL = 'gpt-6-luna';
-
-    private const string EMBEDDING_MODEL = 'text-embedding-3-small';
 
     /**
      * Far stricter than OpenAI's own cut-off: any category scoring this much is flagged.
@@ -84,11 +84,7 @@ final readonly class OpenAI
      */
     public function embed(string $text): array
     {
-        $embeddings = $this->embedMany([$text]);
-
-        throw_if($embeddings === [], UnexpectedValueException::class, 'OpenAI returned no embedding.');
-
-        return $embeddings[0];
+        return $this->embedMany([$text])[0];
     }
 
     /**
@@ -110,6 +106,8 @@ final readonly class OpenAI
             ->post('embeddings', ['model' => self::EMBEDDING_MODEL, 'input' => $texts])
             ->throw()
             ->json('data');
+
+        throw_if(count($data) !== count($texts), UnexpectedValueException::class, 'OpenAI did not return an embedding for every input.');
 
         usort($data, fn (array $result, array $other): int => $result['index'] <=> $other['index']);
 

@@ -18,6 +18,6 @@ final readonly class MessageImageController
             'Content-Security-Policy' => "default-src 'none'; sandbox",
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'private, max-age=3600',
-        ]);
+        ], disposition: $request->download() ? 'attachment' : 'inline');
     }
 }

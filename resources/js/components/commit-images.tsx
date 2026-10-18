@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import { useState } from 'react';
 import { useScrambledHash } from '@/hooks/use-scrambled-hash';
 import { commitPhotoUrl, openCommitPhoto } from '@/lib/commit-photo';
@@ -18,7 +19,7 @@ export function commitImageAlt(
         : 'Attached image';
 }
 
-type ShownImage = Pick<CommitImage, 'id' | 'url' | 'description'> &
+export type ShownImage = Pick<CommitImage, 'id' | 'url' | 'description'> &
     Partial<Pick<CommitImage, 'width' | 'height'>>;
 
 export function replaceFailedImage(image: HTMLImageElement): void {
@@ -98,16 +99,23 @@ function CommitImageThumbnail({
 }
 
 /**
- * A commit's images open in its photo viewer. Other images, like a message's, open on their own when linked.
+ * A commit's images open in its photo viewer. Other images, like a message's, open wherever `onOpen` shows them.
  */
 type CommitImagesProps =
-    | { commit: Commit; images?: never; isLinked?: never }
-    | { commit?: never; images: ShownImage[]; isLinked?: boolean };
+    | { commit: Commit; images?: never; onOpen?: never }
+    | {
+          commit?: never;
+          images: ShownImage[];
+          onOpen?: (index: number) => void;
+      };
+
+const isModifiedClick = (event: MouseEvent): boolean =>
+    event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
 
 export function CommitImages({
     commit,
     images: draftImages,
-    isLinked = false,
+    onOpen,
 }: CommitImagesProps) {
     const images = commit ? (commit.images ?? []) : draftImages;
 
@@ -149,12 +157,7 @@ export function CommitImages({
                         onClick={(event) => {
                             event.stopPropagation();
 
-                            if (
-                                event.metaKey ||
-                                event.ctrlKey ||
-                                event.shiftKey ||
-                                event.altKey
-                            ) {
+                            if (isModifiedClick(event)) {
                                 return;
                             }
 
@@ -165,12 +168,20 @@ export function CommitImages({
                     >
                         {thumbnail}
                     </a>
-                ) : isLinked ? (
+                ) : onOpen ? (
                     <a
                         key={image.id}
                         href={image.url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(event) => {
+                            if (isModifiedClick(event)) {
+                                return;
+                            }
+
+                            event.preventDefault();
+                            onOpen(index);
+                        }}
                         className={className}
                     >
                         {thumbnail}
