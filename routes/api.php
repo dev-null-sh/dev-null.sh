@@ -59,7 +59,7 @@ Route::prefix('cli')->group(function (): void {
         ->middleware([AuthenticateSshSignature::class, PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
         ->name('cli-commit.store');
     Route::post('key-lookups', [KeyLookupController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:key-lookups')
         ->name('cli-key-lookup.store');
 });
 

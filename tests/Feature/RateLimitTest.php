@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\User;
+use Tests\Support\SshKeyPair;
 
 dataset('rate limits', [
     'stars' => [
@@ -53,6 +54,20 @@ dataset('rate limits', [
         ],
         3,
         3600,
+    ],
+    'pastéis' => [
+        fn (): array => [
+            ['POST', route('commit-pastel.store', Commit::factory()->create())],
+        ],
+        60,
+        60,
+    ],
+    'issues' => [
+        fn (): array => [
+            ['POST', route('issue.store')],
+        ],
+        10,
+        60,
     ],
 ]);
 
@@ -169,4 +184,44 @@ it('shares the JSON star budget across commits and replies without consuming oth
         ->postJson(route('commit-star.store', $reply))
         ->assertOk()
         ->assertExactJson(['starred' => true, 'stars_count' => 1]);
+});
+
+it('keeps pastéis apart from the issue and export budgets', function (): void {
+    $user = User::factory()->create(['pasteis_mode' => true]);
+    $commit = Commit::factory()->create();
+
+    $this->actingAs($user);
+
+    foreach (range(1, 60) as $attempt) {
+        expect($this->postJson(route('commit-pastel.store', $commit))->getStatusCode())->not->toBe(429);
+    }
+
+    $this->postJson(route('commit-pastel.store', $commit))->assertTooManyRequests();
+
+    $this->postJson(route('issue.store'))->assertUnprocessable();
+    $this->get(route('export'))->assertOk();
+});
+
+it('keeps the sign-in budget per guest IP apart from CLI key lookups', function (): void {
+    $publicKey = SshKeyPair::generate()->publicKey->toOpenSsh();
+
+    $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.1']);
+
+    foreach (range(1, 60) as $attempt) {
+        $this->call('POST', route('cli-key-lookup.store'), content: $publicKey)->assertNotFound();
+    }
+
+    $this->call('POST', route('cli-key-lookup.store'), content: $publicKey)->assertTooManyRequests();
+    $this->get(route('login.store'))->assertRedirectToRoute('home');
+
+    foreach (range(1, 9) as $attempt) {
+        $this->get(route('login'))->assertRedirect();
+    }
+
+    $this->get(route('login'))->assertTooManyRequests();
+    $this->get(route('login.store'))->assertTooManyRequests();
+
+    $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.2']);
+
+    $this->get(route('login'))->assertRedirect();
 });

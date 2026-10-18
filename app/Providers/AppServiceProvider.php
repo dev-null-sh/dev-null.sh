@@ -109,12 +109,20 @@ final class AppServiceProvider extends ServiceProvider
         // Approving the devnull app on the web hands out a code each time...
         RateLimiter::for('mobile-authorizations', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
 
+        // Guests, per IP: the sign-in page and its callback share the budget of one flow, the terminal's key lookups have their own...
+        RateLimiter::for('logins', fn (Request $request): Limit => Limit::perMinute(10)->by('ip:'.$request->ip()));
+        RateLimiter::for('key-lookups', fn (Request $request): Limit => Limit::perMinute(60)->by('ip:'.$request->ip()));
+
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
 
         // Commit actions: rapid j/k with a star on most commits stays well under these...
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('pins', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
+        RateLimiter::for('pasteis', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
+
+        // Issue commands: a burst guard, while the controller counts the issues actually opened per hour...
+        RateLimiter::for('issues', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
 
         // Messages: polling an open conversation every second or so stays well under the first...
         RateLimiter::for('conversations', fn (Request $request): Limit => Limit::perMinute(300)->by($this->userId($request)));
@@ -146,6 +154,7 @@ final class AppServiceProvider extends ServiceProvider
 
         // Exports stream every commit a user ever made...
         RateLimiter::for('exports', fn (Request $request): Limit => Limit::perHour(3)->by($this->userId($request)));
+        RateLimiter::for('export-bursts', fn (Request $request): Limit => Limit::perMinute(5)->by($this->userId($request)));
     }
 
     private function userId(Request $request): string

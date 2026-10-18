@@ -124,12 +124,12 @@ Route::middleware('guest')->group(function (): void {
         Route::post('login/local', [LocalSessionController::class, 'store'])->name('local-login.store');
     } else {
         Route::get('login', [SessionController::class, 'create'])
-            ->middleware('throttle:10,1')
+            ->middleware('throttle:logins')
             ->name('login');
     }
 
     Route::get('auth/github/callback', [SessionController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:logins')
         ->name('login.store');
 });
 
@@ -232,7 +232,7 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:issues')
         ->name('issue.store');
 
     // Session...
@@ -281,7 +281,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:stars')
         ->name('commit-star.store');
     Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:pasteis')
         ->name('commit-pastel.store');
     Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
         ->middleware('throttle:commit-reports')
@@ -401,7 +401,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:profile-syncs')
         ->name('user-profile.update');
     Route::get('settings/export', ExportController::class)
-        ->middleware(['throttle:exports', 'throttle:5,1'])
+        ->middleware(['throttle:exports', 'throttle:export-bursts'])
         ->name('export');
 
     // User Lane...
