@@ -501,6 +501,7 @@ it('shows quotes with the recipients commit they quote and never loads commits q
     $quote = Notification::factory()->for($user, 'recipient')->quoted()->create();
     $deleted = Notification::factory()->for($user, 'recipient')->quoted()->create(['created_at' => now()->subMinute()]);
     $deleted->commit->quotedCommit->delete();
+
     $reply = Notification::factory()->for($user, 'recipient')->replied()->create(['created_at' => now()->subMinutes(2)]);
     $reply->commit->update(['quoted_commit_id' => Commit::factory()->pending()->create()->id]);
 
