@@ -16,6 +16,7 @@ export function PageTabs({
     only?: InertiaLinkProps['only'];
     reset?: string[];
     tabs: {
+        key?: string;
         title: string;
         href: NonNullable<InertiaLinkProps['href']>;
         isActive: boolean;
@@ -27,7 +28,7 @@ export function PageTabs({
         <nav aria-label={label} className="flex border-b">
             {tabs.map((tab) => (
                 <Link
-                    key={tab.title}
+                    key={tab.key ?? tab.title}
                     href={tab.href}
                     prefetch={prefetch}
                     viewTransition
@@ -41,11 +42,11 @@ export function PageTabs({
                     }
                     aria-current={tab.isActive ? 'page' : undefined}
                     className={cn(
-                        'relative flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        'relative flex min-w-0 flex-1 justify-center px-2 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                         { 'text-foreground': tab.isActive },
                     )}
                 >
-                    <span className="py-3.5">{tab.title}</span>
+                    <span className="truncate py-3.5">{tab.title}</span>
                     {tab.isActive && (
                         <span
                             aria-hidden

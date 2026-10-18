@@ -10,6 +10,7 @@ use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Models\UserList;
 use App\Queries\PinnedCommitQuery;
 use App\Queries\PushAccessQuery;
 use App\Queries\UserAchievementsQuery;
@@ -19,6 +20,7 @@ use App\Queries\UserModerationQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -56,6 +58,12 @@ final readonly class UserController
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
             'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
+            'lists' => Inertia::optional(fn (): array => $currentUser instanceof User ? $currentUser->lists()
+                ->withExists(['members as has_member' => fn (Builder $query): Builder => $query->whereKey($user->id)])
+                ->orderBy('name')
+                ->get()
+                ->map(fn (UserList $list): array => ['id' => $list->id, 'name' => $list->name, 'has_member' => (bool) $list->getAttribute('has_member')])
+                ->all() : []),
             'canPush' => fn (): bool => $currentUser instanceof User
                 && $currentUser->canMessage($user)
                 && ! in_array($pushAccess->get($currentUser, $user), [PushAccess::Restricted, PushAccess::Closed], true),

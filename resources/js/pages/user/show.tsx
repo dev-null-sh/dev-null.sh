@@ -33,6 +33,7 @@ import { ProfileActionsMenu } from '@/components/profile-actions-menu';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserListMenu } from '@/components/user-list-menu';
 import type { UserModeration } from '@/components/user-moderation-menu';
 import {
     UserModerationMenu,
@@ -50,6 +51,7 @@ import type {
     Commit,
     CursorPaginated,
     Profile,
+    ProfileList,
     Streaks,
 } from '@/types';
 
@@ -63,6 +65,7 @@ export default function Show({
     isFollowing,
     followsYou,
     isMuting,
+    lists,
     canPush,
     moderation,
     activity,
@@ -77,6 +80,7 @@ export default function Show({
     isFollowing: boolean;
     followsYou: boolean;
     isMuting: boolean;
+    lists?: ProfileList[];
     canPush: boolean;
     moderation: UserModeration | null;
     activity: Activity;
@@ -178,11 +182,17 @@ export default function Show({
                                     />
                                 )}
                                 {auth.user && (
-                                    <UserSafetyMenu
-                                        user={user}
-                                        isMuting={isMuting}
-                                        isBlocking={false}
-                                    />
+                                    <>
+                                        <UserListMenu
+                                            user={user}
+                                            lists={lists}
+                                        />
+                                        <UserSafetyMenu
+                                            user={user}
+                                            isMuting={isMuting}
+                                            isBlocking={false}
+                                        />
+                                    </>
                                 )}
                                 {canPush && (
                                     <Button

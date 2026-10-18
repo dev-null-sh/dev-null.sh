@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\User;
+use App\Models\UserList;
 
 dataset('rate limits', [
     'stars' => [
@@ -20,6 +21,15 @@ dataset('rate limits', [
             ['DELETE', route('commit-pin.destroy', $commit)],
         ],
         20,
+        60,
+    ],
+    'lists' => [
+        fn (): array => [
+            ['POST', route('user-list.store')],
+            ['POST', route('user-list-member.store', [$list = UserList::factory()->create(), $user = User::factory()->create()])],
+            ['DELETE', route('user-list-member.destroy', [$list, $user])],
+        ],
+        60,
         60,
     ],
     'follows' => [

@@ -7,6 +7,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Models\UserList;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
@@ -700,4 +701,30 @@ it('offers guests and the profile owner no remote', function (): void {
 
     $this->actingAs($user)->get(route('user.show', $user))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canPush', false));
+});
+
+it('loads the lists of the viewer on request, marking the ones holding the user', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create();
+    $holding = UserList::factory()->for($viewer)->create(['name' => 'Bun']);
+    $other = UserList::factory()->for($viewer)->create(['name' => 'Laravel']);
+    UserList::factory()->create();
+
+    $holding->members()->attach($user);
+
+    $this->actingAs($viewer)
+        ->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page
+            ->missing('lists')
+            ->reloadOnly('lists', fn ($reload) => $reload
+                ->where('lists', [
+                    ['id' => $holding->id, 'name' => 'Bun', 'has_member' => true],
+                    ['id' => $other->id, 'name' => 'Laravel', 'has_member' => false],
+                ])));
+});
+
+it('loads no lists for guests', function (): void {
+    $this->get(route('user.show', User::factory()->create()))
+        ->assertInertia(fn ($page) => $page
+            ->reloadOnly('lists', fn ($reload) => $reload->where('lists', [])));
 });
