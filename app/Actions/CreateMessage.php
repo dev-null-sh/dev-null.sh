@@ -31,6 +31,16 @@ final readonly class CreateMessage
     }
 
     /**
+     * Serializes a conversation's message inserts so their ids commit in order. Ids are assigned at insert, not at
+     * commit, and threads tail with `id > cursor` (ConversationThreadQuery::page), so a message committing after a
+     * higher one would otherwise stay below the cursor and never reach the open thread. Call inside the transaction.
+     */
+    public static function lockForAppend(Conversation $conversation): void
+    {
+        Conversation::query()->whereKey($conversation->id)->lockForUpdate()->first();
+    }
+
+    /**
      * Makes the message the conversation's latest, for every member's inbox.
      */
     public static function advance(Conversation $conversation, Message $message, bool $unstash): void
@@ -62,6 +72,8 @@ final readonly class CreateMessage
         };
 
         $message = DB::transaction(function () use ($sender, $conversation, $body, $clientId, $replyTo, $images, $imageDescriptions, $url): Message {
+            self::lockForAppend($conversation);
+
             $linkPreview = $url === null ? null : LinkPreview::query()->firstOrCreate(['url_hash' => hash('sha256', $url)], ['url' => $url]);
 
             $message = Message::query()->createOrFirst(
