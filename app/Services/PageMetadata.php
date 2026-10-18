@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Talk;
 use App\Models\User;
 use Illuminate\Support\Str;
 
@@ -196,6 +197,28 @@ final readonly class PageMetadata
                 ...$sharedContent !== null ? ['sharedContent' => $sharedContent] : [],
                 ...$comments !== [] ? ['comment' => $comments] : [],
             ],
+        ];
+    }
+
+    /**
+     * The link preview of a published talk.
+     *
+     * @return array{type: string, title: string, description: string, url: string, robots: string}|null
+     */
+    public function talk(Talk $talk): ?array
+    {
+        $user = $talk->user;
+
+        if (! $talk->isPublished() || ! $user instanceof User) {
+            return null;
+        }
+
+        return [
+            'type' => 'website',
+            'title' => "{$talk->title} · {$user->nameWithHandle()}",
+            'description' => Str::limit($talk->description, self::DESCRIPTION_LENGTH),
+            'url' => route('talk.show', [$user, $talk]),
+            'robots' => self::INDEXABLE,
         ];
     }
 

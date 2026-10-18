@@ -63,6 +63,7 @@ use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\TalkController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
@@ -138,6 +139,9 @@ Route::middleware(RememberIntendedUrl::class)->group(function (): void {
         ->scopeBindings()
         ->whereNumber('photo')
         ->name('commit-photo.show');
+    Route::get('@{user:username}/talks/{talk}', [TalkController::class, 'show'])
+        ->scopeBindings()
+        ->name('talk.show');
 });
 
 // Sitemaps...
@@ -229,6 +233,12 @@ Route::middleware('auth')->group(function (): void {
     Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
         ->middleware(ThrottleCommits::class)->name('scheduled-commit.store');
     Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
+
+    Route::get('talks', [TalkController::class, 'index'])->name('talk.index');
+    Route::post('talks', [TalkController::class, 'store'])
+        ->middleware(ThrottleCommits::class)
+        ->name('talk.store');
+    Route::delete('talks/{talk}', [TalkController::class, 'destroy'])->name('talk.destroy');
 
     Route::get('commit-stars', [CommitStarCountController::class, 'index'])->name('commit-star-count.index');
     Route::post('commits', [CommitController::class, 'store'])
