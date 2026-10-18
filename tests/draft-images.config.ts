@@ -31,6 +31,7 @@ export default defineConfig({
             'tests/Unit/LinkifiedText.test.tsx',
             'tests/Unit/StagedRail.test.tsx',
             'tests/Unit/ComposerPreview.test.tsx',
+            'tests/Unit/UseNow.test.tsx',
         ],
     },
 });
