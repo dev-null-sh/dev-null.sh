@@ -8,6 +8,7 @@ use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Notification;
+use App\Models\User;
 use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
@@ -368,6 +369,23 @@ it('skips commits that were moderated in the meantime', function (): void {
     Http::assertNothingSent();
 
     expect($commit->refresh()->ai_decision)->toBeNull();
+});
+
+it('approves queued commits without calling the ai when the author has good reputation', function (): void {
+    Http::fake();
+
+    $user = User::factory()->create(['created_at' => now()->subHour()->subSecond()]);
+    Commit::factory()->for($user)->create();
+    $commit = Commit::factory()->for($user)->pending()->create();
+    followersOf($user, 10);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->status->toBe(CommitStatus::Approved)
+        ->ai_decision->toBeNull();
+
+    Http::assertNothingSent();
 });
 
 it('skips commits that were deleted in the meantime', function (): void {

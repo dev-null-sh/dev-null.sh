@@ -58,6 +58,46 @@ it('approves commits of admins right away', function (): void {
     expect($commit->status)->toBe(CommitStatus::Approved);
 });
 
+it('skips ai review only when all reputation requirements are met', function (int $ageInSeconds, int $followers, ?CommitStatus $previousStatus, bool $deleted, bool $approved): void {
+    $this->travelTo(now()->startOfSecond());
+    config(['services.openai.key' => 'sk-test']);
+    Queue::fake();
+
+    $user = User::factory()->create(['created_at' => now()->subSeconds($ageInSeconds)]);
+    followersOf($user, $followers);
+
+    if ($previousStatus instanceof CommitStatus) {
+        $previous = Commit::factory()->for($user)->create(['status' => $previousStatus]);
+
+        if ($deleted) {
+            $previous->delete();
+        }
+    }
+
+    $commit = resolve(CreateCommit::class)->handle($user, 'A new commit', poll: new NewPoll(['Yes', 'No'], PollDuration::OneHour));
+
+    expect($commit->refresh())
+        ->status->toBe($approved ? CommitStatus::Approved : CommitStatus::Pending)
+        ->ai_decision->toBeNull()
+        ->and($commit->poll->opened_at?->toIso8601String())->toBe($approved ? now()->toIso8601String() : null);
+
+    if ($approved) {
+        Queue::assertNotPushed(ModerateCommit::class);
+    } else {
+        Queue::assertPushed(ModerateCommit::class);
+    }
+})->with([
+    'all requirements met' => [3601, 10, CommitStatus::Approved, false, true],
+    'more followers' => [7200, 11, CommitStatus::Approved, false, true],
+    'exactly one hour old' => [3600, 10, CommitStatus::Approved, false, false],
+    'less than one hour old' => [3599, 10, CommitStatus::Approved, false, false],
+    'only nine followers' => [3601, 9, CommitStatus::Approved, false, false],
+    'no previous commits' => [3601, 10, null, false, false],
+    'pending history' => [3601, 10, CommitStatus::Pending, false, false],
+    'rejected history' => [3601, 10, CommitStatus::Rejected, false, false],
+    'deleted approved history' => [3601, 10, CommitStatus::Approved, true, false],
+]);
+
 it('notifies the parent author about replies of admins', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 

@@ -59,7 +59,7 @@ final readonly class CreateCommit
                 'mentions' => $this->mentionedUsers->get($body),
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
-                'status' => $user->isAdmin() ? CommitStatus::Approved : CommitStatus::Pending,
+                'status' => $user->isAdmin() || $user->hasGoodReputation() ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
                 'quoted_commit_id' => $quotedCommit?->id,
                 'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),

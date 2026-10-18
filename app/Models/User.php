@@ -152,6 +152,13 @@ final class User extends Authenticatable
         return $this->hasMany(Commit::class);
     }
 
+    public function hasGoodReputation(): bool
+    {
+        return $this->created_at->lt(now()->subHour())
+            && $this->commits()->approved()->exists()
+            && $this->followers()->count() >= 10;
+    }
+
     /**
      * @return HasMany<PollVote, $this>
      */
