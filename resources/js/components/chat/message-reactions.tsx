@@ -634,8 +634,13 @@ export function ReactionSheet({
     const [isPicking, setIsPicking] = useState(false);
     const isArmed = useRef(false);
 
-    const react = (emoji: string) => {
+    const close = () => {
         onOpenChange(false);
+        setIsPicking(false);
+    };
+
+    const react = (emoji: string) => {
+        close();
         onReact(emoji);
     };
 
@@ -643,8 +648,9 @@ export function ReactionSheet({
         <DialogPrimitive.Root
             open={isOpen}
             onOpenChange={(open) => {
-                onOpenChange(open);
-                setIsPicking(false);
+                if (!open) {
+                    close();
+                }
             }}
         >
             <DialogPrimitive.Portal>
@@ -665,7 +671,17 @@ export function ReactionSheet({
                             event.stopPropagation();
                         }
                     }}
-                    className="pointer-events-none fixed inset-0 z-50 flex flex-col px-3 pt-[max(1rem,env(safe-area-inset-top))] outline-none"
+                    // The content covers the screen, so a tap anywhere but the message and its controls closes it.
+                    onClick={(event) => {
+                        if (
+                            !(event.target as Element).closest(
+                                '[data-sheet-part]',
+                            )
+                        ) {
+                            close();
+                        }
+                    }}
+                    className="fixed inset-0 z-50 flex flex-col px-3 pt-[max(1rem,env(safe-area-inset-top))] outline-none"
                     data-test="reaction-sheet"
                 >
                     <DialogPrimitive.Title className="sr-only">
@@ -673,7 +689,7 @@ export function ReactionSheet({
                     </DialogPrimitive.Title>
                     <div
                         className={cn(
-                            'pointer-events-auto flex min-h-0 flex-col gap-2 transition-[flex-grow] duration-300 ease-out motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95',
+                            'flex min-h-0 flex-col gap-2 transition-[flex-grow] duration-300 ease-out motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95',
                             isPicking ? 'grow-0' : 'grow justify-center',
                             { 'items-end': isMine },
                         )}
@@ -681,6 +697,7 @@ export function ReactionSheet({
                         <div
                             role="toolbar"
                             aria-label="React"
+                            data-sheet-part
                             className="flex w-max items-center gap-1 rounded-full border bg-popover p-1 shadow-[0_10px_28px_-10px_rgb(0_0_0/0.45)]"
                         >
                             {quickReactions(usage).map((emoji) => (
@@ -718,7 +735,10 @@ export function ReactionSheet({
                                 <SmilePlus aria-hidden className="size-5" />
                             </button>
                         </div>
-                        <div className="max-h-[30dvh] max-w-[85%] overflow-hidden">
+                        <div
+                            data-sheet-part
+                            className="max-h-[30dvh] max-w-[85%] overflow-hidden"
+                        >
                             {preview}
                         </div>
                         {body !== '' && !isPicking && (
@@ -728,8 +748,9 @@ export function ReactionSheet({
                                     void navigator.clipboard
                                         .writeText(body)
                                         .then(() => toast.success('Copied.'));
-                                    onOpenChange(false);
+                                    close();
                                 }}
+                                data-sheet-part
                                 className="flex w-max items-center gap-2 rounded-lg border bg-popover px-3 py-2 text-sm shadow-sm"
                             >
                                 <Copy aria-hidden className="size-4" />
@@ -738,21 +759,106 @@ export function ReactionSheet({
                         )}
                     </div>
                     {isPicking && (
-                        <div className="pointer-events-auto -mx-3 mt-auto flex h-[min(60dvh,28rem)] flex-col rounded-t-2xl border-t bg-popover pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-16px_rgb(0_0_0/0.45)] motion-safe:animate-in motion-safe:slide-in-from-bottom">
-                            <div
-                                aria-hidden
-                                className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-border"
-                            />
+                        <PickerSheet onCollapse={() => setIsPicking(false)}>
                             <EmojiPicker
                                 usage={usage}
                                 reacted={reacted}
                                 onPick={react}
                                 isSheet
                             />
-                        </div>
+                        </PickerSheet>
                     )}
                 </DialogPrimitive.Content>
             </DialogPrimitive.Portal>
         </DialogPrimitive.Root>
+    );
+}
+
+/**
+ * How far the sheet is pulled down before letting go hides it.
+ */
+const collapseDistance = 80;
+
+/**
+ * The emoji sheet from the bottom of the screen. Pulling its handle down, or tapping it, hides the sheet again and
+ * goes back to the quick reactions.
+ */
+function PickerSheet({
+    onCollapse,
+    children,
+}: {
+    onCollapse: () => void;
+    children: ReactNode;
+}) {
+    const [offset, setOffset] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
+    const start = useRef<number | null>(null);
+
+    const release = () => {
+        if (start.current === null) {
+            return;
+        }
+
+        start.current = null;
+        setIsDragging(false);
+
+        if (offset >= collapseDistance) {
+            onCollapse();
+        }
+
+        setOffset(0);
+    };
+
+    return (
+        <div
+            data-sheet-part
+            style={
+                offset > 0
+                    ? { transform: `translateY(${offset}px)` }
+                    : undefined
+            }
+            className={cn(
+                '-mx-3 mt-auto flex h-[min(60dvh,28rem)] flex-col rounded-t-2xl border-t bg-popover pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-16px_rgb(0_0_0/0.45)] motion-safe:animate-in motion-safe:slide-in-from-bottom',
+                { 'transition-transform duration-200': !isDragging },
+            )}
+            data-test="emoji-sheet"
+        >
+            <button
+                type="button"
+                aria-label="Hide emoji picker"
+                onPointerDown={(event) => {
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    start.current = event.clientY;
+                    setIsDragging(true);
+                }}
+                onPointerMove={(event) => {
+                    if (start.current !== null) {
+                        setOffset(Math.max(0, event.clientY - start.current));
+                    }
+                }}
+                onPointerUp={() => {
+                    if (offset < 4) {
+                        start.current = null;
+                        setIsDragging(false);
+                        onCollapse();
+
+                        return;
+                    }
+
+                    release();
+                }}
+                onPointerCancel={release}
+                onClick={(event) => {
+                    if (event.detail === 0) {
+                        onCollapse();
+                    }
+                }}
+                className="flex h-7 w-full shrink-0 touch-none items-center justify-center"
+                data-test="emoji-sheet-handle"
+            >
+                <span aria-hidden className="h-1 w-9 rounded-full bg-border" />
+            </button>
+            {children}
+        </div>
     );
 }

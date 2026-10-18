@@ -644,7 +644,7 @@ const ThreadItem = memo(function ThreadItem({
     return (
         <li
             className={cn(
-                'flex flex-col gap-0.5 [contain-intrinsic-size:auto_3rem] [content-visibility:auto] [&+&]:mt-2.5',
+                'flex flex-col gap-0.5 [contain-intrinsic-size:auto_3rem] [content-visibility:auto] focus-within:[content-visibility:visible] hover:[content-visibility:visible] has-data-open:[content-visibility:visible] [&+&]:mt-2.5',
                 {
                     'items-end': item.isMine,
                     'items-start': !item.isMine,
