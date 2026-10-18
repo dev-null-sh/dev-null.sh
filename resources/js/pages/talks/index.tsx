@@ -14,7 +14,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
-import type { CursorPaginated, TalkLinkKind, TalkSummary } from '@/types';
+import type { CursorPaginated, TalkSummary, TalkVisibility } from '@/types';
 
 const fieldClassName =
     'block w-full rounded-md border bg-transparent px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50 md:text-[15px]';
@@ -30,8 +30,8 @@ type ExplorerTalk = TalkSummary & {
 };
 
 export default function Index({ talks }: { talks: CursorPaginated<ExplorerTalk> }) {
-    const [linkKind, setLinkKind] = useState<TalkLinkKind>('slides');
     const [isPublishing, setIsPublishing] = useState(false);
+    const [visibility, setVisibility] = useState<TalkVisibility>('public');
 
     return (
         <>
@@ -44,16 +44,16 @@ export default function Index({ talks }: { talks: CursorPaginated<ExplorerTalk> 
                     variant={isPublishing ? 'outline' : 'default'}
                     onClick={() => setIsPublishing((open) => !open)}
                 >
-                    {isPublishing ? 'Cancel' : 'Publish talk'}
+                    {isPublishing ? 'Cancel' : 'New talk'}
                 </Button>
             </div>
 
             {isPublishing && (
                 <section className="border-b px-5 py-5 sm:px-6">
                     <p className="text-sm leading-relaxed text-muted-foreground">
-                        Share a talk with a title, summary, date, and a link to
-                        your slides or recording. It appears here and on your
-                        profile.
+                        Add a talk with a recording, slides, or both. Save a
+                        private draft while you prepare, or publish when it is
+                        ready to explore.
                     </p>
 
                     <Form
@@ -107,72 +107,93 @@ export default function Index({ talks }: { talks: CursorPaginated<ExplorerTalk> 
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="link_kind">
-                                            Link type
+                                        <Label htmlFor="event_name">
+                                            Event name (optional)
                                         </Label>
                                         <input
-                                            type="hidden"
-                                            name="link_kind"
-                                            value={linkKind}
+                                            id="event_name"
+                                            name="event_name"
+                                            maxLength={200}
+                                            className={fieldClassName}
                                         />
-                                        <Select
-                                            value={linkKind}
-                                            onValueChange={(value) =>
-                                                setLinkKind(
-                                                    value as TalkLinkKind,
-                                                )
-                                            }
-                                        >
-                                            <SelectTrigger
-                                                id="link_kind"
-                                                className="h-auto w-full py-2 text-base md:text-[15px]"
-                                            >
-                                                <SelectValue placeholder="Link type" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="slides">
-                                                    Slides
-                                                </SelectItem>
-                                                <SelectItem value="recording">
-                                                    Recording
-                                                </SelectItem>
-                                            </SelectContent>
-                                        </Select>
                                         <InputError
-                                            message={errors.link_kind}
+                                            message={errors.event_name}
                                         />
                                     </div>
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="link_url">Link URL</Label>
+                                    <Label htmlFor="recording_url">
+                                        Recording URL
+                                    </Label>
                                     <input
-                                        id="link_url"
-                                        name="link_url"
+                                        id="recording_url"
+                                        name="recording_url"
                                         type="url"
-                                        required
-                                        placeholder="https://"
+                                        placeholder="https://youtube.com/…"
                                         maxLength={2048}
                                         className={fieldClassName}
                                     />
-                                    <InputError message={errors.link_url} />
+                                    <InputError message={errors.recording_url} />
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="event_name">
-                                        Event name (optional)
+                                    <Label htmlFor="slides_url">
+                                        Slides URL
                                     </Label>
                                     <input
-                                        id="event_name"
-                                        name="event_name"
-                                        maxLength={200}
+                                        id="slides_url"
+                                        name="slides_url"
+                                        type="url"
+                                        placeholder="https://speakerdeck.com/…"
+                                        maxLength={2048}
                                         className={fieldClassName}
                                     />
-                                    <InputError message={errors.event_name} />
+                                    <InputError message={errors.slides_url} />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="visibility">
+                                        Visibility
+                                    </Label>
+                                    <input
+                                        type="hidden"
+                                        name="visibility"
+                                        value={visibility}
+                                    />
+                                    <Select
+                                        value={visibility}
+                                        onValueChange={(value) =>
+                                            setVisibility(
+                                                value as TalkVisibility,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger
+                                            id="visibility"
+                                            className="h-auto w-full py-2 text-base md:text-[15px]"
+                                        >
+                                            <SelectValue placeholder="Visibility" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="public">
+                                                Public — explore and profile
+                                            </SelectItem>
+                                            <SelectItem value="unlisted">
+                                                Unlisted — link only
+                                            </SelectItem>
+                                            <SelectItem value="private">
+                                                Private draft — only you
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError message={errors.visibility} />
                                 </div>
 
                                 <Button type="submit" disabled={processing}>
-                                    Publish talk
+                                    {visibility === 'private'
+                                        ? 'Save draft'
+                                        : 'Publish talk'}
                                 </Button>
                             </>
                         )}
@@ -183,8 +204,8 @@ export default function Index({ talks }: { talks: CursorPaginated<ExplorerTalk> 
             {talks.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command="fatal: no talks yet">
-                        Published talks from developers show up here. Publish
-                        one to get started.
+                        Explore talks with recordings and slides. Add one to get
+                        started.
                     </EmptyFeed>
                 </div>
             ) : (

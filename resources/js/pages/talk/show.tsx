@@ -2,6 +2,7 @@ import { Form, Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, CalendarDays, ExternalLink } from 'lucide-react';
 import TalkController from '@/actions/App/Http/Controllers/TalkController';
 import { CommitCard } from '@/components/commit-card';
+import { TalkMedia } from '@/components/talk-media';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { show as showUser } from '@/routes/user';
@@ -13,11 +14,12 @@ export default function Show({
     replies,
 }: {
     talk: Talk;
-    commit: Commit;
-    replies: CursorPaginated<ThreadCommit>;
+    commit: Commit | null;
+    replies: CursorPaginated<ThreadCommit> | null;
 }) {
     const { auth } = usePage().props;
     const isOwner = auth.user?.id === talk.user.id;
+    const isDraft = talk.published_at === null;
 
     const goBack = () => {
         if (window.history.length > 1) {
@@ -43,23 +45,35 @@ export default function Show({
                     <ArrowLeft className="size-4" />
                 </button>
                 <h1 className="truncate font-semibold">Talk</h1>
-                {isOwner && (
-                    <Form
-                        {...TalkController.destroy.form(talk)}
-                        className="ml-auto"
-                    >
-                        {({ processing }) => (
-                            <Button
-                                type="submit"
-                                variant="outline"
-                                size="sm"
-                                disabled={processing}
-                            >
-                                Delete
-                            </Button>
-                        )}
-                    </Form>
-                )}
+                <div className="ml-auto flex items-center gap-2">
+                    {isOwner && isDraft && (
+                        <Form {...TalkController.publish.form(talk)}>
+                            {({ processing }) => (
+                                <Button
+                                    type="submit"
+                                    size="sm"
+                                    disabled={processing}
+                                >
+                                    Publish
+                                </Button>
+                            )}
+                        </Form>
+                    )}
+                    {isOwner && (
+                        <Form {...TalkController.destroy.form(talk)}>
+                            {({ processing }) => (
+                                <Button
+                                    type="submit"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={processing}
+                                >
+                                    Delete
+                                </Button>
+                            )}
+                        </Form>
+                    )}
+                </div>
             </div>
 
             <section className="space-y-4 border-b px-5 py-6 sm:px-6">
@@ -72,6 +86,8 @@ export default function Show({
                             @{talk.user.username}
                         </Link>
                         {talk.event_name ? ` · ${talk.event_name}` : ''}
+                        {isDraft ? ' · Draft' : ''}
+                        {talk.is_unlisted && !isDraft ? ' · Unlisted' : ''}
                     </p>
                     <h2 className="mt-1 text-xl font-semibold tracking-tight">
                         {talk.title}
@@ -89,30 +105,68 @@ export default function Show({
                             {talk.presented_on}
                         </time>
                     </span>
-                    <a
-                        href={talk.link_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 hover:text-foreground hover:underline"
-                    >
-                        <ExternalLink className="size-3.5" />
-                        {talk.link_kind === 'recording'
-                            ? 'Recording'
-                            : 'Slides'}
-                    </a>
+                    {talk.recording_url && !talk.recording_embed && (
+                        <a
+                            href={talk.recording_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 hover:text-foreground hover:underline"
+                        >
+                            <ExternalLink className="size-3.5" />
+                            Recording
+                        </a>
+                    )}
+                    {talk.slides_url && !talk.slides_embed && (
+                        <a
+                            href={talk.slides_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 hover:text-foreground hover:underline"
+                        >
+                            <ExternalLink className="size-3.5" />
+                            Slides
+                        </a>
+                    )}
                 </div>
+
+                {talk.recording_url && talk.recording_embed && (
+                    <TalkMedia
+                        url={talk.recording_url}
+                        embed={talk.recording_embed}
+                        title={talk.title}
+                        label="Recording"
+                    />
+                )}
+
+                {talk.slides_url && talk.slides_embed && (
+                    <TalkMedia
+                        url={talk.slides_url}
+                        embed={talk.slides_embed}
+                        title={talk.title}
+                        label="Slides"
+                    />
+                )}
             </section>
 
-            <div className="border-b px-5 py-3 font-mono text-xs text-muted-foreground sm:px-6">
-                Discussion
-            </div>
+            {commit && replies ? (
+                <>
+                    <div className="border-b px-5 py-3 font-mono text-xs text-muted-foreground sm:px-6">
+                        Discussion
+                    </div>
 
-            <CommitCard
-                commit={commit}
-                initialReplies={replies}
-                endsWithDot
-                isFocused
-            />
+                    <CommitCard
+                        commit={commit}
+                        initialReplies={replies}
+                        endsWithDot
+                        isFocused
+                    />
+                </>
+            ) : (
+                <p className="px-5 py-8 font-mono text-sm text-muted-foreground sm:px-6">
+                    This draft is private. Publish it to open discussion in the
+                    log.
+                </p>
+            )}
         </>
     );
 }
