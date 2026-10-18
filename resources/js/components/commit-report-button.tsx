@@ -1,5 +1,5 @@
 import { useForm, usePage } from '@inertiajs/react';
-import { Flag } from 'lucide-react';
+import { Flag } from 'pixelarticons/react';
 import type { ReactNode } from 'react';
 import { useId, useState } from 'react';
 import { store } from '@/actions/App/Http/Controllers/CommitReportController';

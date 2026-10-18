@@ -1,5 +1,5 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
-import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
+import { EyeOff, MoreHorizontal, Reload } from 'pixelarticons/react';
 import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { FollowLabel, useFollowHover } from '@/components/follow-button';
@@ -178,7 +178,7 @@ function WhoToFollowRefreshButton() {
             title="Suggest other people"
             data-test="who-to-follow-refresh"
         >
-            <RefreshCw
+            <Reload
                 className={cn(
                     isRefreshing && 'animate-spin motion-reduce:animate-none',
                 )}
@@ -213,7 +213,7 @@ function WhoToFollowMenu({ onHide }: { onHide: () => void }) {
                     aria-label="Who to follow options"
                     data-test="who-to-follow-menu"
                 >
-                    <Ellipsis />
+                    <MoreHorizontal />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">

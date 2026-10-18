@@ -1,4 +1,4 @@
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'pixelarticons/react';
 import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {

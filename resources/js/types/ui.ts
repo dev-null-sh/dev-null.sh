@@ -1,5 +1,7 @@
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode, SVGProps } from 'react';
 import type { DeletedCommit } from '@/types/commit';
+
+export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 export type AppLayoutProps = {
     children: ReactNode;

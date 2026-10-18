@@ -1,10 +1,6 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
-import {
-  ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-} from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight } from "pixelarticons/react"
 import {
   DayPicker,
   getDefaultClassNames,
@@ -143,13 +139,13 @@ function Calendar({
         Chevron: ({ className, orientation, ...props }) => {
           if (orientation === "left") {
             return (
-              <ChevronLeftIcon className={cn("size-4", className)} {...props} />
+              <ChevronLeft className={cn("size-4", className)} {...props} />
             )
           }
 
           if (orientation === "right") {
             return (
-              <ChevronRightIcon
+              <ChevronRight
                 className={cn("size-4", className)}
                 {...props}
               />
@@ -157,7 +153,7 @@ function Calendar({
           }
 
           return (
-            <ChevronDownIcon className={cn("size-4", className)} {...props} />
+            <ChevronDown className={cn("size-4", className)} {...props} />
           )
         },
         DayButton: CalendarDayButton,

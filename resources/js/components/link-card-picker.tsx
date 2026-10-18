@@ -1,4 +1,4 @@
-import { ChevronDown, Link2, Link2Off } from 'lucide-react';
+import { ChevronDown, Link as LinkIcon, Unlink } from 'pixelarticons/react';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -65,9 +65,9 @@ export function LinkCardPicker({
                                 data-test="link-card-button"
                             >
                                 {linkCard.link === null ? (
-                                    <Link2Off />
+                                    <Unlink />
                                 ) : (
-                                    <Link2 />
+                                    <LinkIcon />
                                 )}
                                 <span className="sr-only">Link card:</span>
                                 <span

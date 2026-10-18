@@ -1,4 +1,4 @@
-import { Check, Copy, WrapText } from 'lucide-react';
+import { Check, Copy, TextWrap } from 'pixelarticons/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useClipboard } from '@/hooks/use-clipboard';
@@ -67,7 +67,7 @@ export function CodeBlock({
                                     isWrapped && 'bg-muted text-foreground',
                                 )}
                             >
-                                <WrapText className="size-3.5" aria-hidden />
+                                <TextWrap className="size-3.5" aria-hidden />
                             </button>
                             <button
                                 type="button"

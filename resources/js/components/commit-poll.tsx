@@ -1,5 +1,5 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
-import { Check } from 'lucide-react';
+import { Check } from 'pixelarticons/react';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
 import CommitPollVoteController from '@/actions/App/Http/Controllers/CommitPollVoteController';

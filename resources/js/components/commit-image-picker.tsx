@@ -1,4 +1,4 @@
-import { ImagePlus, X } from 'lucide-react';
+import { Close, Image2Plus } from 'pixelarticons/react';
 import { useId, useRef, useState } from 'react';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { Button } from '@/components/ui/button';
@@ -116,7 +116,7 @@ export function ImagePickerButton({
                     className={cn('text-muted-foreground', className)}
                     data-test="attach-images-button"
                 >
-                    <ImagePlus className="size-5" />
+                    <Image2Plus className="size-5" />
                 </Button>
             </ActionTooltip>
         </>
@@ -133,7 +133,7 @@ export function ImageDropOverlay({ className }: { className?: string }) {
             )}
             data-test="image-drop-overlay"
         >
-            <ImagePlus className="size-5" />
+            <Image2Plus className="size-5" />
             Drop images to attach
         </div>
     );
@@ -194,7 +194,7 @@ export function ImagePickerPreviews({
                                 aria-label={`Remove image ${index + 1}`}
                                 className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5 text-foreground backdrop-blur transition hover:bg-background"
                             >
-                                <X className="size-3.5" />
+                                <Close className="size-3.5" />
                             </button>
                             <button
                                 id={altButtonId(index)}

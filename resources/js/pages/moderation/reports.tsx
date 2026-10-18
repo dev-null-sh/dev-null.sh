@@ -1,5 +1,5 @@
 import { Head, InfiniteScroll, router } from '@inertiajs/react';
-import { Check, X } from 'lucide-react';
+import { Check, Close } from 'pixelarticons/react';
 import { useState } from 'react';
 import { store as reject } from '@/actions/App/Http/Controllers/CommitRejectionController';
 import { destroy } from '@/actions/App/Http/Controllers/CommitReportController';
@@ -115,7 +115,7 @@ export default function Reports({
                                                 resolve(reject(report.commit))
                                             }
                                         >
-                                            <X />
+                                            <Close />
                                             Reject commit
                                         </Button>
                                     </div>

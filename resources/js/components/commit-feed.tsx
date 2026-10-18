@@ -1,5 +1,5 @@
 import { InfiniteScroll, router, usePage } from '@inertiajs/react';
-import { Pin } from 'lucide-react';
+import { MapPin } from 'pixelarticons/react';
 import type { ReactNode } from 'react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
@@ -206,7 +206,7 @@ export function CommitFeed({
                     <div className="flex">
                         <RailSegment />
                         <p className="flex items-center gap-1.5 pt-3 pb-1 font-mono text-xs text-muted-foreground">
-                            <Pin aria-hidden className="size-3" />
+                            <MapPin aria-hidden className="size-3" />
                             Pinned
                         </p>
                     </div>

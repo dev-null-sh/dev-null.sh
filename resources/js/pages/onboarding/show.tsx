@@ -6,7 +6,7 @@ import {
     usePage,
     useRemember,
 } from '@inertiajs/react';
-import { ArrowUpRight, Check, Copy } from 'lucide-react';
+import { Check, Copy, ExternalLink } from 'pixelarticons/react';
 import type { CSSProperties, ReactNode, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -292,7 +292,7 @@ export default function Show({
                                     rel="noopener noreferrer"
                                 >
                                     Edit on GitHub
-                                    <ArrowUpRight />
+                                    <ExternalLink />
                                 </a>
                             </Button>
                         </>
@@ -458,7 +458,7 @@ export default function Show({
                                     className="mt-2 inline-flex items-center gap-1 text-sm text-primary underline-offset-4 hover:underline"
                                 >
                                     Read it before you pipe it into bash
-                                    <ArrowUpRight className="size-3.5" />
+                                    <ExternalLink className="size-3.5" />
                                 </a>
                             </dd>
                         </div>

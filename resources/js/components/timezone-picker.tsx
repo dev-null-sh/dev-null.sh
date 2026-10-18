@@ -8,7 +8,7 @@ import {
 import { Form } from '@inertiajs/react';
 import type { TimeZone } from '@vvo/tzdb';
 import { getTimeZones } from '@vvo/tzdb';
-import { Check, ChevronsUpDown } from 'lucide-react';
+import { Check, ChevronsVertical } from 'pixelarticons/react';
 import { useState, useSyncExternalStore } from 'react';
 import UserTimezoneController from '@/actions/App/Http/Controllers/UserTimezoneController';
 import Heading from '@/components/heading';
@@ -112,7 +112,7 @@ export default function TimezonePicker() {
                                     data-test="timezone-input"
                                 />
                                 <ComboboxButton className="absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground">
-                                    <ChevronsUpDown className="size-4" />
+                                    <ChevronsVertical className="size-4" />
                                 </ComboboxButton>
                             </div>
 

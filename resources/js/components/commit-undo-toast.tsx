@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { Undo2 } from 'lucide-react';
+import { Undo as UndoIcon } from 'pixelarticons/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitRestorationController from '@/actions/App/Http/Controllers/CommitRestorationController';
@@ -88,7 +88,7 @@ export function CommitUndoToast({
                 onClick={undo}
                 disabled={processing || remaining === 0}
             >
-                <Undo2 className="size-3.5" />
+                <UndoIcon className="size-3.5" />
                 {processing ? 'Restoring…' : 'Undo'}
             </Button>
         </div>

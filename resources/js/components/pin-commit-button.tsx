@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { Pin, PinOff } from 'lucide-react';
+import { Close, MapPin } from 'pixelarticons/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import CommitPinController from '@/actions/App/Http/Controllers/CommitPinController';
@@ -15,7 +15,7 @@ export function PinCommitButton({
     isPinned: boolean;
 }) {
     const [isSaving, setIsSaving] = useState(false);
-    const Icon = isPinned ? PinOff : Pin;
+    const Icon = isPinned ? Close : MapPin;
     const label = isPinned ? 'Unpin from profile' : 'Pin to profile';
 
     const togglePin = () => {

@@ -1,10 +1,10 @@
 import { usePage } from '@inertiajs/react';
 import {
-    PanelBottomClose,
-    PanelBottomOpen,
-    PanelRightClose,
-    PanelRightOpen,
-} from 'lucide-react';
+    ArrowBarDown,
+    ArrowBarLeft,
+    ArrowBarRight,
+    ArrowBarUp,
+} from 'pixelarticons/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Lightbox from 'yet-another-react-lightbox';
 import type { ControllerRef } from 'yet-another-react-lightbox';
@@ -154,13 +154,13 @@ export function CommitImageViewer() {
                     >
                         {isPanelOpen ? (
                             <>
-                                <PanelBottomClose className="yarl__icon lg:hidden" />
-                                <PanelRightClose className="yarl__icon max-lg:hidden" />
+                                <ArrowBarDown className="yarl__icon lg:hidden" />
+                                <ArrowBarRight className="yarl__icon max-lg:hidden" />
                             </>
                         ) : (
                             <>
-                                <PanelBottomOpen className="yarl__icon lg:hidden" />
-                                <PanelRightOpen className="yarl__icon max-lg:hidden" />
+                                <ArrowBarUp className="yarl__icon lg:hidden" />
+                                <ArrowBarLeft className="yarl__icon max-lg:hidden" />
                             </>
                         )}
                     </button>,

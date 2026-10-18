@@ -1,16 +1,16 @@
 import {
     Box,
-    FileCode,
-    Flame,
+    Fire,
     GitMerge,
     Key,
+    Script,
     Server,
     Shield,
     Sparkles,
     Star,
     Terminal,
     Zap,
-} from 'lucide-react';
+} from 'pixelarticons/react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import {
@@ -25,8 +25,8 @@ import type { Achievements, Profile, User } from '@/types';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     terminal: Terminal,
-    'file-code': FileCode,
-    flame: Flame,
+    'file-code': Script,
+    flame: Fire,
     zap: Zap,
     server: Server,
     box: Box,

@@ -1,5 +1,11 @@
 import { Link } from '@inertiajs/react';
-import { Check, Ellipsis, Search, UserPlus, X } from 'lucide-react';
+import {
+    Check,
+    Close,
+    MoreHorizontal,
+    Search,
+    UserPlus,
+} from 'pixelarticons/react';
 import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -530,7 +536,7 @@ function MemberRow({
                                 className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent"
                                 data-test="org-member-actions"
                             >
-                                <Ellipsis className="size-4" />
+                                <MoreHorizontal className="size-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-52">
                                 {member.role === 'maintainer' ? (
@@ -799,7 +805,7 @@ export function OrgPeopleDialog({
                                         <span className="truncate font-mono">
                                             @{person.username}
                                         </span>
-                                        <X className="size-3 shrink-0" />
+                                        <Close className="size-3 shrink-0" />
                                     </button>
                                 ))
                             )}

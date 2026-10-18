@@ -1,6 +1,6 @@
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 import { usePage } from '@inertiajs/react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'pixelarticons/react';
 import { useState } from 'react';
 import { ChangelogDialog } from '@/components/changelog-dialog';
 import {

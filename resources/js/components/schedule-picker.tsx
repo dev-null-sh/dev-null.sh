@@ -1,4 +1,4 @@
-import { CalendarClock } from 'lucide-react';
+import { DateTime } from 'pixelarticons/react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -100,7 +100,7 @@ export function SchedulePicker({
                     )}
                     data-test="schedule-picker"
                 >
-                    <CalendarClock aria-hidden="true" />
+                    <DateTime aria-hidden="true" />
                     {selected === undefined
                         ? 'Pick a date and time'
                         : new Intl.DateTimeFormat(undefined, {

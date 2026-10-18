@@ -1,9 +1,9 @@
-import type { LucideIcon } from 'lucide-react';
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { Monitor, Moon, Sun } from 'pixelarticons/react';
 import { SegmentedControl } from '@/components/segmented-control';
 import type { Appearance } from '@/hooks/use-appearance';
 import { useAppearance } from '@/hooks/use-appearance';
 import { withViewTransition } from '@/lib/utils';
+import type { IconComponent } from '@/types';
 
 export default function AppearanceToggleTab({
     className,
@@ -12,7 +12,7 @@ export default function AppearanceToggleTab({
 }) {
     const { appearance, updateAppearance } = useAppearance();
 
-    const tabs: { value: Appearance; icon: LucideIcon; label: string }[] = [
+    const tabs: { value: Appearance; icon: IconComponent; label: string }[] = [
         { value: 'light', icon: Sun, label: 'Light' },
         { value: 'dark', icon: Moon, label: 'Dark' },
         { value: 'system', icon: Monitor, label: 'System' },

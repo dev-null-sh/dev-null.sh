@@ -1,4 +1,4 @@
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy } from 'pixelarticons/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useClipboard } from '@/hooks/use-clipboard';

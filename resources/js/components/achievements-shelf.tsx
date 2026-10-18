@@ -1,18 +1,18 @@
 import {
-    Award,
     Box,
     ChevronRight,
-    FileCode,
-    Flame,
+    Fire,
     GitMerge,
     Key,
+    Script,
     Server,
     Shield,
     Sparkles,
     Star,
     Terminal,
+    Trophy,
     Zap,
-} from 'lucide-react';
+} from 'pixelarticons/react';
 import type { CSSProperties } from 'react';
 import {
     Tooltip,
@@ -24,8 +24,8 @@ import type { Achievements } from '@/types';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     terminal: Terminal,
-    'file-code': FileCode,
-    flame: Flame,
+    'file-code': Script,
+    flame: Fire,
     zap: Zap,
     server: Server,
     box: Box,
@@ -61,7 +61,7 @@ export function AchievementsShelf({
                     onClick={onInspect}
                     className="group flex items-center gap-2 text-left transition hover:text-foreground"
                 >
-                    <Award className="size-4 text-foreground" />
+                    <Trophy className="size-4 text-foreground" />
                     <span className="font-medium text-foreground group-hover:underline">
                         Lv. {achievements.level} · {achievements.rank}
                     </span>

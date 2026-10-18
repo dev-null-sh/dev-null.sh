@@ -1,13 +1,13 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
-    ArrowUpRight,
-    Building2,
-    CalendarDays,
+    Building,
+    Calendar,
+    ExternalLink,
     Heart,
-    Link2,
+    Link as LinkIcon,
     MapPin,
-    MessagesSquare,
-} from 'lucide-react';
+    Message,
+} from 'pixelarticons/react';
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
@@ -130,7 +130,7 @@ export default function Show({
                                     rel="noopener noreferrer"
                                 >
                                     Edit on GitHub
-                                    <ArrowUpRight />
+                                    <ExternalLink />
                                 </a>
                             </Button>
                         ) : (
@@ -155,7 +155,7 @@ export default function Show({
                                             aria-label={`Remote @${user.username}`}
                                             data-test="profile-remote"
                                         >
-                                            <MessagesSquare />
+                                            <Message />
                                             <span className="hidden sm:inline">
                                                 Remote
                                             </span>
@@ -221,7 +221,7 @@ export default function Show({
                 <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
                     {user.company && (
                         <li className="flex items-center gap-1.5">
-                            <Building2 className="size-4" />
+                            <Building className="size-4" />
                             {user.company}
                         </li>
                     )}
@@ -233,7 +233,7 @@ export default function Show({
                     )}
                     {user.website && (
                         <li className="flex min-w-0 items-center gap-1.5">
-                            <Link2 className="size-4 shrink-0" />
+                            <LinkIcon className="size-4 shrink-0" />
                             <a
                                 href={user.website}
                                 target="_blank"
@@ -271,7 +271,7 @@ export default function Show({
                         </li>
                     )}
                     <li className="flex items-center gap-1.5">
-                        <CalendarDays className="size-4" />
+                        <Calendar className="size-4" />
                         Joined{' '}
                         {new Date(user.created_at).toLocaleDateString(
                             undefined,

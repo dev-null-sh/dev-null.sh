@@ -2,9 +2,9 @@ import { Link, router, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
     CornerDownRight,
-    MessageSquareReply,
-    Trash2,
-} from 'lucide-react';
+    MessageReply,
+    Trash,
+} from 'pixelarticons/react';
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -378,7 +378,7 @@ export function ThreadActions({
                                 className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                 data-test="reply-button"
                             >
-                                <MessageSquareReply className="size-4" />
+                                <MessageReply className="size-4" />
                                 Reply
                                 {hasStash && !thread.isReplying && (
                                     <span
@@ -862,7 +862,7 @@ function CommitReply({
                                         aria-label="Delete reply"
                                         className="-my-1 ml-auto shrink-0 self-center rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:reply-hover:opacity-100 [@media(hover:none)]:opacity-100"
                                     >
-                                        <Trash2 className="size-3.5" />
+                                        <Trash className="size-3.5" />
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent>Delete reply</TooltipContent>

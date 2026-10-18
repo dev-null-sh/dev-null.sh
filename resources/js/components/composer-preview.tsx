@@ -1,5 +1,5 @@
 import { useHttp, usePage } from '@inertiajs/react';
-import { Eye, Link2 } from 'lucide-react';
+import { Eye, Link } from 'pixelarticons/react';
 import type { KeyboardEvent, RefObject } from 'react';
 import { useId, useState } from 'react';
 import CommitPreviewController from '@/actions/App/Http/Controllers/CommitPreviewController';
@@ -204,7 +204,7 @@ export function ComposerPreviewBody({
                     className="mt-3 flex items-center gap-3 rounded-lg border border-dashed px-3 py-2"
                     data-test="link-card-preview"
                 >
-                    <Link2
+                    <Link
                         aria-hidden
                         className="size-4 shrink-0 text-muted-foreground"
                     />

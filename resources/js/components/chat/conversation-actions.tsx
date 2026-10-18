@@ -1,12 +1,12 @@
 import { Link, router } from '@inertiajs/react';
 import {
     Archive,
-    ArchiveRestore,
-    Ban,
-    Ellipsis,
-    LogOut,
-    UserRound,
-} from 'lucide-react';
+    Cancel as CancelIcon,
+    Inbox,
+    Logout,
+    MoreHorizontal,
+    User as UserIcon,
+} from 'pixelarticons/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -146,7 +146,7 @@ export function ConversationActions({
                         )}
                         data-test="conversation-actions"
                     >
-                        <Ellipsis className="size-4" />
+                        <MoreHorizontal className="size-4" />
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -157,13 +157,13 @@ export function ConversationActions({
                     {target.kind === 'direct' && (
                         <DropdownMenuItem asChild>
                             <Link href={show(target.partner)}>
-                                <UserRound />
+                                <UserIcon />
                                 View profile
                             </Link>
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onSelect={() => void archive()}>
-                        {isArchived ? <ArchiveRestore /> : <Archive />}
+                        {isArchived ? <Inbox /> : <Archive />}
                         {isArchived ? 'Pop' : 'Stash'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -174,7 +174,7 @@ export function ConversationActions({
                             target.kind === 'org' ? 'leave-org' : undefined
                         }
                     >
-                        {target.kind === 'org' ? <LogOut /> : <Ban />}
+                        {target.kind === 'org' ? <Logout /> : <CancelIcon />}
                         {target.kind === 'org' ? 'Leave org' : `Block ${title}`}
                     </DropdownMenuItem>
                 </DropdownMenuContent>

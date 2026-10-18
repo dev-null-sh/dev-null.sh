@@ -6,13 +6,7 @@ import {
     usePage,
     usePoll,
 } from '@inertiajs/react';
-import {
-    CircleAlert,
-    CircleCheck,
-    RefreshCw,
-    RotateCcw,
-    Trash2,
-} from 'lucide-react';
+import { Check, Reload, SquareAlert, Trash } from 'pixelarticons/react';
 import { useId, useState } from 'react';
 import type { ReactNode } from 'react';
 import { toast } from 'sonner';
@@ -115,7 +109,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function Status({ isUp, children }: { isUp: boolean; children: ReactNode }) {
-    const Icon = isUp ? CircleCheck : CircleAlert;
+    const Icon = isUp ? Check : SquareAlert;
 
     return (
         <span
@@ -374,7 +368,7 @@ function FailedJobRow({
                                     onClick={() => leave('retrying')}
                                     data-test="retry-failed-job-button"
                                 >
-                                    <RotateCcw />
+                                    <Reload />
                                     Retry
                                 </Button>
                                 <Button
@@ -384,7 +378,7 @@ function FailedJobRow({
                                     className="text-muted-foreground hover:text-destructive"
                                     data-test="forget-failed-job-button"
                                 >
-                                    <Trash2 />
+                                    <Trash />
                                     Forget
                                 </Button>
                             </>
@@ -470,7 +464,7 @@ export default function Show({
                     title="Refresh now"
                     data-test="refresh-operations-button"
                 >
-                    <RefreshCw
+                    <Reload
                         className={cn(
                             isRefreshing &&
                                 'animate-spin motion-reduce:animate-none',

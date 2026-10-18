@@ -1,19 +1,19 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
-    Activity,
     Bell,
     Bookmark,
+    ChartLine,
+    Clock,
     ExternalLink,
-    GitCommitVertical,
-    History,
+    GitCommit,
     Menu,
-    MessagesSquare,
+    Message,
+    PenSquare,
     Search,
-    Settings2,
-    ShieldCheck,
-    SquarePen,
-    UserRound,
-} from 'lucide-react';
+    Shield,
+    SlidersHorizontal,
+    User,
+} from 'pixelarticons/react';
 import type { ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
@@ -63,7 +63,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
         {
             title: 'Log',
             href: log === null ? home() : LogController.show(log),
-            icon: GitCommitVertical,
+            icon: GitCommit,
             prefetch: false,
         },
         {
@@ -79,7 +79,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                       title: 'Remotes',
                       description: 'Direct messages',
                       href: ConversationController.index(),
-                      icon: MessagesSquare,
+                      icon: Message,
                       badge: unreadMessages,
                       prefetch: false,
                   },
@@ -88,7 +88,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
         {
             title: 'Profile',
             href: hrefFor((user) => show(user)),
-            icon: UserRound,
+            icon: User,
         },
         {
             title: 'Saved',
@@ -101,13 +101,13 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                   {
                       title: 'Moderation',
                       href: ModerationController.show(),
-                      icon: ShieldCheck,
+                      icon: Shield,
                       hasIndicator: hasUnmoderatedCommits,
                   },
                   {
                       title: 'Operations',
                       href: OperationsController.show(),
-                      icon: Activity,
+                      icon: ChartLine,
                       prefetch: false,
                   },
               ]
@@ -115,7 +115,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
         {
             title: 'Settings',
             href: hrefFor(() => edit()),
-            icon: Settings2,
+            icon: SlidersHorizontal,
         },
     ];
 
@@ -330,7 +330,7 @@ export function AppNav({
                 className="mt-4 h-[52px] w-[52px] shrink-0 rounded-lg text-[15px] lg:w-auto"
                 data-test="nav-commit-button"
             >
-                <SquarePen className="size-5" />
+                <PenSquare className="size-5" />
                 <span className="sr-only lg:not-sr-only">Commit</span>
             </Button>
 
@@ -563,7 +563,7 @@ export function MobileNav() {
                             setIsChangelogOpen(true);
                         }}
                     >
-                        <History />
+                        <Clock />
                         Changelog
                     </DropdownMenuItem>
                 </DropdownMenuContent>

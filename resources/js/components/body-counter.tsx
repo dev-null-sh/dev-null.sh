@@ -1,4 +1,4 @@
-import { FoldVertical } from 'lucide-react';
+import { Collapse } from 'pixelarticons/react';
 import {
     isFoldedInLists,
     maxBodyLength,
@@ -50,7 +50,7 @@ export function BodyCounter({
             data-test="body-counter"
         >
             {isCounting && remaining}
-            {isFolded && <FoldVertical aria-hidden className="size-4" />}
+            {isFolded && <Collapse aria-hidden className="size-4" />}
         </span>
     );
 }

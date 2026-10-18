@@ -1,4 +1,4 @@
-import { Image, Reply } from 'lucide-react';
+import { CornerUpLeft, Image } from 'pixelarticons/react';
 import type { PointerEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import MessageLinkPreviewController from '@/actions/App/Http/Controllers/MessageLinkPreviewController';
@@ -251,7 +251,7 @@ export function ReplyButton({
             )}
             data-test="reply-button"
         >
-            <Reply aria-hidden className="size-4" />
+            <CornerUpLeft aria-hidden className="size-4" />
         </button>
     );
 }

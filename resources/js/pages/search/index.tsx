@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { ArrowRight, Search, Sparkles, X } from 'lucide-react';
+import { ArrowRight, Close, Search, Sparkles } from 'pixelarticons/react';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
@@ -74,7 +74,7 @@ export default function Index({ query }: { query: string }) {
                         className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-[color,opacity] hover:text-foreground disabled:pointer-events-none disabled:opacity-0"
                         disabled={draft === ''}
                     >
-                        <X className="size-4" />
+                        <Close className="size-4" />
                     </button>
                 </form>
             </header>

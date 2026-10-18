@@ -1,5 +1,5 @@
 import { Head, Link, router, usePoll } from '@inertiajs/react';
-import { ArrowLeft, Clock3, ImageIcon, LockKeyhole } from 'lucide-react';
+import { ArrowLeft, Clock, Image, Lock } from 'pixelarticons/react';
 import { useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
@@ -54,7 +54,7 @@ export default function Index({
                     <ArrowLeft className="size-4" />
                 </Link>
                 <h1 className="font-semibold">Scheduled commits</h1>
-                <LockKeyhole
+                <Lock
                     className="ml-auto size-4 text-muted-foreground"
                     aria-label="Private"
                 />
@@ -71,7 +71,7 @@ export default function Index({
             </div>
             {scheduledCommits.data.length === 0 ? (
                 <div className="space-y-3 px-6 py-14 text-center">
-                    <Clock3 className="mx-auto size-6 text-muted-foreground" />
+                    <Clock className="mx-auto size-6 text-muted-foreground" />
                     <p className="font-medium">No scheduled commits</p>
                     <p className="text-sm text-muted-foreground">
                         Choose Schedule in the composer to submit later.
@@ -169,7 +169,7 @@ export default function Index({
                                 )}
                                 {scheduled.image_count > 0 && (
                                     <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                                        <ImageIcon
+                                        <Image
                                             className="size-4"
                                             aria-hidden="true"
                                         />

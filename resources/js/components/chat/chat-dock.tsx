@@ -2,11 +2,11 @@ import { Link, router } from '@inertiajs/react';
 import {
     ChevronLeft,
     ChevronUp,
-    Maximize2,
+    Close,
+    Expand as ExpandIcon,
     Minus,
-    SquarePen,
-    X,
-} from 'lucide-react';
+    PenSquare,
+} from 'pixelarticons/react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
@@ -88,7 +88,7 @@ function DockedChat({ user }: { user: User }) {
                     label="New remote"
                     onClick={() => setIsPicking(true)}
                 >
-                    <SquarePen className="size-4" />
+                    <PenSquare className="size-4" />
                 </DockButton>
             )}
             <Tooltip>
@@ -105,7 +105,7 @@ function DockedChat({ user }: { user: User }) {
                         aria-label="Open in Remotes"
                         className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
-                        <Maximize2 className="size-4" />
+                        <ExpandIcon className="size-4" />
                     </Link>
                 </TooltipTrigger>
                 <TooltipContent>Open in Remotes</TooltipContent>
@@ -121,7 +121,7 @@ function DockedChat({ user }: { user: User }) {
                 )}
             </DockButton>
             <DockButton label="Undock" onClick={() => setChatDocked(false)}>
-                <X className="size-4" />
+                <Close className="size-4" />
             </DockButton>
         </div>
     );

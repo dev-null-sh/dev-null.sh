@@ -1,4 +1,4 @@
-import { Share2 } from 'lucide-react';
+import { Share as ShareIcon } from 'pixelarticons/react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useClipboard } from '@/hooks/use-clipboard';
@@ -38,7 +38,7 @@ export function ProfileShareButton({
             title="Share profile"
             data-test="share-profile-button"
         >
-            <Share2 />
+            <ShareIcon />
         </Button>
     );
 }

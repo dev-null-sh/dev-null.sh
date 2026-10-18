@@ -1,4 +1,4 @@
-import { Check, LinkIcon } from 'lucide-react';
+import { Check, Link } from 'pixelarticons/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -60,7 +60,7 @@ export function CopyLinkButton({
     className?: string;
 }) {
     const { isCopied, copyLink } = useCopyLink(commit);
-    const Icon = isCopied ? Check : LinkIcon;
+    const Icon = isCopied ? Check : Link;
 
     return (
         <Tooltip>

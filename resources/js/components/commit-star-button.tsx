@@ -1,5 +1,5 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
-import { Star } from 'lucide-react';
+import { Star } from 'pixelarticons/react';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Ref } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
@@ -161,7 +161,6 @@ export function CommitStarButton({
                     onAnimationEnd={() => setIsAnimating(false)}
                     className={cn(
                         'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
-                        starred && 'fill-current',
                         isAnimating && 'motion-safe:animate-star-pop',
                     )}
                 />

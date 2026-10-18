@@ -1,4 +1,4 @@
-import { ChevronDown, Plus, X } from 'lucide-react';
+import { ChevronDown, Close, Plus } from 'pixelarticons/react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -113,7 +113,7 @@ export function PollEditor({
                                         title="Remove option"
                                         className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                                     >
-                                        <X className="size-4" />
+                                        <Close className="size-4" />
                                     </button>
                                 )}
                             </div>

@@ -1,4 +1,4 @@
-import { Bookmark, Ellipsis, Flag, LinkIcon } from 'lucide-react';
+import { Bookmark, Flag, Link, MoreHorizontal } from 'pixelarticons/react';
 import { useState } from 'react';
 import { BookmarkButton, useBookmark } from '@/components/bookmark-button';
 import {
@@ -13,7 +13,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 export function CommitSecondaryActions({
@@ -59,7 +58,7 @@ function CommitActionsMenu({
                         className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-accent data-[state=open]:text-foreground"
                         data-test="commit-actions-menu"
                     >
-                        <Ellipsis aria-hidden className="size-4" />
+                        <MoreHorizontal aria-hidden className="size-4" />
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
@@ -68,16 +67,12 @@ function CommitActionsMenu({
                             disabled={bookmark.isProcessing}
                             onSelect={bookmark.toggle}
                         >
-                            <Bookmark
-                                className={cn({
-                                    'fill-current': bookmark.isSaved,
-                                })}
-                            />
+                            <Bookmark />
                             {bookmark.isSaved ? 'Unsave commit' : 'Save commit'}
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onSelect={copyLink}>
-                        <LinkIcon />
+                        <Link />
                         Copy link
                     </DropdownMenuItem>
                     {canReport && (

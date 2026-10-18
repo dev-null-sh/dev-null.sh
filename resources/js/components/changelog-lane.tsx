@@ -1,4 +1,4 @@
-import { ArrowUpRight } from 'lucide-react';
+import { ExternalLink } from 'pixelarticons/react';
 import type { Ref } from 'react';
 import type { ChangelogAuthor, ChangelogPullRequest } from '@/lib/changelog';
 import { authorLane } from '@/lib/changelog';
@@ -69,7 +69,7 @@ function PullRequestLink({
             className="inline-flex shrink-0 items-center gap-0.5 rounded-sm font-mono text-xs text-muted-foreground tabular-nums transition-colors hover:text-primary"
         >
             #{pullRequest.number}
-            <ArrowUpRight aria-hidden className="size-3" />
+            <ExternalLink aria-hidden className="size-3" />
         </a>
     );
 }

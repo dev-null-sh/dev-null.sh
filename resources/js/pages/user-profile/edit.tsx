@@ -1,5 +1,5 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
-import { ArrowUpRight, Download, RefreshCw } from 'lucide-react';
+import { Download, ExternalLink, Reload } from 'pixelarticons/react';
 import ExportController from '@/actions/App/Http/Controllers/ExportController';
 import UserProfileController from '@/actions/App/Http/Controllers/UserProfileController';
 import ActivityGraphEmbed from '@/components/activity-graph-embed';
@@ -78,7 +78,7 @@ export default function Edit({
                             rel="noopener noreferrer"
                         >
                             Edit on GitHub
-                            <ArrowUpRight />
+                            <ExternalLink />
                         </a>
                     </Button>
                     <Form
@@ -94,7 +94,7 @@ export default function Edit({
                                 aria-busy={processing}
                                 data-test="sync-profile-button"
                             >
-                                {processing ? <Spinner /> : <RefreshCw />}
+                                {processing ? <Spinner /> : <Reload />}
                                 Sync from GitHub
                             </Button>
                         )}

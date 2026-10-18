@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Search } from 'lucide-react';
+import { Search } from 'pixelarticons/react';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';

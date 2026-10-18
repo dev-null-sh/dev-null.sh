@@ -1,5 +1,5 @@
 import { Form, usePage } from '@inertiajs/react';
-import { Quote } from 'lucide-react';
+import { QuoteTextInline } from 'pixelarticons/react';
 import type { KeyboardEvent } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -73,7 +73,7 @@ export function CommitQuoteButton({
                     )}
                     data-test="quote-button"
                 >
-                    <Quote className="size-4" />
+                    <QuoteTextInline className="size-4" />
                     <span className="sr-only sm:not-sr-only">Quote</span>
                     {hasStash && (
                         <span

@@ -1,5 +1,5 @@
 import type { Secret } from '@sanity-labs/secret-scan';
-import { ShieldAlert } from 'lucide-react';
+import { WarningDiamond } from 'pixelarticons/react';
 import type { RefObject } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -50,7 +50,7 @@ export function SecretWarning({
                     className="flex items-center gap-2 font-medium"
                     role="status"
                 >
-                    <ShieldAlert className="size-4 shrink-0 text-amber-700 dark:text-amber-400" />
+                    <WarningDiamond className="size-4 shrink-0 text-amber-700 dark:text-amber-400" />
                     Possible {findings.length === 1 ? 'secret' : 'secrets'}{' '}
                     detected
                 </p>

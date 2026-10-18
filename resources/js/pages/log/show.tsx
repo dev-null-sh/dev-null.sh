@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp } from 'pixelarticons/react';
 import { useEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';

@@ -1,6 +1,6 @@
-import type { LucideIcon } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
+import type { IconComponent } from '@/types';
 
 export function SegmentedControl<T>({
     label,
@@ -12,7 +12,7 @@ export function SegmentedControl<T>({
 }: {
     label: string;
     name: string;
-    options: { value: T; icon: LucideIcon; label: string }[];
+    options: { value: T; icon: IconComponent; label: string }[];
     value: T;
     onChange: (value: T) => void;
     className?: string;

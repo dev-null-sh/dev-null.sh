@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { Bot, Check, X } from 'lucide-react';
+import { Check, Close, Robot } from 'pixelarticons/react';
 import { useId, useState } from 'react';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
@@ -53,7 +53,7 @@ function AiDecision({ commit }: { commit: Commit }) {
             title={label}
             data-test="ai-decision"
         >
-            <Bot aria-hidden className="size-4 shrink-0" />
+            <Robot aria-hidden className="size-4 shrink-0" />
             <span className="truncate">{label}</span>
         </p>
     );
@@ -120,7 +120,7 @@ function ModerationActions({
                     aria-keyshortcuts="x"
                     data-test="reject-commit-button"
                 >
-                    <X />
+                    <Close />
                     Reject
                     <Keycap label="x" className="bg-muted" />
                 </Button>

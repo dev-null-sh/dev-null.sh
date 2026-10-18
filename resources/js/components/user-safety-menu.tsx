@@ -1,5 +1,10 @@
 import { router } from '@inertiajs/react';
-import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
+import {
+    Cancel as CancelIcon,
+    MoreHorizontal,
+    Volume3,
+    VolumeX,
+} from 'pixelarticons/react';
 import { useState } from 'react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
@@ -71,7 +76,7 @@ export function UserSafetyMenu({
                         aria-label={`More options for @${user.username}`}
                         data-test="user-safety-menu"
                     >
-                        <Ellipsis />
+                        <MoreHorizontal />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
@@ -85,7 +90,7 @@ export function UserSafetyMenu({
                             )
                         }
                     >
-                        {isMuting ? <Volume2 /> : <VolumeX />}
+                        {isMuting ? <Volume3 /> : <VolumeX />}
                         {isMuting
                             ? `Unmute @${user.username}`
                             : `Mute @${user.username}`}
@@ -99,7 +104,7 @@ export function UserSafetyMenu({
                                 : changeOpen(false, true)
                         }
                     >
-                        <Ban />
+                        <CancelIcon />
                         {isBlocking
                             ? `Unblock @${user.username}`
                             : `Block @${user.username}`}

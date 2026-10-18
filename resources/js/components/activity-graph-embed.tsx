@@ -1,5 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
-import { Check, Copy, Monitor, Moon, Sun } from 'lucide-react';
+import { Check, Copy, Monitor, Moon, Sun } from 'pixelarticons/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import Heading from '@/components/heading';
@@ -7,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useUser } from '@/hooks/use-user';
 import { cn } from '@/lib/utils';
+import type { IconComponent } from '@/types';
 
 type GraphTheme = 'light' | 'dark' | 'auto';
 
-const themes: { value: GraphTheme; icon: LucideIcon; label: string }[] = [
+const themes: { value: GraphTheme; icon: IconComponent; label: string }[] = [
     { value: 'light', icon: Sun, label: 'Light' },
     { value: 'dark', icon: Moon, label: 'Dark' },
     { value: 'auto', icon: Monitor, label: 'Auto' },

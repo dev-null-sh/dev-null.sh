@@ -5,12 +5,12 @@ import {
     AtSign,
     Check,
     ChevronDown,
-    MessageSquareReply,
-    Quote,
+    Close,
+    MessageReply,
+    QuoteTextInline,
     Star,
     UserPlus,
-    X,
-} from 'lucide-react';
+} from 'pixelarticons/react';
 import type { MouseEvent, ReactNode } from 'react';
 import {
     Fragment,
@@ -711,12 +711,12 @@ function NotificationContent({
     const isOwnCommit = notification.type === 'starred' || moderation;
     const Icon = {
         followed: UserPlus,
-        replied: MessageSquareReply,
-        quoted: Quote,
+        replied: MessageReply,
+        quoted: QuoteTextInline,
         starred: Star,
         mentioned: AtSign,
         approved: Check,
-        rejected: X,
+        rejected: Close,
     }[notification.type];
     const icon = (
         <Icon

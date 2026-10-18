@@ -1,5 +1,5 @@
 import { Form, Link, usePage } from '@inertiajs/react';
-import { ChartBar, Clock3 } from 'lucide-react';
+import { ChartBarBig, Clock } from 'pixelarticons/react';
 import type { KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -320,7 +320,7 @@ function CommitComposerBody({
                                     className="text-muted-foreground"
                                     data-test="add-poll-button"
                                 >
-                                    <ChartBar className="size-5" />
+                                    <ChartBarBig className="size-5" />
                                 </Button>
                             </ActionTooltip>
                             <ActionTooltip
@@ -349,7 +349,7 @@ function CommitComposerBody({
                                     className="text-muted-foreground aria-expanded:bg-primary-soft aria-expanded:text-primary aria-expanded:hover:bg-primary-soft aria-expanded:hover:text-primary"
                                     data-test="schedule-toggle"
                                 >
-                                    <Clock3 className="size-5" />
+                                    <Clock className="size-5" />
                                 </Button>
                             </ActionTooltip>
                             <LinkCardPicker

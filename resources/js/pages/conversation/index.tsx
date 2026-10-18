@@ -1,10 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import {
-    ChevronLeft,
-    PanelBottomOpen,
-    SquarePen,
-    UsersRound,
-} from 'lucide-react';
+import { ArrowBarUp, ChevronLeft, PenSquare, Users } from 'pixelarticons/react';
 import { useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
@@ -122,7 +117,7 @@ export default function Index({
                                         )}
                                         data-test="chat-dock-toggle"
                                     >
-                                        <PanelBottomOpen className="size-4" />
+                                        <ArrowBarUp className="size-4" />
                                         {dock.isDocked ? 'Docked' : 'Dock'}
                                     </button>
                                 </TooltipTrigger>
@@ -142,7 +137,7 @@ export default function Index({
                                         className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                         data-test="new-org"
                                     >
-                                        <UsersRound className="size-[18px]" />
+                                        <Users className="size-[18px]" />
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent>New org</TooltipContent>
@@ -156,7 +151,7 @@ export default function Index({
                                         className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                         data-test="new-message"
                                     >
-                                        <SquarePen className="size-[18px]" />
+                                        <PenSquare className="size-[18px]" />
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent>New remote</TooltipContent>
@@ -211,7 +206,7 @@ export default function Index({
                             variant="outline"
                             onClick={() => setIsPicking(true)}
                         >
-                            <SquarePen className="size-4" />
+                            <PenSquare className="size-4" />
                             New remote
                         </Button>
                     </div>
@@ -305,7 +300,7 @@ function EmptyInbox({ onCompose }: { onCompose: () => void }) {
                 no conversations yet
             </p>
             <Button variant="outline" onClick={onCompose}>
-                <SquarePen className="size-4" />
+                <PenSquare className="size-4" />
                 New remote
             </Button>
         </div>

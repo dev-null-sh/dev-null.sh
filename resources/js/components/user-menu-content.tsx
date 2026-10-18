@@ -1,13 +1,13 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import {
-    Activity,
     Bookmark,
+    ChartLine,
     FileText,
-    LogOut,
-    Settings,
+    Logout,
+    SettingsCog,
     Shield,
-    UserRound,
-} from 'lucide-react';
+    User as UserIcon,
+} from 'pixelarticons/react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
@@ -66,7 +66,7 @@ export function UserMenuContent({ user }: Props) {
                         prefetch
                         onClick={cleanup}
                     >
-                        <UserRound className="mr-2" />
+                        <UserIcon className="mr-2" />
                         Profile
                     </Link>
                 </DropdownMenuItem>
@@ -77,7 +77,7 @@ export function UserMenuContent({ user }: Props) {
                         prefetch
                         onClick={cleanup}
                     >
-                        <Settings className="mr-2" />
+                        <SettingsCog className="mr-2" />
                         Settings
                     </Link>
                 </DropdownMenuItem>
@@ -88,7 +88,7 @@ export function UserMenuContent({ user }: Props) {
                             href={OperationsController.show()}
                             onClick={cleanup}
                         >
-                            <Activity className="mr-2" />
+                            <ChartLine className="mr-2" />
                             Operations
                         </Link>
                     </DropdownMenuItem>
@@ -126,7 +126,7 @@ export function UserMenuContent({ user }: Props) {
                     onClick={handleLogout}
                     data-test="logout-button"
                 >
-                    <LogOut className="mr-2" />
+                    <Logout className="mr-2" />
                     Log out
                 </Link>
             </DropdownMenuItem>

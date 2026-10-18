@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Settings2 } from 'lucide-react';
+import { SlidersHorizontal } from 'pixelarticons/react';
 import { toast } from 'sonner';
 import { update } from '@/actions/App/Http/Controllers/UserRemotePreferencesController';
 import {
@@ -53,7 +53,7 @@ export function RemoteSettingsMenu() {
                         className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
                         data-test="remote-settings"
                     >
-                        <Settings2 className="size-[18px]" />
+                        <SlidersHorizontal className="size-[18px]" />
                     </DropdownMenuTrigger>
                 </TooltipTrigger>
                 <TooltipContent>Remote settings</TooltipContent>

@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { Search, X } from 'lucide-react';
+import { Close, Search } from 'pixelarticons/react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { ConversationList } from '@/components/chat/conversation-list';
@@ -192,7 +192,7 @@ export function InboxPanel({
                             onClick={() => setQuery('')}
                             className="absolute right-2 grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
-                            <X className="size-3.5" />
+                            <Close className="size-3.5" />
                         </button>
                     )}
                 </label>

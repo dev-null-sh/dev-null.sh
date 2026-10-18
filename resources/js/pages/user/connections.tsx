@@ -1,5 +1,5 @@
 import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'pixelarticons/react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';

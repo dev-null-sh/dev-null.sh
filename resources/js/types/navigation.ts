@@ -1,5 +1,5 @@
 import type { InertiaLinkProps } from '@inertiajs/react';
-import type { LucideIcon } from 'lucide-react';
+import type { IconComponent } from '@/types/ui';
 
 export type NavItem = {
     title: string;
@@ -8,7 +8,7 @@ export type NavItem = {
      */
     description?: string;
     href: NonNullable<InertiaLinkProps['href']>;
-    icon?: LucideIcon | null;
+    icon?: IconComponent | null;
     isActive?: boolean;
     hasIndicator?: boolean;
     badge?: number;

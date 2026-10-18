@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { Ban } from 'lucide-react';
+import { Cancel } from 'pixelarticons/react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { Button } from '@/components/ui/button';
@@ -46,7 +46,7 @@ export default function Unavailable({
                                         as="button"
                                         data-test="unblock-button"
                                     >
-                                        <Ban />
+                                        <Cancel />
                                         Unblock @{username}
                                     </Link>
                                 </Button>

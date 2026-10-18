@@ -1,6 +1,6 @@
 import { Link, router } from '@inertiajs/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { ArrowRight, Search, Sparkles } from 'lucide-react';
+import { ArrowRight, Search, Sparkles } from 'pixelarticons/react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';

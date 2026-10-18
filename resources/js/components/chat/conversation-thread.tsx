@@ -1,4 +1,4 @@
-import { ArrowDown, X } from 'lucide-react';
+import { ArrowDown, Close } from 'pixelarticons/react';
 import type {
     ClipboardEvent,
     FormEvent,
@@ -1169,7 +1169,7 @@ function Composer({
                             className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
                             data-test="cancel-reply"
                         >
-                            <X aria-hidden className="size-4" />
+                            <Close aria-hidden className="size-4" />
                         </button>
                     </div>
                 )}

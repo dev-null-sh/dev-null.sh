@@ -1,10 +1,10 @@
-import { AudioLines, Code2, Play } from 'lucide-react';
+import { AudioWaveform, Code, Play } from 'pixelarticons/react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { Embed, LinkPreview } from '@/types';
 
-const icons = { video: Play, audio: AudioLines, code: Code2 };
+const icons = { video: Play, audio: AudioWaveform, code: Code };
 
 function isTall(embed: Embed): boolean {
     const [width, height] = (embed.aspect_ratio ?? '')
@@ -160,7 +160,7 @@ export function LinkEmbed({
                                 />
                                 <span className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/10" />
                                 <span className="absolute top-1/2 left-1/2 flex size-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white ring-white/60 transition-transform group-hover:scale-105 group-focus-visible:ring-2">
-                                    <Icon className="ml-0.5 size-6 fill-current" />
+                                    <Icon className="ml-0.5 size-6" />
                                 </span>
                             </PlayTrigger>
                         )}
@@ -196,7 +196,7 @@ export function LinkEmbed({
                     <span className="relative my-2 ml-2 size-20 shrink-0 overflow-hidden rounded-md">
                         <Thumbnail src={poster} className="size-full" />
                         <span className="absolute inset-0 flex items-center justify-center bg-black/30 text-white transition-colors group-hover:bg-black/40">
-                            <Icon className="size-7 fill-current" />
+                            <Icon className="size-7" />
                         </span>
                     </span>
                     <span className="flex min-w-0 flex-1 px-3 py-2">

@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { LockKeyhole } from 'lucide-react';
+import { Lock } from 'pixelarticons/react';
 import { useRef } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { BookmarkRemovalContext } from '@/components/bookmark-button';
@@ -54,7 +54,7 @@ export default function Index({
                     Saved
                 </h1>
                 <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <LockKeyhole aria-hidden className="size-3.5" />
+                    <Lock aria-hidden className="size-3.5" />
                     Only you
                 </span>
             </header>

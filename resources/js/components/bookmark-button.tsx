@@ -1,5 +1,5 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
-import { Bookmark } from 'lucide-react';
+import { Bookmark } from 'pixelarticons/react';
 import { createContext, useContext } from 'react';
 import { toast } from 'sonner';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
@@ -87,10 +87,7 @@ export function BookmarkButton({ commit }: { commit: Commit }) {
                     )}
                     data-test="bookmark-button"
                 >
-                    <Bookmark
-                        aria-hidden
-                        className={cn('size-4', { 'fill-current': isSaved })}
-                    />
+                    <Bookmark aria-hidden className="size-4" />
                 </button>
             </TooltipTrigger>
             <TooltipContent>

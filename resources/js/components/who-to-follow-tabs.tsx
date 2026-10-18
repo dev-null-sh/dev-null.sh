@@ -1,15 +1,15 @@
-import type { LucideIcon } from 'lucide-react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'pixelarticons/react';
 import { useState } from 'react';
 import { SegmentedControl } from '@/components/segmented-control';
 import { useWhoToFollow } from '@/hooks/use-who-to-follow';
 import { withViewTransition } from '@/lib/utils';
+import type { IconComponent } from '@/types';
 
 export default function WhoToFollowTabs() {
     const { showsWhoToFollow, setShowsWhoToFollow } = useWhoToFollow();
     const [selected, setSelected] = useState(showsWhoToFollow);
 
-    const tabs: { value: boolean; icon: LucideIcon; label: string }[] = [
+    const tabs: { value: boolean; icon: IconComponent; label: string }[] = [
         { value: true, icon: Eye, label: 'Show' },
         { value: false, icon: EyeOff, label: 'Hide' },
     ];
