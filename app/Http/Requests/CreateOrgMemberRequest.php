@@ -79,9 +79,11 @@ final class CreateOrgMemberRequest extends FormRequest
      */
     public function members(): Collection
     {
-        /** @var list<string> $usernames */
-        $usernames = $this->array('members');
+        return once(function (): Collection {
+            /** @var list<string> $usernames */
+            $usernames = $this->array('members');
 
-        return User::query()->whereIn('username', $usernames)->get()->sortBy(fn (User $user): int|false => array_search($user->username, $usernames, true))->values()->toBase();
+            return User::query()->whereIn('username', $usernames)->get()->sortBy(fn (User $user): int|false => array_search($user->username, $usernames, true))->values()->toBase();
+        });
     }
 }
