@@ -82,7 +82,7 @@ final readonly class CreateCommit
             $this->createMentionNotifications->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
-                dispatch(new UnfurlLink($linkPreview));
+                dispatch(new UnfurlLink($linkPreview))->afterCommit();
             }
 
             $this->createWorldReply->handle($commit);

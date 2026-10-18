@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommit;
+use App\Contracts\Services\DnsResolver;
 use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
@@ -16,8 +17,11 @@ use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\TheAlgorithm;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -285,6 +289,29 @@ it('attaches no link preview when the author chose none', function (): void {
         ->and(LinkPreview::query()->count())->toBe(0);
 
     Queue::assertNothingPushed();
+});
+
+it('fetches the link only once the commit is committed', function (): void {
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return ['93.184.216.34'];
+        }
+    });
+    $levels = [];
+    Http::fake(['https://example.com/*' => function () use (&$levels): PromiseInterface {
+        $levels[] = DB::transactionLevel();
+
+        return Http::response('<title>Example</title>', 200, ['Content-Type' => 'text/html']);
+    }]);
+
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Read https://example.com/post');
+
+    expect($levels)->toBe([DB::transactionLevel()])
+        ->and($commit->refresh()->linkPreview)
+        ->title->toBe('Example')
+        ->fetched_at->not->toBeNull();
 });
 
 it('attaches a link preview for a bare domain', function (): void {
