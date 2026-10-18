@@ -480,7 +480,15 @@ function MemberRow({
     return (
         <li className="flex items-center gap-3 px-5 py-2">
             <Link href={show(member.user)} className="shrink-0">
-                <UserAvatar user={member.user} className="size-9" />
+                <UserAvatar
+                    user={member.user}
+                    className="size-9 ring-2 ring-(--lane)"
+                    style={
+                        {
+                            '--lane': laneColor(member.user.lane),
+                        } as React.CSSProperties
+                    }
+                />
             </Link>
             <span className="min-w-0 flex-1">
                 <Link
@@ -497,11 +505,6 @@ function MemberRow({
                     )}
                 </Link>
                 <span className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
-                    <span
-                        aria-hidden
-                        className="size-1.5 shrink-0 rounded-full"
-                        style={{ background: laneColor(member.user.lane) }}
-                    />
                     <span className="truncate">@{member.user.username}</span>
                 </span>
             </span>

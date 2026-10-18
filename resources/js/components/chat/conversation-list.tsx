@@ -122,7 +122,15 @@ function ConversationRow({
             ) : (
                 <UserAvatar
                     user={partner}
-                    className={isCompact ? 'size-8' : 'size-10'}
+                    className={cn(
+                        'ring-2 ring-(--lane)',
+                        isCompact ? 'size-8' : 'size-10',
+                    )}
+                    style={
+                        {
+                            '--lane': laneColor(partner.lane),
+                        } as React.CSSProperties
+                    }
                 />
             )}
             <span className="min-w-0">
@@ -153,11 +161,6 @@ function ConversationRow({
                             {partner.name}
                         </span>
                         <span className="flex min-w-0 shrink-[4] items-center gap-1 font-mono text-xs text-muted-foreground">
-                            <span
-                                aria-hidden
-                                className="size-1.5 shrink-0 rounded-full"
-                                style={{ background: laneColor(partner.lane) }}
-                            />
                             <span className="truncate">
                                 @{partner.username}
                             </span>

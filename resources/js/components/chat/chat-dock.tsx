@@ -27,7 +27,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { rememberTarget, summaryKey, targetKey, targetOf } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
 import { setChatDocked, updateChatDock, useChatDock } from '@/lib/chat-dock';
-import { cn } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import type { User } from '@/types';
 
 /**
@@ -282,7 +282,13 @@ function DirectDockHeader({
             >
                 <ChevronLeft className="size-4" />
             </DockButton>
-            <UserAvatar user={partner} className="size-7" />
+            <UserAvatar
+                user={partner}
+                className="size-7 ring-2 ring-(--lane)"
+                style={
+                    { '--lane': laneColor(partner.lane) } as React.CSSProperties
+                }
+            />
             <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold">
                     {partner.name}
