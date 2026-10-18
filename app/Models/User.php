@@ -428,6 +428,24 @@ final class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<UserList, $this>
+     */
+    public function lists(): HasMany
+    {
+        return $this->hasMany(UserList::class);
+    }
+
+    /**
+     * The lists shown as tabs next to the logs, in the order they were pinned.
+     *
+     * @return Collection<int, UserList>
+     */
+    public function pinnedLists(): Collection
+    {
+        return $this->lists()->whereNotNull('pinned_at')->oldest('pinned_at')->get(['id', 'name', 'pinned_at']);
+    }
+
+    /**
      * Users sign in with GitHub, so they have no password.
      */
     public function getAuthPassword(): string

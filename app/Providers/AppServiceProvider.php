@@ -196,6 +196,7 @@ final class AppServiceProvider extends ServiceProvider
         // Commit actions: rapid j/k with a star on most commits stays well under these...
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('pins', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
+        RateLimiter::for('lists', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
 
         // Messages: polling an open conversation every second or so stays well under the first...
         RateLimiter::for('conversations', fn (Request $request): Limit => Limit::perMinute(300)->by($this->userId($request)));

@@ -5,6 +5,7 @@ import {
     BookOpen,
     Star,
     FileText,
+    ListChecks,
     LogOut,
     Settings,
     Shield,
@@ -16,6 +17,7 @@ import OperationsController from '@/actions/App/Http/Controllers/OperationsContr
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
+import UserListController from '@/actions/App/Http/Controllers/UserListController';
 import { GitHubIcon } from '@/components/github-icon';
 import {
     DropdownMenuGroup,
@@ -64,6 +66,16 @@ export function UserMenuContent({ user }: Props) {
                     >
                         <Star className="mr-2" />
                         Starred
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={UserListController.index()}
+                        onClick={cleanup}
+                    >
+                        <ListChecks className="mr-2" />
+                        Lists
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
