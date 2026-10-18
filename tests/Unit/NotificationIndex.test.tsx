@@ -1,9 +1,9 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import Index from '../../resources/js/pages/notification/index';
 import type {
     NotificationCommit,
@@ -85,7 +85,7 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
     return result.body.slice(result.body.indexOf('<article'));
 }
 
-void test('renders a code block highlighted in a notification', async () => {
+test('renders a code block highlighted in a notification', async () => {
     const body = await render([notification]);
 
     assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
@@ -99,7 +99,7 @@ for (const [imagesCount, label] of [
     [1, 'Image'],
     [3, '3 images'],
 ] as const) {
-    void test(`says "${label}" for a starred commit of images alone instead of an empty excerpt`, async () => {
+    test(`says "${label}" for a starred commit of images alone instead of an empty excerpt`, async () => {
         const starred = {
             ...notification,
             type: 'starred',
@@ -113,19 +113,16 @@ for (const [imagesCount, label] of [
             } as NotificationCommit,
         } as NotificationGroup;
         const body = await render([starred]);
-
-        assert.match(
-            body,
-            new RegExp(
-                `class="mt-2 rounded-lg border[^"]*"><p class="[^"]*"><svg[^>]*>(?:(?!</svg>).)*</svg>${label}</p></div>`,
-                's',
-            ),
+        const block = body.match(
+            /<div class="(?:[^"]* )?border(?: [^"]*)?">(.*?)<\/div>/s,
         );
+
+        assert.equal(block?.[1].replace(/<[^>]+>/g, ''), label);
     });
 }
 
 for (const isFollowing of [false, true]) {
-    void test(`keeps ${isFollowing ? 'unfollow' : 'follow-back'} separate from highlighted notification links`, async () => {
+    test(`keeps ${isFollowing ? 'unfollow' : 'follow-back'} separate from highlighted notification links`, async () => {
         const followed = {
             ...notification,
             id: 'follow-notification',
