@@ -42,3 +42,8 @@ _ide_helper.php
 /.codex
 /.cursor
 /.junie
+
+# Laravel Octane / FrankenPHP (local binaries)
+**/caddy
+frankenphp
+frankenphp-worker.php
