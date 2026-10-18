@@ -22,12 +22,10 @@ final readonly class CreateTomReply
     public function handle(string $commitId): void
     {
         $commit = Commit::query()->visibleTo(null)->with('user')->find($commitId);
-        $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->where('username', 'tom')->first();
+        $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->where('username', CreateTomFriendship::USERNAME)->first();
 
-        if (! $commit instanceof Commit || ! $tom instanceof User || ! $commit->user instanceof User
-            || $commit->user->is($tom) || ($commit->mentions['tom'] ?? null) !== $tom->id
-            || $commit->user->hasBlockWith($tom)
-            || $commit->replies()->withTrashed()->whereBelongsTo($tom)->exists()) {
+        if (! $commit instanceof Commit || ! $tom instanceof User || ! $this->replyable($commit, $tom)
+            || $commit->user?->is($tom) || ($commit->mentions[CreateTomFriendship::USERNAME] ?? null) !== $tom->id) {
             return;
         }
 
@@ -41,13 +39,21 @@ final readonly class CreateTomReply
             $current = Commit::query()->lockForUpdate()->find($commit->id);
 
             if (! $current instanceof Commit || $current->status !== CommitStatus::Approved
-                || $current->body !== $commit->body || ! $current->user instanceof User
-                || $current->user->hasBlockWith($tom)
-                || $current->replies()->withTrashed()->whereBelongsTo($tom)->exists()) {
+                || $current->body !== $commit->body || ! $this->replyable($current, $tom)) {
                 return;
             }
 
             $this->createCommit->handle($tom, Str::limit($body, Commit::MAX_BODY_LENGTH - 3), parent: $current, linkPreview: false);
         });
+    }
+
+    /**
+     * Tom replies once per post, and never to someone he has a block with.
+     */
+    private function replyable(Commit $commit, User $tom): bool
+    {
+        return $commit->user instanceof User
+            && ! $commit->user->hasBlockWith($tom)
+            && ! $commit->replies()->withTrashed()->whereBelongsTo($tom)->exists();
     }
 }

@@ -87,7 +87,8 @@ final readonly class CreateCommit
             }
 
             $this->createWorldReply->handle($commit);
-            if ($commit->status === CommitStatus::Approved && isset($commit->mentions['tom'])
+
+            if ($commit->status === CommitStatus::Approved && isset($commit->mentions[CreateTomFriendship::USERNAME])
                 && $user->github_id !== CreateTomFriendship::GITHUB_ID && filled(config('ai.providers.opencode.key'))) {
                 dispatch(new ReplyAsTom($commit->id));
             }
