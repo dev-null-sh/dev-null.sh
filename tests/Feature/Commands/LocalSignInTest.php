@@ -15,21 +15,31 @@ it('prints the link that signs in as a developer', function (string $username): 
         ->expectsOutputToContain('Open this link to sign in as @hessel.carole:')
         ->expectsOutputToContain(route('local-session.store', $user))
         ->assertSuccessful();
-})->with(['hessel.carole', '@hessel.carole']);
+})->with(['hessel.carole', '@hessel.carole', 'hess', '@hess']);
 
-it('searches for the developer when none is given', function (): void {
+it('prefers the developer with exactly that username', function (): void {
+    User::factory()->create(['username' => 'abob']);
+    $bob = User::factory()->create(['username' => 'bob']);
+
+    $this->artisan('local:sign-in', ['username' => 'bob'])
+        ->expectsOutputToContain(route('local-session.store', $bob))
+        ->assertSuccessful();
+});
+
+it('picks the first match of what was typed when no developer is given', function (): void {
     $user = User::factory()->create(['username' => 'hessel.carole']);
+    User::factory()->create(['username' => 'hessel.zoe']);
     User::factory()->create(['username' => 'robin48']);
 
     $this->artisan('local:sign-in')
-        ->expectsSearch('Which developer do you want to sign in as?', 'hessel.carole', 'hess', ['hessel.carole'])
+        ->expectsQuestion('Which developer do you want to sign in as?', 'hessel')
         ->expectsOutputToContain(route('local-session.store', $user))
         ->assertSuccessful();
 });
 
-it('fails for an unknown developer', function (): void {
+it('fails when no developer matches', function (): void {
     $this->artisan('local:sign-in', ['username' => 'nobody'])
-        ->expectsOutputToContain('There is no developer @nobody.')
+        ->expectsOutputToContain('There is no developer matching @nobody.')
         ->assertFailed();
 });
 

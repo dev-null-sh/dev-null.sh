@@ -9,9 +9,9 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
-use function Laravel\Prompts\search;
+use function Laravel\Prompts\suggest;
 
-#[Signature('local:sign-in {username? : The developer to sign in as, searched for when left out}')]
+#[Signature('local:sign-in {username? : The developer to sign in as, or part of their username}')]
 #[Description('Print the link that signs you in locally as any developer')]
 final class LocalSignInCommand extends Command
 {
@@ -26,24 +26,25 @@ final class LocalSignInCommand extends Command
         $username = $this->argument('username');
 
         if (! is_string($username)) {
-            $username = search(
+            $username = suggest(
                 label: 'Which developer do you want to sign in as?',
-                options: fn (string $value): array => User::query()
-                    ->whereLike('username', "%{$value}%")
+                options: User::query()
                     ->orderBy('username')
-                    ->limit(10)
                     ->get(['username'])
                     ->map(fn (User $user): string => $user->username)
                     ->all(),
+                placeholder: 'Type part of a username, then press enter for the first match',
+                hint: 'Use the arrow keys to pick another match.',
             );
         }
 
-        $username = mb_ltrim((string) $username, '@');
+        $username = mb_ltrim($username, '@');
 
-        $user = User::query()->where('username', $username)->first();
+        $user = User::query()->where('username', $username)->first()
+            ?? User::query()->whereLike('username', "%{$username}%")->orderBy('username')->first();
 
         if (! $user instanceof User) {
-            $this->components->error("There is no developer @{$username}.");
+            $this->components->error("There is no developer matching @{$username}.");
 
             return self::FAILURE;
         }
