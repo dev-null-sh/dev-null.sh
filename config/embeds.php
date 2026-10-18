@@ -5,8 +5,11 @@ declare(strict_types=1);
 use App\Services\EmbedProviders\AppleMusic;
 use App\Services\EmbedProviders\Asciinema;
 use App\Services\EmbedProviders\CodePen;
+use App\Services\EmbedProviders\GoogleSlides;
 use App\Services\EmbedProviders\Loom;
+use App\Services\EmbedProviders\SlideShare;
 use App\Services\EmbedProviders\SoundCloud;
+use App\Services\EmbedProviders\SpeakerDeck;
 use App\Services\EmbedProviders\Spotify;
 use App\Services\EmbedProviders\Suno;
 use App\Services\EmbedProviders\Twitch;
@@ -30,6 +33,9 @@ return [
         'apple_music' => AppleMusic::class,
         'codepen' => CodePen::class,
         'asciinema' => Asciinema::class,
+        'speakerdeck' => SpeakerDeck::class,
+        'slideshare' => SlideShare::class,
+        'google_slides' => GoogleSlides::class,
     ],
 
     'youtube' => [
