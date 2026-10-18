@@ -9,7 +9,6 @@ use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use InvalidArgumentException;
 
 final readonly class CreateTalk
 {
@@ -33,8 +32,6 @@ final readonly class CreateTalk
         $recordingUrl = $this->normalizeUrl($recordingUrl);
         $eventName = $eventName === null ? null : mb_trim($eventName);
 
-        throw_if($slidesUrl === null && $recordingUrl === null, InvalidArgumentException::class, 'A talk needs a slides URL, a recording URL, or both.');
-
         return DB::transaction(function () use ($user, $title, $description, $presentedOn, $slidesUrl, $recordingUrl, $eventName): Talk {
             $talk = Talk::query()->create([
                 'user_id' => $user->id,
@@ -49,7 +46,7 @@ final readonly class CreateTalk
             $commit = $this->createCommit->handle(
                 $user,
                 $this->commitBody($talk),
-                linkPreview: $recordingUrl ?? $slidesUrl,
+                linkPreview: $recordingUrl ?? $slidesUrl ?? false,
             );
 
             $talk->forceFill([
