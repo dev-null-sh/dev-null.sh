@@ -4,6 +4,7 @@ import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController'
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import { ChangelogPopover } from '@/components/changelog-popover';
 import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -173,20 +174,23 @@ export function AppAside({
                         ?
                     </kbd>
                 </button>
-                <nav aria-label="Legal" className="flex gap-4">
-                    <Link
-                        href={TermsController.show()}
-                        className="transition-colors hover:text-foreground"
-                    >
-                        Terms
-                    </Link>
-                    <Link
-                        href={PrivacyController.show()}
-                        className="transition-colors hover:text-foreground"
-                    >
-                        Privacy
-                    </Link>
-                </nav>
+                <div className="flex gap-4">
+                    <nav aria-label="Legal" className="flex gap-4">
+                        <Link
+                            href={TermsController.show()}
+                            className="transition-colors hover:text-foreground"
+                        >
+                            Terms
+                        </Link>
+                        <Link
+                            href={PrivacyController.show()}
+                            className="transition-colors hover:text-foreground"
+                        >
+                            Privacy
+                        </Link>
+                    </nav>
+                    <ChangelogPopover />
+                </div>
             </div>
         </aside>
     );
