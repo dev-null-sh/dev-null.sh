@@ -416,6 +416,21 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     );
 }
 
+export function MobileCommitButton({ onCompose }: { onCompose: () => void }) {
+    return (
+        <Button
+            type="button"
+            onClick={onCompose}
+            aria-label="Write a commit"
+            title="Write a commit"
+            className="fixed right-4 bottom-[calc(var(--mobile-nav-height,4.5rem)+1rem)] z-20 size-14 rounded-full shadow-lg [view-transition-name:mobile-commit-button] md:hidden"
+            data-test="mobile-commit-button"
+        >
+            <SquarePen className="size-6" />
+        </Button>
+    );
+}
+
 /**
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
