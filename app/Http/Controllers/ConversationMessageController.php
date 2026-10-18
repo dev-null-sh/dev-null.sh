@@ -19,7 +19,7 @@ final readonly class ConversationMessageController
     {
         return response()->json([
             'partner' => $partner,
-            ...$threads->get($user, $partner, $request->afterId(), $request->beforeId()),
+            ...$threads->get($user, $partner, $request->afterId(), $request->beforeId(), $request->reactionsAfter()),
         ])->header('Cache-Control', 'private, no-store');
     }
 

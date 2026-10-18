@@ -45,6 +45,7 @@ use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
+use App\Http\Controllers\MessageReactionController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
@@ -314,6 +315,13 @@ Route::middleware('auth')->group(function (): void {
         Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
             ->whereNumber('message')
             ->name('message-link-preview.show');
+        Route::get('remotes/reactions', [MessageReactionController::class, 'index'])->name('message-reaction.index');
+        Route::post('remotes/messages/{message}/reactions', [MessageReactionController::class, 'store'])
+            ->whereNumber('message')
+            ->name('message-reaction.store');
+        Route::delete('remotes/messages/{message}/reactions', [MessageReactionController::class, 'destroy'])
+            ->whereNumber('message')
+            ->name('message-reaction.destroy');
     });
 
     Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])

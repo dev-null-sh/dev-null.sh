@@ -11,7 +11,9 @@ use App\Enums\RemoteStatus;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Message;
+use App\Models\MessageReaction;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -23,9 +25,9 @@ final readonly class ConversationThreadQuery
      * A one-to-one conversation. Reads only show as pulled when both people share them, and only once the partner
      * has merged the conversation.
      *
-     * @return array{messages: Collection<int, Message>, has_older: bool, read_through_id: int, partner_read_through_id: int, partner_read_at: string|null, partner_typing: bool, is_archived: bool, access: PushAccess}
+     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, partner_read_through_id: int, partner_read_at: string|null, partner_typing: bool, is_archived: bool, access: PushAccess}
      */
-    public function get(User $user, User $partner, ?int $after = null, ?int $before = null): array
+    public function get(User $user, User $partner, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
     {
         $conversation = Conversation::between($user, $partner);
 
@@ -41,6 +43,8 @@ final readonly class ConversationThreadQuery
         return [
             'messages' => $messages,
             'has_older' => $hasOlder,
+            'reactions_version' => $conversation->reactions_version ?? 0,
+            'reaction_changes' => $this->reactionChanges($conversation, 0, $reactionsAfter),
             'read_through_id' => $mine->read_through_id ?? 0,
             'partner_read_through_id' => $sharesReads ? $theirs->read_through_id : 0,
             'partner_read_at' => $sharesReads ? $theirs->read_at?->toJSON() : null,
@@ -53,9 +57,9 @@ final readonly class ConversationThreadQuery
     /**
      * An org the user is in, from where their history starts. Each member's reads show only when both share pulls.
      *
-     * @return array{messages: Collection<int, Message>, has_older: bool, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess}
+     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess}
      */
-    public function org(User $user, Conversation $org, ?int $after = null, ?int $before = null): array
+    public function org(User $user, Conversation $org, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
     {
         $participants = $org->participants()->with('user')->oldest('id')->get();
         $mine = $participants->firstOrFail(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id);
@@ -64,6 +68,8 @@ final readonly class ConversationThreadQuery
         return [
             'messages' => $messages,
             'has_older' => $hasOlder,
+            'reactions_version' => $org->reactions_version,
+            'reaction_changes' => $this->reactionChanges($org, $mine->visible_from_id, $reactionsAfter),
             'read_through_id' => $mine->read_through_id,
             'members' => $participants->map(fn (ConversationParticipant $participant): array => [
                 'user' => $participant->user,
@@ -80,6 +86,30 @@ final readonly class ConversationThreadQuery
             'role' => $mine->role,
             'access' => PushAccess::Open,
         ];
+    }
+
+    /**
+     * The current reactions of every message they changed on since the version a poll last saw, wherever the message
+     * is in the thread. The version is read with the conversation, before this, so a change landing in between is
+     * handed over again next time rather than skipped.
+     *
+     * @return Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>
+     */
+    private function reactionChanges(?Conversation $conversation, int $visibleFrom, ?int $since): Collection
+    {
+        if ($since === null || ! $conversation instanceof Conversation) {
+            return new Collection();
+        }
+
+        return $conversation->messages()
+            ->select(['id', 'conversation_id'])
+            ->where('id', '>', $visibleFrom)
+            ->where('reactions_version', '>', $since)
+            ->with('reactions')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (Message $message): array => ['id' => $message->id, 'reactions' => $message->reactions])
+            ->toBase();
     }
 
     /**

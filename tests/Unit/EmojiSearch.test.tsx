@@ -1,7 +1,11 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import { test } from 'vite-plus/test';
-import { searchEmoji } from '../../resources/js/lib/emoji';
+import {
+    emojiName,
+    searchEmoji,
+    searchEmojiByUse,
+} from '../../resources/js/lib/emoji';
 
 test('suggests the shortcodes starting with the query first, shortest first', () => {
     const names = searchEmoji('smi').map((emoji) => emoji.name);
@@ -30,4 +34,21 @@ test('limits the suggestions and pairs each shortcode with its emoji', () => {
     assert.equal(suggestions.length, 5);
     assert.deepEqual(searchEmoji('+1', 1), [{ name: '+1', emoji: '👍' }]);
     assert.deepEqual(searchEmoji('no_such_shortcode'), []);
+});
+
+test('searches each emoji once, putting the ones the user reacts with most first within a match', () => {
+    const results = searchEmojiByUse('heart', new Map([['😍', 3]]));
+
+    assert.deepEqual(
+        results.slice(0, 2).map((result) => result.emoji),
+        ['😍', '❤️'],
+    );
+    assert.equal(
+        searchEmojiByUse('thumbs', new Map()).filter(
+            (result) => result.emoji === '👍',
+        ).length,
+        1,
+    );
+    assert.equal(searchEmojiByUse(':rock', new Map())[0].emoji, '🪨');
+    assert.equal(emojiName('👍'), '+1');
 });
