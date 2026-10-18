@@ -336,13 +336,13 @@ function withMentions(
 
 export function LinkifiedText({
     text,
-    mentions,
+    mentions = null,
     pasteisMode = false,
     isStatic = false,
     githubMentions = false,
 }: {
     text: string;
-    mentions: Commit['mentions'];
+    mentions?: Commit['mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
     githubMentions?: boolean;
