@@ -281,6 +281,7 @@ function withMentions(
     mentions: Commit['mentions'],
     pasteisMode: boolean,
     isStatic: boolean,
+    githubMentions: boolean,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -296,6 +297,18 @@ function withMentions(
             ...withWordmarks(text.slice(position, match.index), pasteisMode),
             isStatic || !userId ? (
                 match[0]
+            ) : githubMentions ? (
+                // A GitHub bio's "@name" would be an organization or user, so it links to GitHub, not to a devnull profile.
+                <a
+                    key={`mention-${offset + match.index}`}
+                    href={`https://github.com/${match[1]}`}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow ugc"
+                    className="font-medium text-primary hover:underline"
+                    data-test="mention"
+                >
+                    {match[0]}
+                </a>
             ) : (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
@@ -326,11 +339,13 @@ export function LinkifiedText({
     mentions,
     pasteisMode = false,
     isStatic = false,
+    githubMentions = false,
 }: {
     text: string;
     mentions: Commit['mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
+    githubMentions?: boolean;
 }) {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -353,6 +368,7 @@ export function LinkifiedText({
                 mentions,
                 pasteisMode,
                 isStatic,
+                githubMentions,
             ),
             commitLink ? (
                 <CommitLink
@@ -398,6 +414,7 @@ export function LinkifiedText({
             mentions,
             pasteisMode,
             isStatic,
+            githubMentions,
         ),
     );
 

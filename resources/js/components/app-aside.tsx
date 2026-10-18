@@ -8,6 +8,7 @@ import UserFollowersController from '@/actions/App/Http/Controllers/UserFollower
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { BioText } from '@/components/bio-text';
 import { GitHubIcon } from '@/components/github-icon';
+import { LinkifiedText } from '@/components/linkified-text';
 import { LiveFollowing } from '@/components/live-following';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -159,7 +160,7 @@ export function AppAside({
                     </dl>
                     {user.bio && (
                         <p className="mt-3 text-sm text-pretty text-muted-foreground">
-                            <BioText bio={user.bio} />
+                            <LinkifiedText text={user.bio} githubMentions />
                         </p>
                     )}
                 </section>

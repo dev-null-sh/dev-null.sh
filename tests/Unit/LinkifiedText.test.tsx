@@ -439,3 +439,17 @@ for (const link of [
         assert.ok(markup.includes(`href="${link}"`));
     });
 }
+
+void test('links a mention to its site profile by default and to GitHub for a GitHub bio', () => {
+    const text = 'Fan of @withastro';
+    const site = renderToStaticMarkup(<LinkifiedText text={text} />);
+    const github = renderToStaticMarkup(
+        <LinkifiedText text={text} githubMentions />,
+    );
+
+    assert.match(site, /href="\/@withastro"/);
+    assert.ok(!site.includes('github.com'));
+    assert.match(github, /href="https:\/\/github\.com\/withastro"/);
+    assert.match(github, /target="_blank"/);
+    assert.ok(!github.includes('href="/@withastro"'));
+});

@@ -22,6 +22,7 @@ import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
+import { LinkifiedText } from '@/components/linkified-text';
 import {
     LiveAvatarMarker,
     LiveStreamTrigger,
@@ -246,8 +247,8 @@ export default function Show({
                 </div>
 
                 {user.bio && (
-                    <p className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap">
-                        <BioText bio={user.bio} />
+                    <p className="mt-3 max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+                        <LinkifiedText text={user.bio} githubMentions />
                     </p>
                 )}
 
