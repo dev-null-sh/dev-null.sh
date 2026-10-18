@@ -1,6 +1,10 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import {
+    characterShortcutsEnabled,
+    useCharacterShortcuts,
+} from '@/hooks/use-character-shortcuts';
 import { signIn } from '@/lib/auth';
 import { hasModKey } from '@/lib/keyboard';
 import { show } from '@/routes/user';
@@ -78,6 +82,8 @@ export function useKeyboardShortcuts(
     onSearch: () => void,
     onCompose: () => void,
 ): void {
+    const characterShortcuts = useCharacterShortcuts();
+
     useEffect(() => {
         let awaitingGoTo = false;
         let goToTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -105,11 +111,27 @@ export function useKeyboardShortcuts(
                 event.metaKey ||
                 event.ctrlKey ||
                 event.altKey ||
+                event.isComposing ||
                 isTyping(event.target) ||
                 document.querySelector(
                     '[role="dialog"][data-state="open"], [role="dialog"][aria-modal="true"]',
                 )
             ) {
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                if (openFocusedCommit()) {
+                    event.preventDefault();
+                }
+
+                return;
+            }
+
+            if (!characterShortcutsEnabled()) {
+                awaitingGoTo = false;
+                clearTimeout(goToTimeout);
+
                 return;
             }
 
@@ -120,14 +142,6 @@ export function useKeyboardShortcuts(
                 if (goTo[event.key]) {
                     event.preventDefault();
                     goTo[event.key]();
-                }
-
-                return;
-            }
-
-            if (event.key === 'Enter') {
-                if (openFocusedCommit()) {
-                    event.preventDefault();
                 }
 
                 return;
@@ -168,5 +182,5 @@ export function useKeyboardShortcuts(
             window.removeEventListener('keydown', onKeyDown);
             clearTimeout(goToTimeout);
         };
-    }, [user, log, onShowHelp, onSearch, onCompose]);
+    }, [user, log, onShowHelp, onSearch, onCompose, characterShortcuts]);
 }

@@ -39,6 +39,7 @@ import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import { useCharacterShortcuts } from '@/hooks/use-character-shortcuts';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
@@ -334,12 +335,15 @@ export function useThread(
 export function ThreadActions({
     thread,
     actions,
-    hasKeyboardShortcuts = false,
+    hasKeyboardShortcuts: supportsKeyboardShortcuts = false,
 }: {
     thread: Thread;
     actions?: ReactNode;
     hasKeyboardShortcuts?: boolean;
 }) {
+    const characterShortcuts = useCharacterShortcuts();
+    const hasKeyboardShortcuts =
+        supportsKeyboardShortcuts && characterShortcuts;
     const { auth } = usePage().props;
     const { commit } = thread;
     const hasStash = useHasStash(auth.user?.id ?? null, `reply-${commit.id}`);

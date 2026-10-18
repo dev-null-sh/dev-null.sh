@@ -23,6 +23,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
+import { useCharacterShortcuts } from '@/hooks/use-character-shortcuts';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
@@ -42,6 +43,8 @@ export function CommitQuoteButton({
     keyShortcut?: string;
     className?: string;
 }) {
+    const characterShortcuts = useCharacterShortcuts();
+    const shortcut = characterShortcuts ? keyShortcut : undefined;
     const { auth } = usePage().props;
     const [isOpen, setIsOpen] = useState(false);
     const hasStash = useHasStash(auth.user?.id ?? null, `quote-${commit.id}`);
@@ -64,8 +67,8 @@ export function CommitQuoteButton({
                     setIsOpen(true);
                 }}
                 aria-haspopup="dialog"
-                aria-keyshortcuts={keyShortcut}
-                title={keyShortcut ? `Quote (${keyShortcut})` : 'Quote'}
+                aria-keyshortcuts={shortcut}
+                title={shortcut ? `Quote (${shortcut})` : 'Quote'}
                 className={cn(
                     'flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                     className,

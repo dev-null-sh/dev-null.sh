@@ -7,6 +7,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useCharacterShortcuts } from '@/hooks/use-character-shortcuts';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { cn, shortHash } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -59,6 +60,8 @@ export function CopyLinkButton({
     keyShortcut?: string;
     className?: string;
 }) {
+    const characterShortcuts = useCharacterShortcuts();
+    const shortcut = characterShortcuts ? keyShortcut : undefined;
     const { isCopied, copyLink } = useCopyLink(commit);
     const Icon = isCopied ? Check : LinkIcon;
 
@@ -69,7 +72,7 @@ export function CopyLinkButton({
                     type="button"
                     onClick={copyLink}
                     aria-label="Copy link"
-                    aria-keyshortcuts={keyShortcut}
+                    aria-keyshortcuts={shortcut}
                     className={cn(
                         'flex items-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                         className,
@@ -81,9 +84,9 @@ export function CopyLinkButton({
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-2">
                 Copy link
-                {keyShortcut && (
+                {shortcut && (
                     <kbd className="rounded border border-b-2 bg-muted px-1.5 font-mono text-[11px] text-muted-foreground">
-                        {keyShortcut}
+                        {shortcut}
                     </kbd>
                 )}
             </TooltipContent>

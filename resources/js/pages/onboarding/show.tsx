@@ -19,7 +19,12 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { LaneOptions, LanePreview } from '@/components/lane-picker';
 import { Button } from '@/components/ui/button';
 import { SuggestedUserRow } from '@/components/who-to-follow';
+import {
+    characterShortcutsEnabled,
+    useCharacterShortcuts,
+} from '@/hooks/use-character-shortcuts';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { isTyping } from '@/hooks/use-keyboard-shortcuts';
 import { useUser } from '@/hooks/use-user';
 import { useKeyLabels } from '@/lib/keyboard';
 import { cn, laneColor } from '@/lib/utils';
@@ -229,6 +234,7 @@ export default function Show({
     );
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
     const keys = useKeyLabels();
+    const characterShortcuts = useCharacterShortcuts();
     const headingRef = useRef<HTMLHeadingElement>(null);
 
     const next = () => setStep(step + 1);
@@ -245,6 +251,8 @@ export default function Show({
                 event.metaKey ||
                 event.ctrlKey ||
                 event.altKey ||
+                event.isComposing ||
+                isTyping(event.target) ||
                 document.querySelector('[role="dialog"][data-state="open"]')
             ) {
                 return;
@@ -255,7 +263,7 @@ export default function Show({
                 router.visit(OnboardingController.update());
             }
 
-            if (event.key === '?') {
+            if (event.key === '?' && characterShortcutsEnabled()) {
                 event.preventDefault();
                 setIsShowingShortcuts(true);
             }
@@ -415,19 +423,40 @@ export default function Show({
                             <dd className="mt-1 text-pretty text-muted-foreground">
                                 The composer sits at the top of your log. Plain
                                 text, up to 4,000 characters; feeds fold long
-                                ones after 280. Press <Kbd>c</Kbd> to jump to
-                                it, then <Kbd>{keys.mod}</Kbd> <Kbd>↵</Kbd> to
+                                ones after 280.{' '}
+                                {characterShortcuts && (
+                                    <>
+                                        Press <Kbd>c</Kbd> to jump to it.{' '}
+                                    </>
+                                )}
+                                Use <Kbd>{keys.mod}</Kbd> <Kbd>↵</Kbd> to
                                 commit.
                             </dd>
                         </div>
                         <div className="px-4 py-4">
                             <dt className="font-semibold">Use the keyboard</dt>
                             <dd className="mt-1 text-pretty text-muted-foreground">
-                                <Kbd>j</Kbd> and <Kbd>k</Kbd> move between
-                                commits, <Kbd>r</Kbd> replies,{' '}
+                                {characterShortcuts && (
+                                    <>
+                                        <Kbd>j</Kbd> and <Kbd>k</Kbd> move
+                                        between commits, <Kbd>r</Kbd>{' '}
+                                        replies,{' '}
+                                    </>
+                                )}
                                 <Kbd>{keys.mod}</Kbd> <Kbd>K</Kbd> finds people.
-                                Press <Kbd>?</Kbd> anywhere for the full list.
-                                It works here too.
+                                {characterShortcuts ? (
+                                    <>
+                                        {' '}
+                                        Press <Kbd>?</Kbd> for the full list. It
+                                        works here too.
+                                    </>
+                                ) : (
+                                    <>
+                                        {' '}
+                                        Single-character shortcuts are off. You
+                                        can turn them on in Show shortcuts.
+                                    </>
+                                )}
                                 <span className="mt-3 block">
                                     <Button
                                         variant="outline"
@@ -435,7 +464,9 @@ export default function Show({
                                         onClick={() =>
                                             setIsShowingShortcuts(true)
                                         }
-                                        aria-keyshortcuts="?"
+                                        aria-keyshortcuts={
+                                            characterShortcuts ? '?' : undefined
+                                        }
                                     >
                                         Show shortcuts
                                     </Button>

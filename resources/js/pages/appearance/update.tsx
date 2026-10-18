@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 import AppearanceTabs from '@/components/appearance-tabs';
+import { CharacterShortcutsPreference } from '@/components/character-shortcuts-preference';
 import Heading from '@/components/heading';
 import WhoToFollowTabs from '@/components/who-to-follow-tabs';
 import AppLayout from '@/layouts/app-layout';
@@ -24,6 +25,14 @@ export default function Update() {
                     description="Three people you might want to follow, in the right column, or in your log on smaller screens."
                 />
                 <WhoToFollowTabs />
+            </section>
+
+            <section className="border-t px-4 py-6 sm:px-6">
+                <Heading
+                    title="Keyboard shortcuts"
+                    description="Choose whether character keys trigger actions while you browse."
+                />
+                <CharacterShortcutsPreference />
             </section>
         </>
     );

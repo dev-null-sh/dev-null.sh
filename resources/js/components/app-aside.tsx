@@ -16,13 +16,7 @@ import { laneColor } from '@/lib/utils';
 import { login } from '@/routes';
 import { show } from '@/routes/user';
 
-export function AppAside({
-    onShowShortcuts,
-    onSearch,
-}: {
-    onShowShortcuts: () => void;
-    onSearch: () => void;
-}) {
+export function AppAside({ onSearch }: { onSearch: () => void }) {
     const { user } = usePage().props.auth;
     const keys = useKeyLabels();
     const [commitsCount] = useSharedState(
@@ -164,16 +158,6 @@ export function AppAside({
             <WhoToFollow />
 
             <div className="mt-auto space-y-2 text-sm text-muted-foreground">
-                <button
-                    type="button"
-                    onClick={onShowShortcuts}
-                    className="flex items-center gap-2 rounded-sm transition-colors hover:text-foreground"
-                >
-                    Keyboard shortcuts
-                    <kbd className="min-w-5 rounded border border-b-2 bg-muted px-1 text-center font-mono text-xs">
-                        ?
-                    </kbd>
-                </button>
                 <div className="flex gap-4">
                     <nav aria-label="Legal" className="flex gap-4">
                         <Link

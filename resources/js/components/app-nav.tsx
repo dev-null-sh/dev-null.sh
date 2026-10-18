@@ -5,6 +5,7 @@ import {
     Bookmark,
     ExternalLink,
     GitCommitVertical,
+    Keyboard,
     MessagesSquare,
     Search,
     Settings2,
@@ -31,6 +32,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserMenuContent } from '@/components/user-menu-content';
+import { useCharacterShortcuts } from '@/hooks/use-character-shortcuts';
 import { useUnreadMessages } from '@/hooks/use-chat';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useKeyLabels } from '@/lib/keyboard';
@@ -219,13 +221,16 @@ function NavIcon({
 export function AppNav({
     onSearch,
     onCompose,
+    onShowShortcuts,
 }: {
     onSearch: () => void;
     onCompose: () => void;
+    onShowShortcuts: () => void;
 }) {
     const { auth } = usePage().props;
     const items = useNavItems();
     const keys = useKeyLabels();
+    const characterShortcuts = useCharacterShortcuts();
 
     return (
         <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
@@ -314,14 +319,35 @@ export function AppNav({
                         className="ml-auto hidden size-4 lg:block"
                     />
                 </a>
+                <button
+                    type="button"
+                    onClick={onShowShortcuts}
+                    aria-keyshortcuts={characterShortcuts ? '?' : undefined}
+                    className="flex items-center gap-3 rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                    <Keyboard className="size-5" />
+                    <span className="sr-only lg:not-sr-only">
+                        Keyboard shortcuts
+                    </span>
+                    {characterShortcuts && (
+                        <kbd
+                            aria-hidden
+                            className="ml-auto hidden rounded border border-b-2 bg-muted px-1.5 font-mono text-xs lg:block"
+                        >
+                            ?
+                        </kbd>
+                    )}
+                </button>
             </nav>
 
             <Button
                 type="button"
                 onClick={onCompose}
                 aria-label="Write a commit"
-                aria-keyshortcuts="c"
-                title="Write a commit (C)"
+                aria-keyshortcuts={characterShortcuts ? 'c' : undefined}
+                title={
+                    characterShortcuts ? 'Write a commit (C)' : 'Write a commit'
+                }
                 className="mt-4 h-[52px] w-[52px] shrink-0 rounded-lg text-[15px] lg:w-auto"
                 data-test="nav-commit-button"
             >
@@ -360,8 +386,15 @@ export function AppNav({
     );
 }
 
-export function MobileHeader({ onSearch }: { onSearch: () => void }) {
+export function MobileHeader({
+    onSearch,
+    onShowShortcuts,
+}: {
+    onSearch: () => void;
+    onShowShortcuts: () => void;
+}) {
     const { auth } = usePage().props;
+    const characterShortcuts = useCharacterShortcuts();
 
     return (
         <div className="flex h-14 items-center justify-between border-b px-4 md:hidden">
@@ -378,6 +411,15 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
             </Link>
 
             <div className="flex items-center gap-1">
+                <button
+                    type="button"
+                    onClick={onShowShortcuts}
+                    aria-label="Keyboard shortcuts"
+                    aria-keyshortcuts={characterShortcuts ? '?' : undefined}
+                    className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                    <Keyboard className="size-5" />
+                </button>
                 <button
                     type="button"
                     onClick={onSearch}
