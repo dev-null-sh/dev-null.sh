@@ -3,6 +3,7 @@ import {
     Activity,
     Bell,
     Bookmark,
+    ExternalLink,
     GitCommitVertical,
     MessagesSquare,
     Search,
@@ -308,6 +309,10 @@ export function AppNav({
                 >
                     <GitHubIcon className="size-5" />
                     <span className="sr-only lg:not-sr-only">Source code</span>
+                    <ExternalLink
+                        aria-hidden
+                        className="ml-auto hidden size-4 lg:block"
+                    />
                 </a>
             </nav>
 
