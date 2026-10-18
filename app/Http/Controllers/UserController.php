@@ -102,14 +102,10 @@ final readonly class UserController
                     fn ($query) => $query
                         ->whereNotNull('published_at')
                         ->whereNotNull('commit_id')
-                        ->when(
-                            $currentUser?->id !== $user->id,
-                            fn ($query) => $query->where('is_unlisted', false),
-                        )
-                        ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($currentUser)),
+                        ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit->visibleTo($currentUser))
+                        ->latest('presented_on')
+                        ->latest('id'),
                 )
-                ->latest('presented_on')
-                ->latest('id')
                 ->cursorPaginate(20)
                 ->through(function (Talk $talk) use ($embeds): array {
                     $recordingEmbed = is_string($talk->recording_url) ? $embeds->for($talk->recording_url) : null;
@@ -123,7 +119,6 @@ final readonly class UserController
                         'slides_url' => $talk->slides_url,
                         'recording_url' => $talk->recording_url,
                         'event_name' => $talk->event_name,
-                        'is_unlisted' => $talk->is_unlisted,
                         'published_at' => $talk->published_at?->toIso8601String(),
                         'recording_embed' => $recordingEmbed?->toArray(),
                         'slides_embed' => $slidesEmbed?->toArray(),

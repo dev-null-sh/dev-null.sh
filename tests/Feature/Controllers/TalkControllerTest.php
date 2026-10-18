@@ -5,7 +5,6 @@ declare(strict_types=1);
 use App\Actions\CreateTalk;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
-use App\Enums\TalkVisibility;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
@@ -28,8 +27,7 @@ it('lets a user create a talk with title, description, date, and links', functio
         'recording_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
         'slides_url' => 'https://speakerdeck.com/example/hexagonal-laravel',
         'event_name' => 'PHP Benelux',
-        'visibility' => TalkVisibility::Public->value,
-    ])->assertRedirect();
+    ])->assertRedirect(route('user.show', [$user, 'tab' => 'talks']));
 
     $talk = Talk::query()->sole();
 
@@ -71,51 +69,6 @@ it('embeds recordings on the talks explorer list', function (): void {
             ->where('talks.data.0.recording_embed.provider', 'YouTube'));
 });
 
-it('lets a user save a private draft for a future talk', function (): void {
-    $user = User::factory()->create(['username' => 'speaker']);
-
-    $this->actingAs($user)->post(route('talk.store'), [
-        'title' => 'Future meetup',
-        'description' => 'Deck ready, recording later.',
-        'presented_on' => now()->addMonth()->toDateString(),
-        'slides_url' => 'https://example.com/future-deck',
-        'visibility' => TalkVisibility::Private->value,
-    ])->assertRedirect();
-
-    $talk = Talk::query()->sole();
-
-    expect($talk->isDraft())->toBeTrue()
-        ->and($talk->commit_id)->toBeNull();
-
-    $this->get(route('talk.show', [$user, $talk]))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->where('talk.published_at', null)
-            ->where('commit', null));
-
-    $this->actingAs(User::factory()->create())
-        ->get(route('talk.show', [$user, $talk]))
-        ->assertNotFound();
-});
-
-it('publishes a draft from the talk page', function (): void {
-    $user = User::factory()->create();
-    $talk = resolve(CreateTalk::class)->handle(
-        $user,
-        'Draft to publish',
-        'Ready.',
-        now()->addWeek()->toImmutable(),
-        slidesUrl: 'https://example.com/draft-to-publish',
-        visibility: TalkVisibility::Private,
-    );
-
-    $this->actingAs($user)
-        ->post(route('talk.publish', $talk))
-        ->assertRedirect(route('talk.show', [$user, $talk]));
-
-    expect($talk->refresh()->isPublished())->toBeTrue();
-});
-
 it('shows published talks on the author profile talks tab', function (): void {
     $user = User::factory()->create(['username' => 'speaker']);
     $viewer = User::factory()->create();
@@ -138,31 +91,6 @@ it('shows published talks on the author profile talks tab', function (): void {
             ->where('tab', 'talks')
             ->where('talks.data.0.id', $talk->id)
             ->where('talks.data.0.title', 'Visible talk'));
-});
-
-it('hides unlisted talks from other people on the profile', function (): void {
-    $user = User::factory()->create(['username' => 'speaker']);
-    $viewer = User::factory()->create();
-
-    $talk = resolve(CreateTalk::class)->handle(
-        $user,
-        'Unlisted talk',
-        'Link only.',
-        now()->subWeek()->toImmutable(),
-        slidesUrl: 'https://example.com/unlisted-talk',
-        visibility: TalkVisibility::Unlisted,
-    );
-    Commit::query()->whereKey($talk->commit_id)->update(['status' => CommitStatus::Approved]);
-
-    $this->actingAs($viewer)
-        ->get(route('user.show', [$user, 'tab' => 'talks']))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('talks.data', []));
-
-    $this->actingAs($user)
-        ->get(route('user.show', [$user, 'tab' => 'talks']))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('talks.data.0.id', $talk->id));
 });
 
 it('lets other users comment on a published talk through its anchor commit', function (): void {
@@ -221,8 +149,7 @@ it('validates talk creation before the action runs', function (): void {
         'presented_on' => 'not-a-date',
         'recording_url' => 'not-a-url',
         'slides_url' => 'ftp://example.com/deck',
-        'visibility' => 'poster',
-    ])->assertSessionHasErrors(['title', 'description', 'presented_on', 'recording_url', 'slides_url', 'visibility']);
+    ])->assertSessionHasErrors(['title', 'description', 'presented_on', 'recording_url', 'slides_url']);
 
     expect(Talk::query()->count())->toBe(0)
         ->and(Commit::query()->count())->toBe(0);
@@ -235,7 +162,6 @@ it('requires at least one of slides or recording', function (): void {
         'title' => 'Missing links',
         'description' => 'Needs at least one media URL.',
         'presented_on' => now()->subDay()->toDateString(),
-        'visibility' => TalkVisibility::Public->value,
     ])->assertSessionHasErrors(['slides_url', 'recording_url']);
 
     expect(Talk::query()->count())->toBe(0);
@@ -253,7 +179,7 @@ it('lets the author delete their talk', function (): void {
 
     $this->actingAs($user)
         ->delete(route('talk.destroy', $talk))
-        ->assertRedirect(route('talk.index'));
+        ->assertRedirect(route('user.show', [$user, 'tab' => 'talks']));
 
     expect(Talk::query()->whereKey($talk->id)->exists())->toBeFalse();
 });

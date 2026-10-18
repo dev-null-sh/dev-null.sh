@@ -1,8 +1,6 @@
 import type { Lane, User } from '@/types/auth';
 import type { Embed } from '@/types/commit';
 
-export type TalkVisibility = 'public' | 'unlisted' | 'private';
-
 export type TalkSummary = {
     id: string;
     title: string;
@@ -11,7 +9,6 @@ export type TalkSummary = {
     slides_url: string | null;
     recording_url: string | null;
     event_name: string | null;
-    is_unlisted: boolean;
     published_at: string | null;
     commit_status?: string | null;
     recording_embed?: Embed | null;

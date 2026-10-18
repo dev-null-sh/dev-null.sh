@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Enums\TalkVisibility;
 use App\Models\Talk;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -27,7 +26,6 @@ final readonly class CreateTalk
         ?string $slidesUrl = null,
         ?string $recordingUrl = null,
         ?string $eventName = null,
-        TalkVisibility $visibility = TalkVisibility::Public,
     ): Talk {
         $title = mb_trim($title);
         $description = mb_trim($description);
@@ -39,7 +37,7 @@ final readonly class CreateTalk
             throw new InvalidArgumentException('A talk needs a slides URL, a recording URL, or both.');
         }
 
-        return DB::transaction(function () use ($user, $title, $description, $presentedOn, $slidesUrl, $recordingUrl, $eventName, $visibility): Talk {
+        return DB::transaction(function () use ($user, $title, $description, $presentedOn, $slidesUrl, $recordingUrl, $eventName): Talk {
             $talk = Talk::query()->create([
                 'user_id' => $user->id,
                 'title' => $title,
@@ -48,12 +46,7 @@ final readonly class CreateTalk
                 'slides_url' => $slidesUrl,
                 'recording_url' => $recordingUrl,
                 'event_name' => $eventName === '' ? null : $eventName,
-                'is_unlisted' => $visibility === TalkVisibility::Unlisted,
             ]);
-
-            if ($visibility === TalkVisibility::Private) {
-                return $talk->refresh();
-            }
 
             $commit = $this->createCommit->handle(
                 $user,

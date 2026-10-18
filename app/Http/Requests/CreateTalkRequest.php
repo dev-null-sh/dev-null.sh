@@ -4,11 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\TalkVisibility;
 use App\Models\Talk;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Validator;
 
 final class CreateTalkRequest extends FormRequest
@@ -19,7 +16,7 @@ final class CreateTalkRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string|Enum>>
+     * @return array<string, array<int, string>>
      */
     public function rules(): array
     {
@@ -30,13 +27,7 @@ final class CreateTalkRequest extends FormRequest
             'slides_url' => ['nullable', 'string', 'url', 'max:2048', 'starts_with:https://'],
             'recording_url' => ['nullable', 'string', 'url', 'max:2048', 'starts_with:https://'],
             'event_name' => ['nullable', 'string', 'max:'.Talk::MAX_EVENT_NAME_LENGTH],
-            'visibility' => ['required', Rule::enum(TalkVisibility::class)],
         ];
-    }
-
-    public function visibility(): TalkVisibility
-    {
-        return TalkVisibility::from($this->string('visibility')->value());
     }
 
     public function after(): array

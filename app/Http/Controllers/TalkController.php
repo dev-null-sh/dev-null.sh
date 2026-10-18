@@ -6,11 +6,9 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateTalk;
 use App\Actions\DeleteTalk;
-use App\Actions\PublishTalk;
 use App\Http\Requests\CreateTalkRequest;
 use App\Http\Requests\DeleteTalkRequest;
 use App\Http\Requests\ListTalkRequest;
-use App\Http\Requests\PublishTalkRequest;
 use App\Http\Requests\ShowTalkRequest;
 use App\Models\Commit;
 use App\Models\Talk;
@@ -22,7 +20,6 @@ use App\Services\PageMetadata;
 use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Contracts\Pagination\CursorPaginator;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -39,15 +36,9 @@ final readonly class TalkController
         return Inertia::render('talks/index', [
             'talks' => Inertia::scroll(fn (): CursorPaginator => Talk::query()
                 ->with(['user:id,username,name,avatar_url,preferred_lane,lane_color', 'commit'])
-                ->where(function (Builder $query) use ($user): void {
-                    $query->where(function (Builder $discoverable): void {
-                        $discoverable->whereNotNull('published_at')
-                            ->where('is_unlisted', false)
-                            ->whereNotNull('commit_id')
-                            ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit->visibleTo(null)->approved());
-                    })->orWhere('user_id', $user->id);
-                })
-                ->orderByRaw('case when published_at is null then 0 else 1 end')
+                ->whereNotNull('published_at')
+                ->whereNotNull('commit_id')
+                ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit->visibleTo($user)->approved())
                 ->latest('published_at')
                 ->latest('id')
                 ->cursorPaginate(20)
@@ -74,33 +65,14 @@ final readonly class TalkController
             $request->filled('slides_url') ? $request->string('slides_url')->value() : null,
             $request->filled('recording_url') ? $request->string('recording_url')->value() : null,
             $request->filled('event_name') ? $request->string('event_name')->value() : null,
-            $request->visibility(),
         );
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => match (true) {
-                $talk->isDraft() => 'Talk saved as a private draft.',
-                $talk->is_unlisted => 'Talk published as unlisted. Only people with the link can find it.',
-                default => 'Talk published. It will appear in the log once it is approved.',
-            },
+            'message' => 'Talk published. It will appear in the log once it is approved.',
         ]);
 
-        return to_route('talk.show', [$user, $talk]);
-    }
-
-    public function publish(PublishTalkRequest $request, #[CurrentUser] User $user, Talk $talk, PublishTalk $action): RedirectResponse
-    {
-        $talk = $action->handle($talk, $request->boolean('unlisted'));
-
-        Inertia::flash('toast', [
-            'type' => 'success',
-            'message' => $talk->is_unlisted
-                ? 'Talk published as unlisted.'
-                : 'Talk published. It will appear in the log once it is approved.',
-        ]);
-
-        return to_route('talk.show', [$user, $talk]);
+        return to_route('user.show', [$user, 'tab' => 'talks']);
     }
 
     public function show(
@@ -112,13 +84,10 @@ final readonly class TalkController
         PageMetadata $metadata,
     ): Response {
         $commit = $talk->commit;
+        assert($commit instanceof Commit);
 
         $threadReplies = null;
-        $getReplies = function () use (&$threadReplies, $replies, $commit, $currentUser): ?CursorPaginator {
-            if (! $commit instanceof Commit) {
-                return null;
-            }
-
+        $getReplies = function () use (&$threadReplies, $replies, $commit, $currentUser): CursorPaginator {
             return $threadReplies ??= $replies->paginate($commit, $currentUser);
         };
 
@@ -126,12 +95,10 @@ final readonly class TalkController
 
         return Inertia::render('talk/show', [
             'talk' => fn (): array => $this->details($talk),
-            'commit' => fn (): ?Commit => $commit instanceof Commit
-                ? Commit::query()
-                    ->withVisibleReplyCount($currentUser)
-                    ->withCardDataFor($currentUser)
-                    ->findOrFail($commit->id)
-                : null,
+            'commit' => fn (): Commit => Commit::query()
+                ->withVisibleReplyCount($currentUser)
+                ->withCardDataFor($currentUser)
+                ->findOrFail($commit->id),
             'replies' => $getReplies,
         ])->withViewData([
             'preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->talk($talk),
@@ -147,7 +114,7 @@ final readonly class TalkController
             'message' => 'Talk deleted.',
         ]);
 
-        return to_route('talk.index');
+        return to_route('user.show', [$user, 'tab' => 'talks']);
     }
 
     /**
@@ -166,7 +133,6 @@ final readonly class TalkController
             'slides_url' => $talk->slides_url,
             'recording_url' => $talk->recording_url,
             'event_name' => $talk->event_name,
-            'is_unlisted' => $talk->is_unlisted,
             'published_at' => $talk->published_at?->toIso8601String(),
             'commit_status' => $talk->commit?->status->value,
             'recording_embed' => $recordingEmbed?->toArray(),

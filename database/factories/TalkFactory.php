@@ -26,7 +26,6 @@ final class TalkFactory extends Factory
             'slides_url' => 'https://example.com/'.fake()->slug(),
             'recording_url' => null,
             'event_name' => fake()->optional()->company(),
-            'is_unlisted' => false,
         ];
     }
 }

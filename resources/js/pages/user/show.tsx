@@ -25,6 +25,7 @@ import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { TalkCard } from '@/components/talk-card';
+import { TalkForm } from '@/components/talk-form';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -400,40 +401,11 @@ export default function Show({
             />
 
             {tab === 'talks' ? (
-                talks.data.length === 0 ? (
-                    <div className="px-6 py-16 text-center sm:px-12">
-                        <EmptyFeed command="fatal: no talks yet">
-                            {isCurrentUser
-                                ? 'Your talks show up here. Publish one from Talks in the side menu.'
-                                : `@${user.username} hasn't published any talks yet.`}
-                        </EmptyFeed>
-                    </div>
-                ) : (
-                    <>
-                        <InfiniteScroll
-                            data="talks"
-                            onlyNext
-                            preserveUrl
-                            loading={
-                                <div
-                                    role="status"
-                                    aria-label="Loading more talks"
-                                    className="px-5 py-6 text-sm text-muted-foreground sm:px-6"
-                                >
-                                    Loading…
-                                </div>
-                            }
-                        >
-                            {talks.data.map((talk) => (
-                                <TalkCard
-                                    key={talk.id}
-                                    talk={talk}
-                                    user={user}
-                                />
-                            ))}
-                        </InfiniteScroll>
-                    </>
-                )
+                <ProfileTalks
+                    user={user}
+                    talks={talks}
+                    isCurrentUser={isCurrentUser}
+                />
             ) : (
                 <CommitFeed
                     key={`${user.id}:${tab}`}
@@ -478,6 +450,68 @@ export default function Show({
                         )
                     }
                 />
+            )}
+        </>
+    );
+}
+
+function ProfileTalks({
+    user,
+    talks,
+    isCurrentUser,
+}: {
+    user: Profile;
+    talks: CursorPaginated<TalkSummary>;
+    isCurrentUser: boolean;
+}) {
+    const [isComposing, setIsComposing] = useState(false);
+
+    return (
+        <>
+            {isCurrentUser && (
+                <div className="flex h-12 items-center justify-end gap-3 border-b px-4">
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant={isComposing ? 'outline' : 'default'}
+                        onClick={() => setIsComposing((open) => !open)}
+                    >
+                        {isComposing ? 'Cancel' : 'New talk'}
+                    </Button>
+                </div>
+            )}
+
+            {isCurrentUser && isComposing && (
+                <TalkForm onCancel={() => setIsComposing(false)} />
+            )}
+
+            {talks.data.length === 0 ? (
+                <div className="px-6 py-16 text-center sm:px-12">
+                    <EmptyFeed command="fatal: no talks yet">
+                        {isCurrentUser
+                            ? 'Your talks live here. Publish one when you are ready.'
+                            : `@${user.username} hasn't published any talks yet.`}
+                    </EmptyFeed>
+                </div>
+            ) : (
+                <InfiniteScroll
+                    data="talks"
+                    onlyNext
+                    preserveUrl
+                    loading={
+                        <div
+                            role="status"
+                            aria-label="Loading more talks"
+                            className="px-5 py-6 text-sm text-muted-foreground sm:px-6"
+                        >
+                            Loading…
+                        </div>
+                    }
+                >
+                    {talks.data.map((talk) => (
+                        <TalkCard key={talk.id} talk={talk} user={user} />
+                    ))}
+                </InfiniteScroll>
             )}
         </>
     );

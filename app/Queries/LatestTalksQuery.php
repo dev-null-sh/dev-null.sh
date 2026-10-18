@@ -19,7 +19,6 @@ final readonly class LatestTalksQuery
     {
         return Talk::query()
             ->whereNotNull('published_at')
-            ->where('is_unlisted', false)
             ->whereNotNull('commit_id')
             ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer)->approved())
             ->with(['user:id,username,name,avatar_url,preferred_lane,lane_color'])

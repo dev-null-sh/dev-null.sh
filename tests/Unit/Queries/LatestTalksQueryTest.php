@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Actions\CreateTalk;
 use App\Enums\CommitStatus;
-use App\Enums\TalkVisibility;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
@@ -40,22 +39,11 @@ it('lists recent published talks with approved anchors', function (): void {
         recordingUrl: 'https://example.com/pending-talk',
     );
 
-    $unlisted = resolve(CreateTalk::class)->handle(
-        $speaker,
-        'Unlisted talk',
-        'Link only.',
-        now()->subHours(1)->toImmutable(),
-        slidesUrl: 'https://example.com/unlisted',
-        visibility: TalkVisibility::Unlisted,
-    );
-    Commit::query()->whereKey($unlisted->commit_id)->update(['status' => CommitStatus::Approved]);
-
     $talks = resolve(LatestTalksQuery::class)->get($viewer);
 
     expect($talks)->toHaveCount(1)
         ->and($talks->first()['id'])->toBe($talk->id)
         ->and($talks->first()['title'])->toBe('Explore me')
         ->and($talks->first()['user']['username'])->toBe('speaker')
-        ->and($talks->pluck('id'))->not->toContain($pending->id)
-        ->and($talks->pluck('id'))->not->toContain($unlisted->id);
+        ->and($talks->pluck('id'))->not->toContain($pending->id);
 });

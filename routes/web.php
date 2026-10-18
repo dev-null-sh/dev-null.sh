@@ -238,9 +238,6 @@ Route::middleware('auth')->group(function (): void {
     Route::post('talks', [TalkController::class, 'store'])
         ->middleware(ThrottleCommits::class)
         ->name('talk.store');
-    Route::post('talks/{talk}/publish', [TalkController::class, 'publish'])
-        ->middleware(ThrottleCommits::class)
-        ->name('talk.publish');
     Route::delete('talks/{talk}', [TalkController::class, 'destroy'])->name('talk.destroy');
 
     Route::get('commit-stars', [CommitStarCountController::class, 'index'])->name('commit-star-count.index');

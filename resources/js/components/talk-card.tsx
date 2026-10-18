@@ -11,7 +11,6 @@ export function TalkCard({
     talk: TalkSummary;
     user: Pick<User, 'id' | 'username' | 'name'>;
 }) {
-    const isDraft = talk.published_at === null;
     const hasRecordingPreview = Boolean(talk.recording_url && talk.recording_embed);
     const hasSlidesPreview = Boolean(talk.slides_url && talk.slides_embed);
 
@@ -22,24 +21,12 @@ export function TalkCard({
                     <Presentation className="size-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                            href={TalkController.show([user, talk])}
-                            className="font-semibold text-foreground hover:underline"
-                        >
-                            {talk.title}
-                        </Link>
-                        {isDraft && (
-                            <span className="rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                                Draft
-                            </span>
-                        )}
-                        {talk.is_unlisted && !isDraft && (
-                            <span className="rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                                Unlisted
-                            </span>
-                        )}
-                    </div>
+                    <Link
+                        href={TalkController.show([user, talk])}
+                        className="font-semibold text-foreground hover:underline"
+                    >
+                        {talk.title}
+                    </Link>
                     {talk.event_name && (
                         <p className="mt-0.5 font-mono text-xs text-muted-foreground">
                             {talk.event_name}

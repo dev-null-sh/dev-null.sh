@@ -14,12 +14,11 @@ export default function Show({
     replies,
 }: {
     talk: Talk;
-    commit: Commit | null;
-    replies: CursorPaginated<ThreadCommit> | null;
+    commit: Commit;
+    replies: CursorPaginated<ThreadCommit>;
 }) {
     const { auth } = usePage().props;
     const isOwner = auth.user?.id === talk.user.id;
-    const isDraft = talk.published_at === null;
 
     const goBack = () => {
         if (window.history.length > 1) {
@@ -45,35 +44,23 @@ export default function Show({
                     <ArrowLeft className="size-4" />
                 </button>
                 <h1 className="truncate font-semibold">Talk</h1>
-                <div className="ml-auto flex items-center gap-2">
-                    {isOwner && isDraft && (
-                        <Form {...TalkController.publish.form(talk)}>
-                            {({ processing }) => (
-                                <Button
-                                    type="submit"
-                                    size="sm"
-                                    disabled={processing}
-                                >
-                                    Publish
-                                </Button>
-                            )}
-                        </Form>
-                    )}
-                    {isOwner && (
-                        <Form {...TalkController.destroy.form(talk)}>
-                            {({ processing }) => (
-                                <Button
-                                    type="submit"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={processing}
-                                >
-                                    Delete
-                                </Button>
-                            )}
-                        </Form>
-                    )}
-                </div>
+                {isOwner && (
+                    <Form
+                        {...TalkController.destroy.form(talk)}
+                        className="ml-auto"
+                    >
+                        {({ processing }) => (
+                            <Button
+                                type="submit"
+                                variant="outline"
+                                size="sm"
+                                disabled={processing}
+                            >
+                                Delete
+                            </Button>
+                        )}
+                    </Form>
+                )}
             </div>
 
             <section className="space-y-4 border-b px-5 py-6 sm:px-6">
@@ -86,8 +73,6 @@ export default function Show({
                             @{talk.user.username}
                         </Link>
                         {talk.event_name ? ` · ${talk.event_name}` : ''}
-                        {isDraft ? ' · Draft' : ''}
-                        {talk.is_unlisted && !isDraft ? ' · Unlisted' : ''}
                     </p>
                     <h2 className="mt-1 text-xl font-semibold tracking-tight">
                         {talk.title}
@@ -148,25 +133,16 @@ export default function Show({
                 )}
             </section>
 
-            {commit && replies ? (
-                <>
-                    <div className="border-b px-5 py-3 font-mono text-xs text-muted-foreground sm:px-6">
-                        Discussion
-                    </div>
+            <div className="border-b px-5 py-3 font-mono text-xs text-muted-foreground sm:px-6">
+                Discussion
+            </div>
 
-                    <CommitCard
-                        commit={commit}
-                        initialReplies={replies}
-                        endsWithDot
-                        isFocused
-                    />
-                </>
-            ) : (
-                <p className="px-5 py-8 font-mono text-sm text-muted-foreground sm:px-6">
-                    This draft is private. Publish it to open discussion in the
-                    log.
-                </p>
-            )}
+            <CommitCard
+                commit={commit}
+                initialReplies={replies}
+                endsWithDot
+                isFocused
+            />
         </>
     );
 }

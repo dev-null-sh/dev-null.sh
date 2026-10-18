@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Actions\CreateTalk;
 use App\Actions\DeleteTalk;
-use App\Enums\TalkVisibility;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
@@ -33,21 +32,4 @@ it('deletes a talk and soft deletes its anchor commit', function (): void {
 
     expect(Talk::query()->whereKey($talk->id)->exists())->toBeFalse()
         ->and(Commit::withTrashed()->findOrFail($commitId)->trashed())->toBeTrue();
-});
-
-it('deletes a draft without a commit', function (): void {
-    $user = User::factory()->create();
-    $talk = resolve(CreateTalk::class)->handle(
-        $user,
-        'Draft delete',
-        'No commit yet.',
-        now()->addDay()->toImmutable(),
-        slidesUrl: 'https://example.com/draft',
-        visibility: TalkVisibility::Private,
-    );
-
-    resolve(DeleteTalk::class)->handle($talk);
-
-    expect(Talk::query()->whereKey($talk->id)->exists())->toBeFalse()
-        ->and(Commit::withTrashed()->count())->toBe(0);
 });
