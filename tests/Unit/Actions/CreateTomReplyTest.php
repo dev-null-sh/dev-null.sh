@@ -54,7 +54,7 @@ it('queues a mention only after approval and ignores code mentions', function ()
     resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
 
     Queue::assertPushed(ReplyAsTom::class, 1);
-    Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $commit->id && $job->afterCommit === true);
+    Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $commit->id);
 });
 
 it('does not prompt for ineligible mentions', function (string $case): void {

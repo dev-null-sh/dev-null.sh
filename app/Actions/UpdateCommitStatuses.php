@@ -84,7 +84,7 @@ final readonly class UpdateCommitStatuses
                 if (filled(config('ai.providers.opencode.key'))) {
                     foreach ($commits as $commit) {
                         if (isset($commit->mentions['tom']) && $commit->user?->github_id !== CreateTomFriendship::GITHUB_ID) {
-                            dispatch(new ReplyAsTom($commit->id))->afterCommit();
+                            dispatch(new ReplyAsTom($commit->id));
                         }
                     }
                 }
