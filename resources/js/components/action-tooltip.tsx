@@ -21,7 +21,7 @@ export function ActionTooltip({
     return (
         <Tooltip>
             <TooltipTrigger asChild>
-                <span className="inline-flex min-w-0">{children}</span>
+                <span className="inline-flex shrink-0">{children}</span>
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-2">
                 {label}

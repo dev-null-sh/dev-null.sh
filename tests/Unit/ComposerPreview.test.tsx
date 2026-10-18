@@ -13,6 +13,7 @@ import {
     useComposerPreview,
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
+import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 
 function renderPage(
     content: ReactElement,
@@ -21,7 +22,9 @@ function renderPage(
 ): string {
     return renderToStaticMarkup(
         <App
-            initialComponent={() => content}
+            initialComponent={() => (
+                <TooltipProvider>{content}</TooltipProvider>
+            )}
             initialPage={
                 {
                     component: 'Preview',
@@ -119,7 +122,11 @@ function renderComposer(body: string): string {
             },
         });
 
-        return <CommitComposer />;
+        return (
+            <TooltipProvider>
+                <CommitComposer />
+            </TooltipProvider>
+        );
     }
 
     try {

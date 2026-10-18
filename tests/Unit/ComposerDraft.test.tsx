@@ -304,11 +304,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     const dateInput = view.fields.find(
         (element) => element.props.id === 'body-scheduled-at',
     )!;
-    const setCustomValidity = vi.fn();
-    (dateInput.props.onChange as (event: unknown) => void)({
-        target: { value: date, setCustomValidity },
-    });
-    assert.deepEqual(setCustomValidity.mock.lastCall, ['']);
+    (dateInput.props.onChange as (value: string) => void)(date);
     view = render();
     const scheduledAt = new Date(date)
         .toISOString()
@@ -412,47 +408,30 @@ test('previews restored images and descriptions while keeping them attached when
     });
 });
 
-test('cancelling a schedule clears the chosen time and commits now', () => {
-    const toggle = () =>
-        render().fields.find(
-            (element) => element.props['aria-controls'] === 'body-schedule',
-        )!;
+test('turning scheduling off clears the chosen time and commits now', () => {
+    const find = (key: string, value: unknown) =>
+        render().fields.find((element) => element.props[key] === value);
     const label = (element: Element) =>
         React.Children.toArray(element.props.children as ReactNode)
             .filter((child) => typeof child === 'string')
             .join('');
-    const submit = () =>
-        render().fields.find(
-            (element) => element.props['data-test'] === 'create-commit-button',
-        )!;
-    const isScheduling = () =>
-        render().fields.some(
-            (element) => element.props.id === 'body-scheduled-at',
-        );
+    const submit = () => find('data-test', 'create-commit-button')!;
 
-    assert.equal(label(toggle()), 'Schedule');
-    (toggle().props.onClick as () => void)();
-    (
-        render().fields.find(
-            (element) => element.props.id === 'body-scheduled-at',
-        )!.props.onChange as (event: unknown) => void
-    )({ target: { value: '2026-10-17T10:30', setCustomValidity: vi.fn() } });
-    assert.equal(label(toggle()), 'Cancel');
+    (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
+    assert.equal(submit().props.disabled, true);
+    (find('id', 'body-scheduled-at')!.props.onChange as (value: string) => void)(
+        '2026-10-17T10:30',
+    );
+    assert.equal(submit().props.disabled, false);
     assert.equal(label(submit()), 'Schedule commit');
 
-    (toggle().props.onClick as () => void)();
-    assert.equal(isScheduling(), false);
-    assert.equal(label(toggle()), 'Schedule');
+    (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
+    assert.equal(find('id', 'body-scheduled-at'), undefined);
     assert.equal(label(submit()), 'Commit');
     assert.deepEqual(render().form.props.transform({ body: draft.body }), {
         body: draft.body,
     });
 
-    (toggle().props.onClick as () => void)();
-    assert.equal(
-        render().fields.find(
-            (element) => element.props.id === 'body-scheduled-at',
-        )!.props.value,
-        '',
-    );
+    (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
+    assert.equal(find('id', 'body-scheduled-at')!.props.value, '');
 });
