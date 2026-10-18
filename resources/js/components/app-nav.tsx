@@ -5,6 +5,7 @@ import {
     Bookmark,
     ExternalLink,
     GitCommitVertical,
+    Menu,
     MessagesSquare,
     Search,
     Settings2,
@@ -27,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { UserAvatar } from '@/components/user-avatar';
@@ -415,8 +417,15 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
 export function MobileNav() {
-    const items = useNavItems().filter(
-        (item) => !['Saved', 'Operations'].includes(item.title),
+    const { auth } = usePage().props;
+    const allItems = useNavItems();
+    const menuItems = allItems.filter((item) =>
+        ['Profile', 'Settings', 'Operations'].includes(item.title),
+    );
+    const items = allItems.filter(
+        (item) =>
+            item.title !== 'Saved' &&
+            !menuItems.some((menuItem) => menuItem.title === item.title),
     );
     const nav = useRef<HTMLElement>(null);
 
@@ -477,6 +486,65 @@ export function MobileNav() {
                     <span className="max-w-full truncate">{item.title}</span>
                 </NavLink>
             ))}
+            <DropdownMenu>
+                <DropdownMenuTrigger
+                    aria-label="More navigation"
+                    className={cn(
+                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
+                        {
+                            'text-primary': menuItems.some(
+                                (item) => item.isActive,
+                            ),
+                        },
+                    )}
+                >
+                    <span
+                        className={cn(
+                            'flex h-8 w-14 max-w-full items-center justify-center rounded-full',
+                            {
+                                'bg-primary-soft': menuItems.some(
+                                    (item) => item.isActive,
+                                ),
+                            },
+                        )}
+                    >
+                        <Menu className="size-5" />
+                    </span>
+                    <span>Menu</span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                    className="w-48 md:hidden"
+                    side="top"
+                    align="end"
+                >
+                    {menuItems.map((item) => (
+                        <DropdownMenuItem key={item.title} asChild>
+                            {auth.user === null ? (
+                                <a href={toUrl(item.href)} className="min-h-11">
+                                    {item.icon && <item.icon />}
+                                    {item.title}
+                                </a>
+                            ) : (
+                                <Link
+                                    href={item.href}
+                                    prefetch={item.prefetch ?? true}
+                                    viewTransition
+                                    aria-current={
+                                        item.isActive ? 'page' : undefined
+                                    }
+                                    className={cn('min-h-11', {
+                                        'bg-primary-soft text-primary':
+                                            item.isActive,
+                                    })}
+                                >
+                                    {item.icon && <item.icon />}
+                                    {item.title}
+                                </Link>
+                            )}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
         </nav>
     );
 }
