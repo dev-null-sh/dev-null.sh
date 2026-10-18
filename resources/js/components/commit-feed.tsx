@@ -18,7 +18,6 @@ export function CommitFeed({
     commits,
     empty,
     end,
-    firstLane,
     highlightedPeriod = null,
     firstSeenId = null,
     actions,
@@ -32,7 +31,6 @@ export function CommitFeed({
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
     end: string;
-    firstLane?: string;
     highlightedPeriod?: string | null;
     firstSeenId?: string | null;
     actions?: (commit: Commit) => ReactNode;
@@ -58,6 +56,28 @@ export function CommitFeed({
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
+    const [highlightedCommit, setHighlightedCommit] = useState<string | null>(
+        null,
+    );
+    const unhighlightTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+    useEffect(() => () => clearTimeout(unhighlightTimer.current), []);
+
+    const highlightCommit = (commitId: string, isHovering: boolean) => {
+        clearTimeout(unhighlightTimer.current);
+
+        if (isHovering) {
+            setHighlightedCommit(commitId);
+
+            return;
+        }
+
+        // Crossing a day marker between two commits shouldn't flash the whole feed back on.
+        unhighlightTimer.current = setTimeout(
+            () => setHighlightedCommit(null),
+            150,
+        );
+    };
 
     useEffect(
         () =>
@@ -150,37 +170,21 @@ export function CommitFeed({
         return <div className="px-6 py-16 text-center sm:px-12">{empty}</div>;
     }
 
-    const isDimmed = (userId: string | undefined) =>
-        highlightedAuthor !== null && userId !== highlightedAuthor;
+    const isDimmed = (commit: Commit) =>
+        highlightedAuthor !== null
+            ? commit.user_id !== highlightedAuthor
+            : highlightedCommit !== null && commit.id !== highlightedCommit;
 
     const lastCommit = listed.at(-1) ?? latestCommits.at(-1) ?? pinnedCommit;
-    const pinnedLane = pinnedCommit
-        ? laneColor(pinnedCommit.user.lane)
-        : firstLane;
-    const lastLatest = latestCommits.at(-1);
-    const listLane = lastLatest ? laneColor(lastLatest.user.lane) : pinnedLane;
     const interludeIndex = Math.min(interludeAfter, listed.length) - 1;
 
-    const card = (
-        commit: Commit,
-        previous: Commit | undefined,
-        previousLane: string | undefined,
-        isGroupedWithPrevious: boolean,
-        isGroupedWithNext: boolean,
-    ) => (
+    // Feed commits are unrelated to each other, so each one stands on its own with its author's avatar, even when the
+    // same author committed several in a row.
+    const card = (commit: Commit) => (
         <CommitCard
             commit={commit}
-            endsWithDot={!isGroupedWithPrevious && !isGroupedWithNext}
-            railNodePosition={isGroupedWithPrevious ? 'author' : 'top'}
-            hasRailTail={!isGroupedWithPrevious || isGroupedWithNext}
-            previousLane={isGroupedWithPrevious ? previousLane : undefined}
-            isDimmed={isDimmed(commit.user_id)}
-            isGroupedWithPrevious={isGroupedWithPrevious}
-            isPreviousDimmed={
-                previous
-                    ? isDimmed(previous.user_id)
-                    : highlightedAuthor !== null
-            }
+            endsWithDot
+            isDimmed={isDimmed(commit)}
             isHighlighted={
                 highlightedPeriod !== null &&
                 commit.created_at.startsWith(highlightedPeriod)
@@ -191,6 +195,7 @@ export function CommitFeed({
             onAuthorHover={(isHovering) =>
                 setHighlightedAuthor(isHovering ? commit.user_id : null)
             }
+            onHover={(isHovering) => highlightCommit(commit.id, isHovering)}
         />
     );
 
@@ -208,6 +213,10 @@ export function CommitFeed({
                     <CommitCard
                         commit={pinnedCommit}
                         endsWithDot
+                        isDimmed={isDimmed(pinnedCommit)}
+                        onHover={(isHovering) =>
+                            highlightCommit(pinnedCommit.id, isHovering)
+                        }
                         isHighlighted={
                             highlightedPeriod !== null &&
                             pinnedCommit.created_at.startsWith(
@@ -221,22 +230,8 @@ export function CommitFeed({
             {latestCommits.length > 0 && (
                 <section aria-label="Latest commits">
                     <DayMarker label="Just now" />
-                    {latestCommits.map((commit, index) => (
-                        <Fragment key={commit.id}>
-                            {card(
-                                commit,
-                                latestCommits[index - 1],
-                                index > 0
-                                    ? laneColor(
-                                          latestCommits[index - 1].user.lane,
-                                      )
-                                    : pinnedLane,
-                                latestCommits[index - 1]?.user_id ===
-                                    commit.user_id,
-                                latestCommits[index + 1]?.user_id ===
-                                    commit.user_id,
-                            )}
-                        </Fragment>
+                    {latestCommits.map((commit) => (
+                        <Fragment key={commit.id}>{card(commit)}</Fragment>
                     ))}
                     {listed.length > 0 && <DayMarker label="Top commits" />}
                 </section>
@@ -254,27 +249,11 @@ export function CommitFeed({
             >
                 {listed.map((commit, index) => {
                     const previous = listed[index - 1];
-                    const previousLane = previous
-                        ? laneColor(previous.user.lane)
-                        : listLane;
                     const startsDay =
                         !isRanked &&
                         (!previous ||
                             localDayKey(previous.created_at) !==
                                 localDayKey(commit.created_at));
-                    const isGroupedWithPrevious =
-                        previous?.user_id === commit.user_id &&
-                        !startsDay &&
-                        (isRanked || commit.id !== firstSeenId) &&
-                        !(interlude && index - 1 === interludeIndex);
-                    const next = listed[index + 1];
-                    const isGroupedWithNext =
-                        next?.user_id === commit.user_id &&
-                        (isRanked ||
-                            (localDayKey(next.created_at) ===
-                                localDayKey(commit.created_at) &&
-                                next.id !== firstSeenId)) &&
-                        !(interlude && index === interludeIndex);
 
                     return (
                         <Fragment key={commit.id}>
@@ -289,17 +268,11 @@ export function CommitFeed({
                                     )}
                                 />
                             )}
-                            {card(
-                                commit,
-                                previous,
-                                previousLane,
-                                isGroupedWithPrevious,
-                                isGroupedWithNext,
-                            )}
+                            {card(commit)}
                             {index === interludeIndex &&
                                 interlude?.(
                                     laneColor(commit.user.lane),
-                                    isDimmed(commit.user_id),
+                                    isDimmed(commit),
                                 )}
                         </Fragment>
                     );

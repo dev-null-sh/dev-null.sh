@@ -35,13 +35,14 @@ final class EmbedCommitsCommand extends Command
 
     /**
      * Deleted commits are left out, but pending and rejected ones are embedded too: nothing re-embeds a commit once it
-     * is approved, and a pending commit may still become searchable.
+     * is approved, and a pending commit may still become searchable. Commits of only images have no body to embed.
      *
      * @return Builder<Commit>
      */
     private function commits(): Builder
     {
         return Commit::query()
+            ->where('body', '!=', '')
             ->unless($this->option('all'), fn (Builder $query): Builder => $query->whereNull('embedding'));
     }
 

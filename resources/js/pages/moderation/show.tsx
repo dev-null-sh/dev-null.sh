@@ -192,6 +192,7 @@ export default function Show({
                     ? { reason: reason ?? '' }
                     : {},
             preserveScroll: true,
+            only: ['commits', 'hasUnmoderatedCommits'],
             reset: ['commits'],
             onSuccess: () =>
                 requestAnimationFrame(() => {
@@ -245,6 +246,7 @@ export default function Show({
         router.visit(ModerationController.update(), {
             data: { commits: selectedIds },
             preserveScroll: true,
+            only: ['commits', 'hasUnmoderatedCommits'],
             reset: ['commits'],
             onStart: () => setApproving(true),
             onSuccess: () => setSelected(new Set()),
@@ -314,7 +316,6 @@ export default function Show({
 
             <CommitFeed
                 commits={commits}
-                firstLane="var(--rail)"
                 end="That's every pending commit."
                 isFolded={false}
                 actions={(commit) => (

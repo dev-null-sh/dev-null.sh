@@ -8,7 +8,8 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Services\OpenAI;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
+use Laravel\Ai\Embeddings;
+use Laravel\Ai\Enums\Lab;
 
 final readonly class CommitSearchQuery
 {
@@ -44,6 +45,12 @@ final readonly class CommitSearchQuery
             return new Collection();
         }
 
+        $embedding = Embeddings::for([$term])
+            ->dimensions(OpenAI::EMBEDDING_DIMENSIONS)
+            ->cache(self::CACHE_SECONDS)
+            ->generate(provider: Lab::OpenAI, model: OpenAI::EMBEDDING_MODEL)
+            ->first();
+
         $candidates = Commit::query()
             ->visibleTo($viewer)
             ->withoutMutedAuthorsFor($viewer)
@@ -53,7 +60,7 @@ final readonly class CommitSearchQuery
             ->with(['user', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
-            ->orderByVectorDistance('embedding', $this->embedding($term))
+            ->orderByVectorDistance('embedding', array_values($embedding))
             ->limit($limit)
             ->get()
             ->toBase();
@@ -63,7 +70,7 @@ final readonly class CommitSearchQuery
 
     /**
      * The vector search is generous: the nearest by meaning can include posts that merely share a word with the term.
-     * The decision model reads the term against each candidate and keeps only the ones actually about it, so the
+     * The decision model reads the term against each candidate and keeps meaningful connections to it, so the
      * caller may get fewer than it asked for.
      *
      * @param  Collection<int, Commit>  $candidates
@@ -80,17 +87,5 @@ final readonly class CommitSearchQuery
         return $candidates
             ->filter(fn (Commit $commit, int $index): bool => $relevant[$index] ?? true)
             ->values();
-    }
-
-    /**
-     * @return list<float>
-     */
-    private function embedding(string $term): array
-    {
-        return Cache::remember(
-            'commit-search:'.hash('xxh3', $term),
-            self::CACHE_SECONDS,
-            fn (): array => $this->openAI->embed($term),
-        );
     }
 }

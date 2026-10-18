@@ -7,14 +7,19 @@ namespace App\Actions;
 use App\Enums\NotificationType;
 use App\Models\Bookmark;
 use App\Models\CommitImage;
+use App\Models\Conversation;
+use App\Models\ConversationParticipant;
+use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\User;
 use App\Queries\CommitBuilder;
+use Carbon\CarbonImmutable;
 use Generator;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\LazyCollection;
 use stdClass;
 
 final readonly class CreateExport
@@ -22,7 +27,7 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
@@ -41,10 +46,15 @@ final readonly class CreateExport
                 'company' => $user->company,
                 'has_sponsors_listing' => $user->has_sponsors_listing,
                 'preferred_lane' => $user->preferred_lane,
+                'timezone' => $user->timezone,
+                'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,
                 'pasteis_received' => $user->pasteis_received,
                 'pasteis_given_today' => $user->pasteis_given_today,
                 'pasteis_given_on' => $user->pasteis_given_on?->toDateString(),
+                'remotes_enabled' => $user->remotes_enabled,
+                'remotes_from' => $user->remotes_from->value,
+                'pull_receipts' => $user->pull_receipts,
                 'pinned_commit_id' => $user->pinned_commit_id,
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
@@ -58,6 +68,7 @@ final readonly class CreateExport
             'followers' => $this->usernames($user->followers()),
             'muting' => $this->usernames($user->muting()),
             'blocking' => $this->usernames($user->blocking()),
+            'messages' => $this->messages($user),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
             'sessions' => $this->sessions($user),
@@ -69,7 +80,13 @@ final readonly class CreateExport
      */
     private function commits(User $user): Generator
     {
-        foreach ($user->commits()->withTrashed()->with('images')->lazyById(500) as $commit) {
+        $commits = $user->commits()
+            ->withTrashed()
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
+            ->with('images:id,commit_id')
+            ->lazyById(500);
+
+        foreach ($commits as $commit) {
             yield [
                 'id' => $commit->id,
                 'parent_id' => $commit->parent_id,
@@ -127,8 +144,11 @@ final readonly class CreateExport
      */
     private function stars(User $user): Generator
     {
-        foreach ($user->starredCommits()->withTrashed()->select('commits.id')->lazyById(500, 'commits.id', 'id') as $commit) {
-            yield $commit->id;
+        /** @var LazyCollection<int, object{commit_id: string}> $stars */
+        $stars = $user->starredCommits()->newPivotQuery()->select('commit_id')->lazyById(500, 'commit_id');
+
+        foreach ($stars as $star) {
+            yield $star->commit_id;
         }
     }
 
@@ -143,12 +163,40 @@ final readonly class CreateExport
     }
 
     /**
+     * The messages the user sent. What others sent them is theirs to export.
+     *
+     * @return Generator<int, array{to: string|null, body: string, created_at: string}>
+     */
+    private function messages(User $user): Generator
+    {
+        $recipients = Conversation::query()
+            ->whereIn('id', ConversationParticipant::query()->select('conversation_id')->where('user_id', $user->id))
+            ->with('participants.user')
+            ->get()
+            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $conversation->isOrg()
+                ? 'org: '.($conversation->name ?? $conversation->id)
+                : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username,
+            ]);
+
+        foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->lazyById(500) as $message) {
+            yield [
+                'to' => $recipients->get($message->conversation_id),
+                'body' => $message->body,
+                'created_at' => $message->created_at->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
      * @param  BelongsToMany<User, User>  $users
      * @return Generator<int, array{username: string}>
      */
     private function usernames(BelongsToMany $users): Generator
     {
-        foreach ($users->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id') as $user) {
+        /** @var LazyCollection<int, object{username: string}> $users */
+        $users = $users->toBase()->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id');
+
+        foreach ($users as $user) {
             yield ['username' => $user->username];
         }
     }
@@ -160,16 +208,23 @@ final readonly class CreateExport
      */
     private function notifications(User $user): Generator
     {
-        foreach ($user->notifications()->with('actor')->lazyById(500) as $notification) {
-            $isModeration = in_array($notification->type, [NotificationType::Approved, NotificationType::Rejected], true);
+        /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, read_at: string|null, created_at: string}> $notifications */
+        $notifications = $user->notifications()
+            ->join('users as actors', 'actors.id', '=', 'notifications.actor_id')
+            ->toBase()
+            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.read_at', 'notifications.created_at', 'actors.username as actor'])
+            ->lazyById(500, 'notifications.id', 'id');
+
+        foreach ($notifications as $notification) {
+            $isModeration = in_array($notification->type, [NotificationType::Approved->value, NotificationType::Rejected->value], true);
 
             yield [
-                'type' => $notification->type->value,
-                'actor' => $isModeration ? null : $notification->actor->username,
+                'type' => $notification->type,
+                'actor' => $isModeration ? null : $notification->actor,
                 'commit_id' => $notification->commit_id,
                 'reason' => $notification->reason,
-                'read_at' => $notification->read_at?->toIso8601String(),
-                'created_at' => $notification->created_at->toIso8601String(),
+                'read_at' => $notification->read_at === null ? null : CarbonImmutable::parse($notification->read_at)->toIso8601String(),
+                'created_at' => CarbonImmutable::parse($notification->created_at)->toIso8601String(),
             ];
         }
     }

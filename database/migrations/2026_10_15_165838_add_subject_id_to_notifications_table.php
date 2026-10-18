@@ -16,12 +16,4 @@ return new class extends Migration
             $table->index(['recipient_id', 'type', 'subject_id']);
         });
     }
-
-    public function down(): void
-    {
-        Schema::table('notifications', function (Blueprint $table): void {
-            $table->dropIndex(['recipient_id', 'type', 'subject_id']);
-            $table->dropConstrainedForeignId('subject_id');
-        });
-    }
 };

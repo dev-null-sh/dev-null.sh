@@ -9,6 +9,11 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
 import { cn } from '@/lib/utils';
 
@@ -45,29 +50,41 @@ export function LinkCardPicker({
                 <input type="hidden" name={name} value={linkCard.link ?? ''} />
             )}
             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={disabled}
-                        title="Choose which link gets a card"
-                        className={cn(
-                            'min-w-0 gap-1.5 px-2 font-mono text-[13px] font-normal text-muted-foreground',
-                            className,
-                        )}
-                        data-test="link-card-button"
-                    >
-                        {linkCard.link === null ? <Link2Off /> : <Link2 />}
-                        <span className="sr-only">Link card:</span>
-                        <span className={cn('truncate', labelClassName)}>
-                            {linkCard.link === null
-                                ? 'No card'
-                                : withoutScheme(linkCard.link)}
-                        </span>
-                        <ChevronDown className="size-3.5 opacity-60" />
-                    </Button>
-                </DropdownMenuTrigger>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={disabled}
+                                className={cn(
+                                    'min-w-0 gap-1.5 px-2 font-mono text-[13px] font-normal text-muted-foreground',
+                                    className,
+                                )}
+                                data-test="link-card-button"
+                            >
+                                {linkCard.link === null ? (
+                                    <Link2Off />
+                                ) : (
+                                    <Link2 />
+                                )}
+                                <span className="sr-only">Link card:</span>
+                                <span
+                                    className={cn('truncate', labelClassName)}
+                                >
+                                    {linkCard.link === null
+                                        ? 'No card'
+                                        : withoutScheme(linkCard.link)}
+                                </span>
+                                <ChevronDown className="size-3.5 opacity-60" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        Choose which link gets a card
+                    </TooltipContent>
+                </Tooltip>
                 <DropdownMenuContent
                     align="start"
                     collisionPadding={16}

@@ -1,0 +1,39 @@
+name: Lint pull request title
+
+on:
+  pull_request:
+    branches:
+      - production
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-pr-title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install title lint dependencies
+        run: |
+          mkdir -p "$RUNNER_TEMP/pr-title-lint"
+          cp .commitlintrc.json "$RUNNER_TEMP/pr-title-lint/"
+          cd "$RUNNER_TEMP/pr-title-lint"
+          bun add --ignore-scripts --exact @commitlint/config-conventional@21.2.3 @commitlint/cli@21.2.3
+
+      - name: Lint title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          printf '%s\n' "$PR_TITLE" | bun run --bun --cwd "$RUNNER_TEMP/pr-title-lint" commitlint

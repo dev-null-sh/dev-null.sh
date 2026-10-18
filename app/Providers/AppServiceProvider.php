@@ -41,7 +41,7 @@ final class AppServiceProvider extends ServiceProvider
             if ($response->statusCode() === 419) {
                 Inertia::flash('toast', [
                     'type' => 'error',
-                    'message' => __('Page expired: your session timed out before that went through. Try again.'),
+                    'message' => 'Page expired: your session timed out before that went through. Try again.',
                 ]);
 
                 return back();
@@ -73,7 +73,7 @@ final class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(1)->by($user->id)->response(function (): RedirectResponse {
                 Inertia::flash('toast', [
                     'type' => 'error',
-                    'message' => __('You just synced. Try again in a minute.'),
+                    'message' => 'You just synced. Try again in a minute.',
                 ]);
 
                 return back();
@@ -89,6 +89,10 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('bookmarks', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('pins', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
+
+        // Messages: polling an open conversation every second or so stays well under the first...
+        RateLimiter::for('conversations', fn (Request $request): Limit => Limit::perMinute(300)->by($this->userId($request)));
+        RateLimiter::for('messages', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));
 
         // Social graph...
         RateLimiter::for('follows', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));

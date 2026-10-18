@@ -7,9 +7,9 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
-use App\Queries\LatestLogCommitsQuery;
 use Illuminate\Support\Facades\DB;
 
 it('renders own commits and commits of followed users newest first', function (): void {
@@ -73,7 +73,6 @@ it('renders commits of everyone newest first', function (): void {
             ->component('log/show')
             ->where('log', 'latest')
             ->where('isRanked', false)
-            ->where('newestCommitId', null)
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.1.body', 'Older'));
@@ -141,7 +140,7 @@ it('does not count the authenticated user relations when reloading only commits'
 
     expect(collect(DB::getQueryLog())
         ->pluck('query')
-        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*') || str_starts_with($query, 'select * from (select "commits".*'))
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits"."id", "commits"."user_id"') || str_starts_with($query, 'select * from (select "commits"."id"'))
         ->all())
         ->not->toBeEmpty()
         ->each->not->toContain('count(*)');
@@ -202,11 +201,28 @@ it('sends guests to sign in with GitHub for the following log', function (): voi
         ->assertHeader('X-Inertia-Location', route('login'));
 });
 
-it('counts newer commits on the trending log for guests', function (): void {
+it('does not count newer commits on the trending log', function (?bool $signedIn): void {
     $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
     Commit::factory()->create();
 
+    if ($signedIn) {
+        $this->actingAs(User::factory()->create());
+    }
+
     $this->get(route('log.show', [Log::Trending, 'since' => $older->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()->assertJsonPath('props.newCommitsCount', 0);
+})->with(['guest' => false, 'signed in' => true]);
+
+it('counts newer commits on the latest log', function (): void {
+    $user = User::factory()->create();
+    $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->create();
+
+    $this->actingAs($user)->get(route('log.show', [Log::Latest, 'since' => $older->id]), [
         'X-Inertia' => 'true',
         'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
         'X-Inertia-Partial-Component' => 'log/show',
@@ -441,6 +457,23 @@ it('includes the quoted commits with their authors', function (Log $log): void {
         ->assertDontSee('A deleted quoted commit');
 })->with(Log::cases());
 
+it('includes the images and link previews of quoted commits', function (Log $log): void {
+    $user = User::factory()->create();
+    $linkPreview = LinkPreview::factory()->fetched()->create(['title' => 'Laravel']);
+    $quoted = Commit::factory()->for($linkPreview)->create(['created_at' => now()->subHour()]);
+    CommitImage::factory()->for($quoted)->create(['width' => 1600, 'height' => 900]);
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.quoted_commit.link_preview.title', 'Laravel')
+            ->has('commits.data.0.quoted_commit.images', 1)
+            ->where('commits.data.0.quoted_commit.images.0.width', 1600));
+})->with(Log::cases());
+
 it('loads the quoted commits of a log without a query per commit', function (Log $log): void {
     $user = User::factory()->create(['log' => $log]);
 
@@ -517,21 +550,11 @@ it('does not suggest users to follow once they are hidden', function (): void {
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
 });
 
-it('offers the commits newer than a given one on top of the ranked log, newest first', function (): void {
+it('does not offer newer commits on top of the ranked log', function (): void {
     $user = User::factory()->create();
 
     $seen = Commit::factory()->create(['created_at' => now()->subMinutes(5)]);
-    $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
-    $newer = Commit::factory()->create();
-
-    $response = $this->actingAs($user)
-        ->get('/log/trending');
-
-    $response->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->where('newestCommitId', $newer->id)
-            ->where('latestCommits', [])
-            ->reloadOnly(['latestCommits'], fn ($reload) => $reload->where('latestCommits', [])));
+    Commit::factory()->create();
 
     $response = $this->actingAs($user)
         ->withHeaders([
@@ -543,10 +566,7 @@ it('offers the commits newer than a given one on top of the ranked log, newest f
         ->get('/log/trending?since='.$seen->id);
 
     $response->assertOk()
-        ->assertJsonPath('props.latestCommits.0.id', $newer->id)
-        ->assertJsonPath('props.latestCommits.1.id', $older->id)
-        ->assertJsonCount(2, 'props.latestCommits')
-        ->assertJsonPath('prependProps', ['latestCommits']);
+        ->assertJsonPath('props.latestCommits', []);
 });
 
 it('offers the commit just committed on top of the ranked log', function (): void {
@@ -565,53 +585,6 @@ it('offers the commit just committed on top of the ranked log', function (): voi
         ->assertInertia(fn ($page) => $page
             ->has('latestCommits', 1)
             ->where('latestCommits.0.body', 'Initial commit'));
-});
-
-it('leaves the user own commits out of the newer commits of the ranked log', function (): void {
-    $user = User::factory()->create();
-
-    $seen = Commit::factory()->create(['created_at' => now()->subMinutes(5)]);
-    Commit::factory()->for($user)->create();
-    $other = Commit::factory()->create();
-
-    $headers = [
-        'X-Inertia' => 'true',
-        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
-        'X-Inertia-Partial-Component' => 'log/show',
-    ];
-
-    $this->actingAs($user)
-        ->withHeaders([...$headers, 'X-Inertia-Partial-Data' => 'newCommitsCount'])
-        ->get('/log/trending?since='.$seen->id)
-        ->assertJsonPath('props.newCommitsCount', 1);
-
-    $this->actingAs($user)
-        ->withHeaders([...$headers, 'X-Inertia-Partial-Data' => 'latestCommits'])
-        ->get('/log/trending?since='.$seen->id)
-        ->assertJsonCount(1, 'props.latestCommits')
-        ->assertJsonPath('props.latestCommits.0.id', $other->id);
-});
-
-it('offers the oldest of too many newer commits, so the rest are offered next', function (): void {
-    $user = User::factory()->create();
-
-    $seen = Commit::factory()->create(['created_at' => now()->subHour()]);
-    $commits = Commit::factory()->count(LatestLogCommitsQuery::LIMIT + 1)->sequence(
-        fn ($sequence): array => ['created_at' => now()->subMinutes(50)->addSeconds($sequence->index)],
-    )->create();
-
-    $response = $this->actingAs($user)
-        ->withHeaders([
-            'X-Inertia' => 'true',
-            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
-            'X-Inertia-Partial-Component' => 'log/show',
-            'X-Inertia-Partial-Data' => 'latestCommits',
-        ])
-        ->get('/log/trending?since='.$seen->id);
-
-    $response->assertJsonCount(LatestLogCommitsQuery::LIMIT, 'props.latestCommits')
-        ->assertJsonPath('props.latestCommits.0.id', $commits[LatestLogCommitsQuery::LIMIT - 1]->id)
-        ->assertJsonPath('props.latestCommits.'.(LatestLogCommitsQuery::LIMIT - 1).'.id', $commits[0]->id);
 });
 
 it('preloads the latest reply per feed commit with a cursor to the older replies', function (): void {

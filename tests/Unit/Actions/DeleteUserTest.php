@@ -6,11 +6,14 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Message;
+use App\Models\MessageImage;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
 use App\Services\TheAlgorithm;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 it('may delete a user', function (): void {
@@ -134,6 +137,21 @@ it('erases the images of a deleted user and of the replies under their commits',
         ->and(CommitImage::query()->pluck('path')->sort()->values()->all())->toBe($kept);
 });
 
+it('erases the images a deleted user sent in remotes, keeping the images sent to them', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $sent = MessageImage::factory()->for(Message::factory()->for($user))->create();
+    $received = MessageImage::factory()->create();
+    Storage::disk()->put($sent->path, 'image');
+    Storage::disk()->put($received->path, 'image');
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Storage::disk()->allFiles('message-images'))->toBe([$received->path])
+        ->and(MessageImage::query()->pluck('id')->all())->toBe([$received->id]);
+});
+
 it('lowers the threads the deleted user starred or replied to', function (): void {
     $user = User::factory()->create();
     $starred = Commit::factory()->create();
@@ -160,4 +178,22 @@ it('lowers the threads the deleted user quoted', function (): void {
 
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+});
+
+it('erases however many commits a user has without listing them in its queries', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $commits = Commit::factory()->for($user)->count(10)->create();
+    $commits->each(fn (Commit $commit): Commit => Commit::factory()->for($commit, 'parent')->create());
+
+    $repliedTo = Commit::factory()->create();
+    $otherReply = Commit::factory()->for(Commit::factory()->for($user)->for($repliedTo, 'parent'), 'parent')->create();
+
+    DB::enableQueryLog();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(collect(DB::getQueryLog())->max(fn (array $query): int => count($query['bindings'])))->toBeLessThan(10)
+        ->and(Commit::query()->pluck('id')->sort()->values()->all())->toBe(collect([$repliedTo->id, $otherReply->id])->sort()->values()->all());
 });

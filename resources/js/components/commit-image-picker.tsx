@@ -1,5 +1,6 @@
 import { ImagePlus, X } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
+import { ActionTooltip } from '@/components/action-tooltip';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -8,7 +9,7 @@ export const maxImages = 3;
 export const maxDescriptionLength = 1000;
 
 const maxImageBytes = 10 * 1024 * 1024;
-const acceptedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const acceptedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
 /**
  * Keeps the files the server would accept, and tells why any others were left out.
@@ -26,7 +27,7 @@ export function pickImages(
     if (accepted.length < picked.length) {
         return {
             images,
-            error: 'Only JPEG, PNG, GIF, or WebP images up to 10 MB.',
+            error: 'Only JPEG, PNG, or WebP images up to 10 MB.',
         };
     }
 
@@ -104,20 +105,37 @@ export function ImagePickerButton({
                 }}
                 data-test="commit-image-input"
             />
-            <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                disabled={disabled || count >= maxImages}
-                onClick={() => inputRef.current?.click()}
-                aria-label="Attach images"
-                title={`Attach up to ${maxImages} images`}
-                className={cn('text-muted-foreground', className)}
-                data-test="attach-images-button"
-            >
-                <ImagePlus className="size-5" />
-            </Button>
+            <ActionTooltip label={`Attach up to ${maxImages} images`}>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={disabled || count >= maxImages}
+                    onClick={() => inputRef.current?.click()}
+                    aria-label="Attach images"
+                    className={cn('text-muted-foreground', className)}
+                    data-test="attach-images-button"
+                >
+                    <ImagePlus className="size-5" />
+                </Button>
+            </ActionTooltip>
         </>
+    );
+}
+
+export function ImageDropOverlay({ className }: { className?: string }) {
+    return (
+        <div
+            aria-hidden
+            className={cn(
+                'pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary bg-primary-soft/90 text-sm font-medium text-primary motion-safe:animate-in motion-safe:duration-150 motion-safe:fade-in-0',
+                className,
+            )}
+            data-test="image-drop-overlay"
+        >
+            <ImagePlus className="size-5" />
+            Drop images to attach
+        </div>
     );
 }
 

@@ -343,6 +343,12 @@ html body[data-scroll-locked] {
     view-transition-name: toasts;
 }
 
+@media (pointer: coarse) {
+    :root[data-lane-swipe] {
+        overscroll-behavior-x: none;
+    }
+}
+
 @media (prefers-reduced-motion: no-preference) {
     :root[data-tab-slide]::view-transition-old(*.tab-content),
     :root[data-tab-slide]::view-transition-new(*.tab-content) {

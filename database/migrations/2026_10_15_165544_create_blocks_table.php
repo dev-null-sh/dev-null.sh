@@ -19,9 +19,4 @@ return new class extends Migration
             $table->index('blocked_id');
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('blocks');
-    }
 };

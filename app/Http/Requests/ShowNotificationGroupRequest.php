@@ -25,7 +25,7 @@ final class ShowNotificationGroupRequest extends FormRequest
     /** @return array<string, list<string>> */
     public function rules(): array
     {
-        return ['type' => ['nullable', 'in:all,replies,quotes,stars,mentions,follows,moderation']];
+        return ['type' => ['nullable', 'string', ListNotificationsRequest::TYPE_RULE]];
     }
 
     public function type(): string
