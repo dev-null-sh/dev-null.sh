@@ -72,6 +72,7 @@ export type Commit = {
     user: User;
     replies_count?: number;
     reply_preview?: CursorPaginated<ThreadCommit>;
+    continuation_id?: string | null;
     is_saved?: boolean;
     saved_order?: number | null;
     is_pinned?: boolean;
@@ -111,6 +112,14 @@ export type DeletedCommit = {
 };
 
 export type ThreadCommit = Commit | DeletedCommit;
+
+export type ThreadContinuation = {
+    data: Commit[];
+    position: number;
+    length: number;
+    is_capped: boolean;
+    next_id: string | null;
+};
 
 export type CursorPaginated<T> = {
     data: T[];

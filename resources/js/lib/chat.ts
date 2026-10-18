@@ -5,6 +5,7 @@ import ConversationMessageController from '@/actions/App/Http/Controllers/Conver
 import ConversationReadController from '@/actions/App/Http/Controllers/ConversationReadController';
 import ConversationTypingController from '@/actions/App/Http/Controllers/ConversationTypingController';
 import InboxController from '@/actions/App/Http/Controllers/InboxController';
+import MessageReactionController from '@/actions/App/Http/Controllers/MessageReactionController';
 import OrgArchiveController from '@/actions/App/Http/Controllers/OrgArchiveController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberController';
@@ -13,11 +14,15 @@ import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController'
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
+import type { ReactionUsage } from '@/lib/reactions';
+import { withReactionUse } from '@/lib/reactions';
 import type {
     ConversationSummary,
     InboxPage,
     InboxTab,
     Message,
+    MessageReaction,
+    MessageReactionChange,
     MessageReply,
     OrgMember,
     OrgRef,
@@ -73,6 +78,11 @@ export type ThreadState = {
     access: PushAccess;
     pending: PendingMessage[];
     /**
+     * The conversation's reactions version the thread is current with, which polls ask for the changes after. Null
+     * until the server has handed one over.
+     */
+    reactions_version: number | null;
+    /**
      * The message the composer is replying to, kept while the user moves between the dock and Remotes.
      */
     replyingTo: MessageReply | null;
@@ -98,6 +108,10 @@ export type ChatState = {
     requests: number | null;
     isPollingInbox: boolean;
     threads: Record<string, ThreadState>;
+    /**
+     * The emoji the user reacts with, most used first, loaded once something shows a conversation.
+     */
+    reactionUsage: ReactionUsage[] | null;
 };
 
 export type Candidate = { user: User; reason: string | null };
@@ -125,13 +139,17 @@ let state: ChatState = {
     requests: null,
     isPollingInbox: false,
     threads: {},
+    reactionUsage: null,
 };
 const listeners = new Set<() => void>();
 const threadWatchers = new Map<string, number>();
 const lastActivity = new Map<string, number>();
 const lastTypingPing = new Map<string, number>();
+const reactionsInFlight = new Map<number, number>();
+const reactionsSettledAt = new Map<number, number>();
 let inboxWatchers = 0;
 let inboxTimer: number | undefined;
+let isLoadingReactionUsage = false;
 
 export function targetKey(target: ChatTarget): string {
     return target.kind === 'direct'
@@ -293,6 +311,36 @@ function mergeMessages(current: Message[], incoming: Message[]): Message[] {
     return [...byId.values()].sort((a, b) => a.id - b.id);
 }
 
+/**
+ * Swaps in the reactions that changed, except on messages the user is reacting to right now, or reacted to after the
+ * poll was sent: their own request hands back fresher reactions.
+ */
+function withReactionChanges(
+    messages: Message[],
+    changes: MessageReactionChange[],
+    polledAt: number,
+): Message[] {
+    const changed = new Map(
+        changes
+            .filter(
+                (change) =>
+                    !reactionsInFlight.has(change.id) &&
+                    (reactionsSettledAt.get(change.id) ?? 0) < polledAt,
+            )
+            .map((change) => [change.id, change.reactions]),
+    );
+
+    if (changed.size === 0) {
+        return messages;
+    }
+
+    return messages.map((message) =>
+        changed.has(message.id)
+            ? { ...message, reactions: changed.get(message.id) }
+            : message,
+    );
+}
+
 function unreadOf(conversations: ConversationSummary[]): number {
     return conversations.reduce(
         (total, conversation) => total + conversation.ahead,
@@ -419,6 +467,7 @@ function emptyThread(target: ChatTarget): ThreadState {
         is_archived: false,
         access: 'open',
         pending: [],
+        reactions_version: null,
         replyingTo: null,
         head: 0,
         headUntil: 0,
@@ -467,6 +516,7 @@ export function seedThread(
                     ? current.has_older
                     : thread.has_older,
                 read_through_id: thread.read_through_id,
+                reactions_version: thread.reactions_version,
                 head: thread.read_through_id,
                 headUntil: thread.messages.at(-1)?.id ?? 0,
                 isLoaded: true,
@@ -580,10 +630,24 @@ async function pollThread(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
     const thread = state.threads[key];
     const after = thread?.isLoaded ? (thread.messages.at(-1)?.id ?? 0) : null;
+    const reactionsAfter =
+        after === null ? null : (thread?.reactions_version ?? null);
+    const polledAt = performance.now();
 
     const fresh = await request<
         (Thread & { partner: User }) | (OrgThread & { org: OrgRef })
-    >(urls(target).index(after === null ? undefined : { after }));
+    >(
+        urls(target).index(
+            after === null
+                ? undefined
+                : {
+                      after,
+                      ...(reactionsAfter === null
+                          ? {}
+                          : { reactions_after: reactionsAfter }),
+                  },
+        ),
+    );
 
     const current = state.threads[key] ?? emptyThread(target);
     const isTyping =
@@ -605,7 +669,18 @@ async function pollThread(target: ChatTarget): Promise<void> {
                         : current.isLoaded
                           ? current.target
                           : { kind: 'direct', partner: fresh.partner },
-                messages: mergeMessages(current.messages, fresh.messages),
+                messages: mergeMessages(
+                    withReactionChanges(
+                        current.messages,
+                        fresh.reaction_changes,
+                        polledAt,
+                    ),
+                    fresh.messages,
+                ),
+                reactions_version: Math.max(
+                    current.reactions_version ?? 0,
+                    fresh.reactions_version,
+                ),
                 pending:
                     fresh.messages.length === 0
                         ? current.pending
@@ -691,6 +766,7 @@ export function watchThread(target: ChatTarget): () => void {
     document.addEventListener('visibilitychange', onVisible);
     void tick();
     scheduleInbox();
+    void loadReactionUsage();
 
     return () => {
         isStopped = true;
@@ -838,6 +914,120 @@ export function sendMessage(target: ChatTarget, draft: MessageDraft): void {
         pending: [...thread.pending, pending],
     }));
     void deliver(target, pending);
+}
+
+async function loadReactionUsage(): Promise<void> {
+    if (state.reactionUsage !== null || isLoadingReactionUsage) {
+        return;
+    }
+
+    isLoadingReactionUsage = true;
+
+    try {
+        const { usage } = await request<{ usage: ReactionUsage[] }>(
+            MessageReactionController.index.url(),
+        );
+
+        update({ reactionUsage: usage });
+    } catch {
+        // The picker falls back to the default quick reactions.
+    } finally {
+        isLoadingReactionUsage = false;
+    }
+}
+
+function countReactionUse(emoji: string, change: 1 | -1): void {
+    if (state.reactionUsage !== null) {
+        update({
+            reactionUsage: withReactionUse(state.reactionUsage, emoji, change),
+        });
+    }
+}
+
+function setReactions(
+    key: string,
+    messageId: number,
+    change: (reactions: MessageReaction[]) => MessageReaction[],
+): void {
+    updateThread(key, (thread) => ({
+        messages: thread.messages.map((message) =>
+            message.id === messageId
+                ? { ...message, reactions: change(message.reactions ?? []) }
+                : message,
+        ),
+    }));
+}
+
+/**
+ * Adds the user's reaction, or takes it back when they already left it, straight away, then settles on what the
+ * server holds. Returns whether the server took it.
+ */
+export async function toggleReaction(
+    target: ChatTarget,
+    messageId: number,
+    emoji: string,
+    userId: string,
+): Promise<boolean> {
+    const key = targetKey(target);
+    const message = state.threads[key]?.messages.find(
+        (item) => item.id === messageId,
+    );
+
+    if (message === undefined) {
+        return false;
+    }
+
+    const isMine = (reaction: MessageReaction) =>
+        reaction.user_id === userId && reaction.emoji === emoji;
+    const isRemoving = (message.reactions ?? []).some(isMine);
+    const add = (reactions: MessageReaction[]) =>
+        reactions.some(isMine)
+            ? reactions
+            : [...reactions, { user_id: userId, emoji }];
+    const remove = (reactions: MessageReaction[]) =>
+        reactions.filter((reaction) => !isMine(reaction));
+    const settle = () => {
+        const left = (reactionsInFlight.get(messageId) ?? 1) - 1;
+
+        reactionsSettledAt.set(messageId, performance.now());
+
+        if (left === 0) {
+            reactionsInFlight.delete(messageId);
+        } else {
+            reactionsInFlight.set(messageId, left);
+        }
+
+        return left === 0;
+    };
+
+    reactionsInFlight.set(
+        messageId,
+        (reactionsInFlight.get(messageId) ?? 0) + 1,
+    );
+    setReactions(key, messageId, isRemoving ? remove : add);
+    countReactionUse(emoji, isRemoving ? -1 : 1);
+
+    try {
+        const { reactions } = await request<{ reactions: MessageReaction[] }>(
+            isRemoving
+                ? MessageReactionController.destroy.url({ message: messageId })
+                : MessageReactionController.store.url({ message: messageId }),
+            isRemoving ? 'DELETE' : 'POST',
+            { emoji },
+        );
+
+        if (settle()) {
+            setReactions(key, messageId, () => reactions);
+        }
+
+        return true;
+    } catch {
+        settle();
+        setReactions(key, messageId, isRemoving ? add : remove);
+        countReactionUse(emoji, isRemoving ? 1 : -1);
+
+        return false;
+    }
 }
 
 export function setReplyingTo(

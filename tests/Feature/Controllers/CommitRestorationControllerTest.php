@@ -160,6 +160,42 @@ it('returns the actual visible parent count when undo replaces a tombstone', fun
         ->assertInertiaFlash('restored.parent.replies_count', 1);
 });
 
+it('leaves the restored next commit of a thread out of its parent count', function (): void {
+    $parent = Commit::factory()->create();
+    $next = Commit::factory()->for($parent, 'parent')->for($parent->user)->create();
+    Commit::factory()->for($parent, 'parent')->create();
+    resolve(DeleteCommit::class)->handle($next);
+
+    $this->actingAs($next->user)->post(route('commit-restoration.store', $next))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.parent.replies_count', 1)
+        ->assertInertiaFlash('restored.parent.continuation_id', $next->id);
+});
+
+it('leaves the next commit of a thread out of the count of a restored quote', function (): void {
+    $quoted = Commit::factory()->create();
+    Commit::factory()->for($quoted, 'parent')->for($quoted->user)->create();
+    Commit::factory()->for($quoted, 'parent')->create();
+    $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
+    resolve(DeleteCommit::class)->handle($quote);
+
+    $this->actingAs($quote->user)->post(route('commit-restoration.store', $quote))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.quoted_commit.replies_count', 2);
+});
+
+it('counts every reply of a deleted parent when restoring one of them', function (): void {
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->for($parent->user)->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    resolve(DeleteCommit::class)->handle($reply);
+    resolve(DeleteCommit::class)->handle($parent);
+
+    $this->actingAs($reply->user)->post(route('commit-restoration.store', $reply))
+        ->assertSessionHasNoErrors()
+        ->assertInertiaFlash('restored.parent.replies_count', 2);
+});
+
 it('keeps a deleted parent as a tombstone when restoring its reply', function (): void {
     $parent = Commit::factory()->create();
     $reply = Commit::factory()->for($parent, 'parent')->create();

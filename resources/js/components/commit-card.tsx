@@ -13,6 +13,7 @@ import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import {
+    ShowThreadLink,
     ThreadActions,
     ThreadReplies,
     useThread,
@@ -25,6 +26,10 @@ import {
 } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { QuotedCommit } from '@/components/quoted-commit';
+import {
+    ThreadPositionBadge,
+    type ThreadPosition,
+} from '@/components/thread-position-badge';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import {
@@ -67,6 +72,8 @@ export function CommitCard({
     endsWithDot = false,
     railNodePosition = 'top',
     hasRailTail = true,
+    exceptReplyId,
+    threadPosition,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -87,6 +94,8 @@ export function CommitCard({
     endsWithDot?: boolean;
     railNodePosition?: 'top' | 'center' | 'bottom' | 'author';
     hasRailTail?: boolean;
+    exceptReplyId?: string;
+    threadPosition?: ThreadPosition;
 }) {
     const {
         props: { auth },
@@ -95,7 +104,12 @@ export function CommitCard({
     const now = useNow();
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const deleteButtonRef = useRef<HTMLButtonElement>(null);
-    const thread = useThread(commit, initialReplies, loadsReplies);
+    const thread = useThread(
+        commit,
+        initialReplies,
+        loadsReplies,
+        exceptReplyId,
+    );
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
     >('idle');
@@ -244,6 +258,10 @@ export function CommitCard({
                                     </Link>
                                 </TimestampTooltip>
 
+                                <ThreadPositionBadge
+                                    threadPosition={threadPosition}
+                                />
+
                                 <CommitStatusBadge commit={commit} />
 
                                 <span className="relative ml-auto flex shrink-0 items-center self-center">
@@ -364,6 +382,8 @@ export function CommitCard({
                                     </span>
                                 </p>
                             )}
+
+                            {!isFocused && <ShowThreadLink commit={commit} />}
 
                             {commit.replies_count === undefined ? (
                                 <div className="mt-1 -ml-2 flex items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">

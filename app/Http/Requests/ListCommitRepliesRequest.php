@@ -23,6 +23,11 @@ final class ListCommitRepliesRequest extends FormRequest
         return $commit->isVisibleTo($user) ? Response::allow() : Response::denyAsNotFound();
     }
 
+    public function exceptedReplyId(): ?string
+    {
+        return $this->string('except')->value() ?: null;
+    }
+
     /**
      * @return array<string, list<string>>
      */
@@ -31,6 +36,7 @@ final class ListCommitRepliesRequest extends FormRequest
         return [
             'newest' => ['sometimes', 'boolean'],
             'limit' => ['sometimes', 'integer', 'in:1,50'],
+            'except' => ['sometimes', 'nullable', 'uuid'],
         ];
     }
 }

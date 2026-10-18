@@ -19,7 +19,7 @@ final readonly class OrgMessageController
     {
         return response()->json([
             'org' => ['id' => $org->id, 'name' => $org->name],
-            ...$threads->org($user, $org, $request->afterId(), $request->beforeId()),
+            ...$threads->org($user, $org, $request->afterId(), $request->beforeId(), $request->reactionsAfter()),
         ])->header('Cache-Control', 'private, no-store');
     }
 

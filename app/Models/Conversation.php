@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read string|null $pair
  * @property-read string|null $name
  * @property-read int|null $last_message_id
+ * @property-read int $reactions_version
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, ConversationParticipant> $participants
@@ -98,6 +99,7 @@ final class Conversation extends Model
             'pair' => 'string',
             'name' => 'string',
             'last_message_id' => 'integer',
+            'reactions_version' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'partner_id' => 'string',

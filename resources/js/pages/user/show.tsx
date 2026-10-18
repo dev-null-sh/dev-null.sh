@@ -31,7 +31,7 @@ import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
 import { formatCount } from '@/lib/numbers';
-import { laneColor } from '@/lib/utils';
+import { laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
     Activity,
@@ -213,8 +213,8 @@ export default function Show({
                         onClick={() => setIsAchievementsOpen(true)}
                         className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] font-medium transition hover:brightness-110"
                         style={{
-                            borderColor: `${lane}40`,
-                            backgroundColor: `${lane}15`,
+                            borderColor: laneTint(lane, 25),
+                            backgroundColor: laneTint(lane, 8),
                             color: lane,
                         }}
                         title="View achievements and Unix rank"

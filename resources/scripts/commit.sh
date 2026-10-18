@@ -133,7 +133,7 @@ main() {
 
   # Only ever sign with one of our own keys, whatever /dev/null answers.
   local key
-  key="$(key_id < "$TMP_DIR/response")"
+  key="$(head -n 1 -- "$TMP_DIR/response" | key_id)"
   grep -qxF -- "$key" "$TMP_DIR/candidates" || fail "Unexpected answer from $DEVNULL_URL."
 
   # 2. Sign with that key: through the agent if it has it, otherwise with the private key file.

@@ -56,6 +56,7 @@ final readonly class CommitSearchQuery
             ->withoutMutedAuthorsFor($viewer)
             ->whereNotNull('embedding')
             ->withVisibleReplyCount($viewer)
+            ->withContinuationId($viewer)
             ->withSavedState($viewer)
             ->with(['user', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
+import { useComposerVisibility } from '@/hooks/use-composer-visibility';
 import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
@@ -22,14 +23,12 @@ export default function Show({
     log,
     commits,
     isRanked,
-    latestCommits,
     newCommitsCount = 0,
     suggestions,
 }: {
     log: Log;
     commits: CursorPaginated<Commit>;
     isRanked: boolean;
-    latestCommits: Commit[];
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
@@ -43,7 +42,9 @@ export default function Show({
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
+    const composerRef = useRef<HTMLDivElement>(null);
     useLaneSwipe(feedRef, log);
+    useComposerVisibility(composerRef, tabsHeight);
 
     useEffect(() => {
         const tabs = tabsRef.current;
@@ -130,17 +131,21 @@ export default function Show({
                 />
             </div>
 
-            {user !== null && <CommitComposer key={commitDialogClosedCount} />}
+            {user !== null && (
+                <div ref={composerRef}>
+                    <CommitComposer key={commitDialogClosedCount} />
+                </div>
+            )}
 
             {newCommitsCount > 0 && (
                 <div
-                    className="sticky z-10 flex justify-center border-b bg-card py-3"
+                    className="pointer-events-none sticky z-10 flex h-0 items-start justify-center"
                     style={{ top: tabsHeight }}
                 >
                     <button
                         type="button"
                         onClick={reloadNewestFirst}
-                        className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                        className="pointer-events-auto mt-3 flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                     >
                         <ArrowUp className="size-4" />
                         {newCommitsCount}{' '}
@@ -156,7 +161,6 @@ export default function Show({
                 <CommitFeed
                     commits={commits}
                     firstSeenId={firstSeenId}
-                    latestCommits={latestCommits}
                     isRanked={isRanked}
                     end="That's the root commit. There's nothing before it."
                     interlude={(lane, isDimmed) => (
