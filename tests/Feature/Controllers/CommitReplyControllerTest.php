@@ -57,6 +57,38 @@ it('lists visible replies oldest first with their own reply counts', function ()
         ->assertJsonPath('next_cursor', null);
 });
 
+it('may leave out the next commit of the author thread', function (): void {
+    $parent = Commit::factory()->create();
+    $next = Commit::factory()->for($parent, 'parent')->for($parent->user)->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+
+    $response = $this->getJson(route('commit-reply.index', [$parent, 'except' => $next->id]));
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+});
+
+it('leaves the next commit of a reply thread out of its reply count', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    $next = Commit::factory()->for($reply, 'parent')->for($reply->user)->create();
+    Commit::factory()->for($reply, 'parent')->create();
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonPath('data.0.continuation_id', $next->id)
+        ->assertJsonPath('data.0.replies_count', 1);
+});
+
+it('requires the left out reply to be a commit id', function (): void {
+    $parent = Commit::factory()->create();
+
+    $this->getJson(route('commit-reply.index', [$parent, 'except' => 'not-an-id']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('except');
+});
+
 it('lists replies 50 at a time with a cursor to the next page', function (): void {
     $viewer = User::factory()->create();
     $parent = Commit::factory()->create();

@@ -17,14 +17,16 @@ final readonly class CommitRepliesQuery
      *
      * @return CursorPaginator<int, Commit>
      */
-    public function paginate(Commit $commit, ?User $user, bool $newest = false, int $limit = self::PER_PAGE): CursorPaginator
+    public function paginate(Commit $commit, ?User $user, bool $newest = false, int $limit = self::PER_PAGE, ?string $except = null): CursorPaginator
     {
         return Commit::query()
             ->where(fn (CommitBuilder $query): CommitBuilder => $query
                 ->where('parent_id', $commit->id)
                 ->orWhere('quoted_commit_id', $commit->id))
+            ->when($except, fn (CommitBuilder $query, string $except): CommitBuilder => $query->whereKeyNot($except))
             ->visibleInThreadTo($user)
             ->withVisibleReplyCount($user)
+            ->withContinuationId($user)
             ->withCardDataFor($user)
             ->without('quotedCommit')
             ->when($newest,

@@ -72,6 +72,13 @@ export function laneColor(lane: Lane): string {
     return typeof lane === 'string' ? lane : `var(--lane-${lane})`;
 }
 
+/**
+ * A palette lane is a CSS variable, so a hex alpha cannot be appended to it.
+ */
+export function laneTint(color: string, percent: number): string {
+    return `color-mix(in oklab, ${color} ${percent}%, transparent)`;
+}
+
 export function isDeleted(commit: {
     deleted_at?: string | null;
 }): commit is DeletedCommit {

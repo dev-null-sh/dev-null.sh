@@ -550,31 +550,11 @@ it('does not suggest users to follow once they are hidden', function (): void {
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
 });
 
-it('does not offer newer commits on top of the ranked log', function (): void {
-    $user = User::factory()->create();
-
-    $seen = Commit::factory()->create(['created_at' => now()->subMinutes(5)]);
-    Commit::factory()->create();
-
-    $response = $this->actingAs($user)
-        ->withHeaders([
-            'X-Inertia' => 'true',
-            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
-            'X-Inertia-Partial-Component' => 'log/show',
-            'X-Inertia-Partial-Data' => 'latestCommits',
-        ])
-        ->get('/log/trending?since='.$seen->id);
-
-    $response->assertOk()
-        ->assertJsonPath('props.latestCommits', []);
-});
-
-it('offers the commit just committed on top of the ranked log', function (): void {
+it('leaves the commit just committed to its rank on the ranked log', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
     $user = User::factory()->create(['username' => 'nunomaduro']);
-    $starred = Commit::factory()->create(['created_at' => now()->subHour()]);
-    $starred->stars()->attach(User::factory()->create());
+    Commit::factory()->count(20)->create(['hot_score' => 1e12]);
 
     $response = $this->actingAs($user)
         ->from('/log/trending')
@@ -583,8 +563,38 @@ it('offers the commit just committed on top of the ranked log', function (): voi
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->has('latestCommits', 1)
-            ->where('latestCommits.0.body', 'Initial commit'));
+            ->where('commits.data', fn ($commits): bool => collect($commits)->doesntContain('body', 'Initial commit'))
+            ->missing('latestCommits'));
+});
+
+it('puts the commit just committed on top of the latest log', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $user = User::factory()->create(['username' => 'nunomaduro']);
+    Commit::factory()->count(20)->create(['created_at' => now()->subHour()]);
+
+    $response = $this->actingAs($user)
+        ->from('/log/latest')
+        ->followingRedirects()
+        ->post(route('commit.store'), ['body' => 'Initial commit']);
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commits.data.0.body', 'Initial commit'));
+});
+
+it('points feed commits to the rest of their author thread instead of previewing it', function (): void {
+    $viewer = User::factory()->create();
+    $thread = Commit::factory()->create();
+    Commit::factory()->for($thread, 'parent')->create(['body' => 'Someone else', 'created_at' => now()->subMinutes(2)]);
+    $next = Commit::factory()->for($thread, 'parent')->for($thread->user)->create(['body' => 'Part two', 'created_at' => now()->subMinute()]);
+
+    $this->actingAs($viewer)->get(route('log.show', 'latest'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commits.data.0.id', $thread->id)
+        ->where('commits.data.0.continuation_id', $next->id)
+        ->where('commits.data.0.replies_count', 1)
+        ->has('commits.data.0.reply_preview.data', 1)
+        ->where('commits.data.0.reply_preview.data.0.body', 'Someone else')
+        ->where('commits.data.0.reply_preview.next_cursor', null));
 });
 
 it('preloads the latest reply per feed commit with a cursor to the older replies', function (): void {

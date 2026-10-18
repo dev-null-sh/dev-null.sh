@@ -23,7 +23,6 @@ export function CommitFeed({
     actions,
     threadActions,
     pinnedCommit = null,
-    latestCommits = [],
     isRanked = false,
     isFolded = true,
     interlude,
@@ -36,7 +35,6 @@ export function CommitFeed({
     actions?: (commit: Commit) => ReactNode;
     threadActions?: (commit: Commit) => ReactNode;
     pinnedCommit?: Commit | null;
-    latestCommits?: Commit[];
     isRanked?: boolean;
     isFolded?: boolean;
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
@@ -45,8 +43,6 @@ export function CommitFeed({
     const page = usePage();
     const isModeration = page.component === 'moderation/show';
     const isSaved = page.component === 'bookmark/index';
-    const isLog = page.component === 'log/show';
-    const deletedLatest = useRef(new Set<string>());
     const profileUserId =
         page.component === 'user/show'
             ? (page.props.user as { id: string }).id
@@ -95,19 +91,7 @@ export function CommitFeed({
                         ),
                     );
                 }
-                if (deleted && isLog) {
-                    router.replaceProp('latestCommits', (rows: Commit[]) => {
-                        if (rows.some((commit) => commit.id === deleted.id)) {
-                            deletedLatest.current.add(deleted.id);
-                        }
-                        return updateQuotedCommits(
-                            rows.filter((commit) => commit.id !== deleted.id),
-                            deleted,
-                        );
-                    });
-                }
                 if (restored) {
-                    const wasLatest = deletedLatest.current.delete(restored.id);
                     const belongsInFeed =
                         (isSaved
                             ? restored.is_saved === true
@@ -119,7 +103,7 @@ export function CommitFeed({
                                 !restored.is_pinned));
 
                     router.replaceProp('commits.data', (rows: Commit[]) =>
-                        belongsInFeed && !(isRanked && wasLatest)
+                        belongsInFeed
                             ? restoreFeedCommit(
                                   rows,
                                   restored,
@@ -131,27 +115,13 @@ export function CommitFeed({
                               )
                             : updateQuotedCommits(rows, restored),
                     );
-                    if (isLog) {
-                        router.replaceProp('latestCommits', (rows: Commit[]) =>
-                            belongsInFeed && wasLatest
-                                ? restoreFeedCommit(rows, restored, 'latest')
-                                : updateQuotedCommits(rows, restored),
-                        );
-                    }
                 }
             }),
-        [
-            profileUserId,
-            isModeration,
-            isProfileReplies,
-            isSaved,
-            isRanked,
-            isLog,
-        ],
+        [profileUserId, isModeration, isProfileReplies, isSaved, isRanked],
     );
 
     // A ranked commit can move to a later page while the feed scrolls, so each one is only listed once.
-    const seenIds = new Set(latestCommits.map((commit) => commit.id));
+    const seenIds = new Set<string>();
     const listed = commits.data.filter((commit) => {
         if (seenIds.has(commit.id)) {
             return false;
@@ -162,11 +132,7 @@ export function CommitFeed({
         return true;
     });
 
-    if (
-        listed.length === 0 &&
-        latestCommits.length === 0 &&
-        pinnedCommit === null
-    ) {
+    if (listed.length === 0 && pinnedCommit === null) {
         return <div className="px-6 py-16 text-center sm:px-12">{empty}</div>;
     }
 
@@ -175,7 +141,7 @@ export function CommitFeed({
             ? commit.user_id !== highlightedAuthor
             : highlightedCommit !== null && commit.id !== highlightedCommit;
 
-    const lastCommit = listed.at(-1) ?? latestCommits.at(-1) ?? pinnedCommit;
+    const lastCommit = listed.at(-1) ?? pinnedCommit;
     const interludeIndex = Math.min(interludeAfter, listed.length) - 1;
 
     // Feed commits are unrelated to each other, so each one stands on its own with its author's avatar, even when the
@@ -225,15 +191,6 @@ export function CommitFeed({
                         }
                         threadActions={threadActions?.(pinnedCommit)}
                     />
-                </section>
-            )}
-            {latestCommits.length > 0 && (
-                <section aria-label="Latest commits">
-                    <DayMarker label="Just now" />
-                    {latestCommits.map((commit) => (
-                        <Fragment key={commit.id}>{card(commit)}</Fragment>
-                    ))}
-                    {listed.length > 0 && <DayMarker label="Top commits" />}
                 </section>
             )}
             <InfiniteScroll

@@ -260,21 +260,28 @@ final class StressSeeder extends Seeder
             on conflict do nothing
             SQL);
 
-        // The local developer follows two thousand, and twenty thousand follow them back...
+        // The local developer follows two thousand, and twenty thousand follow them back... Spread over the year like every
+        // other follow, as follows dated today would all leave unread notifications from a single day.
         $following = $this->count(2_000);
         $followers = $this->count(20_000);
 
         DB::statement(<<<SQL
             insert into follows (follower_id, followed_id, created_at, updated_at)
-            select (select id from stress_users where n = 0), id, localtimestamp, localtimestamp
-            from stress_users where n between 1 and {$following}
+            select (select id from stress_users where n = 0), id, followed_at, followed_at
+            from (
+                select id, localtimestamp - random() * interval '365 days' as followed_at
+                from stress_users where n between 1 and {$following}
+            ) as followed
             on conflict do nothing
             SQL);
 
         DB::statement(<<<SQL
             insert into follows (follower_id, followed_id, created_at, updated_at)
-            select id, (select id from stress_users where n = 0), localtimestamp, localtimestamp
-            from stress_users where n > 0 order by random() limit {$followers}
+            select id, (select id from stress_users where n = 0), followed_at, followed_at
+            from (
+                select id, localtimestamp - random() * interval '365 days' as followed_at
+                from stress_users where n > 0 order by random() limit {$followers}
+            ) as followers
             on conflict do nothing
             SQL);
     }

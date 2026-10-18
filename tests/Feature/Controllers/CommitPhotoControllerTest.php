@@ -41,6 +41,23 @@ it('shows the commit page with the photo open', function (): void {
             ->where('photo.commit.replies_count', 1));
 });
 
+it('shows the thread the author wrote after the photo commit', function (): void {
+    $commit = commitWithPhotos();
+    $next = Commit::factory()->for($commit, 'parent')->for($commit->user)->create();
+    Commit::factory()->for($commit, 'parent')->create();
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('commit-photo.show', [$commit->user, $commit, 1]));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('continuation.data', 1)
+            ->where('continuation.data.0.id', $next->id)
+            ->where('photo.commit.replies_count', 1)
+            ->where('photo.commit.continuation_id', $next->id)
+            ->where('replies', null));
+});
+
 it('reloads the photo commit alone without loading its thread', function (): void {
     $viewer = User::factory()->create();
     $queries = function (Commit $commit) use ($viewer): int {
