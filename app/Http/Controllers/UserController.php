@@ -46,8 +46,8 @@ final readonly class UserController
         };
 
         $starsData = null;
-        $getStars = function () use (&$starsData, $stars, $user, $currentUser): int {
-            return $starsData ??= $stars->get($user, $currentUser);
+        $getStars = function () use (&$starsData, $stars, $user, $currentUser): array {
+            return $starsData ??= $stars->snapshot($user, $currentUser);
         };
 
         $countedUser = null;
@@ -61,13 +61,14 @@ final readonly class UserController
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
             'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
-            'starsCount' => $getStars,
+            'starsCount' => fn (): int => $getStars()['total'],
+            'starsCountedAt' => fn (): int => $getStars()['counted_at'],
             'canPush' => fn (): bool => $currentUser instanceof User
                 && $currentUser->canMessage($user)
                 && ! in_array($pushAccess->get($currentUser, $user), [PushAccess::Restricted, PushAccess::Closed], true),
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => $getStreaks,
-            'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks(), $getStars()),
+            'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks(), $getStars()['total']),
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)

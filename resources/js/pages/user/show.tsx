@@ -29,6 +29,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
+import { authorStarsKey, showAuthorStars } from '@/lib/author-stars';
 import { commitStateKey } from '@/lib/commit-state';
 import { formatCount } from '@/lib/numbers';
 import { laneColor, laneTint } from '@/lib/utils';
@@ -52,6 +53,7 @@ export default function Show({
     followsYou,
     isMuting,
     starsCount,
+    starsCountedAt,
     canPush,
     activity,
     streaks,
@@ -66,6 +68,7 @@ export default function Show({
     followsYou: boolean;
     isMuting: boolean;
     starsCount: number;
+    starsCountedAt: number;
     canPush: boolean;
     activity: Activity;
     streaks: Streaks;
@@ -85,16 +88,15 @@ export default function Show({
         commitStateKey('pasteis_received', user.id),
         pasteisReceived ?? 0,
     );
-    const [starsReceived] = useSharedState(
-        commitStateKey('stars_received', user.id),
-        starsCount,
-    );
+    const [starsReceived] = useSharedState(authorStarsKey(user.id), starsCount);
 
     useEffect(() => {
-        refreshSharedState(
-            new Map([[commitStateKey('stars_received', user.id), starsCount]]),
-        );
-    }, [user.id, starsCount]);
+        showAuthorStars({
+            user_id: user.id,
+            total: starsCount,
+            counted_at: starsCountedAt,
+        });
+    }, [user.id, starsCount, starsCountedAt]);
 
     useEffect(() => {
         if (pasteisReceived !== null) {

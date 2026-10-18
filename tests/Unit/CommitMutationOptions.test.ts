@@ -112,5 +112,6 @@ void test('deleting or restoring a commit reloads the profile star total along w
     const { only } = commitMutationOptions('user/show');
 
     assert.ok(only.includes('starsCount'));
+    assert.ok(only.includes('starsCountedAt'));
     assert.ok(only.includes('achievements'));
 });

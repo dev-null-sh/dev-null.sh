@@ -224,16 +224,24 @@ it('reloads the star total after a starred commit is deleted or restored', funct
     User::factory()->count(2)->create()->each(fn (User $stargazer) => $stargazer->starredCommits()->attach($starred));
     User::factory()->create()->starredCommits()->attach($other);
 
-    $reload = ['user', 'activity', 'streaks', 'achievements', 'starsCount'];
+    $reload = ['user', 'activity', 'streaks', 'achievements', 'starsCount', 'starsCountedAt'];
+    $countedAt = 0;
 
     $this->actingAs($user)
         ->get('/@octocat')
-        ->assertInertia(fn ($page) => $page->where('starsCount', 3));
+        ->assertInertia(fn ($page) => $page
+            ->where('starsCount', 3)
+            ->where('starsCountedAt', function (int $time) use (&$countedAt): bool {
+                $countedAt = $time;
+
+                return true;
+            }));
 
     $this->delete(route('commit.destroy', $starred))->assertRedirect();
 
     $this->get('/@octocat')->assertInertia(fn ($page) => $page->reloadOnly($reload, fn ($reload) => $reload
         ->where('starsCount', 1)
+        ->where('starsCountedAt', fn (int $time): bool => $time > $countedAt)
         ->where('achievements.xp_breakdown.stars_received.count', 1)));
 
     $this->post(route('commit-restoration.store', $starred))->assertRedirect();

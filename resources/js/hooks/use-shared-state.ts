@@ -30,20 +30,6 @@ export function refreshSharedState(fresh: Map<string, SharedValue>): void {
     }
 }
 
-/**
- * Adds to a number a page already shows. Changes add up in any order, unlike values that arrive out of order.
- */
-export function adjustSharedState(key: string, delta: number): void {
-    const current = values.get(key);
-
-    if (typeof current !== 'number' || delta === 0) {
-        return;
-    }
-
-    values.set(key, current + delta);
-    notify();
-}
-
 export function readSharedState(key: string): SharedValue | undefined {
     return values.get(key);
 }

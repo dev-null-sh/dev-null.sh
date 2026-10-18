@@ -17,9 +17,33 @@ it('may star a commit', function (): void {
         ->postJson(route('commit-star.store', $commit));
 
     $response->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 2]);
+        ->assertJson(['starred' => true, 'stars_count' => 2, 'author_stars' => ['user_id' => $commit->user_id, 'total' => 2]]);
 
     expect($user->hasStarred($commit))->toBeTrue();
+});
+
+it('returns the stars the author received with the time they were counted, newer on every response', function (): void {
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+    $reply = Commit::factory()->for($author)->for(Commit::factory(), 'parent')->create();
+    $hidden = Commit::factory()->for($author)->pending()->create();
+
+    User::factory()->create()->starredCommits()->attach([$reply->id, $hidden->id]);
+
+    $viewer = User::factory()->create();
+
+    $starred = $this->actingAs($viewer)
+        ->postJson(route('commit-star.store', $commit))
+        ->assertOk()
+        ->assertJsonPath('author_stars.user_id', $author->id)
+        ->assertJsonPath('author_stars.total', 2);
+
+    $unstarred = $this->deleteJson(route('commit-star.destroy', $commit))
+        ->assertOk()
+        ->assertJsonPath('author_stars.total', 1);
+
+    expect($starred->json('author_stars.counted_at'))->toBeInt()
+        ->and($unstarred->json('author_stars.counted_at'))->toBeGreaterThan($starred->json('author_stars.counted_at'));
 });
 
 it('starring is idempotent', function (): void {
@@ -29,7 +53,7 @@ it('starring is idempotent', function (): void {
     $this->actingAs($user)->postJson(route('commit-star.store', $commit))->assertOk();
     $this->actingAs($user)->postJson(route('commit-star.store', $commit))
         ->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 1]);
+        ->assertJson(['starred' => true, 'stars_count' => 1, 'author_stars' => ['user_id' => $commit->user_id, 'total' => 1]]);
 
     expect($user->starredCommits()->count())->toBeOne();
 });
@@ -80,7 +104,7 @@ it('may unstar a commit', function (): void {
         ->deleteJson(route('commit-star.destroy', $commit));
 
     $response->assertOk()
-        ->assertExactJson(['starred' => false, 'stars_count' => 1]);
+        ->assertJson(['starred' => false, 'stars_count' => 1, 'author_stars' => ['user_id' => $commit->user_id, 'total' => 1]]);
 
     expect($user->hasStarred($commit))->toBeFalse();
 });

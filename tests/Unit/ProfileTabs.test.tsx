@@ -100,6 +100,7 @@ test('profile tabs keep the page mounted and leave the star total out of the rel
                 followsYou={false}
                 isMuting={false}
                 starsCount={13}
+                starsCountedAt={1}
                 canPush={false}
                 activity={{ scale: 'day', buckets: [] } as never}
                 streaks={{ longest: 0, current: 0 }}
@@ -128,5 +129,6 @@ test('profile tabs keep the page mounted and leave the star total out of the rel
     for (const link of tabLinks) {
         assert.equal(link.preserveState, true);
         assert.ok(!link.only?.includes('starsCount'));
+        assert.ok(!link.only?.includes('starsCountedAt'));
     }
 });

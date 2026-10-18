@@ -1,25 +1,25 @@
-import { adjustSharedState } from '@/hooks/use-shared-state';
-import { commitStateKey } from '@/lib/commit-state';
+import { refreshSharedState } from '@/hooks/use-shared-state';
+
+export type AuthorStars = {
+    user_id: string;
+    total: number;
+    counted_at: number;
+};
+
+const countedAt = new Map<string, number>();
+
+export const authorStarsKey = (userId: string): string =>
+    `stars_received:${userId}`;
 
 /**
- * Keeps an author's profile star total in step with a star or unstar of one of their commits.
- * It only ever adds how much that commit's count changed, so responses that arrive out of order still add up.
+ * Shows an author's star total unless a newer count is already shown.
+ * Every count carries the database time it was taken, so one that arrives late never replaces a fresher one.
  */
-export function changeAuthorStars(authorId: string | null, starring: boolean) {
-    const key =
-        authorId === null ? null : commitStateKey('stars_received', authorId);
-    const optimistic = starring ? 1 : -1;
-    const adjust = (delta: number) => {
-        if (key !== null) {
-            adjustSharedState(key, delta);
-        }
-    };
+export function showAuthorStars(stars: AuthorStars): void {
+    if (stars.counted_at <= (countedAt.get(stars.user_id) ?? -Infinity)) {
+        return;
+    }
 
-    adjust(optimistic);
-
-    return {
-        settle: (before: number, after: number) =>
-            adjust(after - before - optimistic),
-        revert: () => adjust(-optimistic),
-    };
+    countedAt.set(stars.user_id, stars.counted_at);
+    refreshSharedState(new Map([[authorStarsKey(stars.user_id), stars.total]]));
 }

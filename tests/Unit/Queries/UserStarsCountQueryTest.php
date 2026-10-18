@@ -61,3 +61,16 @@ it('does not count stars the user gave their own commits', function (): void {
 
     expect(resolve(UserStarsCountQuery::class)->get($user, $user))->toBe(1);
 });
+
+it('takes each count at a later database time than the one before', function (): void {
+    $user = User::factory()->create();
+
+    User::factory()->create()->starredCommits()->attach(Commit::factory()->for($user)->create());
+
+    $first = resolve(UserStarsCountQuery::class)->snapshot($user, null);
+    $second = resolve(UserStarsCountQuery::class)->snapshot($user, null);
+
+    expect($first['total'])->toBe(1)
+        ->and($second['total'])->toBe(1)
+        ->and($second['counted_at'])->toBeGreaterThan($first['counted_at']);
+});

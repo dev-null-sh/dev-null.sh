@@ -13,6 +13,7 @@ export function commitMutationOptions(component: string) {
             'streaks',
             'achievements',
             'starsCount',
+            'starsCountedAt',
             'commit',
             'pinnedCommit',
             'ancestors',
