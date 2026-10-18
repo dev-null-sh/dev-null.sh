@@ -12,6 +12,10 @@ type BaseNotification = {
     reason: string | null;
 };
 
+export type NotificationCommit = Omit<Commit, 'user'> & {
+    images_count: number;
+};
+
 export type NotificationGroup = Notification & {
     group_id: string;
     event_count: number;
@@ -31,11 +35,11 @@ export type Notification =
           type: 'replied' | 'starred';
           commit_id: string;
           subject_id: string;
-          commit: Omit<Commit, 'user'>;
+          commit: NotificationCommit;
       })
     | (BaseNotification & {
           type: 'quoted' | 'mentioned' | 'approved' | 'rejected';
           commit_id: string;
           subject_id: null;
-          commit: Omit<Commit, 'user'>;
+          commit: NotificationCommit;
       });

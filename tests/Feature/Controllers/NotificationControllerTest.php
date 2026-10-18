@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateCommitStar;
 use App\Actions\DeleteUserFollow;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -126,6 +127,25 @@ it('groups stars per commit, newest stargazer first', function (): void {
         ->missing('notifications.data.0.position'));
 
     expect($user->notifications()->unread()->exists())->toBeFalse();
+});
+
+it('counts the images of each commit so one without a body still has something to show', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create(['body' => '']);
+    CommitImage::factory()->count(2)->for($commit)->create();
+    $starred = Notification::factory()->for($user, 'recipient')->starred($commit)->create();
+
+    $this->actingAs($user)->get(route('notification.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('notifications.data.0.commit.id', $commit->id)
+            ->where('notifications.data.0.commit.body_segments', [])
+            ->where('notifications.data.0.commit.images_count', 2));
+
+    $this->getJson(route('notification-group.show', $starred))
+        ->assertOk()
+        ->assertJsonPath('data.0.commit.id', $commit->id)
+        ->assertJsonPath('data.0.commit.images_count', 2);
 });
 
 it('says whether the user follows each new follower back', function (): void {

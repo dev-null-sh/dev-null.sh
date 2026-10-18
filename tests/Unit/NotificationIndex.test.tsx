@@ -5,7 +5,11 @@ import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import Index from '../../resources/js/pages/notification/index';
-import type { Commit, NotificationGroup, User } from '../../resources/js/types';
+import type {
+    NotificationCommit,
+    NotificationGroup,
+    User,
+} from '../../resources/js/types';
 
 const actor = {
     id: 'actor',
@@ -38,7 +42,8 @@ const notification = {
                 html: '<span class="hl-keyword">return</span> round($score, 6);',
             },
         ],
-    } as Omit<Commit, 'user'>,
+        images_count: 0,
+    } as NotificationCommit,
 } as NotificationGroup;
 
 async function render(notifications: NotificationGroup[]): Promise<string> {
@@ -89,6 +94,35 @@ void test('renders a code block highlighted in a notification', async () => {
     assert.doesNotMatch(body, /<button\b/);
     assert.match(body, /<pre[^>]*tabindex="-1"/i);
 });
+
+for (const [imagesCount, label] of [
+    [1, 'Image'],
+    [3, '3 images'],
+] as const) {
+    void test(`says "${label}" for a starred commit of images alone instead of an empty excerpt`, async () => {
+        const starred = {
+            ...notification,
+            type: 'starred',
+            commit_id: 'images',
+            subject_id: 'images',
+            commit: {
+                id: 'images',
+                body: '',
+                body_segments: [],
+                images_count: imagesCount,
+            } as NotificationCommit,
+        } as NotificationGroup;
+        const body = await render([starred]);
+
+        assert.match(
+            body,
+            new RegExp(
+                `class="mt-2 rounded-lg border[^"]*"><p class="[^"]*"><svg[^>]*>(?:(?!</svg>).)*</svg>${label}</p></div>`,
+                's',
+            ),
+        );
+    });
+}
 
 for (const isFollowing of [false, true]) {
     void test(`keeps ${isFollowing ? 'unfollow' : 'follow-back'} separate from highlighted notification links`, async () => {

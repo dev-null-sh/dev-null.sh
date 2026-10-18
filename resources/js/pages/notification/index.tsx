@@ -5,6 +5,7 @@ import {
     AtSign,
     Check,
     ChevronDown,
+    ImageIcon,
     MessageSquareReply,
     Quote,
     Star,
@@ -40,7 +41,12 @@ import {
     localDayKey,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
+import type {
+    CursorPaginated,
+    Notification,
+    NotificationCommit,
+    NotificationGroup,
+} from '@/types';
 
 type Filters = {
     type:
@@ -757,14 +763,14 @@ function NotificationContent({
     const excerpt =
         notification.type === 'followed' ? null : isOwnCommit ? (
             <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
-                <CommitBodyExcerpt
-                    segments={notification.commit.body_segments}
+                <NotificationCommitBody
+                    commit={notification.commit}
                     className="max-h-[73px]"
                 />
             </div>
         ) : (
-            <CommitBodyExcerpt
-                segments={notification.commit.body_segments}
+            <NotificationCommitBody
+                commit={notification.commit}
                 className="mt-1 max-h-40"
             />
         );
@@ -922,6 +928,40 @@ function NotificationContent({
                 {children}
             </div>
         </div>
+    );
+}
+
+/**
+ * A commit of images alone has no body to excerpt, so it says how many images it holds instead.
+ */
+function NotificationCommitBody({
+    commit,
+    className,
+}: {
+    commit: NotificationCommit;
+    className: string;
+}) {
+    if (commit.body_segments.length > 0) {
+        return (
+            <CommitBodyExcerpt
+                segments={commit.body_segments}
+                className={className}
+            />
+        );
+    }
+
+    return (
+        <p
+            className={cn(
+                'flex items-center gap-1.5 text-[15px] text-muted-foreground',
+                className,
+            )}
+        >
+            <ImageIcon className="size-4 shrink-0" aria-hidden />
+            {commit.images_count === 1
+                ? 'Image'
+                : `${commit.images_count} images`}
+        </p>
     );
 }
 

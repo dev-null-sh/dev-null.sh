@@ -54,6 +54,7 @@ const quote: NotificationGroup = {
         stars_count: 0,
         starred: false,
         quoted_commit_id: 'quoted-commit',
+        images_count: 0,
     },
 };
 

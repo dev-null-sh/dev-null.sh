@@ -35,7 +35,7 @@ final readonly class NotificationGroupsQuery
             ->with([
                 'actor' => fn (BelongsTo $query): BelongsTo => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
-                'commit',
+                'commit' => fn (BelongsTo $query): BelongsTo => $query->withCount('images'),
             ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable
@@ -65,8 +65,11 @@ final readonly class NotificationGroupsQuery
     public function members(User $user, Notification $notification, string $type = 'all'): NotificationBuilder
     {
         return $this->group($this->visible($user), $type, $notification)
-            ->with(['actor' => fn (BelongsTo $query): BelongsTo => $query
-                ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)])]);
+            ->with([
+                'actor' => fn (BelongsTo $query): BelongsTo => $query
+                    ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
+                'commit' => fn (BelongsTo $query): BelongsTo => $query->withCount('images'),
+            ]);
     }
 
     public function events(User $user, string $type = 'all'): NotificationBuilder
