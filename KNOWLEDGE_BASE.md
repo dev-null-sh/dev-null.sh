@@ -66,8 +66,7 @@ This file documents the platform's features, stack, and stories. Feature entries
 
 ## Repository
 
-- **Root / upstream repository:** [nunomaduro/dev-null.sh](https://github.com/nunomaduro/dev-null.sh).
-- **This fork:** [paulinevos/dev-null.sh](https://github.com/paulinevos/dev-null.sh).
+- **Repository:** [nunomaduro/dev-null.sh](https://github.com/nunomaduro/dev-null.sh).
 - **Setup and development:** [README](README.md).
 - **Product terminology and behavior:** [Product guide](PRODUCT.md).
 
