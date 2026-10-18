@@ -1,9 +1,9 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { App } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import { CommitComposer } from '../../resources/js/components/commit-composer';
 import { revokeObjectUrls } from '../../resources/js/components/commit-image-picker';
@@ -75,7 +75,7 @@ function previewFor(options: {
 
 for (const modifier of ['ctrlKey', 'metaKey'] as const) {
     for (const shiftKey of [false, true]) {
-        void test(`${modifier} + ${shiftKey ? 'Shift + ' : ''}Enter publishes from preview`, () => {
+        test(`${modifier} + ${shiftKey ? 'Shift + ' : ''}Enter publishes from preview`, () => {
             let submitted = 0;
             let prevented = 0;
             const preview = previewFor({ isSubmittable: true });
@@ -96,7 +96,7 @@ for (const modifier of ['ctrlKey', 'metaKey'] as const) {
     }
 }
 
-void test('does not publish an incomplete draft from preview', () => {
+test('does not publish an incomplete draft from preview', () => {
     previewFor({ isSubmittable: false }).onPreviewKeyDown({
         key: 'Enter',
         ctrlKey: true,
@@ -165,7 +165,7 @@ function renderComposer(body: string): string {
 }
 
 for (const count of [1, 2, 3, 3850]) {
-    void test(`counts ${count} emoji as Unicode characters in the preview composer`, () => {
+    test(`counts ${count} emoji as Unicode characters in the preview composer`, () => {
         const markup = renderComposer('🚀'.repeat(count));
         const submit = markup.match(
             /<button[^>]*data-test="create-commit-button"[^>]*>/,
@@ -181,7 +181,7 @@ for (const count of [1, 2, 3, 3850]) {
     });
 }
 
-void test('previews the chosen link card instead of the first link in the body', () => {
+test('previews the chosen link card instead of the first link in the body', () => {
     const preview = previewFor({
         body: 'https://first.example.com https://second.example.com',
         isSubmittable: true,
@@ -200,7 +200,7 @@ void test('previews the chosen link card instead of the first link in the body',
     assert.ok(!card.includes('first.example.com'));
 });
 
-void test('omits the preview card when the author chooses no card', () => {
+test('omits the preview card when the author chooses no card', () => {
     const preview = previewFor({
         body: 'https://first.example.com',
         isSubmittable: true,
@@ -213,7 +213,7 @@ void test('omits the preview card when the author chooses no card', () => {
     assert.ok(!markup.includes('data-test="link-card-preview"'));
 });
 
-void test('retains the link card picker and scheduling beside preview', () => {
+test('retains the link card picker and scheduling beside preview', () => {
     const markup = renderComposer(
         'https://first.example.com https://second.example.com',
     );
@@ -232,7 +232,7 @@ void test('retains the link card picker and scheduling beside preview', () => {
 
 const secret = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
 
-void test('keeps the sensitive text warning beside preview', () => {
+test('keeps the sensitive text warning beside preview', () => {
     const markup = renderComposer(secret);
 
     assert.equal(
@@ -244,14 +244,14 @@ void test('keeps the sensitive text warning beside preview', () => {
     assert.ok(!markup.includes('Publish possible secrets?'));
 });
 
-void test('ordinary drafts retain preview without a sensitive text warning', () => {
+test('ordinary drafts retain preview without a sensitive text warning', () => {
     const markup = renderComposer('Shipped a small fix');
     assert.ok(markup.includes('data-test="preview-toggle"'));
     assert.ok(!markup.includes('aria-label="Sensitive text warning"'));
 });
 
 for (const isAdmin of [false, true]) {
-    void test(`previews a poll draft as ${isAdmin ? 'an open' : 'a pending'} poll`, () => {
+    test(`previews a poll draft as ${isAdmin ? 'an open' : 'a pending'} poll`, () => {
         const markup = renderPage(
             <ComposerPollPreview
                 poll={{
@@ -275,7 +275,7 @@ for (const isAdmin of [false, true]) {
     });
 }
 
-void test('previews attached image descriptions without a published photo link', () => {
+test('previews attached image descriptions without a published photo link', () => {
     const images = [
         new File(['first'], 'first.png', { type: 'image/png' }),
         new File(['second'], 'second.png', { type: 'image/png' }),
@@ -302,7 +302,7 @@ void test('previews attached image descriptions without a published photo link',
 
 for (const pasteisMode of [false, true]) {
     for (const isStatic of [false, true]) {
-        void test(`renders pastel words as ${pasteisMode ? 'emoji' : 'text'} in ${isStatic ? 'excerpts' : 'commit previews'}`, () => {
+        test(`renders pastel words as ${pasteisMode ? 'emoji' : 'text'} in ${isStatic ? 'excerpts' : 'commit previews'}`, () => {
             const body =
                 'pastel, pasteis! (pastéis) PASTEL PASTEIS PASTÉIS :rocket:';
             const preview = previewFor({ body, isSubmittable: true });
@@ -349,7 +349,7 @@ for (const pasteisMode of [false, true]) {
             }
         });
 
-        void test(`preserves code, URLs, usernames and larger words with mode ${pasteisMode ? 'on' : 'off'} in ${isStatic ? 'excerpts' : 'commits'}`, () => {
+        test(`preserves code, URLs, usernames and larger words with mode ${pasteisMode ? 'on' : 'off'} in ${isStatic ? 'excerpts' : 'commits'}`, () => {
             const preview = previewFor({
                 body: 'pastel https://pasteis.com/pastel @pastel pastels pastelaria épastel pastelé pastel_1\n`pasteis`\n```text\npastéis\n```',
                 isSubmittable: true,

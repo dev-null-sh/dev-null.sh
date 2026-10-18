@@ -1,9 +1,9 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import {
     ThreadActions,
     ThreadReplies,
@@ -23,7 +23,13 @@ const reply = (id: string): Commit =>
         body_segments: [{ type: 'text', text: `Visible reply ${id}` }],
         preview_segments: null,
         replies_count: 0,
-        user: { id: 'author', name: 'Author', username: 'author', lane: 1, timezone: null },
+        user: {
+            id: 'author',
+            name: 'Author',
+            username: 'author',
+            lane: 1,
+            timezone: null,
+        },
     }) as Commit;
 
 async function renderThread(count: number) {
@@ -71,7 +77,7 @@ async function renderThread(count: number) {
 }
 
 for (const count of [0, 1, 2, 5]) {
-    void test(`shows ${Math.min(count, 1)} replies immediately out of ${count}`, async () => {
+    test(`shows ${Math.min(count, 1)} replies immediately out of ${count}`, async () => {
         const html = await renderThread(count);
         assert.equal(
             (html.match(/Visible reply /g) ?? []).length,
