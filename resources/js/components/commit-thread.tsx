@@ -59,6 +59,7 @@ import { signIn } from '@/lib/auth';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
+import { openInNewTabOnMiddleClick } from '@/lib/new-tab';
 import {
     characterCount,
     cn,
@@ -822,7 +823,9 @@ function CommitReply({
         <article
             className="relative pt-2.5 pl-(--indent)"
             data-reply
+            data-permalink={permalink.url}
             data-test="reply"
+            {...openInNewTabOnMiddleClick}
         >
             {links}
             <div className="flex gap-2 sm:gap-2.5">

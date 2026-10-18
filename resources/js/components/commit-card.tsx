@@ -40,6 +40,7 @@ import {
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
+import { openInNewTabOnMiddleClick } from '@/lib/new-tab';
 import {
     cn,
     formatFullDateTime,
@@ -160,6 +161,7 @@ export function CommitCard({
                 ((event) => event.pointerType === 'mouse' && onHover(true))
             }
             onPointerLeave={onHover && (() => onHover(false))}
+            {...openInNewTabOnMiddleClick}
         >
             <div className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]">
                 <GraphRail
