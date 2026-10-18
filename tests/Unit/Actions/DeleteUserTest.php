@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
+use App\Enums\OrgEvent;
+use App\Enums\OrgRole;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\Poll;
@@ -150,6 +153,36 @@ it('erases the images a deleted user sent in remotes, keeping the images sent to
 
     expect(Storage::disk()->allFiles('message-images'))->toBe([$received->path])
         ->and(MessageImage::query()->pluck('id')->all())->toBe([$received->id]);
+});
+
+it('hands the orgs of a deleted maintainer to the longest-standing member', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno, $taylor]);
+
+    resolve(DeleteUser::class)->handle($mark);
+
+    $org = Conversation::query()->findOrFail($org);
+
+    expect($org->roleOf($nuno))->toBe(OrgRole::Maintainer)
+        ->and($org->roleOf($taylor))->toBe(OrgRole::Contributor)
+        ->and(Message::query()->find($org->last_message_id)?->event)->toBe(OrgEvent::Inherited);
+});
+
+it('leaves orgs without a trace of the deleted user, and deletes the orgs nobody is left in', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    $added = Conversation::query()->findOrFail($org)->last_message_id;
+
+    resolve(DeleteUser::class)->handle($nuno);
+
+    expect(Conversation::query()->findOrFail($org)->last_message_id)->toBe($added)
+        ->and(Message::query()->find($added))->not->toBeNull();
+
+    resolve(DeleteUser::class)->handle($mark);
+
+    expect(Conversation::query()->find($org))->toBeNull();
 });
 
 it('lowers the threads the deleted user starred or replied to', function (): void {

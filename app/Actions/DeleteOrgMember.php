@@ -21,10 +21,12 @@ final readonly class DeleteOrgMember
     /**
      * Removes a member, or lets them leave. They lose access to the org. When the last maintainer goes, the
      * longest-standing member takes over, and an org nobody is left in is deleted.
+     *
+     * A deleted account leaves without an event: it would be authored by them, and go along with their messages.
      */
-    public function handle(User $actor, Conversation $org, User $member): void
+    public function handle(User $actor, Conversation $org, User $member, bool $announces = true): void
     {
-        DB::transaction(function () use ($actor, $org, $member): void {
+        DB::transaction(function () use ($actor, $org, $member, $announces): void {
             ConversationParticipant::query()->where('conversation_id', $org->id)->where('user_id', $member->id)->delete();
 
             $remaining = $org->participants()->with('user')->oldest('id')->get();
@@ -35,9 +37,11 @@ final readonly class DeleteOrgMember
                 return;
             }
 
-            $actor->is($member)
-                ? $this->createConversationEvent->handle($member, $org, OrgEvent::Left)
-                : $this->createConversationEvent->handle($actor, $org, OrgEvent::Removed, $member);
+            if ($announces) {
+                $actor->is($member)
+                    ? $this->createConversationEvent->handle($member, $org, OrgEvent::Left)
+                    : $this->createConversationEvent->handle($actor, $org, OrgEvent::Removed, $member);
+            }
 
             if ($remaining->doesntContain(fn (ConversationParticipant $participant): bool => $participant->role === OrgRole::Maintainer)) {
                 $heir = $remaining->firstOrFail();
