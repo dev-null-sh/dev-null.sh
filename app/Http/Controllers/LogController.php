@@ -49,6 +49,7 @@ final readonly class LogController
             'log' => $log,
             'commits' => Inertia::scroll(fn (): CursorPaginator => $commits->paginate($log, $user, $request->through(), $request->cursor($log))),
             'isRanked' => $log->isRanked(),
+            'pinnedLists' => fn (): Collection => $user?->pinnedLists() ?? new Collection(),
             'newCommitsCount' => Inertia::optional(function () use ($request, $user, $log, $latest): int {
                 $seen = $request->since();
 
