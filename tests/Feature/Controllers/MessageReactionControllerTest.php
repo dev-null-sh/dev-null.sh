@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\RemotesFrom;
+use App\Models\Message;
 use App\Models\MessageReaction;
 use App\Models\User;
 
@@ -144,7 +145,7 @@ it('hands polls the reactions that changed since the last one, wherever the mess
 it('ranks the emoji a person reacts with most', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create();
-    $messages = collect(range(1, 3))->map(fn (int $index) => sendChatMessage($mark, $nuno, "message {$index}"));
+    $messages = collect(range(1, 3))->map(fn (int $index): Message => sendChatMessage($mark, $nuno, "message {$index}"));
 
     $messages->each(fn ($message) => $this->actingAs($nuno)->postJson(route('message-reaction.store', $message), ['emoji' => '🚀'])->assertOk());
     $this->postJson(route('message-reaction.store', $messages->first()), ['emoji' => '👀'])->assertOk();
