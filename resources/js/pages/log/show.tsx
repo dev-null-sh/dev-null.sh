@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
+import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
@@ -51,6 +52,8 @@ export default function Show({
     const newestId = isRanked ? markerId || undefined : commits.data[0]?.id;
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
+    const feedRef = useRef<HTMLDivElement>(null);
+    useLaneSwipe(feedRef, log);
 
     useEffect(() => {
         const tabs = tabsRef.current;
@@ -184,7 +187,10 @@ export default function Show({
                 </div>
             )}
 
-            <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
+            <div
+                ref={feedRef}
+                className="[view-transition-class:tab-content] [view-transition-name:log-feed]"
+            >
                 <CommitFeed
                     commits={commits}
                     firstSeenId={firstSeenId}
