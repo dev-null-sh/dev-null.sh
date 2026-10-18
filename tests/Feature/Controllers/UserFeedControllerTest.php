@@ -90,6 +90,19 @@ it('attaches the images of commits as enclosures', function (): void {
         ->and($feed->entry[1]->link)->toHaveCount(1);
 });
 
+it('provides a fallback title for image commits without a body', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $commit = Commit::factory()->for($user)->create([
+        'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
+        'body' => '',
+    ]);
+    CommitImage::factory()->for($commit)->create();
+
+    $feed = atomFeed($this->get('/@octocat/feed.atom'));
+
+    expect((string) $feed->entry[0]->title)->toBe('Commit e3f4a5b');
+});
+
 it('renders the feed without a query per commit', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 
