@@ -12,7 +12,8 @@ const screenEdge = 24;
 
 /**
  * Lets touch users swipe sideways across the feed to switch lanes. It listens on the DOM rather than through React, so
- * touches inside dialogs portalled out of the feed never reach it.
+ * touches inside dialogs portalled out of the feed never reach it. While it is active, the root opts out of the browser
+ * turning sideways swipes into back and forward navigation, which would otherwise win over the lane switch.
  */
 export function useLaneSwipe(
     feedRef: RefObject<HTMLElement | null>,
@@ -26,6 +27,7 @@ export function useLaneSwipe(
         }
 
         let start: { x: number; y: number } | null = null;
+        document.documentElement.dataset.laneSwipe = '';
 
         const onTouchStart = (event: TouchEvent) => {
             const touch = event.touches[0];
@@ -68,6 +70,7 @@ export function useLaneSwipe(
         feed.addEventListener('touchcancel', onTouchCancel);
 
         return () => {
+            delete document.documentElement.dataset.laneSwipe;
             feed.removeEventListener('touchstart', onTouchStart);
             feed.removeEventListener('touchend', onTouchEnd);
             feed.removeEventListener('touchcancel', onTouchCancel);
