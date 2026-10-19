@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Ai\Agents;
 
 use App\Actions\CreateTomFriendship;
+use App\Ai\Tools\CommunityStats;
+use App\Ai\Tools\RepositoryInsights;
 use App\Ai\Tools\SearchCommits;
 use App\Ai\Tools\SearchKnowledgeBase;
 use App\Models\Commit;
@@ -77,6 +79,8 @@ final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
         return [
             new SearchCommits,
             new SearchKnowledgeBase,
+            new RepositoryInsights,
+            new CommunityStats,
         ];
     }
 

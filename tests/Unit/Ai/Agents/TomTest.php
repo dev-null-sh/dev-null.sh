@@ -18,11 +18,11 @@ use Laravel\Ai\Embeddings;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Tools\Request as ToolRequest;
 
-it('executes both semantic tools through OpenCode and sends only public evidence', function (): void {
+it('executes semantic and statistics tools through OpenCode and sends only public evidence', function (): void {
     config(['ai.providers.opencode.key' => 'test-opencode', 'services.openai.key' => 'test']);
     resolve(Features::class)->update(Feature::Translations, false);
     Embeddings::fake([[embeddingVector(0)], [embeddingVector(0)]]);
-    $public = Commit::factory()->create(['body' => 'Public database topic', 'embedding' => embeddingVector(0)]);
+    $public = Commit::factory()->for(User::factory()->state(['location' => 'Portugal']))->create(['body' => 'Public database topic', 'embedding' => embeddingVector(0)]);
     Commit::factory()->pending()->create(['body' => 'Pending secret', 'embedding' => embeddingVector(0)]);
     Commit::factory()->rejected()->create(['body' => 'Rejected secret', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['body' => 'Deleted secret', 'deleted_at' => now(), 'embedding' => embeddingVector(0)]);
@@ -30,10 +30,13 @@ it('executes both semantic tools through OpenCode and sends only public evidence
     $question = Commit::factory()->create(['body' => '@tom explain the database and find posts about it']);
     Http::fake([
         'api.openai.com/v1/decisions' => Http::response(relevanceResponse([true])),
+        'api.github.com/repos/nunomaduro/dev-null.sh/languages' => Http::response(['PHP' => 123]),
         'opencode.ai/zen/v1/chat/completions' => Http::sequence()->push([
             'choices' => [['finish_reason' => 'tool_calls', 'message' => ['role' => 'assistant', 'content' => '', 'tool_calls' => [
                 ['id' => 'kb', 'type' => 'function', 'function' => ['name' => 'SearchKnowledgeBase', 'arguments' => '{"query":"platform database"}']],
                 ['id' => 'posts', 'type' => 'function', 'function' => ['name' => 'SearchCommits', 'arguments' => '{"query":"database"}']],
+                ['id' => 'repo', 'type' => 'function', 'function' => ['name' => 'RepositoryInsights', 'arguments' => '{"metric":"languages"}']],
+                ['id' => 'community', 'type' => 'function', 'function' => ['name' => 'CommunityStats', 'arguments' => '{"metric":"location","term":"Portugal"}']],
             ]]]],
         ])->push([
             'choices' => [['finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'PostgreSQL, with a side of rust. :-D']]],
@@ -55,6 +58,9 @@ it('executes both semantic tools through OpenCode and sends only public evidence
             && $request['thinking'] === ['type' => 'disabled']
             && str_contains($tools, 'The platform uses PostgreSQL.')
             && str_contains($tools, 'Public database topic')
+            && str_contains($tools, '"languages":{"PHP":123}')
+            && str_contains($tools, '"count":1')
+            && str_contains($tools, 'Not nationality or verified residence')
             && str_contains(stripslashes($tools), route('commit.show', [$public->user, $public]))
             && ! str_contains($tools, 'secret')
             && ! str_contains($tools, 'embedding')
