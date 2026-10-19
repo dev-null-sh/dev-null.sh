@@ -325,50 +325,41 @@ function UserPreviewContent({
     const lane = laneColor(user.lane);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
-    const [isFollowingEverywhere, setIsFollowingEverywhere] = useIsFollowing(
+    const [isFollowing, setIsFollowing] = useIsFollowing(
         user,
         data?.isFollowing ?? false,
     );
 
+    /**
+     * Like every other follow control, the shared state only changes once the server confirms, so there is nothing to roll back.
+     */
     const toggleFollow = () => {
         if (!data || data.isUnavailable) {
             return;
         }
 
-        const previous = data;
-        const wasFollowingEverywhere = isFollowingEverywhere;
-        const isFollowing = !data.isFollowing;
-        const restore = () => {
-            onChange(previous);
-            setIsFollowingEverywhere(wasFollowingEverywhere);
-        };
-
-        setIsFollowingEverywhere(isFollowing);
-        onChange({
-            ...data,
-            isFollowing,
-            user: {
-                ...data.user,
-                followers_count:
-                    data.user.followers_count + (isFollowing ? 1 : -1),
-            },
-        });
+        const follows = !isFollowing;
 
         router.visit(
-            isFollowing
+            follows
                 ? UserFollowController.store(user)
                 : UserFollowController.destroy(user),
             {
                 preserveScroll: true,
                 preserveState: true,
-                onError: restore,
-                onNetworkError: restore,
-                onCancel: restore,
-                onHttpException: (response) => {
-                    restore();
-
-                    return !toastWhenThrottled(response);
+                onSuccess: () => {
+                    setIsFollowing(follows);
+                    onChange({
+                        ...data,
+                        isFollowing: follows,
+                        user: {
+                            ...data.user,
+                            followers_count:
+                                data.user.followers_count + (follows ? 1 : -1),
+                        },
+                    });
                 },
+                onHttpException: (response) => !toastWhenThrottled(response),
             },
         );
     };
@@ -399,7 +390,7 @@ function UserPreviewContent({
                                 <Button
                                     size="sm"
                                     variant={
-                                        data.isFollowing ? 'outline' : 'default'
+                                        isFollowing ? 'outline' : 'default'
                                     }
                                     className="group/follow min-w-24"
                                     onClick={() => {
@@ -408,14 +399,14 @@ function UserPreviewContent({
                                     }}
                                     onMouseLeave={onMouseLeave}
                                     aria-label={
-                                        data.isFollowing
+                                        isFollowing
                                             ? `Unfollow @${user.username}`
                                             : `Follow @${user.username}`
                                     }
                                     data-test="user-preview-follow-button"
                                 >
                                     <FollowLabel
-                                        isFollowing={data.isFollowing}
+                                        isFollowing={isFollowing}
                                         isJustToggled={isJustToggled}
                                     />
                                 </Button>

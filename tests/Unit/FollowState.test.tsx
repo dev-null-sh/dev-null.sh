@@ -15,7 +15,7 @@ type VisitOptions = {
     onCancel?: () => void;
 };
 
-const visits: VisitOptions[] = [];
+const visits: (VisitOptions & { method?: string })[] = [];
 
 vi.doMock('react', () => ({
     ...React,
@@ -42,7 +42,8 @@ vi.doMock('@inertiajs/react', async () => ({
     usePage: () => ({ props: { auth: { user: { id: 'viewer' } } } }),
     router: {
         flushAll: () => {},
-        visit: (_url: unknown, options: VisitOptions) => visits.push(options),
+        visit: (url: { method: string }, options: VisitOptions) =>
+            visits.push({ ...options, method: url.method }),
     },
 }));
 
@@ -116,7 +117,10 @@ function suggestionLabel(user: SuggestedUser): unknown {
     ];
 }
 
-function previewFollowButton(user: SuggestedUser): ReactElement<Props> {
+function previewFollowButton(
+    user: SuggestedUser,
+    isFollowing = false,
+): ReactElement<Props> {
     showPreview = true;
     const preview = UserPreview({ user: user as User, children: user.name });
     showPreview = false;
@@ -130,7 +134,7 @@ function previewFollowButton(user: SuggestedUser): ReactElement<Props> {
             props: {
                 ...content.props,
                 data: {
-                    isFollowing: false,
+                    isFollowing,
                     followsYou: false,
                     isMuting: false,
                     isBlocking: false,
@@ -183,6 +187,7 @@ test('a follow from their preview shows in who to follow', () => {
     const user = suggestion('nuno');
 
     (previewFollowButton(user).props.onClick as () => void)();
+    visits.at(-1)?.onSuccess?.();
 
     assert.equal(suggestionLabel(user), 'Unfollow @nuno');
 });
@@ -218,12 +223,32 @@ for (const failure of ['onError', 'onNetworkError', 'onCancel'] as const) {
     });
 }
 
-test('a failed follow from a stale preview keeps an earlier follow in who to follow', () => {
-    const user = suggestion('stale');
+test('a cached preview offers to unfollow someone followed elsewhere', () => {
+    const user = suggestion('cached');
     followFromProfile(user);
 
-    (previewFollowButton(user).props.onClick as () => void)();
-    visits.at(-1)?.onError?.();
+    const button = previewFollowButton(user, false);
+    (button.props.onClick as () => void)();
 
-    assert.equal(suggestionLabel(user), 'Unfollow @stale');
+    assert.equal(button.props['aria-label'], 'Unfollow @cached');
+    assert.equal(visits.at(-1)?.method, 'delete');
+});
+
+test('a preview unfollow that fails after a block keeps who to follow unfollowed', () => {
+    const user = suggestion('raced');
+    followFromProfile(user);
+
+    (previewFollowButton(user, true).props.onClick as () => void)();
+    const unfollow = visits.at(-1);
+
+    const block = find(
+        UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
+        (props) => props.children === 'Block',
+    );
+    assert.ok(block);
+    (block.props.onClick as () => void)();
+    visits.at(-1)?.onSuccess?.();
+    unfollow?.onError?.();
+
+    assert.equal(suggestionLabel(user), 'Follow @raced');
 });
