@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 
 /**
  * These tests run the real `devnull commit` script with bash, in a sandbox: a fake HOME and TMPDIR,
- * and stubs for `curl`, `ssh-keygen` and `ssh-add` that log how they are called.
+ * and stubs for `curl`, `ssh`, `ssh-keygen` and `ssh-add` that log how they are called.
  */
 beforeEach(function (): void {
     Process::preventStrayProcesses(false);
@@ -52,6 +52,7 @@ beforeEach(function (): void {
             BASH,
         'ssh-keygen' => <<<'BASH'
             echo "ssh-keygen $*" >> "$SANDBOX/calls.log"
+            printf '%s' "${SSH_AUTH_SOCK:-}" > "$SANDBOX/signing-agent"
             [ -z "${SIGN_FAILS:-}" ] || exit 1
             for file; do :; done
             cp "$file" "$SANDBOX/signed"
@@ -59,7 +60,13 @@ beforeEach(function (): void {
             BASH,
         'ssh-add' => <<<'BASH'
             echo "ssh-add $*" >> "$SANDBOX/calls.log"
-            [ -f "$SANDBOX/agent-keys" ] && cat "$SANDBOX/agent-keys" || exit 2
+            keys="$SANDBOX/agent-keys"
+            [ "${SSH_AUTH_SOCK:-}" != "$SANDBOX/agent.sock" ] || keys="$SANDBOX/config-agent-keys"
+            [ -f "$keys" ] && cat "$keys" || exit 2
+            BASH,
+        'ssh' => <<<'BASH'
+            echo "ssh $*" >> "$SANDBOX/calls.log"
+            [ -z "${IDENTITY_AGENT:-}" ] || printf 'identityagent %s\n' "$IDENTITY_AGENT"
             BASH,
     ];
 
@@ -147,6 +154,48 @@ it('signs through the ssh agent when it has the key', function (): void {
 
     expect($result->exitCode())->toBe(0)
         ->and(($this->calls)())->toMatch('#ssh-keygen -Y sign -n devnull-commit -f '.preg_quote($this->sandbox, '#').'/tmp/devnull\.\w{10}/key\.pub #');
+});
+
+it('signs through the ssh agent that ~/.ssh/config sets for GitHub', function (): void {
+    expect(stream_socket_server("unix://{$this->sandbox}/agent.sock"))->toBeResource();
+    File::put("{$this->sandbox}/config-agent-keys", $this->publicKey->toOpenSsh()." 1password\n");
+    File::delete(["{$this->sandbox}/home/.ssh/id_ed25519", "{$this->sandbox}/home/.ssh/id_ed25519.pub"]);
+
+    $result = ($this->runScript)($this->script, env: ['IDENTITY_AGENT' => "{$this->sandbox}/agent.sock"]);
+
+    expect($result->exitCode())->toBe(0)
+        ->and(($this->calls)())->toContain("ssh -F {$this->sandbox}/home/.ssh/config -G git@github.com")
+        ->and(File::get("{$this->sandbox}/sent-candidates"))->toBe($this->publicKey->toOpenSsh()."\n")
+        ->and(File::get("{$this->sandbox}/signing-agent"))->toBe("{$this->sandbox}/agent.sock");
+});
+
+it('looks in both $SSH_AUTH_SOCK and the ssh agent of ~/.ssh/config', function (): void {
+    expect(stream_socket_server("unix://{$this->sandbox}/agent.sock"))->toBeResource();
+    $otherKey = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOtherKeyOtherKeyOtherKeyOtherKeyOtherKey';
+    File::put("{$this->sandbox}/agent-keys", "{$otherKey} work\n");
+    File::put("{$this->sandbox}/config-agent-keys", $this->publicKey->toOpenSsh()." 1password\n");
+    File::delete(["{$this->sandbox}/home/.ssh/id_ed25519", "{$this->sandbox}/home/.ssh/id_ed25519.pub"]);
+
+    $result = ($this->runScript)($this->script, env: [
+        'SSH_AUTH_SOCK' => "{$this->sandbox}/default-agent.sock",
+        'IDENTITY_AGENT' => "{$this->sandbox}/agent.sock",
+    ]);
+
+    expect($result->exitCode())->toBe(0)
+        ->and(File::get("{$this->sandbox}/sent-candidates"))->toBe("{$otherKey}\n".$this->publicKey->toOpenSsh()."\n")
+        ->and(File::get("{$this->sandbox}/signing-agent"))->toBe("{$this->sandbox}/agent.sock");
+});
+
+it('ignores an ssh agent in ~/.ssh/config that is not a socket', function (): void {
+    File::put("{$this->sandbox}/agent.sock", 'not a socket');
+    File::put("{$this->sandbox}/config-agent-keys", $this->publicKey->toOpenSsh()." 1password\n");
+    File::delete(["{$this->sandbox}/home/.ssh/id_ed25519", "{$this->sandbox}/home/.ssh/id_ed25519.pub"]);
+
+    $result = ($this->runScript)($this->script, env: ['IDENTITY_AGENT' => "{$this->sandbox}/agent.sock"]);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: No Ed25519 or RSA SSH key found in your SSH agent or in ~/.ssh.\n")
+        ->and(($this->calls)())->not->toContain('ssh-keygen');
 });
 
 it('only deletes its own temporary files', function (): void {

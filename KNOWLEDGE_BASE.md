@@ -339,7 +339,7 @@ Source: [shortcut reference](resources/js/components/keyboard-shortcuts-dialog.t
 
 ### Terminal commits
 
-Settings → Terminal shows how to post using the `/commit` shell script. It signs the submission locally with an SSH key published on your GitHub account, and /dev/null verifies that signature. No browser login or API token is required for that submission; your private key is not uploaded. The script can create commits, reply with `--reply` using a commit reference, and attach images with `--image`.
+Settings → Terminal shows how to post using the `/commit` shell script. It signs the submission locally with an SSH key published on your GitHub account, and /dev/null verifies that signature. No browser login or API token is required for that submission; your private key is not uploaded. The script finds keys in `~/.ssh`, in the SSH agent of `SSH_AUTH_SOCK`, and in the agent that `~/.ssh/config` sets for github.com with `IdentityAgent`, such as 1Password or Secretive. The script can create commits, reply with `--reply` using a commit reference, and attach images with `--image`.
 
 Terminal posts follow the same content limits, moderation, and 10-per-minute submission limit as browser posts. Their first link supplies the default link card. Review a downloaded script before running it, and never paste a private key into a commit.
 
