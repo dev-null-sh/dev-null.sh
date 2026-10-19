@@ -1,6 +1,6 @@
 import { ChevronDown, Plus, X } from 'lucide-react';
-import { EmojiInput } from '@/components/emoji-input';
 import InputError from '@/components/input-error';
+import { MentionTextarea } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -87,19 +87,30 @@ export function PollEditor({
                                 >
                                     Option {index + 1}
                                 </label>
-                                <EmojiInput
+                                <MentionTextarea
                                     id={`${id}-option-${index}`}
                                     name="poll[options][]"
                                     value={option}
                                     onValueChange={(value) =>
-                                        updateOption(index, value)
+                                        updateOption(
+                                            index,
+                                            value.replace(/[\r\n]+/g, ' '),
+                                        )
                                     }
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                            event.preventDefault();
+                                        }
+                                    }}
+                                    suggestsMentions={false}
+                                    rows={1}
+                                    wrap="off"
                                     maxLength={maxOptionLength}
                                     placeholder={`Option ${index + 1}`}
                                     autoComplete="off"
                                     aria-invalid={error ? true : undefined}
                                     className={cn(
-                                        'h-9 w-full min-w-0 rounded-md border bg-transparent px-3 text-[15px] transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                                        'h-9 w-full min-w-0 resize-none overflow-hidden rounded-md border bg-transparent px-3 py-1.5 text-[15px] leading-[22px] transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
                                         'aria-invalid:border-destructive aria-invalid:ring-destructive/20',
                                     )}
                                 />
