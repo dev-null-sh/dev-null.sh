@@ -355,7 +355,9 @@ function UserPreviewContent({
                         user: {
                             ...data.user,
                             followers_count:
-                                data.user.followers_count + (follows ? 1 : -1),
+                                data.user.followers_count +
+                                Number(follows) -
+                                Number(data.isFollowing),
                         },
                     });
                 },

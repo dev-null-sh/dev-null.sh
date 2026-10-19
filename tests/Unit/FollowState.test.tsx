@@ -120,6 +120,7 @@ function suggestionLabel(user: SuggestedUser): unknown {
 function previewFollowButton(
     user: SuggestedUser,
     isFollowing = false,
+    onChange?: (data: { user: Profile }) => void,
 ): ReactElement<Props> {
     showPreview = true;
     const preview = UserPreview({ user: user as User, children: user.name });
@@ -133,6 +134,7 @@ function previewFollowButton(
             ...content,
             props: {
                 ...content.props,
+                ...(onChange && { onChange }),
                 data: {
                     isFollowing,
                     followsYou: false,
@@ -232,6 +234,18 @@ test('a cached preview offers to unfollow someone followed elsewhere', () => {
 
     assert.equal(button.props['aria-label'], 'Unfollow @cached');
     assert.equal(visits.at(-1)?.method, 'delete');
+});
+
+test('unfollowing through a cached preview keeps its follower count', () => {
+    const user = suggestion('counted');
+    followFromProfile(user);
+    const changes: { user: Profile }[] = [];
+
+    (previewFollowButton(user, false, (data) => changes.push(data)).props
+        .onClick as () => void)();
+    visits.at(-1)?.onSuccess?.();
+
+    assert.equal(changes.at(-1)?.user.followers_count, 0);
 });
 
 test('a preview unfollow that fails after a block keeps who to follow unfollowed', () => {
