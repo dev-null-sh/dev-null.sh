@@ -14,13 +14,21 @@ const isHashInLinkPath = (body: string, secret: Secret): boolean => {
     );
 };
 
+/**
+ * Docker Hub's username rules flag the word after any "id", "user" or "usr" once Docker is mentioned, so "I didn't want Docker" flags "want". A username isn't a secret, and Docker's tokens have a rule of their own.
+ */
+const usernameRules = new Set(['dockerhub-v1-1', 'dockerhub-v2-1']);
+
+const isSecret = (body: string, secret: Secret): boolean =>
+    !usernameRules.has(secret.rule) && !isHashInLinkPath(body, secret);
+
 export function findSecrets(body: string): Secret[] {
-    return scan(body).filter((secret) => !isHashInLinkPath(body, secret));
+    return scan(body).filter((secret) => isSecret(body, secret));
 }
 
 export function removeSecrets(body: string): string {
     return redact(body, (secret) =>
-        isHashInLinkPath(body, secret) ? secret.text : '[REDACTED]',
+        isSecret(body, secret) ? '[REDACTED]' : secret.text,
     );
 }
 

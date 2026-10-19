@@ -71,3 +71,28 @@ await test('still finds a GitHub secret outside a link path, even beside a commi
         `See https://github.com/acme/app/commit/${hash}, secret [REDACTED]`,
     );
 });
+
+await test('leaves ordinary words alone in posts that mention Docker', () => {
+    for (const body of [
+        "I didn't want Docker on my Mac",
+        'Our users love Docker compose',
+        'I paid good money for Docker Desktop',
+        'docker login -u rohitsasi',
+    ]) {
+        assert.deepEqual(findSecrets(body), []);
+        assert.equal(removeSecrets(body), body);
+        assert.equal(stashableBody(body), body);
+    }
+});
+
+await test('still finds a Docker access token, but not the username next to it', () => {
+    const token = 'dckr_pat_' + 'Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9';
+    const body = `docker login -u rohitsasi -p ${token}`;
+
+    assert.deepEqual(
+        findSecrets(body).map((secret) => body.slice(secret.start, secret.end)),
+        [token],
+    );
+    assert.equal(removeSecrets(body), 'docker login -u rohitsasi -p [REDACTED]');
+    assert.equal(stashableBody(body), '');
+});
