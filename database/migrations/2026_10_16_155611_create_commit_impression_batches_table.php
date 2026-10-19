@@ -19,9 +19,4 @@ return new class extends Migration
             $table->unique(['user_id', 'batch_id']);
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('commit_impression_batches');
-    }
 };

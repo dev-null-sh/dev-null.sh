@@ -14,11 +14,4 @@ return new class extends Migration
             $table->unsignedBigInteger('impressions_count')->default(0);
         });
     }
-
-    public function down(): void
-    {
-        Schema::table('commits', function (Blueprint $table): void {
-            $table->dropColumn('impressions_count');
-        });
-    }
 };
