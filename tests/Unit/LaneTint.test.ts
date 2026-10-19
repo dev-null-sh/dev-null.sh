@@ -47,6 +47,35 @@ void test('fades horizontal reply elbows the same way', () => {
     );
 });
 
+void test('holds the first lane longer when asked to', () => {
+    const stroke = laneStrokeStyle(laneColor(3), laneColor(4), { hold: 0.75 });
+
+    assert.equal(
+        stroke.backgroundImage,
+        'linear-gradient(to bottom, var(--lane-3) 0%, var(--lane-3) 75%, var(--lane-4) 100%)',
+    );
+});
+
+void test('draws longer dashes when asked to', () => {
+    const stroke = laneStrokeStyle(laneColor(3), laneColor(3), { dash: 4 });
+
+    assert.equal(
+        stroke.maskImage,
+        'repeating-linear-gradient(to bottom, #000 0 4px, transparent 4px 8px)',
+    );
+});
+
+void test('ends the dashes on a whole gap when anchored to the end', () => {
+    const stroke = laneStrokeStyle(laneColor(3), laneColor(3), {
+        anchor: 'end',
+    });
+
+    assert.equal(
+        stroke.maskImage,
+        'repeating-linear-gradient(to top, transparent 0 2px, #000 2px 4px)',
+    );
+});
+
 void test('keeps thread rails solid while fading between lanes', () => {
     const stroke = laneStrokeStyle(laneColor(3), laneColor(5), {
         dashed: false,

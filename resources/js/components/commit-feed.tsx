@@ -10,7 +10,7 @@ import {
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
-import { formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
+import { cn, formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;
@@ -317,7 +317,14 @@ function DayMarker({
 }) {
     return (
         <div className="flex">
-            <RailSegment lane={stagedLane} isDashed />
+            <RailSegment
+                lane={stagedLane}
+                isDashed
+                className={cn(
+                    stagedLane &&
+                        '[view-transition-class:staged-rail] [view-transition-name:staged-rail-day]',
+                )}
+            />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <h3 className="font-mono text-xs text-muted-foreground">
                     {label}
@@ -334,7 +341,14 @@ function LastVisitMarker({ stagedLane }: { stagedLane?: string }) {
             aria-label="Commits above are new since your last visit"
             className="flex"
         >
-            <RailSegment lane={stagedLane} isDashed />
+            <RailSegment
+                lane={stagedLane}
+                isDashed
+                className={cn(
+                    stagedLane &&
+                        '[view-transition-class:staged-rail] [view-transition-name:staged-rail-visit]',
+                )}
+            />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <span className="font-mono text-xs text-muted-foreground">
                     HEAD@{'{last visit}'}

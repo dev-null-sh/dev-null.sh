@@ -114,6 +114,12 @@ type LaneStrokeOptions = {
     axis?: 'vertical' | 'horizontal';
     /** Reply paths are dashed; thread rails stay solid. */
     dashed?: boolean;
+    /** How much of the path keeps the first lane before fading. */
+    hold?: number;
+    /** The length of each dash and of each gap, in pixels. */
+    dash?: number;
+    /** Ends the dashes on a whole gap, so a dashed path that continues below picks up the same rhythm. */
+    anchor?: 'start' | 'end';
 };
 
 /**
@@ -129,10 +135,12 @@ export function laneStrokeStyle(
     const axis = resolved.axis ?? 'vertical';
     const dashed = resolved.dashed ?? true;
     const isVertical = axis === 'vertical';
-    const hold = `${laneStrokeHold * 100}%`;
-    const dash = isVertical
-        ? 'repeating-linear-gradient(to bottom, #000 0 2px, transparent 2px 4px)'
-        : 'repeating-linear-gradient(to right, #000 0 2px, transparent 2px 4px)';
+    const hold = `${(resolved.hold ?? laneStrokeHold) * 100}%`;
+    const length = resolved.dash ?? 2;
+    const dash =
+        resolved.anchor === 'end'
+            ? `repeating-linear-gradient(${isVertical ? 'to top' : 'to left'}, transparent 0 ${length}px, #000 ${length}px ${length * 2}px)`
+            : `repeating-linear-gradient(${isVertical ? 'to bottom' : 'to right'}, #000 0 ${length}px, transparent ${length}px ${length * 2}px)`;
 
     return {
         backgroundImage:

@@ -23,9 +23,12 @@ test('fades the staged rail from the draft grey into the next lane', () => {
     assert.ok(tail);
     assert.match(
         tail,
-        /linear-gradient\(to bottom, var\(--rail\) 0%, var\(--rail\) \d+%, var\(--lane-4\) 100%\)/,
+        /linear-gradient\(to bottom, var\(--rail\) 0%, var\(--rail\) 75%, var\(--lane-4\) 100%\)/,
     );
-    assert.match(tail, /mask-image:repeating-linear-gradient/);
+    assert.match(
+        tail,
+        /mask-image:repeating-linear-gradient\(to top, transparent 0 4px, #000 4px 8px\)/,
+    );
 });
 
 test('keeps the staged rail grey when nothing follows it', () => {
@@ -46,7 +49,10 @@ test('carries a dashed rail through a segment in the given lane', () => {
     );
 
     assert.match(markup, /background-color:var\(--lane-4\)/);
-    assert.match(markup, /mask-image:repeating-linear-gradient/);
+    assert.match(
+        markup,
+        /mask-image:repeating-linear-gradient\(to bottom, #000 0 4px, transparent 4px 8px\)/,
+    );
 });
 
 test('keeps a plain segment solid', () => {
