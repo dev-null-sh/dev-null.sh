@@ -1,6 +1,7 @@
 import type { InertiaLinkProps } from '@inertiajs/react';
 import type { ClassValue } from 'clsx';
 import { clsx } from 'clsx';
+import type { CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
 import type { DeletedCommit, Lane, ThreadCommit } from '@/types';
@@ -104,6 +105,37 @@ export function laneColor(lane: Lane): string {
  */
 export function laneTint(color: string, percent: number): string {
     return `color-mix(in oklab, ${color} ${percent}%, transparent)`;
+}
+
+/** Hold the start lane this far, then fade into the next over the remainder. */
+export const laneStrokeHold = 0.5;
+
+/**
+ * Dashed reply connectors. Same colour stays solid; different colours hold the
+ * start lane, then fade into the next over the final stretch toward the child.
+ */
+export function laneStrokeStyle(
+    from: string,
+    to: string = from,
+    axis: 'vertical' | 'horizontal' = 'vertical',
+): CSSProperties {
+    const isVertical = axis === 'vertical';
+    const hold = `${laneStrokeHold * 100}%`;
+    const dash = isVertical
+        ? 'repeating-linear-gradient(to bottom, #000 0 2px, transparent 2px 4px)'
+        : 'repeating-linear-gradient(to right, #000 0 2px, transparent 2px 4px)';
+
+    return {
+        backgroundImage:
+            from === to
+                ? undefined
+                : `linear-gradient(${isVertical ? 'to bottom' : 'to right'}, ${from} 0%, ${from} ${hold}, ${to} 100%)`,
+        backgroundColor: from === to ? from : undefined,
+        WebkitMaskImage: dash,
+        maskImage: dash,
+        WebkitMaskRepeat: 'repeat',
+        maskRepeat: 'repeat',
+    };
 }
 
 export function isDeleted(commit: {

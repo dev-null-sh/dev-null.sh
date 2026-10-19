@@ -954,7 +954,7 @@ function NotificationContent({
             />
             <div className="min-w-0 flex-1 border-b py-3 pr-4">
                 <div className="flex items-start gap-3">
-                    <div className="relative min-w-0 flex-1">
+                    <div className="relative isolate min-w-0 flex-1">
                         {isActorsCommit ? (
                             <>
                                 <div className="flex items-baseline gap-1.5 text-[15px]">
