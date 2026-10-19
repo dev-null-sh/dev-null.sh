@@ -16,6 +16,23 @@ use Random\Randomizer;
 final readonly class SuggestedUsersQuery
 {
     /**
+     * @return Builder<User>
+     */
+    public function builder(User $user): Builder
+    {
+        $following = $user->following();
+        $followingIds = $following->newPivotQuery()->select($following->getRelatedPivotKeyName());
+
+        return $this->candidates($user, $followingIds)
+            ->whereIn('users.id', $this->committers($user))
+            ->select('users.*')
+            ->addSelect([
+                'followed_by_following_count' => $this->followersCount($following)->whereIn($following->getForeignPivotKeyName(), $followingIds),
+                'followers_count' => $this->followersCount($following),
+            ]);
+    }
+
+    /**
      * People the user does not follow yet: a mix of people their follows already follow and a few
      * popular people picked from the 20 most followed. Either side fills in when the other runs short.
      *

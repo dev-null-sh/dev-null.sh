@@ -62,6 +62,7 @@ use App\Http\Controllers\OrgMemberController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
+use App\Http\Controllers\PeopleController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
@@ -420,6 +421,7 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
 
     // User Follow...
+    Route::get('people', [PeopleController::class, 'index'])->name('people.index');
     Route::post('@{user:username}/follow', [UserFollowController::class, 'store'])
         ->middleware('throttle:follows')
         ->name('user-follow.store');

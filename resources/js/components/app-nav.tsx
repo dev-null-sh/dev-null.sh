@@ -14,6 +14,7 @@ import {
     ShieldCheck,
     SquarePen,
     UserRound,
+    UsersRound,
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
@@ -23,6 +24,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
+import PeopleController from '@/actions/App/Http/Controllers/PeopleController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
@@ -76,6 +78,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Log',
             href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
+            prefetch: false,
+        },
+        {
+            title: 'People',
+            href: hrefFor(() => PeopleController.index()),
+            icon: UsersRound,
             prefetch: false,
         },
         {
