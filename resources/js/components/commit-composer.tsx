@@ -57,6 +57,7 @@ import {
     isRejectedSubmission,
     laneColor,
 } from '@/lib/utils';
+import { show } from '@/routes/user';
 import type { User } from '@/types';
 
 function focusBody(id: string): void {
@@ -173,7 +174,19 @@ function CommitComposerBody({
                 variant="staged"
                 isFilled={isFilled}
                 hasTail={!isInDialog}
-                node={<RailAvatar user={user} isStaged={!isFilled} />}
+                node={
+                    isInDialog ? (
+                        <RailAvatar user={user} isStaged={!isFilled} />
+                    ) : (
+                        <Link
+                            href={show(user)}
+                            aria-label="View your profile"
+                            className="flex rounded-full"
+                        >
+                            <RailAvatar user={user} isStaged={!isFilled} />
+                        </Link>
+                    )
+                }
             />
 
             <div

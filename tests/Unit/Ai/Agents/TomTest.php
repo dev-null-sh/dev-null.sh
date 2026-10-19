@@ -7,9 +7,11 @@ use App\Ai\Agents\Tom;
 use App\Ai\Tools\SearchCommits;
 use App\Ai\Tools\SearchKnowledgeBase;
 use App\Enums\CommitStatus;
+use App\Enums\Feature;
 use App\Models\Commit;
 use App\Models\KnowledgeBaseSection;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Embeddings;
@@ -18,6 +20,7 @@ use Laravel\Ai\Tools\Request as ToolRequest;
 
 it('executes both semantic tools through OpenCode and sends only public evidence', function (): void {
     config(['ai.providers.opencode.key' => 'test-opencode', 'services.openai.key' => 'test']);
+    resolve(Features::class)->update(Feature::Translations, false);
     Embeddings::fake([[embeddingVector(0)], [embeddingVector(0)]]);
     $public = Commit::factory()->create(['body' => 'Public database topic', 'embedding' => embeddingVector(0)]);
     Commit::factory()->pending()->create(['body' => 'Pending secret', 'embedding' => embeddingVector(0)]);

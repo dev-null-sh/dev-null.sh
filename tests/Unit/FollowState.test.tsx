@@ -332,3 +332,52 @@ test('a preview unfollow that fails after a block keeps who to follow unfollowed
 
     assert.equal(suggestionLabel(user), 'Follow @raced');
 });
+
+function suggestionFollowLink(user: SuggestedUser): Props {
+    const button = find(
+        SuggestedUserRow({ user }),
+        (props) => props['data-test'] === 'suggested-follow-button',
+    );
+    assert.ok(button);
+
+    const link = find(render(button), (props) => 'aria-label' in props);
+    assert.ok(link);
+
+    return link.props;
+}
+
+test('following several suggestions in a row sends every follow without cancelling the others', () => {
+    const first = suggestion('pauline');
+    const second = suggestion('brent');
+
+    const firstFollow = suggestionFollowLink(first);
+    (firstFollow.onStart as () => void)();
+    const secondFollow = suggestionFollowLink(second);
+
+    assert.equal(firstFollow.async, true);
+    assert.equal(secondFollow.async, true);
+    assert.equal((secondFollow.onBefore as () => boolean)(), true);
+
+    (secondFollow.onStart as () => void)();
+    for (const follow of [secondFollow, firstFollow]) {
+        (follow.onSuccess as () => void)();
+        (follow.onFinish as () => void)();
+    }
+
+    assert.equal(suggestionLabel(first), 'Unfollow @pauline');
+    assert.equal(suggestionLabel(second), 'Unfollow @brent');
+});
+
+test('a second click on a follow still on its way sends nothing', () => {
+    const user = suggestion('matthieu');
+
+    (suggestionFollowLink(user).onStart as () => void)();
+
+    const pending = suggestionFollowLink(user);
+    assert.equal(pending['aria-disabled'], true);
+    assert.equal((pending.onBefore as () => boolean)(), false);
+
+    (pending.onFinish as () => void)();
+
+    assert.equal((suggestionFollowLink(user).onBefore as () => boolean)(), true);
+});

@@ -142,7 +142,7 @@ void test('shows the image of a starred image-only commit beside who starred it'
                     description: null,
                 },
             ],
-        } as Omit<Commit, 'user'>,
+        } as unknown as Omit<Commit, 'user'>,
     } as NotificationGroup;
     const body = (await render([starred])).replaceAll('<!-- -->', '');
 
