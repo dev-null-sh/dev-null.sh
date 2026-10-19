@@ -435,6 +435,8 @@ Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Ap
 
 An app can use the same `/api/v1` for you with signed requests. It keeps an SSH key on the device and signs every request with it; there are no passwords or API tokens. To sign in, the app opens `/mobile/authorize` on the web: sign in with GitHub if needed, check the key's fingerprint, and approve it. The key then becomes one of your devices, and it does not need to be on your GitHub account. A key that is only on GitHub, such as a GitHub Actions key, cannot use the signed API.
 
+A terminal or an agent, which has no browser to be sent back to, signs in with a short code instead: it asks the API for one and shows it, you open `/activate` on the web, sign in with GitHub if needed, type the code, check the device's name and the key's fingerprint, and approve or deny it. The terminal asks the API every few seconds whether you decided, and signs in on its own once you approve. A code lasts **15 minutes**, and you can look up or decide **20 codes a minute**.
+
 A signed request sees what the web shows you, such as your own pending commits. It can also, with the web's validation, moderation, and rate limits:
 
 - read your account, logs, replies, notifications, and saved commits;
@@ -452,7 +454,7 @@ A signed request sees what the web shows you, such as your own pending commits. 
 
 Signed request bodies are JSON, or multipart when they carry images, so app commits can have images or a poll but no link-card choice. Voice notes, pinning, scheduling, search, and translations remain web-only. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
-Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
+Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [terminal sign-in page](app/Http/Controllers/DeviceActivationController.php), [terminal sign-ins](app/Http/Controllers/Api/DeviceAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
 ### Bug reports and feature requests
 
