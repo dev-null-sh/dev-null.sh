@@ -10,6 +10,7 @@ use App\Mcp\Presenter;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
+use App\Services\CommitBodies;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\RateLimiter;
 use Laravel\Mcp\Request;
@@ -23,13 +24,18 @@ final class CreateCommitTool extends Tool
 {
     private const int MAX_ATTEMPTS = 10;
 
-    public function handle(Request $request, Presenter $presenter, CreateCommit $action): Response|ResponseFactory
+    public function handle(Request $request, Presenter $presenter, CommitBodies $bodies, CreateCommit $action): Response|ResponseFactory
     {
         $user = $request->user();
         assert($user instanceof User);
 
+        if (is_string($request->get('body'))) {
+            $request->merge(['body' => $bodies->normalize($request->get('body'))]);
+        }
+
+        /** @var array{body: string, parent_id?: string|null} $validated */
         $validated = $request->validate([
-            'body' => ['required', 'string', 'min:3', 'max:280'],
+            'body' => ['required', 'string', 'min:'.Commit::MIN_BODY_LENGTH, 'max:'.Commit::MAX_BODY_LENGTH],
             'parent_id' => ['nullable', 'uuid', new VisibleCommit($user)],
         ]);
 
@@ -59,7 +65,7 @@ final class CreateCommitTool extends Tool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'body' => $schema->string()->description('What to commit: 3 to 280 characters.')->required(),
+            'body' => $schema->string()->description(sprintf('What to commit: %d to %s characters.', Commit::MIN_BODY_LENGTH, number_format(Commit::MAX_BODY_LENGTH)))->required(),
             'parent_id' => $schema->string()->description('The full ID of the commit to reply to. Leave out for a new commit.'),
         ];
     }

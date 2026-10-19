@@ -19,11 +19,12 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 #[IsReadOnly]
 final class ListUsersTool extends Tool
 {
-    public function handle(Request $request, Presenter $presenter, UserSearchQuery $query): Response|ResponseFactory
+    public function handle(Request $request, Presenter $presenter, UserSearchQuery $query): ResponseFactory
     {
         $user = $request->user();
         assert($user instanceof User);
 
+        /** @var array{query: string} $validated */
         $validated = $request->validate([
             'query' => ['required', 'string', 'max:100'],
         ]);

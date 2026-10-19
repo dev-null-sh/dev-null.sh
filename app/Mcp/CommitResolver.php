@@ -7,6 +7,7 @@ namespace App\Mcp;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitByReferenceQuery;
+use Illuminate\Database\Eloquent\Collection;
 use Laravel\Mcp\Response;
 
 final readonly class CommitResolver
@@ -23,7 +24,7 @@ final readonly class CommitResolver
     {
         $commits = $this->query->get($user, mb_trim($reference));
 
-        if ($commits === null) {
+        if (! $commits instanceof Collection) {
             return Response::error('That is not a commit hash, ID, or link.');
         }
 

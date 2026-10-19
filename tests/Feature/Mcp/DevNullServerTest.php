@@ -67,6 +67,32 @@ it('shows a commit by its hash with its thread', function (): void {
         ->assertSee(['The commit', 'The parent', 'A reply']);
 });
 
+it('shows a deleted commit in the thread as deleted', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create(['body' => 'The deleted parent']);
+    $commit = Commit::factory()->for($parent, 'parent')->create();
+    $parent->delete();
+
+    DevNullServer::actingAs($user)
+        ->tool(ShowCommitTool::class, ['commit' => $commit->id])
+        ->assertOk()
+        ->assertStructuredContent(fn ($json) => $json
+            ->where('ancestors.0.id', $parent->id)
+            ->where('ancestors.0.deleted', true)
+            ->etc())
+        ->assertDontSee('The deleted parent');
+});
+
+it('asks for the full ID when a hash matches more than one commit', function (): void {
+    $user = User::factory()->create();
+    Commit::factory()->create(['id' => '01970000-0000-7000-8000-000011234567']);
+    Commit::factory()->create(['id' => '01970000-0000-7000-8000-000021234567']);
+
+    DevNullServer::actingAs($user)
+        ->tool(ShowCommitTool::class, ['commit' => '1234567'])
+        ->assertHasErrors(['That hash matches more than one commit: use the full ID instead.']);
+});
+
 it('cannot show a pending commit of someone else', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->pending()->create();
@@ -132,11 +158,21 @@ it('cannot reply to a pending commit of someone else', function (): void {
     expect($user->commits()->exists())->toBeFalse();
 });
 
+it('commits a long body', function (): void {
+    $user = User::factory()->create();
+
+    DevNullServer::actingAs($user)
+        ->tool(CreateCommitTool::class, ['body' => str_repeat('a', Commit::MAX_BODY_LENGTH)])
+        ->assertOk();
+
+    expect($user->commits()->sole()->body)->toHaveLength(Commit::MAX_BODY_LENGTH);
+});
+
 it('validates the body of a commit', function (): void {
     $user = User::factory()->create();
 
     DevNullServer::actingAs($user)
-        ->tool(CreateCommitTool::class, ['body' => str_repeat('a', 281)])
+        ->tool(CreateCommitTool::class, ['body' => str_repeat('a', Commit::MAX_BODY_LENGTH + 1)])
         ->assertHasErrors();
 
     expect($user->commits()->exists())->toBeFalse();

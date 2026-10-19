@@ -22,6 +22,7 @@ final class CreateUserFollowTool extends Tool
         $follower = $request->user();
         assert($follower instanceof User);
 
+        /** @var array{username: string} $validated */
         $validated = $request->validate([
             'username' => ['required', 'string', 'max:100'],
         ]);

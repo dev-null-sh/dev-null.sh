@@ -1,7 +1,7 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import AppLogo from '@/components/app-logo';
 import { Button } from '@/components/ui/button';
-import type { Profile } from '@/types';
+import { useUser } from '@/hooks/use-user';
 
 type Props = {
     client: string;
@@ -40,7 +40,7 @@ export default function Authorize({
     csrfToken,
     url,
 }: Props) {
-    const user: Profile = usePage().props.auth.user;
+    const { user } = useUser();
     const fields = { authToken, state, clientId, csrfToken };
 
     return (

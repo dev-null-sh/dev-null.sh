@@ -27,6 +27,7 @@ final class ShowCommitTool extends Tool
         $user = $request->user();
         assert($user instanceof User);
 
+        /** @var array{commit: string} $validated */
         $validated = $request->validate([
             'commit' => ['required', 'string', 'max:300'],
         ]);
@@ -49,9 +50,7 @@ final class ShowCommitTool extends Tool
                 ->map(fn (Commit $ancestor): array => $presenter->commit($ancestor))
                 ->values()
                 ->all(),
-            'replies' => $replies->paginate($commit, $user)->getCollection()
-                ->map(fn (Commit $reply): array => $presenter->commit($reply))
-                ->all(),
+            'replies' => array_map($presenter->commit(...), $replies->paginate($commit, $user)->items()),
         ]);
     }
 

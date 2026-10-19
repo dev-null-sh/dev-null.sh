@@ -17,7 +17,7 @@ use Laravel\Mcp\Server\Attributes\Version;
 
 #[Name('devnull')]
 #[Version('1.0.0')]
-#[Instructions('devnull is a social feed where developers share short commits (280 characters at most). Read the log of people the user follows or of everyone, open a commit with its replies, find people, and, as the signed-in user, commit, reply, star and follow. New commits from non-admins are pending until a moderator approves them. A commit is referenced by its hash (the last 7 characters of its ID), its full ID, or its link.')]
+#[Instructions('devnull is a social feed where developers share commits (4,000 characters at most). Read the latest or trending log, or the log of people the user follows, open a commit with its replies, find people, and, as the signed-in user, commit, reply, star and follow. New commits from non-admins are pending until a moderator approves them. A commit is referenced by its hash (the last 7 characters of its ID), its full ID, or its link.')]
 final class DevNullServer extends Server
 {
     protected array $tools = [

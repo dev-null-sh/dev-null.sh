@@ -23,11 +23,12 @@ final class ShowLogTool extends Tool
 {
     private const int PER_PAGE = 20;
 
-    public function handle(Request $request, Presenter $presenter): Response|ResponseFactory
+    public function handle(Request $request, Presenter $presenter): ResponseFactory
     {
         $user = $request->user();
         assert($user instanceof User);
 
+        /** @var array{log?: string, cursor?: string|null} $validated */
         $validated = $request->validate([
             'log' => ['sometimes', Rule::enum(Log::class)],
             'cursor' => ['nullable', 'string'],

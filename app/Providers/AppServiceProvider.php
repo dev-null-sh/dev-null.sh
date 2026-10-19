@@ -18,9 +18,10 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
-use Inertia\Response as InertiaResponse;
+use Laravel\Passport\Client;
 use Laravel\Passport\Passport;
 use Laravel\Passport\Scope;
+use Symfony\Component\HttpFoundation\Response;
 use Tempest\Highlight\Highlighter;
 
 final class AppServiceProvider extends ServiceProvider
@@ -47,16 +48,19 @@ final class AppServiceProvider extends ServiceProvider
      */
     private function bootPassport(): void
     {
-        Passport::authorizationView(fn (array $parameters): InertiaResponse => Inertia::render('oauth/authorize', [
-            'suggestedUsers' => null,
-            'client' => $parameters['client']->name,
-            'scopes' => array_map(fn (Scope $scope): string => $scope->description, $parameters['scopes']),
-            'authToken' => $parameters['authToken'],
-            'state' => $parameters['request']->input('state'),
-            'clientId' => $parameters['client']->getKey(),
-            'csrfToken' => csrf_token(),
-            'url' => route('passport.authorizations.approve'),
-        ]));
+        Passport::authorizationView(function (array $parameters): Response {
+            /** @var array{client: Client, scopes: list<Scope>, authToken: string, request: Request} $parameters */
+            return Inertia::render('oauth/authorize', [
+                'suggestedUsers' => null,
+                'client' => $parameters['client']->name,
+                'scopes' => array_map(fn (Scope $scope): string => $scope->description, $parameters['scopes']),
+                'authToken' => $parameters['authToken'],
+                'state' => $parameters['request']->input('state'),
+                'clientId' => $parameters['client']->getKey(),
+                'csrfToken' => csrf_token(),
+                'url' => route('passport.authorizations.approve'),
+            ])->toResponse($parameters['request']);
+        });
     }
 
     private function bootExceptionHandling(): void
@@ -92,7 +96,7 @@ final class AppServiceProvider extends ServiceProvider
 
     private function bootRateLimitingDefaults(): void
     {
-        RateLimiter::for('mcp', fn (Request $request): Limit => Limit::perMinute(60)->by($request->user()?->id ?? $request->ip()));
+        RateLimiter::for('mcp', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
 
         RateLimiter::for('commit-reports', fn (Request $request): Limit => Limit::perMinute(5)->by($this->userId($request)));
 

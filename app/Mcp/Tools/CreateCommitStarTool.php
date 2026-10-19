@@ -24,6 +24,7 @@ final class CreateCommitStarTool extends Tool
         $user = $request->user();
         assert($user instanceof User);
 
+        /** @var array{commit: string} $validated */
         $validated = $request->validate([
             'commit' => ['required', 'string', 'max:300'],
         ]);

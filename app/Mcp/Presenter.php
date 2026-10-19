@@ -26,7 +26,7 @@ final readonly class Presenter
             'id' => $commit->id,
             'hash' => $this->hash($commit),
             'url' => route('commit.show', [$commit->user, $commit]),
-            'author' => $commit->user->username,
+            'author' => $commit->user?->username,
             'body' => $commit->body,
             'status' => $commit->status->value,
             'parent_id' => $commit->parent_id,

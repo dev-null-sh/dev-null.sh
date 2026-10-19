@@ -10,7 +10,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('oauth_device_codes', function (Blueprint $table) {
+        Schema::create('oauth_device_codes', function (Blueprint $table): void {
             $table->char('id', 80)->primary();
             $table->foreignUuid('user_id')->nullable()->index();
             $table->foreignUuid('client_id')->index();
@@ -21,13 +21,5 @@ return new class extends Migration
             $table->dateTime('last_polled_at')->nullable();
             $table->dateTime('expires_at')->nullable();
         });
-    }
-
-    /**
-     * Get the migration connection name.
-     */
-    public function getConnection(): ?string
-    {
-        return $this->connection ?? config('passport.connection');
     }
 };

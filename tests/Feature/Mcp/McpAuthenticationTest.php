@@ -46,6 +46,15 @@ it('serves the MCP server to users with an access token', function (): void {
         ->assertJsonPath('result.serverInfo.name', 'devnull');
 });
 
+it('lists the tools with what they take', function (): void {
+    Passport::actingAs(User::factory()->create(), ['mcp:use']);
+
+    $this->postJson('/mcp', ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list'])
+        ->assertOk()
+        ->assertJsonCount(6, 'result.tools')
+        ->assertJsonPath('result.tools.0.inputSchema.properties.log.enum', ['following', 'latest', 'trending']);
+});
+
 it('advertises Passport as the authorization server', function (): void {
     $this->getJson('/.well-known/oauth-authorization-server')
         ->assertOk()
@@ -120,6 +129,7 @@ it('lets signed in users approve a client with the token on the consent page', f
     ]);
 
     $response->assertRedirectContains('http://localhost:5555/callback?code=');
+
     expect($response->headers->get('Location'))->toContain('state=abc');
 });
 
