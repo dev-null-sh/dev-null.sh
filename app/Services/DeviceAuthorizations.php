@@ -25,6 +25,14 @@ final readonly class DeviceAuthorizations
         return $authorization?->status === DeviceAuthorizationStatus::Pending ? $authorization : null;
     }
 
+    /**
+     * The sign-in a terminal polls for, by the device code it was handed, whatever the user decided so far.
+     */
+    public function fromDeviceCode(string $deviceCode): ?DeviceAuthorization
+    {
+        return $this->fromKey(DeviceAuthorization::keyFor($deviceCode));
+    }
+
     private function fromKey(string $key): ?DeviceAuthorization
     {
         $stored = Cache::get($key);

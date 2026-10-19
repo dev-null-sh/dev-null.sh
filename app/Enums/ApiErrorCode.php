@@ -13,6 +13,9 @@ enum ApiErrorCode: string
     case InvalidSignature = 'invalid_signature';
     case DeviceNotApproved = 'device_not_approved';
     case InvalidGrant = 'invalid_grant';
+    case AuthorizationPending = 'authorization_pending';
+    case SlowDown = 'slow_down';
+    case AccessDenied = 'access_denied';
     case UserBlocked = 'user_blocked';
     case UserUnavailable = 'user_unavailable';
     case OwnCommit = 'own_commit';
@@ -27,7 +30,7 @@ enum ApiErrorCode: string
     public function status(): int
     {
         return match ($this) {
-            self::InvalidGrant => 400,
+            self::InvalidGrant, self::AuthorizationPending, self::SlowDown, self::AccessDenied => 400,
             self::InvalidSignature, self::DeviceNotApproved => 401,
             self::UserBlocked, self::UserUnavailable, self::OwnCommit, self::TimedOut, self::Banned, self::CommitRulesRequired => 403,
             self::CommitUnavailable => 404,
