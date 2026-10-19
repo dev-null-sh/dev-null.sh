@@ -44,8 +44,8 @@ final readonly class CommitController
         };
 
         $threadReplies = null;
-        $getReplies = function () use (&$threadReplies, $replies, $commit, $currentUser): CursorPaginator {
-            return $threadReplies ??= $replies->paginate($commit, $currentUser);
+        $getReplies = function () use (&$threadReplies, $replies, $commit, $currentUser, $request): CursorPaginator {
+            return $threadReplies ??= $replies->paginate($commit, $currentUser, limit: $request->repliesPerPage());
         };
 
         $preview = $currentUser instanceof User || $request->inertia() ? null : $metadata->commit(

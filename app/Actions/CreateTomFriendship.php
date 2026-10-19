@@ -35,6 +35,10 @@ final readonly class CreateTomFriendship
         });
     }
 
+    /**
+     * Tom only talks in public, replying to mentions, so he keeps remotes off: nobody can push to him or add him to
+     * an org.
+     */
     private function tom(): User
     {
         $tom = User::query()->firstWhere('github_id', self::GITHUB_ID);
@@ -52,6 +56,7 @@ final readonly class CreateTomFriendship
                 'bio' => "I'm here to help you get started on dev/null.",
                 'location' => 'Santa Monica, CA',
                 'onboarded_at' => now(),
+                'remotes_enabled' => false,
             ]);
 
             $tom->commits()->create([

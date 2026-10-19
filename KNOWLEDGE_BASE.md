@@ -15,6 +15,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Following, Latest, and Trending logs](#following-latest-and-trending-logs)
   - [Searching developers and commits](#searching-developers-and-commits)
   - [Writing commits](#writing-commits)
+  - [Translating commits](#translating-commits)
   - [Code, emoji, and mentions](#code-emoji-and-mentions)
   - [Draft previews and secret warnings](#draft-previews-and-secret-warnings)
   - [Stashed drafts](#stashed-drafts)
@@ -51,9 +52,16 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Hello world replies](#hello-world-replies)
 - [Stack and hosting](#stack-and-hosting)
 - [Lore](#lore)
+  - [Product trailer](#product-trailer)
   - [Built on a livestream](#built-on-a-livestream)
   - [Tom](#tom)
   - [Pastéis de nata](#pastéis-de-nata)
+  - [The pushup break](#the-pushup-break)
+  - [The codename that stuck](#the-codename-that-stuck)
+  - [Peach P](#peach-p)
+  - [Chat chooses dark mode](#chat-chooses-dark-mode)
+  - [The disappearing images](#the-disappearing-images)
+  - [The anti-TikTok pull request](#the-anti-tiktok-pull-request)
 
 ## Repository
 
@@ -73,6 +81,8 @@ Guests can browse Latest and Trending logs, public profiles and their following/
 New GitHub accounts are screened at signup. The repository defaults require an account at least seven days old and a verified email; these requirements are configurable. Returning accounts are not screened again. Public profiles and approved commits are readable by other people and crawlers, and links have social previews. A public commit is not private just because its author signed in to write it.
 
 Sources: [web routes](routes/web.php), [signup configuration](config/signup.php), [sign-in tests](tests/Feature/Controllers/SessionControllerTest.php).
+
+Livestream history: the team agreed on GitHub-only sign-in and importing profile defaults on [day one at 1:06:29](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=3989s), citing simplicity and reducing bot problems. A successful sign-in and imported profile were reported during the walkthrough at [1:44:25](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=6265s).
 
 ### First-time setup
 
@@ -110,6 +120,8 @@ The public search searches developers and commits, not this knowledge-base file.
 
 Sources: [search page](resources/js/pages/search/index.tsx), [commit search query](app/Queries/CommitSearchQuery.php), [search validation](app/Http/Requests/ListCommitSearchRequest.php), [knowledge-base query](app/Queries/KnowledgeBaseSearchQuery.php).
 
+Livestream history: the team agreed to build semantic search on [day two at 2:57:59](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=10679s). The discussion connects immutable commits with simpler embeddings: editing would require re-embedding, versioning, and reconsidering notifications. They deferred editing and versioning “for now,” rather than declaring that those features could never exist.
+
 ### Writing commits
 
 A **commit** is a post on /dev/null, not a Git commit in a repository. Open the composer or press **c**, write your update, and choose **Commit** or press **⌘/Ctrl+Enter**. Text-only commits accept 3–4,000 characters. An image attachment makes the text optional, but the 4,000-character maximum still applies. Long posts offer **Show more** in lists. Commits can be created and deleted, but not edited after publication.
@@ -117,6 +129,20 @@ A **commit** is a post on /dev/null, not a Git commit in a repository. Open the 
 Commits, replies, and terminal submissions share a limit of 10 submissions per minute per user. Posts go through moderation, so a newly submitted commit may be pending rather than public immediately.
 
 Sources: [composer](resources/js/components/commit-composer.tsx), [commit model](app/Models/Commit.php), [commit validation](app/Http/Requests/CreateCommitRequest.php), [submission throttle](app/Http/Middleware/ThrottleCommits.php).
+
+Livestream history: the team settled on calling posts **commits** and their list a **log** on [day one at 2:56:00](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=10560s). At [3:02:19](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=10939s), they agreed to rename the post model too, rather than changing only the UI. These are naming decisions, not timestamps proving the rename had finished.
+
+### Translating commits
+
+Public commits and replies offer **Translate** when their detected language differs from the browser's preferred language. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.
+
+DeepSeek through OpenCode translates only the post text. The result replaces its displayed text, with **Translated from [language]** and **Show original** to switch back; the original post is never changed. Cached translations are included on subsequent page loads, including for guests. Exact duplicate text shares translations across authors using a SHA-256 content key, with separate text for each target language. The cache expires seven days after its creation, without extending on reads or additional target languages. The database cache is physically pruned hourly; Redis expires entries itself. Deleting a post or account evicts its shared translations, which surviving duplicates can generate again. No private messages are translated.
+
+Background language detection uses the separate `translations` queue on the configured queue connection and needs a worker listening to that queue. It makes up to three attempts, waiting one minute and then ten minutes between failures. A detection dispatch failure does not prevent reading the original post. Requested translations still run in the HTTP request; failures leave the original unchanged and can be retried with Translate.
+
+Administrators can switch translations off for everyone from the operations dashboard. While off, Translate and cached translations are hidden, the translation endpoint returns not found, no detection jobs are queued, and detection jobs already waiting finish without calling the provider. Cached translations are kept and reappear when translations are switched back on.
+
+Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController.php), [agent](app/Ai/Agents/CommitTranslator.php), [cache](app/Services/CommitTranslations.php), [controls](resources/js/components/commit-translation.tsx).
 
 ### Code, emoji, and mentions
 
@@ -170,6 +196,8 @@ The embedded original only shows content the viewer may see. Deleted originals a
 
 Sources: [quote validation](app/Http/Requests/CreateCommitRequest.php), [quoted commit card](resources/js/components/quoted-commit.tsx), [quote notifications](app/Actions/CreateQuoteNotifications.php).
 
+Livestream history: on [day two at 7:31:27](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=27087s), the team explained why plain reposts were unnecessary: quoting already existed and required the person sharing to write something themselves.
+
 ### Polls and voting
 
 Add a poll to a top-level commit with **two to four distinct options**, each up to **50 characters**, and a duration of **one hour, one day, three days, or seven days**. Polls cannot accompany images or be added to replies. Voting opens when the commit is approved, so time spent pending does not consume the voting period.
@@ -192,11 +220,15 @@ Delete your own commit or reply from its controls. An **Undo** action is availab
 
 Sources: [commit deletion](app/Actions/DeleteCommit.php), [restoration validation](app/Http/Requests/CreateCommitRestorationRequest.php), [commit model](app/Models/Commit.php).
 
+Livestream history: on [day one at 5:17:38](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=19058s), the team objected to deleting every reply when a parent commit was deleted. They kept the existing constraint temporarily and agreed to track soft deletion as follow-up work; this discussion is not the moment that reply preservation shipped.
+
 ### Stars
 
 Star someone else's visible commit or reply to show appreciation, or unstar to remove that star. You cannot star your own commits. A star contributes to the displayed count and can notify the author; unstar removes that notification. Starring the same commit repeatedly does not add multiple stars. Stars are an engagement action, not a private reading list; use Saved for bookmarks.
 
 Sources: [star authorization](app/Http/Requests/CreateCommitStarRequest.php), [star notifications](app/Actions/CreateStarNotification.php), [unstar notifications](app/Actions/DeleteStarNotification.php).
+
+Livestream history: “Stars instead of likes” received immediate agreement on [day one at 4:30:03](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=16203s), extending the platform's developer-oriented terminology.
 
 ### Saved commits
 
@@ -225,6 +257,8 @@ Open **Notifications** to read in-app activity: follows, replies, quotes, mentio
 Pending replies, quotes, and mentions wait for approval before notifying others. Self-actions do not notify you; mentioning the parent or quoted author does not duplicate their reply or quote notification. A new follower notifies only once even if they unfollow and follow again. Deleted or unavailable sources, mutes, and blocks affect which notifications remain visible. Rejected commits can produce a moderation message with a reason, without revealing a moderator's identity.
 
 Sources: [notifications page](resources/js/pages/notification/index.tsx), [notification filtering](app/Queries/NotificationBuilder.php), [grouping](app/Queries/NotificationGroupsQuery.php), [moderation notifications](app/Actions/UpdateCommitStatuses.php).
+
+Livestream history: the notification requirements on [day one at 5:28:53](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=19733s) explicitly included removing stale activity after an unfollow or deleted reply. The stated goal was to avoid both spam and notifications that “no longer make sense.”
 
 ### Remotes: direct messages
 
@@ -309,6 +343,8 @@ Terminal posts follow the same content limits, moderation, and 10-per-minute sub
 
 Sources: [terminal instructions](resources/js/pages/terminal/show.tsx), [CLI routes](routes/api.php), [signature verification](app/Http/Middleware/AuthenticateSshSignature.php).
 
+Livestream history: terminal posting was reported working on [day one at 6:32:47](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=23567s). The explanation that follows describes signing with an existing SSH private key and checking the public key on GitHub, with a curl command so users would not need to install a dedicated CLI. This was signed authentication, not anonymous posting, despite the conversation's shorthand about not setting up authentication.
+
 ### GitHub Actions integration
 
 Use `nunomaduro/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. Settings → Terminal includes a workflow example. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, and optional image paths.
@@ -363,13 +399,15 @@ Commits and replies undergo automated moderation and may be pending, approved, o
 
 Administrators have a moderation queue for reviewing and approving or rejecting commits, including bulk decisions, plus a reports queue for user-reported content. Moderators can dismiss reports or reject reported commits. These are restricted tools, not controls every account receives.
 
+Automated moderation makes up to three attempts with one-minute and ten-minute retry delays and a three-minute timeout per attempt. Provider failures never approve unreviewed posts: exhausted jobs leave them pending for administrator review or an explicit failed-job retry. Moderation and translation failures report the commit identifier, exception type, and error code without retaining the provider's response in the exception.
+
 Sources: [moderation access](app/Http/Requests/ShowModerationRequest.php), [moderation controller](app/Http/Controllers/ModerationController.php), [status transitions](app/Actions/UpdateCommitStatuses.php), [reports controller](app/Http/Controllers/ReportedCommitController.php).
 
 ### Operations dashboard
 
-Administrators can open `/operations` to inspect database and cache connectivity, queue backlogs, recent failed jobs, pending moderation, link-preview health, and recent signup/commit/reply volume. The GitHub API rate limit is shown when credentials are configured, and Fathom site traffic when a Fathom API token is configured: visitors on the site now, plus visitors, pageviews, average time on site, bounce rate, and the top pages, referrers, countries, devices, and browsers for a chosen date range (the last 7 days by default). The dashboard refreshes periodically and offers retry or forget controls for failed jobs. Non-admin users cannot access it.
+Administrators can open `/operations` to inspect database and cache connectivity, queue backlogs, recent failed jobs, pending moderation, link-preview health, and recent signup/commit/reply volume. The GitHub API rate limit is shown when credentials are configured, and Fathom site traffic when a Fathom API token is configured: visitors on the site now, plus visitors, pageviews, average time on site, bounce rate, and the top pages, referrers, countries, devices, and browsers for a chosen date range (the last 7 days by default). The dashboard refreshes periodically and offers retry or forget controls for failed jobs. Its Features section switches site-wide features, currently translations, off and on for everyone. Non-admin users cannot access it.
 
-Sources: [operations controller](app/Http/Controllers/OperationsController.php), [access check](app/Http/Requests/ShowOperationsRequest.php), [operations page](resources/js/pages/operations/show.tsx).
+Sources: [operations controller](app/Http/Controllers/OperationsController.php), [feature switches](app/Services/Features.php), [access check](app/Http/Requests/ShowOperationsRequest.php), [operations page](resources/js/pages/operations/show.tsx).
 
 ### About, changelog, and policies
 
@@ -382,6 +420,8 @@ Sources: [public page routes](routes/web.php), [About](resources/js/pages/about/
 An approved commit whose entire text is **hello world**, including variants such as **Hello, World!**, can receive an automatic **“Hello, {name}.”** reply from **@world**. A pending commit waits for approval. The bot replies only once to that commit. It is a small greeting feature, separate from Tom's question-answering role.
 
 Sources: [greeting matching](app/Services/HelloWorld.php), [world reply](app/Actions/CreateWorldReply.php).
+
+Livestream history: on [day two at 4:08:10](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=14890s), the Easter egg was announced as merged, and viewers were invited to post “hello world” without tagging anyone. The plan was to surprise Nuno with the moderation queue and automatic replies; viewers were told not to spoil it in chat.
 
 ## Stack and hosting
 
@@ -397,7 +437,7 @@ Sources: [greeting matching](app/Services/HelloWorld.php), [world reply](app/Act
 | Asset tooling | **Vite+ / Vite** builds frontend assets; **Bun** manages frontend dependencies and runs scripts. |
 | PHP dependencies | **Composer** manages backend dependencies. |
 | Testing and quality | **Pest**, **PHPStan / Larastan**, **TypeScript**, **Laravel Pint**, **Rector**, and frontend formatting and linting through **Vite+**. |
-| AI services | **Laravel AI SDK** runs Tom with **DeepSeek Flash** through **OpenCode Zen** and generates and caches semantic search query embeddings through **OpenAI**. The existing OpenAI integration handles batch embeddings, commit relevance checks, and moderation. |
+| AI services | **Laravel AI SDK** runs Tom and public-post translation with **DeepSeek Flash** through **OpenCode Zen** and generates and caches semantic search query embeddings through **OpenAI**. The existing OpenAI integration handles batch embeddings, commit relevance checks, and moderation. |
 
 The repository defaults to database-backed queues, cache, and sessions. File storage is configurable, with local and S3-compatible storage supported. These are repository defaults and supported options, not a claim about every production environment setting.
 
@@ -408,6 +448,10 @@ An [internal semantic search query](README.md#internal-semantic-search) retrieve
 Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [database configuration](config/database.php), [setup requirements](README.md#getting-started), [queue configuration](config/queue.php), [cache configuration](config/cache.php), [session configuration](config/session.php), [storage configuration](config/filesystems.php), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
 
 ## Lore
+
+### Product trailer
+
+Watch the [/dev/null product trailer — “after 48 hours, we are proud to introduce: dev-null.sh”](https://www.youtube.com/watch?v=nyFSZ_AkQ0I) on Nuno Maduro's YouTube channel. For the livestreams where the platform was built and launched, see [Built on a livestream](#built-on-a-livestream).
 
 ### Built on a livestream
 
@@ -427,11 +471,15 @@ Watch the livestreams:
 - [Day one — Building a Social Network in PHP in 48 Hours](https://www.youtube.com/watch?v=6zCNQa3hNm0).
 - [Day two — Building a Social Network in PHP in 48 Hours](https://www.youtube.com/watch?v=nfmVdXZfzUE).
 
+Timestamped livestream references in this knowledge base were located using YouTube's automatic English captions. They point to discussions and spoken reports, not independently verified deployment times. Captions can misrecognize names and technical terms; historical proposals are not evidence of current product behavior.
+
 Sources: [Laravel News's livestream announcement](https://laravel-news.com/social-network-php-48-hours) names Nuno, Brent, and Matthieu and links both days; Pauline confirms her participation as part of the livestream team. The repository's [livestream component](resources/js/components/live-stream.tsx) links day two.
 
 ### Tom
 
 Tom is a fictional profile inspired by **MySpace Tom**. He is everyone's mutual at the beginning: the familiar face who is already there when you arrive.
+
+The idea to make Tom everyone's first friend appears on [day two at 7:29:26](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=26966s), followed by discussion of a robot avatar and a possible future bot. At [8:03:20](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=29000s), the team reports that Tom is deployed and runs the befriending command; at [8:04:14](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=29054s), they describe the resulting notifications and mutual follows. This is the origin of the friendly account, not evidence that his present question-answering behavior existed then.
 
 Originally, Tom had no particular purpose beyond that nod to MySpace. He now has a narrowly scoped bot implementation powered by **DeepSeek Flash through OpenCode Zen**: simple friendly chat, explaining /dev/null's features, origins, stack and lore using this knowledge base, or finding public commits about a topic using semantic search. Greetings, thanks, jokes and small talk get a friendly reply without a search. He is not a general-purpose assistant: unrelated tasks, coding help and professional advice are outside his role. This requires configured provider credentials and a running queue worker; it is not a claim that a particular deployment has enabled him.
 
@@ -447,6 +495,10 @@ Sources: the project team's account of Tom's origin and personality, [agent](app
 
 During the livestream, **Fernando Andrade — [@fernandofreamunde](https://dev-null.sh/@fernandofreamunde)** — brought **pastéis de nata**, Portuguese custard pastries, for the team.
 
+On [day two at 5:47:37](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=20857s), the team reads the message that he is downstairs with the pastries and arranges to meet him. At [5:58:16](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=21496s), they thank Fernando and describe the Portuguese treats he brought. Earlier, at [5:34:42](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=20082s), they had suggested dedicating a feature to the pastries, floating achievement badges. That was an idea, not the implementation of Pastéis mode.
+
+Another possible precursor appears on [day two at 7:18:53](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=26333s): the team discusses a single custom emoji, a daily allowance, and giving multiple rewards, then defers it with “Not today.” The captions garble the proposed icon's name, so its connection to Pastéis mode remains tentative rather than a confirmed origin or implementation date.
+
 The **pastel emoji** and **Pastéis mode** are a tribute to Fernando and that delivery. A real-world act of feeding the team became part of the platform's shared lore.
 
 The singular is **pastel de nata**; the plural is **pastéis de nata**. The mode is called **Pastéis mode**.
@@ -457,3 +509,27 @@ Sources:
 - [Matthieu's reply thanking him for the pastéis de nata](https://dev-null.sh/@mnapoli/commits/01a1453f-ac59-7077-b99e-98d72547ae8f).
 - [Pastéis mode contribution](https://github.com/nunomaduro/dev-null.sh/pull/286).
 - The project team's account confirms that the emoji and mode are a tribute to Fernando.
+
+### The pushup break
+
+The development stream also had an impromptu pushup break. On [day two at 2:16:46](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=8206s), a call for ten pushups interrupts a discussion of image moderation. Counting and laughter follow, then someone asks, “Why are we doing push-ups?” at [2:17:14](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=8234s). It is a livestream moment, not a product feature; the captions do not establish how many pushups anyone completed.
+
+### The codename that stuck
+
+Asked about the name on [day two at 1:16:04](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=4564s), the team explained that “dev null” had started as a codename the day before, but they liked it enough to keep it. Just before publishing the launch announcement at [7:58:23](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=28703s), someone asked whether they should reconsider the domain. The response was “It's too late,” followed by the publishing countdown.
+
+### Peach P
+
+On [day two at 0:28:19](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=1699s), a pronunciation story became a PHP joke: viewers of a video course had apparently heard “Peach P” instead of PHP. The explanation included Peach from Mario and more playful repetitions of the language's name.
+
+### Chat chooses dark mode
+
+On [day one at 5:03:06](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=18186s), the team read out a roughly 60% vote for dark mode, joked that light mode “burns my eyes,” and agreed to switch. This was a livestream appearance choice, not a decision that the product should support only dark mode.
+
+### The disappearing images
+
+On [day one at 8:36:27](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=30987s), the team reported that uploaded images had disappeared after deployment because they were stored on local disk. The explanation came with laughter, “Congratulations everyone,” and a joke about “vibe coding in production.” This records the team's account of a development mishap, not the application's current storage setup.
+
+### The anti-TikTok pull request
+
+On [day two at 6:55:44](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=24944s), the team read a joke contribution promising an endless short-video feed that would “triple the engagement by Thursday.” The twist was a proposed GitHub workflow rejecting pull requests for that kind of feature. They enjoyed the joke and said they did not want to turn the platform into TikTok, but declined the workflow over concerns about token permissions. The conversation does not establish that an automated anti-video rule was installed.
