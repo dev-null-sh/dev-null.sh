@@ -36,6 +36,7 @@ final readonly class NotificationGroupsQuery
                 'actor' => fn (BelongsTo $query): BelongsTo => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
                 'commit',
+                'branch',
             ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable
@@ -45,22 +46,6 @@ final readonly class NotificationGroupsQuery
         $groups = $query->cursorPaginate($perPage)->appends(request()->except('through'));
 
         $this->loadStackedActors($groups->items());
-
-        return $groups;
-    }
-
-    /**
-     * The inbox shows a quote with the commit it quotes, which is always the recipient's own, so only the recipient's
-     * commits load there: a reply that quotes someone else never brings along a commit the recipient may not see.
-     *
-     * @param  CursorPaginator<int, Notification>  $groups
-     * @return CursorPaginator<int, Notification>
-     */
-    public function withQuotedCommits(User $user, CursorPaginator $groups): CursorPaginator
-    {
-        new Collection($groups->items())->loadMissing([
-            'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereBelongsTo($user),
-        ]);
 
         return $groups;
     }

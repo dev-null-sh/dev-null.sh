@@ -9,6 +9,7 @@ use App\Enums\OrgRole;
 use App\Enums\RemoteStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\ConversationFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -86,6 +87,40 @@ final class Conversation extends Model
     public function isMaintainedBy(User $user): bool
     {
         return $this->roleOf($user) === OrgRole::Maintainer;
+    }
+
+    /**
+     * Orgs whose name matches a branch (trim + case-insensitive).
+     *
+     * @return Builder<self>
+     */
+    public static function matchingBranch(string $branch): Builder
+    {
+        return self::query()
+            ->where('kind', ConversationKind::Org)
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower(mb_trim($branch))]);
+    }
+
+    /**
+     * When a Remotes org shares a branch's name, only that org's maintainers (and site admins) may claim or verify it.
+     * If several orgs share the name, the oldest one is the sole authority so a newly created org cannot squat.
+     */
+    public static function userMayVerifyBranch(User $user, string $branch): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        $authoritative = self::matchingBranch($branch)->oldest('created_at')->oldest('id')->first();
+
+        if (! $authoritative instanceof self) {
+            return true;
+        }
+
+        return $authoritative->participants()
+            ->where('user_id', $user->id)
+            ->where('role', OrgRole::Maintainer)
+            ->exists();
     }
 
     /**

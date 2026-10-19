@@ -1,5 +1,5 @@
 import type { User } from '@/types/auth';
-import type { Commit, DeletedCommit } from '@/types/commit';
+import type { Commit } from '@/types/commit';
 
 type BaseNotification = {
     id: string;
@@ -20,33 +20,46 @@ export type NotificationGroup = Notification & {
     unread_count: number;
 };
 
+export type NotificationTag = {
+    id: string;
+    name: string;
+};
+
 export type Notification =
     | (BaseNotification & {
           type: 'followed';
           commit_id: null;
           subject_id: null;
+          branch_id: null;
           commit: null;
+          branch: null;
       })
     | (BaseNotification & {
           type: 'replied' | 'starred';
           commit_id: string;
           subject_id: string;
+          branch_id: null;
           commit: Omit<Commit, 'user'>;
+          branch: null;
       })
     | (BaseNotification & {
-          type: 'quoted';
+          type: 'quoted' | 'mentioned' | 'approved' | 'rejected' | 'branch_activity';
           commit_id: string;
           subject_id: null;
-          commit: Omit<Commit, 'user' | 'quoted_commit'> & {
-              quoted_commit?:
-                  | Pick<Commit, 'id' | 'body_segments' | 'deleted_at'>
-                  | DeletedCommit
-                  | null;
-          };
+          branch_id: null;
+          commit: Omit<Commit, 'user'>;
+          branch: null;
       })
     | (BaseNotification & {
-          type: 'mentioned' | 'approved' | 'rejected';
-          commit_id: string;
+          type:
+              | 'branch_member_added'
+              | 'branch_role_changed'
+              | 'branch_claim_approved'
+              | 'branch_claim_rejected'
+              | 'branch_ownership_transferred';
+          commit_id: null;
           subject_id: null;
-          commit: Omit<Commit, 'user'>;
+          branch_id: string;
+          commit: null;
+          branch: NotificationTag;
       });

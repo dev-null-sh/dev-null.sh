@@ -13,4 +13,10 @@ enum NotificationType: string
     case Rejected = 'rejected';
     case Quoted = 'quoted';
     case Starred = 'starred';
+    case BranchActivity = 'branch_activity';
+    case BranchMemberAdded = 'branch_member_added';
+    case BranchRoleChanged = 'branch_role_changed';
+    case BranchClaimApproved = 'branch_claim_approved';
+    case BranchClaimRejected = 'branch_claim_rejected';
+    case BranchOwnershipTransferred = 'branch_ownership_transferred';
 }

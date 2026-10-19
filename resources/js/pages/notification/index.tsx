@@ -5,10 +5,10 @@ import {
     AtSign,
     Check,
     ChevronDown,
+    Hash,
     MessageSquareReply,
     Quote,
     Star,
-    UserCheck,
     UserPlus,
     X,
 } from 'lucide-react';
@@ -24,21 +24,12 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
+import BranchController from '@/actions/App/Http/Controllers/BranchController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
-import {
-    onFollowHttpException,
-    useIsFollowing,
-} from '@/components/follow-button';
+import { FollowButton } from '@/components/follow-button';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
-import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
@@ -48,19 +39,11 @@ import {
     formatDayLabel,
     formatFullDateTime,
     formatRelativeTime,
-    isDeleted,
     laneColor,
     localDayKey,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type {
-    BodySegment,
-    Commit,
-    CursorPaginated,
-    DeletedCommit,
-    Notification,
-    NotificationGroup,
-} from '@/types';
+import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
 
 type Filters = { type: string };
 
@@ -69,42 +52,42 @@ const filterOptions: {
     label: string;
     empty: string;
 }[] = [
-    {
-        type: 'all',
-        label: 'All',
-        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, and moderation updates for your commits will show up here.',
-    },
-    {
-        type: 'replies',
-        label: 'Replies',
-        empty: 'No replies yet. When someone replies to one of your commits, it shows up here.',
-    },
-    {
-        type: 'quotes',
-        label: 'Quotes',
-        empty: 'No quotes yet. When someone quotes one of your commits, it shows up here.',
-    },
-    {
-        type: 'stars',
-        label: 'Stars',
-        empty: 'No stars yet. When someone stars one of your commits, it shows up here.',
-    },
-    {
-        type: 'mentions',
-        label: 'Mentions',
-        empty: 'No mentions yet. When someone mentions you in a commit, it shows up here.',
-    },
-    {
-        type: 'follows',
-        label: 'Follows',
-        empty: 'No followers yet. When someone follows you, it shows up here.',
-    },
-    {
-        type: 'moderation',
-        label: 'Moderation',
-        empty: 'No moderation updates. Approved and rejected commits show up here.',
-    },
-];
+        {
+            type: 'all',
+            label: 'All',
+            empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, and moderation updates for your commits will show up here.',
+        },
+        {
+            type: 'replies',
+            label: 'Replies',
+            empty: 'No replies yet. When someone replies to one of your commits, it shows up here.',
+        },
+        {
+            type: 'quotes',
+            label: 'Quotes',
+            empty: 'No quotes yet. When someone quotes one of your commits, it shows up here.',
+        },
+        {
+            type: 'stars',
+            label: 'Stars',
+            empty: 'No stars yet. When someone stars one of your commits, it shows up here.',
+        },
+        {
+            type: 'mentions',
+            label: 'Mentions',
+            empty: 'No mentions yet. When someone mentions you in a commit, it shows up here.',
+        },
+        {
+            type: 'follows',
+            label: 'Follows',
+            empty: 'No followers yet. When someone follows you, it shows up here.',
+        },
+        {
+            type: 'moderation',
+            label: 'Moderation',
+            empty: 'No moderation updates. Approved and rejected commits show up here.',
+        },
+    ];
 
 const rail = 'var(--rail)';
 
@@ -287,9 +270,9 @@ export default function Index({
                                         changeFilters(
                                             isActive
                                                 ? enabled.filter(
-                                                      (type) =>
-                                                          type !== option.type,
-                                                  )
+                                                    (type) =>
+                                                        type !== option.type,
+                                                )
                                                 : [...enabled, option.type],
                                         )
                                     }
@@ -338,8 +321,8 @@ export default function Index({
                         {selected.length === 0
                             ? 'All categories are turned off. Enable a category to see notifications.'
                             : allEnabled || selected.length === 1
-                              ? active.empty
-                              : 'No notifications in the selected categories yet.'}
+                                ? active.empty
+                                : 'No notifications in the selected categories yet.'}
                         {!allEnabled && (
                             <button
                                 type="button"
@@ -383,7 +366,7 @@ export default function Index({
                             const startsDay =
                                 !previous ||
                                 localDayKey(previous.created_at) !==
-                                    localDayKey(notification.created_at);
+                                localDayKey(notification.created_at);
 
                             return (
                                 <Fragment key={notification.group_id}>
@@ -623,7 +606,7 @@ function NotificationGroupItem({
                                     {
                                         length: Math.min(
                                             notification.event_count -
-                                                items.length,
+                                            items.length,
                                             3,
                                         ),
                                     },
@@ -677,81 +660,18 @@ function NotificationGroupItem({
     );
 }
 
-/**
- * An icon rather than a full button, since an expanded group of followers repeats it on every row. A group's summary
- * row leaves it out, as it could only follow one of several people back.
- */
 function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
-    const [isFollowing, setIsFollowing] = useIsFollowing(
-        actor,
-        actor.is_followed,
-    );
-    const Icon = isFollowing ? UserCheck : UserPlus;
-
     return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Link
-                    href={
-                        isFollowing
-                            ? UserFollowController.destroy(actor)
-                            : UserFollowController.store(actor)
-                    }
-                    as="button"
-                    only={['auth']}
-                    preserveState
-                    preserveScroll
-                    onHttpException={(response) =>
-                        onFollowHttpException(actor, response)
-                    }
-                    onSuccess={() => {
-                        setIsFollowing(!isFollowing);
-                        router.flushAll();
-                    }}
-                    aria-label={
-                        isFollowing
-                            ? `Unfollow @${actor.username}`
-                            : `Follow @${actor.username}`
-                    }
-                    className={cn(
-                        'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                        { 'text-primary hover:text-primary': isFollowing },
-                    )}
-                >
-                    <Icon aria-hidden className="size-4" />
-                </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-                {isFollowing
-                    ? `Following @${actor.username}`
-                    : `Follow @${actor.username} back`}
-            </TooltipContent>
-        </Tooltip>
+        <FollowButton
+            user={actor}
+            isFollowing={actor.is_followed}
+            size="sm"
+            className="min-w-24 shrink-0"
+            only={['auth']}
+            preserveState
+            onSuccess={() => router.flushAll()}
+        />
     );
-}
-
-function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
-    return (
-        <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
-            <CommitBodyExcerpt segments={segments} className="max-h-[73px]" />
-        </div>
-    );
-}
-
-/**
- * A quote always quotes the recipient's own commit, so it shows like the other commits of theirs here, or as the usual
- * tombstone once deleted.
- */
-function QuotedOwnCommit({
-    commit,
-}: {
-    commit: Pick<Commit, 'body_segments' | 'deleted_at'> | DeletedCommit | null;
-}) {
-    if (commit === null || isDeleted(commit)) {
-        return <QuotedCommit commit={commit} />;
-    }
-
-    return <OwnCommitExcerpt segments={commit.body_segments} />;
 }
 
 function NotificationContent({
@@ -783,10 +703,6 @@ function NotificationContent({
     const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
     const isOwnCommit = notification.type === 'starred' || moderation;
-    const isActorsCommit =
-        notification.type === 'replied' ||
-        notification.type === 'quoted' ||
-        notification.type === 'mentioned';
     const Icon = {
         followed: UserPlus,
         replied: MessageSquareReply,
@@ -795,6 +711,12 @@ function NotificationContent({
         mentioned: AtSign,
         approved: Check,
         rejected: X,
+        branch_activity: Hash,
+        branch_member_added: Hash,
+        branch_role_changed: Hash,
+        branch_claim_approved: Check,
+        branch_claim_rejected: X,
+        branch_ownership_transferred: Hash,
     }[notification.type];
     const icon = (
         <Icon
@@ -806,14 +728,22 @@ function NotificationContent({
             aria-hidden
         />
     );
+    const isBranchMembership =
+        notification.type === 'branch_member_added' ||
+        notification.type === 'branch_role_changed' ||
+        notification.type === 'branch_claim_approved' ||
+        notification.type === 'branch_claim_rejected' ||
+        notification.type === 'branch_ownership_transferred';
     const href =
         notification.type === 'followed' ||
-        (!summary && notification.type === 'starred')
+            (!summary && notification.type === 'starred')
             ? show(actor)
-            : CommitController.show({
-                  user: isOwnCommit ? user : actor,
-                  commit: notification.commit,
-              });
+            : isBranchMembership
+                ? BranchController.show(notification.branch.name)
+                : CommitController.show({
+                    user: isOwnCommit ? user : actor,
+                    commit: notification.commit,
+                });
     const time = (
         <time
             dateTime={notification.created_at}
@@ -831,19 +761,36 @@ function NotificationContent({
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
+        branch_activity: 'committed on a branch you watch',
+        branch_member_added: notification.branch
+            ? `added you to #${notification.branch.name}`
+            : 'added you to a branch',
+        branch_role_changed: notification.branch
+            ? `changed your role on #${notification.branch.name}`
+            : 'changed your role on a branch',
+        branch_claim_approved: notification.branch
+            ? `approved your claim on #${notification.branch.name}`
+            : 'approved your branch claim',
+        branch_claim_rejected: notification.branch
+            ? `rejected your claim on #${notification.branch.name}`
+            : 'rejected your branch claim',
+        branch_ownership_transferred: notification.branch
+            ? `transferred #${notification.branch.name} to you`
+            : 'transferred a branch to you',
     }[notification.type];
     const excerpt =
-        notification.type === 'followed' ? null : isOwnCommit ? (
-            <OwnCommitExcerpt segments={notification.commit.body_segments} />
+        notification.type === 'followed' || isBranchMembership ? null : isOwnCommit ? (
+            <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
+                <CommitBodyExcerpt
+                    segments={notification.commit.body_segments}
+                    className="max-h-[73px]"
+                />
+            </div>
         ) : (
             <CommitBodyExcerpt
                 segments={notification.commit.body_segments}
                 className="mt-1 max-h-40"
             />
-        );
-    const quote = notification.type === 'quoted' &&
-        notification.commit.quoted_commit !== undefined && (
-            <QuotedOwnCommit commit={notification.commit.quoted_commit} />
         );
     const reason = notification.type === 'rejected' && (
         <div className="mt-2 text-sm text-muted-foreground">
@@ -888,7 +835,7 @@ function NotificationContent({
                                 {action}
                             </span>
                             <span className="ml-auto flex shrink-0 items-center gap-2 pl-2">
-                                {notification.type !== 'followed' && icon}
+                                {icon}
                                 {time}
                             </span>
                         </div>
@@ -907,29 +854,15 @@ function NotificationContent({
             <GraphRail
                 lane={rail}
                 previousLane={hasPrevious ? rail : undefined}
-                nodePosition={isActorsCommit ? 'author' : 'top'}
                 node={
-                    isActorsCommit ? (
-                        <span className="flex rounded-full bg-card">
-                            <span
-                                className={cn(
-                                    'flex rounded-full border-2 p-0.5 transition-colors',
-                                    isNew ? 'border-primary' : 'border-rail',
-                                )}
-                            >
-                                <UserAvatar user={actor} className="size-10" />
-                            </span>
-                        </span>
-                    ) : (
-                        <span
-                            className={cn(
-                                'flex size-9 items-center justify-center rounded-full border-2 bg-card transition-colors',
-                                isNew ? 'border-primary' : 'border-rail',
-                            )}
-                        >
-                            {icon}
-                        </span>
-                    )
+                    <span
+                        className={cn(
+                            'flex size-9 items-center justify-center rounded-full border-2 bg-card transition-colors',
+                            isNew ? 'border-primary' : 'border-rail',
+                        )}
+                    >
+                        {icon}
+                    </span>
                 }
             />
             <div className="min-w-0 flex-1 border-b py-3 pr-4">
@@ -939,109 +872,72 @@ function NotificationContent({
                         data-notification-link
                         className="min-w-0 flex-1 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                     >
-                        {isActorsCommit ? (
-                            <>
-                                <div className="flex items-baseline gap-1.5 text-[15px]">
-                                    {isNew && (
-                                        <span className="sr-only">New. </span>
+                        <div className="flex h-10 items-center gap-2">
+                            {moderation ? (
+                                <span
+                                    className={cn(
+                                        'rounded-full px-2 py-0.5 font-mono text-xs',
+                                        notification.type === 'rejected'
+                                            ? 'bg-destructive/10 text-destructive'
+                                            : 'bg-muted text-muted-foreground',
                                     )}
+                                >
+                                    {notification.type}
+                                </span>
+                            ) : (
+                                <span className="flex -space-x-2" aria-hidden>
+                                    {actors.map((stacked, position) => (
+                                        <UserAvatar
+                                            key={stacked.id}
+                                            user={stacked}
+                                            className="relative size-8 ring-2 ring-card"
+                                            style={{
+                                                zIndex:
+                                                    actors.length - position,
+                                            }}
+                                        />
+                                    ))}
+                                    {actorsCount > actors.length && (
+                                        <span className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card">
+                                            +{actorsCount - actors.length}
+                                        </span>
+                                    )}
+                                </span>
+                            )}
+                            {time}
+                        </div>
+                        <p className="mt-1 text-[15px] wrap-anywhere">
+                            {isNew && <span className="sr-only">New. </span>}
+                            {moderation ? (
+                                `${action}.`
+                            ) : (
+                                <>
                                     <span
-                                        className="truncate font-semibold"
+                                        className="inline-block max-w-full truncate align-bottom font-semibold"
                                         title={actor.name}
                                     >
                                         {actor.name}
-                                    </span>
-                                    <span
-                                        className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
-                                        title={`@${actor.username}`}
-                                    >
-                                        @{actor.username}
-                                    </span>
-                                    {time}
-                                </div>
-                                <p className="text-sm text-muted-foreground first-letter:uppercase">
-                                    {action}
-                                </p>
-                            </>
-                        ) : (
-                            <>
-                                <div className="flex h-10 items-center gap-2">
-                                    {moderation ? (
-                                        <span
-                                            className={cn(
-                                                'rounded-full px-2 py-0.5 font-mono text-xs',
-                                                notification.type === 'rejected'
-                                                    ? 'bg-destructive/10 text-destructive'
-                                                    : 'bg-muted text-muted-foreground',
-                                            )}
-                                        >
-                                            {notification.type}
-                                        </span>
-                                    ) : (
-                                        <span
-                                            className="flex -space-x-2"
-                                            aria-hidden
-                                        >
-                                            {actors.map((stacked, position) => (
-                                                <UserAvatar
-                                                    key={stacked.id}
-                                                    user={stacked}
-                                                    className="relative size-8 ring-2 ring-card"
-                                                    style={{
-                                                        zIndex:
-                                                            actors.length -
-                                                            position,
-                                                    }}
-                                                />
-                                            ))}
-                                            {actorsCount > actors.length && (
-                                                <span className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card">
-                                                    +
-                                                    {actorsCount -
-                                                        actors.length}
-                                                </span>
-                                            )}
-                                        </span>
-                                    )}
-                                    {time}
-                                </div>
-                                <p className="mt-1 text-[15px] wrap-anywhere">
-                                    {isNew && (
-                                        <span className="sr-only">New. </span>
-                                    )}
-                                    {moderation ? (
-                                        `${action}.`
+                                    </span>{' '}
+                                    {otherActors > 0 ? (
+                                        `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
                                     ) : (
                                         <>
                                             <span
-                                                className="inline-block max-w-full truncate align-bottom font-semibold"
-                                                title={actor.name}
+                                                className="inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
+                                                title={`@${actor.username}`}
                                             >
-                                                {actor.name}
+                                                @{actor.username}
                                             </span>{' '}
-                                            {otherActors > 0 ? (
-                                                `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
-                                            ) : (
-                                                <>
-                                                    <span
-                                                        className="inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
-                                                        title={`@${actor.username}`}
-                                                    >
-                                                        @{actor.username}
-                                                    </span>{' '}
-                                                </>
-                                            )}
-                                            {action}
                                         </>
                                     )}
-                                </p>
-                            </>
-                        )}
+                                    {action}
+                                </>
+                            )}
+                        </p>
                         {excerpt}
-                        {quote}
                         {reason}
                     </Link>
-                    {notification.type === 'followed' && actorsCount === 1 && (
+                    {notification.type === 'followed' && (
                         <span className="flex h-10 items-center">
                             <FollowBackButton actor={actor} />
                         </span>

@@ -11,6 +11,9 @@ use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitContinuationController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\BranchController;
+use App\Http\Controllers\BranchSuggestionController;
+use App\Http\Controllers\BranchWatchController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitLinkPreviewController;
 use App\Http\Controllers\CommitOpenGraphImageController;
@@ -367,6 +370,16 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:people')
         ->name('mention-suggestion.index');
 
+    // Branch watch and suggestions...
+    Route::put('branches/{branch}/watch', [BranchWatchController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-watch.store');
+    Route::delete('branches/{branch}/watch', [BranchWatchController::class, 'destroy'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-watch.destroy');
+    Route::get('search/branches', [BranchSuggestionController::class, 'index'])->name('branch-suggestion.index');
+
+
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
@@ -431,3 +444,8 @@ Route::middleware('auth')->group(function (): void {
 });
 
 Route::fallback(fn () => abort(404));
+
+// Branch feed...
+Route::get('branches/{branch}', [BranchController::class, 'show'])
+    ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+    ->name('branch.show');

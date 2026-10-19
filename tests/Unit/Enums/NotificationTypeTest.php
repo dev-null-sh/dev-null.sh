@@ -13,5 +13,11 @@ it('has the types of a notification', function (): void {
         'Rejected' => 'rejected',
         'Quoted' => 'quoted',
         'Starred' => 'starred',
+        'BranchActivity' => 'branch_activity',
+        'BranchMemberAdded' => 'branch_member_added',
+        'BranchRoleChanged' => 'branch_role_changed',
+        'BranchClaimApproved' => 'branch_claim_approved',
+        'BranchClaimRejected' => 'branch_claim_rejected',
+        'BranchOwnershipTransferred' => 'branch_ownership_transferred',
     ]);
 });
