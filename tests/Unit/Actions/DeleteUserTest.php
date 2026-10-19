@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
+use App\Enums\RepoRole;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Message;
@@ -11,6 +12,8 @@ use App\Models\MessageImage;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
+use App\Models\Repo;
+use App\Models\RepoContributor;
 use App\Models\User;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +27,31 @@ it('may delete a user', function (): void {
     $action->handle($user);
 
     expect($user->exists)->toBeFalse();
+});
+
+it('hands the repos a deleted user maintained to their longest-standing contributor', function (): void {
+    $repo = Repo::factory()->create();
+    $maintainer = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
+    $first = RepoContributor::factory()->for($repo)->create()->user;
+    $second = RepoContributor::factory()->for($repo)->create()->user;
+
+    resolve(DeleteUser::class)->handle($maintainer);
+
+    expect($repo->roleOf($first))->toBe(RepoRole::Maintainer)
+        ->and($repo->roleOf($second))->toBe(RepoRole::Contributor)
+        ->and($repo->contributors()->count())->toBe(2);
+});
+
+it('deletes the repos nobody is left in once a user is deleted', function (): void {
+    $repo = Repo::factory()->create();
+    $user = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
+    $other = RepoContributor::factory()->for(Repo::factory())->maintainer()->create()->repo;
+    RepoContributor::factory()->for($other)->create(['user_id' => $user->id]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($repo->fresh())->toBeNull()
+        ->and($other->fresh())->not->toBeNull();
 });
 
 it('erases the commits of a deleted user along with the replies under them', function (): void {

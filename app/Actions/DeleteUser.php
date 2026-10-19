@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteUser
 {
-    public function __construct(private UpdateCommitHotScores $updateCommitHotScores)
+    public function __construct(private UpdateCommitHotScores $updateCommitHotScores, private DeleteRepoContributor $deleteRepoContributor)
     {
         //
     }
@@ -27,6 +27,7 @@ final readonly class DeleteUser
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author, so the replies under them keep their thread.
      * The database cascades the image rows of erased commits and the user's scheduled commits, but the image files are erased here.
+     * The user leaves their repos first, so each keeps a maintainer, or is deleted when nobody is left in it.
      */
     public function handle(User $user): void
     {
@@ -34,6 +35,10 @@ final readonly class DeleteUser
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
             $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user)];
+
+            foreach ($user->repos()->get() as $repo) {
+                $this->deleteRepoContributor->handle($repo, $user);
+            }
 
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
