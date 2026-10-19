@@ -3,10 +3,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
+import type { ReactElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
-import Index from '../../resources/js/pages/notification/index';
-import type { Commit, NotificationGroup, User } from '../../resources/js/types';
+import Index, {
+    NotificationContent,
+} from '../../resources/js/pages/notification/index';
+import type {
+    Commit,
+    Notification,
+    NotificationGroup,
+    User,
+} from '../../resources/js/types';
 
 const actor = {
     id: 'actor',
@@ -42,7 +50,7 @@ const notification = {
     } as Omit<Commit, 'user'>,
 } as NotificationGroup;
 
-async function render(notifications: NotificationGroup[]): Promise<string> {
+async function renderPage(page: () => ReactElement): Promise<string> {
     const result = await createInertiaApp({
         page: {
             component: 'notification/index',
@@ -61,17 +69,7 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
             rememberedState: {},
             flash: {},
         },
-        resolve: () => () => (
-            <Index
-                notifications={{
-                    data: notifications,
-                    next_cursor: null,
-                    prev_cursor: null,
-                }}
-                filters={{ type: 'all' }}
-                readAt="2026-10-16T12:00:00.000000Z"
-            />
-        ),
+        resolve: () => page,
         render: renderToString,
         setup: ({ App, props }) => (
             <TooltipProvider>
@@ -82,8 +80,40 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
 
     assert.ok(result);
 
-    return result.body.slice(result.body.indexOf('<article'));
+    return result.body;
 }
+
+async function render(notifications: NotificationGroup[]): Promise<string> {
+    const body = await renderPage(() => (
+        <Index
+            notifications={{
+                data: notifications,
+                next_cursor: null,
+                prev_cursor: null,
+            }}
+            filters={{ type: 'all' }}
+            readAt="2026-10-16T12:00:00.000000Z"
+        />
+    ));
+
+    return body.slice(body.indexOf('<article'));
+}
+
+const renderItem = async (item: Notification): Promise<string> =>
+    (
+        await renderPage(() => <NotificationContent notification={item} />)
+    ).replaceAll('<!-- -->', '');
+
+const previewedAvatars = (body: string): number =>
+    body.split('<span class="flex shrink-0 self-start"><span class="flex">')
+        .length - 1;
+
+const previewedNames = (body: string): number =>
+    body.match(
+        /<span class="relative z-10[^"]*">(?:<a|<span)[^>]*title="Matthieu Napoli"/g,
+    )?.length ?? 0;
+
+const other = { ...actor, id: 'other', name: 'Other', username: 'other' };
 
 void test('renders a code block highlighted in a notification', async () => {
     const body = await render([notification]);
@@ -168,3 +198,48 @@ void test('links the actor to their profile apart from the commit link', async (
     assert.doesNotMatch(body, /<a\b(?:(?!<\/a>).)*<a\b/s);
     assert.match(body, /starred your commit<\/a>/);
 });
+
+void test('previews the person of a single reply from the avatar and the name', async () => {
+    const body = await render([notification]);
+
+    assert.equal(previewedAvatars(body), 1);
+    assert.equal(previewedNames(body), 1);
+});
+
+void test('previews the person of a single star from the avatar and the name', async () => {
+    const body = await render([
+        { ...notification, type: 'starred' } as NotificationGroup,
+    ]);
+
+    assert.equal(previewedAvatars(body), 1);
+    assert.equal(previewedNames(body), 1);
+});
+
+for (const type of ['replied', 'starred']) {
+    void test(`leaves the header of a group of ${type} notifications without previews`, async () => {
+        const body = await render([
+            {
+                ...notification,
+                type,
+                event_count: 2,
+                actors: [actor, other],
+                actors_count: 2,
+            } as NotificationGroup,
+        ]);
+
+        assert.equal(previewedAvatars(body), 0);
+        assert.equal(previewedNames(body), 0);
+    });
+}
+
+for (const type of ['replied', 'starred']) {
+    void test(`previews the person of an expanded ${type} notification`, async () => {
+        const body = await renderItem({
+            ...notification,
+            type,
+        } as Notification);
+
+        assert.equal(previewedAvatars(body), 1);
+        assert.equal(previewedNames(body), 1);
+    });
+}

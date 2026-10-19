@@ -106,10 +106,7 @@ void test('renders quote notifications with their label and quoting commit desti
     assert.match(html, /quoted your commit/);
     assert.match(html, /href="\/@quoter\/commits\/quote-commit"/);
     assert.match(html, /My quote commentary/);
-    assert.match(
-        html,
-        /<button[^>]*aria-pressed="true"[^>]*>Quotes<\/button>/,
-    );
+    assert.match(html, /<button[^>]*aria-pressed="true"[^>]*>Quotes<\/button>/);
 });
 
 void test('shows the quoted commit under a quote, or a tombstone once it is deleted', async () => {
@@ -162,7 +159,7 @@ void test('renders a follow-back control outside the follower profile link', asy
 
     assert.match(
         html,
-        /Quoter<\/a>.*@quoter<\/a> <a\b[^>]*data-notification-link[^>]*>followed you<\/a>/s,
+        /Quoter<\/a>.*@quoter<\/a>(?:<\/span>)? <a\b[^>]*data-notification-link[^>]*>followed you<\/a>/s,
     );
     assert.match(html, /<button[^>]*aria-label="Follow @quoter"/);
     assert.doesNotMatch(html, /<a\b[^>]*>(?:(?!<\/a>).)*<button\b/s);
@@ -235,7 +232,6 @@ void test('renders highlighted notification blocks without a nested copy button'
     );
     assert.doesNotMatch(html, /Copy code/);
 });
-
 
 void test('renders all notification categories as enabled toggle buttons by default', async () => {
     const body = await renderInbox([]);
