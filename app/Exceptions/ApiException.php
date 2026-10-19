@@ -52,6 +52,22 @@ final class ApiException extends HttpException
         return new self(ApiErrorCode::InvalidGrant, __('This sign-in has expired or was already used. Sign in again in the app.'));
     }
 
+    /**
+     * The user gave every pastel they get today. The web's own words, which say when they come back.
+     */
+    public static function pasteisExhausted(): self
+    {
+        return new self(ApiErrorCode::PasteisExhausted, __('you ran out of pastéis. wait until tomorrow.'));
+    }
+
+    /**
+     * The profile could not be mirrored from GitHub again, as the web says it.
+     */
+    public static function gitHubSyncFailed(): self
+    {
+        return new self(ApiErrorCode::GitHubSyncFailed, __('Could not sync from GitHub. Try again in a minute.'));
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([

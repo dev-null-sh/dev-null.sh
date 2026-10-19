@@ -17,7 +17,9 @@ enum ApiErrorCode: string
     case UserUnavailable = 'user_unavailable';
     case OwnCommit = 'own_commit';
     case CommitUnavailable = 'commit_unavailable';
+    case PasteisExhausted = 'pasteis_exhausted';
     case RateLimited = 'rate_limited';
+    case GitHubSyncFailed = 'github_sync_failed';
 
     public function status(): int
     {
@@ -26,7 +28,9 @@ enum ApiErrorCode: string
             self::InvalidSignature, self::DeviceNotApproved => 401,
             self::UserBlocked, self::UserUnavailable, self::OwnCommit => 403,
             self::CommitUnavailable => 404,
+            self::PasteisExhausted => 422,
             self::RateLimited => 429,
+            self::GitHubSyncFailed => 503,
         };
     }
 }

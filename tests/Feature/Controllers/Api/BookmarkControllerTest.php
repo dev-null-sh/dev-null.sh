@@ -206,6 +206,7 @@ it('lists the saved commits of the user, last saved first', function (): void {
         'is_pinned' => false,
         'starred' => true,
         'is_saved' => true,
+        'pasteis_count' => 0,
         'deleted_at' => null,
         'parent' => null,
         'quoted_commit_id' => null,
