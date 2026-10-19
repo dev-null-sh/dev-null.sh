@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import AppearanceTabs from '@/components/appearance-tabs';
 import Heading from '@/components/heading';
+import LaneDimmingTabs from '@/components/lane-dimming-tabs';
 import NavigationTabs from '@/components/navigation-tabs';
 import WhoToFollowTabs from '@/components/who-to-follow-tabs';
 import AppLayout from '@/layouts/app-layout';
@@ -25,6 +26,14 @@ export default function Update() {
                     description="The full menu with labels, or only its icons, which leaves more room for your log."
                 />
                 <NavigationTabs />
+            </section>
+
+            <section className="border-t px-4 py-6 sm:px-6">
+                <Heading
+                    title="Lane dimming"
+                    description="Fade the other commits while your pointer rests on one, or on its author, so their lane stands out."
+                />
+                <LaneDimmingTabs />
             </section>
 
             <section className="border-t px-4 py-6 sm:px-6">
