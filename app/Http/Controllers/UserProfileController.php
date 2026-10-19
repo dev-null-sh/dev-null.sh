@@ -16,6 +16,7 @@ final readonly class UserProfileController
     public function edit(#[CurrentUser] User $user): Response
     {
         return Inertia::render('user-profile/edit', [
+            'repositoryMirrors' => \App\Models\RepositoryMirror::query()->where('user_id', $user->id)->orderBy('repository')->get()->map(fn (\App\Models\RepositoryMirror $mirror): array => $mirror->summary()),
             'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),
             'githubSyncedAt' => $user->github_synced_at?->toIso8601String(),

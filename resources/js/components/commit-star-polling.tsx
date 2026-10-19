@@ -11,7 +11,10 @@ import { index } from '@/actions/App/Http/Controllers/CommitStarCountController'
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import type { Commit } from '@/types';
 
-type StarState = Pick<Commit, 'id' | 'stars_count' | 'starred'>;
+type StarState = Pick<
+    Commit,
+    'id' | 'stars_count' | 'starred' | 'star_flavor' | 'star_flavors'
+>;
 
 type Subscription = {
     id: string;

@@ -9,6 +9,10 @@ import Heading from '@/components/heading';
 import LanePicker from '@/components/lane-picker';
 import { PasteisModeSetting } from '@/components/pasteis-mode-setting';
 import { RemotesSetting } from '@/components/remotes-setting';
+import {
+    RepositoryMirrorSetting,
+    type RepositoryMirrorSummary,
+} from '@/components/repository-mirror-setting';
 import TimezonePicker from '@/components/timezone-picker';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -21,12 +25,14 @@ import { show } from '@/routes/user';
 import type { Lane } from '@/types';
 
 export default function Edit({
+    repositoryMirrors,
     preferredLane,
     automaticLane,
     githubSyncedAt,
     activityGraphUrl,
     profileUrl,
 }: {
+    repositoryMirrors: RepositoryMirrorSummary[];
     preferredLane: Lane | null;
     automaticLane: number;
     githubSyncedAt: string | null;
@@ -112,6 +118,8 @@ export default function Edit({
             <PasteisModeSetting />
 
             <RemotesSetting />
+
+            <RepositoryMirrorSetting mirrors={repositoryMirrors} />
 
             <ActivityGraphEmbed
                 activityGraphUrl={activityGraphUrl}

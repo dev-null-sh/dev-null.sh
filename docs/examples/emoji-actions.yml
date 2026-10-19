@@ -1,0 +1,51 @@
+name: React to dev-null
+
+on:
+  push:
+    paths:
+      - 'dev-null/**/reactions/**/*.json'
+
+permissions:
+  contents: read
+
+jobs:
+  reaction:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Find new rocket reactions
+        id: reactions
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          # Replace with your immutable numeric GitHub account ID.
+          ACTOR_ID: 'YOUR_GITHUB_NUMERIC_ID'
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          before, after = os.environ['BEFORE'], os.environ['AFTER']
+          command = (['git', 'diff-tree', '--root', '--no-commit-id', '-r', '--name-only', '--diff-filter=A', '-z', after]
+                     if set(before) == {'0'} else
+                     ['git', 'diff', '--name-only', '--diff-filter=A', '-z', before, after])
+          paths = subprocess.check_output(command + ['--', 'dev-null/']).decode().split('\0')
+          matched = []
+          for name in paths:
+              path = pathlib.Path(name)
+              if not name or not path.is_file() or path.is_symlink() or path.suffix != '.json':
+                  continue
+              event = json.loads(path.read_text())
+              if (event.get('schema_version') == 1
+                  and event.get('type') == 'reaction.saved'
+                  and event.get('actor', {}).get('github_id') == os.environ['ACTOR_ID']
+                  and event.get('reaction', {}).get('emoji') == '🚀'):
+                  matched.append(event['event_id'])
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('matched=' + ('true' if matched else 'false') + '\n')
+          print(json.dumps({'rocket_reaction_event_ids': matched}))
+          PY
+      - name: Start your automation
+        if: steps.reactions.outputs.matched == 'true'
+        run: echo 'A new 🚀 reaction arrived. Replace this step with your automation.'

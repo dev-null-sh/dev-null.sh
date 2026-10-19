@@ -39,6 +39,7 @@ final readonly class DeleteCommit
             Notification::query()->where('type', NotificationType::Quoted)->whereIn('commit_id', $commit->quotes()->select('id'))->delete();
 
             $commit->delete();
+            resolve(\App\Services\RepositoryMirrors::class)->commit($commit, removed: true);
 
             Cache::forget(resolve(CommitTranslations::class)->key($commit));
 

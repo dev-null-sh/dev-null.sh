@@ -67,6 +67,10 @@ final readonly class UpdateCommitStatuses
                 ])->values()->all());
             }
 
+            foreach ($commits as $commit) {
+                $commit->forceFill(['status' => $status]);
+                resolve(\App\Services\RepositoryMirrors::class)->commit($commit, removed: $status === CommitStatus::Rejected);
+            }
             $this->updateCommitHotScores->handle($commits->modelKeys());
 
             if ($status === CommitStatus::Approved) {

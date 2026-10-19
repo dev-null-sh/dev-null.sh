@@ -21,6 +21,7 @@ final readonly class CreateCommitRestoration
 
             if ($commit->isRestorable()) {
                 $commit->restore();
+                resolve(\App\Services\RepositoryMirrors::class)->commit($commit);
                 $this->updateCommitHotScores->handle([$commit->threadRootId()]);
             }
 

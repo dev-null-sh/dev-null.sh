@@ -39,7 +39,10 @@ final readonly class EmojiShortcodes
      */
     public function emoji(): array
     {
-        return array_values(array_unique($this->map));
+        /** @var array<string, string> $picker */
+        $picker = File::json(resource_path('js/lib/emoji-picker-shortcodes.json'));
+
+        return array_values(array_unique([...$this->map, ...$picker]));
     }
 
     /**

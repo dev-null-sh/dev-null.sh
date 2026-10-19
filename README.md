@@ -255,3 +255,7 @@ Scheduled imports currently cover `KNOWLEDGE_BASE.md` only. If the knowledge bas
 ## License
 
 Licensed under MIT, as declared in `composer.json`. Based on [Nuno Maduro's Laravel starter kit](https://github.com/nunomaduro/laravel-starter-kit-inertia-react).
+
+### Emoji visibility and repository mirroring
+
+Star with any Unicode emoji, then choose Public, Repository only, or Public + repository. Connect a private or public destination in Settings and let your own GitHub Actions react to mirrored commits and emoji records. See [setup, privacy, JSON format, Actions example, and local demo](docs/repository-mirrors.md).

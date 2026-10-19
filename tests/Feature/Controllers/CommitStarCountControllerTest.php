@@ -19,8 +19,8 @@ it('returns only the requested star counts and the viewers starred state', funct
     ]))->assertOk()->assertHeader('Cache-Control', 'no-store, private');
 
     expect($response->json('commits'))->toEqualCanonicalizing([
-        ['id' => $starred->id, 'stars_count' => 2, 'starred' => true],
-        ['id' => $plain->id, 'stars_count' => 0, 'starred' => false],
+        ['id' => $starred->id, 'stars_count' => 2, 'starred' => true, 'star_flavor' => null, 'star_flavors' => []],
+        ['id' => $plain->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => []],
     ]);
 });
 
@@ -55,8 +55,8 @@ it('omits hidden deleted and missing commits while including the authors own una
     ]))->assertOk();
 
     expect($response->json('commits'))->toEqualCanonicalizing([
-        ['id' => $pending->id, 'stars_count' => 0, 'starred' => false],
-        ['id' => $rejected->id, 'stars_count' => 0, 'starred' => false],
+        ['id' => $pending->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => []],
+        ['id' => $rejected->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => []],
     ]);
 });
 
@@ -89,8 +89,8 @@ it('refreshes directly visible muted commits and the authors own counts', functi
     ]))->assertOk();
 
     expect($response->json('commits'))->toEqualCanonicalizing([
-        ['id' => $own->id, 'stars_count' => 1, 'starred' => false],
-        ['id' => $other->id, 'stars_count' => 0, 'starred' => false],
+        ['id' => $own->id, 'stars_count' => 1, 'starred' => false, 'star_flavor' => null, 'star_flavors' => []],
+        ['id' => $other->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => []],
     ]);
 });
 
@@ -131,15 +131,15 @@ it('polls an own reply after another viewer stars and unstars it through JSON', 
     $this->actingAs($viewer)->postJson(route('commit-star.store', $reply))
         ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []]);
     $this->getJson($url)->assertExactJson(['commits' => [
-        ['id' => $reply->id, 'starred' => true, 'stars_count' => 1],
+        ['id' => $reply->id, 'starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []],
     ]]);
     $this->actingAs($author)->getJson($url)->assertExactJson(['commits' => [
-        ['id' => $reply->id, 'starred' => false, 'stars_count' => 1],
+        ['id' => $reply->id, 'starred' => false, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []],
     ]]);
 
     $this->actingAs($viewer)->deleteJson(route('commit-star.destroy', $reply))
         ->assertOk()->assertExactJson(['starred' => false, 'stars_count' => 0, 'star_flavor' => null, 'star_flavors' => []]);
     $this->actingAs($author)->getJson($url)->assertExactJson(['commits' => [
-        ['id' => $reply->id, 'starred' => false, 'stars_count' => 0],
+        ['id' => $reply->id, 'starred' => false, 'stars_count' => 0, 'star_flavor' => null, 'star_flavors' => []],
     ]]);
 });

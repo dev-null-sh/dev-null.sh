@@ -1,7 +1,12 @@
 import { mapTypedProse } from '@/lib/code';
+import pickerShortcodes from '@/lib/emoji-picker-shortcodes.json?raw';
 import emojiShortcodes from '@/lib/emoji-shortcodes.json?raw';
 
 const shortcodeEmoji = JSON.parse(emojiShortcodes) as Record<string, string>;
+const pickerEmoji: Record<string, string> = {
+    ...shortcodeEmoji,
+    ...JSON.parse(pickerShortcodes),
+};
 
 const escapeRegExp = (name: string): string =>
     name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -41,7 +46,7 @@ export type EmojiSuggestion = {
 
 const emojiNames = new Map<string, string>();
 
-Object.entries(shortcodeEmoji).forEach(([name, emoji]) => {
+Object.entries(pickerEmoji).forEach(([name, emoji]) => {
     if (!emojiNames.has(emoji)) {
         emojiNames.set(emoji, name);
     }
@@ -73,7 +78,10 @@ export function searchEmoji(query: string, limit = 8): EmojiSuggestion[] {
     const partial = query.toLowerCase();
 
     return Object.keys(shortcodeEmoji)
-        .filter((name) => name.includes(partial))
+        .filter(
+            (name) =>
+                name.includes(partial) || shortcodeEmoji[name] === partial,
+        )
         .map((name) => ({ name, rank: matchRank(name, partial) }))
         .sort(
             (left, right) =>
@@ -100,10 +108,12 @@ export function searchEmojiByUse(
         .replace(/^:+|:+$/g, '');
     const best = new Map<string, { name: string; rank: number }>();
 
-    Object.keys(shortcodeEmoji)
-        .filter((name) => name.includes(partial))
+    Object.keys(pickerEmoji)
+        .filter(
+            (name) => name.includes(partial) || pickerEmoji[name] === partial,
+        )
         .forEach((name) => {
-            const emoji = shortcodeEmoji[name];
+            const emoji = pickerEmoji[name];
             const rank = matchRank(name, partial);
             const current = best.get(emoji);
 

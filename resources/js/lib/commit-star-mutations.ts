@@ -1,6 +1,9 @@
 import type { Commit } from '@/types';
 
-type StarState = Pick<Commit, 'id' | 'starred' | 'stars_count'>;
+type StarState = Pick<
+    Commit,
+    'id' | 'starred' | 'stars_count' | 'star_flavor' | 'star_flavors'
+>;
 
 export function createCommitStarMutations() {
     const states = new Map<string, { version: number; pending: boolean }>();

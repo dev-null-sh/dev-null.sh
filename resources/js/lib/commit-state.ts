@@ -5,6 +5,8 @@ import { refreshSharedState } from '@/hooks/use-shared-state';
 const fields = [
     'starred',
     'stars_count',
+    'star_flavor',
+    'star_flavors_json',
     'pasteis_count',
     'pasteis_received',
     'is_saved',
@@ -40,6 +42,12 @@ function collect(value: unknown, fresh: Map<string, SharedValue>): void {
     const record = value as Record<string, unknown>;
 
     if (typeof record.id === 'string') {
+        if (Array.isArray(record.star_flavors)) {
+            fresh.set(
+                commitStateKey('star_flavors_json', record.id),
+                JSON.stringify(record.star_flavors),
+            );
+        }
         for (const field of fields) {
             const fieldValue = record[field];
 
@@ -47,7 +55,8 @@ function collect(value: unknown, fresh: Map<string, SharedValue>): void {
                 typeof fieldValue === 'boolean' ||
                 typeof fieldValue === 'number' ||
                 typeof fieldValue === 'string' ||
-                (field === 'continuation_id' && fieldValue === null)
+                ((field === 'continuation_id' || field === 'star_flavor') &&
+                    fieldValue === null)
             ) {
                 fresh.set(commitStateKey(field, record.id), fieldValue);
             }

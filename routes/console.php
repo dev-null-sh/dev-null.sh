@@ -22,3 +22,5 @@ Schedule::call(function (): void {
             ->delete();
     }
 })->name('prune-commit-translations')->hourly();
+
+Schedule::command('mirrors:deliver')->everyMinute()->withoutOverlapping(10);

@@ -268,14 +268,14 @@ final class CommitBuilder extends Builder
                     ->fromSub($stars->newPivotStatement()
                         ->selectRaw('flavor, count(*) as given')
                         ->whereColumn($commitColumn, $this->qualifyColumn('id'))
-                        ->where('flavor', '!=', StarFlavor::Star->value)
+                        ->whereNotIn('flavor', [StarFlavor::Star->value, '⭐'])
                         ->groupBy('flavor')
                         ->orderByDesc('given')
                         ->orderBy('flavor')
                         ->limit(2), 'flavors')
                     ->selectRaw("coalesce(json_agg(flavor order by given desc, flavor), '[]')"),
             ])
-            ->withCasts(['starred' => 'bool', 'star_flavor' => StarFlavor::class, 'star_flavors' => 'array']);
+            ->withCasts(['starred' => 'bool', 'star_flavor' => 'string', 'star_flavors' => 'array']);
     }
 
     /**

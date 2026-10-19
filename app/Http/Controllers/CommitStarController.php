@@ -17,7 +17,9 @@ final readonly class CommitStarController
 {
     public function store(CreateCommitStarRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitStar $action): JsonResponse
     {
-        $action->handle($user, $commit, $request->flavor());
+        /** @var list<string> $repositories */
+        $repositories = $request->validated('repositories', []);
+        $action->handle($user, $commit, $request->flavor(), $request->boolean('public', true), $repositories);
 
         return response()->json(Commit::query()->withStarsFor($user)->findOrFail($commit->id)->only(['starred', 'stars_count', 'star_flavor', 'star_flavors']));
     }

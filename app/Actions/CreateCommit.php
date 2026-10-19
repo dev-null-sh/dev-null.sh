@@ -101,6 +101,8 @@ final readonly class CreateCommit
                 dispatch(new EmbedCommit($commit))->afterCommit();
             }
 
+            resolve(\App\Services\RepositoryMirrors::class)->commit($commit);
+
             return $commit;
         });
     }

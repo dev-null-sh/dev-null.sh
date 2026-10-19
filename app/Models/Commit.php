@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\CommitStatus;
-use App\Enums\StarFlavor;
 use App\Queries\CommitBuilder;
 use App\Services\CommitBodies;
 use Carbon\CarbonInterface;
@@ -43,7 +42,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int $stars_count
  * @property-read int $pasteis_count
  * @property-read bool $starred
- * @property-read StarFlavor|null $star_flavor
+ * @property-read string|null $star_flavor
  * @property-read list<string> $star_flavors
  * @property-read User|null $user
  * @property-read Collection<int, User> $stars

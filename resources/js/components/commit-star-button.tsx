@@ -2,8 +2,13 @@ import { router, useHttp, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Ref } from 'react';
+import { toast } from 'sonner';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import {
+    CommitReactionPicker,
+    type ReactionDestinations,
+} from '@/components/commit-reaction-picker';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
@@ -12,7 +17,7 @@ import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
 import { formatCount } from '@/lib/numbers';
 import type { StarFlavor } from '@/lib/star-flavors';
-import { flavorEmoji, starFlavors } from '@/lib/star-flavors';
+import { flavorEmoji } from '@/lib/star-flavors';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -47,20 +52,24 @@ export function CommitStarButton({
         commitStateKey('stars_count', commit.id),
         commit.stars_count,
     );
-    const [flavor, setFlavor] = useState(commit.star_flavor ?? null);
-    const [flavors, setFlavors] = useState(commit.star_flavors ?? []);
-    const [isPicking, setIsPicking] = useState(false);
-    const hold = useRef<number>(undefined);
-    const wasHeld = useRef(false);
+    const [flavor, setFlavor] = useSharedState(
+        commitStateKey('star_flavor', commit.id),
+        commit.star_flavor ?? null,
+    );
+    const [flavorsJson, setFlavorsJson] = useSharedState(
+        commitStateKey('star_flavors_json', commit.id),
+        JSON.stringify(commit.star_flavors ?? []),
+    );
+    const flavors = JSON.parse(flavorsJson) as string[];
     const request = useHttp<
-        { flavor?: StarFlavor },
+        { flavor?: StarFlavor; public: boolean; repositories: string[] },
         {
             starred: boolean;
             stars_count: number;
             star_flavor: StarFlavor | null;
             star_flavors: StarFlavor[];
         }
-    >({});
+    >({ public: true, repositories: [] });
     const [isAnimating, setIsAnimating] = useState(false);
     const [localMutations] = useState(createCommitStarMutations);
     const polling = useContext(CommitStarPollingContext);
@@ -83,7 +92,7 @@ export function CommitStarButton({
             prepare: () =>
                 mutations.prepare(commit.id, (stars) => {
                     refreshSharedState(
-                        new Map<string, boolean | number>([
+                        new Map<string, boolean | number | string | null>([
                             [
                                 commitStateKey('starred', commit.id),
                                 stars.starred,
@@ -91,6 +100,14 @@ export function CommitStarButton({
                             [
                                 commitStateKey('stars_count', commit.id),
                                 stars.stars_count,
+                            ],
+                            [
+                                commitStateKey('star_flavor', commit.id),
+                                stars.star_flavor ?? null,
+                            ],
+                            [
+                                commitStateKey('star_flavors_json', commit.id),
+                                JSON.stringify(stars.star_flavors ?? []),
                             ],
                         ]),
                     );
@@ -113,20 +130,11 @@ export function CommitStarButton({
         return null;
     }
 
-    /**
-     * Holding the button, a pointer resting on it or a finger pressing it, opens the flavor picker.
-     */
-    const startHold = (held: boolean) => {
-        window.clearTimeout(hold.current);
-        hold.current = window.setTimeout(() => {
-            wasHeld.current = held;
-            setIsPicking(true);
-        }, 450);
-    };
-
-    const star = async (next: boolean, picked?: StarFlavor) => {
-        setIsPicking(false);
-
+    const star = async (
+        next: boolean,
+        picked?: StarFlavor,
+        destinations: ReactionDestinations = { public: true, repositories: [] },
+    ) => {
         if (auth.user === null) {
             signIn();
 
@@ -144,16 +152,20 @@ export function CommitStarButton({
         }
 
         const previous = { starred, flavor };
-        const change = next === starred ? 0 : next ? 1 : -1;
+        const publicNext = next && destinations.public;
+        const change = publicNext === starred ? 0 : publicNext ? 1 : -1;
 
-        setStarred(next);
-        setFlavor(next ? (picked ?? null) : null);
+        setStarred(publicNext);
+        setFlavor(publicNext ? (picked ?? null) : null);
         setCount((current) => Math.max(0, current + change));
         if (next) {
             setIsAnimating(true);
         }
 
-        request.transform(() => (picked ? { flavor: picked } : {}));
+        request.transform(() => ({
+            ...(picked ? { flavor: picked } : {}),
+            ...destinations,
+        }));
 
         try {
             const response = await request.submit(
@@ -172,9 +184,16 @@ export function CommitStarButton({
             setStarred(response.starred);
             setCount(response.stars_count);
             setFlavor(response.star_flavor);
-            setFlavors(response.star_flavors);
+            setFlavorsJson(JSON.stringify(response.star_flavors));
+            if (next && destinations.repositories.length > 0)
+                toast.success(
+                    !destinations.public
+                        ? 'Repository copies queued. Hidden on dev-null.'
+                        : 'Public reaction saved. Repository copies queued.',
+                );
             router.flushAll();
         } catch {
+            toast.error('Could not save your reaction. Please try again.');
             setStarred(previous.starred);
             setFlavor(previous.flavor);
             setCount((current) => Math.max(0, current - change));
@@ -184,75 +203,12 @@ export function CommitStarButton({
     };
 
     return (
-        <span
-            className="relative inline-flex"
-            onPointerLeave={() => {
-                window.clearTimeout(hold.current);
-                setIsPicking(false);
-            }}
-        >
-            {isPicking && (
-                <span
-                    role="menu"
-                    aria-label="Star flavors"
-                    className="absolute bottom-full left-0 z-20 flex pb-1"
-                    data-test="star-flavor-picker"
-                >
-                    <span className="flex gap-0.5 rounded-full border bg-popover p-1 shadow-md">
-                        {starFlavors.map((option) => (
-                            <ActionTooltip
-                                key={option.flavor}
-                                label={option.meaning}
-                            >
-                                <button
-                                    type="button"
-                                    role="menuitem"
-                                    aria-label={option.meaning}
-                                    onClick={() =>
-                                        void star(true, option.flavor)
-                                    }
-                                    className={cn(
-                                        'rounded-full px-1.5 py-0.5 text-lg leading-none transition-transform hover:scale-125 hover:bg-accent',
-                                        starred &&
-                                            (flavor ?? 'star') ===
-                                                option.flavor &&
-                                            'bg-primary-soft',
-                                    )}
-                                    data-test={`star-flavor-${option.flavor}`}
-                                >
-                                    {option.emoji}
-                                </button>
-                            </ActionTooltip>
-                        ))}
-                    </span>
-                </span>
-            )}
+        <span className="inline-flex items-center">
             <button
                 ref={setElement}
                 aria-disabled={request.processing}
                 type="button"
-                onClick={() => {
-                    window.clearTimeout(hold.current);
-
-                    if (wasHeld.current) {
-                        wasHeld.current = false;
-
-                        return;
-                    }
-
-                    void star(!starred);
-                }}
-                onPointerEnter={(event) =>
-                    event.pointerType === 'mouse' && startHold(false)
-                }
-                onPointerDown={(event) =>
-                    event.pointerType !== 'mouse' && startHold(true)
-                }
-                onPointerUp={(event) =>
-                    event.pointerType !== 'mouse' &&
-                    window.clearTimeout(hold.current)
-                }
-                onContextMenu={(event) => event.preventDefault()}
+                onClick={() => void star(!starred)}
                 aria-pressed={starred}
                 aria-label={starLabel(starred, count)}
                 className={cn(
@@ -292,6 +248,18 @@ export function CommitStarButton({
                     {count > 0 ? formatCount(count) : ''}
                 </span>
             </button>
+            {auth.user !== null && (
+                <CommitReactionPicker
+                    commitId={commit.id}
+                    flavor={flavor}
+                    starred={starred}
+                    disabled={request.processing}
+                    onPick={(emoji, destination) =>
+                        void star(true, emoji, destination)
+                    }
+                    onClear={() => void star(false)}
+                />
+            )}
         </span>
     );
 }

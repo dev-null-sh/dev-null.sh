@@ -367,6 +367,10 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:people')
         ->name('mention-suggestion.index');
 
+    Route::post('settings/repository', [App\Http\Controllers\RepositoryMirrorController::class, 'store'])->middleware('throttle:5,1')->name('repository-mirror.store');
+    Route::delete('settings/repository/{mirror}', [App\Http\Controllers\RepositoryMirrorController::class, 'destroy'])->name('repository-mirror.destroy');
+    Route::get('commits/{commit}/my-reaction', App\Http\Controllers\CommitReactionStateController::class)->middleware('throttle:stars')->name('commit-reaction-state');
+
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
     Route::get('settings/profile', [UserProfileController::class, 'edit'])->name('user-profile.edit');
@@ -431,3 +435,7 @@ Route::middleware('auth')->group(function (): void {
 });
 
 Route::fallback(fn () => abort(404));
+
+if (app()->environment('local') && config('repository-mirrors.demo')) {
+    Route::get('_demo/reactions', App\Http\Controllers\ReactionDemoController::class)->name('reaction-demo');
+}
