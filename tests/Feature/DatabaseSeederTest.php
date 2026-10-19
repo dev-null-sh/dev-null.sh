@@ -49,11 +49,26 @@ it('gives the local developer a repo they maintain with two of their followers',
     $this->seed(DatabaseSeeder::class);
 
     $localDeveloper = User::query()->where('github_id', 'local')->sole();
-    $repo = $localDeveloper->repos()->sole();
+    $repo = $localDeveloper->repos()->where('slug', 'dev-null')->sole();
     $contributors = $repo->contributors()->where('user_id', '!=', $localDeveloper->id)->get();
 
     expect($repo->isMaintainedBy($localDeveloper))->toBeTrue()
         ->and($contributors)->toHaveCount(2)
-        ->and($contributors->every(fn (RepoContributor $contributor): bool => $contributor->role === RepoRole::Contributor && $contributor->user->isFollowing($localDeveloper)))->toBeTrue()
-        ->and($repo->commits()->count())->toBe(3);
+        ->and($contributors->every(fn (RepoContributor $contributor): bool => $contributor->user->isFollowing($localDeveloper)))->toBeTrue()
+        ->and($contributors->map(fn (RepoContributor $contributor): string => $contributor->role->value)->all())->toEqualCanonicalizing(['contributor', 'maintainer'])
+        ->and($repo->commits()->count())->toBe(7)
+        ->and($repo->commits()->whereNotNull('parent_id')->count())->toBe(3)
+        ->and($repo->commits()->whereNotNull('quoted_commit_id')->count())->toBe(1);
+});
+
+it('gives the local developer a repo they only contribute to', function (): void {
+    $this->seed(DatabaseSeeder::class);
+
+    $localDeveloper = User::query()->where('github_id', 'local')->sole();
+    $repo = $localDeveloper->repos()->where('slug', 'design-crit')->sole();
+    $maintainer = $repo->contributors()->where('role', RepoRole::Maintainer)->sole()->user;
+
+    expect($repo->roleOf($localDeveloper))->toBe(RepoRole::Contributor)
+        ->and($localDeveloper->isFollowing($maintainer))->toBeTrue()
+        ->and($repo->commits()->count())->toBe(2);
 });

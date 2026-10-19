@@ -11,7 +11,9 @@ use App\Actions\CreateRepo;
 use App\Actions\CreateRepoContributors;
 use App\Actions\UpdateCommitHotScores;
 use App\Actions\UpdateConversationReadThrough;
+use App\Actions\UpdateRepoContributorRole;
 use App\Enums\RemotesFrom;
+use App\Enums\RepoRole;
 use App\Models\Commit;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -30,6 +32,7 @@ final class DatabaseSeeder extends Seeder
         private readonly CreateRepo $createRepo,
         private readonly CreateRepoContributors $createRepoContributors,
         private readonly UpdateConversationReadThrough $updateConversationReadThrough,
+        private readonly UpdateRepoContributorRole $updateRepoContributorRole,
     ) {
         //
     }
@@ -71,7 +74,8 @@ final class DatabaseSeeder extends Seeder
     }
 
     /**
-     * A repo the local developer maintains with two of their followers, with a few commits only the three of them see.
+     * A repo the local developer maintains with two of their followers, one of them a maintainer too, with a thread and
+     * a quote only the three of them see. And a repo someone they follow maintains, where they only contribute.
      */
     private function collaborate(User $localDeveloper): void
     {
@@ -80,13 +84,32 @@ final class DatabaseSeeder extends Seeder
         $repo = $this->createRepo->handle($localDeveloper, 'dev/null', 'dev-null', 'The social network for developers.');
 
         $this->createRepoContributors->handle($repo, collect([$first, $second]));
+        $this->updateRepoContributorRole->handle($repo, $first, RepoRole::Maintainer);
+
+        $commit = fn (User $author, string $body, string $at, array $attributes = []): Commit => Commit::factory()->for($author)->for($repo)->create([
+            'body' => $body,
+            'created_at' => Date::now()->modify($at),
+            ...$attributes,
+        ]);
+
+        $commit($localDeveloper, 'repos are in: commits here are only seen by the three of us', '-2 days');
+        $notes = $commit($first, 'nice. moving the release notes in here', '-1 day');
+        $fix = $commit($second, 'the polling fix is ready for review', '-2 hours');
+        $review = $commit($localDeveloper, 'reviewed, two small nits on the backoff', '-90 minutes', ['parent_id' => $fix->id]);
+        $commit($second, 'both fixed, pushed again', '-1 hour', ['parent_id' => $review->id]);
+        $commit($first, 'ship it', '-30 minutes', ['parent_id' => $fix->id]);
+        $commit($localDeveloper, 'first draft of the notes is up, edits welcome', '-20 hours', ['quoted_commit_id' => $notes->id]);
+
+        $maintainer = $localDeveloper->following()->firstOrFail();
+        $design = $this->createRepo->handle($maintainer, 'design crit', 'design-crit', 'Rough ideas before they hit the log.');
+
+        $this->createRepoContributors->handle($design, collect([$localDeveloper]));
 
         foreach ([
-            [$localDeveloper, 'repos are in: commits here are only seen by the three of us', '-2 days'],
-            [$first, 'nice. moving the release notes in here', '-1 day'],
-            [$second, 'the polling fix is ready for review', '-2 hours'],
+            [$maintainer, 'dropping half-finished screens here first', '-3 days'],
+            [$localDeveloper, 'the new composer spacing feels a lot calmer', '-1 day'],
         ] as [$author, $body, $at]) {
-            Commit::factory()->for($author)->for($repo)->create(['body' => $body, 'created_at' => Date::now()->modify($at)]);
+            Commit::factory()->for($author)->for($design)->create(['body' => $body, 'created_at' => Date::now()->modify($at)]);
         }
     }
 
