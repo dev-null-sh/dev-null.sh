@@ -47,6 +47,19 @@ it('collapses blank lines before measuring and sending the body', function (): v
         && str_starts_with((string) $request['body'], "Dark mode\n\nplease\n\n---"));
 });
 
+it('folds the environment the app sends into the body, as the web does', function (): void {
+    fakeGitHubApp();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-issue.store'), [
+        'command' => '/bug',
+        'body' => 'Broken.',
+        'environment' => ['browser' => 'devnull app', 'os' => 'iOS 27.0', 'language' => ''],
+    ])->assertCreated();
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/issues')
+        && str_starts_with((string) $request['body'], "Broken.\n\n<details>\n<summary>Environment</summary>\n\n| | |\n|---|---|\n| Browser | `devnull app` |\n| Os | `iOS 27.0` |\n\n</details>\n\n---"));
+});
+
 it('keeps the draft when GitHub rejects the issue or does not respond, with a code', function (Closure $response, string $message): void {
     Http::fake([
         'api.github.com/repos/nunomaduro/dev-null.sh/installation' => Http::response(['id' => 99]),
@@ -75,7 +88,9 @@ it('validates the command and the body as the web does', function (array $payloa
     'no command' => [['body' => 'Ship it.'], 'command'],
     'missing body' => [['command' => '/bug'], 'body'],
     'blank lines only' => [['command' => '/bug', 'body' => "a\n\n\n\n"], 'body'],
+    'too short for an issue' => [['command' => '/bug', 'body' => 'ab'], 'body'],
     'too long' => [['command' => '/bug', 'body' => str_repeat('a', 4001)], 'body'],
+    'unknown environment field' => [['command' => '/bug', 'body' => 'Broken.', 'environment' => ['cookie' => 'secret']], 'environment'],
 ]);
 
 it('shares the web limit of five opened issues an hour, answering with a code', function (): void {

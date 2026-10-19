@@ -23,7 +23,7 @@ final readonly class IssueController
     public function store(CreateApiIssueRequest $request, #[CurrentUser] User $user, CreateIssue $action): JsonResponse
     {
         try {
-            $issue = $action->handle($user, $request->string('command')->value(), $request->string('body')->value());
+            $issue = $action->handle($user, $request->string('command')->value(), $request->string('body')->value(), $request->environment());
         } catch (ConnectionException) {
             return new ApiException(ApiErrorCode::GitHubIssueFailed, __('GitHub did not respond. Check the upstream issues before trying again. Your draft is safe.'))->render();
         } catch (RequestException) {
