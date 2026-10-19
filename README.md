@@ -89,6 +89,8 @@ A signed profile also says `is_muting` and has the web's `achievements`, with th
 
 `POST /api/v1/commits/{id}/reports` reports a commit to the moderators, privately, as the web's Report button does. It takes a `reason`, one of `spam`, `harassment`, `unsafe` or `other`, and optional `details` of up to 500 characters, and answers `204`. Reporting doesn't hide the commit. Only someone else's published commit can be reported: the user's own is a `403` with `own_commit`, and one that is pending, rejected, deleted, missing or across a block is a `404` with `commit_unavailable`. Reporting a commit again also answers `204` and keeps the first report. Each user can send 5 reports a minute.
 
+`DELETE /api/v1/me` deletes the signed-in user's account the way Delete account does on the web, with their commits and every device they approved. It answers `204`, and from then on the key gets `device_not_approved`.
+
 Each request sends three headers:
 
 | Header | Value |

@@ -141,7 +141,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                   ? isCurrentOrParentUrl('/log')
                   : item.title === 'Remotes'
                     ? isCurrentOrParentUrl('/remotes')
-                    : isCurrentUrl(item.href)),
+                    : item.title === 'Operations'
+                      ? isCurrentOrParentUrl('/operations')
+                      : isCurrentUrl(item.href)),
     }));
 }
 
