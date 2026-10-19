@@ -58,6 +58,7 @@ export function CommitAuthorFollowButton({
             onClick={onClick}
             aria-label={`Follow or unfollow @${user.username}`}
             aria-keyshortcuts={keyShortcut}
+            tabIndex={-1}
             className="sr-only"
             data-test="commit-follow-author-button"
         >
