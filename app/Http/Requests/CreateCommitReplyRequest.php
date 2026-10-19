@@ -33,6 +33,7 @@ final class CreateCommitReplyRequest extends FormRequest
     public function prepareForValidation(): void
     {
         CreateCommitRequest::normalizeBody($this);
+        CreateCommitRequest::normalizeBranch($this);
     }
 
     /**
@@ -47,6 +48,7 @@ final class CreateCommitReplyRequest extends FormRequest
         return [
             'body' => $this->hasFile('images') ? CreateCommitRequest::BODY_WITH_IMAGES_RULES : CreateCommitRequest::BODY_RULES,
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
+            ...CreateCommitRequest::branchRules(),
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
                 'required',
@@ -78,7 +80,13 @@ final class CreateCommitReplyRequest extends FormRequest
     {
         return [
             'link_preview_url.in' => 'The link card must be one of the links in the body.',
+            'branch.regex' => 'Enter a branch name with letters, digits, or underscores (at least one letter).',
         ];
+    }
+
+    public function branch(): ?string
+    {
+        return $this->filled('branch') ? $this->string('branch')->value() : null;
     }
 
     /**

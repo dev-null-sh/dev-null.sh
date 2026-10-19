@@ -14,6 +14,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Queries\MentionedUsersQuery;
+use App\Services\Branches;
 use App\Services\EmojiShortcodes;
 use App\Services\TheAlgorithm;
 use App\Services\Urls;
@@ -32,6 +33,9 @@ final readonly class CreateCommit
         private TheAlgorithm $theAlgorithm,
         private EmojiShortcodes $emojiShortcodes,
         private Urls $urls,
+        private Branches $branches,
+        private UpsertBranches $upsertBranches,
+        private CreateBranchActivityNotifications $createBranchActivityNotifications,
         private MentionedUsersQuery $mentionedUsers,
     ) {
         //
@@ -43,7 +47,7 @@ final readonly class CreateCommit
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?string $branch = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -51,14 +55,19 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $branch): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
 
+            $body = $this->emojiShortcodes->replace($body);
+            $branch = $this->branches->normalize($branch);
+            $branch = $branch !== null && $this->branches->isValid($branch) ? $branch : null;
+
             $commit = $user->commits()->create([
-                'body' => $this->emojiShortcodes->replace($body),
+                'body' => $body,
                 'mentions' => $this->mentionedUsers->get($body),
+                'branch' => $branch,
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
                 'status' => $user->isAdmin() || ($hasGoodReputation && ! $user->hasRecentReports()) ? CommitStatus::Approved : CommitStatus::Pending,
@@ -68,6 +77,7 @@ final readonly class CreateCommit
                 'created_at' => $createdAt,
             ]);
 
+            $this->upsertBranches->handle($branch === null ? [] : [$branch]);
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);
 
             if ($poll instanceof NewPoll) {
@@ -81,6 +91,7 @@ final readonly class CreateCommit
             $this->createReplyNotifications->handle($commit);
             $this->createQuoteNotifications->handle($commit);
             $this->createMentionNotifications->handle($commit);
+            $this->createBranchActivityNotifications->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));

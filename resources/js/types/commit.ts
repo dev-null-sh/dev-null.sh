@@ -1,8 +1,19 @@
-import type { User } from '@/types/auth';
+import type { User } from "@/types/auth";
 
-export type CommitStatus = 'pending' | 'approved' | 'rejected';
+export type CommitStatus = "pending" | "approved" | "rejected";
 
-export type EmbedKind = 'video' | 'audio' | 'code';
+export type CommitBranchSummary = {
+    name: string;
+    commits_count: number;
+    authors_count: number;
+    is_verified: boolean;
+    brand_color: string | null;
+    verified_domain: string | null;
+    description: string | null;
+    og_image_url: string | null;
+};
+
+export type EmbedKind = "video" | "audio" | "code";
 
 export type Embed = {
     provider: string;
@@ -48,9 +59,9 @@ export type CommitImage = {
 };
 
 export type BodySegment =
-    | { type: 'text'; text: string }
-    | { type: 'code'; code: string }
-    | { type: 'block'; language: string | null; html: string };
+    | { type: "text"; text: string }
+    | { type: "code"; code: string }
+    | { type: "block"; language: string | null; html: string };
 
 export type CommitTranslation = {
     language: string;
@@ -70,6 +81,8 @@ export type Commit = {
     hot_score: number;
     body: string;
     mentions: Record<string, string> | null;
+    branch?: CommitBranchSummary | null;
+    branch_color?: string | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
     translation?: CommitTranslation | null;
@@ -88,32 +101,32 @@ export type Commit = {
     is_saved?: boolean;
     saved_order?: number | null;
     is_pinned?: boolean;
-    parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
+    parent?: (Omit<Commit, "parent"> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;
     poll?: Poll | null;
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
-    ai_decision?: Exclude<CommitStatus, 'pending'> | null;
+    ai_decision?: Exclude<CommitStatus, "pending"> | null;
     ai_categories?: string[] | null;
 };
 
 export type QuotedCommit = Pick<
     Commit,
-    | 'id'
-    | 'user_id'
-    | 'body'
-    | 'body_segments'
-    | 'preview_segments'
-    | 'status'
-    | 'is_checking'
-    | 'created_at'
-    | 'deleted_at'
-    | 'user'
-    | 'replies_count'
-    | 'poll'
-    | 'link_preview'
-    | 'images'
+    | "id"
+    | "user_id"
+    | "body"
+    | "body_segments"
+    | "preview_segments"
+    | "status"
+    | "is_checking"
+    | "created_at"
+    | "deleted_at"
+    | "user"
+    | "replies_count"
+    | "poll"
+    | "link_preview"
+    | "images"
 >;
 
 export type DeletedCommit = {

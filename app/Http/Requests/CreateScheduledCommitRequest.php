@@ -37,6 +37,7 @@ final class CreateScheduledCommitRequest extends FormRequest
             'scheduled_at' => ['required', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
             'parent_id' => ['prohibited'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
+            ...CreateCommitRequest::branchRules(),
             ...CreateCommitRequest::attachmentRules(),
         ];
     }
@@ -58,7 +59,13 @@ final class CreateScheduledCommitRequest extends FormRequest
     {
         return [
             'link_preview_url.in' => 'The link card must be one of the links in the body.',
+            'branch.regex' => 'Enter a branch name with letters, digits, or underscores (at least one letter).',
         ];
+    }
+
+    public function branch(): ?string
+    {
+        return $this->filled('branch') ? $this->string('branch')->value() : null;
     }
 
     /**
@@ -109,5 +116,6 @@ final class CreateScheduledCommitRequest extends FormRequest
     public function prepareForValidation(): void
     {
         CreateCommitRequest::normalizeBody($this);
+        CreateCommitRequest::normalizeBranch($this);
     }
 }

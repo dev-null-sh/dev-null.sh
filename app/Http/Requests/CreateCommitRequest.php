@@ -11,6 +11,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
 use App\Services\CommitBodies;
+use App\Services\Branches;
 use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -38,6 +39,32 @@ final class CreateCommitRequest extends FormRequest
         if (is_string($request->input('body'))) {
             $request->merge(['body' => resolve(CommitBodies::class)->normalize($request->string('body')->value())]);
         }
+    }
+
+    /**
+     * Optional branch name: trim, strip a leading "#", lowercase; blank becomes null.
+     */
+    public static function normalizeBranch(FormRequest $request): void
+    {
+        if (! $request->exists('branch')) {
+            return;
+        }
+
+        $request->merge([
+            'branch' => resolve(Branches::class)->normalize(
+                is_string($request->input('branch')) ? $request->input('branch') : null,
+            ),
+        ]);
+    }
+
+    /**
+     * @return array<string, array<int, string|ValidationRule>>
+     */
+    public static function branchRules(): array
+    {
+        return [
+            'branch' => ['nullable', 'string', 'regex:'.Branches::NAME_PATTERN],
+        ];
     }
 
     /**
@@ -84,6 +111,7 @@ final class CreateCommitRequest extends FormRequest
             'body' => $this->hasFile('images') ? self::BODY_WITH_IMAGES_RULES : self::BODY_RULES,
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
+            ...self::branchRules(),
             ...self::attachmentRules(),
         ];
     }
@@ -117,7 +145,13 @@ final class CreateCommitRequest extends FormRequest
     {
         return [
             'link_preview_url.in' => 'The link card must be one of the links in the body.',
+            'branch.regex' => 'Enter a branch name with letters, digits, or underscores (at least one letter).',
         ];
+    }
+
+    public function branch(): ?string
+    {
+        return $this->filled('branch') ? $this->string('branch')->value() : null;
     }
 
     /**
@@ -166,5 +200,6 @@ final class CreateCommitRequest extends FormRequest
     public function prepareForValidation(): void
     {
         self::normalizeBody($this);
+        self::normalizeBranch($this);
     }
 }
