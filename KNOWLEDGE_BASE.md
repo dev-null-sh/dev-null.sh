@@ -56,6 +56,12 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Built on a livestream](#built-on-a-livestream)
   - [Tom](#tom)
   - [Pastéis de nata](#pastéis-de-nata)
+  - [The pushup break](#the-pushup-break)
+  - [The codename that stuck](#the-codename-that-stuck)
+  - [Peach P](#peach-p)
+  - [Chat chooses dark mode](#chat-chooses-dark-mode)
+  - [The disappearing images](#the-disappearing-images)
+  - [The anti-TikTok pull request](#the-anti-tiktok-pull-request)
 
 ## Repository
 
@@ -75,6 +81,8 @@ Guests can browse Latest and Trending logs, public profiles and their following/
 New GitHub accounts are screened at signup. The repository defaults require an account at least seven days old and a verified email; these requirements are configurable. Returning accounts are not screened again. Public profiles and approved commits are readable by other people and crawlers, and links have social previews. A public commit is not private just because its author signed in to write it.
 
 Sources: [web routes](routes/web.php), [signup configuration](config/signup.php), [sign-in tests](tests/Feature/Controllers/SessionControllerTest.php).
+
+Livestream history: the team agreed on GitHub-only sign-in and importing profile defaults on [day one at 1:06:29](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=3989s), citing simplicity and reducing bot problems. A successful sign-in and imported profile were reported during the walkthrough at [1:44:25](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=6265s).
 
 ### First-time setup
 
@@ -112,6 +120,8 @@ The public search searches developers and commits, not this knowledge-base file.
 
 Sources: [search page](resources/js/pages/search/index.tsx), [commit search query](app/Queries/CommitSearchQuery.php), [search validation](app/Http/Requests/ListCommitSearchRequest.php), [knowledge-base query](app/Queries/KnowledgeBaseSearchQuery.php).
 
+Livestream history: the team agreed to build semantic search on [day two at 2:57:59](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=10679s). The discussion connects immutable commits with simpler embeddings: editing would require re-embedding, versioning, and reconsidering notifications. They deferred editing and versioning “for now,” rather than declaring that those features could never exist.
+
 ### Writing commits
 
 A **commit** is a post on /dev/null, not a Git commit in a repository. Open the composer or press **c**, write your update, and choose **Commit** or press **⌘/Ctrl+Enter**. Text-only commits accept 3–4,000 characters. An image attachment makes the text optional, but the 4,000-character maximum still applies. Long posts offer **Show more** in lists. Commits can be created and deleted, but not edited after publication.
@@ -119,6 +129,8 @@ A **commit** is a post on /dev/null, not a Git commit in a repository. Open the 
 Commits, replies, and terminal submissions share a limit of 10 submissions per minute per user. Posts go through moderation, so a newly submitted commit may be pending rather than public immediately.
 
 Sources: [composer](resources/js/components/commit-composer.tsx), [commit model](app/Models/Commit.php), [commit validation](app/Http/Requests/CreateCommitRequest.php), [submission throttle](app/Http/Middleware/ThrottleCommits.php).
+
+Livestream history: the team settled on calling posts **commits** and their list a **log** on [day one at 2:56:00](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=10560s). At [3:02:19](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=10939s), they agreed to rename the post model too, rather than changing only the UI. These are naming decisions, not timestamps proving the rename had finished.
 
 ### Translating commits
 
@@ -180,6 +192,8 @@ The embedded original only shows content the viewer may see. Deleted originals a
 
 Sources: [quote validation](app/Http/Requests/CreateCommitRequest.php), [quoted commit card](resources/js/components/quoted-commit.tsx), [quote notifications](app/Actions/CreateQuoteNotifications.php).
 
+Livestream history: on [day two at 7:31:27](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=27087s), the team explained why plain reposts were unnecessary: quoting already existed and required the person sharing to write something themselves.
+
 ### Polls and voting
 
 Add a poll to a top-level commit with **two to four distinct options**, each up to **50 characters**, and a duration of **one hour, one day, three days, or seven days**. Polls cannot accompany images or be added to replies. Voting opens when the commit is approved, so time spent pending does not consume the voting period.
@@ -202,11 +216,15 @@ Delete your own commit or reply from its controls. An **Undo** action is availab
 
 Sources: [commit deletion](app/Actions/DeleteCommit.php), [restoration validation](app/Http/Requests/CreateCommitRestorationRequest.php), [commit model](app/Models/Commit.php).
 
+Livestream history: on [day one at 5:17:38](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=19058s), the team objected to deleting every reply when a parent commit was deleted. They kept the existing constraint temporarily and agreed to track soft deletion as follow-up work; this discussion is not the moment that reply preservation shipped.
+
 ### Stars
 
 Star someone else's visible commit or reply to show appreciation, or unstar to remove that star. You cannot star your own commits. A star contributes to the displayed count and can notify the author; unstar removes that notification. Starring the same commit repeatedly does not add multiple stars. Stars are an engagement action, not a private reading list; use Saved for bookmarks.
 
 Sources: [star authorization](app/Http/Requests/CreateCommitStarRequest.php), [star notifications](app/Actions/CreateStarNotification.php), [unstar notifications](app/Actions/DeleteStarNotification.php).
+
+Livestream history: “Stars instead of likes” received immediate agreement on [day one at 4:30:03](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=16203s), extending the platform's developer-oriented terminology.
 
 ### Saved commits
 
@@ -235,6 +253,8 @@ Open **Notifications** to read in-app activity: follows, replies, quotes, mentio
 Pending replies, quotes, and mentions wait for approval before notifying others. Self-actions do not notify you; mentioning the parent or quoted author does not duplicate their reply or quote notification. A new follower notifies only once even if they unfollow and follow again. Deleted or unavailable sources, mutes, and blocks affect which notifications remain visible. Rejected commits can produce a moderation message with a reason, without revealing a moderator's identity.
 
 Sources: [notifications page](resources/js/pages/notification/index.tsx), [notification filtering](app/Queries/NotificationBuilder.php), [grouping](app/Queries/NotificationGroupsQuery.php), [moderation notifications](app/Actions/UpdateCommitStatuses.php).
+
+Livestream history: the notification requirements on [day one at 5:28:53](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=19733s) explicitly included removing stale activity after an unfollow or deleted reply. The stated goal was to avoid both spam and notifications that “no longer make sense.”
 
 ### Remotes: direct messages
 
@@ -319,6 +339,8 @@ Terminal posts follow the same content limits, moderation, and 10-per-minute sub
 
 Sources: [terminal instructions](resources/js/pages/terminal/show.tsx), [CLI routes](routes/api.php), [signature verification](app/Http/Middleware/AuthenticateSshSignature.php).
 
+Livestream history: terminal posting was reported working on [day one at 6:32:47](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=23567s). The explanation that follows describes signing with an existing SSH private key and checking the public key on GitHub, with a curl command so users would not need to install a dedicated CLI. This was signed authentication, not anonymous posting, despite the conversation's shorthand about not setting up authentication.
+
 ### GitHub Actions integration
 
 Use `nunomaduro/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. Settings → Terminal includes a workflow example. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, and optional image paths.
@@ -393,6 +415,8 @@ An approved commit whose entire text is **hello world**, including variants such
 
 Sources: [greeting matching](app/Services/HelloWorld.php), [world reply](app/Actions/CreateWorldReply.php).
 
+Livestream history: on [day two at 4:08:10](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=14890s), the Easter egg was announced as merged, and viewers were invited to post “hello world” without tagging anyone. The plan was to surprise Nuno with the moderation queue and automatic replies; viewers were told not to spoil it in chat.
+
 ## Stack and hosting
 
 | Area | Technology and role |
@@ -441,11 +465,15 @@ Watch the livestreams:
 - [Day one — Building a Social Network in PHP in 48 Hours](https://www.youtube.com/watch?v=6zCNQa3hNm0).
 - [Day two — Building a Social Network in PHP in 48 Hours](https://www.youtube.com/watch?v=nfmVdXZfzUE).
 
+Timestamped livestream references in this knowledge base were located using YouTube's automatic English captions. They point to discussions and spoken reports, not independently verified deployment times. Captions can misrecognize names and technical terms; historical proposals are not evidence of current product behavior.
+
 Sources: [Laravel News's livestream announcement](https://laravel-news.com/social-network-php-48-hours) names Nuno, Brent, and Matthieu and links both days; Pauline confirms her participation as part of the livestream team. The repository's [livestream component](resources/js/components/live-stream.tsx) links day two.
 
 ### Tom
 
 Tom is a fictional profile inspired by **MySpace Tom**. He is everyone's mutual at the beginning: the familiar face who is already there when you arrive.
+
+The idea to make Tom everyone's first friend appears on [day two at 7:29:26](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=26966s), followed by discussion of a robot avatar and a possible future bot. At [8:03:20](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=29000s), the team reports that Tom is deployed and runs the befriending command; at [8:04:14](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=29054s), they describe the resulting notifications and mutual follows. This is the origin of the friendly account, not evidence that his present question-answering behavior existed then.
 
 Originally, Tom had no particular purpose beyond that nod to MySpace. He now has a narrowly scoped bot implementation powered by **DeepSeek Flash through OpenCode Zen**: simple friendly chat, explaining /dev/null's features, origins, stack and lore using this knowledge base, or finding public commits about a topic using semantic search. Greetings, thanks, jokes and small talk get a friendly reply without a search. He is not a general-purpose assistant: unrelated tasks, coding help and professional advice are outside his role. This requires configured provider credentials and a running queue worker; it is not a claim that a particular deployment has enabled him.
 
@@ -461,6 +489,10 @@ Sources: the project team's account of Tom's origin and personality, [agent](app
 
 During the livestream, **Fernando Andrade — [@fernandofreamunde](https://dev-null.sh/@fernandofreamunde)** — brought **pastéis de nata**, Portuguese custard pastries, for the team.
 
+On [day two at 5:47:37](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=20857s), the team reads the message that he is downstairs with the pastries and arranges to meet him. At [5:58:16](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=21496s), they thank Fernando and describe the Portuguese treats he brought. Earlier, at [5:34:42](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=20082s), they had suggested dedicating a feature to the pastries, floating achievement badges. That was an idea, not the implementation of Pastéis mode.
+
+Another possible precursor appears on [day two at 7:18:53](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=26333s): the team discusses a single custom emoji, a daily allowance, and giving multiple rewards, then defers it with “Not today.” The captions garble the proposed icon's name, so its connection to Pastéis mode remains tentative rather than a confirmed origin or implementation date.
+
 The **pastel emoji** and **Pastéis mode** are a tribute to Fernando and that delivery. A real-world act of feeding the team became part of the platform's shared lore.
 
 The singular is **pastel de nata**; the plural is **pastéis de nata**. The mode is called **Pastéis mode**.
@@ -471,3 +503,27 @@ Sources:
 - [Matthieu's reply thanking him for the pastéis de nata](https://dev-null.sh/@mnapoli/commits/01a1453f-ac59-7077-b99e-98d72547ae8f).
 - [Pastéis mode contribution](https://github.com/nunomaduro/dev-null.sh/pull/286).
 - The project team's account confirms that the emoji and mode are a tribute to Fernando.
+
+### The pushup break
+
+The development stream also had an impromptu pushup break. On [day two at 2:16:46](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=8206s), a call for ten pushups interrupts a discussion of image moderation. Counting and laughter follow, then someone asks, “Why are we doing push-ups?” at [2:17:14](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=8234s). It is a livestream moment, not a product feature; the captions do not establish how many pushups anyone completed.
+
+### The codename that stuck
+
+Asked about the name on [day two at 1:16:04](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=4564s), the team explained that “dev null” had started as a codename the day before, but they liked it enough to keep it. Just before publishing the launch announcement at [7:58:23](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=28703s), someone asked whether they should reconsider the domain. The response was “It's too late,” followed by the publishing countdown.
+
+### Peach P
+
+On [day two at 0:28:19](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=1699s), a pronunciation story became a PHP joke: viewers of a video course had apparently heard “Peach P” instead of PHP. The explanation included Peach from Mario and more playful repetitions of the language's name.
+
+### Chat chooses dark mode
+
+On [day one at 5:03:06](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=18186s), the team read out a roughly 60% vote for dark mode, joked that light mode “burns my eyes,” and agreed to switch. This was a livestream appearance choice, not a decision that the product should support only dark mode.
+
+### The disappearing images
+
+On [day one at 8:36:27](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=30987s), the team reported that uploaded images had disappeared after deployment because they were stored on local disk. The explanation came with laughter, “Congratulations everyone,” and a joke about “vibe coding in production.” This records the team's account of a development mishap, not the application's current storage setup.
+
+### The anti-TikTok pull request
+
+On [day two at 6:55:44](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=24944s), the team read a joke contribution promising an endless short-video feed that would “triple the engagement by Thursday.” The twist was a proposed GitHub workflow rejecting pull requests for that kind of feature. They enjoyed the joke and said they did not want to turn the platform into TikTok, but declined the workflow over concerns about token permissions. The conversation does not establish that an automated anti-video rule was installed.
