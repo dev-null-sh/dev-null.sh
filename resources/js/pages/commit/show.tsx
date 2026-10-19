@@ -1,12 +1,13 @@
-import { Head, router, usePage } from '@inertiajs/react';
-import { ArrowLeft } from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { ArrowLeft, FolderGit2 } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import RepoController from '@/actions/App/Http/Controllers/RepoController';
 import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import AppLayout from '@/layouts/app-layout';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
 import { home } from '@/routes';
-import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+import type { Commit, CursorPaginated, Repo, ThreadCommit } from '@/types';
 
 const titleLength = 60;
 
@@ -14,10 +15,12 @@ export default function Show({
     commit,
     ancestors,
     replies,
+    repo,
 }: {
     commit: Commit;
     ancestors: ThreadCommit[];
     replies: CursorPaginated<ThreadCommit>;
+    repo: Pick<Repo, 'id' | 'name' | 'slug'> | null;
 }) {
     const { auth } = usePage().props;
     const excerpt =
@@ -56,6 +59,23 @@ export default function Show({
                 </p>
                 <CopyLinkButton commit={commit} className="-mr-1 -ml-1.5" />
             </div>
+
+            {repo && (
+                <Link
+                    href={RepoController.show(repo)}
+                    className="flex min-w-0 items-center gap-2 border-b px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    data-test="commit-repo"
+                >
+                    <FolderGit2 aria-hidden className="size-4 shrink-0" />
+                    <span className="truncate" title={repo.name}>
+                        In{' '}
+                        <span className="font-medium text-foreground">
+                            {repo.name}
+                        </span>
+                        {' · '}contributors only
+                    </span>
+                </Link>
+            )}
 
             {ancestors.map((ancestor, index) => {
                 const previous = ancestors[index - 1];

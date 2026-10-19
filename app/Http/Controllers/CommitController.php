@@ -11,6 +11,7 @@ use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
 use App\Http\Requests\ShowCommitRequest;
 use App\Models\Commit;
+use App\Models\Repo;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitRepliesQuery;
@@ -47,6 +48,7 @@ final readonly class CommitController
                 ->findOrFail($commit->id),
             'ancestors' => fn (): Collection => $ancestors->get($commit, $currentUser),
             'replies' => $getReplies,
+            'repo' => fn (): ?Repo => $commit->repo()->first(['id', 'name', 'slug']),
         ])->withViewData(['preview' => $preview]);
     }
 

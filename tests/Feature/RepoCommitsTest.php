@@ -216,3 +216,19 @@ it('moderates repo commits like any other', function (bool $approved): void {
         ->and($commit->isVisibleTo($maintainer))->toBe($approved)
         ->and($commit->isVisibleTo($moderator))->toBeFalse();
 })->with(['approved' => true, 'rejected' => false]);
+
+it('shows which repo a commit is in on its page', function (): void {
+    [$repo, , $contributor] = repoWithContributors();
+    $commit = Commit::factory()->for($contributor)->create(['repo_id' => $repo->id]);
+    $public = Commit::factory()->for($contributor)->create();
+
+    $this->actingAs($contributor)->get(route('commit.show', [$contributor, $commit]))
+        ->assertInertia(fn ($page) => $page
+            ->where('repo.id', $repo->id)
+            ->where('repo.name', $repo->name)
+            ->where('repo.slug', $repo->slug)
+            ->missing('repo.description'));
+
+    $this->get(route('commit.show', [$contributor, $public]))
+        ->assertInertia(fn ($page) => $page->where('repo', null));
+});
