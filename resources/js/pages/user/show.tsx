@@ -30,7 +30,7 @@ import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
-import { laneColor } from '@/lib/utils';
+import { dateLocale, laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
     Activity,
@@ -200,8 +200,8 @@ export default function Show({
                         onClick={() => setIsAchievementsOpen(true)}
                         className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] font-medium transition hover:brightness-110"
                         style={{
-                            borderColor: `${lane}40`,
-                            backgroundColor: `${lane}15`,
+                            borderColor: laneTint(lane, 25),
+                            backgroundColor: laneTint(lane, 8),
                             color: lane,
                         }}
                         title="View achievements and Unix rank"
@@ -213,7 +213,7 @@ export default function Show({
                 </div>
 
                 {user.bio && (
-                    <p className="mt-3 max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+                    <p className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap">
                         {user.bio}
                     </p>
                 )}
@@ -274,7 +274,7 @@ export default function Show({
                         <CalendarDays className="size-4" />
                         Joined{' '}
                         {new Date(user.created_at).toLocaleDateString(
-                            undefined,
+                            dateLocale,
                             { month: 'long', year: 'numeric' },
                         )}
                     </li>

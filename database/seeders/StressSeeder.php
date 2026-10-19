@@ -222,7 +222,7 @@ final class StressSeeder extends Seeder
 
         DB::statement(<<<'SQL'
             insert into users (id, github_id, username, name, created_at, updated_at, onboarded_at, log)
-            values (pg_temp.uuid7(localtimestamp - interval '730 days'), 'local', 'local_dev', 'Local Developer',
+            values (pg_temp.uuid7(localtimestamp - interval '730 days'), 'local', 'local-dev', 'Local Developer',
                 localtimestamp - interval '730 days', localtimestamp, localtimestamp - interval '730 days', 'following')
             on conflict (github_id) do nothing
             SQL);
@@ -260,21 +260,28 @@ final class StressSeeder extends Seeder
             on conflict do nothing
             SQL);
 
-        // The local developer follows two thousand, and twenty thousand follow them back...
+        // The local developer follows two thousand, and twenty thousand follow them back... Spread over the year like every
+        // other follow, as follows dated today would all leave unread notifications from a single day.
         $following = $this->count(2_000);
         $followers = $this->count(20_000);
 
         DB::statement(<<<SQL
             insert into follows (follower_id, followed_id, created_at, updated_at)
-            select (select id from stress_users where n = 0), id, localtimestamp, localtimestamp
-            from stress_users where n between 1 and {$following}
+            select (select id from stress_users where n = 0), id, followed_at, followed_at
+            from (
+                select id, localtimestamp - random() * interval '365 days' as followed_at
+                from stress_users where n between 1 and {$following}
+            ) as followed
             on conflict do nothing
             SQL);
 
         DB::statement(<<<SQL
             insert into follows (follower_id, followed_id, created_at, updated_at)
-            select id, (select id from stress_users where n = 0), localtimestamp, localtimestamp
-            from stress_users where n > 0 order by random() limit {$followers}
+            select id, (select id from stress_users where n = 0), followed_at, followed_at
+            from (
+                select id, localtimestamp - random() * interval '365 days' as followed_at
+                from stress_users where n > 0 order by random() limit {$followers}
+            ) as followers
             on conflict do nothing
             SQL);
     }

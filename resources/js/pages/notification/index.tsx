@@ -27,6 +27,10 @@ import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGr
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
+import {
+    onFollowHttpException,
+    useIsFollowing,
+} from '@/components/follow-button';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
@@ -39,10 +43,10 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
-import { toastWhenThrottled } from '@/lib/throttle';
 import {
     cn,
     formatDayLabel,
+    formatFullDateTime,
     formatRelativeTime,
     isDeleted,
     laneColor,
@@ -678,7 +682,10 @@ function NotificationGroupItem({
  * row leaves it out, as it could only follow one of several people back.
  */
 function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
-    const [isFollowing, setIsFollowing] = useState(actor.is_followed);
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        actor,
+        actor.is_followed,
+    );
     const Icon = isFollowing ? UserCheck : UserPlus;
 
     return (
@@ -695,7 +702,7 @@ function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
                     preserveState
                     preserveScroll
                     onHttpException={(response) =>
-                        !toastWhenThrottled(response)
+                        onFollowHttpException(actor, response)
                     }
                     onSuccess={() => {
                         setIsFollowing(!isFollowing);
@@ -810,7 +817,7 @@ function NotificationContent({
     const time = (
         <time
             dateTime={notification.created_at}
-            title={new Date(notification.created_at).toLocaleString()}
+            title={formatFullDateTime(notification.created_at)}
             className="ml-auto min-w-[3ch] shrink-0 text-right font-mono text-[13px] text-muted-foreground"
         >
             {formatRelativeTime(notification.created_at, now)}
@@ -871,7 +878,7 @@ function NotificationContent({
                                 {actor.name}
                             </span>
                             <span
-                                className="hidden shrink-[4] truncate font-mono text-[13px] text-muted-foreground sm:inline"
+                                className="hidden shrink-4 truncate font-mono text-[13px] text-muted-foreground sm:inline"
                                 title={`@${actor.username}`}
                             >
                                 @{actor.username}
@@ -945,7 +952,7 @@ function NotificationContent({
                                         {actor.name}
                                     </span>
                                     <span
-                                        className="shrink-[4] truncate font-mono text-[13px] text-muted-foreground"
+                                        className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
                                         title={`@${actor.username}`}
                                     >
                                         @{actor.username}

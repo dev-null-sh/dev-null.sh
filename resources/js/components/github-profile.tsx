@@ -43,7 +43,7 @@ export function GitHubProfile() {
                         <dd
                             className={
                                 field.value
-                                    ? 'break-words'
+                                    ? 'wrap-break-word'
                                     : 'font-mono text-[13px] text-muted-foreground'
                             }
                         >

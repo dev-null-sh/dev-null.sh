@@ -18,6 +18,7 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { SearchDialog } from '@/components/search-dialog';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
+import { useFixedPage } from '@/hooks/use-fixed-page';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
@@ -27,7 +28,7 @@ import type { AppLayoutProps } from '@/types';
 export default function AppLayout({ children }: AppLayoutProps) {
     const {
         component,
-        props: { auth },
+        props: { auth, sidebarOpen },
     } = usePage();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
@@ -58,16 +59,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
         compose,
     );
     useTabSlide();
+    useFixedPage(isMessages);
 
     return (
-        <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
+        <div
+            data-nav={sidebarOpen ? 'expanded' : 'collapsed'}
+            className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center"
+        >
             {component !== 'notification/index' && <NotificationCountPolling />}
-            <AppNav onSearch={openSearch} onCompose={compose} />
+            <div className="sticky top-0 hidden h-svh w-20 shrink-0 md:block lg:w-(--sidebar-width)">
+                <AppNav onSearch={openSearch} onCompose={compose} />
+            </div>
 
             <main
                 className={cn(
-                    'min-w-0 flex-1 bg-card pb-40 md:max-w-[620px] md:border-x md:pb-0',
-                    { 'pb-20 md:max-w-[940px]': isMessages },
+                    'min-w-0 flex-1 bg-card pb-40 md:max-w-[620px] md:border-x md:pb-0 lg:max-w-[calc(876px-var(--sidebar-width))]',
+                    {
+                        'pb-20 md:max-w-[940px] lg:max-w-[calc(1196px-var(--sidebar-width))]':
+                            isMessages,
+                    },
                 )}
             >
                 <MobileHeader onSearch={openSearch} />

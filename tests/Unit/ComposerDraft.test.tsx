@@ -438,8 +438,35 @@ function keyDown(
     return event;
 }
 
+function focus(view: ReturnType<typeof render>, handler = 'onFocus') {
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props[handler] as (event: unknown) => void)({
+        currentTarget: { selectionStart: 0, selectionEnd: 0 },
+    });
+}
+
+function hasSuggestions(): boolean {
+    return render().fields.some(
+        (element) => element.type === IssueCommandSuggestions,
+    );
+}
+
+test('a restored slash only opens the command menu while the composer is focused', () => {
+    draft.body = '/';
+    assert.equal(hasSuggestions(), false);
+
+    focus(render());
+    assert.equal(hasSuggestions(), true);
+
+    focus(render(), 'onBlur');
+    assert.equal(hasSuggestions(), false);
+});
+
 test('typing a command and a space turns the draft into an issue, and backspace turns it back into a commit', () => {
     draft.body = '/bu';
+    focus(render());
     let view = render();
     const suggestions = view.fields.find(
         (element) => element.type === IssueCommandSuggestions,
@@ -493,6 +520,7 @@ test('typing a command and a space turns the draft into an issue, and backspace 
 
 test('picking a suggestion with Enter starts an empty issue, and the shortcut opens it instead of committing', () => {
     draft.body = '/';
+    focus(render());
     keyDown(render(), 'ArrowDown');
     const enter = keyDown(render(), 'Enter');
     assert.equal(enter.preventDefault.mock.calls.length, 1);
@@ -548,6 +576,7 @@ test('a draft that mentions a bug suggests /bug, keeps the text when used, and c
 test('commands are not offered while the draft has images, a poll or a schedule', () => {
     draft.images = [image];
     draft.body = '/';
+    focus(render());
     const view = render();
     assert.equal(
         view.fields.some((element) => element.type === IssueCommandSuggestions),

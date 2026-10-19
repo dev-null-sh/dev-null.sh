@@ -127,7 +127,7 @@ export default function Show({
             })}
 
             {nextId !== null && (
-                <div className="pr-4 pl-16 sm:pl-[4.5rem]">
+                <div className="pr-4 pl-16 sm:pl-18">
                     <div className="border-b py-3">
                         <button
                             type="button"

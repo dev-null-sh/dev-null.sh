@@ -20,7 +20,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { cn, laneTint } from '@/lib/utils';
 import type { Achievements, Profile, User } from '@/types';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -71,8 +71,8 @@ export function AchievementsDialog({
                         <span
                             className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-medium text-foreground"
                             style={{
-                                borderColor: `${lane}40`,
-                                backgroundColor: `${lane}15`,
+                                borderColor: laneTint(lane, 25),
+                                backgroundColor: laneTint(lane, 8),
                             }}
                         >
                             Lv. {achievements.level} · {achievements.rank}
