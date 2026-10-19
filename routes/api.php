@@ -164,6 +164,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->name('api-message-link-preview.show');
         });
 
+        // Remotes: pushing a message, as often as the web's composer may...
+        Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])
+            ->middleware('throttle:messages')
+            ->name('api-conversation-message.store');
+        Route::post('remotes/orgs/{org}/messages', [OrgMessageController::class, 'store'])
+            ->whereUuid('org')
+            ->middleware('throttle:messages')
+            ->name('api-org-message.store');
+
         // Notifications...
         Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');
         Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('api-notification-group.show');
