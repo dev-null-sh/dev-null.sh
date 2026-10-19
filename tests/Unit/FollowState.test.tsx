@@ -386,10 +386,12 @@ test('a second click on a follow still on its way sends nothing', () => {
     (suggestionFollowLink(user).onStart as () => void)();
 
     const pending = suggestionFollowLink(user);
-    assert.equal(pending['aria-disabled'], true);
+    assert.equal(pending.disabled, true);
     assert.equal((pending.onBefore as () => boolean)(), false);
 
     (pending.onFinish as () => void)();
 
-    assert.equal((suggestionFollowLink(user).onBefore as () => boolean)(), true);
+    const finished = suggestionFollowLink(user);
+    assert.equal(finished.disabled, false);
+    assert.equal((finished.onBefore as () => boolean)(), true);
 });
