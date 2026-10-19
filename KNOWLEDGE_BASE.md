@@ -44,6 +44,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [GitHub Actions integration](#github-actions-integration)
   - [Public read API and Atom feeds](#public-read-api-and-atom-feeds)
   - [Signed API and devices](#signed-api-and-devices)
+  - [Signed commits and passkeys](#signed-commits-and-passkeys)
   - [Bug reports and feature requests](#bug-reports-and-feature-requests)
   - [Exporting your data](#exporting-your-data)
   - [Deleting your account](#deleting-your-account)
@@ -408,6 +409,16 @@ An app can use the same `/api/v1` for you with signed requests. It keeps an SSH 
 A signed request sees what the web shows you, such as your own pending commits, and can also read your logs, replies, and notifications, commit and reply, delete your commits, and follow or unfollow, with the web's validation, moderation, and rate limits. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
+
+### Signed commits and passkeys
+
+Settings → Signing adds passkeys, such as one in 1Password or iCloud Keychain. Turn on **Require signed commits**, and every commit, reply, quote, scheduled commit, `/bug`, and `/feature` you post on the web asks for your passkey first. Someone who has your session or your GitHub account, but not your passkey, then can't post in your name. The terminal and the signed API can't sign with a passkey, so they can't post for an account that requires signing.
+
+The passkey signs what is posted: the body, the commit it replies to or quotes, the poll, the SHA-256 of each image, and the scheduled time. A scheduled commit is signed when you schedule it. Signing can't be turned on while an unsigned scheduled commit is still waiting. Turning signing on or off, adding a passkey, and removing one are each confirmed with a passkey, and the last passkey stays while signing is on.
+
+A signed commit shows a shield. Its proof at `/commits/{commit}/signature` holds the public key, the signed statement, and the signature, so anyone can check it without trusting /dev/null. The proof stays after the passkey is removed.
+
+Sources: [signing settings](resources/js/pages/signing/edit.tsx), [passkey checks](app/Services/Passkeys.php), [signed statements](app/Services/PasskeyChallenges.php), [signed commit rules](app/Services/SignedWebCommits.php), [proof](app/Http/Controllers/CommitSignatureController.php).
 
 ### Bug reports and feature requests
 

@@ -7,8 +7,11 @@ namespace App\Http\Requests;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
+use App\Services\SignedWebCommits;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 /**
  * A commit from the mobile app, sent as JSON. It may reply to a commit or quote one, as on the web, but not both. It has
@@ -42,6 +45,14 @@ final class CreateApiCommitRequest extends FormRequest
             'parent_id' => ['bail', 'nullable', 'uuid', new VisibleCommit($user)],
             'quoted_commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
         ];
+    }
+
+    /**
+     * @return list<Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [SignedWebCommits::refuse($this)];
     }
 
     /**

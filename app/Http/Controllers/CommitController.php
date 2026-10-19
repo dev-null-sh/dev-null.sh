@@ -19,6 +19,7 @@ use App\Queries\CommitPageQuery;
 use App\Queries\CommitRepliesQuery;
 use App\Queries\UserAchievementsQuery;
 use App\Services\PageMetadata;
+use App\Services\SignedWebCommits;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\RedirectResponse;
@@ -66,7 +67,7 @@ final readonly class CommitController
     {
         $before = $achievements->unlockedBadgeNames($user);
 
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll());
+        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), signature: SignedWebCommits::proof($request));
 
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 

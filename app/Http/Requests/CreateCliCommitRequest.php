@@ -8,12 +8,15 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitByReferenceQuery;
 use App\Rules\CommitReference;
+use App\Services\SignedWebCommits;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\File;
+use Illuminate\Validation\Validator;
 
 /**
  * A commit signed by the `devnull commit` script, which replies by commit hash or link instead of by ID.
@@ -40,6 +43,14 @@ final class CreateCliCommitRequest extends FormRequest
             'images' => $attachmentRules['images'],
             'images.*' => $attachmentRules['images.*'],
         ];
+    }
+
+    /**
+     * @return list<Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [SignedWebCommits::refuse($this)];
     }
 
     public function parent(): ?Commit

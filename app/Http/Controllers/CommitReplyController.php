@@ -14,6 +14,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitRepliesQuery;
 use App\Queries\CommitThreadQuery;
+use App\Services\SignedWebCommits;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
 
@@ -26,7 +27,7 @@ final readonly class CommitReplyController
 
     public function store(CreateCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action, CommitThreadQuery $thread): JsonResponse
     {
-        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview());
+        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), signature: SignedWebCommits::proof($request));
         $parent = $thread->get($commit, $user);
 
         return response()->json([

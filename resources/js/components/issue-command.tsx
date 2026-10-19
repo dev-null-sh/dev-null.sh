@@ -1,4 +1,4 @@
-import { useHttp } from '@inertiajs/react';
+import { useHttp, usePage } from '@inertiajs/react';
 import { Bug, Lightbulb, X } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
@@ -14,6 +14,8 @@ import {
     typedCommand,
 } from '@/lib/issue-commands';
 import { hasModKey } from '@/lib/keyboard';
+import { signCommit } from '@/lib/passkeys';
+import type { PasskeySignature } from '@/lib/passkeys';
 import { cn } from '@/lib/utils';
 
 const hintDismissedKey = 'issue-command-hint-dismissed';
@@ -47,8 +49,15 @@ export function useIssueCommand({
     const [dismissed, setDismissed] = useState(false);
     const [focused, setFocused] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(isHintDismissed);
+    const [isSigning, setIsSigning] = useState(false);
+    const { auth } = usePage().props;
     const request = useHttp<
-        { command: string; body: string; environment?: IssueEnvironment },
+        {
+            command: string;
+            body: string;
+            environment?: IssueEnvironment;
+            signature?: PasskeySignature;
+        },
         { number: number; url: string }
     >({ command: '', body: '' });
     const command =
@@ -79,7 +88,7 @@ export function useIssueCommand({
     };
 
     const submit = async () => {
-        if (command === null || request.processing) {
+        if (command === null || request.processing || isSigning) {
             return;
         }
 
@@ -90,10 +99,31 @@ export function useIssueCommand({
             return;
         }
 
+        let signature: PasskeySignature | undefined;
+
+        if (auth.requiresSignedCommits) {
+            setIsSigning(true);
+
+            try {
+                signature = await signCommit({ command: command.name, body });
+            } catch (error) {
+                toast.error(
+                    error instanceof Error && error.name !== 'NotAllowedError'
+                        ? error.message
+                        : 'The issue was not signed, so it was not opened.',
+                );
+
+                return;
+            } finally {
+                setIsSigning(false);
+            }
+        }
+
         request.transform(() => ({
             command: command.name,
             body,
             environment: collectEnvironment(),
+            ...(signature && { signature }),
         }));
 
         try {
@@ -209,7 +239,7 @@ export function useIssueCommand({
             }
         },
         selected: selected % Math.max(suggestions.length, 1),
-        processing: request.processing,
+        processing: request.processing || isSigning,
         change,
         focus: () => setFocused(true),
         blur: () => setFocused(false),

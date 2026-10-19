@@ -1,3 +1,4 @@
+import type { FormComponentRef } from '@inertiajs/core';
 import { Form, Link, usePage } from '@inertiajs/react';
 import { ChartBar, Clock3 } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
@@ -38,6 +39,7 @@ import {
 import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
+import { useCommitSigning } from '@/hooks/use-commit-signing';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
@@ -133,7 +135,7 @@ function CommitComposerBody({
     const hasImages = attachments.images.length > 0;
     const progress = bodyProgress(characterCount(body));
     const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
-    const error = errors.body ?? errors.link_preview_url;
+    const error = errors.body ?? errors.link_preview_url ?? errors.signature;
     const scheduleError =
         errors.scheduled_at ??
         (scheduledAt && !isExistingLocalTime(scheduledAt)
@@ -572,6 +574,8 @@ export function CommitComposer({
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(body);
+    const form = useRef<FormComponentRef>(null);
+    const signing = useCommitSigning(form);
 
     const hasImages = attachments.images.length > 0;
     const isCommittable =
@@ -625,27 +629,33 @@ export function CommitComposer({
 
     return (
         <Form
+            ref={form}
             className={cn({ 'flex min-h-0 flex-col': isInDialog })}
             {...(isScheduling
                 ? ScheduledCommitController.store.form()
                 : CommitController.store.form())}
             onBefore={() =>
-                !attachments.isReading() &&
-                issue.command === null &&
-                secrets.beforeSubmit()
+                signing.beforeVisit(
+                    () =>
+                        !attachments.isReading() &&
+                        issue.command === null &&
+                        secrets.beforeSubmit(),
+                )
             }
-            transform={(data) => ({
-                ...data,
-                ...(hasImages && {
-                    images: attachments.images,
-                    image_descriptions: attachments.descriptions,
-                }),
-                ...(isScheduling && {
-                    scheduled_at: new Date(scheduledAt)
-                        .toISOString()
-                        .replace(/\.\d{3}Z$/, '+00:00'),
-                }),
-            })}
+            transform={(data) =>
+                signing.withSignature({
+                    ...data,
+                    ...(hasImages && {
+                        images: attachments.images,
+                        image_descriptions: attachments.descriptions,
+                    }),
+                    ...(isScheduling && {
+                        scheduled_at: new Date(scheduledAt)
+                            .toISOString()
+                            .replace(/\.\d{3}Z$/, '+00:00'),
+                    }),
+                })
+            }
             options={{ preserveScroll: true }}
             onSuccess={(page) => {
                 if (isRejectedSubmission(page.flash)) {
@@ -681,7 +691,8 @@ export function CommitComposer({
                         setPoll={setPoll}
                         secrets={secrets}
                         isSubmittable={isSubmittable}
-                        processing={processing}
+                        // Not a disabled fieldset: the signed resubmit runs before a re-render, and would leave its fields out...
+                        processing={processing || signing.isSigning}
                         issue={issue}
                         errors={errors}
                         onKeyDown={onKeyDown}

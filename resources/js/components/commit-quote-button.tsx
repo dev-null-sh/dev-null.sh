@@ -1,3 +1,4 @@
+import type { FormComponentRef } from '@inertiajs/core';
 import { Form, usePage } from '@inertiajs/react';
 import { Quote } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
@@ -24,6 +25,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
+import { useCommitSigning } from '@/hooks/use-commit-signing';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
@@ -127,6 +129,8 @@ function QuoteComposer({
     );
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
+    const form = useRef<FormComponentRef>(null);
+    const signing = useCommitSigning(form);
     const keys = useKeyLabels();
 
     const isQuotable =
@@ -174,19 +178,25 @@ function QuoteComposer({
             </DialogDescription>
 
             <Form
+                ref={form}
                 {...CommitController.store.form()}
                 errorBag="quote"
                 onBefore={() =>
-                    !attachments.isReading() && secrets.beforeSubmit()
+                    signing.beforeVisit(
+                        () =>
+                            !attachments.isReading() && secrets.beforeSubmit(),
+                    )
                 }
                 transform={(data) =>
-                    images.length > 0
-                        ? {
-                              ...data,
-                              images,
-                              image_descriptions: descriptions,
-                          }
-                        : data
+                    signing.withSignature(
+                        images.length > 0
+                            ? {
+                                  ...data,
+                                  images,
+                                  image_descriptions: descriptions,
+                              }
+                            : data,
+                    )
                 }
                 options={{ preserveScroll: true }}
                 onError={(errors) => {
@@ -246,7 +256,11 @@ function QuoteComposer({
                             />
 
                             <InputError
-                                message={errors.body ?? errors.quoted_commit_id}
+                                message={
+                                    errors.body ??
+                                    errors.quoted_commit_id ??
+                                    errors.signature
+                                }
                             />
 
                             <SecretWarning
@@ -313,12 +327,17 @@ function QuoteComposer({
                                     disabled={
                                         processing ||
                                         attachments.reading ||
+                                        signing.isSigning ||
                                         !isQuotable
                                     }
                                     title={`Quote (${keys.combo(keys.mod, keys.enter)})`}
                                     data-test="submit-quote-button"
                                 >
-                                    {processing ? 'Quoting…' : 'Quote'}
+                                    {signing.isSigning
+                                        ? 'Signing…'
+                                        : processing
+                                          ? 'Quoting…'
+                                          : 'Quote'}
                                 </Button>
                             </div>
                         </div>

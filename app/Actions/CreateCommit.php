@@ -15,11 +15,15 @@ use App\Models\LinkPreview;
 use App\Models\User;
 use App\Queries\MentionedUsersQuery;
 use App\Services\EmojiShortcodes;
+use App\Services\SignedWebCommits;
 use App\Services\TheAlgorithm;
 use App\Services\Urls;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * @phpstan-import-type Proof from SignedWebCommits
+ */
 final readonly class CreateCommit
 {
     public function __construct(
@@ -42,8 +46,9 @@ final readonly class CreateCommit
      *
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
+     * @param  Proof|null  $signature
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?array $signature = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -51,7 +56,7 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $signature): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
@@ -66,6 +71,8 @@ final readonly class CreateCommit
                 'quoted_commit_id' => $quotedCommit?->id,
                 'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),
                 'created_at' => $createdAt,
+                'signed_at' => $signature['signed_at'] ?? null,
+                'signature' => $signature,
             ]);
 
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);

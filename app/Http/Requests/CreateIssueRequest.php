@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Services\SignedWebCommits;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\In;
+use Illuminate\Validation\Validator;
 
 final class CreateIssueRequest extends FormRequest
 {
@@ -29,6 +32,7 @@ final class CreateIssueRequest extends FormRequest
             'body' => CreateCommitRequest::BODY_RULES,
             'environment' => ['nullable', 'array:'.implode(',', self::ENVIRONMENT_FIELDS)],
             'environment.*' => ['nullable', 'string', 'max:100'],
+            ...SignedWebCommits::rules(),
         ];
     }
 
@@ -41,5 +45,13 @@ final class CreateIssueRequest extends FormRequest
         $environment = $this->array('environment');
 
         return array_filter($environment, fn (?string $value): bool => $value !== null && $value !== '');
+    }
+
+    /**
+     * @return list<Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [SignedWebCommits::checkIssue($this)];
     }
 }

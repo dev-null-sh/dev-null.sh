@@ -10,6 +10,7 @@ import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
+import { CommitSignedBadge } from '@/components/commit-signed-badge';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import {
@@ -314,6 +315,7 @@ export function CommitCard({
                                 />
 
                                 <CommitStatusBadge commit={commit} />
+                                <CommitSignedBadge commit={commit} />
 
                                 <span
                                     data-commit-hash

@@ -1,6 +1,7 @@
 import { edit as editAppearance } from '@/routes/appearance';
 import { index as devices } from '@/routes/device';
 import { edit as editSafety } from '@/routes/safety';
+import { edit as editSigning } from '@/routes/signing';
 import { show as showTerminal } from '@/routes/terminal';
 import { edit as editProfile } from '@/routes/user-profile';
 
@@ -13,4 +14,5 @@ export const settingsTabs = [
     { title: 'Terminal', href: showTerminal() },
     { title: 'Safety', href: editSafety() },
     { title: 'Devices', href: devices() },
+    { title: 'Signing', href: editSigning() },
 ];

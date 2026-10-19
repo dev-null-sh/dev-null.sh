@@ -77,6 +77,16 @@ it('creates a commit signed with an ssh key', function (): void {
         ->and($commit->status)->toBe(CommitStatus::Pending);
 });
 
+it('refuses a commit signed with an ssh key while the user requires passkey signed commits', function (): void {
+    $this->user->update(['requires_signed_commits' => true]);
+
+    postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'))
+        ->assertUnprocessable()
+        ->assertSee('Your account requires commits signed with a passkey, so it only takes commits from the web.');
+
+    expect($this->user->commits()->count())->toBe(0);
+});
+
 it('collapses runs of blank lines in a signed commit', function (): void {
     postSignedCommit(signedCommit($this->keyPair, "It was DNS.\n\n\n\nIt is always DNS."))->assertCreated();
 

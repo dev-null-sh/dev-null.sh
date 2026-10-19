@@ -11,7 +11,9 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
 use App\Services\CommitBodies;
+use App\Services\SignedWebCommits;
 use App\Services\Urls;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -20,6 +22,7 @@ use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rules\In;
+use Illuminate\Validation\Validator;
 
 final class CreateCommitRequest extends FormRequest
 {
@@ -85,7 +88,16 @@ final class CreateCommitRequest extends FormRequest
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...self::attachmentRules(),
+            ...SignedWebCommits::rules(),
         ];
+    }
+
+    /**
+     * @return list<Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [SignedWebCommits::check($this, null)];
     }
 
     /**

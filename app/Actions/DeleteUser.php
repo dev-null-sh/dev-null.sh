@@ -53,7 +53,7 @@ final readonly class DeleteUser
             }
 
             $user->commits()->delete();
-            $user->commits()->withTrashed()->update(['user_id' => null]);
+            $user->commits()->withTrashed()->update(['user_id' => null, 'signed_at' => null, 'signature' => null]);
 
             $user->delete();
 

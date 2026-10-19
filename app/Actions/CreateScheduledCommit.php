@@ -7,11 +7,15 @@ namespace App\Actions;
 use App\Dto\NewPoll;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use App\Services\SignedWebCommits;
 use App\Services\Urls;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * @phpstan-import-type Proof from SignedWebCommits
+ */
 final readonly class CreateScheduledCommit
 {
     public function __construct(private CreateCommitImageFiles $createCommitImageFiles, private Urls $urls)
@@ -25,8 +29,9 @@ final readonly class CreateScheduledCommit
      *
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
+     * @param  Proof|null  $signature
      */
-    public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null, bool|string $linkPreview = true): ScheduledCommit
+    public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null, bool|string $linkPreview = true, ?array $signature = null): ScheduledCommit
     {
         $body = mb_trim($body);
 
@@ -41,6 +46,7 @@ final readonly class CreateScheduledCommit
                 default => $linkPreview,
             },
             'scheduled_at' => $scheduledAt->utc(),
+            'signature' => $signature,
         ]));
     }
 }

@@ -24,6 +24,7 @@ import {
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
+import { CommitSignedBadge } from '@/components/commit-signed-badge';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { useCommitTranslation } from '@/components/commit-translation';
@@ -64,6 +65,8 @@ import { signIn } from '@/lib/auth';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
+import { signCommit } from '@/lib/passkeys';
+import type { PasskeySignature } from '@/lib/passkeys';
 import {
     characterCount,
     cn,
@@ -1075,6 +1078,7 @@ function CommitReply({
                             </Link>
                         </TimestampTooltip>
                         <CommitStatusBadge commit={reply} size="small" />
+                        <CommitSignedBadge commit={reply} size="small" />
                         {isOwn && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1208,6 +1212,7 @@ function ReplyComposer({
             images: File[];
             image_descriptions: string[];
             link_preview_url?: string;
+            signature?: PasskeySignature;
         },
         CreatedReply
     >({
@@ -1217,6 +1222,8 @@ function ReplyComposer({
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
+    const { auth } = usePage().props;
+    const [isSigning, setIsSigning] = useState(false);
     const isReplyable =
         images.length > 0 || characterCount(body.trim()) >= minBodyLength;
     const preview = useComposerPreview({
@@ -1258,15 +1265,40 @@ function ReplyComposer({
         }
     };
 
-    const submit = (event: FormEvent<HTMLFormElement>) => {
+    const submit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         if (
             request.processing ||
+            isSigning ||
             attachments.isReading() ||
             !secrets.beforeSubmit()
         ) {
             return;
+        }
+
+        let signature: PasskeySignature | null = null;
+
+        if (auth.requiresSignedCommits) {
+            setIsSigning(true);
+
+            try {
+                signature = await signCommit({
+                    body,
+                    parent_id: parent.id,
+                    images,
+                });
+            } catch (error) {
+                toast.error(
+                    error instanceof Error && error.name !== 'NotAllowedError'
+                        ? error.message
+                        : 'The reply was not signed, so it was not posted.',
+                );
+
+                return;
+            } finally {
+                setIsSigning(false);
+            }
         }
 
         request.setData(() => ({
@@ -1276,6 +1308,7 @@ function ReplyComposer({
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
+            ...(signature ? { signature } : {}),
         }));
 
         request
@@ -1306,7 +1339,7 @@ function ReplyComposer({
 
     return (
         <form
-            onSubmit={submit}
+            onSubmit={(event) => void submit(event)}
             {...attachments.dropzone}
             className="relative mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
             data-test="reply-composer"
@@ -1347,7 +1380,9 @@ function ReplyComposer({
                 )}
             </div>
             <InputError
-                message={errors.body ?? errors.link_preview_url}
+                message={
+                    errors.body ?? errors.link_preview_url ?? errors.signature
+                }
                 className="px-1"
             />
             {!preview.isPreviewing && (
@@ -1413,11 +1448,20 @@ function ReplyComposer({
                 <Button
                     type="submit"
                     size="sm"
-                    disabled={processing || attachments.reading || !isReplyable}
+                    disabled={
+                        processing ||
+                        attachments.reading ||
+                        isSigning ||
+                        !isReplyable
+                    }
                     className="min-w-19"
                     data-test="submit-reply-button"
                 >
-                    {processing ? 'Replying…' : 'Reply'}
+                    {isSigning
+                        ? 'Signing…'
+                        : processing
+                          ? 'Replying…'
+                          : 'Reply'}
                 </Button>
             </div>
         </form>

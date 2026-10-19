@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Services\SignedWebCommits;
 use Carbon\CarbonInterface;
 use Database\Factories\ScheduledCommitFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -13,6 +14,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
+ * @phpstan-import-type Proof from SignedWebCommits
+ *
  * @property-read string $id
  * @property-read string $user_id
  * @property-read string|null $commit_id
@@ -20,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read array{options: list<string>, duration: int}|null $poll
  * @property-read list<array{path: string, width: int, height: int, description: string|null, position: int}>|null $images
  * @property-read string|null $link_preview_url
+ * @property-read Proof|null $signature
  * @property-read CarbonInterface $scheduled_at
  * @property-read CarbonInterface|null $submitted_at
  * @property-read CarbonInterface|null $canceled_at
@@ -40,6 +44,7 @@ final class ScheduledCommit extends Model
         return [
             'poll' => 'array',
             'images' => 'array',
+            'signature' => 'array',
             'scheduled_at' => 'immutable_datetime',
             'submitted_at' => 'immutable_datetime',
             'canceled_at' => 'immutable_datetime',

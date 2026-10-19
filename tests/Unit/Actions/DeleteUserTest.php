@@ -72,6 +72,19 @@ it('leaves a tombstone for a reply of a deleted user that other people replied t
         ->and(Commit::withTrashed()->whereKey($nestedReply->id)->exists())->toBeFalse();
 });
 
+it('erases the signature proof of a tombstoned reply', function (): void {
+    $user = User::factory()->create();
+    $reply = Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create(['signed_at' => now(), 'signature' => ['statement' => 'A signed reply.']]);
+    Commit::factory()->for($reply, 'parent')->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $tombstone = Commit::withTrashed()->findOrFail($reply->id);
+
+    expect($tombstone->signed_at)->toBeNull()
+        ->and($tombstone->signature)->toBeNull();
+});
+
 it('erases the replies of a deleted user that only have their own replies under them', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->create();

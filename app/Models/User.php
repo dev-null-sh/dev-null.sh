@@ -66,6 +66,8 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read Collection<int, PollVote> $pollVotes
  * @property-read Collection<int, Device> $devices
+ * @property-read Collection<int, Passkey> $passkeys
+ * @property-read bool $requires_signed_commits
  * @property-read int $commits_count
  * @property-read int $following_count
  * @property-read int $followers_count
@@ -91,6 +93,7 @@ use Illuminate\Support\Facades\DB;
     'live_platform',
     'live_url',
     'live_ends_at',
+    'requires_signed_commits',
 ])]
 final class User extends Authenticatable
 {
@@ -121,6 +124,7 @@ final class User extends Authenticatable
         'live_platform' => null,
         'live_url' => null,
         'live_ends_at' => null,
+        'requires_signed_commits' => false,
     ];
 
     /**
@@ -143,6 +147,7 @@ final class User extends Authenticatable
             'preferred_lane' => 'integer',
             'lane_color' => 'string',
             'pasteis_mode' => 'boolean',
+            'requires_signed_commits' => 'boolean',
             'remotes_enabled' => 'boolean',
             'remotes_from' => RemotesFrom::class,
             'pull_receipts' => 'boolean',
@@ -216,6 +221,14 @@ final class User extends Authenticatable
     public function devices(): HasMany
     {
         return $this->hasMany(Device::class);
+    }
+
+    /**
+     * @return HasMany<Passkey, $this>
+     */
+    public function passkeys(): HasMany
+    {
+        return $this->hasMany(Passkey::class);
     }
 
     /**

@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
 use App\Services\CommitBodies;
+use App\Services\SignedWebCommits;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -23,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
+ * @phpstan-import-type Proof from SignedWebCommits
+ *
  * @property-read string $id
  * @property-read string|null $user_id
  * @property-read string|null $parent_id
@@ -39,6 +42,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
+ * @property-read CarbonInterface|null $signed_at
  * @property-read int $stars_count
  * @property-read int $pasteis_count
  * @property-read bool $starred
@@ -55,11 +59,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
+ * @property-read Proof|null $signature
  */
 #[Hidden([
     'ai_decision',
     'ai_categories',
     'embedding',
+    'signature',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -119,6 +125,8 @@ final class Commit extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
+            'signed_at' => 'datetime',
+            'signature' => 'array',
         ];
     }
 

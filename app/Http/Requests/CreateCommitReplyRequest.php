@@ -7,7 +7,9 @@ namespace App\Http\Requests;
 use App\Actions\CreateCommitImages;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\SignedWebCommits;
 use App\Services\Urls;
+use Closure;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -16,6 +18,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rules\In;
+use Illuminate\Validation\Validator;
 
 final class CreateCommitReplyRequest extends FormRequest
 {
@@ -58,7 +61,19 @@ final class CreateCommitReplyRequest extends FormRequest
             ],
             'image_descriptions' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'image_descriptions.*' => ['nullable', 'string', 'max:'.CreateCommitImages::MAX_DESCRIPTION_LENGTH],
+            ...SignedWebCommits::rules(),
         ];
+    }
+
+    /**
+     * @return list<Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        $commit = $this->route('commit');
+        assert($commit instanceof Commit);
+
+        return [SignedWebCommits::check($this, $commit->id)];
     }
 
     /**

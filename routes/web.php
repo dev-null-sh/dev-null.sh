@@ -24,6 +24,7 @@ use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitReportController;
 use App\Http\Controllers\CommitRestorationController;
 use App\Http\Controllers\CommitSearchController;
+use App\Http\Controllers\CommitSignatureController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
@@ -62,6 +63,8 @@ use App\Http\Controllers\OrgMemberController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
+use App\Http\Controllers\PasskeyController;
+use App\Http\Controllers\PasskeyOptionsController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
@@ -69,6 +72,8 @@ use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\SigningChallengeController;
+use App\Http\Controllers\SigningController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TermsController;
@@ -195,6 +200,8 @@ Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show']
     ->name('commit-image.show');
 Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
     ->name('commit-link-preview.show');
+Route::get('commits/{commit}/signature', [CommitSignatureController::class, 'show'])
+    ->name('commit-signature.show');
 Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
     ->name('commit-status.show');
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
@@ -249,6 +256,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits', [CommitController::class, 'store'])
         ->middleware(ThrottleCommits::class)
         ->name('commit.store');
+    Route::post('signing-challenges', [SigningChallengeController::class, 'store'])
+        ->middleware('throttle:passkeys')
+        ->name('signing-challenge.store');
     Route::post('commits/preview', [CommitPreviewController::class, 'store'])
         ->name('commit-preview.store');
     Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
@@ -409,6 +419,15 @@ Route::middleware('auth')->group(function (): void {
     // Devices...
     Route::get('settings/devices', [DeviceController::class, 'index'])->name('device.index');
     Route::delete('settings/devices/{device}', [DeviceController::class, 'destroy'])->name('device.destroy');
+
+    // Signing...
+    Route::get('settings/signing', [SigningController::class, 'edit'])->name('signing.edit');
+    Route::put('settings/signing', [SigningController::class, 'update'])->name('signing.update');
+    Route::post('settings/passkeys/options', [PasskeyOptionsController::class, 'store'])
+        ->middleware('throttle:passkeys')
+        ->name('passkey.options');
+    Route::post('settings/passkeys', [PasskeyController::class, 'store'])->name('passkey.store');
+    Route::delete('settings/passkeys/{passkey}', [PasskeyController::class, 'destroy'])->name('passkey.destroy');
 
     // Mobile Authorization...
     Route::get('mobile/authorize', [MobileAuthorizationController::class, 'show'])->name('mobile-authorization.show');

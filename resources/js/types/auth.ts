@@ -54,6 +54,7 @@ export type Auth = {
         everyone: boolean;
     } | null;
     pasteis: { remaining: number; day: string } | null;
+    requiresSignedCommits: boolean;
 };
 
 export type SuggestedUser = User & {

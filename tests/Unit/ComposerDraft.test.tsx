@@ -21,6 +21,15 @@ const draft = {
     drop: vi.fn(),
 };
 const user = { id: 'viewer', username: 'viewer', lane: 1 };
+const auth = { user, isAdmin: false, requiresSignedCommits: false };
+const signature = {
+    nonce: 'nonce',
+    credential_id: 'credential',
+    client_data_json: 'client-data',
+    authenticator_data: 'authenticator-data',
+    signature: 'signature',
+};
+const signCommit = vi.fn(async () => signature);
 const http = {
     processing: false,
     transform: vi.fn(),
@@ -58,9 +67,10 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user, isAdmin: false } } }),
+    usePage: () => ({ props: { auth } }),
     useHttp: () => http,
 }));
+vi.doMock('../../resources/js/lib/passkeys', () => ({ signCommit }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
     useUser: () => ({ user }),
 }));
@@ -118,6 +128,7 @@ function render() {
 beforeEach(() => {
     vi.clearAllMocks();
     state = [];
+    auth.requiresSignedCommits = false;
     draft.body = 'A restored draft https://example.com';
     draft.images = [];
     draft.descriptions = [];
@@ -557,6 +568,42 @@ test('picking a suggestion with Enter starts an empty issue, and the shortcut op
                 color_scheme: 'dark',
                 page: '/log',
             },
+        });
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
+
+test('signs an issue with a passkey before opening it, when the account requires signing', async () => {
+    vi.stubGlobal('navigator', { userAgent: '', language: 'en-US' });
+    vi.stubGlobal('window', {
+        matchMedia: () => ({ matches: false }),
+        location: { pathname: '/log' },
+    });
+    auth.requiresSignedCommits = true;
+
+    try {
+        draft.body = '/';
+        focus(render());
+        keyDown(render(), 'ArrowDown');
+        keyDown(render(), 'Enter');
+
+        draft.body = 'Search loses its filters';
+        keyDown(render(), 'Enter', { metaKey: true });
+        await vi.waitFor(() => assert.equal(http.submit.mock.calls.length, 1));
+
+        assert.deepEqual(signCommit.mock.calls[0], [
+            { command: '/bug', body: 'Search loses its filters' },
+        ]);
+        const payload = http.transform.mock.calls[0][0] as () => Record<
+            string,
+            unknown
+        >;
+        const { environment: _environment, ...signed } = payload();
+        assert.deepEqual(signed, {
+            command: '/bug',
+            body: 'Search loses its filters',
+            signature,
         });
     } finally {
         vi.unstubAllGlobals();

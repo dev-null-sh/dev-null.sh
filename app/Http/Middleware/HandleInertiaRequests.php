@@ -60,6 +60,7 @@ final class HandleInertiaRequests extends Middleware
                     'requests' => (bool) config('remotes.requests'),
                     'everyone' => (bool) config('remotes.everyone'),
                 ] : null,
+                'requiresSignedCommits' => $user instanceof User && $user->requires_signed_commits,
                 'pasteis' => fn (): ?array => $user?->pasteis_mode ? [
                     'remaining' => $user->pasteisRemaining(),
                     'day' => today()->toDateString(),

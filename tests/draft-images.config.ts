@@ -25,6 +25,8 @@ export default defineConfig({
             'tests/Unit/TabSlide.test.tsx',
             'tests/Unit/ReportResolution.test.tsx',
             'tests/Unit/LinkifiedText.test.tsx',
+            'tests/Unit/CommitSigning.test.tsx',
+            'tests/Unit/CommitSignedBadge.test.tsx',
         ],
     },
 });

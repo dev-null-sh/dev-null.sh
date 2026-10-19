@@ -79,7 +79,7 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ## Signed requests
 
-The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, saved commits, committing, deleting, following, starring, saving, muting, blocking, reporting and pastéis only take signed requests. Signed requests are limited to 120 a minute per user.
+The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, saved commits, committing, deleting, following, starring, saving, muting, blocking, reporting and pastéis only take signed requests. Signed requests are limited to 120 a minute per user. A user who requires signed commits signs each commit with a passkey on the web, so a signed request to commit for them is a `422`.
 
 Commits in a signed response carry what the web's cards show: `preview_segments`, the excerpt a list shows of a long commit (or `null`), the `poll` with the user's view of its votes and each option's `percentage`, the `quoted_commit` (a tombstone once deleted, or `null` when the user may not see it, while `quoted_commit_id` still says a commit was quoted), and in lists the `reply_preview` the web shows under each commit. Its `next_cursor` continues with `GET /api/v1/commits/{id}/replies?newest=1&cursor=…`, as on the web.
 

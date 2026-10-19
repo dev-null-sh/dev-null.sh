@@ -8,7 +8,9 @@ use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\User;
 use App\Rules\ScheduledCommitLimit;
+use App\Services\SignedWebCommits;
 use App\Services\Urls;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -17,6 +19,7 @@ use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rules\In;
+use Illuminate\Validation\Validator;
 
 final class CreateScheduledCommitRequest extends FormRequest
 {
@@ -38,7 +41,16 @@ final class CreateScheduledCommitRequest extends FormRequest
             'parent_id' => ['prohibited'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...CreateCommitRequest::attachmentRules(),
+            ...SignedWebCommits::rules(),
         ];
+    }
+
+    /**
+     * @return list<Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [SignedWebCommits::check($this, null, $this->string('scheduled_at')->value())];
     }
 
     /**
