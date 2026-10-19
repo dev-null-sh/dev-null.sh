@@ -25,6 +25,24 @@ it('finds nothing behind a code whose sign-in is gone', function (): void {
     expect(new DeviceAuthorizations()->pendingFromUserCode('BCDF-GHJK'))->toBeNull();
 });
 
+it('finds the sign-in behind a device code, whatever was decided', function (?DeviceAuthorizationStatus $decision): void {
+    ['device_code' => $deviceCode, 'authorization' => $authorization] = pendingDeviceAuthorization();
+
+    if ($decision instanceof DeviceAuthorizationStatus) {
+        resolve(CreateDeviceActivation::class)->handle(User::factory()->create(), $authorization, $decision);
+    }
+
+    expect(new DeviceAuthorizations()->fromDeviceCode($deviceCode)?->status)->toBe($decision ?? DeviceAuthorizationStatus::Pending);
+})->with([
+    'pending' => null,
+    'approved' => DeviceAuthorizationStatus::Approved,
+    'denied' => DeviceAuthorizationStatus::Denied,
+]);
+
+it('finds nothing behind a device code that was never handed out', function (): void {
+    expect(new DeviceAuthorizations()->fromDeviceCode('another-code'))->toBeNull();
+});
+
 it('finds nothing behind a code once it is decided', function (DeviceAuthorizationStatus $decision): void {
     $authorization = pendingDeviceAuthorization()['authorization'];
 

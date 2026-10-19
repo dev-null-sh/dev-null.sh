@@ -79,6 +79,24 @@ final class ApiException extends HttpException
         return new self(ApiErrorCode::Banned, __('Your account is banned from /dev/null. All you can do is delete it.'));
     }
 
+    /**
+     * The answers a terminal polling for its sign-in gets until the user decides, as RFC 8628 names them.
+     */
+    public static function authorizationPending(): self
+    {
+        return new self(ApiErrorCode::AuthorizationPending, __('Waiting for the device to be approved on the web.'));
+    }
+
+    public static function slowDown(): self
+    {
+        return new self(ApiErrorCode::SlowDown, __('Asking too often. Wait a few seconds more between tries.'));
+    }
+
+    public static function accessDenied(): self
+    {
+        return new self(ApiErrorCode::AccessDenied, __('The device was denied on the web. Start the sign-in again if that was a mistake.'));
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([
