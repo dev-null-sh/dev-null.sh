@@ -14,11 +14,6 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import type { RepoListing } from '@/types';
 
@@ -97,21 +92,17 @@ export default function Index({ repos }: { repos: RepoListing[] }) {
 function NewRepo() {
     return (
         <Dialog>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <DialogTrigger asChild>
-                        <button
-                            type="button"
-                            aria-label="New repo"
-                            className="-mr-2 grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                            data-test="new-repo"
-                        >
-                            <FolderPlus className="size-[18px]" />
-                        </button>
-                    </DialogTrigger>
-                </TooltipTrigger>
-                <TooltipContent>New repo</TooltipContent>
-            </Tooltip>
+            <DialogTrigger asChild>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="-mr-1"
+                    data-test="new-repo"
+                >
+                    <FolderPlus className="size-4" />
+                    New repo
+                </Button>
+            </DialogTrigger>
             <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto bg-card motion-reduce:animate-none">
                 <DialogHeader className="text-left">
                     <DialogTitle>New repo</DialogTitle>
