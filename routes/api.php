@@ -9,11 +9,13 @@ use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CommitStarController;
+use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\OrgTypingController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
@@ -131,6 +133,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('me/blocked', [UserBlockController::class, 'index'])->name('api-user-block.index');
         Route::post('users/{user:username}/block', [UserBlockController::class, 'store'])->name('api-user-block.store');
         Route::delete('users/{user:username}/block', [UserBlockController::class, 'destroy'])->name('api-user-block.destroy');
+
+        // Remotes: saying the user is typing, as the web's composer does every few seconds...
+        Route::middleware('throttle:conversations')->group(function (): void {
+            Route::put('remotes/@{partner:username}/typing', [ConversationTypingController::class, 'update'])
+                ->name('api-conversation-typing.update');
+            Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])
+                ->whereUuid('org')
+                ->name('api-org-typing.update');
+        });
 
         // Notifications...
         Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');
