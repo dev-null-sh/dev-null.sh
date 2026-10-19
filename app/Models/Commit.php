@@ -259,6 +259,14 @@ final class Commit extends Model
     }
 
     /**
+     * @return HasMany<PendingMention, $this>
+     */
+    public function pendingMentions(): HasMany
+    {
+        return $this->hasMany(PendingMention::class);
+    }
+
+    /**
      * Images follow the commit's visibility, and moderators see them to review the commit.
      */
     public function imagesAreVisibleTo(?User $user): bool

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Models\PendingFollow;
 use App\Models\User;
 use App\Services\GitHub;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -18,11 +20,12 @@ final readonly class CreateUserGitHubFollows
     /**
      * Up to 1,000 accounts each way, so a popular account can't use up the rate limit on its own.
      */
-    private const int MaxPages = 10;
+    public const int MaxPages = 10;
 
     public function __construct(
         private GitHub $github,
         private CreateFollowNotification $createFollowNotification,
+        private CreatePendingFollows $createPendingFollows,
     ) {
         //
     }
@@ -41,10 +44,11 @@ final readonly class CreateUserGitHubFollows
             return;
         }
 
-        $following = $this->users($user, "users/{$login}/following");
-        $followers = $this->users($user, "users/{$login}/followers");
+        $followingIds = $this->github->accountIds("users/{$login}/following", self::MaxPages);
+        $following = $this->users($user, $followingIds);
+        $followers = $this->users($user, $this->github->accountIds("users/{$login}/followers", self::MaxPages), withWaiting: true);
 
-        DB::transaction(function () use ($user, $following, $followers, $notify): void {
+        DB::transaction(function () use ($user, $following, $followers, $followingIds, $notify): void {
             $followedIds = $user->following()->syncWithoutDetaching($following->modelKeys())['attached'];
             $followerIds = $user->followers()->syncWithoutDetaching($followers->modelKeys())['attached'];
 
@@ -58,17 +62,27 @@ final readonly class CreateUserGitHubFollows
                 }
             }
 
+            $this->createPendingFollows->handle($user, $followingIds);
+            PendingFollow::query()->where('github_id', $user->github_id)->delete();
+
             $user->update(['github_follows_imported_at' => now()]);
         });
     }
 
     /**
+     * The users here with the given GitHub accounts, and with those who followed the user on GitHub before they signed
+     * in when asked, including those past the 1,000 the import reads.
+     *
+     * @param  list<string>  $githubIds
      * @return Collection<int, User>
      */
-    private function users(User $user, string $path): Collection
+    private function users(User $user, array $githubIds, bool $withWaiting = false): Collection
     {
         return User::query()
-            ->whereIn('github_id', $this->github->accountIds($path, self::MaxPages))
+            ->where(fn (Builder $query): Builder => $query
+                ->whereIn('github_id', $githubIds)
+                ->when($withWaiting, fn (Builder $query): Builder => $query
+                    ->orWhereIn('id', PendingFollow::query()->where('github_id', $user->github_id)->select('user_id'))))
             ->whereKeyNot($user->id)
             ->whereNotIn('id', $user->idsAcrossBlocks())
             ->get();

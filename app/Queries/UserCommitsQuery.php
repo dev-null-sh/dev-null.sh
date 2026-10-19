@@ -6,7 +6,6 @@ namespace App\Queries;
 
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final readonly class UserCommitsQuery
 {
@@ -24,16 +23,13 @@ final readonly class UserCommitsQuery
                 $replies,
                 fn (CommitBuilder $query): CommitBuilder => $query
                     ->whereNotNull('parent_id')
-                    ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
-                        ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
-                        ->with('user')]),
+                    ->withVisibleParent($viewer),
                 fn (CommitBuilder $query): CommitBuilder => $query->topLevel()
                     ->when($user->pinned_commit_id, fn (CommitBuilder $query, string $id): CommitBuilder => $query->whereKeyNot($id)),
             )
             ->withVisibleReplyCount($viewer)
             ->withReplyPreviews($viewer)
             ->withCardDataFor($viewer)
-            ->latest()
-            ->latest('id');
+            ->newestFirst();
     }
 }

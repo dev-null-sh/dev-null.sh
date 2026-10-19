@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\Log;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
+use App\Jobs\UpdateCommitMentionsJob;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Socialite\Socialite;
@@ -195,6 +196,33 @@ it('queues an import of the github follows of the user on login, notifying only 
 })->with([
     'new user' => [false, true],
     'existing user' => [true, false],
+]);
+
+it('queues claiming the mentions of a username new to devnull on login', function (?string $username, bool $claims): void {
+    fakeGitHubSponsorsListing();
+
+    if ($username !== null) {
+        User::factory()->create(['github_id' => '583231', 'username' => $username]);
+    }
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $this->get(route('login.store'));
+
+    $user = User::query()->where('github_id', '583231')->sole();
+
+    if ($claims) {
+        Queue::assertPushed(UpdateCommitMentionsJob::class, fn (UpdateCommitMentionsJob $job): bool => $job->user->is($user) && $job->username === 'octocat');
+    } else {
+        Queue::assertNotPushed(UpdateCommitMentionsJob::class);
+    }
+})->with([
+    'new user' => [null, true],
+    'renamed user' => ['oldname', true],
+    'same username' => ['octocat', false],
 ]);
 
 it('redirects to the intended url after login', function (): void {

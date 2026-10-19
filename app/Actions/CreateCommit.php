@@ -27,6 +27,7 @@ final readonly class CreateCommit
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
         private CreateCommitImages $createCommitImages,
+        private CreatePendingMentions $createPendingMentions,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TheAlgorithm $theAlgorithm,
@@ -69,6 +70,7 @@ final readonly class CreateCommit
             ]);
 
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);
+            $this->createPendingMentions->handle($commit);
 
             if ($poll instanceof NewPoll) {
                 $this->createPoll($commit, $poll);

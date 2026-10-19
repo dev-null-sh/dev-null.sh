@@ -125,6 +125,16 @@ final class CommitBuilder extends Builder
                 ->where($this->qualifyColumn('id'), '>', $commit->id)));
     }
 
+    /**
+     * Loads each reply's parent with its author, only when the viewer may see it.
+     */
+    public function withVisibleParent(?User $viewer): self
+    {
+        return $this->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
+            ->where(fn (self $query): self => $query->visibleTo($viewer))
+            ->with('user')]);
+    }
+
     public function newestFirst(): self
     {
         return $this->reorder()->latest()->latest('id');

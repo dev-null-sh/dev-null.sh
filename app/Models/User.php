@@ -66,6 +66,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read Collection<int, PollVote> $pollVotes
  * @property-read Collection<int, Device> $devices
+ * @property-read Collection<int, PendingFollow> $pendingFollows
  * @property-read int $commits_count
  * @property-read int $following_count
  * @property-read int $followers_count
@@ -170,6 +171,14 @@ final class User extends Authenticatable
     public function commits(): HasMany
     {
         return $this->hasMany(Commit::class);
+    }
+
+    /**
+     * @return HasMany<PendingFollow, $this>
+     */
+    public function pendingFollows(): HasMany
+    {
+        return $this->hasMany(PendingFollow::class);
     }
 
     /**

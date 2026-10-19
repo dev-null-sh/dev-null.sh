@@ -4,7 +4,10 @@ import { App } from '@inertiajs/react';
 import type { ComponentProps, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vite-plus/test';
-import { CommitBody } from '../../resources/js/components/commit-body';
+import {
+    CommitBody,
+    FoldedCommitBody,
+} from '../../resources/js/components/commit-body';
 import {
     LinkifiedText,
     typedLinks,
@@ -52,6 +55,56 @@ test('leaves mentions without captured identities as plain text', () => {
     );
 
     assert.equal(html, 'Thanks @original!');
+});
+
+test('links mentions of developers who are not on /dev/null to their unclaimed profile only when asked', () => {
+    const text = 'Thanks @OndrejMirtes!';
+    const linked = renderToStaticMarkup(
+        <LinkifiedText text={text} mentions={{}} linksUnclaimed />,
+    );
+
+    assert.ok(
+        linked.includes(
+            'data-test="unclaimed-mention" href="/@OndrejMirtes">@OndrejMirtes</a>',
+        ),
+    );
+    assert.equal(
+        renderToStaticMarkup(<LinkifiedText text={text} mentions={{}} />),
+        text,
+    );
+    assert.equal(
+        renderToStaticMarkup(
+            <LinkifiedText text={text} mentions={{}} linksUnclaimed isStatic />,
+        ),
+        text,
+    );
+});
+
+test('links mentions in posted commits to unclaimed profiles, but not in messages or scheduled commits', () => {
+    const segments = [{ type: 'text' as const, text: 'Thanks @OndrejMirtes!' }];
+    const commit = renderPage(
+        <FoldedCommitBody
+            segments={segments}
+            previewSegments={null}
+            mentions={{}}
+        />,
+    );
+    const message = renderPage(<CommitBody segments={segments} mentions={{}} />);
+    const scheduled = renderPage(
+        <FoldedCommitBody
+            segments={segments}
+            previewSegments={null}
+            mentions={null}
+        />,
+    );
+
+    assert.ok(
+        commit.includes(
+            'rel="nofollow" class="font-medium text-primary hover:underline" data-test="unclaimed-mention" href="/@OndrejMirtes">@OndrejMirtes</a>!',
+        ),
+    );
+    assert.ok(message.includes('Thanks @OndrejMirtes!'));
+    assert.ok(scheduled.includes('Thanks @OndrejMirtes!'));
 });
 
 test('keeps captured mention identities in regular bodies alongside highlighted code', () => {

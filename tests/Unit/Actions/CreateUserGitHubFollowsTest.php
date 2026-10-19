@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateUserGitHubFollows;
 use App\Enums\NotificationType;
 use App\Models\Notification;
+use App\Models\PendingFollow;
 use App\Models\User;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
@@ -162,4 +163,38 @@ it('keeps github imports from following across a block in either direction', fun
     expect(Notification::query()->where('actor_id', $blocker->id)->orWhere('recipient_id', $blocker->id)->exists())->toBeFalse();
     expect(Notification::query()->count())->toBe(2);
     expect($user->refresh()->github_follows_imported_at)->not->toBeNull();
+});
+
+it('remembers whom the user follows on github who is not on devnull yet', function (): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $stranger = User::factory()->make(['github_id' => '999']);
+
+    fakeGitHubFollows($user, following: [$followed, $stranger]);
+
+    resolve(CreateUserGitHubFollows::class)->handle($user);
+
+    expect($user->pendingFollows()->pluck('github_id')->all())->toBe(['999']);
+});
+
+it('has the users who followed them on github before they signed in follow them, past the first thousand', function (): void {
+    $user = User::factory()->create();
+    $waiting = User::factory()->create();
+    $alsoOnGitHub = User::factory()->create();
+    $blocked = User::factory()->create();
+    $other = PendingFollow::factory()->create();
+
+    $user->blocking()->attach($blocked);
+
+    PendingFollow::factory()->create(['user_id' => $waiting->id, 'github_id' => $user->github_id]);
+    PendingFollow::factory()->create(['user_id' => $alsoOnGitHub->id, 'github_id' => $user->github_id]);
+    PendingFollow::factory()->create(['user_id' => $blocked->id, 'github_id' => $user->github_id]);
+
+    fakeGitHubFollows($user, followers: [$alsoOnGitHub]);
+
+    resolve(CreateUserGitHubFollows::class)->handle($user);
+
+    expect($user->followers()->orderBy('users.id')->pluck('users.id')->all())->toBe(collect([$waiting->id, $alsoOnGitHub->id])->sort()->values()->all())
+        ->and(Notification::query()->where('type', NotificationType::Followed)->where('recipient_id', $user->id)->count())->toBe(2)
+        ->and(PendingFollow::query()->pluck('id')->all())->toBe([$other->id]);
 });

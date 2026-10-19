@@ -55,6 +55,11 @@ final readonly class GitHubProfile
         ]);
     }
 
+    public function nameWithHandle(): string
+    {
+        return $this->name === $this->username ? "@{$this->username}" : "{$this->name} (@{$this->username})";
+    }
+
     /**
      * @return array{username: string, name: string, avatar_url: string|null, bio: string|null, location: string|null, website: string|null, company: string|null}
      */

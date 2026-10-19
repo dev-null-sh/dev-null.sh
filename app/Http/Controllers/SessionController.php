@@ -8,6 +8,7 @@ use App\Actions\CreateTomFriendship;
 use App\Actions\UpdateOrCreateUser;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
+use App\Jobs\UpdateCommitMentionsJob;
 use App\Services\GitHubAccountScreening;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,6 +54,11 @@ final readonly class SessionController
 
         dispatch(new SyncGitHubSshKeysJob($user));
         dispatch(new ImportGitHubFollowsJob($user, notify: $user->wasRecentlyCreated));
+
+        // Only a username new to /dev/null can have mentions made before anyone here had it...
+        if ($user->wasRecentlyCreated || $user->wasChanged('username')) {
+            dispatch(new UpdateCommitMentionsJob($user, $user->username));
+        }
 
         Auth::login($user, remember: true);
 

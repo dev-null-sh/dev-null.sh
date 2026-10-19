@@ -9,6 +9,7 @@ import { typedProse } from '@/lib/code';
 import { shortenUrl } from '@/lib/urls';
 import { shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
+import { show as showProfile } from '@/routes/user';
 import type { Commit } from '@/types';
 
 // Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
@@ -331,6 +332,7 @@ function withMentions(
     mentions: Commit['mentions'],
     pasteisMode: boolean,
     isStatic: boolean,
+    linksUnclaimed: boolean,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -344,22 +346,12 @@ function withMentions(
 
         parts.push(
             ...withWordmarks(text.slice(position, match.index), pasteisMode),
-            isStatic || !userId ? (
-                match[0]
-            ) : (
-                <UserPreview
-                    key={`mention-${offset + match.index}`}
-                    user={{ username: match[1] }}
-                    userId={userId}
-                >
-                    <Link
-                        href={show(userId)}
-                        className="font-medium text-primary hover:underline"
-                        data-test="mention"
-                    >
-                        {match[0]}
-                    </Link>
-                </UserPreview>
+            mentionLink(
+                match[0],
+                match[1],
+                `mention-${offset + match.index}`,
+                isStatic ? null : userId,
+                !isStatic && linksUnclaimed,
             ),
         );
 
@@ -371,16 +363,63 @@ function withMentions(
     return parts;
 }
 
+/**
+ * A mention links to the profile of whoever it captured, or else, in a posted commit, to the profile waiting for them
+ * to claim it, since nobody here has the username yet. Otherwise it stays plain text.
+ */
+function mentionLink(
+    mention: string,
+    username: string,
+    key: string,
+    userId: string | null,
+    linksUnclaimed: boolean,
+): ReactNode {
+    if (userId) {
+        return (
+            <UserPreview key={key} user={{ username }} userId={userId}>
+                <Link
+                    href={show(userId)}
+                    className="font-medium text-primary hover:underline"
+                    data-test="mention"
+                >
+                    {mention}
+                </Link>
+            </UserPreview>
+        );
+    }
+
+    if (linksUnclaimed) {
+        return (
+            <Link
+                key={key}
+                href={showProfile(username)}
+                rel="nofollow"
+                className="font-medium text-primary hover:underline"
+                data-test="unclaimed-mention"
+            >
+                {mention}
+            </Link>
+        );
+    }
+
+    return mention;
+}
+
 export function LinkifiedText({
     text,
     mentions,
     pasteisMode = false,
     isStatic = false,
+    linksUnclaimed = false,
 }: {
     text: string;
     mentions: Commit['mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
+    /**
+     * Whether a mention of someone who isn't on /dev/null links to their unclaimed profile, which commits give them.
+     */
+    linksUnclaimed?: boolean;
 }) {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -403,6 +442,7 @@ export function LinkifiedText({
                 mentions,
                 pasteisMode,
                 isStatic,
+                linksUnclaimed,
             ),
             commitLink ? (
                 <CommitLink
@@ -448,6 +488,7 @@ export function LinkifiedText({
             mentions,
             pasteisMode,
             isStatic,
+            linksUnclaimed,
         ),
     );
 

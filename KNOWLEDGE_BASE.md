@@ -98,9 +98,11 @@ Every developer has a profile at `/@{username}`, with their GitHub identity, bio
 
 Change your name, avatar, bio, company, location, or website on GitHub, not on /dev/null. Settings → Profile offers **Edit on GitHub** and **Sync from GitHub**. Profile details also refresh on sign-in. Manual sync is limited to once a minute. The GitHub Sponsors link is refreshed on sign-in only. A GitHub username rename is picked up on sign-in or sync; if a stale account still holds the new username because its owner also renamed, that account moves to a `_renamed-<github id>` placeholder until its owner signs in or syncs again. Accounts are matched by GitHub id and never merged.
 
+A developer who isn't on /dev/null yet gets an **unclaimed profile** at `/@{username}` as soon as an approved commit mentions them. It shows their GitHub name and avatar, how many developers here follow them on GitHub and will follow them here, and the commits and replies that mention them. **I am @username** signs in with GitHub, which only that account can do. Signing in turns those mentions into regular ones and brings the waiting followers over. Usernames nobody mentioned are not found, so nothing is fetched from GitHub for them, and unclaimed profiles are kept out of search engines.
+
 Profiles also show [achievement badges and an XP-based Unix rank](#achievement-badges-and-xp). Click a badge or rank to inspect unlock requirements and progress.
 
-Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [identity sync](app/Actions/UpdateOrCreateUser.php).
+Sources: [profile page](resources/js/pages/user/show.tsx), [unclaimed profile](resources/js/pages/user/unclaimed.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [identity sync](app/Actions/UpdateOrCreateUser.php).
 
 ### Going live
 
@@ -138,7 +140,7 @@ Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and 
 
 ### Following developers and suggestions
 
-Follow or unfollow from a developer's profile or a follow control elsewhere in the app. Following puts their commits in your Following log. You cannot follow yourself or follow across a block. GitHub follows are imported once: connections to developers already on /dev/null are added in both directions, with up to 1,000 GitHub connections checked each way. This is not continuous synchronization, so unfollowing someone on /dev/null sticks.
+Follow or unfollow from a developer's profile or a follow control elsewhere in the app. Following puts their commits in your Following log. You cannot follow yourself or follow across a block. GitHub follows are imported once: connections to developers already on /dev/null are added in both directions, with up to 1,000 GitHub connections checked each way. This is not continuous synchronization, so unfollowing someone on /dev/null sticks. The GitHub accounts you follow that aren't on /dev/null yet are remembered, and you follow them when they sign in.
 
 **Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Someone who already follows you gets **Follow back**. Show or hide these suggestions in Settings → Appearance. You can also follow back from the notifications list.
 
@@ -188,7 +190,7 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting and a copy control. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
 
-Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In an org's messages, suggestions are limited to the org's members. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
+Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In an org's messages, suggestions are limited to the org's members. Mentions link to profiles and can notify the mentioned developer after approval. A mention of someone who isn't on /dev/null yet links to their unclaimed profile. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
 Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
@@ -444,7 +446,7 @@ Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue v
 
 ### Exporting your data
 
-Choose **Download JSON** in Settings → Profile to export your account data. The export includes profile details, your commits and replies (including pending, rejected, and deleted entries still stored), polls and your votes, stars, saved commits, follows, mutes, blocks, messages you sent, notifications, SSH key fingerprints, the devices you approved for an app, and active-session metadata. Other people's replies and received messages are not included as your authored data. Message images, message reactions, reports you filed, and scheduled commits are not included either. Image references are URLs, not an archive of the image files.
+Choose **Download JSON** in Settings → Profile to export your account data. The export includes profile details, your commits and replies (including pending, rejected, and deleted entries still stored), polls and your votes, stars, saved commits, follows (including the GitHub accounts you follow that aren't on /dev/null yet), mutes, blocks, messages you sent, notifications, SSH key fingerprints, the devices you approved for an app, and active-session metadata. Other people's replies and received messages are not included as your authored data. Message images, message reactions, reports you filed, and scheduled commits are not included either. Image references are URLs, not an archive of the image files.
 
 The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. Exports are limited to **three per hour**.
 

@@ -11,6 +11,8 @@ use App\Models\CommitImage;
 use App\Models\Device;
 use App\Models\Message;
 use App\Models\MessageImage;
+use App\Models\PendingFollow;
+use App\Models\PendingMention;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
@@ -127,6 +129,19 @@ it('erases the devices of a deleted user', function (): void {
     resolve(DeleteUser::class)->handle($user);
 
     expect(Device::query()->pluck('id')->all())->toBe([$other->id]);
+});
+
+it('erases whom a deleted user was waiting to follow, and the mentions of others in their commits', function (): void {
+    $user = User::factory()->create();
+    PendingFollow::factory()->create(['user_id' => $user->id]);
+    PendingMention::factory()->for(Commit::factory()->for($user))->create();
+    $otherFollow = PendingFollow::factory()->create();
+    $otherMention = PendingMention::factory()->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(PendingFollow::query()->pluck('id')->all())->toBe([$otherFollow->id])
+        ->and(PendingMention::query()->pluck('id')->all())->toBe([$otherMention->id]);
 });
 
 it('erases the images of a deleted user and of the replies under their commits', function (): void {

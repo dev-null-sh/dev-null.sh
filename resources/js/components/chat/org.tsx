@@ -64,16 +64,21 @@ export function orgTitle(
 export function MemberStack({
     users,
     max = 3,
+    total = users.length,
     className,
     avatarClassName = 'size-7',
 }: {
     users: User[];
     max?: number;
+    /**
+     * How many people there are in all, when only some of them were loaded.
+     */
+    total?: number;
     className?: string;
     avatarClassName?: string;
 }) {
     const shown = users.slice(0, max);
-    const rest = users.length - shown.length;
+    const rest = total - shown.length;
 
     return (
         <span className={cn('flex shrink-0 items-center', className)}>

@@ -11,11 +11,17 @@ export function CommitBody({
     mentions,
     className,
     isStatic = false,
+    linksUnclaimed = false,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
     className?: string;
     isStatic?: boolean;
+    /**
+     * Whether mentions of developers who aren't on /dev/null link to their unclaimed profile, which only posted
+     * commits give them.
+     */
+    linksUnclaimed?: boolean;
 }) {
     const { auth } = usePage().props;
 
@@ -37,6 +43,7 @@ export function CommitBody({
                                 mentions={mentions}
                                 pasteisMode={Boolean(auth.pasteis)}
                                 isStatic={isStatic}
+                                linksUnclaimed={linksUnclaimed}
                             />
                         );
                     case 'code':
@@ -64,7 +71,9 @@ export function CommitBody({
 }
 
 /**
- * A body too long to show whole in a list comes with its first lines as a preview, unfolded on demand.
+ * A body too long to show whole in a list comes with its first lines as a preview, unfolded on demand. A posted
+ * commit's mentions of developers who aren't on /dev/null link to their unclaimed profile; a scheduled one, whose
+ * mentions aren't captured yet, has none.
  */
 export function FoldedCommitBody({
     segments,
@@ -79,6 +88,7 @@ export function FoldedCommitBody({
 }) {
     const [isUnfolded, setIsUnfolded] = useState(false);
     const bodyRef = useRef<HTMLDivElement>(null);
+    const linksUnclaimed = mentions !== null;
 
     if (previewSegments === null) {
         return (
@@ -86,6 +96,7 @@ export function FoldedCommitBody({
                 segments={segments}
                 mentions={mentions}
                 className={className}
+                linksUnclaimed={linksUnclaimed}
             />
         );
     }
@@ -112,6 +123,7 @@ export function FoldedCommitBody({
                 segments={isUnfolded ? segments : previewSegments}
                 mentions={mentions}
                 className={className}
+                linksUnclaimed={linksUnclaimed}
             />
             {!isUnfolded && (
                 <button

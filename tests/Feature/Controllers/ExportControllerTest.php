@@ -11,6 +11,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
 use App\Models\Notification;
+use App\Models\PendingFollow;
 use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\SshKey;
@@ -113,6 +114,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'bookmarks' => [],
         'following' => [],
         'followers' => [],
+        'waiting_to_follow' => [],
         'muting' => [],
         'blocking' => [],
         'messages' => [],
@@ -271,7 +273,7 @@ it('exports surviving replies and polls after another account is deleted', funct
         ->and($response->streamedContent())->not->toContain('Removed A', 'Removed B', $deleted->username);
 });
 
-it('exports following and follower usernames without private identity fields', function (): void {
+it('exports following and follower usernames, and the github accounts the user waits to follow, without private identity fields', function (): void {
     $user = User::factory()->create();
     $followed = User::factory()->create(['username' => 'demo-developer', 'email' => 'private@example.test', 'remember_token' => 'secret-token']);
     $follower = User::factory()->create(['username' => 'demo-follower', 'email' => 'follower@example.test']);
@@ -279,12 +281,15 @@ it('exports following and follower usernames without private identity fields', f
     $user->following()->attach($followed);
     $user->followers()->attach($follower);
     $follower->following()->attach($stranger);
+    PendingFollow::factory()->create(['user_id' => $user->id, 'github_id' => '583231']);
+    PendingFollow::factory()->create(['user_id' => $follower->id]);
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['following'])->toBe([['username' => 'demo-developer']])
         ->and($data['followers'])->toBe([['username' => 'demo-follower']])
+        ->and($data['waiting_to_follow'])->toBe([['github_id' => '583231']])
         ->and($response->streamedContent())->not->toContain(
             $followed->email, $followed->github_id, $followed->id, $followed->remember_token,
             $follower->email, $follower->id, $stranger->username,
