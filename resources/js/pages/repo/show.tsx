@@ -1,11 +1,15 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import RepoController from '@/actions/App/Http/Controllers/RepoController';
 import { MemberStack } from '@/components/chat/org';
 import { CommitComposer } from '@/components/commit-composer';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
-import { RepoContributorsDialog } from '@/components/repo-contributors';
+import {
+    RepoContributorsDialog,
+    RepoPeopleDialog,
+} from '@/components/repo-contributors';
+import { Button } from '@/components/ui/button';
 import { MaintainedRepoContext } from '@/hooks/use-commit-deletion';
 import AppLayout from '@/layouts/app-layout';
 import type {
@@ -46,6 +50,7 @@ export default function Show({
                     role={role}
                     contributors={contributors}
                 />
+                {isMaintainer && <InviteContributors repo={repo} />}
             </header>
 
             {repo.description && (
@@ -134,6 +139,33 @@ function ContributorsButton({
                 user={user}
                 open={isShowing}
                 onOpenChange={setIsShowing}
+            />
+        </>
+    );
+}
+
+/**
+ * Only maintainers can add people, so only they get the shortcut.
+ */
+function InviteContributors({ repo }: { repo: Repo }) {
+    const [isInviting, setIsInviting] = useState(false);
+
+    return (
+        <>
+            <Button
+                variant="outline"
+                size="sm"
+                className="-mr-1 shrink-0"
+                onClick={() => setIsInviting(true)}
+                data-test="invite-contributors"
+            >
+                <UserPlus className="size-4" />
+                Invite contributors
+            </Button>
+            <RepoPeopleDialog
+                repo={repo}
+                open={isInviting}
+                onOpenChange={setIsInviting}
             />
         </>
     );

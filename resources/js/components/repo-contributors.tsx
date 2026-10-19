@@ -228,7 +228,7 @@ export function RepoContributorsDialog({
  * Picks people to add to a repo. Only the maintainer's followers can join, so everyone else stays in the list,
  * greyed out, with the reason why.
  */
-function RepoPeopleDialog({
+export function RepoPeopleDialog({
     repo,
     open,
     onOpenChange,
@@ -332,7 +332,7 @@ function RepoPeopleDialog({
                             disabled={isSaving || picked.length === 0}
                             data-test="repo-people-submit"
                         >
-                            {`Add ${picked.length || ''}`.trim()}
+                            {`Invite ${picked.length || ''}`.trim()}
                         </Button>
                     </div>
                 </form>
