@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Actions\CreateCommitTranslation;
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Services\CommitTranslations;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -37,7 +38,7 @@ final class DetectCommitLanguage implements ShouldBeUnique, ShouldQueue
 
     public function handle(CreateCommitTranslation $action): void
     {
-        $commit = Commit::query()->approved()->find($this->commitId);
+        $commit = Commit::query()->whereIn('status', [CommitStatus::Approved, CommitStatus::Pending])->find($this->commitId);
 
         if ($commit instanceof Commit && resolve(CommitTranslations::class)->enabled()) {
             $action->handle($commit);
