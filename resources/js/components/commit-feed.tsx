@@ -58,6 +58,7 @@ export function CommitFeed({
     );
     const unhighlightTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const isScrolling = useRef(false);
+    const authorUnderPointer = useRef<string | null>(null);
 
     useEffect(() => () => clearTimeout(unhighlightTimer.current), []);
 
@@ -85,6 +86,8 @@ export function CommitFeed({
     }, []);
 
     const highlightAuthor = (userId: string, isHovering: boolean) => {
+        authorUnderPointer.current = isHovering ? userId : null;
+
         if (!isHovering) {
             setHighlightedAuthor(null);
         } else if (!isScrolling.current) {
@@ -101,6 +104,8 @@ export function CommitFeed({
             if (isDeliberateHover(event, isScrolling.current)) {
                 clearTimeout(unhighlightTimer.current);
                 setHighlightedCommit(commitId);
+                // Author targets only report entering, so one that slid under the pointer while scrolling lights up on the next move.
+                setHighlightedAuthor(authorUnderPointer.current);
             }
 
             return;
