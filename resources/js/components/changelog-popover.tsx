@@ -1,4 +1,3 @@
-import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 import { usePage } from '@inertiajs/react';
 import { ExternalLink } from 'lucide-react';
 import { useState } from 'react';
@@ -8,6 +7,11 @@ import {
     ChangelogLane,
     changelogLaneColor,
 } from '@/components/changelog-lane';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChangelog } from '@/hooks/use-changelog';
 import type { Changelog } from '@/lib/changelog';
@@ -111,70 +115,65 @@ export function ChangelogPopover() {
         load,
         loadOlder,
     } = useChangelog(timeZone);
+    const [isOpen, setIsOpen] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     return (
         <>
-            <Popover>
-                <PopoverButton
+            <Popover open={isOpen} onOpenChange={setIsOpen}>
+                <PopoverTrigger
                     onPointerEnter={load}
                     onFocus={load}
                     onClick={load}
-                    className="rounded-sm transition-colors outline-none hover:text-foreground data-focus:ring-2 data-focus:ring-ring data-open:text-foreground"
+                    className="rounded-sm transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:text-foreground"
                 >
                     Changelog
-                </PopoverButton>
-                <PopoverPanel
-                    anchor={{ to: 'top start', gap: 10, padding: 16 }}
-                    transition
+                </PopoverTrigger>
+                <PopoverContent
+                    side="top"
+                    align="start"
+                    sideOffset={10}
+                    collisionPadding={16}
                     aria-label="Changelog"
-                    className="z-50 w-90 max-w-[calc(100vw-2rem)] origin-bottom-left rounded-xl border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] outline-none data-closed:scale-95 data-closed:opacity-0 motion-safe:transition motion-safe:duration-150 motion-safe:ease-out"
+                    className="max-h-(--radix-popover-content-available-height) w-90 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
                 >
-                    {({ close }) => (
-                        <>
-                            {hasFailed ? (
-                                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                                    GitHub couldn't be reached. Try again in a
-                                    minute.
-                                </p>
-                            ) : changelog === null ? (
-                                <SummarySkeleton />
-                            ) : (
-                                <Summary
-                                    changelog={changelog}
-                                    timeZone={timeZone}
-                                />
-                            )}
-                            <div className="flex items-center justify-between gap-4 border-t px-4 py-2.5 text-sm text-muted-foreground">
-                                <button
-                                    type="button"
-                                    disabled={changelog === null}
-                                    onClick={() => {
-                                        close();
-                                        setIsDialogOpen(true);
-                                    }}
-                                    className="rounded-sm transition-colors hover:text-foreground disabled:pointer-events-none"
-                                >
-                                    View full changelog
-                                </button>
-                                {changelog !== null && (
-                                    <a
-                                        href={changelog.commitsUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 rounded-sm transition-colors hover:text-foreground"
-                                    >
-                                        GitHub
-                                        <ExternalLink
-                                            aria-hidden
-                                            className="size-3.5"
-                                        />
-                                    </a>
-                                )}
-                            </div>
-                        </>
+                    {hasFailed ? (
+                        <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                            GitHub couldn't be reached. Try again in a minute.
+                        </p>
+                    ) : changelog === null ? (
+                        <SummarySkeleton />
+                    ) : (
+                        <Summary changelog={changelog} timeZone={timeZone} />
                     )}
-                </PopoverPanel>
+                    <div className="flex items-center justify-between gap-4 border-t px-4 py-2.5 text-sm text-muted-foreground">
+                        <button
+                            type="button"
+                            disabled={changelog === null}
+                            onClick={() => {
+                                setIsOpen(false);
+                                setIsDialogOpen(true);
+                            }}
+                            className="rounded-sm transition-colors hover:text-foreground disabled:pointer-events-none"
+                        >
+                            View full changelog
+                        </button>
+                        {changelog !== null && (
+                            <a
+                                href={changelog.commitsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-sm transition-colors hover:text-foreground"
+                            >
+                                GitHub
+                                <ExternalLink
+                                    aria-hidden
+                                    className="size-3.5"
+                                />
+                            </a>
+                        )}
+                    </div>
+                </PopoverContent>
             </Popover>
             <ChangelogDialog
                 open={isDialogOpen}
