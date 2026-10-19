@@ -177,6 +177,24 @@ function fakeGitHubSponsorsListing(bool $hasSponsorsListing = false): void
 }
 
 /**
+ * The GitHub App opening issue #123 upstream, as the /feature and /bug commands do.
+ *
+ * @param  array<string, mixed>  $issue
+ */
+function fakeGitHubApp(array $issue = []): void
+{
+    Http::fake([
+        'api.github.com/repos/nunomaduro/dev-null.sh/installation' => Http::response(['id' => 99]),
+        'api.github.com/app/installations/99/access_tokens' => Http::response(['token' => 'installation-token'], 201),
+        'api.github.com/repos/nunomaduro/dev-null.sh/issues' => Http::response([
+            'number' => 123,
+            'html_url' => 'https://github.com/nunomaduro/dev-null.sh/issues/123',
+            ...$issue,
+        ], 201),
+    ]);
+}
+
+/**
  * @param  list<string>  $imageHashes
  * @return array{payload: string, signature: string}
  */

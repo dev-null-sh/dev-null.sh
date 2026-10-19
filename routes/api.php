@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CommitStarController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
@@ -29,6 +30,7 @@ use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
 use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
 
@@ -137,6 +139,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('me/blocked', [UserBlockController::class, 'index'])->name('api-user-block.index');
         Route::post('users/{user:username}/block', [UserBlockController::class, 'store'])->name('api-user-block.store');
         Route::delete('users/{user:username}/block', [UserBlockController::class, 'destroy'])->name('api-user-block.destroy');
+
+        // Issue: opened upstream by the GitHub App, as the web's /feature and /bug commands do...
+        Route::post('issues', [IssueController::class, 'store'])
+            ->middleware(['throttle:10,1', ThrottleIssues::class])
+            ->name('api-issue.store');
 
         // Notifications...
         Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');

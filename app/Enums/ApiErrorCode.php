@@ -20,6 +20,7 @@ enum ApiErrorCode: string
     case PasteisExhausted = 'pasteis_exhausted';
     case RateLimited = 'rate_limited';
     case GitHubSyncFailed = 'github_sync_failed';
+    case GitHubIssueFailed = 'github_issue_failed';
 
     public function status(): int
     {
@@ -30,6 +31,7 @@ enum ApiErrorCode: string
             self::CommitUnavailable => 404,
             self::PasteisExhausted => 422,
             self::RateLimited => 429,
+            self::GitHubIssueFailed => 502,
             self::GitHubSyncFailed => 503,
         };
     }

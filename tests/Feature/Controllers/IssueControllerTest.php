@@ -19,19 +19,6 @@ beforeEach(function (): void {
     config(['services.github_app' => ['id' => '12345', 'private_key' => str_replace("\n", '\n', $privateKey)]]);
 });
 
-function fakeGitHubApp(array $issue = []): void
-{
-    Http::fake([
-        'api.github.com/repos/nunomaduro/dev-null.sh/installation' => Http::response(['id' => 99]),
-        'api.github.com/app/installations/99/access_tokens' => Http::response(['token' => 'installation-token'], 201),
-        'api.github.com/repos/nunomaduro/dev-null.sh/issues' => Http::response([
-            'number' => 123,
-            'html_url' => 'https://github.com/nunomaduro/dev-null.sh/issues/123',
-            ...$issue,
-        ], 201),
-    ]);
-}
-
 it('opens the issue as the app, crediting the reporter, with the label of the command', function (string $command, string $label): void {
     fakeGitHubApp();
     $user = User::factory()->create(['username' => 'taylor']);
