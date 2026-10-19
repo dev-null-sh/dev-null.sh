@@ -42,6 +42,8 @@ it('translates through DeepSeek on OpenCode without sending account metadata', f
         && $request->hasHeader('Authorization', 'Bearer test-key')
         && $request['model'] === 'deepseek-v4.1-flash'
         && $request['thinking'] === ['type' => 'disabled']
+        && $request['response_format'] === ['type' => 'json_object']
+        && str_contains(collect($request['messages'])->firstWhere('role', 'system')['content'], 'JSON object with exactly two string fields: source_language and body')
         && collect($request['messages'])->where('role', 'user')->pluck('content')->all() === ['Guten morgen']);
 });
 
@@ -262,7 +264,7 @@ it('leaves failed translations uncached and can retry', function (): void {
         ->assertServiceUnavailable()->assertHeader('Cache-Control', 'no-store, private')
         ->assertJsonPath('message', 'Could not translate this commit. Try again.');
     expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull();
-    Exceptions::assertReported(fn (CommitProcessingFailed $exception): bool => $exception->getMessage() === 'Translation failed for commit '.$commit->id.' (RuntimeException, code 503).'
+    Exceptions::assertReported(fn (CommitProcessingFailed $exception): bool => $exception->getMessage() === 'Translation failed for commit '.$commit->id.' (RuntimeException, code 503). Reason: provider_request.'
         && $exception->getCode() === 503 && ! $exception->getPrevious() instanceof Throwable);
     $this->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertOk()
         ->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning');
@@ -312,9 +314,13 @@ it('holds the translation lock throughout a slow provider retry', function (): v
     expect(Cache::lock($key, 90)->get())->toBeTrue();
 });
 
-it('rejects invalid provider translations without caching them', function (string $source, string $body): void {
+it('reports why successful provider responses are rejected without logging their contents', function (string $content, string $reason): void {
     Exceptions::fake();
-    CommitTranslator::fake([['source_language' => $source, 'body' => $body]]);
+    Http::fake([
+        'opencode.ai/zen/v1/chat/completions' => Http::response([
+            'choices' => [['finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => $content]]],
+        ]),
+    ]);
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
 
     $this->actingAs(User::factory()->create())
@@ -322,12 +328,41 @@ it('rejects invalid provider translations without caching them', function (strin
         ->assertServiceUnavailable()->assertJsonPath('message', 'Could not translate this commit. Try again.');
 
     expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull();
-    Exceptions::assertReported(CommitProcessingFailed::class);
+    Exceptions::assertReported(fn (CommitProcessingFailed $exception): bool => $exception->getMessage() === 'Translation failed for commit '.$commit->id.' (RuntimeException, code 0). Reason: '.$reason.'.'
+        && ! $exception->getPrevious() instanceof Throwable);
+    Http::assertSentCount(1);
 })->with([
-    'unsupported language' => ['invented', 'Good morning'],
-    'blank translation' => ['de', '   '],
-    'oversized translation' => ['de', str_repeat('x', 16001)],
+    'empty response' => ['', 'empty_or_malformed_response'],
+    'malformed JSON' => ['Sensitive provider text', 'empty_or_malformed_response'],
+    'missing source' => ['{"body":"Sensitive translation"}', 'invalid_response_shape'],
+    'missing body' => ['{"source_language":"de"}', 'invalid_response_shape'],
+    'non-string source' => ['{"source_language":["de"],"body":"Sensitive translation"}', 'invalid_response_shape'],
+    'non-string body' => ['{"source_language":"de","body":null}', 'invalid_response_shape'],
+    'unsupported language' => ['{"source_language":"invented","body":"Sensitive translation"}', 'unsupported_source_language'],
+    'regional language code' => ['{"source_language":"de-DE","body":"Sensitive translation"}', 'unsupported_source_language'],
+    'blank translation' => ['{"source_language":"de","body":"   "}', 'empty_translation'],
+    'oversized translation' => ['{"source_language":"de","body":"'.str_repeat('x', 16001).'"}', 'translation_too_long'],
 ]);
+
+it('retries language detection after a malformed response and accepts an empty detection body', function (): void {
+    Http::fake([
+        'opencode.ai/zen/v1/chat/completions' => Http::sequence()
+            ->push(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => 'Sensitive provider text']]]])
+            ->push(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => '{"source_language":"de","body":""}']]]]),
+    ]);
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+
+    expect(fn () => dispatch_sync(new DetectCommitLanguage($commit->id)))->toThrow(
+        CommitProcessingFailed::class,
+        'Translation failed for commit '.$commit->id.' (RuntimeException, code 0). Reason: empty_or_malformed_response.',
+    );
+    expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull();
+
+    dispatch_sync(new DetectCommitLanguage($commit->id));
+
+    expect(resolve(CommitTranslations::class)->cached($commit))->toMatchArray(['source_language' => 'de', 'translations' => []]);
+    Http::assertSentCount(2);
+});
 
 it('does not cache a translation when the post is deleted during generation', function (): void {
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);

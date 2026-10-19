@@ -140,6 +140,8 @@ DeepSeek through OpenCode translates only the post text. The result replaces its
 
 Background language detection uses the separate `translations` queue on the configured queue connection and needs a worker listening to that queue. It makes up to three attempts, waiting one minute and then ten minutes between failures. A detection dispatch failure does not prevent reading the original post. Requested translations still run in the HTTP request; failures leave the original unchanged and can be retried with Translate.
 
+Translation requests use JSON output mode with explicit field instructions and local response validation. A successful OpenCode request can still produce an unusable result. Failure logs distinguish provider-call failures, empty or malformed responses, invalid fields, unsupported language codes, blank translations, and oversized translations without logging post text or provider response contents.
+
 Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController.php), [agent](app/Ai/Agents/CommitTranslator.php), [cache](app/Services/CommitTranslations.php), [controls](resources/js/components/commit-translation.tsx).
 
 ### Code, emoji, and mentions
