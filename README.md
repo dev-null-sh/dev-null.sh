@@ -6,30 +6,7 @@ Read the [knowledge base](KNOWLEDGE_BASE.md) for the stack, hosting, repository,
 
 ## Getting Started
 
-Requires PHP 8.5+, Composer, Bun, and PostgreSQL 17+ with the [pgvector](https://github.com/pgvector/pgvector) and `pg_trgm` extensions available. You can use [Laravel Sail](https://laravel.com/docs/sail) (Docker) or a host install such as [Laravel Herd](https://herd.laravel.com) (Herd's PostgreSQL service ships with both extensions).
-
-### Sail (Docker)
-
-Sail runs the app on PHP 8.5 and PostgreSQL 17 with pgvector. The `pgsql` service uses `pgvector/pgvector:pg17` and enables `vector` and `pg_trgm` on `devnull`, `testing`, and `template1` at first boot.
-
-```bash
-git clone https://github.com/nunomaduro/dev-null.sh.git
-cd dev-null.sh
-cp .env.example .env
-composer install
-./vendor/bin/sail up -d
-./vendor/bin/sail artisan key:generate
-./vendor/bin/sail artisan migrate
-./vendor/bin/sail bun install   # required before Vite; without it you get "Vite manifest not found"
-./vendor/bin/sail bun run build # optional if you will run `composer dev` (starts Vite)
-./vendor/bin/sail composer dev
-```
-
-Visit `http://localhost:8000` (Sail defaults to `APP_PORT=8000` in `.env.example` so it does not fight for port 80). Set `DB_HOST=pgsql` in `.env` when using Sail.
-
-### Host (Herd / local PostgreSQL)
-
-Create a `devnull` database for the app and a `testing` database for the test suite, then:
+Requires PHP 8.5+, Composer, Bun, and PostgreSQL 17+ with the [pgvector](https://github.com/pgvector/pgvector) and `pg_trgm` extensions available. [Laravel Herd](https://herd.laravel.com)'s PostgreSQL service ships with both. Create a `devnull` database for the app and a `testing` database for the test suite.
 
 ```bash
 git clone https://github.com/nunomaduro/dev-null.sh.git
@@ -37,11 +14,11 @@ cd dev-null.sh
 composer setup
 ```
 
-The setup script installs dependencies, creates `.env`, generates an app key, runs migrations, and builds assets. Point `DB_HOST` at `127.0.0.1` when PostgreSQL runs on the host.
+The setup script installs dependencies, creates `.env`, generates an app key, runs migrations, and builds assets.
 
 ### Local sign-in
 
-With `APP_ENV=local`, run `composer dev` (or `./vendor/bin/sail composer dev`), visit `http://localhost:8000` / `http://localhost` (or your configured `APP_URL`), and sign in: a modal asks for a username and signs you in as that user, creating it if it doesn't exist yet. GitHub isn't involved at all. The routes are only registered in the local environment, see `routes/web.php`.
+With `APP_ENV=local`, run `composer dev`, visit `http://localhost:8000` (or your configured `APP_URL`), and sign in: a modal asks for a username and signs you in as that user, creating it if it doesn't exist yet. GitHub isn't involved at all. The routes are only registered in the local environment, see `routes/web.php`.
 
 ### GitHub login
 
@@ -189,8 +166,6 @@ The app signs in the way an OAuth app does, with the authorization code flow and
 
 ### Development
 - `composer dev` - Starts Laravel server, queue worker, log monitoring, and Vite+ dev server concurrently
-- `./vendor/bin/sail up -d` - Starts the Sail PHP 8.5 app and PostgreSQL 17 (pgvector) containers
-- `./vendor/bin/sail composer dev` - Same as `composer dev`, inside Sail
 
 ### Code Quality
 - `composer lint` - Runs Rector (refactoring), Pint (PHP formatting), and Oxfmt (JS/TS formatting)

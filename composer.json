@@ -30,7 +30,6 @@
         "laravel/pail": "^1.2.7",
         "laravel/pao": "^1.1.5",
         "laravel/pint": "^1.32.1",
-        "laravel/sail": "^1.69",
         "laravel/tinker": "^3.0.2",
         "laravel/vet": "^0.2.1",
         "mockery/mockery": "^1.6.15",
