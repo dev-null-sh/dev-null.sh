@@ -7,12 +7,15 @@ use App\Actions\CreateReplyNotifications;
 use App\Actions\CreateUserFollow;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
+use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 function starAt(User $user, Commit $commit, int $minutesAgo): void
 {
@@ -33,6 +36,111 @@ function replyAt(User $user, Commit $commit, int $minutesAgo): Commit
 function followAt(User $follower, User $user, int $minutesAgo): void
 {
     test()->travelTo(now()->subMinutes($minutesAgo), fn () => resolve(CreateUserFollow::class)->handle($follower, $user));
+}
+
+/**
+ * @return list<CarbonInterface>
+ */
+function every(int $minutes, int $count): array
+{
+    return array_map(fn (int $step): CarbonInterface => now()->subMinutes($minutes * $step), range(1, $count));
+}
+
+/**
+ * @param  list<array<string, mixed>>  $rows
+ */
+function insertAnalyzed(User $user, NotificationType $type, array $rows): void
+{
+    Notification::query()->insert(array_map(fn (array $row): array => [
+        'id' => (string) Str::uuid7(),
+        'recipient_id' => $user->id,
+        'type' => $type->value,
+        'updated_at' => $row['created_at'],
+        ...$row,
+    ], $rows));
+    DB::statement('ANALYZE');
+}
+
+/**
+ * @param  list<CarbonInterface>  $moments
+ */
+function starsAt(User $user, array $moments): void
+{
+    $stargazer = User::factory()->create();
+    $commits = array_map(fn (CarbonInterface $at): array => [
+        'id' => (string) Str::uuid7(), 'user_id' => $user->id, 'body' => 'Starred', 'status' => CommitStatus::Approved->value, 'created_at' => $at, 'updated_at' => $at,
+    ], $moments);
+    Commit::query()->insert($commits);
+
+    insertAnalyzed($user, NotificationType::Starred, array_map(fn (array $commit): array => [
+        'actor_id' => $stargazer->id, 'commit_id' => $commit['id'], 'subject_id' => $commit['id'], 'key' => 'starred:'.$commit['id'].':'.$stargazer->id, 'created_at' => $commit['created_at'],
+    ], $commits));
+}
+
+/**
+ * @param  list<User>  $repliers
+ * @param  list<CarbonInterface>  $moments
+ */
+function repliesAt(Commit $commit, array $repliers, array $moments): void
+{
+    $replies = array_map(fn (CarbonInterface $at, int $index): array => [
+        'id' => (string) Str::uuid7(), 'user_id' => $repliers[$index % count($repliers)]->id, 'parent_id' => $commit->id, 'root_id' => $commit->threadRootId(), 'body' => 'Reply', 'status' => CommitStatus::Approved->value, 'created_at' => $at, 'updated_at' => $at,
+    ], $moments, array_keys($moments));
+    Commit::query()->insert($replies);
+
+    insertAnalyzed($commit->user, NotificationType::Replied, array_map(fn (array $reply): array => [
+        'actor_id' => $reply['user_id'], 'commit_id' => $reply['id'], 'subject_id' => $commit->id, 'key' => 'replied:'.$reply['id'], 'created_at' => $reply['created_at'],
+    ], $replies));
+}
+
+/**
+ * @param  list<CarbonInterface>  $moments
+ */
+function followsAt(User $user, array $moments): void
+{
+    $followers = array_map(fn (CarbonInterface $at): array => [
+        'id' => $id = (string) Str::uuid7(), 'github_id' => $id, 'username' => $id, 'name' => 'Follower', 'created_at' => $at, 'updated_at' => $at,
+    ], $moments);
+    User::query()->insert($followers);
+    DB::table('follows')->insert(array_map(fn (array $follower): array => [
+        'follower_id' => $follower['id'], 'followed_id' => $user->id, 'created_at' => $follower['created_at'], 'updated_at' => $follower['created_at'],
+    ], $followers));
+
+    insertAnalyzed($user, NotificationType::Followed, array_map(fn (array $follower): array => [
+        'actor_id' => $follower['id'], 'key' => 'followed:'.$follower['id'], 'created_at' => $follower['created_at'],
+    ], $followers));
+}
+
+/**
+ * @return list<Notification>
+ */
+function scrolled(User $user): array
+{
+    $groups = [];
+
+    do {
+        $page = resolve(NotificationGroupsQuery::class)->paginate($user);
+        array_push($groups, ...$page->items());
+        request()->merge(['cursor' => $page->nextCursor()?->encode()]);
+    } while ($page->hasMorePages());
+
+    return $groups;
+}
+
+/**
+ * @return list<array{string, int, int, int, string}>
+ */
+function wholeHistory(User $user): array
+{
+    return resolve(NotificationGroupsQuery::class)->events($user)->where('group_rank', 1)->latest()->latest('id')->get()->map(groupIdentity(...))->all();
+}
+
+/**
+ * @return array{string, int, int, int, string}
+ */
+function groupIdentity(Notification $group): array
+{
+    return [$group->group_id, $group->event_count, $group->actors_count, $group->unread_count, $group->actor_id];
 }
 
 it('groups stars per commit, newest stargazer first', function (): void {
@@ -186,7 +294,7 @@ it('loads any number of groups with the same number of queries', function (int $
 
     resolve(NotificationGroupsQuery::class)->paginate($user);
 
-    expect(DB::getQueryLog())->toHaveCount(4);
+    expect(DB::getQueryLog())->toHaveCount(5);
 })->with([1, 5]);
 
 it('skips loading stacked actors when nothing is grouped', function (): void {
@@ -198,7 +306,7 @@ it('skips loading stacked actors when nothing is grouped', function (): void {
 
     $group = resolve(NotificationGroupsQuery::class)->paginate($user)->items()[0];
 
-    expect(DB::getQueryLog())->toHaveCount(2)
+    expect(DB::getQueryLog())->toHaveCount(3)
         ->and($group->actors->sole()->is($group->actor))->toBeTrue();
 });
 
@@ -301,6 +409,65 @@ it('counts the same unread groups as grouping the whole history', function (): v
     $wholeHistory = $query->events($user)->where('group_rank', 1)->where('unread_count', '>', 0)->count();
 
     expect($query->unreadCount($user))->toBe(3)->toBe($wholeHistory);
+});
+
+it('keeps a conversation whole when its replies straddle the grouping window', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->for($user)->create();
+    [$bob, $carol] = User::factory()->count(2)->create()->all();
+
+    starsAt($user, every(30, 1000));
+    repliesAt($root, [$bob, $carol], every(50, 600));
+
+    $groups = resolve(NotificationGroupsQuery::class)->paginate($user)->items();
+
+    expect($groups[1]->type)->toBe(NotificationType::Replied)
+        ->and($groups[1]->event_count)->toBe(600)
+        ->and($groups[1]->unread_count)->toBe(600)
+        ->and($groups[1]->actors_count)->toBe(2)
+        ->and($groups[1]->actors->pluck('id')->all())->toBe([$bob->id, $carol->id])
+        ->and(array_map(groupIdentity(...), $groups))->toBe(array_slice(wholeHistory($user), 0, NotificationGroupsQuery::PER_PAGE));
+});
+
+it('keeps the older stars of a commit the grouping window begins after', function (): void {
+    $user = User::factory()->create();
+    $viral = Commit::factory()->for($user)->create();
+    $stargazers = User::factory()->count(4)->create();
+
+    starsAt($user, every(30, 1300));
+    foreach ($stargazers->take(3) as $index => $stargazer) {
+        starAt($stargazer, $viral, 40003 - $index);
+    }
+    starAt($stargazers[3], $viral, 1);
+
+    $groups = resolve(NotificationGroupsQuery::class)->paginate($user)->items();
+
+    expect($groups[0]->commit_id)->toBe($viral->id)
+        ->and($groups[0]->event_count)->toBe(4)
+        ->and($groups[0]->actors_count)->toBe(4)
+        ->and($groups[0]->actors->pluck('id')->all())->toBe([$stargazers[3]->id, $stargazers[2]->id, $stargazers[1]->id])
+        ->and(array_map(groupIdentity(...), $groups))->toBe(array_slice(wholeHistory($user), 0, NotificationGroupsQuery::PER_PAGE));
+});
+
+it('splits a day of follows at its hour gap like grouping the whole history does, on every page', function (): void {
+    $user = User::factory()->create();
+    $days = range(1, 3);
+    $at = fn (int $day, string $time): CarbonInterface => today()->subDays($day)->setTimeFromTimeString($time);
+    $span = fn (int $day, string $from, string $to, int $seconds): array => array_map(
+        fn (int $offset): CarbonInterface => $at($day, $from)->addSeconds($offset),
+        range(0, (int) $at($day, $from)->diffInSeconds($at($day, $to)), $seconds),
+    );
+
+    followsAt($user, array_merge(...array_map(fn (int $day): array => [...$span($day, '09:00', '11:00', 10), ...$span($day, '13:00', '15:00', 10)], $days)));
+    starsAt($user, array_merge(...array_map(fn (int $day): array => $span($day, '09:01:30', '14:58:30', 180), $days)));
+
+    $groups = scrolled($user);
+    $sessions = array_values(array_filter($groups, fn (Notification $group): bool => $group->type === NotificationType::Followed));
+
+    expect($groups[0]->type)->toBe(NotificationType::Followed)
+        ->and($groups[0]->event_count)->toBe(721)
+        ->and(array_map(fn (Notification $session): int => $session->actors_count, $sessions))->toBe(array_fill(0, 6, 721))
+        ->and(array_map(groupIdentity(...), $groups))->toBe(wholeHistory($user))->toHaveCount(366);
 });
 
 it('compiles the grouping window for each database dialect with bound recipient and filter values', function (string $driver, string $gap): void {

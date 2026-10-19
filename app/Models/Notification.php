@@ -32,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read User $actor
  * @property-read Commit|null $commit
  * @property-read string $group_id
+ * @property-read CarbonInterface $group_started_at
  * @property-read int $event_count
  * @property-read int $actors_count
  * @property-read int $unread_count
@@ -42,6 +43,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Hidden([
     'key',
     'group_rank',
+    'group_started_at',
     'actor_position',
     'second_actor_id',
     'third_actor_id',
@@ -70,6 +72,7 @@ final class Notification extends Model
             'reason' => 'string',
             'read_at' => 'datetime',
             'created_at' => 'datetime',
+            'group_started_at' => 'datetime',
             'updated_at' => 'datetime',
             'actors_count' => 'integer',
             'unread_count' => 'integer',
