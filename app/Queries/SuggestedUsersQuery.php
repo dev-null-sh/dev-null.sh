@@ -10,11 +10,24 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 
 final readonly class SuggestedUsersQuery
 {
+    private const int POPULAR_POOL = 20;
+
+    /**
+     * Wide enough that someone following hundreds of the most followed still has 20 of them left to be suggested.
+     */
+    private const int MOST_FOLLOWED = 1000;
+
+    private const int MOST_FOLLOWED_SECONDS = 3600;
+
+    private const string MOST_FOLLOWED_KEY = 'suggested-users:most-followed';
+
     /**
      * People the user does not follow yet: a mix of people their follows already follow and a few
      * popular people picked from the 20 most followed. Either side fills in when the other runs short.
@@ -51,8 +64,80 @@ final readonly class SuggestedUsersQuery
             ->limit($limit * 10)
             ->get();
 
-        // Ranked before looking for commits, so only the most followed are looked up rather than every candidate.
-        $popularPool = User::query()
+        $popularPool = $this->popularAmongMostFollowed($user, $followingIds, $following)
+            ?? $this->popular($user, $followingIds, $following);
+
+        $pages = $this->pages($randomizer, $network, $popularPool, $limit);
+
+        return $pages[max(0, $round) % count($pages)];
+    }
+
+    /**
+     * The popular picks for the user out of the ranking everyone shares, or null when too few of them are left for
+     * the user. Everyone outside the ranking is less followed than anyone in it, so the picks are the same as ranking
+     * every candidate, only with follower counts as old as the ranking.
+     *
+     * @param  BelongsToMany<User, User>  $following
+     * @return Collection<int, User>|null
+     */
+    private function popularAmongMostFollowed(User $user, QueryBuilder $followingIds, BelongsToMany $following): ?Collection
+    {
+        $ranking = $this->mostFollowed();
+
+        /** @var list<string> $left */
+        $left = $this->candidates($user, $followingIds)
+            ->whereIn('users.id', array_keys($ranking))
+            ->whereNotExists($this->followedByFollowing($user, $following))
+            ->whereNotIn('users.id', $user->idsAcrossBlocks())
+            ->pluck('users.id')
+            ->all();
+
+        $picks = array_flip(array_slice(array_keys(array_intersect_key($ranking, array_flip($left))), 0, self::POPULAR_POOL));
+
+        if (count($picks) < self::POPULAR_POOL) {
+            return null;
+        }
+
+        return User::query()->findMany(array_keys($picks))
+            ->sortBy(fn (User $pick): int => $picks[$pick->id])
+            ->values()
+            ->each(fn (User $pick): User => $pick->forceFill([
+                'followed_by_following_count' => 0,
+                'followers_count' => $ranking[$pick->id],
+            ]))
+            ->toBase();
+    }
+
+    /**
+     * The most followed people with a visible top-level commit, and how many followers each has, most followed first.
+     *
+     * @return array<string, int>
+     */
+    private function mostFollowed(): array
+    {
+        /** @var array<string, int> $ranking */
+        $ranking = Cache::remember(self::MOST_FOLLOWED_KEY, self::MOST_FOLLOWED_SECONDS, fn (): array => DB::query()
+            ->fromSub(DB::table('follows')->select('followed_id')->selectRaw('count(*) as followers')->groupBy('followed_id'), 'ranked')
+            ->whereExists(Commit::query()->approved()->topLevel()->whereColumn('commits.user_id', 'ranked.followed_id')->select('commits.id')->offset(0))
+            ->orderByDesc('followers')
+            ->orderByDesc('followed_id')
+            ->limit(self::MOST_FOLLOWED)
+            ->pluck('followers', 'followed_id')
+            ->map(fn (mixed $followers): int => is_numeric($followers) ? (int) $followers : 0)
+            ->all());
+
+        return $ranking;
+    }
+
+    /**
+     * Ranked before looking for commits, so only the most followed are looked up rather than every candidate.
+     *
+     * @param  BelongsToMany<User, User>  $following
+     * @return Collection<int, User>
+     */
+    private function popular(User $user, QueryBuilder $followingIds, BelongsToMany $following): Collection
+    {
+        return User::query()
             ->fromSub($this->candidates($user, $followingIds)
                 ->whereNotExists($this->followedByFollowing($user, $following))
                 ->select('users.*')
@@ -63,12 +148,9 @@ final readonly class SuggestedUsersQuery
             ->whereIn('users.id', $this->committers($user))
             ->orderByDesc('followers_count')
             ->latest('users.id')
-            ->limit(20)
-            ->get();
-
-        $pages = $this->pages($randomizer, $network, $popularPool, $limit);
-
-        return $pages[max(0, $round) % count($pages)];
+            ->limit(self::POPULAR_POOL)
+            ->get()
+            ->toBase();
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @return Collection<int, User>
@@ -137,6 +138,21 @@ it('picks the 20 most followed among people who have committed', function (): vo
     $suggested = collect(range(0, 6))->flatMap(fn (int $round): array => $query->get($user, round: $round)->pluck('id')->all());
 
     expect($suggested->unique()->sort()->values()->all())->toBe(collect($mostFollowed->modelKeys())->sort()->values()->all());
+});
+
+it('ranks the most followed once for everyone rather than counting followers for each viewer', function (): void {
+    popularUsers(25);
+    $first = User::factory()->create();
+    $second = User::factory()->create();
+    $query = resolve(SuggestedUsersQuery::class);
+
+    $query->get($first);
+
+    DB::enableQueryLog();
+    $suggestions = $query->get($second);
+
+    expect($suggestions)->toHaveCount(3)
+        ->and(collect(DB::getQueryLog())->pluck('query')->filter(fn (string $sql): bool => str_contains($sql, 'count(*)') && ! str_contains($sql, 'network')))->toBeEmpty();
 });
 
 it('keeps the same suggestions in the same order during the day', function (): void {
