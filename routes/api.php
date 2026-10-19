@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\CommitStarController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
+use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
 use App\Http\Controllers\Api\UserBlockController;
@@ -131,6 +132,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('me/blocked', [UserBlockController::class, 'index'])->name('api-user-block.index');
         Route::post('users/{user:username}/block', [UserBlockController::class, 'store'])->name('api-user-block.store');
         Route::delete('users/{user:username}/block', [UserBlockController::class, 'destroy'])->name('api-user-block.destroy');
+
+        // Remote Reactions...
+        Route::middleware('throttle:conversations')->group(function (): void {
+            Route::get('remotes/reactions', [MessageReactionController::class, 'index'])->name('api-message-reaction.index');
+            Route::post('remotes/messages/{message}/reactions', [MessageReactionController::class, 'store'])
+                ->whereNumber('message')
+                ->name('api-message-reaction.store');
+            Route::delete('remotes/messages/{message}/reactions', [MessageReactionController::class, 'destroy'])
+                ->whereNumber('message')
+                ->name('api-message-reaction.destroy');
+        });
 
         // Notifications...
         Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');
