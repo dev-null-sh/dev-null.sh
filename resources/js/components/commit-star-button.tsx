@@ -5,6 +5,7 @@ import type { Ref } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
+import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
@@ -34,6 +35,7 @@ export function CommitStarButton({
     className?: string;
 }) {
     const { auth } = usePage().props;
+    const commitNotFound = useCommitNotFound();
     const isOwn = commit.user_id === auth.user?.id;
     const [starred, setStarred] = useSharedState(
         commitStateKey('starred', commit.id),
@@ -126,7 +128,9 @@ export function CommitStarButton({
                     : CommitStarController.destroy(commit),
                 {
                     onHttpException: (response) => {
-                        toastWhenThrottled(response);
+                        if (!commitNotFound(commit.id, response)) {
+                            toastWhenThrottled(response);
+                        }
                     },
                 },
             );

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Enums\RepliesPerPage;
 use App\Models\Commit;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -21,6 +22,11 @@ final class ShowCommitRequest extends FormRequest
         assert($commit instanceof Commit);
 
         return $commit->isVisibleTo($user) ? Response::allow() : Response::denyAsNotFound();
+    }
+
+    public function repliesPerPage(): int
+    {
+        return RepliesPerPage::of($this)->value;
     }
 
     /**

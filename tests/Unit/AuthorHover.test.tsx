@@ -26,6 +26,8 @@ vi.doMock('react', () => ({
               : initial,
         (value: unknown) => stateChanges.push(value),
     ],
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) =>
+        read(),
 }));
 vi.doMock('react-dom', async () => ({
     ...(await vi.importActual('react-dom')),
@@ -184,18 +186,26 @@ test('suggested user row wraps the author in a user preview anchored to their av
         followers_count: 20,
     } as SuggestedUser;
 
-    const row = SuggestedUserRow({ user }) as ReactElement<{
-        children: ReactNode;
-    }>;
-    assert.ok(React.isValidElement(row));
-
-    const children = React.Children.toArray(row.props.children);
-    const preview = children[0] as ReactElement<{
+    type PreviewProps = {
         user: SuggestedUser;
         anchor: React.RefObject<HTMLSpanElement | null>;
-    }>;
+        children?: ReactNode;
+    };
+    const findPreview = (
+        node: ReactNode,
+    ): ReactElement<PreviewProps> | undefined =>
+        React.Children.toArray(node)
+            .filter((child) => React.isValidElement<PreviewProps>(child))
+            .map((child) =>
+                child.type === UserPreview
+                    ? child
+                    : findPreview(child.props.children),
+            )
+            .find(Boolean);
 
-    assert.equal(preview.type, UserPreview);
+    const preview = findPreview(SuggestedUserRow({ user }));
+    assert.ok(preview);
+
     assert.deepEqual(preview.props.user, user);
     assert.ok(preview.props.anchor);
 });

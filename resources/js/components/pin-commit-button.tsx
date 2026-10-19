@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import CommitPinController from '@/actions/App/Http/Controllers/CommitPinController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { toastWhenThrottled } from '@/lib/throttle';
 import type { Commit } from '@/types';
 
@@ -15,6 +16,7 @@ export function PinCommitButton({
     isPinned: boolean;
 }) {
     const [isSaving, setIsSaving] = useState(false);
+    const commitNotFound = useCommitNotFound();
     const Icon = isPinned ? PinOff : Pin;
     const label = isPinned ? 'Unpin from profile' : 'Pin to profile';
 
@@ -36,7 +38,9 @@ export function PinCommitButton({
                     ),
                 onError: () =>
                     toast.error('Could not update your pinned commit.'),
-                onHttpException: (response) => !toastWhenThrottled(response),
+                onHttpException: (response) =>
+                    !commitNotFound(commit.id, response) &&
+                    !toastWhenThrottled(response),
             },
         );
     };
@@ -50,10 +54,12 @@ export function PinCommitButton({
                 aria-label={label}
                 aria-pressed={isPinned}
                 aria-busy={isSaving}
-                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-wait disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-wait disabled:opacity-50 sm:min-w-24"
             >
                 <Icon aria-hidden className="size-3.5" />
-                {isSaving ? 'Saving…' : isPinned ? 'Unpin' : 'Pin'}
+                <span className="sr-only sm:not-sr-only">
+                    {isSaving ? 'Saving…' : isPinned ? 'Unpin' : 'Pin'}
+                </span>
             </button>
         </ActionTooltip>
     );

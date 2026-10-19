@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Exceptions\ApiException;
+use App\Http\Controllers\Api\BookmarkController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
+use App\Http\Controllers\Api\CommitStarController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
@@ -71,6 +73,23 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware('throttle:commit-reports')
             ->missing(fn (): JsonResponse => ApiException::commitUnavailable()->render())
             ->name('api-commit-report.store');
+
+        // Private saved commits...
+        Route::get('saved', [BookmarkController::class, 'index'])->name('api-bookmark.index');
+        Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])
+            ->middleware('throttle:bookmarks')
+            ->name('api-bookmark.store');
+        Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])
+            ->middleware('throttle:bookmarks')
+            ->name('api-bookmark.destroy');
+
+        // Commit Star...
+        Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
+            ->middleware('throttle:stars')
+            ->name('api-commit-star.store');
+        Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
+            ->middleware('throttle:stars')
+            ->name('api-commit-star.destroy');
 
         // User Follow...
         Route::post('users/{user:username}/follow', [UserFollowController::class, 'store'])

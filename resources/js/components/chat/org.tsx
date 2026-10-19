@@ -331,7 +331,7 @@ export function OrgMembersDialog({
                 }}
             >
                 <DialogContent
-                    className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+                    className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
                     onOpenAutoFocus={(event) => {
                         event.preventDefault();
                         (event.currentTarget as HTMLElement).focus();
@@ -707,7 +707,7 @@ export function OrgPeopleDialog({
             }}
         >
             <DialogContent
-                className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+                className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
                 onCloseAutoFocus={(event) => {
                     // The new org's composer takes focus, so it isn't handed back to the button that opened this.
                     if (isCreated.current) {
