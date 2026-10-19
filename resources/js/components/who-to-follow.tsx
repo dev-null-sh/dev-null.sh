@@ -1,6 +1,7 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
 import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
 import { useRef, useState } from 'react';
+import PeopleController from '@/actions/App/Http/Controllers/PeopleController';
 import { FollowButton, useHasBlockWith } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,10 +37,12 @@ export function SuggestedUserRow({
     user,
     className,
     buttonClassName,
+    showsBio = false,
 }: {
     user: SuggestedUser;
     className?: string;
     buttonClassName?: string;
+    showsBio?: boolean;
 }) {
     const reason = reasonFor(user);
     const avatarRef = useRef<HTMLSpanElement>(null);
@@ -102,6 +105,11 @@ export function SuggestedUserRow({
                                 {reason && (
                                     <span className="line-clamp-2 block text-xs text-muted-foreground">
                                         {reason}
+                                    </span>
+                                )}
+                                {showsBio && user.bio && (
+                                    <span className="mt-1 line-clamp-2 block text-sm">
+                                        {user.bio}
                                     </span>
                                 )}
                             </span>
@@ -305,16 +313,27 @@ export function WhoToFollow() {
             {isHidden ? (
                 <WhoToFollowHidden onUndo={undo} />
             ) : (
-                <ul className="space-y-4">
-                    <Deferred
-                        data="suggestedUsers"
-                        fallback={<SuggestedUsersSkeleton hasWrappingReasons />}
+                <div>
+                    <ul className="space-y-4">
+                        <Deferred
+                            data="suggestedUsers"
+                            fallback={
+                                <SuggestedUsersSkeleton hasWrappingReasons />
+                            }
+                        >
+                            {suggestedUsers?.map((user) => (
+                                <SuggestedUserRow key={user.id} user={user} />
+                            ))}
+                        </Deferred>
+                    </ul>
+                    <Link
+                        href={PeopleController.index()}
+                        className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
+                        data-test="who-to-follow-view-all"
                     >
-                        {suggestedUsers?.map((user) => (
-                            <SuggestedUserRow key={user.id} user={user} />
-                        ))}
-                    </Deferred>
-                </ul>
+                        View all
+                    </Link>
+                </div>
             )}
         </section>
     );
@@ -357,26 +376,35 @@ export function WhoToFollowInLog() {
                 {isHidden ? (
                     <WhoToFollowHidden onUndo={undo} />
                 ) : (
-                    <ul className="divide-y rounded-lg border">
-                        <Deferred
-                            data="suggestedUsers"
-                            fallback={
-                                <SuggestedUsersSkeleton
-                                    rowClassName="p-3"
-                                    buttonClassName="w-[90px]"
-                                />
-                            }
+                    <div>
+                        <ul className="divide-y rounded-lg border">
+                            <Deferred
+                                data="suggestedUsers"
+                                fallback={
+                                    <SuggestedUsersSkeleton
+                                        rowClassName="p-3"
+                                        buttonClassName="w-[90px]"
+                                    />
+                                }
+                            >
+                                {suggestedUsers?.map((user) => (
+                                    <SuggestedUserRow
+                                        key={user.id}
+                                        user={user}
+                                        className="p-3"
+                                        buttonClassName="min-w-[90px] px-2"
+                                    />
+                                ))}
+                            </Deferred>
+                        </ul>
+                        <Link
+                            href={PeopleController.index()}
+                            className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
+                            data-test="who-to-follow-view-all"
                         >
-                            {suggestedUsers?.map((user) => (
-                                <SuggestedUserRow
-                                    key={user.id}
-                                    user={user}
-                                    className="p-3"
-                                    buttonClassName="min-w-[90px] px-2"
-                                />
-                            ))}
-                        </Deferred>
-                    </ul>
+                            View all developers
+                        </Link>
+                    </div>
                 )}
             </div>
         </section>
