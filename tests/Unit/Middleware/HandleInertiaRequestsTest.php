@@ -261,6 +261,26 @@ it('dims lanes once the user turns it on', function (): void {
     expect($shared['dimsLanes'])->toBeTrue();
 });
 
+it('shows 3 replies at a time unless the user picked one of the other counts', function (string $cookie, int $count): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+
+    if ($cookie !== '') {
+        $request->cookies->set('replies_per_page', $cookie);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['repliesPerPage'])->toBe($count);
+})->with([
+    'default' => ['', 3],
+    'picked' => ['20', 20],
+    'one' => ['1', 1],
+    'not an option' => ['7', 3],
+    'garbage' => ['many', 3],
+]);
+
 it('does not share suggested users with guests', function (): void {
     $middleware = new HandleInertiaRequests();
 

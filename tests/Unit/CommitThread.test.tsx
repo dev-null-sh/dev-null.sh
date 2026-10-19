@@ -24,18 +24,23 @@ const reply = (id: string): Commit =>
         body_segments: [{ type: 'text', text: `Visible reply ${id}` }],
         preview_segments: [{ type: 'text', text: `Visible reply ${id}` }],
         replies_count: 0,
-        user: { id: 'author', name: 'Author', username: 'author', lane: 1, timezone: null },
+        user: {
+            id: 'author',
+            name: 'Author',
+            username: 'author',
+            lane: 1,
+            timezone: null,
+        },
     }) as Commit;
 
-async function renderThread(count: number) {
+async function renderThread(count: number, repliesPerPage: number) {
+    const shown = Math.min(count, repliesPerPage);
     const commit = {
         ...reply('parent'),
         replies_count: count,
         reply_preview: {
-            data: Array.from({ length: Math.min(count, 1) }, (_, i) =>
-                reply(String(i)),
-            ),
-            next_cursor: count > 1 ? 'older-replies' : null,
+            data: Array.from({ length: shown }, (_, i) => reply(String(i))),
+            next_cursor: count > shown ? 'older-replies' : null,
             prev_cursor: null,
         },
     };
@@ -53,7 +58,7 @@ async function renderThread(count: number) {
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {} },
+            props: { auth: { user: null }, errors: {}, repliesPerPage },
             url: '/',
             version: null,
             clearHistory: false,
@@ -71,18 +76,44 @@ async function renderThread(count: number) {
     return result.body;
 }
 
-for (const count of [0, 1, 2, 5]) {
-    void test(`shows ${Math.min(count, 1)} replies immediately out of ${count}`, async () => {
-        const html = await renderThread(count);
-        assert.equal(
-            (html.match(/Visible reply /g) ?? []).length,
-            Math.min(count, 1),
-        );
+const text = (html: string) =>
+    html
+        .replace(/<!-- -->/g, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ');
+
+for (const [count, repliesPerPage] of [
+    [0, 3],
+    [1, 3],
+    [3, 3],
+    [5, 1],
+    [23, 5],
+]) {
+    const shown = Math.min(count, repliesPerPage);
+
+    void test(`shows ${shown} replies immediately out of ${count} when showing ${repliesPerPage} at a time`, async () => {
+        const html = await renderThread(count, repliesPerPage);
+        assert.equal((html.match(/Visible reply /g) ?? []).length, shown);
         assert.doesNotMatch(html, /data-test="toggle-replies-button"/);
         assert.equal(
             html.includes('data-test="more-replies-button"'),
-            count > 1,
+            count > shown,
         );
-        if (count > 1) assert.match(html, /Show more/);
+    });
+}
+
+for (const [count, repliesPerPage, more, all] of [
+    [23, 5, 'Show 5 more', 'Show all 18'],
+    [5, 1, 'Show 1 more', 'Show all 4'],
+    [6, 3, 'Show the last 3', null],
+    [4, 3, 'Show the last reply', null],
+] as const) {
+    void test(`offers "${more}"${all ? ` and "${all}"` : ''} with ${count - repliesPerPage} of ${count} replies left`, async () => {
+        const html = text(await renderThread(count, repliesPerPage));
+        assert.match(html, new RegExp(more));
+        assert.equal(
+            all === null ? !html.includes('Show all') : html.includes(all),
+            true,
+        );
     });
 }

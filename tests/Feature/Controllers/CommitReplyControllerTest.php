@@ -933,3 +933,20 @@ it('lists the newest reply with a cursor to older replies when requested', funct
     $second->assertOk()->assertJsonCount(3, 'data')->assertJsonPath('next_cursor', null);
     expect($second->json('data.*.id'))->toBe(array_slice($expected, 1));
 });
+
+it('lists replies in pages of any size up to 50', function (int $limit, int $status): void {
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->count(4)->create();
+
+    $response = $this->getJson(route('commit-reply.index', [$parent, 'limit' => $limit]))->assertStatus($status);
+
+    if ($status === 200) {
+        $response->assertJsonCount(min($limit, 4), 'data');
+    }
+})->with([
+    'a single reply' => [1, 200],
+    'a few' => [3, 200],
+    'the most' => [50, 200],
+    'none' => [0, 422],
+    'too many' => [51, 422],
+]);

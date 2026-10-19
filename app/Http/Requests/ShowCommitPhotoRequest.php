@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Enums\CommitStatus;
+use App\Enums\RepliesPerPage;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
@@ -31,6 +32,11 @@ final class ShowCommitPhotoRequest extends FormRequest
         return $commit->isVisibleTo($user) && $commit->imagesAreVisibleTo($user) && $photo >= 1 && $photo <= $commit->images()->count()
             ? Response::allow()
             : Response::denyAsNotFound();
+    }
+
+    public function repliesPerPage(): int
+    {
+        return RepliesPerPage::of($this)->value;
     }
 
     /**
