@@ -48,6 +48,10 @@ import {
 } from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import {
+    useCommitNotFound,
+    useIsCommitDeleted,
+} from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
@@ -87,9 +91,6 @@ type CreatedReply = {
 };
 
 const replyFailedMessage = 'Could not send your reply. Try again.';
-
-const parentUnavailableMessage =
-    'That commit is no longer available to reply to.';
 
 const changedThreadIds = new Set<string>();
 
@@ -848,6 +849,8 @@ function CommitReply({
     const { auth } = usePage().props;
     const now = useNow();
     const { bodyRef, ...translation } = useCommitTranslation(reply);
+    const wasDeleted = useIsCommitDeleted(reply.id);
+    const commitNotFound = useCommitNotFound();
     const [isConfirming, setIsConfirming] = useState(false);
     const request = useHttp<Record<string, never>, { deleted: DeletedFlash }>(
         {},
@@ -865,9 +868,16 @@ function CommitReply({
     });
 
     const deleteReply = async () => {
+        let isNotFound = false;
+
         try {
             const response = await request.submit(
                 CommitReplyController.destroy({ commit: parent, reply }),
+                {
+                    onHttpException: (response) => {
+                        isNotFound = commitNotFound(reply.id, response);
+                    },
+                },
             );
 
             router.flushAll();
@@ -875,7 +885,9 @@ function CommitReply({
             onDeleted();
             router.flash(() => response);
         } catch {
-            toast.error('Could not delete your reply. Try again.');
+            if (!isNotFound) {
+                toast.error('Could not delete your reply. Try again.');
+            }
 
             return;
         }
@@ -915,7 +927,12 @@ function CommitReply({
                     )}
                 </div>
 
-                <div className="min-w-0 flex-1">
+                <div
+                    inert={wasDeleted}
+                    className={cn('min-w-0 flex-1', {
+                        'opacity-50': wasDeleted,
+                    })}
+                >
                     <div className="flex items-baseline gap-1.5 text-sm">
                         <UserPreview
                             user={reply.user}
@@ -1069,6 +1086,7 @@ function ReplyComposer({
     onReplied: () => void;
 }) {
     const { user } = useUser();
+    const commitNotFound = useCommitNotFound();
     const {
         body,
         images,
@@ -1161,13 +1179,9 @@ function ReplyComposer({
                     onReplied();
                 },
                 onHttpException: (response) => {
-                    if (response.status === 404) {
-                        request.setError('body', parentUnavailableMessage);
-
-                        return;
+                    if (!commitNotFound(parent.id, response)) {
+                        toast.error(replyFailureMessage(response));
                     }
-
-                    toast.error(replyFailureMessage(response));
                 },
                 onNetworkError: () => {
                     toast.error(replyFailedMessage);

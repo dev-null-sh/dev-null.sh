@@ -7,6 +7,7 @@ import { CommitCard } from '@/components/commit-card';
 import { EmptyFeed } from '@/components/commit-feed';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
+import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import AppLayout from '@/layouts/app-layout';
 import { formatFullDateTime } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
@@ -27,7 +28,9 @@ export default function Reports({
     reasons: Record<string, string>;
 }) {
     const [busy, setBusy] = useState(false);
+    const commitNotFound = useCommitNotFound();
     const resolve = (
+        report: Report,
         route: ReturnType<typeof destroy> | ReturnType<typeof reject>,
     ) =>
         router.visit(route, {
@@ -35,6 +38,8 @@ export default function Reports({
             reset: ['reports'],
             onStart: () => setBusy(true),
             onFinish: () => setBusy(false),
+            onHttpException: (response) =>
+                !commitNotFound(report.commit.id, response),
         });
 
     return (
@@ -102,7 +107,10 @@ export default function Reports({
                                             size="sm"
                                             disabled={busy}
                                             onClick={() =>
-                                                resolve(destroy(report.id))
+                                                resolve(
+                                                    report,
+                                                    destroy(report.id),
+                                                )
                                             }
                                         >
                                             <Check />
@@ -113,7 +121,10 @@ export default function Reports({
                                             size="sm"
                                             disabled={busy}
                                             onClick={() =>
-                                                resolve(reject(report.commit))
+                                                resolve(
+                                                    report,
+                                                    reject(report.commit),
+                                                )
                                             }
                                         >
                                             <X />

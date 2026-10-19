@@ -3,11 +3,13 @@ import { Languages } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitTranslationController from '@/actions/App/Http/Controllers/CommitTranslationController';
+import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { signIn } from '@/lib/auth';
 import type { Commit, CommitTranslation } from '@/types';
 
 export function useCommitTranslation(commit: Commit) {
     const { auth } = usePage().props;
+    const commitNotFound = useCommitNotFound();
     const bodyRef = useRef<HTMLDivElement>(null);
     const [bodyHeight, setBodyHeight] = useState<number>();
     const [generated, setGenerated] = useState<{
@@ -40,9 +42,16 @@ export function useCommitTranslation(commit: Commit) {
 
         request.transform(() => ({ language: translation?.language ?? 'en' }));
 
+        let isNotFound = false;
+
         try {
             const response = await request.submit(
                 CommitTranslationController.store(commit.id),
+                {
+                    onHttpException: (response) => {
+                        isNotFound = commitNotFound(commit.id, response);
+                    },
+                },
             );
             setGenerated({
                 body: commit.body,
@@ -50,7 +59,9 @@ export function useCommitTranslation(commit: Commit) {
             });
             setShowsOriginal(false);
         } catch {
-            toast.error('Could not translate this commit. Try again.');
+            if (!isNotFound) {
+                toast.error('Could not translate this commit. Try again.');
+            }
         }
     };
 

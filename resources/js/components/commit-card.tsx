@@ -39,6 +39,10 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { UserPreview } from '@/components/user-preview';
+import {
+    useCommitNotFound,
+    useIsCommitDeleted,
+} from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import {
@@ -112,6 +116,8 @@ export function CommitCard({
         loadsReplies,
         exceptReplyId,
     );
+    const wasDeleted = useIsCommitDeleted(commit.id);
+    const commitNotFound = useCommitNotFound();
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
     >('idle');
@@ -139,6 +145,13 @@ export function CommitCard({
                 router.visit(CommitController.destroy(commit), {
                     ...commitMutationOptions(component),
                     onError: () => setDeletion('idle'),
+                    onHttpException: (response) => {
+                        if (commitNotFound(commit.id, response)) {
+                            setDeletion('idle');
+
+                            return false;
+                        }
+                    },
                 }),
             prefersReducedMotion ? 0 : 700,
         );
@@ -211,8 +224,10 @@ export function CommitCard({
                     )}
                 >
                     <div
+                        inert={wasDeleted}
                         className={cn('flex transition-opacity duration-200', {
                             'opacity-70': isDimmed,
+                            'opacity-50': wasDeleted,
                         })}
                     >
                         <div className="min-w-0 flex-1">
