@@ -6,11 +6,13 @@ use App\Actions\DeleteRepoContributor;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Enums\NotificationType;
+use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\Repo;
 use App\Models\RepoContributor;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 
 /**
  * A repo with a maintainer and a contributor, both approved without review.
@@ -187,3 +189,30 @@ it('does not pin repo commits to profiles', function (): void {
 
     $this->actingAs($maintainer)->put(route('commit-pin.update', $commit))->assertForbidden();
 });
+
+it('moderates repo commits like any other', function (bool $approved): void {
+    Queue::fake();
+    config(['app.admins' => ['moderator'], 'services.openai.key' => 'test-key']);
+
+    $repo = Repo::factory()->create();
+    $maintainer = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
+    $newcomer = RepoContributor::factory()->for($repo)->create()->user;
+    $moderator = User::factory()->create(['username' => 'moderator']);
+
+    $this->actingAs($newcomer)->post(route('commit.store'), ['body' => 'First repo commit', 'repo_id' => $repo->id]);
+
+    $commit = Commit::query()->sole();
+
+    expect($commit->status)->toBe(CommitStatus::Pending)
+        ->and($commit->isVisibleTo($maintainer))->toBeFalse();
+    Queue::assertPushed(ModerateCommit::class);
+
+    $this->actingAs($moderator)->get(route('moderation.show'))
+        ->assertInertia(fn ($page) => $page->has('commits.data', 1)->where('commits.data.0.id', $commit->id));
+
+    $this->post(route($approved ? 'commit-approval.store' : 'commit-rejection.store', $commit))->assertRedirect();
+
+    expect($commit->refresh()->status)->toBe($approved ? CommitStatus::Approved : CommitStatus::Rejected)
+        ->and($commit->isVisibleTo($maintainer))->toBe($approved)
+        ->and($commit->isVisibleTo($moderator))->toBeFalse();
+})->with(['approved' => true, 'rejected' => false]);

@@ -71,9 +71,17 @@ final class CommitBuilder extends Builder
             ->where(fn (Builder $query): Builder => $query
                 ->where($this->qualifyColumn('status'), CommitStatus::Approved)
                 ->orWhere($this->qualifyColumn('user_id'), $user->id))
-            ->where(fn (Builder $query): Builder => $query
-                ->whereNull($this->qualifyColumn('user_id'))
-                ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
+            ->withoutBlocksAcross($user);
+    }
+
+    /**
+     * A block hides each one's commits from the other.
+     */
+    public function withoutBlocksAcross(User $user): self
+    {
+        return $this->where(fn (Builder $query): Builder => $query
+            ->whereNull($this->qualifyColumn('user_id'))
+            ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
     }
 
     public function inRepo(Repo $repo): self

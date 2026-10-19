@@ -10,6 +10,7 @@ use App\Models\CommitReport;
 use App\Models\LinkPreview;
 use App\Models\Poll;
 use App\Models\PollVote;
+use App\Models\Repo;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -213,6 +214,23 @@ it('can report a muted author from their directly accessible commit', function (
     $this->actingAs($reporter)->post(route('commit-report.store', $commit), ['reason' => 'spam'])->assertRedirect();
 
     expect(CommitReport::query()->sole()->commit_id)->toBe($commit->id);
+});
+
+it('shows moderators reported repo commits without opening the repo to them', function (): void {
+    $repo = Repo::factory()->create();
+    $parent = Commit::factory()->create(['repo_id' => $repo->id]);
+    $reply = Commit::factory()->for($parent, 'parent')->create(['repo_id' => $repo->id, 'root_id' => $parent->id]);
+    CommitReport::factory()->for($reply)->create();
+    $moderator = User::factory()->create(['username' => 'moderator-demo']);
+
+    $this->actingAs($moderator)->get(route('reported-commit.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('reports.data', 1)
+            ->where('reports.data.0.commit.id', $reply->id)
+            ->where('reports.data.0.commit.parent.id', $parent->id));
+
+    $this->get(route('commit.show', [$reply->user, $reply]))->assertNotFound();
 });
 
 it('hides blocked parent context in the reports queue in either direction', function (bool $moderatorBlocks): void {
