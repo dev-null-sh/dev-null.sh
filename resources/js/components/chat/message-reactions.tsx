@@ -249,13 +249,14 @@ export function ReactionTray({
                 }
             }}
             className={cn(
-                'grid w-full transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none pointer-coarse:hidden',
-                isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+                'grid w-full transition-[grid-template-rows,margin-bottom] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none pointer-coarse:hidden',
+                isOpen ? '-mb-2 grid-rows-[1fr]' : 'grid-rows-[0fr]',
             )}
             data-test="reaction-tray"
         >
+            {/* The fold clips, so it reaches past the row by the shadow's spread, and the open tray gives that back below. */}
             <div
-                className={cn('flex min-h-0 overflow-hidden', {
+                className={cn('-mx-2 flex min-h-0 overflow-hidden px-2', {
                     'justify-end': isMine,
                 })}
             >
@@ -263,7 +264,7 @@ export function ReactionTray({
                     role="toolbar"
                     aria-label="React"
                     className={cn(
-                        'mt-0.5 mb-1.5 flex w-max items-center gap-0.5 rounded-full border bg-popover p-[3px] shadow-[0_6px_16px_-8px_rgb(0_0_0/0.35)] transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none',
+                        'mt-0.5 mb-3.5 flex w-max items-center gap-0.5 rounded-full border bg-popover p-[3px] shadow-[0_6px_16px_-8px_rgb(0_0_0/0.35)] transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none',
                         isOpen
                             ? 'translate-y-0 opacity-100'
                             : '-translate-y-2 opacity-0',
@@ -723,11 +724,31 @@ export function ReactionSheet({
     onReact: (emoji: string) => void;
 }) {
     const [isPicking, setIsPicking] = useState(false);
+    const [isReleased, setIsReleased] = useState(false);
+    const isHeld = isOpen && !isReleased;
     const isArmed = useRef(false);
+
+    // The finger that long pressed is still down when the sheet opens, wherever its controls land under it.
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        const release = () => setIsReleased(true);
+
+        window.addEventListener('pointerup', release, { once: true });
+        window.addEventListener('pointercancel', release, { once: true });
+
+        return () => {
+            window.removeEventListener('pointerup', release);
+            window.removeEventListener('pointercancel', release);
+        };
+    }, [isOpen]);
 
     const close = () => {
         onOpenChange(false);
         setIsPicking(false);
+        setIsReleased(false);
     };
 
     const react = (emoji: string) => {
@@ -751,6 +772,11 @@ export function ReactionSheet({
                     onOpenAutoFocus={(event) => {
                         event.preventDefault();
                         isArmed.current = false;
+
+                        // A long press while typing puts the keyboard away, so the sheet has the screen.
+                        if (document.activeElement instanceof HTMLElement) {
+                            document.activeElement.blur();
+                        }
                     }}
                     // The finger that long pressed lifts over the sheet, which must not count as a tap on it.
                     onPointerDownCapture={() => {
@@ -772,7 +798,10 @@ export function ReactionSheet({
                             close();
                         }
                     }}
-                    className="fixed inset-0 z-50 flex flex-col px-3 pt-[max(1rem,env(safe-area-inset-top))] outline-none"
+                    className={cn(
+                        'fixed inset-x-0 top-[var(--visual-viewport-top,0px)] z-50 flex h-[var(--visual-viewport-height,100dvh)] flex-col px-3 pt-[max(1rem,env(safe-area-inset-top))] outline-none select-none [-webkit-touch-callout:none]',
+                        { '[&_[data-sheet-part]]:pointer-events-none': isHeld },
+                    )}
                     data-test="reaction-sheet"
                 >
                     <DialogPrimitive.Title className="sr-only">
@@ -909,7 +938,7 @@ function PickerSheet({
                     : undefined
             }
             className={cn(
-                '-mx-3 mt-auto flex h-[min(60dvh,28rem)] flex-col rounded-t-2xl border-t bg-popover pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-16px_rgb(0_0_0/0.45)] motion-safe:animate-in motion-safe:slide-in-from-bottom',
+                '-mx-3 mt-auto flex h-[min(calc(var(--visual-viewport-height,100dvh)*0.6),28rem)] flex-col rounded-t-2xl border-t bg-popover pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-16px_rgb(0_0_0/0.45)] motion-safe:animate-in motion-safe:slide-in-from-bottom',
                 { 'transition-transform duration-200': !isDragging },
             )}
             data-test="emoji-sheet"

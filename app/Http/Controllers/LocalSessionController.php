@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
  * Locally, developers sign in as any username, without GitHub. The routes are only registered in the local
@@ -26,7 +27,10 @@ final readonly class LocalSessionController
         return back(fallback: route('home'));
     }
 
-    public function store(CreateLocalSessionRequest $request): RedirectResponse
+    /**
+     * Signing in loads the page in full, as signing in with GitHub does, so no state of the guest's page carries over.
+     */
+    public function store(CreateLocalSessionRequest $request): SymfonyResponse
     {
         $username = $request->string('username')->value();
 
@@ -39,6 +43,6 @@ final readonly class LocalSessionController
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('log.show', $user->log, absolute: false));
+        return Inertia::location(redirect()->intended(route('log.show', $user->log, absolute: false)));
     }
 }

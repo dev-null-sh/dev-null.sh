@@ -87,7 +87,7 @@ export function CommitComposerDialog({
                             event.preventDefault();
                         }
                     }}
-                    className="max-h-[calc(100dvh-2rem)] gap-0 p-0 sm:max-w-xl"
+                    className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 p-0 sm:max-w-xl"
                     data-test="commit-composer-dialog"
                 >
                     <DialogTitle className="px-5 pt-5 pb-1 text-base">
