@@ -43,7 +43,7 @@ final readonly class SuggestedUsersQuery
                 'users.id',
             )
             ->select(['users.*', 'network.followed_by_following_count'])
-            ->addSelect(['followers_count' => $this->followersCount($following)])
+            ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
             ->whereIn('users.id', $this->committers($user))
             ->orderByDesc('followed_by_following_count')
             ->orderByDesc('followers_count')
@@ -57,7 +57,7 @@ final readonly class SuggestedUsersQuery
                 ->whereNotExists($this->followedByFollowing($user, $following))
                 ->select('users.*')
                 ->selectRaw('0 as followed_by_following_count')
-                ->addSelect(['followers_count' => $this->followersCount($following)])
+                ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
                 ->orderByDesc('followers_count')
                 ->latest('users.id'), 'users')
             ->whereIn('users.id', $this->committers($user))
@@ -143,6 +143,15 @@ final readonly class SuggestedUsersQuery
         return $following->newPivotStatement()
             ->selectRaw('count(*)')
             ->whereColumn($following->getQualifiedRelatedPivotKeyName(), 'users.id');
+    }
+
+    private function followsUser(User $user): QueryBuilder
+    {
+        $followers = $user->followers();
+
+        return $followers->newPivotQuery()
+            ->selectRaw('count(*) > 0')
+            ->whereColumn($followers->getQualifiedRelatedPivotKeyName(), 'users.id');
     }
 
     private function committers(User $user): CommitBuilder

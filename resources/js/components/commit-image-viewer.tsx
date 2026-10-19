@@ -112,6 +112,7 @@ export function CommitImageViewer() {
                             isFocused
                             showImages={false}
                             loadsReplies
+                            endsWithDot
                         />
                     </aside>
                 )

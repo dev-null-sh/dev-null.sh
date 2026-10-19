@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Ai\Agents;
 
 use App\Actions\CreateTomFriendship;
+use App\Ai\Tools\CommunityStats;
+use App\Ai\Tools\RepositoryInsights;
 use App\Ai\Tools\SearchCommits;
 use App\Ai\Tools\SearchKnowledgeBase;
 use App\Models\Commit;
@@ -44,6 +46,7 @@ final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
         $characters = mb_strlen($this->commit->body) + $messages->sum(fn (Message $message): int => mb_strlen($message->content ?? ''));
 
         return mb_trim(view('ai.agents.tom', [
+            'username' => $this->commit->user?->username,
             'nearlyFull' => $characters >= 9600 || $messages->count() >= 10,
         ])->render());
     }
@@ -77,6 +80,8 @@ final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
         return [
             new SearchCommits,
             new SearchKnowledgeBase,
+            new RepositoryInsights,
+            new CommunityStats,
         ];
     }
 
