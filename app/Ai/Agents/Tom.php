@@ -56,12 +56,18 @@ final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
     public function messages(): Collection
     {
         $remaining = 12000 - mb_strlen($this->commit->body);
+        $ancestors = resolve(CommitAncestorsQuery::class)->get($this->commit, null, limit: 12);
+        $top = $ancestors->first() ?? $this->commit;
+        $quoted = $top->parent_id === null && $top->quoted_commit_id !== null && ! $top->trashed()
+            ? Commit::query()->visibleTo(null)->with('user')->find($top->quoted_commit_id)
+            : null;
 
-        return resolve(CommitAncestorsQuery::class)->get($this->commit, null, limit: 12)
+        return $ancestors
+            ->when($quoted, fn (Collection $commits, Commit $quoted): Collection => $commits->prepend($quoted))
             ->reject(fn (Commit $commit): bool => $commit->trashed() || $commit->user === null)
             ->map(fn (Commit $commit): Message => new Message(
                 $commit->user?->github_id === CreateTomFriendship::GITHUB_ID ? 'assistant' : 'user',
-                '@'.$commit->user?->username.': '.$commit->body,
+                '@'.$commit->user?->username.($commit->is($quoted) ? ' (quoted)' : '').': '.$commit->body,
             ))
             ->reverse()
             ->takeWhile(function (Message $message) use (&$remaining): bool {

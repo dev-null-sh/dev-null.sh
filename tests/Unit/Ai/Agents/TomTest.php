@@ -89,6 +89,60 @@ it('remembers only the public ancestor branch with the correct speakers', functi
     expect(new Tom($question)->messages())->toBeEmpty();
 });
 
+it('reads the public commit quoted by the post that tags him', function (): void {
+    $bob = User::factory()->create(['username' => 'bob']);
+    $quoted = Commit::factory()->for($bob)->create(['body' => 'Can you share the audio file for the beep?']);
+    $question = Commit::factory()->create(['body' => '@tom ?', 'quoted_commit_id' => $quoted->id]);
+
+    expect(new Tom($question)->messages()->map(fn (Message $message): array => [$message->role->value, $message->content])->all())->toBe([
+        ['user', '@bob (quoted): Can you share the audio file for the beep?'],
+    ]);
+
+    $quoted->update(['status' => CommitStatus::Pending]);
+    expect(new Tom($question)->messages())->toBeEmpty();
+    $quoted->update(['status' => CommitStatus::Approved]);
+    $quoted->delete();
+
+    expect(new Tom($question)->messages())->toBeEmpty();
+});
+
+it('reads the public commit quoted by the top of the thread', function (): void {
+    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $alice = User::factory()->create(['username' => 'alice']);
+    $quoted = Commit::factory()->for($tom)->create(['body' => 'Welcome to dev/null!']);
+    $root = Commit::factory()->for($alice)->create(['body' => 'Look at this.', 'quoted_commit_id' => $quoted->id]);
+    $question = Commit::factory()->for($root, 'parent')->for($alice)->create(['body' => '@tom who wrote this?']);
+
+    expect(new Tom($question)->messages()->map(fn (Message $message): array => [$message->role->value, $message->content])->all())->toBe([
+        ['assistant', '@tom (quoted): Welcome to dev/null!'],
+        ['user', '@alice: Look at this.'],
+    ]);
+
+    $quoted->update(['status' => CommitStatus::Pending]);
+    expect(new Tom($question)->messages()->pluck('content')->all())->toBe(['@alice: Look at this.']);
+    $quoted->update(['status' => CommitStatus::Approved]);
+    $quoted->delete();
+
+    expect(new Tom($question)->messages()->pluck('content')->all())->toBe(['@alice: Look at this.']);
+    $quoted->restore();
+    $root->delete();
+
+    expect(new Tom($question)->messages())->toBeEmpty();
+});
+
+it('drops the quote once the top of the thread is out of his window', function (): void {
+    $quoted = Commit::factory()->create(['body' => 'Tabs or spaces?']);
+    $parent = Commit::factory()->create(['quoted_commit_id' => $quoted->id]);
+    for ($index = 0; $index < 12; $index++) {
+        $parent = Commit::factory()->for($parent, 'parent')->create();
+    }
+
+    $question = Commit::factory()->for($parent, 'parent')->create(['body' => '@tom what did they quote?']);
+
+    expect(new Tom($question)->messages())->toHaveCount(12);
+    expect(new Tom($question)->messages()->pluck('content')->implode(' '))->not->toContain('Tabs or spaces?');
+});
+
 it('bounds history by both posts and characters and signals a nearly full window', function (int $length, int $expected): void {
     $user = User::factory()->create(['username' => 'alice']);
     $parent = null;
