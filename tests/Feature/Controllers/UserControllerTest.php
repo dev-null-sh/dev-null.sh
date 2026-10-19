@@ -687,3 +687,19 @@ it('offers guests and the profile owner no remote', function (): void {
     $this->actingAs($user)->get(route('user.show', $user))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canPush', false));
 });
+
+it('offers the orgs the viewer maintains on a profile', function (): void {
+    $viewer = User::factory()->create();
+    $profile = User::factory()->create();
+    $profile->following()->attach($viewer);
+    $org = createOrg($viewer, followersOf($viewer, 1));
+
+    $this->actingAs($viewer)->get(route('user.show', $profile))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->count('orgs', 1)
+            ->where('orgs.0.id', $org)
+            ->where('orgs.0.reason', null));
+
+    $this->get(route('user.show', $viewer))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('orgs', []));
+});

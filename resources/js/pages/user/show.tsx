@@ -41,6 +41,7 @@ import type {
     Activity,
     Commit,
     CursorPaginated,
+    MaintainedOrg,
     Profile,
     Streaks,
 } from '@/types';
@@ -56,6 +57,7 @@ export default function Show({
     followsYou,
     isMuting,
     canPush,
+    orgs,
     activity,
     streaks,
     achievements,
@@ -69,6 +71,7 @@ export default function Show({
     followsYou: boolean;
     isMuting: boolean;
     canPush: boolean;
+    orgs: MaintainedOrg[];
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
@@ -172,6 +175,7 @@ export default function Show({
                                         user={user}
                                         isMuting={isMuting}
                                         isBlocking={false}
+                                        orgs={orgs}
                                     />
                                 )}
                                 {canPush && (

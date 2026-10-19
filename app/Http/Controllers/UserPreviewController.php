@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Queries\MaintainedOrgsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
 
 final readonly class UserPreviewController
 {
-    public function show(#[CurrentUser] ?User $currentUser, User $user): JsonResponse
+    public function show(#[CurrentUser] ?User $currentUser, User $user, MaintainedOrgsQuery $orgs): JsonResponse
     {
         if (! $currentUser instanceof User) {
             return response()->json([
@@ -20,6 +21,7 @@ final readonly class UserPreviewController
                 'isMuting' => false,
                 'isBlocking' => false,
                 'isUnavailable' => false,
+                'orgs' => [],
             ]);
         }
 
@@ -32,6 +34,7 @@ final readonly class UserPreviewController
             'isMuting' => $currentUser->isMuting($user),
             'isBlocking' => $blockerId === $currentUser->id,
             'isUnavailable' => $blockerId !== null,
+            'orgs' => $blockerId === null ? $orgs->get($currentUser, $user) : [],
         ]);
     }
 }
