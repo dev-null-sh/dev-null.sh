@@ -87,9 +87,9 @@ main() {
 
   [ -z "$reply_to" ] || [ -z "$quote" ] || fail "A commit either replies or quotes: give --reply or --quote, not both."
 
-  # It goes on its own line of the signed payload.
+  # It goes on its own line of the signed payload, where the quote: prefix marks a quote.
   case "$reply_to" in
-    *[!A-Za-z0-9:/._@-]*) fail "--reply takes the hash of a commit or its link." ;;
+    *[!A-Za-z0-9:/._@-]* | quote:*) fail "--reply takes the hash of a commit or its link." ;;
   esac
 
   case "$quote" in

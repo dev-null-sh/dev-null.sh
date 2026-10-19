@@ -185,6 +185,14 @@ it('either replies or quotes', function (array $arguments): void {
     'quote first' => [['--quote', '1ce1241', '--reply', '0be0130', 'Look at this.']],
 ]);
 
+it('does not let a reply pass for a quote', function (): void {
+    $result = ($this->runScript)($this->script, ['--reply', 'quote:0be0130', 'Agreed!']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: --reply takes the hash of a commit or its link.\n")
+        ->and(($this->calls)())->toBe('');
+});
+
 it('only accepts commit hashes and links to quote', function (): void {
     $result = ($this->runScript)($this->script, ['--quote', "0be0130\nIt was not DNS.", 'Look at this.']);
 
