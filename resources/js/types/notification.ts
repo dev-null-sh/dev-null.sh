@@ -1,5 +1,5 @@
 import type { User } from '@/types/auth';
-import type { Commit } from '@/types/commit';
+import type { Commit, DeletedCommit } from '@/types/commit';
 
 type BaseNotification = {
     id: string;
@@ -34,7 +34,18 @@ export type Notification =
           commit: Omit<Commit, 'user'>;
       })
     | (BaseNotification & {
-          type: 'quoted' | 'mentioned' | 'approved' | 'rejected';
+          type: 'quoted';
+          commit_id: string;
+          subject_id: null;
+          commit: Omit<Commit, 'user' | 'quoted_commit'> & {
+              quoted_commit?:
+                  | Pick<Commit, 'id' | 'body_segments' | 'deleted_at'>
+                  | DeletedCommit
+                  | null;
+          };
+      })
+    | (BaseNotification & {
+          type: 'mentioned' | 'approved' | 'rejected';
           commit_id: string;
           subject_id: null;
           commit: Omit<Commit, 'user'>;

@@ -1,4 +1,3 @@
-import type { RefObject } from 'react';
 import { useLayoutEffect } from 'react';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 
@@ -20,17 +19,15 @@ export function useIsComposerInView(): boolean {
  * Content under the sticky tabs, `topOffset` tall, does not count as visible.
  */
 export function useComposerVisibility(
-    composer: RefObject<HTMLElement | null>,
+    composer: HTMLElement | null,
     topOffset: number,
 ): void {
     useLayoutEffect(() => {
-        const element = composer.current;
-
-        if (element === null) {
+        if (composer === null) {
             return;
         }
 
-        const { top, bottom, height } = element.getBoundingClientRect();
+        const { top, bottom, height } = composer.getBoundingClientRect();
         const visibleHeight =
             Math.min(bottom, window.innerHeight) - Math.max(top, topOffset);
 
@@ -45,7 +42,7 @@ export function useComposerVisibility(
             },
         );
 
-        observer.observe(element);
+        observer.observe(composer);
 
         return () => {
             observer.disconnect();

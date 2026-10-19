@@ -135,6 +135,14 @@ export default function Show() {
                         DeepSeek. Search terms are processed by OpenAI. Private
                         messages are not included in Tom's context.
                     </p>
+                    <p>
+                        Public post text is also sent through OpenCode to
+                        DeepSeek to detect its language and, when requested, to
+                        translate it. Identical text shares cached translations
+                        for up to seven days. Your browser's preferred language
+                        selects which translation to display. Private messages
+                        are not translated.
+                    </p>
                 </DocumentSection>
 
                 <DocumentSection id="share" title="Who we share it with">

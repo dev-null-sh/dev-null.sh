@@ -12,7 +12,7 @@ export function SegmentedControl<T>({
 }: {
     label: string;
     name: string;
-    options: { value: T; icon: LucideIcon; label: string }[];
+    options: { value: T; icon?: LucideIcon; label: string }[];
     value: T;
     onChange: (value: T) => void;
     className?: string;
@@ -57,7 +57,7 @@ export function SegmentedControl<T>({
                             } as CSSProperties
                         }
                     >
-                        <option.icon className="size-4" />
+                        {option.icon && <option.icon className="size-4" />}
                         {option.label}
                     </span>
                 </button>

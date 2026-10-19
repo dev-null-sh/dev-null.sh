@@ -24,6 +24,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
+import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
@@ -106,6 +107,7 @@ function QuoteComposer({
     onClose: () => void;
 }) {
     const { user } = useUser();
+    const markCommitDeleted = useMarkCommitDeleted();
     const id = `quote-${commit.id}`;
     const {
         body,
@@ -174,6 +176,12 @@ function QuoteComposer({
                         : data
                 }
                 options={{ preserveScroll: true }}
+                onError={(errors) => {
+                    if (errors.quoted_commit_id) {
+                        markCommitDeleted(commit.id);
+                        onClose();
+                    }
+                }}
                 onSuccess={(page) => {
                     if (!isRejectedSubmission(page.flash)) {
                         attachments.clear();

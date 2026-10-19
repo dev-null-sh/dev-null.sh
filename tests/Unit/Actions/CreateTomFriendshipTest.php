@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateTomFriendship;
 use App\Enums\CommitStatus;
 use App\Models\User;
+use Illuminate\Support\Str;
 
 it('makes tom and the user follow each other', function (): void {
     $user = User::factory()->create();
@@ -61,6 +62,52 @@ it('befriends every existing user', function (): void {
     expect($tom->following()->count())->toBe(3)
         ->and($tom->followers()->count())->toBe(3)
         ->and($tom->isFollowing($tom))->toBeFalse();
+});
+
+it('keeps tom out of remotes and orgs', function (): void {
+    $user = User::factory()->create();
+    [$follower] = followersOf($user, 1);
+    $org = createOrg($user, [$follower]);
+
+    resolve(CreateTomFriendship::class)->handle($user);
+
+    $tom = User::query()->where('username', 'tom')->sole();
+    $reasons = fn (array $query): ?string => collect($this->getJson(route('remote-candidate.index', ['q' => 'tom', ...$query]))->assertOk()->json('candidates'))
+        ->firstWhere('user.username', 'tom')['reason'];
+
+    expect($tom->remotes_enabled)->toBeFalse();
+
+    $this->actingAs($user)->get(route('user.show', $tom))
+        ->assertInertia(fn ($page) => $page->where('canPush', false));
+    $this->getJson(route('conversation-message.index', $tom))->assertJsonPath('access', 'closed');
+    $this->postJson(route('conversation-message.store', $tom), ['body' => 'hi', 'client_id' => Str::uuid()->toString()])
+        ->assertForbidden()
+        ->assertJsonPath('message', "@tom isn't taking remotes.");
+
+    expect($reasons([]))->toBe('has remotes off')
+        ->and($reasons(['for' => 'org']))->toBe('has remotes off')
+        ->and($reasons(['org' => $org]))->toBe('has remotes off');
+
+    $this->postJson(route('org.store'), ['members' => ['tom']])
+        ->assertUnprocessable()->assertJsonValidationErrors(['members.0' => '@tom has remotes off.']);
+    $this->postJson(route('org-member.store', $org), ['members' => ['tom'], 'share_history' => true])
+        ->assertUnprocessable()->assertJsonValidationErrors(['members.0' => '@tom has remotes off.']);
+});
+
+it('turns off the remotes of the tom who already exists', function (): void {
+    $user = User::factory()->create();
+    resolve(CreateTomFriendship::class)->handle($user);
+    $tom = User::query()->where('username', 'tom')->sole();
+    $tom->update(['remotes_enabled' => true]);
+
+    $updatedAt = $tom->refresh()->updated_at;
+
+    $migration = require database_path('migrations/2026_10_19_150000_turn_off_remotes_of_tom.php');
+    $migration->up();
+
+    expect($tom->refresh()->remotes_enabled)->toBeFalse()
+        ->and($tom->updated_at->equalTo($updatedAt))->toBeTrue()
+        ->and($user->refresh()->remotes_enabled)->toBeTrue();
 });
 
 it('renders tom on his profile without a github link', function (): void {
