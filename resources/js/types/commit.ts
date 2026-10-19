@@ -5,8 +5,12 @@ export type CommitStatus = "pending" | "approved" | "rejected";
 export type CommitBranchSummary = {
     name: string;
     commits_count: number;
+    authors_count: number;
     is_verified: boolean;
     brand_color: string | null;
+    verified_domain: string | null;
+    description: string | null;
+    og_image_url: string | null;
 };
 
 export type EmbedKind = "video" | "audio" | "code";
