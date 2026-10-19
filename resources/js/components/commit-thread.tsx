@@ -229,17 +229,13 @@ export function useThread(
     exceptReplyId?: string,
 ): Thread {
     const preview = !isDeleted(commit) ? commit.reply_preview : undefined;
-    const continuationOf = isDeleted(commit)
-        ? null
-        : (commit.continuation_id ?? null);
-    const [continuationId, setContinuationId] = useState(continuationOf);
-    const [previousContinuationOf, setPreviousContinuationOf] =
-        useState(continuationOf);
-    if (continuationOf !== previousContinuationOf) {
-        setPreviousContinuationOf(continuationOf);
-        setContinuationId(continuationOf);
-    }
-    const except = exceptReplyId ?? continuationId ?? undefined;
+    const [continuationId, setContinuationId] = useSharedState<string | null>(
+        commitStateKey('continuation_id', commit.id),
+        isDeleted(commit) ? null : (commit.continuation_id ?? null),
+    );
+    const except =
+        exceptReplyId ??
+        (isDeleted(commit) ? undefined : (continuationId ?? undefined));
     const isPreview = preview !== undefined;
     const initial = preview ?? initialReplies;
     const { repliesPerPage, continuation } = usePage().props;
