@@ -109,44 +109,51 @@ function MemberRow({
                     onSuccess={() => savedToast('Role updated')}
                     className="flex items-center gap-2"
                 >
-                    {({ processing }) => (
-                        <>
-                            <input type="hidden" name="role" value={role} />
-                            <Select
-                                value={role}
-                                onValueChange={(value) =>
-                                    setRole(
-                                        value as BranchMember['role'],
-                                    )
-                                }
-                                disabled={processing}
-                            >
-                                <SelectTrigger
-                                    size="sm"
-                                    className="min-w-32"
-                                    aria-label={`Role for @${member.user.username}`}
+                    {({ processing, errors }) => (
+                        <div className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2">
+                                <input type="hidden" name="role" value={role} />
+                                <Select
+                                    value={role}
+                                    onValueChange={(value) =>
+                                        setRole(
+                                            value as BranchMember['role'],
+                                        )
+                                    }
+                                    disabled={processing}
                                 >
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="maintainer">
-                                        Maintainer
-                                    </SelectItem>
-                                    <SelectItem value="contributor">
-                                        Contributor
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Button
-                                type="submit"
-                                variant="outline"
-                                size="sm"
-                                disabled={processing || role === member.role}
-                                aria-busy={processing}
-                            >
-                                {processing ? 'Saving…' : 'Save'}
-                            </Button>
-                        </>
+                                    <SelectTrigger
+                                        size="sm"
+                                        className="min-w-32"
+                                        aria-label={`Role for @${member.user.username}`}
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="maintainer">
+                                            Maintainer
+                                        </SelectItem>
+                                        <SelectItem value="contributor">
+                                            Contributor
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <Button
+                                    type="submit"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={processing || role === member.role}
+                                    aria-busy={processing}
+                                >
+                                    {processing ? 'Saving…' : 'Save'}
+                                </Button>
+                            </div>
+                            {errors.role && (
+                                <p className="text-sm text-destructive">
+                                    {errors.role}
+                                </p>
+                            )}
+                        </div>
                     )}
                 </Form>
                 <Form
@@ -449,37 +456,61 @@ export default function Settings({ branch }: { branch: BranchPayload }) {
                                 }}
                                 className="max-w-xl space-y-3"
                             >
-                                {({ processing, errors }) => (
-                                    <>
-                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                            <BranchMemberPicker
-                                                key={memberPickerKey}
-                                                branch={branch.name}
-                                                disabled={processing}
-                                                onPickedChange={setPickedUsername}
-                                            />
-                                            <Button
-                                                type="submit"
-                                                disabled={
-                                                    processing ||
-                                                    pickedUsername === null
-                                                }
-                                                aria-busy={processing}
-                                                className="gap-1.5 sm:shrink-0"
-                                            >
-                                                {processing && <Spinner />}
-                                                {processing
-                                                    ? 'Adding…'
-                                                    : 'Add member'}
-                                            </Button>
-                                        </div>
-                                        {errors.members && (
-                                            <p className="text-sm text-destructive">
-                                                {errors.members}
-                                            </p>
-                                        )}
-                                    </>
-                                )}
+                                {({ processing, errors }) => {
+                                    const memberErrors = [
+                                        errors.members,
+                                        ...Object.entries(errors)
+                                            .filter(([key]) =>
+                                                key.startsWith('members.'),
+                                            )
+                                            .map(([, message]) => message),
+                                    ].filter(Boolean);
+
+                                    return (
+                                        <>
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                                <BranchMemberPicker
+                                                    key={memberPickerKey}
+                                                    branch={branch.name}
+                                                    disabled={processing}
+                                                    onPickedChange={
+                                                        setPickedUsername
+                                                    }
+                                                />
+                                                <Button
+                                                    type="submit"
+                                                    disabled={
+                                                        processing ||
+                                                        pickedUsername === null
+                                                    }
+                                                    aria-busy={processing}
+                                                    className="gap-1.5 sm:shrink-0"
+                                                >
+                                                    {processing && <Spinner />}
+                                                    {processing
+                                                        ? 'Adding…'
+                                                        : 'Add member'}
+                                                </Button>
+                                            </div>
+                                            {memberErrors.length > 0 && (
+                                                <div className="space-y-1">
+                                                    {memberErrors.map(
+                                                        (message) => (
+                                                            <p
+                                                                key={String(
+                                                                    message,
+                                                                )}
+                                                                className="text-sm text-destructive"
+                                                            >
+                                                                {message}
+                                                            </p>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                }}
                             </Form>
 
                             {transferCandidates.length > 0 && (

@@ -2,11 +2,25 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\DnsResolver;
 use App\Models\Branch;
 use Database\Seeders\ExampleBranchesSeeder;
 use Illuminate\Support\Facades\Http;
 
 it('verifies example branches and refreshes site meta', function (): void {
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return ['93.184.216.34'];
+        }
+
+        public function txt(string $host): ?array
+        {
+            return [];
+        }
+    });
+
     $image = imagecreatetruecolor(16, 16);
     $red = imagecolorallocate($image, 220, 40, 40);
     imagefilledrectangle($image, 0, 0, 15, 15, $red);

@@ -20,6 +20,11 @@ final readonly class UpdateBranchMemberRole
     {
         DB::transaction(function () use ($branch, $actor, $member, $role): void {
             $branch = Branch::query()->whereKey($branch->id)->lockForUpdate()->firstOrFail();
+
+            if (! $branch->isMaintainedBy($actor) && ! $actor->isAdmin()) {
+                throw ValidationException::withMessages(['role' => 'Only maintainers can change roles.']);
+            }
+
             $row = $branch->members()->where('user_id', $member->id)->first();
 
             if (! $row instanceof BranchMember) {

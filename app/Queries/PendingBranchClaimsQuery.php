@@ -31,6 +31,7 @@ final readonly class PendingBranchClaimsQuery
         $requester = $branch->claimRequester;
 
         return [
+            'id' => $branch->id,
             'name' => $branch->name,
             'claim_requested_at' => $branch->claim_requested_at?->toIso8601String(),
             'requester' => $requester === null ? null : [

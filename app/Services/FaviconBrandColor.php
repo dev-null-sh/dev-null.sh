@@ -5,14 +5,21 @@ declare(strict_types=1);
 namespace App\Services;
 
 use GdImage;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Facades\Http;
 
 /**
  * Picks a saturated primary colour from a domain's favicon for verified branch chrome.
  */
 final readonly class FaviconBrandColor
 {
+    private const int MAX_FAVICON_BYTES = 262_144;
+
+    private const int MAX_PIXELS = 2_000_000;
+
+    public function __construct(private PublicHttpFetcher $http)
+    {
+        //
+    }
+
     /**
      * @return non-empty-string|null #rrggbb
      */
@@ -33,27 +40,29 @@ final readonly class FaviconBrandColor
         ];
 
         foreach ($urls as $url) {
-            try {
-                $response = Http::withUserAgent(sprintf(
-                    'Mozilla/5.0 (compatible; devnull-branch/1.0; +%s)',
-                    config()->string('app.url'),
-                ))
-                    ->connectTimeout(3)
-                    ->timeout(5)
-                    ->get($url);
-            } catch (ConnectionException) {
+            $response = $this->http->get($url, '*/*', [], 'devnull-branch');
+
+            if ($response === null) {
                 continue;
             }
 
-            if (! $response->successful() || $response->body() === '') {
+            $bytes = $this->http->body($response, self::MAX_FAVICON_BYTES);
+
+            if ($bytes === '') {
                 continue;
             }
 
-            if (@getimagesizefromstring($response->body()) === false) {
+            $info = @getimagesizefromstring($bytes);
+
+            if ($info === false || ($info[0] ?? 0) < 1 || ($info[1] ?? 0) < 1) {
                 continue;
             }
 
-            return $response->body();
+            if (($info[0] * $info[1]) > self::MAX_PIXELS) {
+                continue;
+            }
+
+            return $bytes;
         }
 
         return null;
@@ -64,6 +73,16 @@ final readonly class FaviconBrandColor
      */
     private function fromImage(string $bytes): ?string
     {
+        $info = @getimagesizefromstring($bytes);
+
+        if ($info === false || ($info[0] ?? 0) < 1 || ($info[1] ?? 0) < 1) {
+            return null;
+        }
+
+        if (($info[0] * $info[1]) > self::MAX_PIXELS) {
+            return null;
+        }
+
         $image = @imagecreatefromstring($bytes);
 
         if ($image === false) {

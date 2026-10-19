@@ -55,6 +55,9 @@ final readonly class DeleteBranchMember
                     'verified_at' => null,
                     'verified_domain' => null,
                     'description' => null,
+                    'domain_description' => null,
+                    'og_image_url' => null,
+                    'brand_color' => null,
                     'claim_requested_at' => null,
                     'claim_requested_by' => null,
                 ])->save();

@@ -3,7 +3,23 @@
 declare(strict_types=1);
 
 use App\Actions\FetchDomainSiteMeta;
+use App\Contracts\Services\DnsResolver;
 use Illuminate\Support\Facades\Http;
+
+beforeEach(function (): void {
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return ['93.184.216.34'];
+        }
+
+        public function txt(string $host): ?array
+        {
+            return [];
+        }
+    });
+});
 
 it('reads description and https og image from the homepage', function (): void {
     Http::fake([
@@ -44,4 +60,29 @@ it('returns nulls when the homepage cannot be fetched', function (): void {
             'description' => null,
             'image_url' => null,
         ]);
+});
+
+it('returns nulls when the domain resolves to a private address', function (): void {
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return ['10.0.0.5'];
+        }
+
+        public function txt(string $host): ?array
+        {
+            return [];
+        }
+    });
+
+    Http::fake();
+
+    expect(resolve(FetchDomainSiteMeta::class)->forDomain('example.com'))
+        ->toBe([
+            'description' => null,
+            'image_url' => null,
+        ]);
+
+    Http::assertNothingSent();
 });

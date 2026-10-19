@@ -22,6 +22,11 @@ final readonly class CreateBranchMembers
     {
         DB::transaction(function () use ($branch, $actor, $users): void {
             $branch = Branch::query()->whereKey($branch->id)->lockForUpdate()->firstOrFail();
+
+            if (! $branch->isMaintainedBy($actor) && ! $actor->isAdmin()) {
+                throw ValidationException::withMessages(['members' => 'Only maintainers can add people.']);
+            }
+
             $existing = $branch->members()->pluck('user_id')->all();
             $remaining = Branch::MAX_MEMBERS - count($existing);
 

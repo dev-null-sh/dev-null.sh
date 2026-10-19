@@ -31,11 +31,17 @@ final readonly class RefreshBranchSiteMeta
 
         $siteMeta = $this->siteMeta->forDomain($domain);
 
+        $fallbackDescription = $siteMeta['description'];
+
+        if ($fallbackDescription !== null && mb_strlen($fallbackDescription) > Branch::MAX_DESCRIPTION_LENGTH) {
+            $fallbackDescription = mb_rtrim(mb_substr($fallbackDescription, 0, Branch::MAX_DESCRIPTION_LENGTH - 1)).'…';
+        }
+
         $branch->forceFill([
             'domain_description' => $siteMeta['description'],
             'og_image_url' => $siteMeta['image_url'],
             'brand_color' => $this->faviconColor->forDomain($domain),
-            'description' => $branch->description ?? $siteMeta['description'],
+            'description' => $branch->description ?? $fallbackDescription,
         ])->save();
 
         $this->branchStyles->forget();

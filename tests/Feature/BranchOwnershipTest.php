@@ -3,13 +3,17 @@
 declare(strict_types=1);
 
 use App\Actions\ClearStaleBranchVerifications;
+use App\Actions\CreateBranchMembers;
+use App\Actions\DeleteUser;
 use App\Contracts\Services\DnsResolver;
 use App\Enums\BranchRole;
 use App\Models\Branch;
 use App\Models\Commit;
+use App\Models\Conversation;
 use App\Models\User;
 use App\Services\BranchDnsVerification;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
 
 beforeEach(function (): void {
     $this->withoutVite();
@@ -89,10 +93,10 @@ it('requests ownership without granting membership until a moderator approves', 
 
         public function resolve(string $host): array
         {
-            return [];
+            return ['93.184.216.34'];
         }
 
-        public function txt(string $host): array
+        public function txt(string $host): ?array
         {
             return $host === '_devnull-branch.laravel.com' ? [$this->txt] : [];
         }
@@ -109,6 +113,7 @@ it('requests ownership without granting membership until a moderator approves', 
         ->assertInertia(fn ($page) => $page
             ->component('moderation/verifications')
             ->where('verifications.data.0.name', 'laravel')
+            ->where('verifications.data.0.id', $branch->id)
             ->where('verifications.data.0.txt.matches', true)
             ->where('verifications.data.0.txt.host', '_devnull-branch.laravel.com'));
 
@@ -218,7 +223,7 @@ it('clears verification when the TXT record is removed', function (): void {
             return [];
         }
 
-        public function txt(string $host): array
+        public function txt(string $host): ?array
         {
             return [];
         }
@@ -226,6 +231,26 @@ it('clears verification when the TXT record is removed', function (): void {
 
     expect(resolve(ClearStaleBranchVerifications::class)->handle())->toBe(1)
         ->and($branch->refresh()->isVerified())->toBeFalse();
+});
+
+it('keeps verification when the TXT lookup fails', function (): void {
+    $branch = Branch::factory()->verified('laravel.com')->create(['name' => 'laravel']);
+
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return [];
+        }
+
+        public function txt(string $host): ?array
+        {
+            return null;
+        }
+    });
+
+    expect(resolve(ClearStaleBranchVerifications::class)->handle())->toBe(0)
+        ->and($branch->refresh()->isVerified())->toBeTrue();
 });
 
 it('lets only matching Remotes org maintainers claim and verify a branch', function (): void {
@@ -269,10 +294,10 @@ it('lets only matching Remotes org maintainers claim and verify a branch', funct
 
         public function resolve(string $host): array
         {
-            return [];
+            return ['93.184.216.34'];
         }
 
-        public function txt(string $host): array
+        public function txt(string $host): ?array
         {
             return $host === '_devnull-branch.laravel.com' ? [$this->txt] : [];
         }
@@ -399,4 +424,85 @@ it('refuses verification before the branch is owned', function (): void {
         ->assertForbidden();
 
     expect($branch->refresh()->hasPendingVerification())->toBeFalse();
+});
+
+it('treats the oldest matching Remotes org as the sole claim authority', function (): void {
+    $olderMaintainer = User::factory()->create();
+    $olderMember = User::factory()->create();
+    $newerMaintainer = User::factory()->create();
+    $newerMember = User::factory()->create();
+    $olderMember->following()->attach($olderMaintainer);
+    $newerMember->following()->attach($newerMaintainer);
+
+    createOrg($olderMaintainer, [$olderMember], name: 'laravel');
+    $this->travel(1)->minute();
+    createOrg($newerMaintainer, [$newerMember], name: 'laravel');
+
+    expect(Conversation::userMayVerifyBranch($olderMaintainer, 'laravel'))->toBeTrue()
+        ->and(Conversation::userMayVerifyBranch($newerMaintainer, 'laravel'))->toBeFalse();
+
+    $this->actingAs($newerMaintainer)->post(route('branch-claim.store', 'laravel'))
+        ->assertSessionHasErrors('branch');
+
+    $this->actingAs($olderMaintainer)->post(route('branch-claim.store', 'laravel'))
+        ->assertRedirect(route('branch.show', 'laravel'));
+});
+
+it('clears branding when the last member leaves', function (): void {
+    $maintainer = User::factory()->create();
+    $branch = Branch::factory()->verified('example.com')->create([
+        'name' => 'php',
+        'description' => 'PHP',
+        'domain_description' => 'Homepage',
+        'og_image_url' => 'https://example.com/og.png',
+        'brand_color' => '#112233',
+    ]);
+    $branch->members()->create(['user_id' => $maintainer->id, 'role' => BranchRole::Maintainer]);
+
+    $this->actingAs($maintainer)->delete(route('branch-member.destroy', ['php', $maintainer->username]))
+        ->assertRedirect();
+
+    $branch->refresh();
+
+    expect($branch->isOwned())->toBeFalse()
+        ->and($branch->domain)->toBeNull()
+        ->and($branch->description)->toBeNull()
+        ->and($branch->domain_description)->toBeNull()
+        ->and($branch->og_image_url)->toBeNull()
+        ->and($branch->brand_color)->toBeNull();
+});
+
+it('rechecks maintainer rights after locking when adding members', function (): void {
+    $maintainer = User::factory()->create();
+    $contributor = User::factory()->create();
+    $friend = User::factory()->create();
+    $maintainer->following()->attach($friend);
+
+    $branch = Branch::factory()->create(['name' => 'php']);
+    $branch->members()->create(['user_id' => $maintainer->id, 'role' => BranchRole::Maintainer]);
+    $branch->members()->create(['user_id' => $contributor->id, 'role' => BranchRole::Contributor]);
+
+    expect(fn () => resolve(CreateBranchMembers::class)->handle($branch, $contributor, [$friend]))
+        ->toThrow(ValidationException::class);
+});
+
+it('hands ownership to a contributor when the sole maintainer deletes their account', function (): void {
+    $maintainer = User::factory()->create();
+    $contributor = User::factory()->create();
+
+    $branch = Branch::factory()->verified('example.com')->create([
+        'name' => 'php',
+        'brand_color' => '#112233',
+        'domain_description' => 'Homepage',
+        'og_image_url' => 'https://example.com/og.png',
+    ]);
+    $branch->members()->create(['user_id' => $maintainer->id, 'role' => BranchRole::Maintainer]);
+    $branch->members()->create(['user_id' => $contributor->id, 'role' => BranchRole::Contributor]);
+
+    resolve(DeleteUser::class)->handle($maintainer);
+
+    expect(User::query()->whereKey($maintainer->id)->exists())->toBeFalse()
+        ->and($branch->refresh()->isMaintainedBy($contributor))->toBeTrue()
+        ->and($branch->isVerified())->toBeTrue()
+        ->and($branch->brand_color)->toBe('#112233');
 });

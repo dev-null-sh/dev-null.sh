@@ -30,7 +30,7 @@ beforeEach(function (): void {
             return self::HOSTS[$host] ?? new SystemDnsResolver(fn (): array => [])->resolve($host);
         }
 
-        public function txt(string $host): array
+        public function txt(string $host): ?array
         {
             return [];
         }
@@ -429,7 +429,7 @@ it('throws unexpected errors without marking the link as fetched', function (): 
             throw new RuntimeException('The resolver broke.');
         }
 
-        public function txt(string $host): array
+        public function txt(string $host): ?array
         {
             return [];
         }

@@ -38,6 +38,7 @@ final readonly class PendingBranchVerificationsQuery
         $status = $this->verification->status($branch);
 
         return [
+            'id' => $branch->id,
             'name' => $branch->name,
             'domain' => $branch->domain,
             'verification_requested_at' => $branch->verification_requested_at?->toIso8601String(),

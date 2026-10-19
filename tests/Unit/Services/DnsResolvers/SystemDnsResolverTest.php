@@ -87,7 +87,10 @@ it('returns txt records for a host', function (): void {
     ]);
 });
 
-it('returns no txt records for localhost or failed lookups', function (): void {
-    expect(new SystemDnsResolver(fn (): never => throw new RuntimeException('No lookup expected.'))->txt('localhost'))->toBe([])
-        ->and(new SystemDnsResolver(fn (): false => false)->txt('example.com'))->toBe([]);
+it('returns no txt records for localhost', function (): void {
+    expect(new SystemDnsResolver(fn (): never => throw new RuntimeException('No lookup expected.'))->txt('localhost'))->toBe([]);
+});
+
+it('returns null when a txt lookup fails', function (): void {
+    expect(new SystemDnsResolver(fn (): false => false)->txt('example.com'))->toBeNull();
 });

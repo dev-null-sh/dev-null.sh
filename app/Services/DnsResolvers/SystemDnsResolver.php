@@ -41,16 +41,21 @@ final readonly class SystemDnsResolver implements DnsResolver
         return $addresses;
     }
 
-    public function txt(string $host): array
+    public function txt(string $host): ?array
     {
         if ($this->isLocalhost($host) || filter_var($host, FILTER_VALIDATE_IP) !== false) {
             return [];
         }
 
         $records = @($this->lookup)($host, DNS_TXT);
+
+        if ($records === false) {
+            return null;
+        }
+
         $values = [];
 
-        foreach (is_array($records) ? $records : [] as $record) {
+        foreach ($records as $record) {
             if (! is_array($record)) {
                 continue;
             }

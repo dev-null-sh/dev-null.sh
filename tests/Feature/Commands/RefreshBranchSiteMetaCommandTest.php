@@ -2,8 +2,24 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\DnsResolver;
 use App\Models\Branch;
 use Illuminate\Support\Facades\Http;
+
+beforeEach(function (): void {
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return ['93.184.216.34'];
+        }
+
+        public function txt(string $host): ?array
+        {
+            return [];
+        }
+    });
+});
 
 it('refreshes site meta for verified branches', function (): void {
     $image = imagecreatetruecolor(16, 16);

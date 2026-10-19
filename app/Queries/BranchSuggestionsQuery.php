@@ -33,9 +33,9 @@ final readonly class BranchSuggestionsQuery
         /** @var list<object{name: string, count: int|string}> $branches */
         $branches = DB::select(
             <<<'SQL'
-                select name, count(*)::int as count
+                select name, sum(weight)::int as count
                 from (
-                    select commits.branch as name
+                    select commits.branch as name, 1 as weight
                     from commits
                     where commits.status = ?
                       and commits.parent_id is null
@@ -43,7 +43,7 @@ final readonly class BranchSuggestionsQuery
                       and commits.branch is not null
                       and commits.branch like ? escape '!'
                     union all
-                    select branches.name
+                    select branches.name as name, 0 as weight
                     from branches
                     where branches.name like ? escape '!'
                 ) as matches

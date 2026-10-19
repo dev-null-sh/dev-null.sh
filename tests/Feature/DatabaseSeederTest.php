@@ -2,10 +2,35 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\DnsResolver;
 use App\Enums\InboxTab;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
 use Database\Seeders\DatabaseSeeder;
+use Illuminate\Support\Facades\Http;
+
+beforeEach(function (): void {
+    Http::fake([
+        '*' => Http::response(
+            '<html><meta property="og:description" content="Demo"><meta property="og:image" content="https://example.com/og.png"></html>',
+            200,
+            ['Content-Type' => 'text/html'],
+        ),
+    ]);
+
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return ['93.184.216.34'];
+        }
+
+        public function txt(string $host): ?array
+        {
+            return [];
+        }
+    });
+});
 
 it('gives the local developer people to follow and followers', function (): void {
     $this->seed(DatabaseSeeder::class);

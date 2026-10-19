@@ -30,7 +30,10 @@ final readonly class ClearStaleBranchVerifications
             ->whereNotNull('verification_token')
             ->orderBy('id')
             ->each(function (Branch $branch) use (&$cleared): void {
-                if ($this->verification->matches($branch)) {
+                $status = $this->verification->status($branch);
+
+                // Transient DNS failures must not revoke a valid badge.
+                if (! $status['lookup_ok'] || $status['matches']) {
                     return;
                 }
 

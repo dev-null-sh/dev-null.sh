@@ -2,8 +2,24 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\DnsResolver;
 use App\Services\FaviconBrandColor;
 use Illuminate\Support\Facades\Http;
+
+beforeEach(function (): void {
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return ['93.184.216.34'];
+        }
+
+        public function txt(string $host): ?array
+        {
+            return [];
+        }
+    });
+});
 
 it('extracts a saturated colour from a favicon image', function (): void {
     $image = imagecreatetruecolor(16, 16);
@@ -18,7 +34,7 @@ it('extracts a saturated colour from a favicon image', function (): void {
         'www.google.com/s2/favicons*' => Http::response($png, 200, ['Content-Type' => 'image/png']),
     ]);
 
-    $color = (new FaviconBrandColor)->forDomain('laravel.com');
+    $color = resolve(FaviconBrandColor::class)->forDomain('laravel.com');
 
     expect($color)->toStartWith('#')
         ->and(mb_strlen($color))->toBe(7)
@@ -31,7 +47,7 @@ it('returns null when no favicon can be loaded', function (): void {
         '*' => Http::response('', 404),
     ]);
 
-    expect((new FaviconBrandColor)->forDomain('missing.example'))->toBeNull();
+    expect(resolve(FaviconBrandColor::class)->forDomain('missing.example'))->toBeNull();
 });
 
 it('falls back to near-black favicon colours when nothing saturated is present', function (): void {
@@ -47,5 +63,5 @@ it('falls back to near-black favicon colours when nothing saturated is present',
         'www.google.com/s2/favicons*' => Http::response($png, 200, ['Content-Type' => 'image/png']),
     ]);
 
-    expect((new FaviconBrandColor)->forDomain('vercel.com'))->toBe('#000000');
+    expect(resolve(FaviconBrandColor::class)->forDomain('vercel.com'))->toBe('#000000');
 });

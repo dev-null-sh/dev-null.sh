@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Services\PublicHttpFetcher;
 use Dom\HTMLDocument;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Uri\WhatWg\Url;
 
@@ -18,6 +17,11 @@ final readonly class FetchDomainSiteMeta
     public const int MAX_DESCRIPTION_LENGTH = 500;
 
     public const int MAX_IMAGE_URL_LENGTH = 2048;
+
+    public function __construct(private PublicHttpFetcher $http)
+    {
+        //
+    }
 
     /**
      * @return array{description: string|null, image_url: string|null}
@@ -64,21 +68,14 @@ final readonly class FetchDomainSiteMeta
 
     private function homepage(string $domain): ?string
     {
-        try {
-            $response = Http::withUserAgent(sprintf(
-                'Mozilla/5.0 (compatible; devnull-branch/1.0; +%s)',
-                config()->string('app.url'),
-            ))
-                ->accept('text/html')
-                ->withHeaders(['Accept-Language' => 'en-US,en;q=0.9'])
-                ->connectTimeout(3)
-                ->timeout(5)
-                ->get('https://'.$domain.'/');
-        } catch (ConnectionException) {
-            return null;
-        }
+        $response = $this->http->get(
+            'https://'.$domain.'/',
+            'text/html',
+            ['Accept-Language' => 'en-US,en;q=0.9'],
+            'devnull-branch',
+        );
 
-        if (! $response->successful()) {
+        if ($response === null) {
             return null;
         }
 
@@ -88,7 +85,7 @@ final readonly class FetchDomainSiteMeta
             return null;
         }
 
-        return mb_substr($response->body(), 0, 1_000_000);
+        return $this->http->body($response);
     }
 
     /**
@@ -112,8 +109,12 @@ final readonly class FetchDomainSiteMeta
     /**
      * @param  list<string>  $candidates
      */
-    private function imageUrl(array $candidates, Url $page): ?string
+    private function imageUrl(array $candidates, ?Url $page): ?string
     {
+        if (! $page instanceof Url) {
+            return null;
+        }
+
         foreach ($candidates as $candidate) {
             $image = mb_trim($candidate) === '' ? null : Url::parse($candidate, $page);
 

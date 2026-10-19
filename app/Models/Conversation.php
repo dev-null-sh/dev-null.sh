@@ -103,6 +103,7 @@ final class Conversation extends Model
 
     /**
      * When a Remotes org shares a branch's name, only that org's maintainers (and site admins) may claim or verify it.
+     * If several orgs share the name, the oldest one is the sole authority so a newly created org cannot squat.
      */
     public static function userMayVerifyBranch(User $user, string $branch): bool
     {
@@ -110,17 +111,15 @@ final class Conversation extends Model
             return true;
         }
 
-        if (! self::matchingBranch($branch)->exists()) {
+        $authoritative = self::matchingBranch($branch)->oldest('created_at')->oldest('id')->first();
+
+        if (! $authoritative instanceof self) {
             return true;
         }
 
-        return self::matchingBranch($branch)
-            ->whereHas(
-                'participants',
-                fn (Builder $query): Builder => $query
-                    ->where('user_id', $user->id)
-                    ->where('role', OrgRole::Maintainer),
-            )
+        return $authoritative->participants()
+            ->where('user_id', $user->id)
+            ->where('role', OrgRole::Maintainer)
             ->exists();
     }
 

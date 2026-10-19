@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Branch;
 use App\Models\Commit;
 use App\Models\User;
 
@@ -20,6 +21,18 @@ it('suggests branches that start with the typed prefix, most used first', functi
         ->assertJsonPath('branches.0.count', 2)
         ->assertJsonPath('branches.1.name', 'lando')
         ->assertJsonPath('branches.1.count', 1);
+});
+
+it('lists owned branches for discovery without inflating their commit counts', function (): void {
+    $author = User::factory()->create();
+
+    Branch::factory()->create(['name' => 'laravel']);
+    Commit::factory()->for($author)->create(['branch' => 'laravel']);
+
+    $this->actingAs($author)->getJson('/search/branches?q=la')
+        ->assertOk()
+        ->assertJsonPath('branches.0.name', 'laravel')
+        ->assertJsonPath('branches.0.count', 1);
 });
 
 it('prefers an exact match over a more popular longer branch', function (): void {

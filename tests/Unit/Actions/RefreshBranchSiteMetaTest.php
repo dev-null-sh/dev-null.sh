@@ -3,9 +3,25 @@
 declare(strict_types=1);
 
 use App\Actions\RefreshBranchSiteMeta;
+use App\Contracts\Services\DnsResolver;
 use App\Models\Branch;
 use App\Services\BranchStyles;
 use Illuminate\Support\Facades\Http;
+
+beforeEach(function (): void {
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return ['93.184.216.34'];
+        }
+
+        public function txt(string $host): ?array
+        {
+            return [];
+        }
+    });
+});
 
 it('refreshes description, og image, and brand colour from the verified domain', function (): void {
     $image = imagecreatetruecolor(16, 16);
@@ -39,6 +55,30 @@ it('refreshes description, og image, and brand colour from the verified domain',
         ->and($refreshed->og_image_url)->toBe('https://example.com/og.png')
         ->and($refreshed->brand_color)->toStartWith('#')
         ->and($refreshed->brand_color)->not->toBe('#0000ff');
+});
+
+it('truncates the branch description to the max length while keeping the full homepage text', function (): void {
+    $long = str_repeat('a', Branch::MAX_DESCRIPTION_LENGTH + 40);
+
+    Http::fake([
+        'https://example.com/*' => Http::response(
+            '<html><meta property="og:description" content="'.$long.'"></html>',
+            200,
+            ['Content-Type' => 'text/html'],
+        ),
+        '*' => Http::response('', 404),
+    ]);
+
+    $branch = Branch::factory()->verified('example.com')->create([
+        'name' => 'example',
+        'description' => null,
+    ]);
+
+    $refreshed = resolve(RefreshBranchSiteMeta::class)->handle($branch);
+
+    expect($refreshed->domain_description)->toBe($long)
+        ->and(mb_strlen($refreshed->description))->toBe(Branch::MAX_DESCRIPTION_LENGTH)
+        ->and($refreshed->description)->toEndWith('…');
 });
 
 it('refreshes every verified branch', function (): void {

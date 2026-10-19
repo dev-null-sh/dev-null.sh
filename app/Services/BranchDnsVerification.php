@@ -32,16 +32,19 @@ final readonly class BranchDnsVerification
 
     /**
      * Whether the branch's pending domain publishes a matching TXT record.
+     * Transient DNS failures are treated as no match (do not revoke on failure — use lookupOk()).
      */
     public function matches(Branch $branch): bool
     {
-        return $this->status($branch)['matches'];
+        $status = $this->status($branch);
+
+        return $status['lookup_ok'] && $status['matches'];
     }
 
     /**
      * Live TXT lookup for moderators reviewing a verification request.
      *
-     * @return array{host: string|null, expected: string|null, records: list<string>, matches: bool}
+     * @return array{host: string|null, expected: string|null, records: list<string>, matches: bool, lookup_ok: bool}
      */
     public function status(Branch $branch): array
     {
@@ -51,12 +54,24 @@ final readonly class BranchDnsVerification
                 'expected' => null,
                 'records' => [],
                 'matches' => false,
+                'lookup_ok' => true,
             ];
         }
 
         $host = $this->hostFor($branch->domain);
         $expected = $this->recordValue($branch);
         $records = $this->dns->txt($host);
+
+        if ($records === null) {
+            return [
+                'host' => $host,
+                'expected' => $expected,
+                'records' => [],
+                'matches' => false,
+                'lookup_ok' => false,
+            ];
+        }
+
         $normalizedExpected = mb_strtolower(preg_replace('/\s+/u', ' ', mb_trim($expected)) ?? '');
 
         $matches = false;
@@ -72,6 +87,7 @@ final readonly class BranchDnsVerification
             'expected' => $expected,
             'records' => $records,
             'matches' => $matches,
+            'lookup_ok' => true,
         ];
     }
 
