@@ -34,6 +34,12 @@ import {
 } from '@/components/composer-preview';
 import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
+import {
+    IssueCommandBadge,
+    IssueCommandHint,
+    IssueCommandSuggestions,
+    useIssueCommand,
+} from '@/components/issue-command';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
@@ -1085,7 +1091,7 @@ function CommitReply({
     );
 }
 
-function ReplyComposer({
+export function ReplyComposer({
     parent,
     onCancel,
     onReplied,
@@ -1129,6 +1135,17 @@ function ReplyComposer({
         textareaRef,
         isSubmittable: isReplyable,
     });
+    const issue = useIssueCommand({
+        body,
+        updateBody,
+        enabled: images.length === 0,
+        hasSecrets: secrets.findings.length > 0,
+        onCreated: () => {
+            drop();
+            linkCard.reset();
+            textareaRef.current?.focus();
+        },
+    });
 
     const returnFocusToCommit = () => {
         const commit =
@@ -1143,7 +1160,10 @@ function ReplyComposer({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (preview.handleShortcut(event)) {
+        if (
+            preview.handleShortcut(event) ||
+            issue.handleKeyDown(event, isReplyable)
+        ) {
             return;
         }
 
@@ -1161,7 +1181,11 @@ function ReplyComposer({
     const submit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        if (request.processing || !secrets.beforeSubmit()) {
+        if (
+            request.processing ||
+            issue.command !== null ||
+            !secrets.beforeSubmit()
+        ) {
             return;
         }
 
@@ -1217,6 +1241,15 @@ function ReplyComposer({
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
                 Reply to @{parent.user.username}
             </label>
+            {issue.command && (
+                <IssueCommandBadge
+                    command={issue.command}
+                    onExit={() => {
+                        issue.exit();
+                        textareaRef.current?.focus();
+                    }}
+                />
+            )}
             <div className="grid">
                 <MentionTextarea
                     ref={textareaRef}
@@ -1225,12 +1258,22 @@ function ReplyComposer({
                     rows={1}
                     autoFocus
                     value={body}
-                    onValueChange={updateBody}
+                    onValueChange={issue.change}
                     onKeyDown={onKeyDown}
                     onPaste={attachments.onPaste}
-                    onFocus={isRestored ? moveCaretToEnd : undefined}
+                    onFocus={(event) => {
+                        issue.focus();
+
+                        if (isRestored) {
+                            moveCaretToEnd(event);
+                        }
+                    }}
+                    onBlur={issue.blur}
                     maxLength={maxBodyLength}
-                    placeholder={`Reply to @${parent.user.username}`}
+                    placeholder={
+                        issue.command?.placeholder ??
+                        `Reply to @${parent.user.username}`
+                    }
                     className={cn(
                         'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
                         { invisible: preview.isPreviewing },
@@ -1246,6 +1289,26 @@ function ReplyComposer({
                     />
                 )}
             </div>
+            {issue.hint && (
+                <IssueCommandHint
+                    command={issue.hint}
+                    onUse={(kind) => {
+                        issue.start(kind, body);
+                        textareaRef.current?.focus();
+                    }}
+                    onDismiss={issue.dismissHint}
+                />
+            )}
+            {issue.suggestions.length > 0 && (
+                <IssueCommandSuggestions
+                    suggestions={issue.suggestions}
+                    selected={issue.selected}
+                    onPick={(kind) => {
+                        issue.start(kind, '');
+                        textareaRef.current?.focus();
+                    }}
+                />
+            )}
             <InputError
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
@@ -1274,19 +1337,26 @@ function ReplyComposer({
             />
             <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                 <div className="mr-auto flex min-w-0 items-center gap-2">
-                    <ImagePickerButton
-                        count={images.length}
-                        disabled={processing}
-                        onPick={attachments.attach}
-                        className="size-8"
-                    />
-                    <PreviewToggle preview={preview} className="-ml-2 size-8" />
-                    <LinkCardPicker
-                        linkCard={linkCard}
-                        disabled={processing}
-                        className="-ml-1"
-                        labelClassName="max-sm:sr-only"
-                    />
+                    {issue.command === null && (
+                        <>
+                            <ImagePickerButton
+                                count={images.length}
+                                disabled={processing}
+                                onPick={attachments.attach}
+                                className="size-8"
+                            />
+                            <PreviewToggle
+                                preview={preview}
+                                className="-ml-2 size-8"
+                            />
+                            <LinkCardPicker
+                                linkCard={linkCard}
+                                disabled={processing}
+                                className="-ml-1"
+                                labelClassName="max-sm:sr-only"
+                            />
+                        </>
+                    )}
                     {isRestored && (
                         <StashLabel
                             onDrop={() => {
@@ -1309,15 +1379,28 @@ function ReplyComposer({
                 >
                     Cancel
                 </Button>
-                <Button
-                    type="submit"
-                    size="sm"
-                    disabled={processing || !isReplyable}
-                    className="min-w-19"
-                    data-test="submit-reply-button"
-                >
-                    {processing ? 'Replying…' : 'Reply'}
-                </Button>
+                {issue.command ? (
+                    <Button
+                        type="button"
+                        size="sm"
+                        disabled={issue.processing || !isReplyable}
+                        onClick={() => void issue.submit()}
+                        className="min-w-19"
+                        data-test="open-issue-button"
+                    >
+                        {issue.processing ? 'Opening…' : 'Open issue'}
+                    </Button>
+                ) : (
+                    <Button
+                        type="submit"
+                        size="sm"
+                        disabled={processing || !isReplyable}
+                        className="min-w-19"
+                        data-test="submit-reply-button"
+                    >
+                        {processing ? 'Replying…' : 'Reply'}
+                    </Button>
+                )}
             </div>
         </form>
     );

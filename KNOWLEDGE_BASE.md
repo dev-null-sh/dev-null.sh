@@ -373,11 +373,11 @@ Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/
 
 ### Bug reports and feature requests
 
-Start a fresh commit draft with **`/bug `** or **`/feature `** to switch it into an issue draft. Submitting opens a **public GitHub issue** on `nunomaduro/dev-null.sh`, crediting you, rather than posting a normal commit. The composer offers command suggestions and a way to cancel back to a commit. Issue drafts are text-only and accept 3–4,000 characters; remove detected secrets before submission.
+Start a fresh commit or reply draft with **`/bug `** or **`/feature `** to switch it into an issue draft. Submitting opens a **public GitHub issue** on `nunomaduro/dev-null.sh`, crediting you, rather than posting a normal commit or reply. The composer offers command suggestions and a way to cancel back to a commit or reply. Issue drafts are text-only and accept 3–4,000 characters; remove detected secrets before submission.
 
 Successful issue creation is limited to **five issues per hour per user**. If GitHub or the connection fails, the draft stays available. Check upstream before retrying an uncertain submission to avoid duplicates. Use a commit's Report control instead when reporting abusive content.
 
-Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php).
+Sources: [issue command UI](resources/js/components/issue-command.tsx), [reply composer](resources/js/components/commit-thread.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php).
 
 ### Exporting your data
 
