@@ -193,47 +193,49 @@ test('a rejected request restores the count and allowance', async () => {
     assert.equal(flushAll.mock.calls.length, 0);
 });
 
-test('overlapping awards each reserve one pastel', async () => {
+test('a click while another award is pending is ignored', async () => {
     const first = click(0);
     const second = click(1);
 
-    assert.equal(allowance(), 1);
-    assert.equal(count(), 7);
+    assert.equal(submit.mock.calls.length, 1);
+    assert.equal(allowance(), 2);
+    assert.equal(count(), 6);
 
     pendings[0].resolve({ pasteis_count: 6, remaining: 2, day, recipient });
     await first;
-    pendings[1].resolve({ pasteis_count: 7, remaining: 1, day, recipient });
     await second;
-
-    assert.equal(allowance(), 1);
-    assert.equal(count(), 7);
-});
-
-test('a failed award only releases its own reservation', async () => {
-    const first = click(0);
-    const second = click(1);
-
-    pendings[1].resolve({ pasteis_count: 6, remaining: 2, day, recipient });
-    await second;
-
-    assert.equal(allowance(), 1);
-
-    pendings[0].reject(new Error('failed'));
-    await first;
 
     assert.equal(allowance(), 2);
     assert.equal(count(), 6);
 });
 
-test('two failed awards restore the full allowance', async () => {
+test('the next award proceeds after a failed one settles', async () => {
     const first = click(0);
-    const second = click(1);
 
     pendings[0].reject(new Error('failed'));
     await first;
-    pendings[1].reject(new Error('failed'));
-    await second;
 
-    assert.equal(allowance(), 3);
+    const second = click(1);
+
+    assert.equal(submit.mock.calls.length, 2);
+    assert.equal(allowance(), 2);
+
+    pendings[1].resolve({ pasteis_count: 6, remaining: 2, day, recipient });
+    await second;
+});
+
+test('a network failure with no allowance left refunds nothing', async () => {
+    values.set(allowanceKey, 0);
+
+    const clicked = click();
+
+    assert.equal(allowance(), 0);
+    assert.equal(count(), 6);
+
+    pendings[0].reject(new Error('failed'));
+    await clicked;
+
+    assert.equal(allowance(), 0);
     assert.equal(count(), 5);
+    assert.equal(toastError.mock.calls.length, 1);
 });

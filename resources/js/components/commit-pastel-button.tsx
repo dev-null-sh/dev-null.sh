@@ -11,7 +11,9 @@ import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const exhaustedMessage = 'you ran out of pastéis. wait until tomorrow.';
-const inFlight = new Map<string, number>();
+// One award per user and day at a time, so a response is never reconciled
+// against another award still in flight.
+const awarding = new Set<string>();
 
 export function CommitPastelButton({
     commit,
@@ -52,18 +54,25 @@ export function CommitPastelButton({
     const label = `${count} ${count === 1 ? 'pastel' : 'pastéis'}`;
 
     const award = async () => {
-        if (busy.current) {
+        const allowanceKey = `${userId}:${day}`;
+
+        if (busy.current || awarding.has(allowanceKey)) {
             return;
         }
 
         busy.current = true;
-        const allowanceKey = `${userId}:${day}`;
-        inFlight.set(allowanceKey, (inFlight.get(allowanceKey) ?? 0) + 1);
+        awarding.add(allowanceKey);
         let errorShown = false;
         let exhausted = false;
 
+        let reserved = 0;
+
         setCount((current) => current + 1);
-        setRemaining((current) => Math.max(0, current - 1));
+        setRemaining((current) => {
+            reserved = Math.min(1, Math.max(0, current));
+
+            return current - reserved;
+        });
         if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             emoji.current
                 ?.getAnimations()
@@ -91,14 +100,12 @@ export function CommitPastelButton({
                 },
             });
 
-            const others = (inFlight.get(allowanceKey) ?? 1) - 1;
-
             setCount((current) => Math.max(current, response.pasteis_count));
             refreshSharedState(
                 new Map([
                     [
                         `pasteis-allowance:${userId}:${response.day}`,
-                        Math.max(0, response.remaining - others),
+                        response.remaining,
                     ],
                     [
                         commitStateKey(
@@ -117,17 +124,14 @@ export function CommitPastelButton({
         } catch {
             if (!exhausted) {
                 setCount((current) => Math.max(0, current - 1));
-                setRemaining((current) => current + 1);
+                setRemaining((current) => current + reserved);
             }
 
             if (!errorShown) {
                 toast.error('Could not award a pastel. Please try again.');
             }
         } finally {
-            inFlight.set(
-                allowanceKey,
-                Math.max(0, (inFlight.get(allowanceKey) ?? 1) - 1),
-            );
+            awarding.delete(allowanceKey);
             busy.current = false;
         }
     };
