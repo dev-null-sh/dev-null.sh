@@ -59,6 +59,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'pasteis_received' => 17,
         'pasteis_given_today' => 6,
         'pasteis_given_on' => '2026-10-15',
+        'last_seen_at' => now()->toDateString(),
         'remember_token' => 'never-export-this-token',
     ]);
     $original = $user->fresh()->getAttributes();
@@ -100,6 +101,10 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'remotes_from' => 'following',
             'pull_receipts' => true,
             'pinned_commit_id' => null,
+            'live_platform' => null,
+            'live_url' => null,
+            'live_ends_at' => null,
+            'last_seen_at' => now()->toDateString(),
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],

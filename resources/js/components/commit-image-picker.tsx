@@ -2,14 +2,17 @@ import { ImagePlus, X } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { Button } from '@/components/ui/button';
+import {
+    acceptedImageTypes,
+    invalidImageMessage,
+    maxImageBytes,
+    maxImages,
+} from '@/lib/read-picked-images';
 import { cn } from '@/lib/utils';
 
-export const maxImages = 3;
+export { maxImages } from '@/lib/read-picked-images';
 
 export const maxDescriptionLength = 1000;
-
-const maxImageBytes = 10 * 1024 * 1024;
-const acceptedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
 /**
  * Keeps the files the server would accept, and tells why any others were left out.
@@ -20,14 +23,15 @@ export function pickImages(
 ): { images: File[]; error: string | null } {
     const accepted = picked.filter(
         (file) =>
-            acceptedTypes.includes(file.type) && file.size <= maxImageBytes,
+            acceptedImageTypes.includes(file.type) &&
+            file.size <= maxImageBytes,
     );
     const images = [...current, ...accepted].slice(0, maxImages);
 
     if (accepted.length < picked.length) {
         return {
             images,
-            error: 'Only JPEG, PNG, or WebP images up to 10 MB.',
+            error: invalidImageMessage,
         };
     }
 
@@ -81,12 +85,14 @@ export function revokeObjectUrls(images: File[]): void {
 export function ImagePickerButton({
     count,
     disabled,
+    reading = false,
     onPick,
     className,
 }: {
     count: number;
     disabled?: boolean;
-    onPick: (files: File[]) => void;
+    reading?: boolean;
+    onPick: (files: File[]) => Promise<void>;
     className?: string;
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -96,12 +102,17 @@ export function ImagePickerButton({
             <input
                 ref={inputRef}
                 type="file"
-                accept={acceptedTypes.join(',')}
+                accept={acceptedImageTypes.join(',')}
                 multiple
                 hidden
-                onChange={(event) => {
-                    onPick(Array.from(event.target.files ?? []));
-                    event.target.value = '';
+                onChange={async (event) => {
+                    const input = event.currentTarget;
+                    const files = Array.from(input.files ?? []);
+                    // Allow the same selection again even if this read is discarded.
+                    input.value = '';
+                    if (files.length === 0) return;
+
+                    await onPick(files);
                 }}
                 data-test="commit-image-input"
             />
@@ -110,9 +121,10 @@ export function ImagePickerButton({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    disabled={disabled || count >= maxImages}
+                    disabled={disabled || reading || count >= maxImages}
                     onClick={() => inputRef.current?.click()}
-                    aria-label="Attach images"
+                    aria-label={reading ? 'Reading images' : 'Attach images'}
+                    aria-busy={reading}
                     className={cn('text-muted-foreground', className)}
                     data-test="attach-images-button"
                 >

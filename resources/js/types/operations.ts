@@ -81,3 +81,43 @@ export type TrafficRange = {
     from: string;
     to: string;
 };
+
+export type MetricsRange = TrafficRange & { all_time: boolean };
+
+export type FunnelRate = 'conversion' | 'activation' | 'retention' | 'referral';
+
+export type Funnel = {
+    visitors: number | null;
+    signups: number;
+    activated: number;
+    activation_eligible: number;
+    retained: number;
+    retention_eligible: number;
+    retention_horizon: 1 | 7 | 14 | null;
+    retention_full_on: string | null;
+    referral: { members: number; team: number } | null;
+    rates: Record<FunnelRate, number | null>;
+    changes: Record<FunnelRate, number | null>;
+};
+
+export type ActiveUsers = {
+    daily: number;
+    weekly: number;
+    monthly: number;
+    weekly_authors: number;
+};
+
+export type CommitResponses = {
+    commits: number;
+    answered: number;
+    median_minutes: number | null;
+    first_commits: number;
+    first_answered: number;
+};
+
+export type NewcomerFollows = {
+    newcomers: number;
+    median_follows: number | null;
+    follows: number;
+    followed_back: number;
+};

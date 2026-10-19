@@ -160,7 +160,10 @@ void test('renders a follow-back control outside the follower profile link', asy
     };
     const html = await renderInbox([follow]);
 
-    assert.match(html, /Quoter<\/span>.*@quoter<\/span> followed you/s);
+    assert.match(
+        html,
+        /Quoter<\/a>.*@quoter<\/a> <a\b[^>]*data-notification-link[^>]*>followed you<\/a>/s,
+    );
     assert.match(html, /<button[^>]*aria-label="Follow @quoter"/);
     assert.doesNotMatch(html, /<a\b[^>]*>(?:(?!<\/a>).)*<button\b/s);
     assert.match(
@@ -184,7 +187,10 @@ void test('leaves follow-back out of a group of followers until it is expanded',
         },
     ]);
 
-    assert.match(html, /Quoter<\/span> and 1 other followed you/);
+    assert.match(
+        html,
+        /Quoter<\/a> and 1 other <a\b[^>]*data-notification-link[^>]*>followed you<\/a>/,
+    );
     assert.match(html, /aria-expanded="false"[^>]*>.*2 followers/s);
     assert.doesNotMatch(html, /aria-label="(Follow|Unfollow) @/);
 });

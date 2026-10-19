@@ -1,6 +1,6 @@
 import { Deferred, Head, router } from '@inertiajs/react';
 import { Breakdown } from '@/components/operations/breakdown';
-import { PresetButton } from '@/components/operations/preset-button';
+import { RangePicker } from '@/components/operations/range-picker';
 import { Section } from '@/components/operations/section';
 import { Stats } from '@/components/operations/stats';
 import { Status } from '@/components/operations/status';
@@ -28,12 +28,6 @@ const BREAKDOWNS = [
 
 const regions = new Intl.DisplayNames(['en'], { type: 'region' });
 
-function utcDate(daysAgo = 0): string {
-    return new Date(Date.now() - daysAgo * 86_400_000)
-        .toISOString()
-        .slice(0, 10);
-}
-
 function countryName(code: string): string {
     try {
         return regions.of(code) ?? code;
@@ -43,55 +37,18 @@ function countryName(code: string): string {
 }
 
 function TrafficRangePicker({ range }: { range: TrafficRange }) {
-    const today = utcDate();
-
-    const select = (next: TrafficRange) =>
-        router.reload({
-            data: next,
-            only: ['traffic', 'trafficRange'],
-        });
-
     return (
-        <div className="mb-3 flex flex-wrap items-center gap-2 font-mono text-[13px]">
-            {TRAFFIC_PRESETS.map((preset) => {
-                const from = utcDate(preset.days - 1);
-
-                return (
-                    <PresetButton
-                        key={preset.label}
-                        isActive={range.from === from && range.to === today}
-                        onClick={() => select({ from, to: today })}
-                    >
-                        {preset.label}
-                    </PresetButton>
-                );
-            })}
-            <span className="flex items-center gap-1.5 sm:ml-auto">
-                <input
-                    type="date"
-                    aria-label="From"
-                    value={range.from}
-                    max={range.to}
-                    onChange={(event) =>
-                        event.target.value &&
-                        select({ ...range, from: event.target.value })
-                    }
-                    className="h-7 rounded-md border bg-transparent px-2 text-[13px]"
-                />
-                <span className="text-muted-foreground">→</span>
-                <input
-                    type="date"
-                    aria-label="To"
-                    value={range.to}
-                    min={range.from}
-                    max={today}
-                    onChange={(event) =>
-                        event.target.value &&
-                        select({ ...range, to: event.target.value })
-                    }
-                    className="h-7 rounded-md border bg-transparent px-2 text-[13px]"
-                />
-            </span>
+        <div className="mb-3">
+            <RangePicker
+                range={range}
+                presets={TRAFFIC_PRESETS}
+                onSelect={(next) =>
+                    router.reload({
+                        data: next,
+                        only: ['traffic', 'trafficRange'],
+                    })
+                }
+            />
         </div>
     );
 }

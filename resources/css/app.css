@@ -51,6 +51,15 @@
     }
 }
 
+/* Toasts stack above the docked chat instead of covering it. */
+:root:has([data-chat-dock]) {
+    --chat-dock-height: 3rem;
+}
+
+:root:has([data-chat-dock='expanded']) {
+    --chat-dock-height: min(520px, 100dvh - 5rem);
+}
+
 :root[data-nav-measuring] [data-nav],
 :root[data-nav-measuring] [data-nav] * {
     transition: none !important;
@@ -118,7 +127,8 @@
 
 @custom-variant reply-hover {
     @media (hover: hover) {
-        [data-reply]:hover:not(:has([data-reply]:hover)) & {
+        [data-reply]:hover:not(:has([data-reply]:hover))
+            &:not([data-reply]:not(:hover) *) {
             @slot;
         }
     }
@@ -439,6 +449,28 @@ html body[data-scroll-locked] {
     animation-name: none;
     animation-duration: 160ms;
     overflow-x: clip;
+}
+
+::view-transition-new(*.staged-rail):only-child,
+::view-transition-old(*.staged-rail):only-child {
+    transform-origin: top;
+    animation: staged-rail-grow 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+::view-transition-old(*.staged-rail):only-child {
+    animation-name: staged-rail-shrink;
+}
+
+@keyframes staged-rail-grow {
+    from {
+        transform: scaleY(0);
+    }
+}
+
+@keyframes staged-rail-shrink {
+    to {
+        transform: scaleY(0);
+    }
 }
 
 [data-sonner-toaster] {
