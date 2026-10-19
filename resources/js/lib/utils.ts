@@ -6,6 +6,11 @@ import { twMerge } from 'tailwind-merge';
 import type { DeletedCommit, Lane, ThreadCommit } from '@/types';
 import type { FlashToast } from '@/types/ui';
 
+/**
+ * The interface is in English, so month and weekday names are too, whatever the browser's language.
+ */
+export const dateLocale = 'en-US';
+
 export function characterCount(value: string): number {
     return Array.from(value).length;
 }
@@ -43,7 +48,7 @@ export function formatRelativeTime(date: string, now: Date = new Date()) {
         return `${Math.floor(seconds / 86400)}d`;
     }
 
-    return new Date(date).toLocaleDateString(undefined, {
+    return new Date(date).toLocaleDateString(dateLocale, {
         month: 'short',
         day: 'numeric',
         year:
@@ -60,12 +65,34 @@ export function formatFullDateTime(date: string, timeZone?: string): string {
         hour: 'numeric',
         minute: '2-digit',
         timeZone,
-    })} · ${value.toLocaleDateString(undefined, {
+    })} · ${value.toLocaleDateString(dateLocale, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
         timeZone,
     })}`;
+}
+
+export function formatSyncedAgo(date: string, now: Date): string {
+    const seconds = Math.round(
+        (now.getTime() - new Date(date).getTime()) / 1000,
+    );
+
+    if (seconds < 60) {
+        return 'just now';
+    }
+
+    const [value, unit]: [number, Intl.RelativeTimeFormatUnit] =
+        seconds < 3600
+            ? [Math.floor(seconds / 60), 'minute']
+            : seconds < 86400
+              ? [Math.floor(seconds / 3600), 'hour']
+              : [Math.floor(seconds / 86400), 'day'];
+
+    return new Intl.RelativeTimeFormat(dateLocale, { numeric: 'auto' }).format(
+        -value,
+        unit,
+    );
 }
 
 export function laneColor(lane: Lane): string {
@@ -140,7 +167,7 @@ export function formatDayLabel(date: string, now: Date = new Date()): string {
         return 'Yesterday';
     }
 
-    return day.toLocaleDateString(undefined, {
+    return day.toLocaleDateString(dateLocale, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
@@ -163,7 +190,7 @@ export function formatZonedTime(date: string, timeZone: string): string {
 export function formatZonedDate(date: string, timeZone: string): string {
     const value = new Date(date);
 
-    return value.toLocaleDateString(undefined, {
+    return value.toLocaleDateString(dateLocale, {
         month: 'short',
         day: 'numeric',
         year:

@@ -52,7 +52,7 @@ function Details({ preview, embed }: { preview: LinkPreview; embed: Embed }) {
                 {preview.site_name ?? embed.provider}
             </span>
             {preview.title && (
-                <span className="line-clamp-2 text-[15px] leading-snug font-medium break-words">
+                <span className="line-clamp-2 text-[15px] leading-snug font-medium wrap-break-word">
                     {preview.title}
                 </span>
             )}
@@ -159,7 +159,7 @@ export function LinkEmbed({
                                     className="absolute inset-0 size-full"
                                 />
                                 <span className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/10" />
-                                <span className="absolute top-1/2 left-1/2 flex size-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white ring-white/60 transition-transform group-hover:scale-105 group-focus-visible:ring-2">
+                                <span className="absolute top-1/2 left-1/2 flex size-14 -translate-1/2 items-center justify-center rounded-full bg-black/70 text-white ring-white/60 transition-transform group-hover:scale-105 group-focus-visible:ring-2">
                                     <Icon className="ml-0.5 size-6 fill-current" />
                                 </span>
                             </PlayTrigger>

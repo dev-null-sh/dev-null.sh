@@ -16,31 +16,9 @@ import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import { formatFullDateTime } from '@/lib/utils';
+import { formatFullDateTime, formatSyncedAgo } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Lane } from '@/types';
-
-function formatSyncedAgo(date: string, now: Date): string {
-    const seconds = Math.round(
-        (now.getTime() - new Date(date).getTime()) / 1000,
-    );
-
-    if (seconds < 60) {
-        return 'just now';
-    }
-
-    const [value, unit]: [number, Intl.RelativeTimeFormatUnit] =
-        seconds < 3600
-            ? [Math.floor(seconds / 60), 'minute']
-            : seconds < 86400
-              ? [Math.floor(seconds / 3600), 'hour']
-              : [Math.floor(seconds / 86400), 'day'];
-
-    return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-        -value,
-        unit,
-    );
-}
 
 export default function Edit({
     preferredLane,

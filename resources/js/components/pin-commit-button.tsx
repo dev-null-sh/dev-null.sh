@@ -50,10 +50,12 @@ export function PinCommitButton({
                 aria-label={label}
                 aria-pressed={isPinned}
                 aria-busy={isSaving}
-                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-wait disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-wait disabled:opacity-50 sm:min-w-24"
             >
                 <Icon aria-hidden className="size-3.5" />
-                {isSaving ? 'Saving…' : isPinned ? 'Unpin' : 'Pin'}
+                <span className="sr-only sm:not-sr-only">
+                    {isSaving ? 'Saving…' : isPinned ? 'Unpin' : 'Pin'}
+                </span>
             </button>
         </ActionTooltip>
     );

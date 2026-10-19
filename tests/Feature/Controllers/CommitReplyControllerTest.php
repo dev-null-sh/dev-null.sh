@@ -2,8 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateTomFriendship;
+use App\Actions\CreateTomReply;
 use App\Actions\DeleteUser;
+use App\Ai\Agents\Tom;
 use App\Enums\CommitStatus;
+use App\Jobs\DetectCommitLanguage;
+use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
@@ -12,6 +17,27 @@ use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+
+it('answers a casual public Tom mention in the same thread', function (): void {
+    config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test']);
+    Queue::fake([ReplyAsTom::class, DetectCommitLanguage::class]);
+    Tom::fake(['A little rusty, but happy to see you. :-D'])->preventStrayPrompts();
+    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $user = User::factory()->create(['username' => 'alice']);
+    $parent = Commit::factory()->create();
+
+    $response = $this->actingAs($user)->postJson(route('commit-reply.store', $parent), ['body' => '@tom how are your rusty joints?'])->assertCreated();
+    $mention = Commit::query()->findOrFail($response->json('committed.id'));
+    Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $mention->id);
+    new ReplyAsTom($mention->id)->handle(resolve(CreateTomReply::class));
+
+    $this->getJson(route('commit-reply.index', $mention))->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.body', 'A little rusty, but happy to see you. :-D')
+        ->assertJsonPath('data.0.user.id', $tom->id)
+        ->assertJsonPath('data.0.root_id', $parent->id);
+    Tom::assertPrompted('@tom how are your rusty joints?');
+});
 
 it('rejects non-text reply bodies with a validation error', function (mixed $body): void {
     $parent = Commit::factory()->create();

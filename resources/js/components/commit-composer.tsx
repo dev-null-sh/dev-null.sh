@@ -133,12 +133,36 @@ function CommitComposerBody({
             ? 'This time does not exist in your timezone. Choose another time.'
             : undefined);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const textBox = useRef<HTMLDivElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
     const isIssue = issue.command !== null;
 
+    // When the dialog's text box shrinks, as the keyboard opens or an image is added, it keeps the caret in view.
+    useEffect(() => {
+        const box = textBox.current;
+        const textarea = textareaRef.current;
+
+        if (!isInDialog || box === null || textarea === null) {
+            return;
+        }
+
+        const observer = new ResizeObserver(() => {
+            if (
+                document.activeElement === textarea &&
+                textarea.selectionEnd === textarea.value.length
+            ) {
+                box.scrollTop = box.scrollHeight;
+            }
+        });
+
+        observer.observe(box);
+
+        return () => observer.disconnect();
+    }, [isInDialog]);
+
     return (
         <div
-            className="relative flex"
+            className={cn('relative flex', { 'min-h-0': isInDialog })}
             {...(poll === null ? attachments.dropzone : {})}
         >
             {attachments.isDraggingFiles && (
@@ -153,11 +177,15 @@ function CommitComposerBody({
             />
 
             <div
-                className={cn('flex min-w-0 flex-1 pt-3 pr-4 pb-3', {
+                className={cn('flex min-w-0 flex-1 py-3 pr-4', {
                     'border-b': !isInDialog,
                 })}
             >
-                <div className="min-w-0 flex-1">
+                <div
+                    className={cn('min-w-0 flex-1', {
+                        'flex min-h-0 flex-col': isInDialog,
+                    })}
+                >
                     <label htmlFor={id} className="sr-only">
                         Body
                     </label>
@@ -170,7 +198,14 @@ function CommitComposerBody({
                             }}
                         />
                     )}
-                    <div className="grid">
+                    {/* In the dialog only the text scrolls, so the images and actions below it always keep their room. */}
+                    <div
+                        ref={textBox}
+                        className={cn('grid', {
+                            'min-h-12 shrink overflow-y-auto overscroll-contain':
+                                isInDialog,
+                        })}
+                    >
                         <MentionTextarea
                             ref={textareaRef}
                             id={id}
@@ -185,7 +220,14 @@ function CommitComposerBody({
                                 preview.handleShortcut(event) ||
                                 onKeyDown(event)
                             }
-                            onFocus={isRestored ? moveCaretToEnd : undefined}
+                            onFocus={(event) => {
+                                issue.focus();
+
+                                if (isRestored) {
+                                    moveCaretToEnd(event);
+                                }
+                            }}
+                            onBlur={issue.blur}
                             maxLength={maxBodyLength}
                             placeholder={
                                 issue.command?.placeholder ??
@@ -196,7 +238,10 @@ function CommitComposerBody({
                             aria-describedby={`${id}-count`}
                             className={cn(
                                 'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
-                                { invisible: preview.isPreviewing },
+                                {
+                                    invisible: preview.isPreviewing,
+                                    'max-h-none': isInDialog,
+                                },
                             )}
                         />
                         {preview.isPreviewing && (
@@ -432,7 +477,7 @@ function CommitComposerBody({
                                         issue.processing || !isSubmittable
                                     }
                                     onClick={() => void issue.submit()}
-                                    className="min-w-[7.5rem]"
+                                    className="min-w-30"
                                     data-test="open-issue-button"
                                 >
                                     {issue.processing
@@ -450,7 +495,7 @@ function CommitComposerBody({
                                 <Button
                                     type="submit"
                                     disabled={processing || !isSubmittable}
-                                    className="min-w-[7.5rem]"
+                                    className="min-w-30"
                                     data-test="create-commit-button"
                                 >
                                     {isScheduling
@@ -537,6 +582,7 @@ export function CommitComposer({
 
     return (
         <Form
+            className={cn({ 'flex min-h-0 flex-col': isInDialog })}
             {...(isScheduling
                 ? ScheduledCommitController.store.form()
                 : CommitController.store.form())}

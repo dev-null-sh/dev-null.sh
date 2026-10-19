@@ -1,7 +1,6 @@
 import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -17,20 +16,15 @@ import type { CursorPaginated, User } from '@/types';
 type Connection = User & { is_followed: boolean };
 
 function ConnectionFollowButton({ person }: { person: Connection }) {
-    const [isFollowing, setIsFollowing] = useState(person.is_followed);
-
     return (
         <FollowButton
             user={person}
-            isFollowing={isFollowing}
+            isFollowing={person.is_followed}
             size="sm"
             className="mt-4 min-w-24 shrink-0"
             only={['auth']}
             preserveState
-            onSuccess={() => {
-                setIsFollowing(!isFollowing);
-                router.flushAll();
-            }}
+            onSuccess={() => router.flushAll()}
         />
     );
 }

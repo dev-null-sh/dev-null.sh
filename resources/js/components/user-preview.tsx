@@ -5,7 +5,12 @@ import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
-import { FollowLabel, useFollowHover } from '@/components/follow-button';
+import {
+    FollowLabel,
+    onFollowHttpException,
+    useFollowHover,
+    useIsFollowing,
+} from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -321,38 +326,49 @@ function UserPreviewContent({
     const lane = laneColor(user.lane);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        user,
+        data?.isFollowing ?? false,
+    );
 
+    const [pendingFollows, setPendingFollows] = useState<boolean | null>(null);
+    const shownIsFollowing = pendingFollows ?? isFollowing;
+
+    /**
+     * The button flips right away, but like every other follow control the shared state only changes once the server confirms, so there is nothing to roll back.
+     */
     const toggleFollow = () => {
-        if (!data || data.isUnavailable) {
+        if (!data || data.isUnavailable || pendingFollows !== null) {
             return;
         }
 
-        const previous = data;
-        const isFollowing = !data.isFollowing;
-
-        onChange({
-            ...data,
-            isFollowing,
-            user: {
-                ...data.user,
-                followers_count:
-                    data.user.followers_count + (isFollowing ? 1 : -1),
-            },
-        });
+        const follows = !isFollowing;
+        setPendingFollows(follows);
 
         router.visit(
-            isFollowing
+            follows
                 ? UserFollowController.store(user)
                 : UserFollowController.destroy(user),
             {
                 preserveScroll: true,
                 preserveState: true,
-                onError: () => onChange(previous),
-                onHttpException: (response) => {
-                    onChange(previous);
-
-                    return !toastWhenThrottled(response);
+                onSuccess: () => {
+                    setIsFollowing(follows);
+                    onChange({
+                        ...data,
+                        isFollowing: follows,
+                        user: {
+                            ...data.user,
+                            followers_count:
+                                data.user.followers_count +
+                                Number(follows) -
+                                Number(data.isFollowing),
+                        },
+                    });
                 },
+                onHttpException: (response) =>
+                    onFollowHttpException(user, response),
+                onFinish: () => setPendingFollows(null),
             },
         );
     };
@@ -383,7 +399,7 @@ function UserPreviewContent({
                                 <Button
                                     size="sm"
                                     variant={
-                                        data.isFollowing ? 'outline' : 'default'
+                                        shownIsFollowing ? 'outline' : 'default'
                                     }
                                     className="group/follow min-w-24"
                                     onClick={() => {
@@ -392,14 +408,15 @@ function UserPreviewContent({
                                     }}
                                     onMouseLeave={onMouseLeave}
                                     aria-label={
-                                        data.isFollowing
+                                        shownIsFollowing
                                             ? `Unfollow @${user.username}`
                                             : `Follow @${user.username}`
                                     }
+                                    aria-busy={pendingFollows !== null}
                                     data-test="user-preview-follow-button"
                                 >
                                     <FollowLabel
-                                        isFollowing={data.isFollowing}
+                                        isFollowing={shownIsFollowing}
                                         isJustToggled={isJustToggled}
                                     />
                                 </Button>

@@ -562,7 +562,7 @@ function FailedJobRow({
                         </span>
                     </p>
                     <p
-                        className="mt-1 line-clamp-2 min-h-10 font-mono text-xs leading-5 [overflow-wrap:anywhere] text-muted-foreground"
+                        className="mt-1 line-clamp-2 min-h-10 font-mono text-xs leading-5 wrap-anywhere text-muted-foreground"
                         title={failedJob.exception}
                     >
                         {failedJob.exception}

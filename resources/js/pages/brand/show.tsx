@@ -62,13 +62,13 @@ const backgrounds = [
         kind: 'banner',
         title: 'Profile banner',
         size: '1500 × 500',
-        aspect: 'aspect-[3/1]',
+        aspect: 'aspect-3/1',
     },
     {
         kind: 'social',
         title: 'Social card',
         size: '1200 × 630',
-        aspect: 'aspect-[1200/630]',
+        aspect: 'aspect-1200/630',
     },
 ] as const;
 

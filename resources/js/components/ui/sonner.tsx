@@ -8,7 +8,9 @@ import { useNewVersionToast } from "@/hooks/use-new-version-toast"
 
 const achievementToasterId = "achievements"
 
-const aboveMobileNav = { bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }
+const aboveMobileNav = {
+  bottom: "calc(var(--mobile-nav-height, 4.5rem + env(safe-area-inset-bottom)) + 0.75rem)",
+}
 
 const toastColors = {
   "--normal-bg": "var(--popover)",

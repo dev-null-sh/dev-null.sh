@@ -35,6 +35,7 @@ import AppLayout from '@/layouts/app-layout';
 import {
     cn,
     formatDayLabel,
+    formatFullDateTime,
     formatRelativeTime,
     laneColor,
     localDayKey,
@@ -658,20 +659,15 @@ function NotificationGroupItem({
 }
 
 function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
-    const [isFollowing, setIsFollowing] = useState(actor.is_followed);
-
     return (
         <FollowButton
             user={actor}
-            isFollowing={isFollowing}
+            isFollowing={actor.is_followed}
             size="sm"
             className="min-w-24 shrink-0"
             only={['auth']}
             preserveState
-            onSuccess={() => {
-                setIsFollowing(!isFollowing);
-                router.flushAll();
-            }}
+            onSuccess={() => router.flushAll()}
         />
     );
 }
@@ -735,7 +731,7 @@ function NotificationContent({
     const time = (
         <time
             dateTime={notification.created_at}
-            title={new Date(notification.created_at).toLocaleString()}
+            title={formatFullDateTime(notification.created_at)}
             className="ml-auto min-w-[3ch] shrink-0 text-right font-mono text-[13px] text-muted-foreground"
         >
             {formatRelativeTime(notification.created_at, now)}
@@ -797,7 +793,7 @@ function NotificationContent({
                                 {actor.name}
                             </span>
                             <span
-                                className="hidden shrink-[4] truncate font-mono text-[13px] text-muted-foreground sm:inline"
+                                className="hidden shrink-4 truncate font-mono text-[13px] text-muted-foreground sm:inline"
                                 title={`@${actor.username}`}
                             >
                                 @{actor.username}
