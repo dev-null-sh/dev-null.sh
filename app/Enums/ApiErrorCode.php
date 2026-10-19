@@ -16,6 +16,7 @@ enum ApiErrorCode: string
     case UserBlocked = 'user_blocked';
     case UserUnavailable = 'user_unavailable';
     case RateLimited = 'rate_limited';
+    case GitHubSyncFailed = 'github_sync_failed';
 
     public function status(): int
     {
@@ -24,6 +25,7 @@ enum ApiErrorCode: string
             self::InvalidSignature, self::DeviceNotApproved => 401,
             self::UserBlocked, self::UserUnavailable => 403,
             self::RateLimited => 429,
+            self::GitHubSyncFailed => 503,
         };
     }
 }
