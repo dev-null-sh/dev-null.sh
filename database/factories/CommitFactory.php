@@ -25,6 +25,7 @@ final class CommitFactory extends Factory
             'body' => fake()->realText(280),
             'status' => CommitStatus::Approved,
             'mentions' => [],
+            'branch' => null,
         ];
     }
 
