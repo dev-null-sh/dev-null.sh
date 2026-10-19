@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Actions\CreateTomFriendship;
+use App\Actions\CreateWorldReply;
 use App\Dto\LiveStream;
 use App\Enums\LivePlatform;
 use App\Enums\Log;
@@ -487,7 +488,7 @@ final class User extends Authenticatable
      */
     public function hasGitHubAccount(): bool
     {
-        return $this->github_id !== CreateTomFriendship::GITHUB_ID;
+        return ! in_array($this->github_id, [CreateTomFriendship::GITHUB_ID, CreateWorldReply::GITHUB_ID], true);
     }
 
     private function fillCounts(int $commits): self
