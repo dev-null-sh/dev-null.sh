@@ -20,6 +20,11 @@ const draft = {
     drop: vi.fn(),
 };
 const user = { id: 'viewer', username: 'viewer', lane: 1 };
+const http = {
+    processing: false,
+    transform: vi.fn(),
+    submit: vi.fn(() => new Promise(() => {})),
+};
 
 vi.doMock('react', () => ({
     ...React,
@@ -52,7 +57,7 @@ vi.doMock('react', () => ({
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
     usePage: () => ({ props: { auth: { user, isAdmin: false } } }),
-    useHttp: () => ({ processing: false, transform: vi.fn(), submit: vi.fn() }),
+    useHttp: () => http,
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
     useUser: () => ({ user }),
@@ -65,7 +70,9 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
 
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
-const { ImagePickerButton, ImagePickerPreviews } =
+const { IssueCommandBadge, IssueCommandHint, IssueCommandSuggestions } =
+    await import('../../resources/js/components/issue-command');
+const { ImageDropOverlay, ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
 const { ComposerPreviewBody, PreviewToggle } =
     await import('../../resources/js/components/composer-preview');
@@ -99,7 +106,7 @@ function elements(node: ReactNode): Element[] {
 
 function render() {
     cursor = 0;
-    const form = CommitComposer();
+    const form = CommitComposer({});
     const fields = elements(
         form.props.children({ processing: false, errors: {} }),
     );
@@ -114,53 +121,55 @@ beforeEach(() => {
     draft.descriptions = [];
 });
 
-test('preserves restored images and link cards while preventing scheduling', () => {
-        draft.images = [image];
-        draft.descriptions = ['A restored screenshot'];
-        const { form, fields } = render();
-        const data = {
-            body: draft.body,
-            link_preview_url: 'https://example.com',
-        };
-        assert.deepEqual(form.props.transform(data), {
-            ...data,
-            images: [image],
-            image_descriptions: ['A restored screenshot'],
-        });
-        const preview = fields.find(
-            (element) => element.type === ImagePickerPreviews,
-        )!;
-        assert.deepEqual(preview.props.images, [image]);
-        const picker = fields.find(
-            (element) => element.type === ImagePickerButton,
-        )!;
-        assert.equal(picker.props.count, 1);
-        const schedule = fields.find(
-            (element) => element.props['aria-controls'] === 'commit-schedule',
-        )!;
-        assert.equal(schedule.props.disabled, true);
-        assert.equal(
-            fields.find(
-                (element) => element.props['data-test'] === 'add-poll-button',
-            )!.props.disabled,
-            true,
-        );
-        assert.equal(
-            fields.filter((element) => element.type === LinkCardPicker).length,
-            1,
-        );
+test('preserves restored images and link cards and allows scheduling them', () => {
+    draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
+    const { form, fields } = render();
+    const data = {
+        body: draft.body,
+        link_preview_url: 'https://example.com',
+    };
+    assert.deepEqual(form.props.transform(data), {
+        ...data,
+        images: [image],
+        image_descriptions: ['A restored screenshot'],
+    });
+    const preview = fields.find(
+        (element) => element.type === ImagePickerPreviews,
+    )!;
+    assert.deepEqual(preview.props.images, [image]);
+    const picker = fields.find(
+        (element) => element.type === ImagePickerButton,
+    )!;
+    assert.equal(picker.props.count, 1);
+    const schedule = fields.find(
+        (element) => element.props['aria-controls'] === 'body-schedule',
+    )!;
+    assert.equal(schedule.props.disabled, false);
+    assert.equal(
+        fields.find(
+            (element) => element.props['data-test'] === 'add-poll-button',
+        )!.props.disabled,
+        true,
+    );
+    assert.equal(
+        fields.filter((element) => element.type === LinkCardPicker).length,
+        1,
+    );
 
+    form.props.onSuccess({
+        flash: { toast: { type: 'error', message: 'Slow down' } },
+    });
+    assert.equal(draft.drop.mock.calls.length, 0);
+    assert.deepEqual(draft.images, [image]);
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
         form.props.onSuccess({ flash: {} });
-        assert.equal(draft.drop.mock.calls.length, 0);
-        assert.deepEqual(draft.images, [image]);
-        vi.stubGlobal('requestAnimationFrame', vi.fn());
-        try {
-            form.props.onSuccess({ flash: { committed: { id: 'created' } } });
-            assert.deepEqual(draft.images, []);
-            assert.equal(draft.drop.mock.calls.length, 1);
-        } finally {
-            vi.unstubAllGlobals();
-        }
+        assert.deepEqual(draft.images, []);
+        assert.equal(draft.drop.mock.calls.length, 1);
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });
 
 test('removing restored images enables polls and successful posting resets the poll', () => {
@@ -197,16 +206,20 @@ test('removing restored images enables polls and successful posting resets the p
         );
         assert.equal(
             view.fields.find(
-                (element) =>
-                    element.props['aria-controls'] === 'commit-schedule',
+                (element) => element.props['aria-controls'] === 'body-schedule',
             )!.props.disabled,
-            true,
+            false,
         );
         const textarea = view.fields.find(
             (element) => element.type === MentionTextarea,
         )!;
         assert.equal(textarea.props.onPaste, undefined);
-        assert.equal(textarea.props.onDrop, undefined);
+        assert.equal(
+            view.fields.some(
+                (element) => element.props.onDragEnter !== undefined,
+            ),
+            false,
+        );
 
         (editor.props.onChange as (poll: unknown) => void)({
             options: ['Tabs', 'Spaces'],
@@ -219,13 +232,15 @@ test('removing restored images enables polls and successful posting resets the p
             poll: { options: ['Tabs', 'Spaces'], duration: 1440 },
         };
         assert.deepEqual(view.form.props.transform(data), data);
-        view.form.props.onSuccess({ flash: {} });
+        view.form.props.onSuccess({
+            flash: { toast: { type: 'error', message: 'Slow down' } },
+        });
         assert.equal(draft.drop.mock.calls.length, 0);
         assert.ok(
             render().fields.some((element) => element.type === PollEditor),
         );
 
-        view.form.props.onSuccess({ flash: { committed: { id: 'created' } } });
+        view.form.props.onSuccess({ flash: {} });
         assert.equal(draft.drop.mock.calls.length, 1);
         assert.deepEqual(draft.images, []);
         view = render();
@@ -244,37 +259,74 @@ test('removing restored images enables polls and successful posting resets the p
     }
 });
 
-test('schedules plain text in UTC and keeps pasted images visible until removed before scheduling', () => {
+test('dropping images anywhere on the composer attaches them while dragging text is left alone', () => {
+    const dragged = (types: string[], files: File[] = []) => ({
+        dataTransfer: { types, files, dropEffect: 'none' },
+        preventDefault: vi.fn(),
+    });
+    const dropzone = () =>
+        render().fields.find(
+            (element) => element.props.onDragEnter !== undefined,
+        )!;
+    const isOverlaid = () =>
+        render().fields.some((element) => element.type === ImageDropOverlay);
+
+    const text = dragged(['text/plain']);
+    (dropzone().props.onDragEnter as (event: unknown) => void)(text);
+    (dropzone().props.onDragOver as (event: unknown) => void)(text);
+    assert.equal(text.preventDefault.mock.calls.length, 0);
+    assert.equal(isOverlaid(), false);
+
+    const files = dragged(['Files'], [image]);
+    (dropzone().props.onDragEnter as (event: unknown) => void)(files);
+    (dropzone().props.onDragEnter as (event: unknown) => void)(files);
+    (dropzone().props.onDragLeave as (event: unknown) => void)(files);
+    (dropzone().props.onDragOver as (event: unknown) => void)(files);
+    assert.equal(files.dataTransfer.dropEffect, 'copy');
+    assert.equal(isOverlaid(), true);
+
+    (dropzone().props.onDrop as (event: unknown) => void)(files);
+    assert.equal(isOverlaid(), false);
+    assert.ok(files.preventDefault.mock.calls.length > 0);
+    assert.deepEqual(
+        render().fields.find((element) => element.type === ImagePickerPreviews)!
+            .props.images,
+        [image],
+    );
+
+    (dropzone().props.onDragEnter as (event: unknown) => void)(files);
+    (dropzone().props.onDragLeave as (event: unknown) => void)(files);
+    assert.equal(isOverlaid(), false);
+});
+
+test('schedules in UTC with pasted images and the chosen link card', () => {
     let view = render();
     const schedule = view.fields.find(
-        (element) => element.props['aria-controls'] === 'commit-schedule',
+        (element) => element.props['aria-controls'] === 'body-schedule',
     )!;
     assert.equal(schedule.props.disabled, false);
     (schedule.props.onClick as () => void)();
     view = render();
     const date = '2026-10-17T10:30';
     const dateInput = view.fields.find(
-        (element) => element.props.id === 'scheduled-at',
+        (element) => element.props.id === 'body-scheduled-at',
     )!;
-    const setCustomValidity = vi.fn();
-    (dateInput.props.onChange as (event: unknown) => void)({
-        target: { value: date, setCustomValidity },
-    });
-    assert.deepEqual(setCustomValidity.mock.lastCall, ['']);
+    (dateInput.props.onChange as (value: string) => void)(date);
     view = render();
+    const scheduledAt = new Date(date)
+        .toISOString()
+        .replace(/\.\d{3}Z$/, '+00:00');
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
-        scheduled_at: new Date(date)
-            .toISOString()
-            .replace(/\.\d{3}Z$/, '+00:00'),
+        scheduled_at: scheduledAt,
     });
     assert.equal(
         view.fields.some((element) => element.type === ImagePickerButton),
-        false,
+        true,
     );
     assert.equal(
         view.fields.some((element) => element.type === LinkCardPicker),
-        false,
+        true,
     );
     const textarea = view.fields.find(
         (element) => element.type === MentionTextarea,
@@ -286,29 +338,24 @@ test('schedules plain text in UTC and keeps pasted images visible until removed 
     });
     assert.equal(preventDefault.mock.calls.length, 1);
     view = render();
-    const submit = view.fields.find(
-        (element) => element.props['data-test'] === 'create-commit-button',
-    )!;
-    assert.equal(submit.props.disabled, true);
-    const preview = view.fields.find(
-        (element) => element.type === ImagePickerPreviews,
-    )!;
-    assert.deepEqual(preview.props.images, [image]);
-    assert.ok(
-        view.fields.some(
-            (element) =>
-                element.props.message ===
-                "Images can't be scheduled yet. Remove them to schedule this commit.",
-        ),
-    );
-    (preview.props.onRemove as (index: number) => void)(0);
-    view = render();
     assert.equal(
         view.fields.find(
             (element) => element.props['data-test'] === 'create-commit-button',
         )!.props.disabled,
         false,
     );
+    assert.deepEqual(
+        view.fields.find((element) => element.type === ImagePickerPreviews)!
+            .props.images,
+        [image],
+    );
+    const data = { body: draft.body, link_preview_url: '' };
+    assert.deepEqual(view.form.props.transform(data), {
+        ...data,
+        images: [image],
+        image_descriptions: [''],
+        scheduled_at: scheduledAt,
+    });
 });
 
 test('retains restored images while sensitive text requires explicit approval', () => {
@@ -366,4 +413,219 @@ test('previews restored images and descriptions while keeping them attached when
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
+});
+
+function keyDown(
+    view: ReturnType<typeof render>,
+    key: string,
+    modifiers: { metaKey?: boolean } = {},
+) {
+    const event = {
+        key,
+        metaKey: false,
+        ctrlKey: false,
+        shiftKey: false,
+        ...modifiers,
+        nativeEvent: { isComposing: false },
+        currentTarget: { selectionStart: 0, selectionEnd: 0 },
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+    };
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props.onKeyDown as (event: unknown) => void)(event);
+    return event;
+}
+
+function focus(view: ReturnType<typeof render>, handler = 'onFocus') {
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props[handler] as (event: unknown) => void)({
+        currentTarget: { selectionStart: 0, selectionEnd: 0 },
+    });
+}
+
+function hasSuggestions(): boolean {
+    return render().fields.some(
+        (element) => element.type === IssueCommandSuggestions,
+    );
+}
+
+test('a restored slash only opens the command menu while the composer is focused', () => {
+    draft.body = '/';
+    assert.equal(hasSuggestions(), false);
+
+    focus(render());
+    assert.equal(hasSuggestions(), true);
+
+    focus(render(), 'onBlur');
+    assert.equal(hasSuggestions(), false);
+});
+
+test('typing a command and a space turns the draft into an issue, and backspace turns it back into a commit', () => {
+    draft.body = '/bu';
+    focus(render());
+    let view = render();
+    const suggestions = view.fields.find(
+        (element) => element.type === IssueCommandSuggestions,
+    )!;
+    assert.deepEqual(
+        (suggestions.props.suggestions as { name: string }[]).map(
+            (command) => command.name,
+        ),
+        ['/bug'],
+    );
+
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props.onValueChange as (value: string) => void)(
+        '/bug The timeline jumps',
+    );
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), [
+        'The timeline jumps',
+    ]);
+    draft.body = 'The timeline jumps';
+
+    view = render();
+    const find = (key: string, value: unknown) =>
+        view.fields.find((element) => element.props[key] === value);
+    assert.ok(
+        view.fields.some((element) => element.type === IssueCommandBadge),
+    );
+    assert.ok(find('data-test', 'open-issue-button'));
+    assert.equal(find('data-test', 'create-commit-button'), undefined);
+    assert.equal(
+        view.fields.some((element) => element.type === ImagePickerButton),
+        false,
+    );
+    assert.equal(find('data-test', 'add-poll-button'), undefined);
+    assert.equal(view.form.props.onBefore(), false);
+
+    keyDown(view, 'Backspace');
+    view = render();
+    assert.equal(
+        view.fields.some((element) => element.type === IssueCommandBadge),
+        false,
+    );
+    assert.ok(
+        view.fields.some(
+            (element) => element.props['data-test'] === 'create-commit-button',
+        ),
+    );
+    assert.equal(view.form.props.onBefore(), true);
+});
+
+test('picking a suggestion with Enter starts an empty issue, and the shortcut opens it instead of committing', () => {
+    draft.body = '/';
+    focus(render());
+    keyDown(render(), 'ArrowDown');
+    const enter = keyDown(render(), 'Enter');
+    assert.equal(enter.preventDefault.mock.calls.length, 1);
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
+
+    draft.body = 'Search loses its filters';
+    keyDown(render(), 'Enter', { metaKey: true });
+    assert.equal(http.submit.mock.calls.length, 1);
+    const payload = http.transform.mock.calls[0][0] as () => unknown;
+    assert.deepEqual(payload(), {
+        command: '/bug',
+        body: 'Search loses its filters',
+    });
+});
+
+test('a draft that mentions a bug suggests /bug, keeps the text when used, and can be dismissed', () => {
+    draft.body = 'The search has a bug when going back';
+    let hint = render().fields.find(
+        (element) => element.type === IssueCommandHint,
+    )!;
+    assert.equal((hint.props.command as { name: string }).name, '/bug');
+
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        (hint.props.onUse as (kind: string) => void)('bug');
+    } finally {
+        vi.unstubAllGlobals();
+    }
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), [
+        'The search has a bug when going back',
+    ]);
+    let view = render();
+    assert.ok(
+        view.fields.some((element) => element.type === IssueCommandBadge),
+    );
+    assert.equal(
+        view.fields.some((element) => element.type === IssueCommandHint),
+        false,
+    );
+
+    state = [];
+    hint = render().fields.find(
+        (element) => element.type === IssueCommandHint,
+    )!;
+    (hint.props.onDismiss as () => void)();
+    view = render();
+    assert.equal(
+        view.fields.some((element) => element.type === IssueCommandHint),
+        false,
+    );
+});
+
+test('commands are not offered while the draft has images, a poll or a schedule', () => {
+    draft.images = [image];
+    draft.body = '/';
+    focus(render());
+    const view = render();
+    assert.equal(
+        view.fields.some((element) => element.type === IssueCommandSuggestions),
+        false,
+    );
+    draft.body = 'Found a bug';
+    assert.equal(
+        render().fields.some((element) => element.type === IssueCommandHint),
+        false,
+    );
+    draft.body = '/';
+
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props.onValueChange as (value: string) => void)('/bug ');
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['/bug ']);
+    assert.equal(
+        render().fields.some((element) => element.type === IssueCommandBadge),
+        false,
+    );
+});
+
+test('turning scheduling off clears the chosen time and commits now', () => {
+    const find = (key: string, value: unknown) =>
+        render().fields.find((element) => element.props[key] === value);
+    const label = (element: Element) =>
+        React.Children.toArray(element.props.children as ReactNode)
+            .filter((child) => typeof child === 'string')
+            .join('');
+    const submit = () => find('data-test', 'create-commit-button')!;
+
+    (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
+    assert.equal(submit().props.disabled, true);
+    (
+        find('id', 'body-scheduled-at')!.props.onChange as (
+            value: string,
+        ) => void
+    )('2026-10-17T10:30');
+    assert.equal(submit().props.disabled, false);
+    assert.equal(label(submit()), 'Schedule commit');
+
+    (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
+    assert.equal(find('id', 'body-scheduled-at'), undefined);
+    assert.equal(label(submit()), 'Commit');
+    assert.deepEqual(render().form.props.transform({ body: draft.body }), {
+        body: draft.body,
+    });
+
+    (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
+    assert.equal(find('id', 'body-scheduled-at')!.props.value, '');
 });

@@ -23,7 +23,7 @@ import { useClipboard } from '@/hooks/use-clipboard';
 import { useUser } from '@/hooks/use-user';
 import { useKeyLabels } from '@/lib/keyboard';
 import { cn, laneColor } from '@/lib/utils';
-import type { SuggestedUser } from '@/types';
+import type { Lane, SuggestedUser } from '@/types';
 
 const laneNames = ['orange', 'green', 'violet', 'teal', 'rose', 'ochre'];
 
@@ -194,7 +194,7 @@ function CommitScript({ url }: { url: string }) {
 
     return (
         <div className="mt-3 flex items-start gap-2 rounded-md border bg-background py-2 pr-2 pl-3">
-            <code className="min-w-0 flex-1 py-0.5 font-mono text-[13px] leading-5 [overflow-wrap:anywhere]">
+            <code className="min-w-0 flex-1 py-0.5 font-mono text-[13px] leading-5 wrap-anywhere">
                 {command}
             </code>
             <Button
@@ -216,7 +216,7 @@ export default function Show({
     suggestions,
     commitScriptUrl,
 }: {
-    preferredLane: number | null;
+    preferredLane: Lane | null;
     automaticLane: number;
     suggestions: SuggestedUser[];
     commitScriptUrl: string;
@@ -224,7 +224,7 @@ export default function Show({
     const { auth } = usePage().props;
     const { user: currentUser } = useUser();
     const [step, setStep] = useRemember(0, 'onboarding-step');
-    const [selectedLane, setSelectedLane] = useState<number | null>(
+    const [selectedLane, setSelectedLane] = useState<Lane | null>(
         preferredLane,
     );
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
@@ -266,7 +266,12 @@ export default function Show({
         return () => window.removeEventListener('keydown', onKeyDown);
     }, []);
 
-    const laneName = selectedLane === null ? 'auto' : laneNames[selectedLane];
+    const laneName =
+        selectedLane === null
+            ? 'auto'
+            : typeof selectedLane === 'string'
+              ? selectedLane
+              : laneNames[selectedLane];
 
     const steps = [
         {
@@ -341,7 +346,7 @@ export default function Show({
                                 />
                             </div>
                             <InputError
-                                message={errors.lane}
+                                message={errors.lane ?? errors.color}
                                 className="mt-2"
                             />
                         </StepContent>
@@ -405,7 +410,7 @@ export default function Show({
                     }
                 >
                     <dl className="divide-y rounded-lg border bg-card text-[15px]">
-                        <div className="px-4 py-4">
+                        <div className="p-4">
                             <dt className="font-semibold">Write a commit</dt>
                             <dd className="mt-1 text-pretty text-muted-foreground">
                                 The composer sits at the top of your log. Plain
@@ -415,7 +420,7 @@ export default function Show({
                                 commit.
                             </dd>
                         </div>
-                        <div className="px-4 py-4">
+                        <div className="p-4">
                             <dt className="font-semibold">Use the keyboard</dt>
                             <dd className="mt-1 text-pretty text-muted-foreground">
                                 <Kbd>j</Kbd> and <Kbd>k</Kbd> move between
@@ -437,7 +442,7 @@ export default function Show({
                                 </span>
                             </dd>
                         </div>
-                        <div className="px-4 py-4">
+                        <div className="p-4">
                             <dt className="font-semibold">
                                 Commit from the terminal
                             </dt>

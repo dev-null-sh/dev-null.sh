@@ -24,9 +24,4 @@ return new class extends Migration
             $table->index(['dismissed_at', 'created_at', 'id']);
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('commit_reports');
-    }
 };

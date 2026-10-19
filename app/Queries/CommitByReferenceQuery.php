@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Collection;
  */
 final readonly class CommitByReferenceQuery
 {
-    private const string Uuid = '/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i';
+    private const string Uuid = '/(?<![a-z0-9-])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![a-z0-9-])/i';
 
     private const string Hash = '/^[0-9a-f]{7,12}$/i';
 

@@ -26,10 +26,6 @@ final readonly class RememberIntendedUrl
 
         redirect()->setIntendedUrl($request->fullUrl());
 
-        if (app()->isLocal() && config('app.auto_login')) {
-            return to_route('home');
-        }
-
         return $response;
     }
 }

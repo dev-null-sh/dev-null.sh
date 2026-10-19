@@ -20,7 +20,7 @@ final readonly class CommitReplyController
 {
     public function index(ListCommitRepliesRequest $request, #[CurrentUser] ?User $user, Commit $commit, CommitRepliesQuery $replies): JsonResponse
     {
-        return response()->json($replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE)));
+        return response()->json($replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE), $request->exceptedReplyId()));
     }
 
     public function store(CreateCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action): JsonResponse
@@ -34,7 +34,7 @@ final readonly class CommitReplyController
             ],
             ...$reply->status === CommitStatus::Pending ? ['toast' => [
                 'type' => 'info',
-                'message' => __('Your commit is pending review. Everyone will see it once it is approved.'),
+                'message' => 'Your commit is pending review. Everyone will see it once it is approved.',
             ]] : [],
         ], 201);
     }

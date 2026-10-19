@@ -21,15 +21,4 @@ return new class extends Migration
             $table->vectorIndex('embedding', 'commits_embedding_index');
         });
     }
-
-    /**
-     * Embeddings are derived data: dropping them costs the API calls to make them again, nothing more.
-     */
-    public function down(): void
-    {
-        Schema::table('commits', function (Blueprint $table): void {
-            $table->dropVectorIndex('commits_embedding_index');
-            $table->dropColumn('embedding');
-        });
-    }
 };

@@ -30,8 +30,6 @@ return [
 
     'env' => env('APP_ENV', 'production'),
 
-    'auto_login' => (bool) env('AUTO_LOGIN', false),
-
     /*
     |--------------------------------------------------------------------------
     | Application Admins

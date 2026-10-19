@@ -1,12 +1,16 @@
-import { useHttp } from '@inertiajs/react';
+import { useHttp, usePage } from '@inertiajs/react';
 import { Eye, Link2 } from 'lucide-react';
 import type { KeyboardEvent, RefObject } from 'react';
 import { useId, useState } from 'react';
 import CommitPreviewController from '@/actions/App/Http/Controllers/CommitPreviewController';
+import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitBody } from '@/components/commit-body';
 import { objectUrlFor } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
+import { CommitPoll } from '@/components/commit-poll';
+import type { PollDraft } from '@/components/poll-editor';
 import { Button } from '@/components/ui/button';
+import { useNow } from '@/hooks/use-now';
 import { bodySegments, hasCodeBlock } from '@/lib/code';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { cn } from '@/lib/utils';
@@ -128,23 +132,27 @@ export function PreviewToggle({
     const keys = useKeyLabels();
 
     return (
-        <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => preview.toggle()}
-            aria-pressed={preview.isPreviewing}
-            aria-label="Preview"
-            aria-keyshortcuts="Meta+Shift+P Control+Shift+P"
-            title={`Preview (${keys.combo(keys.mod, keys.shift, 'P')})`}
-            className={cn(
-                'text-muted-foreground aria-pressed:bg-primary-soft aria-pressed:text-primary aria-pressed:hover:bg-primary-soft aria-pressed:hover:text-primary',
-                className,
-            )}
-            data-test="preview-toggle"
+        <ActionTooltip
+            label={preview.isPreviewing ? 'Edit' : 'Preview'}
+            shortcut={keys.combo(keys.mod, keys.shift, 'P')}
         >
-            <Eye className="size-5" />
-        </Button>
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => preview.toggle()}
+                aria-pressed={preview.isPreviewing}
+                aria-label="Preview"
+                aria-keyshortcuts="Meta+Shift+P Control+Shift+P"
+                className={cn(
+                    'text-muted-foreground aria-pressed:bg-primary-soft aria-pressed:text-primary aria-pressed:hover:bg-primary-soft aria-pressed:hover:text-primary',
+                    className,
+                )}
+                data-test="preview-toggle"
+            >
+                <Eye className="size-5" />
+            </Button>
+        </ActionTooltip>
     );
 }
 
@@ -174,6 +182,7 @@ export function ComposerPreviewBody({
             {preview.segments.length > 0 ? (
                 <CommitBody
                     segments={preview.segments}
+                    mentions={null}
                     className="text-[15px]"
                 />
             ) : (
@@ -209,6 +218,50 @@ export function ComposerPreviewBody({
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+/**
+ * Shows a poll draft as it reads once committed: open right away for admins, whose commits skip moderation, and
+ * waiting for approval for everyone else.
+ */
+export function ComposerPollPreview({
+    poll,
+    className,
+}: {
+    poll: PollDraft;
+    className?: string;
+}) {
+    const { auth } = usePage().props;
+    const now = useNow();
+
+    return (
+        <div className={className} data-test="composer-poll-preview">
+            <CommitPoll
+                commit={{ id: '', user_id: '', status: 'pending' }}
+                poll={{
+                    id: '',
+                    closes_at: auth.isAdmin
+                        ? new Date(
+                              now.getTime() + poll.duration * 60_000,
+                          ).toISOString()
+                        : null,
+                    is_closed: false,
+                    has_voted: false,
+                    total_votes: null,
+                    options: poll.options
+                        .map((option) => option.trim())
+                        .filter((option) => option !== '')
+                        .map((label, index) => ({
+                            id: String(index),
+                            label,
+                            votes_count: null,
+                            voted: false,
+                        })),
+                }}
+                isStatic
+            />
         </div>
     );
 }

@@ -23,9 +23,4 @@ return new class extends Migration
             $table->index(['user_id', 'created_at']);
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('scheduled_commits');
-    }
 };

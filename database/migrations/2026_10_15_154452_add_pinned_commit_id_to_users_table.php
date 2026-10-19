@@ -14,11 +14,4 @@ return new class extends Migration
             $table->foreignUuid('pinned_commit_id')->nullable()->constrained('commits')->nullOnDelete();
         });
     }
-
-    public function down(): void
-    {
-        Schema::table('users', function (Blueprint $table): void {
-            $table->dropConstrainedForeignId('pinned_commit_id');
-        });
-    }
 };

@@ -15,13 +15,13 @@ final readonly class CommitController
 {
     public function store(CreateCliCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): Response
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), images: $request->images());
 
         $url = route('commit.show', [$user, $commit]);
 
         $message = $commit->status === CommitStatus::Pending
-            ? __('Committed: :url (pending review, only you can see it until it is approved)', ['url' => $url])
-            : __('Committed: :url', ['url' => $url]);
+            ? "Committed: {$url} (pending review, only you can see it until it is approved)"
+            : "Committed: {$url}";
 
         return response($message."\n", 201)->header('Content-Type', 'text/plain; charset=utf-8');
     }

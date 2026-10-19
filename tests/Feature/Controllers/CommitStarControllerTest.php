@@ -120,3 +120,25 @@ it('shows the star count and whether the viewer starred the commit', function ()
             ->where('commits.data.1.stars_count', 2)
             ->where('commits.data.1.starred', true));
 });
+
+it('may not unstar a commit that is not visible, nor learn that it exists', function (string $state): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->{$state}()->create();
+    $user->starredCommits()->attach($commit);
+
+    $this->actingAs($user)
+        ->deleteJson(route('commit-star.destroy', $commit))
+        ->assertNotFound();
+
+    expect($user->hasStarred($commit))->toBeTrue();
+})->with(['pending', 'rejected']);
+
+it('may not unstar a commit across a block', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $commit->user->blocking()->attach($user);
+
+    $this->actingAs($user)
+        ->deleteJson(route('commit-star.destroy', $commit))
+        ->assertNotFound();
+});

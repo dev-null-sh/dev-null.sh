@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import AppearanceTabs from '@/components/appearance-tabs';
 import Heading from '@/components/heading';
+import NavigationTabs from '@/components/navigation-tabs';
 import WhoToFollowTabs from '@/components/who-to-follow-tabs';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
@@ -16,6 +17,14 @@ export default function Update() {
                     description="System follows your operating system, light by day and dark by night if that's how you have it set."
                 />
                 <AppearanceTabs />
+            </section>
+
+            <section className="hidden border-t px-4 py-6 sm:px-6 lg:block">
+                <Heading
+                    title="Navigation"
+                    description="The full menu with labels, or only its icons, which leaves more room for your log."
+                />
+                <NavigationTabs />
             </section>
 
             <section className="border-t px-4 py-6 sm:px-6">

@@ -64,7 +64,7 @@ export default function Index({ query }: { query: string }) {
                         placeholder="Search commits by meaning"
                         aria-label="Search commits"
                         autoComplete="off"
-                        className="h-11 w-full rounded-full border bg-background pr-11 pl-10 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring md:text-[15px] [&::-webkit-search-cancel-button]:hidden"
+                        className="h-11 w-full rounded-lg border bg-background pr-11 pl-10 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring md:text-[15px] [&::-webkit-search-cancel-button]:hidden"
                         data-test="search-input"
                     />
                     <button

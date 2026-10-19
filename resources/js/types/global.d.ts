@@ -10,6 +10,7 @@ declare module '@inertiajs/core' {
             deleted?: DeletedFlash;
             restored?: Commit;
             scheduled?: boolean;
+            localSignIn?: boolean;
         };
         sharedPageProps: {
             name: string;

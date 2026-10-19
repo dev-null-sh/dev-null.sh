@@ -16,7 +16,7 @@ final readonly class UserProfileController
     public function edit(#[CurrentUser] User $user): Response
     {
         return Inertia::render('user-profile/edit', [
-            'preferredLane' => $user->preferred_lane,
+            'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),
             'githubSyncedAt' => $user->github_synced_at?->toIso8601String(),
             'activityGraphUrl' => route('user-activity-graph.show', $user),
@@ -30,10 +30,10 @@ final readonly class UserProfileController
 
         Inertia::flash('toast', $synced ? [
             'type' => 'success',
-            'message' => __('Synced from GitHub.'),
+            'message' => 'Synced from GitHub.',
         ] : [
             'type' => 'error',
-            'message' => __('Could not sync from GitHub. Try again in a minute.'),
+            'message' => 'Could not sync from GitHub. Try again in a minute.',
         ]);
 
         return back();

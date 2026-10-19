@@ -4,88 +4,78 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Actions\UpdateUserSshKeys;
-use App\Dto\SshPublicKey;
-use App\Dto\SshSignature;
+use App\Actions\CreateCommitImages;
 use App\Models\User;
-use Illuminate\Support\Facades\Cache;
+use Closure;
 use InvalidArgumentException;
 
 /**
  * Verifies a commit signed with `ssh-keygen -Y sign` by the `devnull commit` script.
  *
- * The signed payload is "<unix timestamp>\n<nonce>\n<commit to reply to, or empty>\n<body>".
+ * The signed payload is "<unix timestamp>\n<nonce>\n<commit to reply to, or empty>\n<body>". A commit
+ * with images is signed under its own namespace, so the signature states which format it covers, and
+ * carries one more line before the body: the comma-separated SHA-256 of each image, in the order
+ * they are attached, so the signature covers the images as well as the text.
  */
 final readonly class SignedCommits
 {
     public const string Namespace = 'devnull-commit';
 
-    private const int MaxClockSkewSeconds = 300;
+    public const string ImagesNamespace = 'devnull-commit-images';
 
-    public function __construct(private UpdateUserSshKeys $updateUserSshKeys)
+    public function __construct(private SshSignatures $sshSignatures)
     {
         //
     }
 
     /**
+     * @param  (Closure(): list<string>)|null  $imageHashes
      * @return array{user: User, reply_to: string|null, body: string}
      */
-    public function verify(string $payload, string $signature): array
+    public function verify(string $payload, string $signature, ?Closure $imageHashes = null): array
     {
-        $sshSignature = SshSignature::parse($signature);
+        $withImages = $imageHashes instanceof Closure;
 
-        throw_unless($sshSignature->verify($payload, self::Namespace), InvalidArgumentException::class, 'Invalid signature.');
+        $publicKey = $this->sshSignatures->verify($payload, $signature, $withImages ? self::ImagesNamespace : self::Namespace);
 
-        $parts = explode("\n", $payload, 4);
+        $lines = $withImages ? 5 : 4;
+        $parts = explode("\n", $payload, $lines);
 
-        throw_if(count($parts) !== 4 || ! mb_check_encoding($payload, 'UTF-8'), InvalidArgumentException::class, 'Malformed payload.');
+        throw_if(count($parts) !== $lines || ! mb_check_encoding($payload, 'UTF-8'), InvalidArgumentException::class, 'Malformed payload.');
 
-        [$timestamp, $nonce, $replyTo, $body] = $parts;
+        if ($withImages) {
+            [$timestamp, $nonce, $replyTo, $signedHashes, $body] = $parts;
+        } else {
+            [$timestamp, $nonce, $replyTo, $body] = $parts;
+            $signedHashes = '';
+        }
 
-        throw_unless(
-            ctype_digit($timestamp) && abs(now()->getTimestamp() - (int) $timestamp) <= self::MaxClockSkewSeconds,
+        throw_if(
+            $withImages && preg_match('/^[0-9a-f]{64}(,[0-9a-f]{64}){0,'.(CreateCommitImages::MAX_IMAGES - 1).'}$/', $signedHashes) !== 1,
             InvalidArgumentException::class,
-            'Signature expired. Check that your clock is right.',
+            'Malformed payload.',
         );
 
-        throw_unless(preg_match('/^[0-9a-f]{32}$/', $nonce) === 1, InvalidArgumentException::class, 'Malformed payload.');
-
-        $user = $this->findKeyOwner($sshSignature->publicKey);
+        $user = $this->sshSignatures->authenticate($publicKey, $timestamp, $nonce);
 
         throw_if(
             ! $user instanceof User,
             InvalidArgumentException::class,
-            "This SSH key ({$sshSignature->publicKey->fingerprint()}) is not on the GitHub account of a /dev/null user.",
+            "This SSH key ({$publicKey->fingerprint()}) is not on the GitHub account of a /dev/null user.",
         );
 
-        throw_unless(
-            // Remembered a bit longer than a signature can be valid (from -skew to +skew around its timestamp)...
-            Cache::add("commit-nonce:{$nonce}", true, self::MaxClockSkewSeconds * 2 + 60),
-            InvalidArgumentException::class,
-            'This signature was already used.',
-        );
+        if ($withImages) {
+            throw_unless(
+                hash_equals($signedHashes, implode(',', $imageHashes())),
+                InvalidArgumentException::class,
+                'The attached images do not match the signed payload.',
+            );
+        }
 
         return [
             'user' => $user,
             'reply_to' => $replyTo === '' ? null : $replyTo,
             'body' => mb_trim($body),
         ];
-    }
-
-    /**
-     * Finds the user whose GitHub account has the key, re-checking GitHub every few minutes so that
-     * a key removed from GitHub stops working shortly after.
-     */
-    private function findKeyOwner(SshPublicKey $publicKey): ?User
-    {
-        $user = User::query()->whereRelation('sshKeys', 'fingerprint', $publicKey->fingerprint())->first();
-
-        if ($user === null) {
-            return null;
-        }
-
-        $this->updateUserSshKeys->handle($user, unlessRecentlySynced: true);
-
-        return $user->sshKeys()->where('fingerprint', $publicKey->fingerprint())->exists() ? $user : null;
     }
 }

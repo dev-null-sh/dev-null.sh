@@ -6,6 +6,7 @@ use App\Models\Commit;
 use App\Models\Poll;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 it('keeps id projections lightweight when poll eager loading is disabled', function (): void {
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
@@ -20,6 +21,15 @@ it('keeps id projections lightweight when poll eager loading is disabled', funct
         ->and(DB::getQueryLog())->toHaveCount(1);
 
     DB::disableQueryLog();
+});
+
+it('loads commits with every column but the embedding, which stays stored', function (): void {
+    $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $columns = array_values(array_diff(Schema::getColumnListing('commits'), ['embedding']));
+
+    expect(array_keys(Commit::query()->findOrFail($commit->id)->getAttributes()))->toBe($columns)
+        ->and(array_keys(Commit::query()->withStarsFor(null)->findOrFail($commit->id)->getAttributes()))->toBe([...$columns, 'stars_count', 'starred'])
+        ->and(Commit::query()->whereKey($commit->id)->value('embedding'))->toBe(embeddingVector(0));
 });
 
 it('scopes commits to those visible to a user', function (): void {
@@ -161,4 +171,39 @@ it('leaves muted and blocked replies out of threads and reply counts', function 
 
     expect($commit->replies()->visibleInThreadTo($user)->pluck('id')->all())->toBe([$reply->id])
         ->and(Commit::query()->withVisibleReplyCount($user)->find($commit->id)->replies_count)->toBe(1);
+});
+
+it('picks the earliest visible reply of the author to their own commit as the next commit of their thread', function (): void {
+    $viewer = User::factory()->create();
+    $thread = Commit::factory()->create();
+    $next = Commit::factory()->for($thread, 'parent')->for($thread->user)->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($thread, 'parent')->for($thread->user)->create();
+    $answered = Commit::factory()->create();
+    Commit::factory()->for($answered, 'parent')->create();
+    $pending = Commit::factory()->create();
+    $pendingNext = Commit::factory()->for($pending, 'parent')->for($pending->user)->pending()->create();
+    $deleted = Commit::factory()->create();
+    Commit::factory()->for($deleted, 'parent')->for($deleted->user)->create()->delete();
+
+    $commits = Commit::query()->withVisibleReplyCount($viewer)->withContinuationId($viewer)->get()->keyBy('id');
+
+    expect($commits[$thread->id]->continuation_id)->toBe($next->id)
+        ->and($commits[$thread->id]->replies_count)->toBe(1)
+        ->and($commits[$answered->id]->replies_count)->toBe(1)
+        ->and($commits[$answered->id]->continuation_id)->toBeNull()
+        ->and($commits[$pending->id]->continuation_id)->toBeNull()
+        ->and($commits[$deleted->id]->continuation_id)->toBeNull()
+        ->and(Commit::query()->withVisibleReplyCount($pending->user)->withContinuationId($pending->user)->findOrFail($pending->id)->continuation_id)->toBe($pendingNext->id);
+});
+
+it('has no next commit of a thread whose author the viewer muted', function (): void {
+    $viewer = User::factory()->create();
+    $thread = Commit::factory()->create();
+    Commit::factory()->for($thread, 'parent')->for($thread->user)->create();
+    $viewer->muting()->attach($thread->user);
+
+    $commit = Commit::query()->withVisibleReplyCount($viewer)->withContinuationId($viewer)->findOrFail($thread->id);
+
+    expect($commit->continuation_id)->toBeNull()
+        ->and($commit->replies_count)->toBe(0);
 });

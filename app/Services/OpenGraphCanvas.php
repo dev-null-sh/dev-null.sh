@@ -55,7 +55,9 @@ final readonly class OpenGraphCanvas
 
     public function lane(User $user): int
     {
-        return self::LANES[$user->lane()];
+        $lane = $user->lane();
+
+        return is_string($lane) ? (int) hexdec(mb_substr($lane, 1)) : self::LANES[$lane];
     }
 
     /**

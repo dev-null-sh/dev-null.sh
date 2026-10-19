@@ -10,6 +10,7 @@ use App\Jobs\EraseDeletedCommitImages;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\Notification;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -73,16 +74,16 @@ it('does not queue the erasure again for a commit already deleted', function ():
     Queue::assertNothingPushed();
 });
 
-it('removes the reports on a deleted commit and keeps the reports on its replies and quotes', function (): void {
+it('keeps reports on a deleted commit and its replies and quotes', function (): void {
     $commit = Commit::factory()->create();
-    CommitReport::factory()->for($commit)->create();
+    $report = CommitReport::factory()->for($commit)->create();
     $replyReport = CommitReport::factory()->for(Commit::factory()->for($commit, 'parent'))->create();
     $quoteReport = CommitReport::factory()->for(Commit::factory()->for($commit, 'quotedCommit'))->create();
 
     resolve(DeleteCommit::class)->handle($commit);
 
     expect(CommitReport::query()->pluck('id')->sort()->values()->all())
-        ->toBe(collect([$replyReport->id, $quoteReport->id])->sort()->values()->all());
+        ->toBe(collect([$report->id, $replyReport->id, $quoteReport->id])->sort()->values()->all());
 });
 
 it('lowers the thread when a reply is deleted', function (): void {
@@ -107,7 +108,7 @@ it('lowers the quoted thread when a quote is deleted', function (): void {
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
 });
 
-it('keeps report cleanup while applying the undo window to images', function (bool $undo): void {
+it('keeps reports while applying the undo window to images', function (bool $undo): void {
     Storage::fake();
     Queue::fake();
 
@@ -118,7 +119,7 @@ it('keeps report cleanup while applying the undo window to images', function (bo
 
     $deleted = resolve(DeleteCommit::class)->handle($commit);
 
-    $this->assertModelMissing($report);
+    $this->assertModelExists($report);
     $this->assertModelExists($image);
     Storage::disk()->assertExists($image->path);
 
@@ -131,7 +132,7 @@ it('keeps report cleanup while applying the undo window to images', function (bo
     $this->travel(1)->seconds();
     resolve(DeleteCommitImages::class)->handle($deleted);
 
-    $this->assertModelMissing($report);
+    $this->assertModelExists($report);
 
     if ($undo) {
         $this->assertNotSoftDeleted($commit);
@@ -143,3 +144,22 @@ it('keeps report cleanup while applying the undo window to images', function (bo
         Storage::disk()->assertMissing($image->path);
     }
 })->with([false, true]);
+
+it('removes the notifications of a deleted commit and those about its replies and quotes, keeping the rest', function (): void {
+    $commit = Commit::factory()->create();
+    $starred = Notification::factory()->starred()->create(['commit_id' => $commit->id, 'subject_id' => $commit->id]);
+    $replied = Notification::factory()->replied($commit)->create();
+    $quoted = Notification::factory()->quoted()->create();
+    $quoted->commit->quotedCommit()->associate($commit)->save();
+    $mentionedInReply = Notification::factory()->mentioned()->create();
+    $mentionedInReply->commit->parent()->associate($commit)->save();
+    $unrelated = Notification::factory()->replied()->create();
+
+    resolve(DeleteCommit::class)->handle($commit);
+
+    expect(Notification::query()->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$mentionedInReply->id, $unrelated->id])->sort()->values()->all())
+        ->and($starred->fresh())->toBeNull()
+        ->and($replied->fresh())->toBeNull()
+        ->and($quoted->fresh())->toBeNull();
+});

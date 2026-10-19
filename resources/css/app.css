@@ -17,6 +17,35 @@
     }
 }
 @custom-variant commit-focus-within ([data-commit]:focus-within:not(:has([data-reply]:focus-within)) &);
+@custom-variant nav-wide {
+    @media (width >= 64rem) {
+        &:where([data-nav='expanded'], [data-nav='expanded'] *) {
+            @slot;
+        }
+    }
+}
+@property --sidebar-width {
+    syntax: '<length>';
+    inherits: true;
+    initial-value: 80px;
+}
+
+@media (min-width: 64rem) {
+    [data-nav] {
+        --sidebar-width: 256px;
+        transition: --sidebar-width 300ms cubic-bezier(0.33, 1, 0.68, 1);
+    }
+
+    [data-nav='collapsed'] {
+        --sidebar-width: 80px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-nav] {
+        transition: none;
+    }
+}
 @custom-variant reply-hover {
     @media (hover: hover) {
         [data-reply]:hover:not(:has([data-reply]:hover)) & {
@@ -234,6 +263,8 @@
 
     body {
         @apply bg-background text-foreground;
+        /* Installed on a phone with a notch, the page reaches the screen's edges; keep the content out of them. */
+        padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
         caret-color: var(--primary);
         font-feature-settings: 'ss01', 'cv11';
     }
@@ -285,7 +316,8 @@ html body[data-scroll-locked] {
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-::view-transition-group(*.tab-indicator) {
+::view-transition-group(*.tab-indicator),
+::view-transition-group(nav-active-item) {
     animation-duration: 280ms;
     animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
 }
@@ -341,6 +373,20 @@ html body[data-scroll-locked] {
 
 [data-sonner-toaster] {
     view-transition-name: toasts;
+}
+
+@media (pointer: coarse) {
+    :root[data-lane-swipe] {
+        overscroll-behavior-x: none;
+    }
+}
+
+@media (max-width: 767px) {
+    :root[data-fixed-page],
+    :root[data-fixed-page] body {
+        overflow: hidden;
+        overscroll-behavior: none;
+    }
 }
 
 @media (prefers-reduced-motion: no-preference) {

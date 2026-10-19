@@ -22,7 +22,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -31,7 +33,7 @@ jobs:
         run: php artisan wayfinder:generate --with-form
 
       - name: Cache Rector
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: tmp/rector
           key: ${{ runner.os }}-rector-${{ hashFiles('composer.lock', 'rector.php') }}-${{ github.sha }}
@@ -48,7 +50,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -57,13 +61,12 @@ jobs:
         run: php artisan wayfinder:generate --with-form
 
       - name: Cache PHPStan
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: tmp/phpstan
-          key: ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock', 'phpstan.neon') }}-${{ github.sha }}
+          key: phpstan-cache-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-phpstan-${{ hashFiles('composer.lock', 'phpstan.neon') }}-
-            ${{ runner.os }}-phpstan-
+            phpstan-cache-
 
       - name: Types
         run: composer test:types
@@ -74,7 +77,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -88,7 +93,7 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector:pg17
+        image: pgvector/pgvector:pg18
         env:
           POSTGRES_USER: root
           POSTGRES_PASSWORD: password
@@ -109,7 +114,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Enable PostgreSQL Search Extensions
         run: |
@@ -130,7 +137,7 @@ jobs:
 
       - name: Cache Built Assets
         id: build-cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: public/build
           key: ${{ runner.os }}-build-${{ hashFiles('bun.lock', 'package.json', 'vite.config.ts', 'tsconfig.json', 'resources/**', 'routes/**', 'app/**') }}
@@ -140,4 +147,7 @@ jobs:
         run: bun run build
 
       - name: Tests
-        run: composer test:unit
+        # `--ci` keeps TIA's `locally()` mode off, so the full suite runs without fetching a baseline.
+        run: |
+          php -d memory_limit=-1 vendor/bin/pest --parallel --ci --coverage --exactly=100.0 --passthru-php="'-d' 'memory_limit=-1'"
+          bun run test:unit

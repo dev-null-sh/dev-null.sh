@@ -46,8 +46,16 @@ export function GraphRail({
                 'min-h-24': endsWithDot || nodePosition === 'bottom',
             })}
             style={{ '--lane': lane } as CSSProperties}
-            onMouseEnter={onHoverChange && (() => onHoverChange(true))}
-            onMouseLeave={onHoverChange && (() => onHoverChange(false))}
+            onPointerEnter={
+                onHoverChange &&
+                ((event) =>
+                    event.pointerType === 'mouse' && onHoverChange(true))
+            }
+            onPointerLeave={
+                onHoverChange &&
+                ((event) =>
+                    event.pointerType === 'mouse' && onHoverChange(false))
+            }
         >
             {previousLane && variant === 'staged' && (
                 <span className="absolute top-0 left-1/2 h-8 -translate-x-1/2 border-l-2 border-dashed border-rail" />

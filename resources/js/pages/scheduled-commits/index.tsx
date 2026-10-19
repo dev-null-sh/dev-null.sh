@@ -1,5 +1,5 @@
 import { Head, Link, router, usePoll } from '@inertiajs/react';
-import { ArrowLeft, Clock3, LockKeyhole } from 'lucide-react';
+import { ArrowLeft, Clock3, ImageIcon, LockKeyhole } from 'lucide-react';
 import { useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
@@ -7,6 +7,8 @@ import { FoldedCommitBody } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
+import { emojify } from '@/lib/emoji';
+import { dateLocale } from '@/lib/utils';
 import type { BodySegment } from '@/types';
 
 type ScheduledCommit = {
@@ -14,6 +16,8 @@ type ScheduledCommit = {
     body: string | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
+    poll_options: string[] | null;
+    image_count: number;
     scheduled_at: string;
     submitted_at: string | null;
     status: 'scheduled' | 'pending' | 'approved' | 'rejected' | 'deleted';
@@ -88,7 +92,7 @@ export default function Index({
                         return (
                             <li
                                 key={scheduled.id}
-                                className="space-y-3 px-5 py-5 sm:px-6"
+                                className="space-y-3 p-5 sm:px-6"
                             >
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
@@ -105,7 +109,7 @@ export default function Index({
                                         >
                                             {new Date(
                                                 scheduled.scheduled_at,
-                                            ).toLocaleString(undefined, {
+                                            ).toLocaleString(dateLocale, {
                                                 dateStyle: 'medium',
                                                 timeStyle: 'short',
                                             })}
@@ -116,7 +120,7 @@ export default function Index({
                                             variant="outline"
                                             size="sm"
                                             disabled={canceling !== null}
-                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
+                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(dateLocale, { dateStyle: 'medium', timeStyle: 'short' })}`}
                                             onClick={() => {
                                                 setCanceling(scheduled.id);
                                                 router.delete(
@@ -140,11 +144,40 @@ export default function Index({
                                 {scheduled.body && (
                                     <FoldedCommitBody
                                         segments={scheduled.body_segments}
+                                        mentions={null}
                                         previewSegments={
                                             scheduled.preview_segments
                                         }
                                         className="text-[15px]"
                                     />
+                                )}
+                                {scheduled.poll_options && (
+                                    <ul
+                                        aria-label="Poll options"
+                                        className="space-y-2"
+                                    >
+                                        {scheduled.poll_options.map(
+                                            (option) => (
+                                                <li
+                                                    key={option}
+                                                    className="rounded-md border px-3 py-2 text-[15px] wrap-anywhere"
+                                                >
+                                                    {emojify(option)}
+                                                </li>
+                                            ),
+                                        )}
+                                    </ul>
+                                )}
+                                {scheduled.image_count > 0 && (
+                                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                        <ImageIcon
+                                            className="size-4"
+                                            aria-hidden="true"
+                                        />
+                                        {scheduled.image_count === 1
+                                            ? '1 image'
+                                            : `${scheduled.image_count} images`}
+                                    </p>
                                 )}
                                 {scheduled.status === 'scheduled' && (
                                     <p className="text-xs text-muted-foreground">
