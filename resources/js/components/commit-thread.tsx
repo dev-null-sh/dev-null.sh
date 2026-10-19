@@ -813,7 +813,7 @@ function ReplyItem({
     if (isDeleted(reply)) {
         return (
             <article
-                className="relative pt-2.5 pl-(--indent)"
+                className="relative cursor-default pt-2.5 pl-(--indent)"
                 data-reply
                 data-test="reply-tombstone"
             >
@@ -923,15 +923,21 @@ function CommitReply({
 
     return (
         <article
-            className={cn('relative pt-2.5 pl-(--indent)', {
-                'cursor-pointer': !wasDeleted,
-            })}
+            className={cn(
+                'relative pt-2.5 pl-(--indent)',
+                wasDeleted ? 'cursor-default' : 'cursor-pointer',
+            )}
             data-reply
             data-permalink={wasDeleted ? undefined : permalink.url}
             data-test="reply"
         >
             {links}
-            <div className="flex gap-2 sm:gap-2.5">
+            <div
+                className={cn(
+                    'relative isolate flex gap-2 before:absolute before:-inset-x-2 before:-top-1.5 before:-bottom-1.5 before:-z-10 before:rounded-lg before:transition-colors sm:gap-2.5',
+                    { 'reply-hover:before:bg-accent': !wasDeleted },
+                )}
+            >
                 <div className="relative shrink-0">
                     <UserPreview user={reply.user} anchor={avatarRef}>
                         <Link

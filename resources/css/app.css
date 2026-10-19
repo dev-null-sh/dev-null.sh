@@ -118,7 +118,8 @@
 
 @custom-variant reply-hover {
     @media (hover: hover) {
-        [data-reply]:hover:not(:has([data-reply]:hover)) & {
+        [data-reply]:hover:not(:has([data-reply]:hover))
+            &:not([data-reply]:not(:hover) *) {
             @slot;
         }
     }
