@@ -279,7 +279,7 @@ export function IssueCommandSuggestions({
                             className="size-4 shrink-0 text-muted-foreground"
                             aria-hidden="true"
                         />
-                        <span className="w-16 shrink-0 font-mono">
+                        <span className="w-20 shrink-0 font-mono">
                             {command.name}
                         </span>
                         <span className="min-w-0 truncate text-muted-foreground">
