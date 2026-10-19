@@ -49,7 +49,7 @@ final class BranchStyles
     public function forget(): void
     {
         self::$summaries = null;
-        Cache::forget('branch-styles:v2');
+        Cache::forget('branch-styles');
     }
 
     /**
@@ -57,7 +57,7 @@ final class BranchStyles
      */
     private function all(): array
     {
-        return self::$summaries ??= Cache::remember('branch-styles:v2', 60, function (): array {
+        return self::$summaries ??= Cache::remember('branch-styles', 60, function (): array {
             /** @var list<object{name: string, commits_count: int|string, authors_count: int|string}> $counts */
             $counts = DB::select(
                 <<<'SQL'
