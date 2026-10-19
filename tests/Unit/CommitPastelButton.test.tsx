@@ -9,13 +9,17 @@ type Update = number | ((current: number) => number);
 
 const day = '2026-10-16';
 const values = new Map<string, number>();
-let refs: unknown[] = [];
+const refs = new Map<number, unknown[]>();
+let instance = 0;
 let cursor = 0;
-let pending: { resolve: (v: unknown) => void; reject: (e: unknown) => void };
+const pendings: {
+    resolve: (v: unknown) => void;
+    reject: (e: unknown) => void;
+}[] = [];
 const submit = vi.fn(
     () =>
         new Promise((resolve, reject) => {
-            pending = { resolve, reject };
+            pendings.push({ resolve, reject });
         }),
 );
 const flushAll = vi.fn();
@@ -26,10 +30,12 @@ vi.doMock('react', () => ({
     ...React,
     useRef: (initial: unknown) => {
         const index = cursor++;
-        if (!(index in refs)) {
-            refs[index] = { current: initial };
+        const own = refs.get(instance) ?? [];
+        refs.set(instance, own);
+        if (!(index in own)) {
+            own[index] = { current: initial };
         }
-        return refs[index];
+        return own[index];
     },
 }));
 vi.doMock('@inertiajs/react', () => ({
@@ -68,6 +74,8 @@ const { CommitPastelButton } =
     await import('../../resources/js/components/commit-pastel-button');
 const { commitStateKey } = await import('../../resources/js/lib/commit-state');
 
+const recipient = { id: 'author', pasteis_received: 9 };
+
 const commit = {
     id: 'commit',
     user_id: 'author',
@@ -77,7 +85,8 @@ const commit = {
 const countKey = commitStateKey('pasteis_count', 'commit');
 const allowanceKey = `pasteis-allowance:viewer:${day}`;
 
-function render(): ReactNode {
+function render(which = 0): ReactNode {
+    instance = which;
     cursor = 0;
 
     return CommitPastelButton({ commit });
@@ -107,8 +116,8 @@ function findClickable(node: ReactNode): Element | null {
     return null;
 }
 
-function click(): Promise<void> {
-    const clickable = findClickable(render());
+function click(which = 0): Promise<void> {
+    const clickable = findClickable(render(which));
 
     assert.ok(clickable);
 
@@ -133,7 +142,8 @@ beforeEach(() => {
         matchMedia: () => ({ matches: true }),
     });
     values.clear();
-    refs = [];
+    refs.clear();
+    pendings.length = 0;
 });
 
 test('awarding a pastel updates the count and allowance while pending', async () => {
@@ -142,7 +152,7 @@ test('awarding a pastel updates the count and allowance while pending', async ()
     assert.equal(count(), 6);
     assert.equal(allowance(), 2);
 
-    pending.resolve({
+    pendings[0].resolve({
         pasteis_count: 6,
         remaining: 2,
         day,
@@ -154,16 +164,16 @@ test('awarding a pastel updates the count and allowance while pending', async ()
 test('the server response settles the count, allowance and recipient', async () => {
     const clicked = click();
 
-    pending.resolve({
-        pasteis_count: 6,
-        remaining: 2,
+    pendings[0].resolve({
+        pasteis_count: 8,
+        remaining: 1,
         day,
         recipient: { id: 'author', pasteis_received: 9 },
     });
     await clicked;
 
-    assert.equal(count(), 6);
-    assert.equal(allowance(), 2);
+    assert.equal(count(), 8);
+    assert.equal(allowance(), 1);
     assert.equal(values.get(commitStateKey('pasteis_received', 'author')), 9);
     assert.equal(flushAll.mock.calls.length, 1);
     assert.equal(toastError.mock.calls.length, 0);
@@ -174,11 +184,56 @@ test('a rejected request restores the count and allowance', async () => {
 
     assert.equal(count(), 6);
 
-    pending.reject(new Error('failed'));
+    pendings[0].reject(new Error('failed'));
     await clicked;
 
     assert.equal(count(), 5);
     assert.equal(allowance(), 3);
     assert.equal(toastError.mock.calls.length, 1);
     assert.equal(flushAll.mock.calls.length, 0);
+});
+
+test('overlapping awards each reserve one pastel', async () => {
+    const first = click(0);
+    const second = click(1);
+
+    assert.equal(allowance(), 1);
+    assert.equal(count(), 7);
+
+    pendings[0].resolve({ pasteis_count: 6, remaining: 2, day, recipient });
+    await first;
+    pendings[1].resolve({ pasteis_count: 7, remaining: 1, day, recipient });
+    await second;
+
+    assert.equal(allowance(), 1);
+    assert.equal(count(), 7);
+});
+
+test('a failed award only releases its own reservation', async () => {
+    const first = click(0);
+    const second = click(1);
+
+    pendings[1].resolve({ pasteis_count: 6, remaining: 2, day, recipient });
+    await second;
+
+    assert.equal(allowance(), 1);
+
+    pendings[0].reject(new Error('failed'));
+    await first;
+
+    assert.equal(allowance(), 2);
+    assert.equal(count(), 6);
+});
+
+test('two failed awards restore the full allowance', async () => {
+    const first = click(0);
+    const second = click(1);
+
+    pendings[0].reject(new Error('failed'));
+    await first;
+    pendings[1].reject(new Error('failed'));
+    await second;
+
+    assert.equal(allowance(), 3);
+    assert.equal(count(), 5);
 });

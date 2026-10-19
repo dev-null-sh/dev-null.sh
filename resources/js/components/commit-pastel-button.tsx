@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const exhaustedMessage = 'you ran out of pastéis. wait until tomorrow.';
+const inFlight = new Map<string, number>();
 
 export function CommitPastelButton({
     commit,
@@ -25,7 +26,7 @@ export function CommitPastelButton({
         commitStateKey('pasteis_count', commit.id),
         commit.pasteis_count,
     );
-    const [remaining] = useSharedState(
+    const [remaining, setRemaining] = useSharedState(
         `pasteis-allowance:${auth.user?.id}:${day}`,
         auth.pasteis?.day === day ? auth.pasteis.remaining : 10,
     );
@@ -56,18 +57,13 @@ export function CommitPastelButton({
         }
 
         busy.current = true;
+        const allowanceKey = `${userId}:${day}`;
+        inFlight.set(allowanceKey, (inFlight.get(allowanceKey) ?? 0) + 1);
         let errorShown = false;
         let exhausted = false;
 
         setCount((current) => current + 1);
-        refreshSharedState(
-            new Map([
-                [
-                    `pasteis-allowance:${userId}:${day}`,
-                    Math.max(0, remaining - 1),
-                ],
-            ]),
-        );
+        setRemaining((current) => Math.max(0, current - 1));
         if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             emoji.current
                 ?.getAnimations()
@@ -95,12 +91,14 @@ export function CommitPastelButton({
                 },
             });
 
+            const others = (inFlight.get(allowanceKey) ?? 1) - 1;
+
             setCount((current) => Math.max(current, response.pasteis_count));
             refreshSharedState(
                 new Map([
                     [
                         `pasteis-allowance:${userId}:${response.day}`,
-                        response.remaining,
+                        Math.max(0, response.remaining - others),
                     ],
                     [
                         commitStateKey(
@@ -119,17 +117,17 @@ export function CommitPastelButton({
         } catch {
             if (!exhausted) {
                 setCount((current) => Math.max(0, current - 1));
-                refreshSharedState(
-                    new Map([
-                        [`pasteis-allowance:${userId}:${day}`, remaining],
-                    ]),
-                );
+                setRemaining((current) => current + 1);
             }
 
             if (!errorShown) {
                 toast.error('Could not award a pastel. Please try again.');
             }
         } finally {
+            inFlight.set(
+                allowanceKey,
+                Math.max(0, (inFlight.get(allowanceKey) ?? 1) - 1),
+            );
             busy.current = false;
         }
     };
