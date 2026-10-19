@@ -283,7 +283,8 @@ final class Commit extends Model
     }
 
     /**
-     * Images follow the commit's visibility, and moderators see them to review the commit.
+     * Images follow the commit's visibility, and moderators see them to review the commit. Images in a repo stay with
+     * its contributors, even when someone has a link to the file.
      */
     public function imagesAreVisibleTo(?User $user): bool
     {
@@ -291,11 +292,15 @@ final class Commit extends Model
             return false;
         }
 
-        if ($this->status === CommitStatus::Approved) {
+        if ($user instanceof User && $user->isAdmin()) {
             return true;
         }
 
-        return $user instanceof User && ($this->user_id === $user->id || $user->isAdmin());
+        if ($this->repo_id !== null && (! $user instanceof User || ! $user->repos()->whereKey($this->repo_id)->exists())) {
+            return false;
+        }
+
+        return $this->status === CommitStatus::Approved || ($user instanceof User && $this->user_id === $user->id);
     }
 
     /**

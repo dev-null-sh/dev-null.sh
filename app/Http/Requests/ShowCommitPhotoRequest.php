@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\CommitStatus;
 use App\Enums\RepliesPerPage;
 use App\Models\Commit;
 use App\Models\User;
@@ -24,7 +23,7 @@ final class ShowCommitPhotoRequest extends FormRequest
         assert($commit instanceof Commit);
 
         if (! $user instanceof User) {
-            return $commit->status === CommitStatus::Approved ? Response::allow() : Response::denyAsNotFound();
+            return $commit->isVisibleTo(null) ? Response::allow() : Response::denyAsNotFound();
         }
 
         $photo = (int) $this->route('photo');

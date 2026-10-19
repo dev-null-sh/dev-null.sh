@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Repo;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
@@ -131,6 +132,13 @@ it('sends guests to the commit', function (): void {
     $response = $this->get(route('commit-photo.show', [$commit->user, $commit, 1]));
 
     $response->assertRedirectToRoute('commit.show', [$commit->user, $commit]);
+});
+
+it('does not send guests to a repo commit', function (): void {
+    $commit = commitWithPhotos();
+    $commit->update(['repo_id' => Repo::factory()->create()->id]);
+
+    $this->get(route('commit-photo.show', [$commit->user, $commit, 1]))->assertNotFound();
 });
 
 it('does not show photos across a block in either direction', function (bool $viewerBlocks): void {

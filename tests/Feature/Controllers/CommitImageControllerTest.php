@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Repo;
+use App\Models\RepoContributor;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -67,6 +69,24 @@ it('hides images of rejected commits from other users', function (): void {
     $this->actingAs(User::factory()->create())
         ->get(route('commit-image.show', $image))
         ->assertNotFound();
+});
+
+it('serves images of repo commits to the repo contributors and moderators only', function (): void {
+    config(['app.admins' => ['moderator']]);
+    $repo = Repo::factory()->create();
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+    $image = storedCommitImage(Commit::factory()->for($repo)->create());
+    $route = route('commit-image.show', $image);
+
+    $this->actingAs($contributor)->get($route)->assertOk();
+    $this->actingAs(User::factory()->create(['username' => 'moderator']))->get($route)->assertOk();
+    $this->actingAs(User::factory()->create())->get($route)->assertNotFound();
+
+    $repo->contributors()->where('user_id', $contributor->id)->delete();
+
+    $this->actingAs($contributor)->get($route)->assertNotFound();
+    auth()->logout();
+    $this->get($route)->assertNotFound();
 });
 
 it('serves images of pending commits to their author', function (bool $download): void {
