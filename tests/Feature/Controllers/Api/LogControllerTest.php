@@ -24,7 +24,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'name' => 'The Octocat',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
     ]);
-    $older = Commit::factory()->for($author)->create(['body' => 'It was DNS.', 'created_at' => now()->subMinute()]);
+    $older = Commit::factory()->for($author)->create(['body' => 'It was DNS.', 'created_at' => now()->subMinute(), 'pasteis_count' => 2]);
     $newer = Commit::factory()->for($this->user)->pending()->create(['body' => 'Mine, pending']);
     Commit::factory()->for($older, 'parent')->create(['created_at' => now()->subSeconds(30)]);
     $reply = Commit::factory()->for($older, 'parent')->create(['created_at' => now()->subSeconds(20)]);
@@ -78,6 +78,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'is_pinned' => false,
         'starred' => false,
         'is_saved' => false,
+        'pasteis_count' => 2,
         'deleted_at' => null,
         'quoted_commit_id' => null,
         'quoted_commit' => null,

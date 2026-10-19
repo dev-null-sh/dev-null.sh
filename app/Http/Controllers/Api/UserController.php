@@ -19,9 +19,9 @@ use Illuminate\Container\Attributes\CurrentUser;
 final readonly class UserController
 {
     /**
-     * A signed request gets the profile as the web shows it to that user, with whether they mute it, and its
-     * achievements and Unix rank. The pinned commit is left out of the commits list, so it comes with the profile, as
-     * on the web.
+     * A signed request gets the profile as the web shows it to that user, with whether they mute it, its achievements
+     * and Unix rank, and how many pastéis it was given, which the app only shows in pastéis mode, as the web does. The
+     * pinned commit is left out of the commits list, so it comes with the profile, as on the web.
      */
     public function show(ShowApiUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PinnedCommitQuery $pinned, ReplyPreviewsQuery $replyPreviews): UserResource
     {
@@ -36,6 +36,7 @@ final readonly class UserController
                 'is_following' => $currentUser->isFollowing($user),
                 'follows_you' => $user->isFollowing($currentUser),
                 'is_muting' => $currentUser->isMuting($user),
+                'pasteis_received' => $user->pasteis_received,
                 'activity' => $activity->get($user, $currentUser),
                 'streaks' => $userStreaks,
                 'achievements' => $achievements->get($user, $currentUser, $userStreaks),
