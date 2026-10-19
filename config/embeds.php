@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Services\EmbedProviders\AppleMusic;
 use App\Services\EmbedProviders\Asciinema;
 use App\Services\EmbedProviders\CodePen;
+use App\Services\EmbedProviders\Hihaho;
 use App\Services\EmbedProviders\Loom;
 use App\Services\EmbedProviders\SoundCloud;
 use App\Services\EmbedProviders\Spotify;
@@ -23,6 +24,7 @@ return [
         'youtube' => YouTube::class,
         'vimeo' => Vimeo::class,
         'loom' => Loom::class,
+        'hihaho' => Hihaho::class,
         'twitch' => Twitch::class,
         'suno' => Suno::class,
         'spotify' => Spotify::class,

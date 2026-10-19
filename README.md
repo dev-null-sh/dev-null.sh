@@ -37,6 +37,7 @@ A link card for a video, song or pen becomes a player that loads when clicked. T
 | `youtube` | `youtube.com/watch`, `youtu.be`, `/shorts`, `/live`, `/playlist` (with `t=` start times) |
 | `vimeo` | `vimeo.com/{id}`, unlisted `vimeo.com/{id}/{hash}`, channels and groups |
 | `loom` | `loom.com/share/{id}` |
+| `hihaho` | `player.hihaho.com/{id}` |
 | `twitch` | channels, `/videos/{id}` and clips |
 | `suno` | `suno.com/song/{id}` |
 | `spotify` | tracks, albums, playlists, artists, episodes and shows |
