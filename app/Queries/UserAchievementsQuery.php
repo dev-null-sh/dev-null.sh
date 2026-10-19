@@ -9,6 +9,7 @@ use App\Enums\Achievement;
 use App\Enums\UnixRank;
 use App\Models\User;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 final readonly class UserAchievementsQuery
@@ -16,6 +17,17 @@ final readonly class UserAchievementsQuery
     public function __construct(private UserStreakQuery $streaks)
     {
         //
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    public function unlockedBadgeNames(User $user): Collection
+    {
+        return collect($this->get($user, $user)['badges'])
+            ->filter(fn (array $badge): bool => $badge['unlocked'])
+            ->map(fn (array $badge): string => $badge['name'])
+            ->values();
     }
 
     /**
