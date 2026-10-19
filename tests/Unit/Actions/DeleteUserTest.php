@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
+use App\Ai\Agents\CommitTranslator;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
@@ -13,6 +15,7 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -207,4 +210,21 @@ it('erases however many commits a user has without listing them in its queries',
 
     expect(collect(DB::getQueryLog())->max(fn (array $query): int => count($query['bindings'])))->toBeLessThan(10)
         ->and(Commit::query()->pluck('id')->sort()->values()->all())->toBe(collect([$repliedTo->id, $otherReply->id])->sort()->values()->all());
+});
+
+it('erases cached translations of the user and replies in their deleted threads', function (): void {
+    CommitTranslator::fake([
+        ['source_language' => 'de', 'body' => 'Good morning'],
+        ['source_language' => 'nl', 'body' => 'Good evening'],
+    ]);
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create(['body' => 'Guten morgen']);
+    $reply = Commit::factory()->for($commit, 'parent')->create(['body' => 'Goedenavond', 'root_id' => $commit->id]);
+    resolve(CreateCommitTranslation::class)->handle($commit, 'en');
+    resolve(CreateCommitTranslation::class)->handle($reply, 'en');
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull()
+        ->and(resolve(CommitTranslations::class)->cached($reply))->toBeNull();
 });

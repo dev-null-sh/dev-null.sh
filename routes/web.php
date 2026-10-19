@@ -28,6 +28,7 @@ use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\CommitStatusController;
+use App\Http\Controllers\CommitTranslationController;
 use App\Http\Controllers\ConversationArchiveController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationDropController;
@@ -246,6 +247,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.store');
     Route::post('commits/preview', [CommitPreviewController::class, 'store'])
         ->name('commit-preview.store');
+    Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('commit-translation.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::post('commits/{commit}/restoration', [CommitRestorationController::class, 'store'])

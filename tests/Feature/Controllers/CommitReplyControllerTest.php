@@ -7,6 +7,7 @@ use App\Actions\CreateTomReply;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\Tom;
 use App\Enums\CommitStatus;
+use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\Storage;
 
 it('answers a casual public Tom mention in the same thread', function (): void {
     config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test']);
-    Queue::fake([ReplyAsTom::class]);
+    Queue::fake([ReplyAsTom::class, DetectCommitLanguage::class]);
     Tom::fake(['A little rusty, but happy to see you. :-D'])->preventStrayPrompts();
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create(['username' => 'alice']);

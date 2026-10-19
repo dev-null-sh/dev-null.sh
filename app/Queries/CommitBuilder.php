@@ -7,6 +7,7 @@ namespace App\Queries;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\CommitTranslations;
 use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -288,7 +289,8 @@ final class CommitBuilder extends Builder
             ->withQuotedCommitFor($viewer)
             ->withSavedState($viewer)
             ->withStarsFor($viewer)
-            ->withPollFor($viewer);
+            ->withPollFor($viewer)
+            ->afterQuery(fn (Collection $commits) => resolve(CommitTranslations::class)->attach($commits));
     }
 
     /**

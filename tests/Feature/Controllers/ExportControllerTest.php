@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
+use App\Ai\Agents\CommitTranslator;
 use App\Enums\NotificationType;
 use App\Models\Bookmark;
 use App\Models\Commit;
@@ -144,6 +146,9 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $otherReply = Commit::factory()->for($other)->create(['parent_id' => $approved->id, 'body' => 'Another developer reply body']);
     Commit::factory()->for($other)->pending()->create();
 
+    CommitTranslator::fake([['source_language' => 'en', 'body' => 'Unicode-ondersteuning geleverd 🚀']]);
+    resolve(CreateCommitTranslation::class)->handle($approved, 'nl');
+
     $response = $this->actingAs($user)->get(route('export', ['user_id' => $other->id]));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
     $commits = collect($data['commits'])->keyBy('id');
@@ -156,6 +161,11 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         'parent_id' => null,
         'quoted_commit_id' => null,
         'body' => $approved->body,
+        'cached_translations' => [
+            'source_language' => 'en',
+            'translations' => ['nl' => 'Unicode-ondersteuning geleverd 🚀'],
+            'expires_at' => now()->addDays(7)->getTimestamp(),
+        ],
         'status' => 'approved',
         'pasteis_count' => 3,
         'images' => [],

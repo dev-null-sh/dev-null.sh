@@ -15,6 +15,7 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\User;
 use App\Queries\CommitBuilder;
+use App\Services\CommitTranslations;
 use Carbon\CarbonImmutable;
 use Generator;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -99,6 +100,7 @@ final readonly class CreateExport
                 'parent_id' => $commit->parent_id,
                 'quoted_commit_id' => $commit->quoted_commit_id,
                 'body' => $commit->body,
+                'cached_translations' => resolve(CommitTranslations::class)->cached($commit),
                 'status' => $commit->status->value,
                 'pasteis_count' => $commit->pasteis_count,
                 'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
