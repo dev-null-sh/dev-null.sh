@@ -134,13 +134,18 @@ it('counts the images of each commit so one without a body still has something t
     $commit = Commit::factory()->for($user)->create(['body' => '']);
     CommitImage::factory()->count(2)->for($commit)->create();
     $starred = Notification::factory()->for($user, 'recipient')->starred($commit)->create();
+    $quote = Notification::factory()->for($user, 'recipient')->quoted()->create(['created_at' => now()->subMinute()]);
+    $quote->commit->quotedCommit->update(['body' => '']);
+    CommitImage::factory()->for($quote->commit->quotedCommit)->create();
 
     $this->actingAs($user)->get(route('notification.index'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('notifications.data.0.commit.id', $commit->id)
             ->where('notifications.data.0.commit.body_segments', [])
-            ->where('notifications.data.0.commit.images_count', 2));
+            ->where('notifications.data.0.commit.images_count', 2)
+            ->where('notifications.data.1.commit.quoted_commit.body_segments', [])
+            ->where('notifications.data.1.commit.quoted_commit.images_count', 1));
 
     $this->getJson(route('notification-group.show', $starred))
         ->assertOk()

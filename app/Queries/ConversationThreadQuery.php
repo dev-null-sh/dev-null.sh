@@ -65,6 +65,13 @@ final readonly class ConversationThreadQuery
         $mine = $participants->firstOrFail(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id);
         [$messages, $hasOlder] = $this->page($org, $mine->visible_from_id, $after, $before, withPeople: true);
 
+        $typingUsers = $participants
+            ->reject(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id)
+            ->mapWithKeys(fn (ConversationParticipant $participant): array => [
+                UpdateConversationTyping::key($participant->user, $org) => $participant->user->username,
+            ]);
+        $typingStatuses = Cache::many($typingUsers->keys()->all());
+
         return [
             'messages' => $messages,
             'has_older' => $hasOlder,
@@ -76,10 +83,8 @@ final readonly class ConversationThreadQuery
                 'role' => $participant->role,
                 'read_through_id' => $user->pull_receipts && $participant->user->pull_receipts ? $participant->read_through_id : 0,
             ])->values()->toBase(),
-            'typing' => $participants
-                ->reject(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id)
-                ->filter(fn (ConversationParticipant $participant): bool => Cache::has(UpdateConversationTyping::key($participant->user, $org)))
-                ->map(fn (ConversationParticipant $participant): string => $participant->user->username)
+            'typing' => $typingUsers
+                ->filter(fn (string $username, string $key): bool => (bool) ($typingStatuses[$key] ?? false))
                 ->values()
                 ->all(),
             'is_archived' => $mine->archived_at !== null,

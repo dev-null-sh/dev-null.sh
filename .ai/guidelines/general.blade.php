@@ -11,6 +11,12 @@
 - Write the least code that does the job: no private helpers, extra cache layers, or defensive checks the feature doesn't need. If a method can be inlined or a branch removed without losing behavior, do it.
 - Prefer Laravel collections and the framework's typed accessors over hand-written array handling: `collect(...)->map(...)` instead of building arrays in loops, `$response->collect()` / `$response->fluent()` with `->integer()` / `->string()` instead of `is_array` / `is_numeric` checks and `(int)` casts.
 
+## Required verification
+
+- After changes, before reporting completion or pushing, run `composer test:lint`, `composer test:type-coverage`, and `bun run test:unit`.
+- Run the full PHP suite with code coverage using the CI command: `php -d memory_limit=-1 vendor/bin/pest --parallel --ci --coverage --exactly=100.0 --passthru-php="'-d' 'memory_limit=-1'"`. The `--ci` flag prevents local test-impact analysis from skipping tests. Targeted tests alone are not a substitute for the coverage check.
+- Fix failures introduced by the changes. Never lower coverage thresholds or exclude code just to pass. Report pre-existing failures or environment blockers explicitly; do not claim a check passed when it failed or could not run.
+
 ## Knowledge base maintenance
 
 - Before finishing any change, check whether `KNOWLEDGE_BASE.md` needs updating to reflect it. Update the relevant sections in the same change when stack, hosting, repository details, platform behavior, or lore have changed; leave it alone when they have not.

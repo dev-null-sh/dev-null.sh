@@ -73,10 +73,10 @@ it('lets site admins add anyone with remotes on', function (): void {
     $this->actingAs($nuno)->getJson(route('inbox.index'))->assertJsonCount(1, 'conversations');
 });
 
-it('caps an org at fifteen people', function (): void {
+it('caps an org at a hundred people', function (): void {
     $mark = User::factory()->create();
 
-    $this->actingAs($mark)->postJson(route('org.store'), ['members' => array_map(fn (User $user): string => $user->username, followersOf($mark, 15))])
+    $this->actingAs($mark)->postJson(route('org.store'), ['members' => array_map(fn (User $user): string => $user->username, followersOf($mark, Conversation::MAX_MEMBERS))])
         ->assertUnprocessable()->assertJsonValidationErrors('members');
 });
 

@@ -496,6 +496,25 @@ it('includes quotes in the inbox and filters their history without reading hidde
         ->and($hidden->refresh()->read_at)->toBeNull();
 });
 
+it('shows quotes with the recipients commit they quote and never loads commits quoted by others', function (): void {
+    $user = User::factory()->create();
+    $quote = Notification::factory()->for($user, 'recipient')->quoted()->create();
+    $deleted = Notification::factory()->for($user, 'recipient')->quoted()->create(['created_at' => now()->subMinute()]);
+    $deleted->commit->quotedCommit->delete();
+
+    $reply = Notification::factory()->for($user, 'recipient')->replied()->create(['created_at' => now()->subMinutes(2)]);
+    $reply->commit->update(['quoted_commit_id' => Commit::factory()->pending()->create()->id]);
+
+    $this->actingAs($user)->get(route('notification.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 3)
+            ->where('notifications.data.0.commit.quoted_commit.id', $quote->commit->quoted_commit_id)
+            ->where('notifications.data.0.commit.quoted_commit.body', $quote->commit->quotedCommit->body)
+            ->where('notifications.data.1.commit.quoted_commit.id', $deleted->commit->quoted_commit_id)
+            ->whereNot('notifications.data.1.commit.quoted_commit.deleted_at', null)
+            ->missing('notifications.data.1.commit.quoted_commit.body')
+            ->where('notifications.data.2.commit.quoted_commit', null));
+});
+
 it('excludes silenced actors from groups, history and read acknowledgements', function (string $relation, bool $recipientActs): void {
     $user = User::factory()->create();
     $root = Commit::factory()->for($user)->create();

@@ -2,17 +2,22 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
+use App\Ai\Agents\CommitTranslator;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Device;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -114,6 +119,16 @@ it('erases authored polls and the users votes while keeping other polls and vote
         ->and(PollVote::query()->sole()->is($keptVote))->toBeTrue();
 });
 
+it('erases the devices of a deleted user', function (): void {
+    $user = User::factory()->create();
+    Device::factory()->for($user)->create();
+    $other = Device::factory()->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Device::query()->pluck('id')->all())->toBe([$other->id]);
+});
+
 it('erases the images of a deleted user and of the replies under their commits', function (): void {
     Storage::fake();
 
@@ -196,4 +211,33 @@ it('erases however many commits a user has without listing them in its queries',
 
     expect(collect(DB::getQueryLog())->max(fn (array $query): int => count($query['bindings'])))->toBeLessThan(10)
         ->and(Commit::query()->pluck('id')->sort()->values()->all())->toBe(collect([$repliedTo->id, $otherReply->id])->sort()->values()->all());
+});
+
+it('erases cached translations of the user and replies in their deleted threads', function (): void {
+    CommitTranslator::fake([
+        ['source_language' => 'de', 'body' => 'Good morning'],
+        ['source_language' => 'nl', 'body' => 'Good evening'],
+    ]);
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create(['body' => 'Guten morgen']);
+    Commit::factory()->for($user)->count(500)->create(['body' => 'Other posts']);
+    $reply = Commit::factory()->for($commit, 'parent')->create(['body' => 'Goedenavond', 'root_id' => $commit->id]);
+    $unrelated = Commit::factory()->create(['body' => 'Unrelated post']);
+    resolve(CreateCommitTranslation::class)->handle($commit, 'en');
+    resolve(CreateCommitTranslation::class)->handle($reply, 'en');
+
+    $unrelatedKey = resolve(CommitTranslations::class)->key($unrelated);
+    Cache::put($unrelatedKey, ['source_language' => 'en', 'translations' => [], 'expires_at' => now()->addDay()->getTimestamp()], 60);
+
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+    resolve(DeleteUser::class)->handle($user);
+    $bodyReads = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'select "id", "body" from "commits"'));
+    DB::disableQueryLog();
+
+    expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull()
+        ->and(resolve(CommitTranslations::class)->cached($reply))->toBeNull()
+        ->and(Cache::has($unrelatedKey))->toBeTrue()
+        ->and($bodyReads)->toHaveCount(2);
+    $this->assertModelMissing($user);
 });

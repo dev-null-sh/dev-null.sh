@@ -28,6 +28,7 @@ use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\CommitStatusController;
+use App\Http\Controllers\CommitTranslationController;
 use App\Http\Controllers\ConversationArchiveController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationDropController;
@@ -35,9 +36,11 @@ use App\Http\Controllers\ConversationMergeController;
 use App\Http\Controllers\ConversationMessageController;
 use App\Http\Controllers\ConversationReadController;
 use App\Http\Controllers\ConversationTypingController;
+use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
+use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\LocalSessionController;
@@ -47,6 +50,7 @@ use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
 use App\Http\Controllers\MessageReactionController;
+use App\Http\Controllers\MobileAuthorizationController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
@@ -65,8 +69,10 @@ use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TermsController;
+use App\Http\Controllers\TrafficController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
@@ -244,6 +250,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.store');
     Route::post('commits/preview', [CommitPreviewController::class, 'store'])
         ->name('commit-preview.store');
+    Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
+        ->middleware('throttle:10,1,translations:')
+        ->name('commit-translation.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::post('commits/{commit}/restoration', [CommitRestorationController::class, 'store'])
@@ -347,12 +356,16 @@ Route::middleware('auth')->group(function (): void {
 
     // Operations...
     Route::get('operations', [OperationsController::class, 'show'])->name('operations.show');
+    Route::get('operations/features', [FeatureController::class, 'index'])->name('feature.index');
+    Route::get('operations/activity', [SiteActivityController::class, 'show'])->name('site-activity.show');
+    Route::get('operations/traffic', [TrafficController::class, 'show'])->name('traffic.show');
     Route::post('operations/failed-jobs/{failedJob}/retry', [FailedJobRetryController::class, 'store'])
         ->whereUuid('failedJob')
         ->name('failed-job-retry.store');
     Route::delete('operations/failed-jobs/{failedJob}', [FailedJobController::class, 'destroy'])
         ->whereUuid('failedJob')
         ->name('failed-job.destroy');
+    Route::put('operations/features/{feature}', [FeatureController::class, 'update'])->name('feature.update');
 
     // Mention Suggestions...
     Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
@@ -387,6 +400,16 @@ Route::middleware('auth')->group(function (): void {
 
     // Safety...
     Route::get('settings/safety', [SafetyController::class, 'edit'])->name('safety.edit');
+
+    // Devices...
+    Route::get('settings/devices', [DeviceController::class, 'index'])->name('device.index');
+    Route::delete('settings/devices/{device}', [DeviceController::class, 'destroy'])->name('device.destroy');
+
+    // Mobile Authorization...
+    Route::get('mobile/authorize', [MobileAuthorizationController::class, 'show'])->name('mobile-authorization.show');
+    Route::post('mobile/authorize', [MobileAuthorizationController::class, 'store'])
+        ->middleware('throttle:mobile-authorizations')
+        ->name('mobile-authorization.store');
 
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');

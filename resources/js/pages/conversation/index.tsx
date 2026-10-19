@@ -92,7 +92,8 @@ export default function Index({
                 }
             />
 
-            <div className="flex min-h-0 bg-card max-md:fixed max-md:inset-x-0 max-md:top-14 max-md:bottom-[var(--mobile-nav-height,4.5rem)] md:h-svh">
+            {/* On phones the open keyboard scrolls the page under it, so the chat follows what is still visible. */}
+            <div className="flex min-h-0 bg-card max-md:fixed max-md:inset-x-0 max-md:top-[max(3.5rem,var(--visual-viewport-top,0px))] max-md:bottom-[max(var(--mobile-nav-height,4.5rem),var(--visual-viewport-bottom,0px))] md:h-svh max-md:[:root[data-keyboard-open]_&]:bottom-(--visual-viewport-bottom)">
                 <section
                     aria-label="Conversations"
                     className={cn(

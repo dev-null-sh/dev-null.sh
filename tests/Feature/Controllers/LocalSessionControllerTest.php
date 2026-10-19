@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\Log;
 use App\Http\Controllers\SessionController;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 
@@ -70,6 +71,27 @@ it('signs in as the existing user of a username', function (): void {
     $this->assertAuthenticatedAs($user);
 
     expect(User::query()->count())->toBe(1);
+});
+
+it('signs in as the seeded local developer', function (): void {
+    registerRoutes('local');
+
+    $this->seed(DatabaseSeeder::class);
+
+    $localDeveloper = User::query()->where('github_id', 'local')->sole();
+
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'username' => $localDeveloper->username])
+        ->assertSessionHasNoErrors();
+
+    $this->assertAuthenticatedAs($localDeveloper);
+});
+
+it('loads the signed in page in full, as signing in with GitHub does', function (): void {
+    registerRoutes('local');
+
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'username' => 'octocat'], ['X-Inertia' => 'true'])
+        ->assertConflict()
+        ->assertHeader('X-Inertia-Location', route('log.show', Log::Following));
 });
 
 it('returns to the page the guest was reading', function (): void {

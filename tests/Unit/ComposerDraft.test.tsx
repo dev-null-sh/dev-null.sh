@@ -8,6 +8,7 @@ const image = new File(['restored'], 'draft.png', { type: 'image/png' });
 let state: unknown[] = [];
 let cursor = 0;
 const draft = {
+    key: 'stash:viewer:commit',
     body: 'A restored draft https://example.com',
     images: [] as File[],
     descriptions: [] as string[],
@@ -29,6 +30,7 @@ const http = {
 vi.doMock('react', () => ({
     ...React,
     useEffect: () => {},
+    useLayoutEffect: (effect: () => void | (() => void)) => effect(),
     useMemo: (factory: () => unknown) => factory(),
     useId: () => `preview-${cursor++}`,
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
@@ -438,8 +440,35 @@ function keyDown(
     return event;
 }
 
+function focus(view: ReturnType<typeof render>, handler = 'onFocus') {
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props[handler] as (event: unknown) => void)({
+        currentTarget: { selectionStart: 0, selectionEnd: 0 },
+    });
+}
+
+function hasSuggestions(): boolean {
+    return render().fields.some(
+        (element) => element.type === IssueCommandSuggestions,
+    );
+}
+
+test('a restored slash only opens the command menu while the composer is focused', () => {
+    draft.body = '/';
+    assert.equal(hasSuggestions(), false);
+
+    focus(render());
+    assert.equal(hasSuggestions(), true);
+
+    focus(render(), 'onBlur');
+    assert.equal(hasSuggestions(), false);
+});
+
 test('typing a command and a space turns the draft into an issue, and backspace turns it back into a commit', () => {
     draft.body = '/bu';
+    focus(render());
     let view = render();
     const suggestions = view.fields.find(
         (element) => element.type === IssueCommandSuggestions,
@@ -493,6 +522,7 @@ test('typing a command and a space turns the draft into an issue, and backspace 
 
 test('picking a suggestion with Enter starts an empty issue, and the shortcut opens it instead of committing', () => {
     draft.body = '/';
+    focus(render());
     keyDown(render(), 'ArrowDown');
     const enter = keyDown(render(), 'Enter');
     assert.equal(enter.preventDefault.mock.calls.length, 1);
@@ -548,6 +578,7 @@ test('a draft that mentions a bug suggests /bug, keeps the text when used, and c
 test('commands are not offered while the draft has images, a poll or a schedule', () => {
     draft.images = [image];
     draft.body = '/';
+    focus(render());
     const view = render();
     assert.equal(
         view.fields.some((element) => element.type === IssueCommandSuggestions),
@@ -599,4 +630,50 @@ test('turning scheduling off clears the chosen time and commits now', () => {
 
     (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
     assert.equal(find('id', 'body-scheduled-at')!.props.value, '');
+});
+
+test('picker clears its selection before a pending read finishes so the same file can be retried', async () => {
+    const reads: Array<() => void> = [];
+    const selections: File[][] = [];
+    const picker = ImagePickerButton({
+        count: 0,
+        onPick: (files) => {
+            selections.push(files);
+            return new Promise<void>((resolve) => reads.push(resolve));
+        },
+    });
+    const inputElement = elements(picker).find(
+        (element) => element.type === 'input',
+    )!;
+    const onChange = inputElement.props.onChange as (event: {
+        currentTarget: { value: string; files: File[] };
+    }) => Promise<void>;
+    let selected = [image];
+    let value = 'draft.png';
+    const input = {
+        get files() {
+            return selected;
+        },
+        get value() {
+            return value;
+        },
+        set value(next: string) {
+            value = next;
+            if (next === '') selected = [];
+        },
+    };
+
+    const first = onChange({ currentTarget: input });
+    assert.equal(input.value, '');
+    assert.deepEqual(selections, [[image]]);
+
+    // Discarding a draft releases the picker before the first provider settles.
+    selected = [image];
+    value = 'draft.png';
+    const retry = onChange({ currentTarget: input });
+    assert.equal(input.value, '');
+    assert.deepEqual(selections, [[image], [image]]);
+
+    reads.forEach((resolve) => resolve());
+    await Promise.all([first, retry]);
 });

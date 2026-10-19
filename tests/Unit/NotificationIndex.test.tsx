@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
 import { test } from 'vite-plus/test';
+import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import Index from '../../resources/js/pages/notification/index';
 import type {
     NotificationCommit,
@@ -77,7 +78,11 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
             />
         ),
         render: renderToString,
-        setup: ({ App, props }) => <App {...props} />,
+        setup: ({ App, props }) => (
+            <TooltipProvider>
+                <App {...props} />
+            </TooltipProvider>
+        ),
     });
 
     assert.ok(result);
