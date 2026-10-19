@@ -36,6 +36,10 @@ final readonly class BranchMemberController
     {
         $action->handle($branch, $user, $member);
 
+        if ($user->id === $member->id) {
+            return to_route('branch.show', $branch->name);
+        }
+
         return back();
     }
 }

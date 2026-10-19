@@ -6,13 +6,13 @@ namespace App\Http\Controllers;
 
 use App\Actions\UpsertBranches;
 use App\Enums\BranchRole;
-use App\Models\Conversation;
 use App\Models\Branch;
+use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\BranchCommitsQuery;
 use App\Queries\BranchStatsQuery;
-use App\Services\Branches;
 use App\Services\BranchDnsVerification;
+use App\Services\Branches;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -64,7 +64,7 @@ final readonly class BranchController
         #[CurrentUser] User $user,
         BranchDnsVerification $verification,
     ): Response {
-        abort_unless($branch->isMaintainedBy($user) || $user->isAdmin(), 403);
+        abort_unless($branch->roleOf($user) !== null, 403);
 
         $branch->load(['members.user']);
 
@@ -89,7 +89,14 @@ final readonly class BranchController
             'is_verified' => $branch->isVerified(),
             'verification_pending' => $branch->hasPendingVerification(),
             'is_owned' => $branch->isOwned(),
-            'can_claim' => $user instanceof User && ! $branch->isOwned() && Conversation::userMayVerifyBranch($user, $branch->name),
+            'claim_pending' => $branch->hasPendingClaim(),
+            'claim_requested_by_viewer' => $user instanceof User
+                && $branch->hasPendingClaim()
+                && $branch->claim_requested_by === $user->id,
+            'can_claim' => $user instanceof User
+                && ! $branch->isOwned()
+                && ! $branch->hasPendingClaim()
+                && Conversation::userMayVerifyBranch($user, $branch->name),
             'can_verify' => $user instanceof User && Conversation::userMayVerifyBranch($user, $branch->name),
             'org_locked' => Conversation::matchingBranch($branch->name)->exists(),
             'verification_host' => $branch->domain !== null ? $verification->hostFor($branch->domain) : null,

@@ -22,6 +22,7 @@ final readonly class PendingBranchVerificationsQuery
         return Branch::query()
             ->whereNotNull('verification_requested_at')
             ->whereNull('verified_at')
+            ->whereHas('members')
             ->with(['members.user'])
             ->oldest('verification_requested_at')
             ->oldest('id')

@@ -1,12 +1,13 @@
+import { index as claims } from '@/actions/App/Http/Controllers/BranchClaimRequestController';
+import { index as verifications } from '@/actions/App/Http/Controllers/BranchVerificationRequestController';
 import { show } from '@/actions/App/Http/Controllers/ModerationController';
 import { index as reports } from '@/actions/App/Http/Controllers/ReportedCommitController';
-import { index as verifications } from '@/actions/App/Http/Controllers/BranchVerificationRequestController';
 import { PageTabs } from '@/components/page-tabs';
 
 export function ModerationTabs({
     active,
 }: {
-    active: 'pending' | 'reports' | 'verifications';
+    active: 'pending' | 'reports' | 'claims' | 'verifications';
 }) {
     return (
         <PageTabs
@@ -21,6 +22,11 @@ export function ModerationTabs({
                     title: 'Reports',
                     href: reports(),
                     isActive: active === 'reports',
+                },
+                {
+                    title: 'Claims',
+                    href: claims(),
+                    isActive: active === 'claims',
                 },
                 {
                     title: 'Verifications',

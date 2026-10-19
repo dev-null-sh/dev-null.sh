@@ -68,6 +68,7 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && (
                 Commit::query()->pending()->exists()
                 || Branch::query()->whereNotNull('verification_requested_at')->whereNull('verified_at')->exists()
+                || Branch::query()->whereNotNull('claim_requested_at')->whereNotNull('claim_requested_by')->whereDoesntHave('members')->exists()
             ),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,

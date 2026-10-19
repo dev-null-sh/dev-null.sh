@@ -51,9 +51,12 @@ final readonly class DeleteBranchMember
                 $branch->forceFill([
                     'domain' => null,
                     'verification_token' => null,
+                    'verification_requested_at' => null,
                     'verified_at' => null,
                     'verified_domain' => null,
                     'description' => null,
+                    'claim_requested_at' => null,
+                    'claim_requested_by' => null,
                 ])->save();
             }
         });

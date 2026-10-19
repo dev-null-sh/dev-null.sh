@@ -29,7 +29,13 @@ final class NotificationBuilder extends Builder
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
                     ->where('status', CommitStatus::Approved)))
             ->orWhere(fn (Builder $query): Builder => $query
-                ->whereIn('type', [NotificationType::BranchMemberAdded, NotificationType::BranchRoleChanged])
+                ->whereIn('type', [
+                    NotificationType::BranchMemberAdded,
+                    NotificationType::BranchRoleChanged,
+                    NotificationType::BranchClaimApproved,
+                    NotificationType::BranchClaimRejected,
+                    NotificationType::BranchOwnershipTransferred,
+                ])
                 ->whereHas('branch'))
             ->orWhere(fn (Builder $query): Builder => $query
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])

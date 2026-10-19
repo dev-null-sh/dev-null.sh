@@ -43,20 +43,41 @@ it('shows latest and trending branch feeds', function (): void {
             ->where('commits.data.0.hot_score', 10));
 });
 
-it('claims a branch, requests verification, and watches activity after approval', function (): void {
+it('requests ownership without granting membership until a moderator approves', function (): void {
     $owner = User::factory()->create(['username' => 'taylor']);
     $admin = User::factory()->create(['username' => 'admin']);
     $watcher = User::factory()->create();
     config(['app.admins' => ['taylor', 'admin']]);
 
-    $this->actingAs($owner)->post(route('branch-claim.store', 'laravel'), [
-        'domain' => 'laravel.com',
-    ])->assertRedirect(route('branch.settings', 'laravel'));
+    $this->actingAs($owner)->post(route('branch-claim.store', 'laravel'))
+        ->assertRedirect(route('branch.show', 'laravel'));
 
     $branch = Branch::query()->where('name', 'laravel')->sole();
-    expect($branch->isMaintainedBy($owner))->toBeTrue()
-        ->and($branch->isVerified())->toBeFalse();
+    expect($branch->isOwned())->toBeFalse()
+        ->and($branch->hasPendingClaim())->toBeTrue()
+        ->and($branch->claim_requested_by)->toBe($owner->id)
+        ->and($branch->isMaintainedBy($owner))->toBeFalse();
 
+    $this->actingAs($admin)->get(route('branch-claim-request.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('moderation/claims')
+            ->where('claims.data.0.name', 'laravel')
+            ->where('claims.data.0.requester.username', 'taylor'));
+
+    $this->actingAs($admin)->post(route('branch-claim-approval.store', 'laravel'))
+        ->assertRedirect();
+
+    expect($branch->refresh()->isOwned())->toBeTrue()
+        ->and($branch->hasPendingClaim())->toBeFalse()
+        ->and($branch->isMaintainedBy($owner))->toBeTrue()
+        ->and($owner->notifications()->where('type', 'branch_claim_approved')->count())->toBe(1);
+
+    $this->actingAs($owner)->put(route('branch-domain.update', 'laravel'), [
+        'domain' => 'laravel.com',
+    ])->assertRedirect();
+
+    $branch->refresh();
     $expected = resolve(BranchDnsVerification::class)->recordValue($branch);
 
     $this->app->instance(DnsResolver::class, new readonly class($expected) implements DnsResolver
@@ -119,6 +140,54 @@ it('claims a branch, requests verification, and watches activity after approval'
         ->and($owner->notifications()->where('type', 'branch_activity')->count())->toBe(0);
 });
 
+it('lets moderators reject an ownership claim', function (): void {
+    $claimer = User::factory()->create();
+    $admin = User::factory()->create(['username' => 'admin']);
+    config(['app.admins' => ['admin']]);
+
+    $this->actingAs($claimer)->post(route('branch-claim.store', 'php'))
+        ->assertRedirect(route('branch.show', 'php'));
+
+    $this->actingAs($admin)->post(route('branch-claim-rejection.store', 'php'))
+        ->assertRedirect();
+
+    $branch = Branch::query()->where('name', 'php')->sole();
+
+    expect($branch->hasPendingClaim())->toBeFalse()
+        ->and($branch->isOwned())->toBeFalse()
+        ->and($claimer->notifications()->where('type', 'branch_claim_rejected')->count())->toBe(1);
+});
+
+it('lets the requester cancel a pending ownership claim', function (): void {
+    $claimer = User::factory()->create();
+
+    $this->actingAs($claimer)->post(route('branch-claim.store', 'casual'))
+        ->assertRedirect(route('branch.show', 'casual'));
+
+    $this->actingAs($claimer)->delete(route('branch-claim.destroy', 'casual'))
+        ->assertRedirect(route('branch.show', 'casual'));
+
+    expect(Branch::query()->where('name', 'casual')->sole()->hasPendingClaim())->toBeFalse();
+});
+
+it('lets maintainers transfer ownership to another member', function (): void {
+    $maintainer = User::factory()->create();
+    $friend = User::factory()->create(['username' => 'nuno']);
+    $maintainer->following()->attach($friend);
+
+    $branch = Branch::factory()->create(['name' => 'php']);
+    $branch->members()->create(['user_id' => $maintainer->id, 'role' => BranchRole::Maintainer]);
+    $branch->members()->create(['user_id' => $friend->id, 'role' => BranchRole::Contributor]);
+
+    $this->actingAs($maintainer)->post(route('branch-transfer.store', 'php'), [
+        'username' => 'nuno',
+    ])->assertRedirect();
+
+    expect($branch->refresh()->isMaintainedBy($friend))->toBeTrue()
+        ->and($branch->roleOf($maintainer))->toBe(BranchRole::Contributor)
+        ->and($friend->notifications()->where('type', 'branch_ownership_transferred')->count())->toBe(1);
+});
+
 it('lets moderators reject a verification request', function (): void {
     $owner = User::factory()->create();
     $admin = User::factory()->create(['username' => 'admin']);
@@ -163,23 +232,32 @@ it('lets only matching Remotes org maintainers claim and verify a branch', funct
     $orgMaintainer = User::factory()->create();
     $orgContributor = User::factory()->create();
     $outsider = User::factory()->create();
+    $admin = User::factory()->create(['username' => 'admin']);
+    config(['app.admins' => ['admin']]);
     $orgContributor->following()->attach($orgMaintainer);
 
     createOrg($orgMaintainer, [$orgContributor], name: 'laravel');
 
-    $this->actingAs($outsider)->post(route('branch-claim.store', 'laravel'), [
-        'domain' => 'laravel.com',
-    ])->assertSessionHasErrors('branch');
+    $this->actingAs($outsider)->post(route('branch-claim.store', 'laravel'))
+        ->assertSessionHasErrors('branch');
 
-    $this->actingAs($orgContributor)->post(route('branch-claim.store', 'laravel'), [
-        'domain' => 'laravel.com',
-    ])->assertSessionHasErrors('branch');
+    $this->actingAs($orgContributor)->post(route('branch-claim.store', 'laravel'))
+        ->assertSessionHasErrors('branch');
 
-    $this->actingAs($orgMaintainer)->post(route('branch-claim.store', 'laravel'), [
-        'domain' => 'laravel.com',
-    ])->assertRedirect(route('branch.settings', 'laravel'));
+    $this->actingAs($orgMaintainer)->post(route('branch-claim.store', 'laravel'))
+        ->assertRedirect(route('branch.show', 'laravel'));
+
+    $this->actingAs($admin)->post(route('branch-claim-approval.store', 'laravel'))
+        ->assertRedirect();
 
     $branch = Branch::query()->where('name', 'laravel')->sole();
+    expect($branch->isMaintainedBy($orgMaintainer))->toBeTrue();
+
+    $this->actingAs($orgMaintainer)->put(route('branch-domain.update', 'laravel'), [
+        'domain' => 'laravel.com',
+    ])->assertRedirect();
+
+    $branch->refresh();
     $expected = resolve(BranchDnsVerification::class)->recordValue($branch);
 
     $this->app->instance(DnsResolver::class, new readonly class($expected) implements DnsResolver
@@ -218,9 +296,58 @@ it('does not lock a branch when no Remotes org shares its name', function (): vo
 
     createOrg($claimer, [$member], name: 'dev/null core');
 
-    $this->actingAs($claimer)->post(route('branch-claim.store', 'laravel'), [
-        'domain' => 'laravel.com',
-    ])->assertRedirect(route('branch.settings', 'laravel'));
+    $this->actingAs($claimer)->post(route('branch-claim.store', 'laravel'))
+        ->assertRedirect(route('branch.show', 'laravel'));
+});
+
+it('blocks settings and edits after someone is removed from the branch', function (): void {
+    $maintainer = User::factory()->create();
+    $contributor = User::factory()->create(['username' => 'admin']);
+    config(['app.admins' => ['admin']]);
+
+    $branch = Branch::factory()->create(['name' => 'php', 'description' => 'old']);
+    $branch->members()->create(['user_id' => $maintainer->id, 'role' => BranchRole::Maintainer]);
+    $branch->members()->create(['user_id' => $contributor->id, 'role' => BranchRole::Contributor]);
+
+    $this->actingAs($maintainer)->delete(route('branch-member.destroy', ['php', $contributor->username]))
+        ->assertRedirect();
+
+    expect($branch->members()->where('user_id', $contributor->id)->exists())->toBeFalse();
+
+    $this->actingAs($contributor)->get(route('branch.settings', 'php'))
+        ->assertForbidden();
+
+    $this->actingAs($contributor)->put(route('branch-description.update', 'php'), [
+        'description' => 'should not stick',
+    ])->assertForbidden();
+
+    expect($branch->refresh()->description)->toBe('old');
+});
+
+it('lets contributors edit the description but not manage the branch', function (): void {
+    $maintainer = User::factory()->create();
+    $contributor = User::factory()->create();
+
+    $branch = Branch::factory()->create(['name' => 'php', 'description' => 'old']);
+    $branch->members()->create(['user_id' => $maintainer->id, 'role' => BranchRole::Maintainer]);
+    $branch->members()->create(['user_id' => $contributor->id, 'role' => BranchRole::Contributor]);
+
+    $this->actingAs($contributor)->get(route('branch.settings', 'php'))
+        ->assertOk();
+
+    $this->actingAs($contributor)->put(route('branch-description.update', 'php'), [
+        'description' => 'new copy',
+    ])->assertRedirect();
+
+    expect($branch->refresh()->description)->toBe('new copy');
+
+    $this->actingAs($contributor)->put(route('branch-domain.update', 'php'), [
+        'domain' => 'example.com',
+    ])->assertForbidden();
+
+    $this->actingAs($contributor)->post(route('branch-member.store', 'php'), [
+        'members' => [$maintainer->username],
+    ])->assertForbidden();
 });
 
 it('lets maintainers add contributors from their follow graph', function (): void {
@@ -242,4 +369,34 @@ it('lets maintainers add contributors from their follow graph', function (): voi
     $this->post(route('branch-member.store', 'php'), [
         'members' => ['stranger'],
     ])->assertSessionHasErrors('members.0');
+});
+
+it('lets a member remove themselves by username without scoping to branch_members', function (): void {
+    $maintainer = User::factory()->create(['username' => 'jjaybrown']);
+    $friend = User::factory()->create(['username' => 'nuno']);
+    $maintainer->following()->attach($friend);
+
+    $branch = Branch::factory()->create(['name' => 'php']);
+    $branch->members()->create(['user_id' => $maintainer->id, 'role' => BranchRole::Maintainer]);
+    $branch->members()->create(['user_id' => $friend->id, 'role' => BranchRole::Contributor]);
+
+    $this->actingAs($friend)->delete(route('branch-member.destroy', ['php', 'nuno']))
+        ->assertRedirect(route('branch.show', 'php'));
+
+    expect($branch->members()->where('user_id', $friend->id)->exists())->toBeFalse()
+        ->and($branch->isMaintainedBy($maintainer))->toBeTrue();
+});
+
+it('refuses verification before the branch is owned', function (): void {
+    $user = User::factory()->create();
+    $branch = Branch::factory()->create([
+        'name' => 'orphan',
+        'domain' => 'example.com',
+        'verification_token' => 'token',
+    ]);
+
+    $this->actingAs($user)->post(route('branch-verification.store', 'orphan'))
+        ->assertForbidden();
+
+    expect($branch->refresh()->hasPendingVerification())->toBeFalse();
 });

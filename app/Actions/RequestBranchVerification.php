@@ -24,8 +24,12 @@ final readonly class RequestBranchVerification
             return $branch;
         }
 
+        if (! $branch->isOwned()) {
+            throw ValidationException::withMessages(['branch' => 'Own this branch before requesting verification.']);
+        }
+
         if ($branch->domain === null || $branch->verification_token === null) {
-            throw ValidationException::withMessages(['domain' => 'Claim a domain for this branch first.']);
+            throw ValidationException::withMessages(['domain' => 'Set a domain for this branch first.']);
         }
 
         if (! $this->verification->matches($branch)) {

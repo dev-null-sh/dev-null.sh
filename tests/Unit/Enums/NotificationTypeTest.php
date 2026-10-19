@@ -16,5 +16,8 @@ it('has the types of a notification', function (): void {
         'BranchActivity' => 'branch_activity',
         'BranchMemberAdded' => 'branch_member_added',
         'BranchRoleChanged' => 'branch_role_changed',
+        'BranchClaimApproved' => 'branch_claim_approved',
+        'BranchClaimRejected' => 'branch_claim_rejected',
+        'BranchOwnershipTransferred' => 'branch_ownership_transferred',
     ]);
 });

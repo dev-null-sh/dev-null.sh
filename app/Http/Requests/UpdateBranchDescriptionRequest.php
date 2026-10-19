@@ -17,9 +17,9 @@ final class UpdateBranchDescriptionRequest extends FormRequest
         assert($user instanceof User);
         $branch = $this->branch();
 
-        return $branch->isMaintainedBy($user) || $user->isAdmin()
+        return $branch->roleOf($user) !== null
             ? Response::allow()
-            : Response::deny('Only maintainers can edit the description.');
+            : Response::deny('Only branch members can edit the description.');
     }
 
     /**

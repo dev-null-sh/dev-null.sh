@@ -329,9 +329,8 @@ export function CommitCard({
                             )}
                             {commit.branch && (
                                 <CommitBranch
-                                    branch={commit.branch.name}
-                                    color={commit.branch_color}
                                     branch={commit.branch}
+                                    color={commit.branch_color}
                                 />
                             )}
                             <FoldedCommitBody

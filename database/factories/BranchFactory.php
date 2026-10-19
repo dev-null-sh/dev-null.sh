@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Models\Branch;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -26,7 +27,19 @@ final class BranchFactory extends Factory
             'verification_requested_at' => null,
             'verified_at' => null,
             'verified_domain' => null,
+            'claim_requested_at' => null,
+            'claim_requested_by' => null,
         ];
+    }
+
+    public function claimPending(User|string $requester): self
+    {
+        $userId = $requester instanceof User ? $requester->id : $requester;
+
+        return $this->state(fn (array $attributes): array => [
+            'claim_requested_at' => now(),
+            'claim_requested_by' => $userId,
+        ]);
     }
 
     public function verified(string $domain = 'example.com'): self

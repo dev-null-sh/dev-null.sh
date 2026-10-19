@@ -52,42 +52,42 @@ const filterOptions: {
     label: string;
     empty: string;
 }[] = [
-    {
-        type: 'all',
-        label: 'All',
-        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, and moderation updates for your commits will show up here.',
-    },
-    {
-        type: 'replies',
-        label: 'Replies',
-        empty: 'No replies yet. When someone replies to one of your commits, it shows up here.',
-    },
-    {
-        type: 'quotes',
-        label: 'Quotes',
-        empty: 'No quotes yet. When someone quotes one of your commits, it shows up here.',
-    },
-    {
-        type: 'stars',
-        label: 'Stars',
-        empty: 'No stars yet. When someone stars one of your commits, it shows up here.',
-    },
-    {
-        type: 'mentions',
-        label: 'Mentions',
-        empty: 'No mentions yet. When someone mentions you in a commit, it shows up here.',
-    },
-    {
-        type: 'follows',
-        label: 'Follows',
-        empty: 'No followers yet. When someone follows you, it shows up here.',
-    },
-    {
-        type: 'moderation',
-        label: 'Moderation',
-        empty: 'No moderation updates. Approved and rejected commits show up here.',
-    },
-];
+        {
+            type: 'all',
+            label: 'All',
+            empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, and moderation updates for your commits will show up here.',
+        },
+        {
+            type: 'replies',
+            label: 'Replies',
+            empty: 'No replies yet. When someone replies to one of your commits, it shows up here.',
+        },
+        {
+            type: 'quotes',
+            label: 'Quotes',
+            empty: 'No quotes yet. When someone quotes one of your commits, it shows up here.',
+        },
+        {
+            type: 'stars',
+            label: 'Stars',
+            empty: 'No stars yet. When someone stars one of your commits, it shows up here.',
+        },
+        {
+            type: 'mentions',
+            label: 'Mentions',
+            empty: 'No mentions yet. When someone mentions you in a commit, it shows up here.',
+        },
+        {
+            type: 'follows',
+            label: 'Follows',
+            empty: 'No followers yet. When someone follows you, it shows up here.',
+        },
+        {
+            type: 'moderation',
+            label: 'Moderation',
+            empty: 'No moderation updates. Approved and rejected commits show up here.',
+        },
+    ];
 
 const rail = 'var(--rail)';
 
@@ -270,9 +270,9 @@ export default function Index({
                                         changeFilters(
                                             isActive
                                                 ? enabled.filter(
-                                                      (type) =>
-                                                          type !== option.type,
-                                                  )
+                                                    (type) =>
+                                                        type !== option.type,
+                                                )
                                                 : [...enabled, option.type],
                                         )
                                     }
@@ -321,8 +321,8 @@ export default function Index({
                         {selected.length === 0
                             ? 'All categories are turned off. Enable a category to see notifications.'
                             : allEnabled || selected.length === 1
-                              ? active.empty
-                              : 'No notifications in the selected categories yet.'}
+                                ? active.empty
+                                : 'No notifications in the selected categories yet.'}
                         {!allEnabled && (
                             <button
                                 type="button"
@@ -366,7 +366,7 @@ export default function Index({
                             const startsDay =
                                 !previous ||
                                 localDayKey(previous.created_at) !==
-                                    localDayKey(notification.created_at);
+                                localDayKey(notification.created_at);
 
                             return (
                                 <Fragment key={notification.group_id}>
@@ -606,7 +606,7 @@ function NotificationGroupItem({
                                     {
                                         length: Math.min(
                                             notification.event_count -
-                                                items.length,
+                                            items.length,
                                             3,
                                         ),
                                     },
@@ -714,6 +714,9 @@ function NotificationContent({
         branch_activity: Hash,
         branch_member_added: Hash,
         branch_role_changed: Hash,
+        branch_claim_approved: Check,
+        branch_claim_rejected: X,
+        branch_ownership_transferred: Hash,
     }[notification.type];
     const icon = (
         <Icon
@@ -727,14 +730,17 @@ function NotificationContent({
     );
     const isBranchMembership =
         notification.type === 'branch_member_added' ||
-        notification.type === 'branch_role_changed';
+        notification.type === 'branch_role_changed' ||
+        notification.type === 'branch_claim_approved' ||
+        notification.type === 'branch_claim_rejected' ||
+        notification.type === 'branch_ownership_transferred';
     const href =
         notification.type === 'followed' ||
-        (!summary && notification.type === 'starred')
+            (!summary && notification.type === 'starred')
             ? show(actor)
             : isBranchMembership
-              ? BranchController.show(notification.branch.name)
-              : CommitController.show({
+                ? BranchController.show(notification.branch.name)
+                : CommitController.show({
                     user: isOwnCommit ? user : actor,
                     commit: notification.commit,
                 });
@@ -762,6 +768,15 @@ function NotificationContent({
         branch_role_changed: notification.branch
             ? `changed your role on #${notification.branch.name}`
             : 'changed your role on a branch',
+        branch_claim_approved: notification.branch
+            ? `approved your claim on #${notification.branch.name}`
+            : 'approved your branch claim',
+        branch_claim_rejected: notification.branch
+            ? `rejected your claim on #${notification.branch.name}`
+            : 'rejected your branch claim',
+        branch_ownership_transferred: notification.branch
+            ? `transferred #${notification.branch.name} to you`
+            : 'transferred a branch to you',
     }[notification.type];
     const excerpt =
         notification.type === 'followed' || isBranchMembership ? null : isOwnCommit ? (

@@ -5,11 +5,16 @@ declare(strict_types=1);
 use App\Enums\Log;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\BookmarkController;
+use App\Http\Controllers\BranchClaimApprovalController;
 use App\Http\Controllers\BranchClaimController;
+use App\Http\Controllers\BranchClaimRejectionController;
+use App\Http\Controllers\BranchClaimRequestController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchDescriptionController;
+use App\Http\Controllers\BranchMemberCandidateController;
 use App\Http\Controllers\BranchMemberController;
 use App\Http\Controllers\BranchSuggestionController;
+use App\Http\Controllers\BranchTransferController;
 use App\Http\Controllers\BranchVerificationApprovalController;
 use App\Http\Controllers\BranchVerificationController;
 use App\Http\Controllers\BranchVerificationRejectionController;
@@ -247,6 +252,12 @@ Route::middleware('auth')->group(function (): void {
     Route::post('branches/{branch}/claim', [BranchClaimController::class, 'store'])
         ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
         ->name('branch-claim.store');
+    Route::delete('branches/{branch}/claim', [BranchClaimController::class, 'destroy'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-claim.destroy');
+    Route::post('branches/{branch}/transfer', [BranchTransferController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-transfer.store');
     Route::post('branches/{branch}/verify', [BranchVerificationController::class, 'store'])
         ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
         ->name('branch-verification.store');
@@ -262,14 +273,19 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('branches/{branch}/watch', [BranchWatchController::class, 'destroy'])
         ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
         ->name('branch-watch.destroy');
+    Route::get('branches/{branch}/members/candidates', [BranchMemberCandidateController::class, 'index'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-member-candidate.index');
     Route::post('branches/{branch}/members', [BranchMemberController::class, 'store'])
         ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
         ->name('branch-member.store');
     Route::put('branches/{branch}/members/{member:username}', [BranchMemberController::class, 'update'])
         ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->withoutScopedBindings()
         ->name('branch-member.update');
     Route::delete('branches/{branch}/members/{member:username}', [BranchMemberController::class, 'destroy'])
         ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->withoutScopedBindings()
         ->name('branch-member.destroy');
 
     // Private saved commits...
@@ -388,6 +404,14 @@ Route::middleware('auth')->group(function (): void {
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
     Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
+    Route::get('moderation/claims', [BranchClaimRequestController::class, 'index'])
+        ->name('branch-claim-request.index');
+    Route::post('moderation/claims/{branch}/approval', [BranchClaimApprovalController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-claim-approval.store');
+    Route::post('moderation/claims/{branch}/rejection', [BranchClaimRejectionController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-claim-rejection.store');
     Route::get('moderation/verifications', [BranchVerificationRequestController::class, 'index'])
         ->name('branch-verification-request.index');
     Route::post('moderation/verifications/{branch}/approval', [BranchVerificationApprovalController::class, 'store'])

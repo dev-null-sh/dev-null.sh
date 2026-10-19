@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -27,10 +28,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read CarbonInterface|null $verification_requested_at
  * @property-read CarbonInterface|null $verified_at
  * @property-read string|null $verified_domain
+ * @property-read CarbonInterface|null $claim_requested_at
+ * @property-read string|null $claim_requested_by
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, BranchMember> $members
  * @property-read Collection<int, User> $watchers
+ * @property-read User|null $claimRequester
  */
 #[Hidden([
     'verification_token',
@@ -63,6 +67,8 @@ final class Branch extends Model
             'verification_requested_at' => 'datetime',
             'verified_at' => 'datetime',
             'verified_domain' => 'string',
+            'claim_requested_at' => 'datetime',
+            'claim_requested_by' => 'string',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -76,6 +82,19 @@ final class Branch extends Model
     public function hasPendingVerification(): bool
     {
         return $this->verification_requested_at !== null && ! $this->isVerified();
+    }
+
+    public function hasPendingClaim(): bool
+    {
+        return $this->claim_requested_at !== null && $this->claim_requested_by !== null && ! $this->isOwned();
+    }
+
+    public function clearClaimRequest(): void
+    {
+        $this->forceFill([
+            'claim_requested_at' => null,
+            'claim_requested_by' => null,
+        ])->save();
     }
 
     public function isOwned(): bool
@@ -101,6 +120,14 @@ final class Branch extends Model
     public function resolveRouteBinding($value, $field = null): ?Model
     {
         return $this->where($field ?? $this->getRouteKeyName(), mb_strtolower((string) $value))->first();
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function claimRequester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'claim_requested_by');
     }
 
     /**

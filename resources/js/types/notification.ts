@@ -51,7 +51,12 @@ export type Notification =
           branch: null;
       })
     | (BaseNotification & {
-          type: 'branch_member_added' | 'branch_role_changed';
+          type:
+              | 'branch_member_added'
+              | 'branch_role_changed'
+              | 'branch_claim_approved'
+              | 'branch_claim_rejected'
+              | 'branch_ownership_transferred';
           commit_id: null;
           subject_id: null;
           branch_id: string;

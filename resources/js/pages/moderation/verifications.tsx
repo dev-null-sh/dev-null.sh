@@ -8,7 +8,8 @@ import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
-import { show as tagShow } from '@/routes/branch';
+import { show as branchShow } from '@/routes/branch';
+import { show as userShow } from '@/routes/user';
 import type { CursorPaginated } from '@/types';
 
 type Maintainer = {
@@ -91,7 +92,7 @@ export default function Verifications({
                             <div className="flex flex-wrap items-start gap-3">
                                 <div className="min-w-0 flex-1 space-y-1">
                                     <Link
-                                        href={tagShow(item.name)}
+                                        href={branchShow(item.name)}
                                         className="inline-flex items-center gap-1.5 font-mono text-sm font-semibold hover:underline"
                                     >
                                         <GitBranch
@@ -131,17 +132,21 @@ export default function Verifications({
                             {item.maintainers.length > 0 && (
                                 <ul className="flex flex-wrap gap-3">
                                     {item.maintainers.map((maintainer) => (
-                                        <li
-                                            key={maintainer.username}
-                                            className="flex items-center gap-2"
-                                        >
-                                            <UserAvatar
-                                                user={maintainer}
-                                                className="size-6"
-                                            />
-                                            <span className="font-mono text-[13px] text-muted-foreground">
-                                                @{maintainer.username}
-                                            </span>
+                                        <li key={maintainer.username}>
+                                            <Link
+                                                href={userShow(
+                                                    maintainer.username,
+                                                )}
+                                                className="flex items-center gap-2 hover:opacity-90"
+                                            >
+                                                <UserAvatar
+                                                    user={maintainer}
+                                                    className="size-6"
+                                                />
+                                                <span className="font-mono text-[13px] text-muted-foreground hover:underline">
+                                                    @{maintainer.username}
+                                                </span>
+                                            </Link>
                                         </li>
                                     ))}
                                 </ul>

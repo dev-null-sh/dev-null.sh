@@ -14,12 +14,10 @@ final class ClaimBranchRequest extends FormRequest
     }
 
     /**
-     * @return array<string, list<string>>
+     * @return array{}
      */
     public function rules(): array
     {
-        return [
-            'domain' => ['required', 'string', 'max:253'],
-        ];
+        return [];
     }
 }
