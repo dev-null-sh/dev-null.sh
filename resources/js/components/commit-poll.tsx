@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { toast } from 'sonner';
 import CommitPollVoteController from '@/actions/App/Http/Controllers/CommitPollVoteController';
 import { Button } from '@/components/ui/button';
+import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ export function CommitPoll({
     isStatic?: boolean;
 }) {
     const { auth } = usePage().props;
+    const commitNotFound = useCommitNotFound();
     const now = useNow();
     const id = useId();
     const [poll, setPoll] = useState(initialPoll);
@@ -78,10 +80,15 @@ export function CommitPoll({
             return;
         }
 
+        let isNotFound = false;
+
         try {
             const response = await request.submit(
                 CommitPollVoteController.store(commit),
                 {
+                    onHttpException: (response) => {
+                        isNotFound = commitNotFound(commit.id, response);
+                    },
                     onError: (errors) =>
                         toast.error(
                             Object.values(errors)[0] ?? failedVoteMessage,
@@ -96,7 +103,9 @@ export function CommitPoll({
             setPoll(response.poll);
             router.flushAll();
         } catch {
-            toast.error(failedVoteMessage);
+            if (!isNotFound) {
+                toast.error(failedVoteMessage);
+            }
         }
     };
 

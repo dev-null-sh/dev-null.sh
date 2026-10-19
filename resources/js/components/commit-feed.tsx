@@ -42,6 +42,7 @@ export function CommitFeed({
 }) {
     const now = useNow();
     const page = usePage();
+    const { dimsLanes } = page.props;
     const isModeration = page.component === 'moderation/show';
     const isSaved = page.component === 'bookmark/index';
     const profileUserId =
@@ -182,9 +183,10 @@ export function CommitFeed({
     }
 
     const isDimmed = (commit: Commit) =>
-        highlightedAuthor !== null
+        dimsLanes &&
+        (highlightedAuthor !== null
             ? commit.user_id !== highlightedAuthor
-            : highlightedCommit !== null && commit.id !== highlightedCommit;
+            : highlightedCommit !== null && commit.id !== highlightedCommit);
 
     const lastCommit = listed.at(-1) ?? pinnedCommit;
     const interludeIndex = Math.min(interludeAfter, listed.length) - 1;
