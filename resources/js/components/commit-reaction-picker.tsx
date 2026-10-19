@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { LockKeyhole, SmilePlus } from 'lucide-react';
+import { LockKeyhole, Settings2, SmilePlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
     EmojiPicker,
@@ -12,10 +12,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import { flavorEmoji } from '@/lib/star-flavors';
+import { emojiName } from '@/lib/emoji';
 
 export type ReactionDestinations = { public: boolean; repositories: string[] };
 type ReactionState = {
+    reactions: ({ emoji: string } & ReactionDestinations)[];
     public: boolean;
     repositories: {
         id: string;
@@ -28,10 +29,9 @@ type ReactionState = {
 
 export function CommitReactionPicker({
     commitId,
-    flavor,
-    starred,
     disabled,
     onPick,
+    onRemove,
     onClear,
 }: {
     commitId: string;
@@ -39,10 +39,12 @@ export function CommitReactionPicker({
     starred: boolean;
     disabled: boolean;
     onPick: (emoji: string, destinations: ReactionDestinations) => void;
+    onRemove: (emoji: string) => void;
     onClear: () => void;
 }) {
     const [open, setOpen] = useState(false);
     const [state, setState] = useState<ReactionState | null>(null);
+    const [destinationsChanged, setDestinationsChanged] = useState(false);
     const [error, setError] = useState(false);
     const [destinations, setDestinations] = useState<ReactionDestinations>({
         public: true,
@@ -61,13 +63,15 @@ export function CommitReactionPicker({
                 const next = (await response.json()) as ReactionState;
                 if (!controller.signal.aborted) {
                     setState(next);
-                    const repositories = next.repositories
-                        .filter((repo) => repo.selected)
-                        .map((repo) => repo.id);
-                    setDestinations({
-                        public: next.public || repositories.length === 0,
-                        repositories,
-                    });
+                    const recent = next.reactions[0];
+                    setDestinations(
+                        recent
+                            ? {
+                                  public: recent.public,
+                                  repositories: recent.repositories,
+                              }
+                            : { public: true, repositories: [] },
+                    );
                 }
             })
             .catch(() => {
@@ -75,8 +79,6 @@ export function CommitReactionPicker({
             });
         return () => controller.abort();
     }, [open, commitId]);
-    const selected =
-        flavor ?? state?.repositories.find((repo) => repo.selected)?.flavor;
     const hasDestination =
         destinations.public || destinations.repositories.length > 0;
     return (
@@ -86,6 +88,7 @@ export function CommitReactionPicker({
                 setOpen(next);
                 if (next) {
                     setState(null);
+                    setDestinationsChanged(false);
                     setError(false);
                 }
             }}
@@ -111,25 +114,32 @@ export function CommitReactionPicker({
                 <div className="shrink-0 border-b p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
                         <h2 className="text-sm font-semibold">Save to</h2>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-1 text-xs text-muted-foreground"
-                            disabled={
-                                disabled ||
-                                !state ||
-                                (!starred &&
-                                    !state.repositories.some(
-                                        (repo) => repo.selected,
-                                    ))
-                            }
-                            onClick={() => {
-                                setOpen(false);
-                                onClear();
-                            }}
-                        >
-                            Clear reaction
-                        </Button>
+                        <div className="flex items-center gap-1">
+                            <Link
+                                href="/settings/profile#repository"
+                                aria-label="Manage repositories"
+                                title="Manage repositories"
+                                className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                            >
+                                <Settings2 aria-hidden className="size-3.5" />
+                            </Link>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-1 text-xs text-muted-foreground"
+                                disabled={
+                                    disabled ||
+                                    !state ||
+                                    state.reactions.length === 0
+                                }
+                                onClick={() => {
+                                    setOpen(false);
+                                    onClear();
+                                }}
+                            >
+                                Clear all
+                            </Button>
+                        </div>
                     </div>
                     {state && (
                         <fieldset
@@ -139,12 +149,13 @@ export function CommitReactionPicker({
                             <label className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-1 text-sm hover:bg-accent">
                                 <Checkbox
                                     checked={destinations.public}
-                                    onCheckedChange={(checked) =>
+                                    onCheckedChange={(checked) => {
+                                        setDestinationsChanged(true);
                                         setDestinations((current) => ({
                                             ...current,
                                             public: checked === true,
-                                        }))
-                                    }
+                                        }));
+                                    }}
                                 />
                                 <span>Public</span>
                                 <span className="ml-auto text-xs text-muted-foreground">
@@ -160,7 +171,8 @@ export function CommitReactionPicker({
                                         checked={destinations.repositories.includes(
                                             repo.id,
                                         )}
-                                        onCheckedChange={(checked) =>
+                                        onCheckedChange={(checked) => {
+                                            setDestinationsChanged(true);
                                             setDestinations((current) => ({
                                                 ...current,
                                                 repositories:
@@ -174,8 +186,8 @@ export function CommitReactionPicker({
                                                                   id !==
                                                                   repo.id,
                                                           ),
-                                            }))
-                                        }
+                                            }));
+                                        }}
                                     />
                                     <span className="min-w-0 font-mono text-xs break-all">
                                         {repo.repository}
@@ -214,6 +226,55 @@ export function CommitReactionPicker({
                         </p>
                     )}
                 </div>
+                {state && state.reactions.length > 0 && (
+                    <div className="shrink-0 border-b p-3">
+                        <p className="mb-2 text-xs text-muted-foreground">
+                            Your reactions
+                        </p>
+                        <div className="flex max-h-20 flex-wrap gap-1 overflow-y-auto">
+                            {state.reactions.map((reaction) => (
+                                <button
+                                    type="button"
+                                    key={reaction.emoji}
+                                    disabled={disabled}
+                                    aria-label={`Remove ${emojiName(reaction.emoji)} reaction`}
+                                    title={`${reaction.public ? 'Public on dev-null' : 'Hidden on dev-null'}${
+                                        reaction.repositories.length
+                                            ? ' · ' +
+                                              state.repositories
+                                                  .filter((repo) =>
+                                                      reaction.repositories.includes(
+                                                          repo.id,
+                                                      ),
+                                                  )
+                                                  .map(
+                                                      (repo) => repo.repository,
+                                                  )
+                                                  .join(', ')
+                                            : ''
+                                    }`}
+                                    className="inline-flex items-center gap-1 rounded-md border px-1.5 py-1 text-sm hover:bg-accent disabled:opacity-50"
+                                    onClick={() => {
+                                        setOpen(false);
+                                        onRemove(reaction.emoji);
+                                    }}
+                                >
+                                    {reaction.emoji}
+                                    {!reaction.public && (
+                                        <LockKeyhole
+                                            aria-hidden
+                                            className="size-3"
+                                        />
+                                    )}
+                                    <X
+                                        aria-hidden
+                                        className="size-3 text-muted-foreground"
+                                    />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 {!state ? (
                     <p
                         role="status"
@@ -227,16 +288,27 @@ export function CommitReactionPicker({
                     <>
                         {hasDestination ? (
                             <EmojiPicker
+                                showPreview={false}
                                 usage={[]}
                                 reacted={
                                     new Set(
-                                        selected ? [flavorEmoji(selected)] : [],
+                                        state.reactions.map(
+                                            (reaction) => reaction.emoji,
+                                        ),
                                     )
                                 }
                                 onPick={(emoji) => {
                                     if (!disabled) {
                                         setOpen(false);
-                                        onPick(emoji, destinations);
+                                        if (
+                                            !destinationsChanged &&
+                                            state.reactions.some(
+                                                (reaction) =>
+                                                    reaction.emoji === emoji,
+                                            )
+                                        )
+                                            onRemove(emoji);
+                                        else onPick(emoji, destinations);
                                     }
                                 }}
                             />
@@ -246,12 +318,6 @@ export function CommitReactionPicker({
                                 emoji.
                             </p>
                         )}
-                        <Link
-                            href="/settings/profile#repository"
-                            className="shrink-0 border-t p-3 text-xs text-muted-foreground hover:text-foreground"
-                        >
-                            Manage repositories
-                        </Link>
                     </>
                 )}
             </PopoverContent>

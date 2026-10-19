@@ -21,13 +21,13 @@ final readonly class CommitStarController
         $repositories = $request->validated('repositories', []);
         $action->handle($user, $commit, $request->flavor(), $request->boolean('public', true), $repositories);
 
-        return response()->json(Commit::query()->withStarsFor($user)->findOrFail($commit->id)->only(['starred', 'stars_count', 'star_flavor', 'star_flavors']));
+        return response()->json(Commit::query()->withStarsFor($user)->findOrFail($commit->id)->only(['starred', 'stars_count', 'star_flavor', 'star_flavors', 'reactions']));
     }
 
     public function destroy(DeleteCommitStarRequest $request, #[CurrentUser] User $user, Commit $commit, DeleteCommitStar $action): JsonResponse
     {
-        $action->handle($user, $commit);
+        $action->handle($user, $commit, $request->has('flavor') ? $request->string('flavor')->value() : null);
 
-        return response()->json(Commit::query()->withStarsFor($user)->findOrFail($commit->id)->only(['starred', 'stars_count', 'star_flavor', 'star_flavors']));
+        return response()->json(Commit::query()->withStarsFor($user)->findOrFail($commit->id)->only(['starred', 'stars_count', 'star_flavor', 'star_flavors', 'reactions']));
     }
 }

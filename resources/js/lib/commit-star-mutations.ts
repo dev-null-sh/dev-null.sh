@@ -2,7 +2,12 @@ import type { Commit } from '@/types';
 
 type StarState = Pick<
     Commit,
-    'id' | 'starred' | 'stars_count' | 'star_flavor' | 'star_flavors'
+    | 'id'
+    | 'starred'
+    | 'stars_count'
+    | 'star_flavor'
+    | 'star_flavors'
+    | 'reactions'
 >;
 
 export function createCommitStarMutations() {

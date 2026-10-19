@@ -19,8 +19,8 @@ it('returns only the requested star counts and the viewers starred state', funct
     ]))->assertOk()->assertHeader('Cache-Control', 'no-store, private');
 
     expect($response->json('commits'))->toEqualCanonicalizing([
-        ['id' => $starred->id, 'stars_count' => 2, 'starred' => true, 'star_flavor' => null, 'star_flavors' => []],
-        ['id' => $plain->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => []],
+        ['id' => $starred->id, 'stars_count' => 2, 'starred' => true, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => []],
+        ['id' => $plain->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => []],
     ]);
 });
 
@@ -55,8 +55,8 @@ it('omits hidden deleted and missing commits while including the authors own una
     ]))->assertOk();
 
     expect($response->json('commits'))->toEqualCanonicalizing([
-        ['id' => $pending->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => []],
-        ['id' => $rejected->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => []],
+        ['id' => $pending->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => []],
+        ['id' => $rejected->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => []],
     ]);
 });
 
@@ -89,8 +89,8 @@ it('refreshes directly visible muted commits and the authors own counts', functi
     ]))->assertOk();
 
     expect($response->json('commits'))->toEqualCanonicalizing([
-        ['id' => $own->id, 'stars_count' => 1, 'starred' => false, 'star_flavor' => null, 'star_flavors' => []],
-        ['id' => $other->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => []],
+        ['id' => $own->id, 'stars_count' => 1, 'starred' => false, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => []],
+        ['id' => $other->id, 'stars_count' => 0, 'starred' => false, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => []],
     ]);
 });
 
@@ -129,17 +129,17 @@ it('polls an own reply after another viewer stars and unstars it through JSON', 
 
     $this->actingAs($author)->postJson(route('commit-star.store', $reply))->assertForbidden();
     $this->actingAs($viewer)->postJson(route('commit-star.store', $reply))
-        ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []]);
+        ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => true]]]);
     $this->getJson($url)->assertExactJson(['commits' => [
-        ['id' => $reply->id, 'starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []],
+        ['id' => $reply->id, 'starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => true]]],
     ]]);
     $this->actingAs($author)->getJson($url)->assertExactJson(['commits' => [
-        ['id' => $reply->id, 'starred' => false, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []],
+        ['id' => $reply->id, 'starred' => false, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => false]]],
     ]]);
 
     $this->actingAs($viewer)->deleteJson(route('commit-star.destroy', $reply))
-        ->assertOk()->assertExactJson(['starred' => false, 'stars_count' => 0, 'star_flavor' => null, 'star_flavors' => []]);
+        ->assertOk()->assertExactJson(['starred' => false, 'stars_count' => 0, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => []]);
     $this->actingAs($author)->getJson($url)->assertExactJson(['commits' => [
-        ['id' => $reply->id, 'starred' => false, 'stars_count' => 0, 'star_flavor' => null, 'star_flavors' => []],
+        ['id' => $reply->id, 'starred' => false, 'stars_count' => 0, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => []],
     ]]);
 });

@@ -264,6 +264,12 @@ final class CommitBuilder extends Builder
                     ->select('flavor')
                     ->whereColumn($commitColumn, $this->qualifyColumn('id'))
                     ->where($stars->getQualifiedRelatedPivotKeyName(), $viewer?->id),
+                'reactions' => $this->getQuery()->newQuery()
+                    ->fromSub($this->getQuery()->newQuery()->from('commit_reactions')
+                        ->selectRaw('flavor as emoji, count(*) as count, bool_or(user_id = ?) as reacted', [$viewer->id ?? '00000000-0000-0000-0000-000000000000'])
+                        ->whereColumn('commit_reactions.commit_id', $this->qualifyColumn('id'))
+                        ->groupBy('flavor'), 'emoji_counts')
+                    ->selectRaw("coalesce(json_agg(emoji_counts order by count desc, emoji), '[]')"),
                 'star_flavors' => $this->getQuery()->newQuery()
                     ->fromSub($stars->newPivotStatement()
                         ->selectRaw('flavor, count(*) as given')
@@ -275,7 +281,7 @@ final class CommitBuilder extends Builder
                         ->limit(2), 'flavors')
                     ->selectRaw("coalesce(json_agg(flavor order by given desc, flavor), '[]')"),
             ])
-            ->withCasts(['starred' => 'bool', 'star_flavor' => 'string', 'star_flavors' => 'array']);
+            ->withCasts(['starred' => 'bool', 'star_flavor' => 'string', 'star_flavors' => 'array', 'reactions' => 'array']);
     }
 
     /**

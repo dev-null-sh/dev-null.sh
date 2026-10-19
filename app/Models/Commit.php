@@ -43,6 +43,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int $pasteis_count
  * @property-read bool $starred
  * @property-read string|null $star_flavor
+ * @property-read list<array{emoji: string, count: int, reacted: bool}> $reactions
  * @property-read list<string> $star_flavors
  * @property-read User|null $user
  * @property-read Collection<int, User> $stars

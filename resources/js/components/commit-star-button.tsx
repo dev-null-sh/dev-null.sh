@@ -15,6 +15,7 @@ import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
+import { emojiName } from '@/lib/emoji';
 import { formatCount } from '@/lib/numbers';
 import type { StarFlavor } from '@/lib/star-flavors';
 import { flavorEmoji } from '@/lib/star-flavors';
@@ -61,6 +62,20 @@ export function CommitStarButton({
         JSON.stringify(commit.star_flavors ?? []),
     );
     const flavors = JSON.parse(flavorsJson) as string[];
+    const [reactionsJson, setReactionsJson] = useSharedState(
+        commitStateKey('reactions_json', commit.id),
+        JSON.stringify(commit.reactions ?? []),
+    );
+    const reactions = JSON.parse(reactionsJson) as NonNullable<
+        Commit['reactions']
+    >;
+    const hasStar =
+        reactions.some(
+            (reaction) => reaction.emoji === '⭐' && reaction.reacted,
+        ) ||
+        (reactions.length === 0 && starred);
+    const starCount =
+        reactions.find((reaction) => reaction.emoji === '⭐')?.count ?? count;
     const request = useHttp<
         { flavor?: StarFlavor; public: boolean; repositories: string[] },
         {
@@ -68,9 +83,9 @@ export function CommitStarButton({
             stars_count: number;
             star_flavor: StarFlavor | null;
             star_flavors: StarFlavor[];
+            reactions: NonNullable<Commit['reactions']>;
         }
     >({ public: true, repositories: [] });
-    const [isAnimating, setIsAnimating] = useState(false);
     const [localMutations] = useState(createCommitStarMutations);
     const polling = useContext(CommitStarPollingContext);
     const mutations = polling?.mutations ?? localMutations;
@@ -93,6 +108,10 @@ export function CommitStarButton({
                 mutations.prepare(commit.id, (stars) => {
                     refreshSharedState(
                         new Map<string, boolean | number | string | null>([
+                            [
+                                commitStateKey('reactions_json', commit.id),
+                                JSON.stringify(stars.reactions ?? []),
+                            ],
                             [
                                 commitStateKey('starred', commit.id),
                                 stars.starred,
@@ -117,12 +136,27 @@ export function CommitStarButton({
 
     if (isOwn) {
         return (
-            <StarCount
+            <span
                 ref={setElement}
-                count={count}
-                flavors={flavors}
-                className={className}
-            />
+                className="inline-flex max-w-full flex-wrap items-center gap-1"
+            >
+                {reactions.length === 0 && (
+                    <StarCount
+                        count={count}
+                        flavors={flavors}
+                        className={className}
+                    />
+                )}
+                {reactions.map((reaction) => (
+                    <span
+                        key={reaction.emoji}
+                        className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs"
+                        aria-label={`${emojiName(reaction.emoji)}, ${reaction.count} reactions`}
+                    >
+                        {reaction.emoji} {reaction.count}
+                    </span>
+                ))}
+            </span>
         );
     }
 
@@ -151,17 +185,6 @@ export function CommitStarButton({
             return;
         }
 
-        const previous = { starred, flavor };
-        const publicNext = next && destinations.public;
-        const change = publicNext === starred ? 0 : publicNext ? 1 : -1;
-
-        setStarred(publicNext);
-        setFlavor(publicNext ? (picked ?? null) : null);
-        setCount((current) => Math.max(0, current + change));
-        if (next) {
-            setIsAnimating(true);
-        }
-
         request.transform(() => ({
             ...(picked ? { flavor: picked } : {}),
             ...destinations,
@@ -181,6 +204,7 @@ export function CommitStarButton({
                 },
             );
 
+            setReactionsJson(JSON.stringify(response.reactions));
             setStarred(response.starred);
             setCount(response.stars_count);
             setFlavor(response.star_flavor);
@@ -194,60 +218,68 @@ export function CommitStarButton({
             router.flushAll();
         } catch {
             toast.error('Could not save your reaction. Please try again.');
-            setStarred(previous.starred);
-            setFlavor(previous.flavor);
-            setCount((current) => Math.max(0, current - change));
         } finally {
             finishMutation();
         }
     };
 
     return (
-        <span className="inline-flex items-center">
-            <button
-                ref={setElement}
-                aria-disabled={request.processing}
-                type="button"
-                onClick={() => void star(!starred)}
-                aria-pressed={starred}
-                aria-label={starLabel(starred, count)}
-                className={cn(
-                    'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors select-none [-webkit-touch-callout:none] hover:bg-accent hover:text-foreground',
-                    starred && 'text-primary hover:text-primary',
-                    className,
-                )}
-                data-test="star-commit-button"
-            >
-                {starred && flavor && flavor !== 'star' ? (
-                    <span
-                        onAnimationEnd={() => setIsAnimating(false)}
-                        className={cn(
-                            'text-sm leading-none',
-                            isAnimating && 'motion-safe:animate-star-pop',
-                        )}
-                        data-test="star-flavor"
-                    >
-                        {flavorEmoji(flavor)}
-                    </span>
-                ) : (
-                    <Star
-                        onAnimationEnd={() => setIsAnimating(false)}
-                        className={cn(
-                            'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
-                            starred && 'fill-current',
-                            isAnimating && 'motion-safe:animate-star-pop',
-                        )}
-                    />
-                )}
-                <TopFlavors
-                    flavors={flavors.filter(
-                        (given) => !(starred && given === flavor),
+        <span
+            ref={setElement}
+            className="inline-flex max-w-full flex-wrap items-center gap-1"
+        >
+            {(reactions.length === 0 ||
+                reactions.some((reaction) => reaction.emoji === '⭐')) && (
+                <button
+                    aria-disabled={request.processing}
+                    type="button"
+                    onClick={() => void star(!hasStar, '⭐')}
+                    aria-pressed={hasStar}
+                    aria-label={starLabel(hasStar, starCount)}
+                    className={cn(
+                        'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors select-none [-webkit-touch-callout:none] hover:bg-accent hover:text-foreground',
+                        hasStar && 'text-primary hover:text-primary',
+                        className,
                     )}
-                />
-                <span data-test="star-count" className="min-w-[1ch] text-left">
-                    {count > 0 ? formatCount(count) : ''}
-                </span>
-            </button>
+                    data-test="star-commit-button"
+                >
+                    <Star className={cn('size-4', hasStar && 'fill-current')} />
+                    <span
+                        data-test="star-count"
+                        className="min-w-[1ch] text-left"
+                    >
+                        {count > 0
+                            ? formatCount(
+                                  reactions.find(
+                                      (reaction) => reaction.emoji === '⭐',
+                                  )?.count ?? count,
+                              )
+                            : ''}
+                    </span>
+                </button>
+            )}
+            {reactions
+                .filter((reaction) => reaction.emoji !== '⭐')
+                .map((reaction) => (
+                    <button
+                        key={reaction.emoji}
+                        type="button"
+                        disabled={request.processing}
+                        aria-label={`${reaction.reacted ? 'Remove' : 'Add'} ${emojiName(reaction.emoji)} reaction, ${reaction.count}`}
+                        aria-pressed={reaction.reacted}
+                        className={cn(
+                            'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs hover:bg-accent disabled:opacity-50',
+                            reaction.reacted &&
+                                'border-primary/40 bg-primary/10 text-primary',
+                        )}
+                        onClick={() =>
+                            void star(!reaction.reacted, reaction.emoji)
+                        }
+                    >
+                        <span>{reaction.emoji}</span>
+                        <span className="font-mono">{reaction.count}</span>
+                    </button>
+                ))}
             {auth.user !== null && (
                 <CommitReactionPicker
                     commitId={commit.id}
@@ -257,6 +289,7 @@ export function CommitStarButton({
                     onPick={(emoji, destination) =>
                         void star(true, emoji, destination)
                     }
+                    onRemove={(emoji) => void star(false, emoji)}
                     onClear={() => void star(false)}
                 />
             )}

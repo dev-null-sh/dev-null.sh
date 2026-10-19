@@ -351,11 +351,13 @@ export function EmojiPicker({
     reacted,
     onPick,
     isSheet = false,
+    showPreview = true,
 }: {
     usage: ReactionUsage[];
     reacted: Set<string>;
     onPick: (emoji: string) => void;
     isSheet?: boolean;
+    showPreview?: boolean;
 }) {
     const id = useId();
     const groups = useEmojiGroups();
@@ -527,26 +529,28 @@ export function EmojiPicker({
                 )}
             </div>
 
-            <div
-                aria-live="polite"
-                className="flex h-11 shrink-0 items-center gap-2.5 border-t px-3"
-            >
-                {active !== undefined && (
-                    <>
-                        <span aria-hidden className="text-2xl leading-none">
-                            {active}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate font-mono text-[13px]">
-                            {shortcodeOf(active)}
-                        </span>
-                        {(uses.get(active) ?? 0) > 0 && (
-                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
-                                used {uses.get(active)}×
+            {showPreview && (
+                <div
+                    aria-live="polite"
+                    className="flex h-11 shrink-0 items-center gap-2.5 border-t px-3"
+                >
+                    {active !== undefined && (
+                        <>
+                            <span aria-hidden className="text-2xl leading-none">
+                                {active}
                             </span>
-                        )}
-                    </>
-                )}
-            </div>
+                            <span className="min-w-0 flex-1 truncate font-mono text-[13px]">
+                                {shortcodeOf(active)}
+                            </span>
+                            {(uses.get(active) ?? 0) > 0 && (
+                                <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                                    used {uses.get(active)}×
+                                </span>
+                            )}
+                        </>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

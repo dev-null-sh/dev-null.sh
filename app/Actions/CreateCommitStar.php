@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Models\Commit;
 use App\Models\RepositoryMirror;
 use App\Models\User;
+use App\Services\ReactionEmoji;
 use App\Services\RepositoryMirrors;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -31,30 +32,42 @@ final readonly class CreateCommitStar
             if ((! $public && $repositoryIds === []) || array_diff($repositoryIds, $mirrors->modelKeys()) !== []) {
                 throw ValidationException::withMessages(['repositories' => 'Choose Public or one of your connected repositories.']);
             }
-            $previousPublic = DB::table('stars')->where('user_id', $user->id)->where('commit_id', $commit->id)->exists();
+            $emoji = ReactionEmoji::normalize($flavor);
+            $emojiKey = ReactionEmoji::key($flavor);
+            $publicReactions = DB::table('commit_reactions')->where('user_id', $user->id)->where('commit_id', $commit->id);
+            $previousPublic = (clone $publicReactions)->where('flavor', $emoji)->exists();
 
             if ($public) {
+                if ($previousPublic) {
+                    (clone $publicReactions)->where('flavor', $emoji)->update(['updated_at' => now()]);
+                } else {
+                    DB::table('commit_reactions')->insert(['user_id' => $user->id, 'commit_id' => $commit->id, 'flavor' => $emoji, 'created_at' => now(), 'updated_at' => now()]);
+                }
                 $user->starredCommits()->newPivotStatement()->upsert([
                     'user_id' => $user->id, 'commit_id' => $commit->id, 'flavor' => $flavor,
                     'created_at' => now(), 'updated_at' => now(),
                 ], ['user_id', 'commit_id'], ['flavor', 'updated_at']);
                 $this->createStarNotification->handle($user, $commit);
             } else {
-                $user->starredCommits()->detach($commit->id);
-                $this->deleteStarNotification->handle($user, $commit);
+                (clone $publicReactions)->where('flavor', $emoji)->delete();
+                if (! $publicReactions->exists()) {
+                    $user->starredCommits()->detach($commit->id);
+                    $this->deleteStarNotification->handle($user, $commit);
+                } else {
+                    DB::table('stars')->where('user_id', $user->id)->where('commit_id', $commit->id)->update(['flavor' => $publicReactions->orderByDesc('updated_at')->value('flavor')]);
+                }
             }
 
             foreach ($mirrors as $mirror) {
-                $privateQuery = DB::table('repository_reactions')->where('repository_mirror_id', $mirror->id)->where('commit_id', $commit->id);
+                $privateQuery = DB::table('repository_reactions')->where('repository_mirror_id', $mirror->id)->where('commit_id', $commit->id)->where('emoji_key', $emojiKey);
                 $previous = $privateQuery->first();
                 if ($previous !== null) {
                     assert(is_string($previous->flavor));
                 }
                 if (in_array($mirror->id, $repositoryIds, true)) {
-                    $emoji = $flavor ?? 'star';
-                    if ($previous === null || Crypt::decryptString($previous->flavor) !== $emoji || $previousPublic !== $public) {
+                    if ($previous === null || ReactionEmoji::normalize(Crypt::decryptString($previous->flavor)) !== $emoji || $previousPublic !== $public) {
                         $this->mirrors->reaction($mirror, $user, $commit, $flavor, $public ? 'public' : 'repository');
-                        $privateQuery->updateOrInsert(['repository_mirror_id' => $mirror->id, 'commit_id' => $commit->id], [
+                        $privateQuery->updateOrInsert(['repository_mirror_id' => $mirror->id, 'commit_id' => $commit->id, 'emoji_key' => $emojiKey], [
                             'user_id' => $user->id, 'flavor' => Crypt::encryptString($emoji), 'created_at' => $previous->created_at ?? now(), 'updated_at' => now(),
                         ]);
                     }

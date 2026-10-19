@@ -70,7 +70,7 @@ it('reconciles public, repository-only and both destinations', function (): void
     $this->actingAs($user)->postJson(route('commit-star.store', $commit), ['flavor' => '🚀', 'public' => true, 'repositories' => [$mirror->id]])->assertOk()->assertJsonPath('stars_count', 1);
     $this->postJson(route('commit-star.store', $commit), ['flavor' => '🚀', 'public' => false, 'repositories' => [$mirror->id]])->assertOk()->assertJsonPath('stars_count', 0);
     expect($commit->user->notifications()->count())->toBe(0);
-    $this->postJson(route('commit-star.store', $commit), ['flavor' => '🔥', 'public' => true, 'repositories' => []])->assertOk()->assertJsonPath('stars_count', 1);
+    $this->postJson(route('commit-star.store', $commit), ['flavor' => '🚀', 'public' => true, 'repositories' => []])->assertOk()->assertJsonPath('stars_count', 1);
     expect(DB::table('repository_reactions')->count())->toBe(0)
         ->and(RepositoryMirrorEvent::query()->orderByDesc('id')->first()->payload['type'])->toBe('reaction.removed');
 });
@@ -290,4 +290,58 @@ it('preserves pending activity when renewing a token for the same destination', 
     $this->actingAs($user)->post(route('repository-mirror.store'), ['repository' => 'reader/archive', 'token' => 'replacement-test-token', 'mirror_commits' => false])->assertSessionHasNoErrors();
     expect(RepositoryMirror::query()->sole()->id)->toBe($mirror->id)->and($mirror->fresh()->token)->toBe('replacement-test-token')
         ->and(RepositoryMirrorEvent::query()->count())->toBe(1)->and(DB::table('repository_reactions')->count())->toBe(1);
+});
+
+it('keeps multiple public emoji and removes each independently', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    foreach (['🚀', '🔥', '🦦', '🚀'] as $emoji) {
+        $this->actingAs($user)->postJson(route('commit-star.store', $commit), ['flavor' => $emoji])->assertOk();
+    }
+    expect(DB::table('commit_reactions')->count())->toBe(3)->and($commit->stars()->count())->toBe(1)->and($commit->user->notifications()->count())->toBe(1);
+    $this->deleteJson(route('commit-star.destroy', $commit), ['flavor' => '🔥'])->assertOk()->assertJsonCount(2, 'reactions')->assertJsonPath('stars_count', 1);
+    expect(DB::table('commit_reactions')->pluck('flavor')->all())->toEqualCanonicalizing(['🚀', '🦦']);
+    expect($commit->user->notifications()->count())->toBe(1);
+    $this->deleteJson(route('commit-star.destroy', $commit), ['flavor' => '🚀'])->assertOk();
+    $this->deleteJson(route('commit-star.destroy', $commit), ['flavor' => '🦦'])->assertOk()->assertJsonPath('stars_count', 0);
+    expect($commit->user->notifications()->count())->toBe(0);
+});
+
+it('keeps independent destinations and encrypted copies for each emoji', function (): void {
+    $user = User::factory()->create();
+    $private = connectedMirror($user);
+    $other = connectedMirror($user, ['repository_id' => '43', 'repository' => 'reader/other']);
+    $commit = Commit::factory()->create();
+    $this->actingAs($user)->postJson(route('commit-star.store', $commit), ['flavor' => '🚀', 'public' => false, 'repositories' => [$private->id]])->assertOk();
+    $this->postJson(route('commit-star.store', $commit), ['flavor' => '🔥', 'public' => true, 'repositories' => [$private->id, $other->id]])->assertOk()->assertJsonCount(1, 'reactions');
+    expect(DB::table('repository_reactions')->count())->toBe(3)->and(RepositoryMirrorEvent::query()->count())->toBe(3);
+    $this->getJson(route('commit-reaction-state', $commit))->assertJsonCount(2, 'reactions');
+    $this->deleteJson(route('commit-star.destroy', $commit), ['flavor' => '🚀'])->assertOk()->assertJsonCount(1, 'reactions')->assertJsonPath('stars_count', 1);
+    expect(DB::table('repository_reactions')->count())->toBe(2)->and(RepositoryMirrorEvent::query()->latest('id')->first()->payload['reaction']['emoji'])->toBe('🚀');
+    $this->deleteJson(route('commit-star.destroy', $commit))->assertOk()->assertJsonCount(0, 'reactions');
+    expect(DB::table('repository_reactions')->count())->toBe(0)->and(RepositoryMirrorEvent::query()->count())->toBe(6);
+});
+
+it('counts each public emoji independently for multiple people', function (): void {
+    $first = User::factory()->create();
+    $second = User::factory()->create();
+    $commit = Commit::factory()->create();
+    resolve(CreateCommitStar::class)->handle($first, $commit, '🚀');
+    resolve(CreateCommitStar::class)->handle($first, $commit, '🔥');
+    resolve(CreateCommitStar::class)->handle($second, $commit, '🚀');
+    $reactions = collect(Commit::query()->withStarsFor($first)->findOrFail($commit->id)->reactions)->keyBy('emoji');
+    expect($reactions['🚀'])->toBe(['emoji' => '🚀', 'count' => 2, 'reacted' => true])
+        ->and($reactions['🔥'])->toBe(['emoji' => '🔥', 'count' => 1, 'reacted' => true]);
+});
+
+it('treats legacy flavor aliases and their emoji as the same reaction', function (): void {
+    $user = User::factory()->create();
+    $mirror = connectedMirror($user);
+    $commit = Commit::factory()->create();
+    resolve(CreateCommitStar::class)->handle($user, $commit, 'fire', true, [$mirror->id]);
+    resolve(CreateCommitStar::class)->handle($user, $commit, '🔥', true, [$mirror->id]);
+    expect(DB::table('commit_reactions')->count())->toBe(1)->and(DB::table('repository_reactions')->count())->toBe(1)
+        ->and(RepositoryMirrorEvent::query()->count())->toBe(1);
+    $this->actingAs($user)->deleteJson(route('commit-star.destroy', $commit), ['flavor' => 'fire'])->assertOk()->assertJsonCount(0, 'reactions');
+    expect(DB::table('repository_reactions')->count())->toBe(0);
 });

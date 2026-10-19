@@ -26,10 +26,10 @@ final class DeleteCommitStarRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * @return array<string, array<int, mixed>>
      */
-    public function rules(): array
+    public function rules(\App\Services\EmojiShortcodes $emoji): array
     {
-        return [];
+        return ['flavor' => ['sometimes', 'string', \Illuminate\Validation\Rule::in([...array_column(\App\Enums\StarFlavor::cases(), 'value'), ...$emoji->emoji()])]];
     }
 }

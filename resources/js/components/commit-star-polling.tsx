@@ -13,7 +13,12 @@ import type { Commit } from '@/types';
 
 type StarState = Pick<
     Commit,
-    'id' | 'stars_count' | 'starred' | 'star_flavor' | 'star_flavors'
+    | 'id'
+    | 'stars_count'
+    | 'starred'
+    | 'star_flavor'
+    | 'star_flavors'
+    | 'reactions'
 >;
 
 type Subscription = {

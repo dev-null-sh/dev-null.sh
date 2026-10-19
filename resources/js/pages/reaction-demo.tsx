@@ -64,8 +64,8 @@ export default function ReactionDemo({
                             <CommitCard commit={commit} canDelete={false} />
                         </div>
                         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-                            Open the smiley beside the star. Search for any
-                            emoji and choose where it goes. Try 🚀 with{' '}
+                            Open the smiley to add more reactions. Search for
+                            any emoji and choose where it goes. Try 🚀 with{' '}
                             <strong className="font-medium text-foreground">
                                 only your repo checked
                             </strong>
