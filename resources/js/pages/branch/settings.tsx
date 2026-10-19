@@ -6,6 +6,7 @@ import BranchController from '@/actions/App/Http/Controllers/BranchController';
 import BranchDescriptionController from '@/actions/App/Http/Controllers/BranchDescriptionController';
 import BranchMemberController from '@/actions/App/Http/Controllers/BranchMemberController';
 import BranchTransferController from '@/actions/App/Http/Controllers/BranchTransferController';
+import BranchVerificationController from '@/actions/App/Http/Controllers/BranchVerificationController';
 import { BranchMemberPicker } from '@/components/branch-member-picker';
 import { CopyableCode } from '@/components/copyable-code';
 import Heading from '@/components/heading';
@@ -309,7 +310,46 @@ export default function Settings({ branch }: { branch: BranchPayload }) {
                                 )}
                             </div>
 
-                            
+                            <Form
+                                {...BranchVerificationController.update.form(
+                                    branch.name,
+                                )}
+                                options={{ preserveScroll: true }}
+                                onSuccess={() => savedToast('Domain updated')}
+                                className="max-w-xl space-y-3"
+                            >
+                                {({ processing, errors }) => (
+                                    <>
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                            <input
+                                                name="domain"
+                                                defaultValue={branch.domain ?? ''}
+                                                placeholder="laravel.com"
+                                                required
+                                                disabled={processing}
+                                                className="h-9 w-full rounded-md border bg-transparent px-3 font-mono text-sm sm:max-w-xs disabled:opacity-60"
+                                            />
+                                            <Button
+                                                type="submit"
+                                                variant="outline"
+                                                disabled={processing}
+                                                aria-busy={processing}
+                                                className="gap-1.5 sm:shrink-0"
+                                            >
+                                                {processing && <Spinner />}
+                                                {processing
+                                                    ? 'Saving…'
+                                                    : 'Set domain'}
+                                            </Button>
+                                        </div>
+                                        {errors.domain && (
+                                            <p className="text-sm text-destructive">
+                                                {errors.domain}
+                                            </p>
+                                        )}
+                                    </>
+                                )}
+                            </Form>
 
                             {branch.verification_host &&
                                 branch.verification_record &&
@@ -341,7 +381,40 @@ export default function Settings({ branch }: { branch: BranchPayload }) {
                                         </div>
                                         {!branch.verification_pending &&
                                             branch.can_verify && (
-                                                
+                                                <Form
+                                                    {...BranchVerificationController.store.form(
+                                                        branch.name,
+                                                    )}
+                                                    options={{ preserveScroll: true }}
+                                                    onSuccess={() =>
+                                                        savedToast(
+                                                            'Verification requested',
+                                                        )
+                                                    }
+                                                >
+                                                    {({ processing, errors }) => (
+                                                        <div className="space-y-2">
+                                                            <Button
+                                                                type="submit"
+                                                                disabled={processing}
+                                                                aria-busy={processing}
+                                                                className="gap-1.5"
+                                                            >
+                                                                {processing && (
+                                                                    <Spinner />
+                                                                )}
+                                                                {processing
+                                                                    ? 'Checking DNS…'
+                                                                    : 'Request verification'}
+                                                            </Button>
+                                                            {errors.domain && (
+                                                                <p className="text-sm text-destructive">
+                                                                    {errors.domain}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </Form>
                                             )}
                                         {!branch.verification_pending &&
                                             !branch.can_verify &&

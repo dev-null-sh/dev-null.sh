@@ -21,6 +21,10 @@ use App\Http\Controllers\BranchMemberController;
 use App\Http\Controllers\BranchTransferController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchSuggestionController;
+use App\Http\Controllers\BranchVerificationApprovalController;
+use App\Http\Controllers\BranchVerificationController;
+use App\Http\Controllers\BranchVerificationRejectionController;
+use App\Http\Controllers\BranchVerificationRequestController;
 use App\Http\Controllers\BranchWatchController;
 use App\Http\Controllers\CommitImageController;
 use App\Http\Controllers\CommitLinkPreviewController;
@@ -388,6 +392,21 @@ Route::middleware('auth')->group(function (): void {
     Route::post('branches/{branch}/claim', [BranchClaimController::class, 'store'])
         ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
         ->name('branch-claim.store');
+    Route::post('branches/{branch}/verify', [BranchVerificationController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-verification.store');
+    Route::put('branches/{branch}/domain', [BranchVerificationController::class, 'update'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-domain.update');
+    Route::get('moderation/verifications', [BranchVerificationRequestController::class, 'index'])
+        ->name('branch-verification-request.index');
+    Route::post('moderation/verifications/{branch}/approve', [BranchVerificationApprovalController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-verification-approval.store');
+    Route::post('moderation/verifications/{branch}/reject', [BranchVerificationRejectionController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-verification-rejection.store');
+
     Route::delete('branches/{branch}/claim', [BranchClaimController::class, 'destroy'])
         ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
         ->name('branch-claim.destroy');
