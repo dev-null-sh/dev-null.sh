@@ -60,6 +60,11 @@ import {
 import { show } from '@/routes/user';
 import type { User } from '@/types';
 
+// The ring moves quickly while a post starts and slows toward the limit, yet only closes at the limit.
+function bodyProgress(count: number): number {
+    return Math.log1p(count) / Math.log1p(maxBodyLength);
+}
+
 function focusBody(id: string): void {
     requestAnimationFrame(() => document.getElementById(id)?.focus());
 }
@@ -126,6 +131,7 @@ function CommitComposerBody({
         setIsScheduling,
     } = schedule;
     const hasImages = attachments.images.length > 0;
+    const progress = bodyProgress(characterCount(body));
     const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
     const error = errors.body ?? errors.link_preview_url;
     const scheduleError =
@@ -176,14 +182,14 @@ function CommitComposerBody({
                 hasTail={!isInDialog}
                 node={
                     isInDialog ? (
-                        <RailAvatar user={user} isStaged={!isFilled} />
+                        <RailAvatar user={user} progress={progress} />
                     ) : (
                         <Link
                             href={show(user)}
                             aria-label="View your profile"
                             className="flex rounded-full"
                         >
-                            <RailAvatar user={user} isStaged={!isFilled} />
+                            <RailAvatar user={user} progress={progress} />
                         </Link>
                     )
                 }
