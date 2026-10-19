@@ -30,7 +30,7 @@ The `/feature` and `/bug` commands below the composer open an issue on `nunomadu
 
 ### Embeds
 
-A link card for a video, song or pen becomes a player that loads when clicked. The player URL is built on the server from the link, so only the sites below can be framed. None of them need an API key.
+A link card for a video, song or pen becomes a player that loads when clicked. The player URL is built on the server from the link, so only the sites below can be framed. A link to a call becomes a card that joins it in a new tab instead, since meet.jit.si ends framed calls after five minutes. None of them need an API key.
 
 | Key | Links |
 |---|---|
@@ -44,6 +44,7 @@ A link card for a video, song or pen becomes a player that loads when clicked. T
 | `apple_music` | albums, playlists and songs |
 | `codepen` | pens |
 | `asciinema` | recordings |
+| `jitsi` | `meet.jit.si/{room}` calls, joined in a new tab |
 
 | Variable | Default | |
 |---|---|---|

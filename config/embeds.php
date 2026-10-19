@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Services\EmbedProviders\AppleMusic;
 use App\Services\EmbedProviders\Asciinema;
 use App\Services\EmbedProviders\CodePen;
+use App\Services\EmbedProviders\JitsiMeet;
 use App\Services\EmbedProviders\Loom;
 use App\Services\EmbedProviders\SoundCloud;
 use App\Services\EmbedProviders\Spotify;
@@ -30,6 +31,7 @@ return [
         'apple_music' => AppleMusic::class,
         'codepen' => CodePen::class,
         'asciinema' => Asciinema::class,
+        'jitsi' => JitsiMeet::class,
     ],
 
     'youtube' => [

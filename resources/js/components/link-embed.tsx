@@ -1,4 +1,4 @@
-import { AudioLines, Code2, Play } from 'lucide-react';
+import { AudioLines, Code2, Play, Video } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -100,6 +100,60 @@ function PlayTrigger({
     );
 }
 
+/**
+ * A call is joined in a new tab rather than framed, since meet.jit.si ends framed calls after five minutes.
+ */
+function CallCard({ embed, isStatic }: { embed: Embed; isStatic: boolean }) {
+    const room = new URL(embed.src).pathname.slice(1);
+    const className = cn(
+        'flex w-full items-center',
+        !isStatic &&
+            'transition-colors hover:bg-accent focus-visible:bg-accent',
+    );
+    const content = (
+        <>
+            <span className="my-2 ml-2 flex size-20 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                <Video className="size-7" />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col justify-center px-3 py-2 text-left">
+                <span className="truncate font-mono text-[13px] text-muted-foreground">
+                    {embed.provider}
+                </span>
+                <span className="truncate text-[15px] leading-snug font-medium">
+                    {room}
+                </span>
+            </span>
+            <span className="mr-3 shrink-0 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
+                Join call
+            </span>
+        </>
+    );
+
+    return (
+        <div
+            onClick={isStatic ? undefined : (event) => event.stopPropagation()}
+            className="mt-3 overflow-hidden rounded-lg border"
+            data-test="link-embed"
+            data-provider={embed.provider}
+        >
+            {isStatic ? (
+                <span className={className}>{content}</span>
+            ) : (
+                <a
+                    href={embed.src}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow ugc"
+                    aria-label={`Join ${room} on ${embed.provider}`}
+                    className={className}
+                    data-test="link-embed-join"
+                >
+                    {content}
+                </a>
+            )}
+        </div>
+    );
+}
+
 export function LinkEmbed({
     preview,
     embed,
@@ -110,6 +164,11 @@ export function LinkEmbed({
     isStatic?: boolean;
 }) {
     const [isPlaying, setIsPlaying] = useState(false);
+
+    if (embed.kind === 'call') {
+        return <CallCard embed={embed} isStatic={isStatic} />;
+    }
+
     const Icon = icons[embed.kind];
     const label = `Play ${preview.title ?? preview.url} from ${embed.provider}`;
     const isVideo = embed.aspect_ratio !== null;
