@@ -29,14 +29,14 @@ it('shows the commits of the people the user follows', function (): void {
         ->assertDontSee('From a stranger');
 });
 
-it('shows the commits of everyone', function (): void {
+it('shows the latest commits of everyone', function (): void {
     $user = User::factory()->create();
 
     Commit::factory()->create(['body' => 'From a stranger']);
     Commit::factory()->pending()->create(['body' => 'Still pending']);
 
     DevNullServer::actingAs($user)
-        ->tool(ShowLogTool::class, ['log' => 'everyone'])
+        ->tool(ShowLogTool::class, ['log' => 'latest'])
         ->assertOk()
         ->assertSee('From a stranger')
         ->assertDontSee('Still pending');
@@ -48,7 +48,7 @@ it('pages through the log with a cursor', function (): void {
     Commit::factory()->count(21)->create();
 
     DevNullServer::actingAs($user)
-        ->tool(ShowLogTool::class, ['log' => 'everyone'])
+        ->tool(ShowLogTool::class, ['log' => 'latest'])
         ->assertStructuredContent(fn ($json) => $json
             ->count('commits', 20)
             ->whereType('next_cursor', 'string')

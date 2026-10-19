@@ -46,7 +46,7 @@ function errorCopy(
                 command: 'error: RPC failed; HTTP 429 Too Many Requests',
                 headline: 'Slow down.',
                 description:
-                    "You've sent too many requests in a short time. Wait a minute, then try again.",
+                    "You've sent too many requests in a short time. Wait a little while, then try again.",
             };
         case 500:
             return {
@@ -60,7 +60,7 @@ function errorCopy(
             return {
                 title: 'Down for maintenance',
                 command: `fatal: unable to access '${path}': The requested URL returned error: 503`,
-                headline: 'devnull is down for maintenance.',
+                headline: '/dev/null is down for maintenance.',
                 description:
                     "We're making changes and will be back shortly. Try again in a few minutes.",
             };
@@ -76,10 +76,10 @@ export default function ErrorPage({ status }: { status: Status }) {
     const action =
         status === 503
             ? { label: 'Try again', href: home() }
-            : user
+            : user && page.props.auth.log
               ? {
                     label: 'Back to your log',
-                    href: LogController.show('following'),
+                    href: LogController.show(page.props.auth.log),
                 }
               : { label: 'Go to the home page', href: home() };
 
@@ -103,7 +103,7 @@ export default function ErrorPage({ status }: { status: Status }) {
                         <div className="min-w-0 flex-1 pb-14 sm:pb-16">
                             <Link
                                 href={action.href}
-                                aria-label={`devnull, ${action.label.toLowerCase()}`}
+                                aria-label={`/dev/null, ${action.label.toLowerCase()}`}
                                 className="inline-flex"
                             >
                                 <AppLogo />
@@ -119,7 +119,7 @@ export default function ErrorPage({ status }: { status: Status }) {
                             <span className="absolute top-2.5 left-1/2 size-3.5 -translate-1/2 rounded-full border-2 border-muted-foreground bg-background" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="font-mono text-[13px] [overflow-wrap:anywhere] text-muted-foreground">
+                            <p className="font-mono text-[13px] wrap-anywhere text-muted-foreground">
                                 {copy.command}
                             </p>
                             <h1 className="mt-4 text-[clamp(1.75rem,4vw,2.5rem)] leading-tight font-semibold tracking-tight text-balance">

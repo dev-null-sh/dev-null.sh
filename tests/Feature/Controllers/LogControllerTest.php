@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateCommitHotScores;
+use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +48,7 @@ it('renders each author with their effective lane', function (): void {
     Commit::factory()->for($automatic)->create();
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -57,19 +60,51 @@ it('renders each author with their effective lane', function (): void {
 it('renders commits of everyone newest first', function (): void {
     $user = User::factory()->create();
 
-    Commit::factory()->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
+    $starred = Commit::factory()->create(['body' => 'Older', 'created_at' => now()->subMinute()]);
+    $starred->stars()->attach(User::factory()->create());
+    resolve(UpdateCommitHotScores::class)->handle([$starred->id]);
     Commit::factory()->create(['body' => 'Newer']);
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/latest');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('log/show')
-            ->where('log', 'everyone')
+            ->where('log', 'latest')
+            ->where('isRanked', false)
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('renders commits of everyone ranked by popularity', function (): void {
+    $user = User::factory()->create();
+
+    $starred = Commit::factory()->create(['body' => 'Starred', 'created_at' => now()->subHour()]);
+    $starred->stars()->attach(User::factory()->create());
+    resolve(UpdateCommitHotScores::class)->handle([$starred->id]);
+    Commit::factory()->create(['body' => 'Newer']);
+
+    $response = $this->actingAs($user)
+        ->get('/log/trending');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('log/show')
+            ->where('log', 'trending')
+            ->where('isRanked', true)
+            ->has('commits.data', 2)
+            ->where('commits.data.0.body', 'Starred')
+            ->where('commits.data.1.body', 'Newer'));
+});
+
+it('redirects the former everyone log to the trending log', function (): void {
+    $response = $this->actingAs(User::factory()->create())
+        ->get('/log/everyone');
+
+    $response->assertRedirect('/log/trending')
+        ->assertStatus(301);
 });
 
 it('paginates the log', function (Log $log): void {
@@ -92,7 +127,7 @@ it('does not count the authenticated user relations when reloading only commits'
     $user = User::factory()->has(Commit::factory())->create();
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(function ($page): void {
@@ -105,10 +140,35 @@ it('does not count the authenticated user relations when reloading only commits'
 
     expect(collect(DB::getQueryLog())
         ->pluck('query')
-        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits".*'))
+        ->reject(fn (string $query): bool => str_starts_with($query, 'select "commits"."id", "commits"."user_id"') || str_starts_with($query, 'select * from (select "commits"."id"'))
         ->all())
         ->not->toBeEmpty()
         ->each->not->toContain('count(*)');
+});
+
+it('remembers the last visited log', function (Log $log): void {
+    $user = User::factory()->create(['log' => $log === Log::Following ? Log::Trending : Log::Following]);
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('auth.log', $log->value));
+
+    expect($user->refresh()->log)->toBe($log);
+})->with(Log::cases());
+
+it('does not update the user when the log is unchanged', function (): void {
+    $user = User::factory()->create(['log' => Log::Trending]);
+    $updatedAt = $user->updated_at;
+
+    $this->travel(1)->minute();
+
+    $this->actingAs($user)
+        ->get(route('log.show', Log::Trending))
+        ->assertOk();
+
+    expect($user->refresh()->updated_at->equalTo($updatedAt))->toBeTrue();
 });
 
 it('returns not found for unknown logs', function (): void {
@@ -118,11 +178,57 @@ it('returns not found for unknown logs', function (): void {
     $response->assertNotFound();
 });
 
-it('requires authentication', function (Log $log): void {
+it('lets guests read the public logs', function (Log $log): void {
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+
     $response = $this->get(route('log.show', $log));
 
-    $response->assertRedirectToRoute('home');
-})->with(Log::cases());
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('log/show')
+            ->where('log', $log->value)
+            ->has('commits.data', 1)
+            ->where('commits.data.0.id', $commit->id));
+})->with([Log::Latest, Log::Trending]);
+
+it('sends guests to sign in with GitHub for the following log', function (): void {
+    $this->get(route('log.show', Log::Following))
+        ->assertRedirect(route('login'));
+
+    $this->get(route('log.show', Log::Following), ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request())])
+        ->assertStatus(409)
+        ->assertHeader('X-Inertia-Location', route('login'));
+});
+
+it('does not count newer commits on the trending log', function (?bool $signedIn): void {
+    $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->create();
+
+    if ($signedIn) {
+        $this->actingAs(User::factory()->create());
+    }
+
+    $this->get(route('log.show', [Log::Trending, 'since' => $older->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()->assertJsonPath('props.newCommitsCount', 0);
+})->with(['guest' => false, 'signed in' => true]);
+
+it('counts newer commits on the latest log', function (): void {
+    $user = User::factory()->create();
+    $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->create();
+
+    $this->actingAs($user)->get(route('log.show', [Log::Latest, 'since' => $older->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()->assertJsonPath('props.newCommitsCount', 1);
+});
 
 it('counts commits newer than a given commit', function (): void {
     $user = User::factory()->create();
@@ -154,6 +260,27 @@ it('counts new commits since a commit that was deleted, without deleted ones', f
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->create()->delete();
     $seen->delete();
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'newCommitsCount',
+        ])
+        ->get('/log/following?since='.$seen->id);
+
+    $response->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 1);
+});
+
+it('counts commits created in the same second after a given commit', function (): void {
+    $user = User::factory()->create();
+    $createdAt = now()->startOfSecond();
+
+    Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c7', 'created_at' => $createdAt]);
+    $seen = Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c8', 'created_at' => $createdAt]);
+    Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c9', 'created_at' => $createdAt]);
 
     $response = $this->actingAs($user)
         ->withHeaders([
@@ -250,7 +377,7 @@ it('only shows top-level commits with their reply counts', function (): void {
     Commit::factory()->for($parent, 'parent')->pending()->create();
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -299,7 +426,73 @@ it('includes the link previews of commits', function (Log $log): void {
                 'description' => 'The PHP framework for web artisans.',
                 'image_url' => 'https://laravel.com/og.png',
                 'site_name' => 'Laravel',
+                'is_pending' => false,
+                'embed' => null,
             ]));
+})->with(Log::cases());
+
+it('includes the quoted commits with their authors', function (Log $log): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subHour()]);
+    $hidden = Commit::factory()->create(['body' => 'A rejected quoted commit']);
+    $deleted = Commit::factory()->create(['body' => 'A deleted quoted commit']);
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create(['created_at' => now()->subMinutes(3)]);
+    Commit::factory()->for($user)->for($hidden, 'quotedCommit')->create(['created_at' => now()->subMinutes(2)]);
+    Commit::factory()->for($user)->for($deleted, 'quotedCommit')->create(['created_at' => now()->subMinute()]);
+    $hidden->update(['status' => CommitStatus::Rejected]);
+    $deleted->delete();
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.quoted_commit.id', $deleted->id)
+            ->missing('commits.data.0.quoted_commit.body')
+            ->where('commits.data.1.quoted_commit_id', $hidden->id)
+            ->where('commits.data.1.quoted_commit', null)
+            ->where('commits.data.2.quoted_commit.body', 'The quoted commit')
+            ->where('commits.data.2.quoted_commit.user.username', 'octocat'))
+        ->assertDontSee('A rejected quoted commit')
+        ->assertDontSee('A deleted quoted commit');
+})->with(Log::cases());
+
+it('includes the images and link previews of quoted commits', function (Log $log): void {
+    $user = User::factory()->create();
+    $linkPreview = LinkPreview::factory()->fetched()->create(['title' => 'Laravel']);
+    $quoted = Commit::factory()->for($linkPreview)->create(['created_at' => now()->subHour()]);
+    CommitImage::factory()->for($quoted)->create(['width' => 1600, 'height' => 900]);
+    Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
+
+    $response = $this->actingAs($user)
+        ->get(route('log.show', $log));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.quoted_commit.link_preview.title', 'Laravel')
+            ->has('commits.data.0.quoted_commit.images', 1)
+            ->where('commits.data.0.quoted_commit.images.0.width', 1600));
+})->with(Log::cases());
+
+it('loads the quoted commits of a log without a query per commit', function (Log $log): void {
+    $user = User::factory()->create(['log' => $log]);
+
+    $queries = function () use ($user, $log): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->actingAs($user)->get(route('log.show', $log))->assertOk();
+
+        return count(DB::getQueryLog());
+    };
+
+    Commit::factory()->for($user)->for(Commit::factory(), 'quotedCommit')->create();
+
+    $expected = $queries();
+
+    Commit::factory()->for($user)->for(Commit::factory(), 'quotedCommit')->count(5)->create();
+
+    expect($queries())->toBe($expected);
 })->with(Log::cases());
 
 it('defers suggested users to follow', function (): void {
@@ -307,7 +500,7 @@ it('defers suggested users to follow', function (): void {
     $suggested = User::factory()->has(Commit::factory())->create();
 
     $response = $this->actingAs($user)
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -322,13 +515,32 @@ it('defers suggested users to follow', function (): void {
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
 });
 
+it('keeps the suggested users the client already loaded when navigating', function (): void {
+    $user = User::factory()->create();
+    User::factory()->has(Commit::factory())->create();
+
+    $response = $this->actingAs($user)
+        ->withHeaders([
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+            'X-Inertia-Except-Once-Props' => 'suggestedUsers',
+        ])
+        ->get('/log/trending');
+
+    $response->assertOk()
+        ->assertJsonMissingPath('props.suggestedUsers')
+        ->assertJsonPath('onceProps.suggestedUsers.prop', 'suggestedUsers');
+
+    expect(collect($response->json('deferredProps') ?? [])->flatten())->not->toContain('suggestedUsers');
+});
+
 it('does not suggest users to follow once they are hidden', function (): void {
     $user = User::factory()->create();
     User::factory()->has(Commit::factory())->create();
 
     $response = $this->actingAs($user)
         ->withUnencryptedCookie('who_to_follow', 'false')
-        ->get('/log/everyone');
+        ->get('/log/trending');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -337,3 +549,100 @@ it('does not suggest users to follow once they are hidden', function (): void {
 
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->not->toContain('suggestedUsers');
 });
+
+it('leaves the commit just committed to its rank on the ranked log', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $user = User::factory()->create(['username' => 'nunomaduro']);
+    Commit::factory()->count(20)->create(['hot_score' => 1e12]);
+
+    $response = $this->actingAs($user)
+        ->from('/log/trending')
+        ->followingRedirects()
+        ->post(route('commit.store'), ['body' => 'Initial commit']);
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data', fn ($commits): bool => collect($commits)->doesntContain('body', 'Initial commit'))
+            ->missing('latestCommits'));
+});
+
+it('puts the commit just committed on top of the latest log', function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $user = User::factory()->create(['username' => 'nunomaduro']);
+    Commit::factory()->count(20)->create(['created_at' => now()->subHour()]);
+
+    $response = $this->actingAs($user)
+        ->from('/log/latest')
+        ->followingRedirects()
+        ->post(route('commit.store'), ['body' => 'Initial commit']);
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commits.data.0.body', 'Initial commit'));
+});
+
+it('points feed commits to the rest of their author thread instead of previewing it', function (): void {
+    $viewer = User::factory()->create();
+    $thread = Commit::factory()->create();
+    Commit::factory()->for($thread, 'parent')->create(['body' => 'Someone else', 'created_at' => now()->subMinutes(2)]);
+    $next = Commit::factory()->for($thread, 'parent')->for($thread->user)->create(['body' => 'Part two', 'created_at' => now()->subMinute()]);
+
+    $this->actingAs($viewer)->get(route('log.show', 'latest'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commits.data.0.id', $thread->id)
+        ->where('commits.data.0.continuation_id', $next->id)
+        ->where('commits.data.0.replies_count', 1)
+        ->has('commits.data.0.reply_preview.data', 1)
+        ->where('commits.data.0.reply_preview.data.0.body', 'Someone else')
+        ->where('commits.data.0.reply_preview.next_cursor', null));
+});
+
+it('preloads the newest replies per feed commit with a cursor to the older replies', function (): void {
+    $viewer = User::factory()->create();
+    $parents = Commit::factory()->for($viewer)->count(2)->create();
+    foreach ($parents as $parent) {
+        Commit::factory()->for($parent, 'parent')->create(['body' => 'Oldest reply', 'created_at' => now()->subMinutes(3)]);
+        Commit::factory()->for($parent, 'parent')->create(['body' => 'Older reply', 'created_at' => now()->subMinutes(2)]);
+        Commit::factory()->for($parent, 'quotedCommit')->create(['body' => 'Latest quote', 'created_at' => now()->subMinute()]);
+        Commit::factory()->for($parent, 'parent')->pending()->create();
+    }
+
+    $response = $this->actingAs($viewer)
+        ->withUnencryptedCookie('replies_per_page', '1')
+        ->get(route('log.show', 'latest'));
+    $response->assertOk()->assertInertia(function ($page): void {
+        foreach ([0, 1] as $index) {
+            $page->has("commits.data.{$index}.reply_preview.data", 1)
+                ->where("commits.data.{$index}.reply_preview.data.0.body", 'Latest quote');
+        }
+    });
+    foreach (array_slice($response->inertiaProps('commits.data'), 0, 2) as $commit) {
+        $this->getJson(route('commit-reply.index', [
+            $commit['id'], 'newest' => 1, 'cursor' => $commit['reply_preview']['next_cursor'],
+        ]))->assertOk()->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.body', 'Older reply')
+            ->assertJsonPath('data.1.body', 'Oldest reply')
+            ->assertJsonPath('next_cursor', null);
+    }
+});
+
+it('preloads as many of the newest replies as the viewer shows at a time', function (?string $cookie, int $shown): void {
+    $viewer = User::factory()->create();
+    $parent = Commit::factory()->for($viewer)->create();
+    foreach (range(12, 1) as $minutes) {
+        Commit::factory()->for($parent, 'parent')->create(['body' => "Reply {$minutes}", 'created_at' => now()->subMinutes($minutes)]);
+    }
+
+    $request = $cookie === null ? $this : $this->withUnencryptedCookie('replies_per_page', $cookie);
+
+    $request->actingAs($viewer)->get(route('log.show', 'latest'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commits.data.0.reply_preview.data', fn ($replies): bool => collect($replies)->pluck('body')->all() === array_map(
+            fn (int $minutes): string => "Reply {$minutes}",
+            range(1, $shown),
+        ))
+        ->where('commits.data.0.reply_preview.next_cursor', fn (?string $cursor): bool => ($cursor !== null) === ($shown < 12)));
+})->with([
+    'by default' => [null, 3],
+    'when picked' => ['10', 10],
+    'all of them' => ['25', 12],
+]);

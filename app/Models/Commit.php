@@ -6,10 +6,12 @@ namespace App\Models;
 
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
-use App\Services\CodeSpans;
+use App\Services\CommitBodies;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
+use Illuminate\Database\Eloquent\Casts\AsVector;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,29 +19,48 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property-read string $id
- * @property-read string $user_id
+ * @property-read string|null $user_id
  * @property-read string|null $parent_id
+ * @property-read string|null $root_id
+ * @property-read float $hot_score
  * @property-read string $body
+ * @property-read array<string, string>|null $mentions
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
+ * @property-read string|null $quoted_commit_id
+ * @property-read CommitStatus|null $ai_decision
+ * @property-read list<string>|null $ai_categories
+ * @property-read list<float>|null $embedding
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
  * @property-read int $stars_count
+ * @property-read int $pasteis_count
  * @property-read bool $starred
- * @property-read User $user
+ * @property-read User|null $user
  * @property-read Collection<int, User> $stars
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
+ * @property-read int|null $repliers_count
  * @property-read bool $is_saved
+ * @property-read string|null $continuation_id
  * @property-read LinkPreview|null $linkPreview
+ * @property-read Poll|null $poll
+ * @property-read Commit|null $quotedCommit
+ * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
  */
+#[Hidden([
+    'ai_decision',
+    'ai_categories',
+    'embedding',
+])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
 {
@@ -48,6 +69,32 @@ final class Commit extends Model
 
     use HasUuids;
     use SoftDeletes;
+
+    public const int RESTORABLE_SECONDS = 30;
+
+    /**
+     * Moderation retries a failed check twice, the last time ten minutes later, so a pending commit older than this has
+     * been through every attempt.
+     */
+    public const int CHECKING_MINUTES = 15;
+
+    public const int MIN_BODY_LENGTH = 3;
+
+    public const int MAX_BODY_LENGTH = 4000;
+
+    /**
+     * Lists show a longer body folded to its first characters and lines, the rest one click away.
+     */
+    public const int PREVIEW_LENGTH = 280;
+
+    public const int PREVIEW_LINES = 8;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'pasteis_count' => 0,
+    ];
 
     /**
      * @return array<string, string>
@@ -58,9 +105,17 @@ final class Commit extends Model
             'id' => 'string',
             'user_id' => 'string',
             'parent_id' => 'string',
+            'root_id' => 'string',
+            'hot_score' => 'float',
+            'pasteis_count' => 'integer',
             'body' => 'string',
+            'mentions' => 'array',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
+            'quoted_commit_id' => 'string',
+            'ai_decision' => CommitStatus::class,
+            'ai_categories' => 'array',
+            'embedding' => AsVector::class,
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -68,18 +123,21 @@ final class Commit extends Model
     }
 
     /**
-     * A deleted commit only ever leaves a tombstone behind: never its author or body. Otherwise, the body also comes
-     * split into prose, inline code and highlighted code blocks, for rendering.
+     * A deleted commit only ever leaves a tombstone behind: never its author or body. Otherwise, the body also comes split
+     * into segments, for rendering, and whether it is still being checked, so its author knows how long it might stay
+     * pending.
      *
      * @return array<mixed>
      */
     public function toArray(): array
     {
         if ($this->trashed()) {
-            return array_intersect_key($this->attributesToArray(), array_flip(['id', 'parent_id', 'deleted_at', 'replies_count']));
+            $keys = ['id', 'parent_id', 'deleted_at', 'replies_count'];
+
+            return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return [...parent::toArray(), 'body_segments' => resolve(CodeSpans::class)->highlight($this->body)];
+        return [...parent::toArray(), ...resolve(CommitBodies::class)->segments($this->body), 'is_checking' => $this->isBeingChecked()];
     }
 
     /**
@@ -99,11 +157,33 @@ final class Commit extends Model
     }
 
     /**
-     * Approved commits are visible to everyone. Authors can also see their own.
+     * Approved commits are visible to everyone but people across a block. Authors can also see their own.
      */
-    public function isVisibleTo(User $user): bool
+    public function isVisibleTo(?User $user): bool
     {
-        return $this->status === CommitStatus::Approved || $this->user_id === $user->id;
+        if ($user instanceof User && $this->user_id === $user->id) {
+            return true;
+        }
+
+        return $this->status === CommitStatus::Approved
+            && (! $user instanceof User || ! $this->user instanceof User || ! $user->hasBlockWith($this->user));
+    }
+
+    /**
+     * A pending commit is being checked until its moderation job leaves an AI decision behind. After that, or once every
+     * attempt has had its chance, it simply waits for a moderator.
+     */
+    public function isBeingChecked(): bool
+    {
+        return $this->status === CommitStatus::Pending
+            && $this->ai_decision === null
+            && filled(config('services.openai.key'))
+            && $this->created_at->greaterThan(now()->subMinutes(self::CHECKING_MINUTES));
+    }
+
+    public function isRestorable(): bool
+    {
+        return $this->user_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
     }
 
     /**
@@ -112,6 +192,14 @@ final class Commit extends Model
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    /**
+     * The top-level commit that started the thread the commit belongs to, which is the commit itself when it is top-level.
+     */
+    public function threadRootId(): string
+    {
+        return $this->root_id ?? $this->id;
     }
 
     /**
@@ -136,6 +224,30 @@ final class Commit extends Model
     public function linkPreview(): BelongsTo
     {
         return $this->belongsTo(LinkPreview::class);
+    }
+
+    /**
+     * @return HasOne<Poll, $this>
+     */
+    public function poll(): HasOne
+    {
+        return $this->hasOne(Poll::class);
+    }
+
+    /**
+     * @return BelongsTo<Commit, $this>
+     */
+    public function quotedCommit(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'quoted_commit_id');
+    }
+
+    /**
+     * @return HasMany<Commit, $this>
+     */
+    public function quotes(): HasMany
+    {
+        return $this->hasMany(self::class, 'quoted_commit_id');
     }
 
     /**
@@ -167,8 +279,12 @@ final class Commit extends Model
      */
     public function loadPublicPreview(): self
     {
-        return $this->loadCount(['replies' => fn (CommitBuilder $query): CommitBuilder => $query->approved()])
-            ->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
+        $this->forceFill([
+            'replies_count' => self::query()->withTrashed()->withVisibleReplyCount(null)
+                ->whereKey($this->getAttributeFromArray($this->getKeyName()))->first()->replies_count ?? 0,
+        ])->syncOriginalAttribute('replies_count');
+
+        return $this->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
     }
 
     /**
@@ -176,11 +292,11 @@ final class Commit extends Model
      */
     public function openGraphImageVersion(): string
     {
-        return hash('xxh3', implode(':', [
-            $this->updated_at->getTimestamp(),
+        return hash('xxh3', (string) json_encode([
+            $this->body,
             $this->replies_count,
-            $this->user->updated_at->getTimestamp(),
-            $this->parent?->user->username,
+            $this->user?->openGraphIdentity(),
+            $this->parent?->user?->username,
         ]));
     }
 }

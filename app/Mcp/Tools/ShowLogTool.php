@@ -17,7 +17,7 @@ use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
-#[Description('Read the log: the latest commits from the people the user follows (and their own), or from everyone. Returns 20 commits per page, newest first. Pass the returned next_cursor to read older ones.')]
+#[Description('Read the log: the latest commits from the people the user follows (and their own), the latest commits from everyone, or trending commits. Returns 20 commits per page. Pass the returned next_cursor to read older ones.')]
 #[IsReadOnly]
 final class ShowLogTool extends Tool
 {

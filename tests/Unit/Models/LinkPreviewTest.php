@@ -16,7 +16,23 @@ test('to array', function (): void {
             'description',
             'image_url',
             'site_name',
+            'is_pending',
+            'embed',
         ]);
+});
+
+it('is pending until it is fetched', function (): void {
+    expect(LinkPreview::factory()->create()->toArray()['is_pending'])->toBeTrue()
+        ->and(LinkPreview::factory()->fetched()->create()->toArray()['is_pending'])->toBeFalse()
+        ->and(LinkPreview::factory()->failed()->create()->toArray()['is_pending'])->toBeFalse();
+});
+
+it('has an embed when its link can be played in place', function (): void {
+    expect(LinkPreview::factory()->create(['url' => 'https://youtu.be/dQw4w9WgXcQ'])->toArray()['embed'])->toMatchArray([
+        'provider' => 'YouTube',
+        'src' => 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1',
+    ])
+        ->and(LinkPreview::factory()->create(['url' => 'https://example.com'])->toArray()['embed'])->toBeNull();
 });
 
 it('hashes its url', function (): void {

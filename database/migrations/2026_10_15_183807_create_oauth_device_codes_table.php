@@ -8,9 +8,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('oauth_device_codes', function (Blueprint $table) {
@@ -24,14 +21,6 @@ return new class extends Migration
             $table->dateTime('last_polled_at')->nullable();
             $table->dateTime('expires_at')->nullable();
         });
-    }
-
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
-    {
-        Schema::dropIfExists('oauth_device_codes');
     }
 
     /**

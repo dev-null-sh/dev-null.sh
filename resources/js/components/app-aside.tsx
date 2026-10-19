@@ -1,18 +1,22 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
+import AboutController from '@/actions/App/Http/Controllers/AboutController';
+import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
+import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import { ChangelogPopover } from '@/components/changelog-popover';
+import { GitHubIcon } from '@/components/github-icon';
+import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
+import { useSharedState } from '@/hooks/use-shared-state';
+import { commitStateKey } from '@/lib/commit-state';
+import { useKeyLabels } from '@/lib/keyboard';
+import { formatCount } from '@/lib/numbers';
 import { laneColor } from '@/lib/utils';
+import { login } from '@/routes';
 import { show } from '@/routes/user';
-
-const rules = [
-    'Everyone here signed in with GitHub.',
-    'Commits are plain text, 280 characters max.',
-    'No likes, no reposts, no algorithm. Newest first.',
-    'Profiles mirror GitHub. Edit yours there.',
-];
 
 export function AppAside({
     onShowShortcuts,
@@ -21,115 +25,145 @@ export function AppAside({
     onShowShortcuts: () => void;
     onSearch: () => void;
 }) {
-    const { auth } = usePage().props;
+    const { user } = usePage().props.auth;
+    const keys = useKeyLabels();
+    const [commitsCount] = useSharedState(
+        commitStateKey('commits_count', user?.id ?? ''),
+        user?.commits_count ?? 0,
+    );
 
     return (
-        <aside className="sticky top-0 hidden h-svh w-80 shrink-0 flex-col gap-8 px-6 py-6 xl:flex">
+        <aside className="sticky top-0 hidden h-svh w-80 shrink-0 scrollbar-none flex-col gap-8 overflow-y-auto p-6 xl:flex">
             <button
                 type="button"
                 onClick={onSearch}
-                className="-mb-2 flex h-11 items-center gap-2.5 rounded-full border bg-card px-4 py-2.5 text-[15px] text-muted-foreground transition-colors hover:border-input hover:text-foreground"
+                className="-mb-2 flex h-11 items-center gap-2.5 rounded-lg border bg-card px-4 py-2.5 text-[15px] text-muted-foreground transition-colors hover:border-input hover:text-foreground"
                 data-test="search-button"
             >
                 <Search className="size-4" />
-                Search developers
+                Search
                 <kbd className="ml-auto rounded border border-b-2 bg-muted px-1.5 font-mono text-xs">
-                    ⌘K
+                    {keys.combo(keys.mod, 'K')}
                 </kbd>
             </button>
 
-            <section aria-labelledby="aside-you">
-                <h2 id="aside-you" className="sr-only">
-                    You
-                </h2>
-                <Link
-                    href={show(auth.user)}
-                    className="group flex items-center gap-3"
+            {user === null ? (
+                <section
+                    aria-labelledby="aside-sign-in"
+                    className="rounded-xl border bg-card p-4"
                 >
-                    <UserAvatar user={auth.user} className="size-12" />
-                    <span className="min-w-0">
-                        <span className="block truncate font-semibold group-hover:underline">
-                            {auth.user.name}
-                        </span>
-                        <span className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
-                            <span
-                                aria-hidden
-                                className="size-2 rounded-full"
-                                style={{
-                                    background: laneColor(auth.user.lane),
-                                }}
-                            />
-                            @{auth.user.username}
-                        </span>
-                    </span>
-                </Link>
-                <dl className="mt-4 flex gap-4 text-sm">
-                    {[
-                        {
-                            count: auth.user.commits_count,
-                            label:
-                                auth.user.commits_count === 1
-                                    ? 'commit'
-                                    : 'commits',
-                            href: show(auth.user),
-                        },
-                        {
-                            count: auth.user.following_count,
-                            label: 'following',
-                            href: UserFollowingController.index(auth.user),
-                        },
-                        {
-                            count: auth.user.followers_count,
-                            label:
-                                auth.user.followers_count === 1
-                                    ? 'follower'
-                                    : 'followers',
-                            href: UserFollowersController.index(auth.user),
-                        },
-                    ].map((stat) => (
-                        <div
-                            key={stat.label}
-                            className="flex flex-row-reverse gap-1.5"
-                        >
-                            <dt className="text-muted-foreground">
-                                <Link
-                                    href={stat.href}
-                                    className="hover:underline"
-                                >
-                                    {stat.label}
-                                </Link>
-                            </dt>
-                            <dd className="font-mono font-medium">
-                                {stat.count}
-                            </dd>
-                        </div>
-                    ))}
-                </dl>
-                {auth.user.bio && (
-                    <p className="mt-3 text-sm text-pretty text-muted-foreground">
-                        {auth.user.bio}
+                    <h2 id="aside-sign-in" className="font-semibold">
+                        New to /dev/null?
+                    </h2>
+                    <p className="mt-1 text-sm text-pretty text-muted-foreground">
+                        Sign in with GitHub to follow developers, star commits,
+                        and join the conversation.
                     </p>
-                )}
-            </section>
+                    <Button className="mt-4 w-full" asChild>
+                        <a href={login().url} data-test="aside-login-button">
+                            <GitHubIcon className="size-4" />
+                            Sign in with GitHub
+                        </a>
+                    </Button>
+                    <p className="mt-3 text-xs text-pretty text-muted-foreground">
+                        By signing in, you confirm you're at least 16 and agree
+                        to the{' '}
+                        <Link
+                            href={TermsController.show()}
+                            className="underline underline-offset-4 hover:text-foreground"
+                        >
+                            terms
+                        </Link>{' '}
+                        and the{' '}
+                        <Link
+                            href={PrivacyController.show()}
+                            className="underline underline-offset-4 hover:text-foreground"
+                        >
+                            privacy policy
+                        </Link>
+                        .
+                    </p>
+                </section>
+            ) : (
+                <section aria-labelledby="aside-you">
+                    <h2 id="aside-you" className="sr-only">
+                        You
+                    </h2>
+                    <Link
+                        href={show(user)}
+                        className="group flex items-center gap-3"
+                    >
+                        <UserAvatar user={user} className="size-12" />
+                        <span className="min-w-0">
+                            <span className="block truncate font-semibold group-hover:underline">
+                                {user.name}
+                            </span>
+                            <span className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
+                                <span
+                                    aria-hidden
+                                    className="size-2 rounded-full"
+                                    style={{
+                                        background: laneColor(user.lane),
+                                    }}
+                                />
+                                @{user.username}
+                            </span>
+                        </span>
+                    </Link>
+                    <dl className="mt-4 flex gap-4 text-sm">
+                        {[
+                            {
+                                count: commitsCount,
+                                label:
+                                    commitsCount === 1 ? 'commit' : 'commits',
+                                href: show(user),
+                            },
+                            {
+                                count: user.following_count,
+                                label: 'following',
+                                href: UserFollowingController.index(user),
+                            },
+                            {
+                                count: user.followers_count,
+                                label:
+                                    user.followers_count === 1
+                                        ? 'follower'
+                                        : 'followers',
+                                href: UserFollowersController.index(user),
+                            },
+                        ].map((stat) => (
+                            <div
+                                key={stat.label}
+                                className="group flex flex-row-reverse gap-1.5"
+                            >
+                                <dt className="text-muted-foreground">
+                                    <Link
+                                        href={stat.href}
+                                        className="group-hover:underline"
+                                    >
+                                        {stat.label}
+                                    </Link>
+                                </dt>
+                                <dd className="font-mono font-medium">
+                                    <Link
+                                        href={stat.href}
+                                        className="group-hover:underline"
+                                    >
+                                        {formatCount(stat.count)}
+                                    </Link>
+                                </dd>
+                            </div>
+                        ))}
+                    </dl>
+                    {user.bio && (
+                        <p className="mt-3 text-sm text-pretty text-muted-foreground">
+                            {user.bio}
+                        </p>
+                    )}
+                </section>
+            )}
 
             <WhoToFollow />
-
-            <section aria-labelledby="aside-rules" className="border-t pt-6">
-                <h2 id="aside-rules" className="mb-3 text-sm font-semibold">
-                    How devnull works
-                </h2>
-                <ul className="space-y-2.5 text-sm">
-                    {rules.map((rule) => (
-                        <li key={rule} className="flex gap-2.5">
-                            <span
-                                aria-hidden
-                                className="mt-[0.45em] size-1.5 shrink-0 rounded-full bg-rail"
-                            />
-                            {rule}
-                        </li>
-                    ))}
-                </ul>
-            </section>
 
             <div className="mt-auto space-y-2 text-sm text-muted-foreground">
                 <button
@@ -142,7 +176,29 @@ export function AppAside({
                         ?
                     </kbd>
                 </button>
-                <p>Everything else goes to /dev/null.</p>
+                <div className="flex gap-4">
+                    <Link
+                        href={AboutController.show()}
+                        className="transition-colors hover:text-foreground"
+                    >
+                        About
+                    </Link>
+                    <nav aria-label="Legal" className="flex gap-4">
+                        <Link
+                            href={TermsController.show()}
+                            className="transition-colors hover:text-foreground"
+                        >
+                            Terms
+                        </Link>
+                        <Link
+                            href={PrivacyController.show()}
+                            className="transition-colors hover:text-foreground"
+                        >
+                            Privacy
+                        </Link>
+                    </nav>
+                    <ChangelogPopover />
+                </div>
             </div>
         </aside>
     );

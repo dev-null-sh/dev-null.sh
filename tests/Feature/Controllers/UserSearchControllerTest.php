@@ -42,6 +42,21 @@ it('treats like wildcards literally', function (): void {
         ->assertJsonCount(0, 'users');
 });
 
+it('matches literal wildcard characters in display names', function (string $name, string $query): void {
+    $match = User::factory()->create(['username' => 'matching', 'name' => $name]);
+    User::factory()->create(['username' => 'other', 'name' => 'JaneXDoe']);
+
+    $this->actingAs(User::factory()->create(['username' => 'viewer']))
+        ->getJson('/search/users?q='.rawurlencode($query))
+        ->assertOk()
+        ->assertJsonCount(1, 'users')
+        ->assertJsonPath('users.0.id', $match->id);
+})->with([
+    'underscore' => ['Jane_Doe', 'Jane_Doe'],
+    'percent' => ['Discount 50%', '50%'],
+    'escape character' => ['Bang!', 'Bang!'],
+]);
+
 it('returns nothing for an empty query', function (): void {
     User::factory()->create();
 
@@ -69,8 +84,30 @@ it('rejects overly long queries', function (): void {
     $response->assertUnprocessable();
 });
 
-it('requires authentication to search', function (): void {
+it('lets guests search', function (): void {
+    User::factory()->create(['username' => 'nunomaduro']);
+
     $response = $this->getJson('/search/users?q=nuno');
 
-    $response->assertUnauthorized();
+    $response->assertOk()
+        ->assertJsonPath('users.0.username', 'nunomaduro');
+});
+
+it('leaves out muted people and people across a block', function (): void {
+    $viewer = User::factory()->create(['username' => 'viewer', 'name' => 'Viewer']);
+    $muted = User::factory()->create(['username' => 'taylor_muted']);
+    $blocked = User::factory()->create(['username' => 'taylor_blocked']);
+    $blocker = User::factory()->create(['username' => 'taylor_blocker']);
+    User::factory()->create(['username' => 'taylor']);
+
+    $viewer->muting()->attach($muted);
+    $viewer->blocking()->attach($blocked);
+    $blocker->blocking()->attach($viewer);
+
+    $response = $this->actingAs($viewer)
+        ->getJson('/search/users?q=taylor');
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'users')
+        ->assertJsonPath('users.0.username', 'taylor');
 });

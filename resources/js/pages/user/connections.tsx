@@ -1,7 +1,6 @@
 import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -17,20 +16,15 @@ import type { CursorPaginated, User } from '@/types';
 type Connection = User & { is_followed: boolean };
 
 function ConnectionFollowButton({ person }: { person: Connection }) {
-    const [isFollowing, setIsFollowing] = useState(person.is_followed);
-
     return (
         <FollowButton
             user={person}
-            isFollowing={isFollowing}
+            isFollowing={person.is_followed}
             size="sm"
             className="mt-4 min-w-24 shrink-0"
             only={['auth']}
             preserveState
-            onSuccess={() => {
-                setIsFollowing(!isFollowing);
-                router.flushAll();
-            }}
+            onSuccess={() => router.flushAll()}
         />
     );
 }
@@ -52,7 +46,7 @@ export default function Connections({
             <Head title={`${title} · @${user.username}`} />
 
             <div className="sticky top-0 z-10 bg-card">
-                <div className="flex h-14 items-center gap-3 border-b px-4">
+                <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
                     <Link
                         href={show(user)}
                         aria-label={`Back to @${user.username}`}
@@ -138,7 +132,7 @@ export default function Connections({
                                         )}
                                     </div>
                                 </Link>
-                                {person.id !== auth.user.id && (
+                                {person.id !== auth.user?.id && (
                                     <ConnectionFollowButton person={person} />
                                 )}
                             </li>

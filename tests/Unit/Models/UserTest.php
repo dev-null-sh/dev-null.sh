@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Device;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -22,8 +23,16 @@ test('to array', function (): void {
             'company',
             'created_at',
             'updated_at',
+            'has_sponsors_listing',
+            'timezone',
             'lane',
+            'has_github_account',
         ]);
+});
+
+it('knows whether it has onboarded', function (): void {
+    expect(User::factory()->create()->isOnboarded())->toBeTrue()
+        ->and(User::factory()->notOnboarded()->create()->isOnboarded())->toBeFalse();
 });
 
 it('has commits', function (): void {
@@ -40,6 +49,14 @@ it('has ssh keys', function (): void {
     SshKey::factory()->create();
 
     expect($user->sshKeys)->toHaveCount(2);
+});
+
+it('has devices', function (): void {
+    $user = User::factory()->create();
+    Device::factory()->for($user)->count(2)->create();
+    Device::factory()->create();
+
+    expect($user->devices)->toHaveCount(2);
 });
 
 it('has following and followers', function (): void {
@@ -173,13 +190,54 @@ it('uses the chosen lane over the automatic one', function (): void {
         ->and($user->lane())->toBe(4);
 });
 
-it('serializes the effective lane', function (?int $preferredLane, int $lane): void {
-    $user = User::factory()->create(['id' => '3b4571bc-5802-4005-afc1-2d9aa826b5d3', 'preferred_lane' => $preferredLane])->refresh();
+it('uses the custom color over any lane', function (): void {
+    $user = User::factory()->make(['preferred_lane' => 4, 'lane_color' => '#1a2b3c']);
+
+    expect($user->lane())->toBe('#1a2b3c');
+});
+
+it('serializes the effective lane', function (?int $preferredLane, ?string $color, int|string $lane): void {
+    $user = User::factory()->create(['id' => '3b4571bc-5802-4005-afc1-2d9aa826b5d3', 'preferred_lane' => $preferredLane, 'lane_color' => $color])->refresh();
 
     expect($user->toArray())
         ->toHaveKey('lane', $lane)
-        ->not->toHaveKey('preferred_lane');
+        ->not->toHaveKey('preferred_lane')
+        ->not->toHaveKey('lane_color');
 })->with([
-    'automatic' => [null, 3],
-    'chosen' => [0, 0],
+    'automatic' => [null, null, 3],
+    'chosen' => [0, null, 0],
+    'custom' => [null, '#1a2b3c', '#1a2b3c'],
 ]);
+
+it('knows who it mutes and who mutes it', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+
+    expect($user->isMuting($other))->toBeFalse();
+
+    $user->muting()->attach($other);
+
+    expect($user->isMuting($other))->toBeTrue()
+        ->and($other->isMuting($user))->toBeFalse()
+        ->and($user->muting->modelKeys())->toBe([$other->id])
+        ->and($other->mutedBy->modelKeys())->toBe([$user->id]);
+});
+
+it('knows who it blocks and who blocks it', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $stranger = User::factory()->create();
+
+    expect($user->isBlocking($other))->toBeFalse()
+        ->and($user->hasBlockWith($other))->toBeFalse();
+
+    $user->blocking()->attach($other);
+
+    expect($user->isBlocking($other))->toBeTrue()
+        ->and($other->isBlocking($user))->toBeFalse()
+        ->and($user->hasBlockWith($other))->toBeTrue()
+        ->and($other->hasBlockWith($user))->toBeTrue()
+        ->and($user->hasBlockWith($stranger))->toBeFalse()
+        ->and($user->blocking->modelKeys())->toBe([$other->id])
+        ->and($other->blockers->modelKeys())->toBe([$user->id]);
+});

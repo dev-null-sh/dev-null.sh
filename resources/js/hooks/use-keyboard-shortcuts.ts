@@ -1,11 +1,13 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import { signIn } from '@/lib/auth';
+import { hasModKey } from '@/lib/keyboard';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
-import type { User } from '@/types';
+import type { Log, User } from '@/types';
 
-function isTyping(target: EventTarget | null): boolean {
+export function isTyping(target: EventTarget | null): boolean {
     return (
         target instanceof HTMLElement &&
         (target.isContentEditable ||
@@ -66,44 +68,32 @@ function openFocusedCommit(): boolean {
     return true;
 }
 
-function focusComposer(): void {
-    const body = document.getElementById('body');
-
-    if (body) {
-        body.focus();
-
-        return;
-    }
-
-    router.visit(LogController.show('following'), {
-        onFinish: () =>
-            requestAnimationFrame(() =>
-                document.getElementById('body')?.focus(),
-            ),
-    });
-}
-
+/**
+ * Guests have no log, profile, or settings to go to, so those shortcuts take them to sign in.
+ */
 export function useKeyboardShortcuts(
-    user: User,
+    user: User | null,
+    log: Log | null,
     onShowHelp: () => void,
     onSearch: () => void,
+    onCompose: () => void,
 ): void {
     useEffect(() => {
         let awaitingGoTo = false;
         let goToTimeout: ReturnType<typeof setTimeout> | undefined;
 
-        const goTo: Record<string, () => void> = {
-            l: () => router.visit(LogController.show('following')),
-            e: () => router.visit(LogController.show('everyone')),
-            p: () => router.visit(show(user)),
-            s: () => router.visit(edit()),
-        };
+        const goTo: Record<string, () => void> =
+            user === null || log === null
+                ? { l: signIn, e: signIn, p: signIn, s: signIn }
+                : {
+                      l: () => router.visit(LogController.show(log)),
+                      e: () => router.visit(LogController.show('trending')),
+                      p: () => router.visit(show(user)),
+                      s: () => router.visit(edit()),
+                  };
 
         const onKeyDown = (event: KeyboardEvent) => {
-            if (
-                (event.metaKey || event.ctrlKey) &&
-                event.key.toLowerCase() === 'k'
-            ) {
+            if (hasModKey(event) && event.key.toLowerCase() === 'k') {
                 event.preventDefault();
                 onSearch();
 
@@ -116,7 +106,9 @@ export function useKeyboardShortcuts(
                 event.ctrlKey ||
                 event.altKey ||
                 isTyping(event.target) ||
-                document.querySelector('[role="dialog"][data-state="open"]')
+                document.querySelector(
+                    '[role="dialog"][data-state="open"], [role="dialog"][aria-modal="true"]',
+                )
             ) {
                 return;
             }
@@ -153,7 +145,7 @@ export function useKeyboardShortcuts(
             const actions: Record<string, () => void> = {
                 j: () => moveCommitFocus(1),
                 k: () => moveCommitFocus(-1),
-                c: focusComposer,
+                c: onCompose,
                 '/': onSearch,
                 '?': onShowHelp,
                 g: () => {
@@ -176,5 +168,5 @@ export function useKeyboardShortcuts(
             window.removeEventListener('keydown', onKeyDown);
             clearTimeout(goToTimeout);
         };
-    }, [user, onShowHelp, onSearch]);
+    }, [user, log, onShowHelp, onSearch, onCompose]);
 }

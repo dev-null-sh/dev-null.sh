@@ -6,9 +6,16 @@ import { createRoot } from 'react-dom/client';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
+import { initializeCommitState } from '@/lib/commit-state';
+import { trackCurrentPage } from '@/lib/current-page';
+import { registerServiceWorker } from '@/lib/service-worker';
+import { trackVisualViewport } from '@/lib/visual-viewport';
 import '../css/app.css';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || '/dev/null';
+
+trackCurrentPage();
+trackVisualViewport();
 
 void createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
@@ -18,11 +25,13 @@ void createInertiaApp({
             import.meta.glob<ComponentType>('./pages/**/*.tsx'),
         ),
     setup({ el, App, props }) {
+        registerServiceWorker(props.initialPage.version);
+
         const root = createRoot(el);
 
         root.render(
             <StrictMode>
-                <TooltipProvider delayDuration={0}>
+                <TooltipProvider delayDuration={150}>
                     <App {...props} />
                     <Toaster />
                 </TooltipProvider>
@@ -36,3 +45,5 @@ void createInertiaApp({
 
 // This will set light / dark mode on load...
 initializeTheme();
+
+initializeCommitState();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Services\Embeds;
 use Carbon\CarbonInterface;
 use Database\Factories\LinkPreviewFactory;
 use Illuminate\Database\Eloquent\Attributes\Visible;
@@ -54,5 +55,13 @@ final class LinkPreview extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    public function toArray(): array
+    {
+        return [...parent::toArray(), 'is_pending' => $this->fetched_at === null, 'embed' => resolve(Embeds::class)->for($this->url)?->toArray()];
     }
 }

@@ -1,8 +1,7 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
-import { Ellipsis, EyeOff } from 'lucide-react';
-import { useState } from 'react';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
-import { RailSegment } from '@/components/graph-rail';
+import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { FollowButton, useHasBlockWith } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -12,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPreview } from '@/components/user-preview';
 import { useWhoToFollow } from '@/hooks/use-who-to-follow';
 import { cn, laneColor } from '@/lib/utils';
 import { edit } from '@/routes/appearance';
@@ -32,64 +32,7 @@ function reasonFor(user: SuggestedUser): string | null {
     return null;
 }
 
-/**
- * Only the counts reload after a follow, so the suggestion stays where it is and flips to "Following".
- */
-function FollowButton({
-    user,
-    className,
-}: {
-    user: SuggestedUser;
-    className?: string;
-}) {
-    const [isFollowing, setIsFollowing] = useState(false);
-
-    return (
-        <Button
-            size="sm"
-            variant={isFollowing ? 'outline' : 'default'}
-            className={cn('group/follow min-w-24 shrink-0', className)}
-            asChild
-        >
-            <Link
-                href={
-                    isFollowing
-                        ? UserFollowController.destroy(user)
-                        : UserFollowController.store(user)
-                }
-                as="button"
-                only={['auth']}
-                preserveScroll
-                preserveState
-                onSuccess={() => {
-                    setIsFollowing(!isFollowing);
-                    router.flushAll();
-                }}
-                aria-label={
-                    isFollowing
-                        ? `Unfollow @${user.username}`
-                        : `Follow @${user.username}`
-                }
-                data-test="suggested-follow-button"
-            >
-                {isFollowing ? (
-                    <>
-                        <span className="group-hover/follow:hidden">
-                            Following
-                        </span>
-                        <span className="hidden text-destructive group-hover/follow:inline">
-                            Unfollow
-                        </span>
-                    </>
-                ) : (
-                    'Follow'
-                )}
-            </Link>
-        </Button>
-    );
-}
-
-function SuggestedUserRow({
+export function SuggestedUserRow({
     user,
     className,
     buttonClassName,
@@ -99,39 +42,96 @@ function SuggestedUserRow({
     buttonClassName?: string;
 }) {
     const reason = reasonFor(user);
+    const avatarRef = useRef<HTMLSpanElement>(null);
+    const hasBlock = useHasBlockWith(user);
+    const [isGone, setIsGone] = useState(false);
+
+    if (isGone) {
+        return null;
+    }
 
     return (
-        <li className={cn('flex items-center gap-3', className)}>
-            <Link
-                href={show(user)}
-                className="group flex min-w-0 flex-1 items-center gap-3"
-            >
-                <UserAvatar user={user} className="size-9" />
-                <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold group-hover:underline">
-                        {user.name}
-                    </span>
-                    <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
-                        <span
-                            aria-hidden
-                            className="size-1.5 shrink-0 rounded-full"
-                            style={{ background: laneColor(user.lane) }}
-                        />
-                        <span className="truncate">@{user.username}</span>
-                    </span>
-                    {reason && (
-                        <span className="line-clamp-2 block text-xs text-muted-foreground">
-                            {reason}
-                        </span>
-                    )}
-                </span>
-            </Link>
-            <FollowButton user={user} className={buttonClassName} />
+        <li
+            inert={hasBlock}
+            className={cn(
+                'grid grid-cols-1 transition-[grid-template-rows,opacity,margin] duration-300 ease-out',
+                hasBlock
+                    ? 'm-0 grid-rows-[0fr] border-0 opacity-0'
+                    : 'grid-rows-[1fr]',
+            )}
+            onTransitionEnd={(event) =>
+                hasBlock &&
+                event.target === event.currentTarget &&
+                event.propertyName === 'grid-template-rows' &&
+                setIsGone(true)
+            }
+        >
+            <div className={cn('min-h-0', { 'overflow-hidden': hasBlock })}>
+                <div className={cn('flex items-center gap-3', className)}>
+                    <UserPreview
+                        user={user}
+                        anchor={avatarRef}
+                        className="flex min-w-0 flex-1"
+                    >
+                        <Link
+                            href={show(user)}
+                            className="group flex min-w-0 flex-1 items-center gap-3"
+                        >
+                            <span
+                                ref={avatarRef}
+                                className="inline-flex shrink-0"
+                            >
+                                <UserAvatar user={user} className="size-9" />
+                            </span>
+                            <span className="min-w-0">
+                                <span className="block truncate text-sm font-semibold group-hover:underline">
+                                    {user.name}
+                                </span>
+                                <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                                    <span
+                                        aria-hidden
+                                        className="size-1.5 shrink-0 rounded-full"
+                                        style={{
+                                            background: laneColor(user.lane),
+                                        }}
+                                    />
+                                    <span className="truncate">
+                                        @{user.username}
+                                    </span>
+                                </span>
+                                {reason && (
+                                    <span className="line-clamp-2 block text-xs text-muted-foreground">
+                                        {reason}
+                                    </span>
+                                )}
+                            </span>
+                        </Link>
+                    </UserPreview>
+                    <FollowButton
+                        user={user}
+                        isFollowing={false}
+                        size="sm"
+                        className={cn('min-w-24 shrink-0', buttonClassName)}
+                        only={['auth']}
+                        preserveState
+                        onSuccess={() => router.flushAll()}
+                        data-test="suggested-follow-button"
+                    />
+                </div>
+            </div>
         </li>
     );
 }
 
-function SuggestedUsersSkeleton({ rowClassName }: { rowClassName?: string }) {
+function SuggestedUsersSkeleton({
+    rowClassName,
+    buttonClassName,
+    hasWrappingReasons = false,
+}: {
+    rowClassName?: string;
+    buttonClassName?: string;
+    hasWrappingReasons?: boolean;
+}) {
     return (
         <>
             {[0, 1, 2].map((index) => (
@@ -140,14 +140,59 @@ function SuggestedUsersSkeleton({ rowClassName }: { rowClassName?: string }) {
                     aria-hidden
                     className={cn('flex items-center gap-3', rowClassName)}
                 >
-                    <Skeleton className="size-9 rounded-full" />
-                    <span className="flex-1 space-y-1.5">
-                        <Skeleton className="h-3.5 w-28" />
-                        <Skeleton className="h-3 w-20" />
+                    <Skeleton className="size-9 shrink-0 rounded-full" />
+                    <span className="flex-1">
+                        <Skeleton className="my-[3px] h-3.5 w-28" />
+                        <Skeleton className="my-0.5 h-3 w-20" />
+                        <Skeleton className="my-0.5 h-3 w-32" />
+                        {hasWrappingReasons && (
+                            <Skeleton className="my-0.5 h-3 w-16" />
+                        )}
                     </span>
+                    <Skeleton
+                        className={cn('h-8 w-24 shrink-0', buttonClassName)}
+                    />
                 </li>
             ))}
         </>
+    );
+}
+
+function WhoToFollowRefreshButton() {
+    const { isRefreshing, refreshSuggestedUsers } = useWhoToFollow();
+
+    return (
+        <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 text-muted-foreground"
+            onClick={refreshSuggestedUsers}
+            aria-disabled={isRefreshing}
+            aria-label="Suggest other people"
+            title="Suggest other people"
+            data-test="who-to-follow-refresh"
+        >
+            <RefreshCw
+                className={cn(
+                    isRefreshing && 'animate-spin motion-reduce:animate-none',
+                )}
+            />
+        </Button>
+    );
+}
+
+function WhoToFollowActions({
+    hasSuggestions,
+    onHide,
+}: {
+    hasSuggestions: boolean;
+    onHide: () => void;
+}) {
+    return (
+        <div className="flex items-center gap-1">
+            {hasSuggestions && <WhoToFollowRefreshButton />}
+            <WhoToFollowMenu onHide={onHide} />
+        </div>
     );
 }
 
@@ -250,7 +295,12 @@ export function WhoToFollow() {
                 <h2 id="aside-who-to-follow" className="text-sm font-semibold">
                     Who to follow
                 </h2>
-                {!isHidden && <WhoToFollowMenu onHide={hide} />}
+                {!isHidden && (
+                    <WhoToFollowActions
+                        hasSuggestions={suggestedUsers !== undefined}
+                        onHide={hide}
+                    />
+                )}
             </div>
             {isHidden ? (
                 <WhoToFollowHidden onUndo={undo} />
@@ -258,7 +308,7 @@ export function WhoToFollow() {
                 <ul className="space-y-4">
                     <Deferred
                         data="suggestedUsers"
-                        fallback={<SuggestedUsersSkeleton />}
+                        fallback={<SuggestedUsersSkeleton hasWrappingReasons />}
                     >
                         {suggestedUsers?.map((user) => (
                             <SuggestedUserRow key={user.id} user={user} />
@@ -273,13 +323,7 @@ export function WhoToFollow() {
 /**
  * The aside is hidden below the xl breakpoint, so smaller screens get the same suggestions inside the log.
  */
-export function WhoToFollowInLog({
-    lane,
-    isDimmed = false,
-}: {
-    lane: string;
-    isDimmed?: boolean;
-}) {
+export function WhoToFollowInLog() {
     const { isVisible, isHidden, hide, undo, suggestedUsers } =
         useHideWhoToFollow();
 
@@ -289,7 +333,7 @@ export function WhoToFollowInLog({
 
     return (
         <section aria-labelledby="log-who-to-follow" className="flex xl:hidden">
-            <RailSegment lane={lane} isDimmed={isDimmed} />
+            <div aria-hidden className="w-8 shrink-0 sm:w-9" />
             <div className="min-w-0 flex-1 border-b py-4 pr-4">
                 <div
                     className={cn(
@@ -303,7 +347,12 @@ export function WhoToFollowInLog({
                     >
                         $ who --should-i-follow
                     </h2>
-                    {!isHidden && <WhoToFollowMenu onHide={hide} />}
+                    {!isHidden && (
+                        <WhoToFollowActions
+                            hasSuggestions={suggestedUsers !== undefined}
+                            onHide={hide}
+                        />
+                    )}
                 </div>
                 {isHidden ? (
                     <WhoToFollowHidden onUndo={undo} />
@@ -312,7 +361,10 @@ export function WhoToFollowInLog({
                         <Deferred
                             data="suggestedUsers"
                             fallback={
-                                <SuggestedUsersSkeleton rowClassName="p-3" />
+                                <SuggestedUsersSkeleton
+                                    rowClassName="p-3"
+                                    buttonClassName="w-[90px]"
+                                />
                             }
                         >
                             {suggestedUsers?.map((user) => (

@@ -3,6 +3,8 @@ import { Pin, PinOff } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import CommitPinController from '@/actions/App/Http/Controllers/CommitPinController';
+import { ActionTooltip } from '@/components/action-tooltip';
+import { toastWhenThrottled } from '@/lib/throttle';
 import type { Commit } from '@/types';
 
 export function PinCommitButton({
@@ -34,23 +36,27 @@ export function PinCommitButton({
                     ),
                 onError: () =>
                     toast.error('Could not update your pinned commit.'),
+                onHttpException: (response) => !toastWhenThrottled(response),
             },
         );
     };
 
     return (
-        <button
-            type="button"
-            onClick={togglePin}
-            disabled={isSaving}
-            aria-label={label}
-            aria-pressed={isPinned}
-            aria-busy={isSaving}
-            title={label}
-            className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-wait disabled:opacity-50"
-        >
-            <Icon aria-hidden className="size-3.5" />
-            {isSaving ? 'Saving…' : isPinned ? 'Unpin' : 'Pin'}
-        </button>
+        <ActionTooltip label={label}>
+            <button
+                type="button"
+                onClick={togglePin}
+                disabled={isSaving}
+                aria-label={label}
+                aria-pressed={isPinned}
+                aria-busy={isSaving}
+                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-wait disabled:opacity-50 sm:min-w-24"
+            >
+                <Icon aria-hidden className="size-3.5" />
+                <span className="sr-only sm:not-sr-only">
+                    {isSaving ? 'Saving…' : isPinned ? 'Unpin' : 'Pin'}
+                </span>
+            </button>
+        </ActionTooltip>
     );
 }

@@ -42,6 +42,21 @@ it('suggests matches, people the user follows first', function (): void {
         ->assertJsonPath('users.3.username', 'jess');
 });
 
+it('matches literal wildcard characters in display names', function (string $name, string $query): void {
+    $match = User::factory()->create(['username' => 'matching', 'name' => $name]);
+    User::factory()->create(['username' => 'other', 'name' => 'JaneXDoe']);
+
+    $this->actingAs(User::factory()->create(['username' => 'viewer']))
+        ->getJson('/search/mentions?q='.rawurlencode($query))
+        ->assertOk()
+        ->assertJsonCount(1, 'users')
+        ->assertJsonPath('users.0.id', $match->id);
+})->with([
+    'underscore' => ['Jane_Doe', 'Jane_Doe'],
+    'percent' => ['Discount 50%', '50%'],
+    'escape character' => ['Bang!', 'Bang!'],
+]);
+
 it('never suggests the user themselves', function (): void {
     $user = User::factory()->create(['username' => 'nuno', 'name' => 'Nuno Maduro']);
 
@@ -51,6 +66,25 @@ it('never suggests the user themselves', function (): void {
         ->assertJsonCount(0, 'users');
 });
 
+it('never suggests muted people or people across a block', function (string $term): void {
+    $user = User::factory()->create(['username' => 'viewer', 'name' => 'Viewer']);
+    $muted = User::factory()->create(['username' => 'taylor_muted']);
+    $blocked = User::factory()->create(['username' => 'taylor_blocked']);
+    $blocker = User::factory()->create(['username' => 'taylor_blocker']);
+    $visible = User::factory()->create(['username' => 'taylor']);
+
+    $user->following()->attach([$muted->id, $visible->id]);
+    $user->muting()->attach($muted);
+    $user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($user);
+
+    $response = $this->actingAs($user)->getJson('/search/mentions?q='.$term);
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'users')
+        ->assertJsonPath('users.0.id', $visible->id);
+})->with(['', 'taylor']);
+
 it('limits the number of suggestions', function (): void {
     User::factory()->count(10)->sequence(fn ($sequence): array => ['username' => "dev{$sequence->index}"])->create();
 
@@ -59,6 +93,35 @@ it('limits the number of suggestions', function (): void {
 
     $response->assertOk()
         ->assertJsonCount(6, 'users');
+});
+
+it("only suggests an org's members within it, people the user follows first", function (): void {
+    $mark = User::factory()->create(['username' => 'mark']);
+    [$taylor, $jess] = followersOf($mark, 2);
+    $taylor->update(['username' => 'taylor']);
+    $jess->update(['username' => 'jess']);
+    User::factory()->create(['username' => 'taylorotwell']);
+    $org = createOrg($mark, [$taylor, $jess]);
+    $mark->following()->attach($taylor);
+
+    $this->actingAs($mark)
+        ->getJson(route('mention-suggestion.index', ['q' => '', 'org' => $org]))
+        ->assertOk()
+        ->assertJsonPath('users.*.username', ['taylor', 'jess']);
+
+    $this->getJson(route('mention-suggestion.index', ['q' => 'tay', 'org' => $org]))
+        ->assertOk()
+        ->assertJsonPath('users.*.username', ['taylor']);
+});
+
+it("does not suggest an org's members to people outside it", function (): void {
+    $mark = User::factory()->create();
+    [$taylor] = followersOf($mark, 1);
+    $org = createOrg($mark, [$taylor]);
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('mention-suggestion.index', ['q' => '', 'org' => $org]))
+        ->assertNotFound();
 });
 
 it('rejects overly long queries', function (): void {

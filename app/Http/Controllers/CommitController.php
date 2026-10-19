@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
+use App\Dto\ThreadContinuation;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
@@ -13,38 +14,56 @@ use App\Http\Requests\ShowCommitRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
+use App\Queries\CommitContinuationQuery;
+use App\Queries\CommitPageQuery;
 use App\Queries\CommitRepliesQuery;
+use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 final readonly class CommitController
 {
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitAncestorsQuery $ancestors, CommitRepliesQuery $replies): RedirectResponse|Response
+    /**
+     * Commits are public, so guests and crawlers read the same page, with the commit's link preview and the replies shown under it as structured data.
+     */
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies, PageMetadata $metadata): Response
     {
-        if (! $currentUser instanceof User) {
-            return $this->preview($user, $commit);
-        }
+        $focusedCommit = null;
+        $getCommit = function () use (&$focusedCommit, $page, $commit, $currentUser): Commit {
+            return $focusedCommit ??= $page->get($commit, $currentUser);
+        };
 
-        $commit = Commit::query()
-            ->withVisibleReplyCount($currentUser)
-            ->withSavedState($currentUser)
-            ->with(['user', 'linkPreview', 'images'])
-            ->withStarsFor($currentUser)
-            ->findOrFail($commit->id);
+        $threadContinuation = null;
+        $getContinuation = function () use (&$threadContinuation, $continuation, $getCommit, $currentUser): ThreadContinuation {
+            return $threadContinuation ??= $continuation->get($getCommit(), $currentUser);
+        };
+
+        $threadReplies = null;
+        $getReplies = function () use (&$threadReplies, $replies, $commit, $currentUser, $request): CursorPaginator {
+            return $threadReplies ??= $replies->paginate($commit, $currentUser, limit: $request->repliesPerPage());
+        };
+
+        $preview = $currentUser instanceof User || $request->inertia() ? null : $metadata->commit(
+            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.user']),
+            $getReplies()->items(),
+        );
 
         return Inertia::render('commit/show', [
-            'commit' => $commit,
-            'ancestors' => $ancestors->get($commit, $currentUser),
-            'replies' => $replies->paginate($commit, $currentUser),
-        ]);
+            'commit' => $getCommit,
+            'ancestors' => fn (): Collection => $ancestors->get($commit, $currentUser),
+            'continuation' => $getContinuation,
+            'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? $getReplies() : null,
+        ])->withViewData(['preview' => $preview]);
     }
 
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): RedirectResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->images());
+        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll());
 
         Inertia::flash('committed', [
             'id' => $commit->id,
@@ -54,7 +73,7 @@ final readonly class CommitController
         if ($commit->status === CommitStatus::Pending) {
             Inertia::flash('toast', [
                 'type' => 'info',
-                'message' => __('Your commit is pending review. Everyone will see it once it is approved.'),
+                'message' => 'Your commit is pending review. Everyone will see it once it is approved.',
             ]);
         }
 
@@ -63,38 +82,22 @@ final readonly class CommitController
 
     public function destroy(DeleteCommitRequest $request, Commit $commit, DeleteCommit $action): RedirectResponse
     {
-        $action->handle($commit);
+        $commit = $action->handle($commit);
 
-        if (url()->previous() === route('commit.show', [$commit->user, $commit])) {
+        Inertia::flash('deleted', [
+            'id' => $commit->id,
+            'parent_id' => $commit->parent_id,
+            'deleted_at' => $commit->deleted_at?->toJSON(),
+            'expires_at' => $commit->deleted_at?->addSeconds(Commit::RESTORABLE_SECONDS)->toJSON(),
+            'server_time' => now()->toJSON(),
+        ]);
+
+        $commitUrl = route('commit.show', [$commit->user, $commit]);
+
+        if (Str::is([$commitUrl, "{$commitUrl}/photos/*"], url()->previous())) {
             return to_route('user.show', $commit->user);
         }
 
         return back();
-    }
-
-    /**
-     * Guests only get the landing page, with the commit's link preview for crawlers.
-     */
-    private function preview(User $user, Commit $commit): RedirectResponse|Response
-    {
-        redirect()->setIntendedUrl(route('commit.show', [$user, $commit]));
-
-        if (app()->isLocal() && config('app.auto_login')) {
-            return to_route('home');
-        }
-
-        $commit->loadPublicPreview();
-
-        $title = $commit->parent instanceof Commit
-            ? "{$user->nameWithHandle()} replying to @{$commit->parent->user->username} on /dev/null"
-            : "{$user->nameWithHandle()} on /dev/null";
-
-        return Inertia::render('welcome')->withViewData(['preview' => [
-            'type' => 'article',
-            'title' => $title,
-            'description' => Str::limit(Str::squish($commit->body), 200, '…', preserveWords: true),
-            'url' => route('commit.show', [$user, $commit]),
-            'image' => route('commit-open-graph-image.show', ['user' => $user, 'commit' => $commit, 'v' => $commit->openGraphImageVersion()]),
-        ]]);
     }
 }

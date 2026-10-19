@@ -1,22 +1,35 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode, RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
-import UserPreviewController from '@/actions/App/Http/Controllers/UserPreviewController';
+import {
+    FollowLabel,
+    onFollowHttpException,
+    useFollowHover,
+    useIsFollowing,
+} from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
-import { cn, laneColor } from '@/lib/utils';
+import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { toastWhenThrottled } from '@/lib/throttle';
+import { laneColor } from '@/lib/utils';
+import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
+import { show as userPreview } from '@/routes/user-preview';
 import type { Profile, User } from '@/types';
 
 type PreviewData = {
-    user: Profile;
     isFollowing: boolean;
     followsYou: boolean;
-};
+    isMuting: boolean;
+    isBlocking: boolean;
+} & (
+    | { isUnavailable: false; user: Profile }
+    | { isUnavailable: true; user: User }
+);
 
 type Position =
     | { left: number; top: number; bottom?: never }
@@ -26,10 +39,13 @@ const openDelay = 450;
 const closeDelay = 200;
 const previewWidth = 304;
 const previewHeight = 260;
+const viewportMargin = 8;
+// Where the centre of the preview's avatar sits: border, padding and half of the size-14 avatar.
+const avatarCentre = 45;
 const cache = new Map<string, PreviewData>();
 
-async function fetchPreview(user: User): Promise<PreviewData> {
-    const response = await fetch(UserPreviewController.show(user).url, {
+async function fetchPreview(url: string): Promise<PreviewData> {
+    const response = await fetch(url, {
         headers: {
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
@@ -37,11 +53,13 @@ async function fetchPreview(user: User): Promise<PreviewData> {
     });
 
     if (!response.ok) {
-        throw new Error(`Unable to load @${user.username}`);
+        toastWhenThrottled(response);
+
+        throw new Error(`Unable to load ${url}`);
     }
 
     const data = (await response.json()) as PreviewData;
-    cache.set(user.username, data);
+    cache.set(url, data);
 
     return data;
 }
@@ -59,25 +77,55 @@ function positionFor(trigger: HTMLElement): Position {
         : { left, top: rect.bottom + 8 };
 }
 
+function positionAround(anchor: HTMLElement): Position {
+    const rect = anchor.getBoundingClientRect();
+    const left = rect.left + rect.width / 2 - avatarCentre;
+    const top = rect.top + rect.height / 2 - avatarCentre;
+
+    return {
+        left: Math.min(
+            Math.max(left, viewportMargin),
+            window.innerWidth - previewWidth - viewportMargin,
+        ),
+        top: Math.max(top, viewportMargin),
+    };
+}
+
 export function UserPreview({
     user,
+    userId,
     children,
     className,
+    anchor,
     onHoverChange,
 }: {
-    user: User;
+    user: User | Pick<User, 'username'>;
+    userId?: string;
     children: ReactNode;
     className?: string;
+    anchor?: RefObject<HTMLElement | null>;
     onHoverChange?: (isHovering: boolean) => void;
 }) {
+    const previewUrl = userId ? preview(userId).url : userPreview(user).url;
     const triggerRef = useRef<HTMLSpanElement>(null);
+    const previewRef = useRef<HTMLDivElement>(null);
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    const isMenuOpen = useRef(false);
+    const isPointerOver = useRef(false);
     const [position, setPosition] = useState<Position | null>(null);
+    const [isOpen, setIsOpen] = useState(false);
     const [data, setData] = useState<PreviewData | null>(
-        () => cache.get(user.username) ?? null,
+        () => cache.get(previewUrl) ?? null,
     );
+    const previewUser = data?.user ?? ('id' in user ? user : null);
 
-    const close = () => setPosition(null);
+    const close = () => {
+        setIsOpen(false);
+
+        if (!previewRef.current) {
+            setPosition(null);
+        }
+    };
 
     const scheduleOpen = () => {
         clearTimeout(timer.current);
@@ -91,18 +139,36 @@ export function UserPreview({
                 return;
             }
 
-            setPosition(positionFor(triggerRef.current));
-            setData(cache.get(user.username) ?? null);
-            fetchPreview(user).then(setData, () => undefined);
+            setPosition(
+                anchor?.current
+                    ? positionAround(anchor.current)
+                    : positionFor(triggerRef.current),
+            );
+            setIsOpen(true);
+            setData(cache.get(previewUrl) ?? null);
+            fetchPreview(previewUrl).then(setData, () => undefined);
         }, openDelay);
     };
 
     const scheduleClose = () => {
         clearTimeout(timer.current);
+
+        if (isMenuOpen.current) {
+            return;
+        }
+
         timer.current = setTimeout(close, closeDelay);
     };
 
-    const keepOpen = () => clearTimeout(timer.current);
+    const changeHover = (isHovering: boolean) => {
+        isPointerOver.current = isHovering;
+        onHoverChange?.(isHovering);
+    };
+
+    const keepOpen = () => {
+        clearTimeout(timer.current);
+        setIsOpen(true);
+    };
 
     useEffect(() => {
         if (!position) {
@@ -124,18 +190,63 @@ export function UserPreview({
         };
     }, [position]);
 
+    useEffect(() => {
+        const preview = previewRef.current;
+
+        if (isOpen || !preview) {
+            return;
+        }
+
+        let isClosing = true;
+
+        Promise.all(
+            preview.getAnimations().map((animation) => animation.finished),
+        ).then(
+            () => isClosing && setPosition(null),
+            () => undefined,
+        );
+
+        return () => {
+            isClosing = false;
+        };
+    }, [isOpen]);
+
+    useLayoutEffect(() => {
+        if (!previewRef.current || position?.top === undefined) {
+            return;
+        }
+
+        const overflow =
+            position.top +
+            previewRef.current.offsetHeight -
+            (window.innerHeight - viewportMargin);
+        const top = Math.max(position.top - overflow, viewportMargin);
+
+        if (overflow > 0 && top !== position.top) {
+            setPosition({ left: position.left, top });
+        }
+    }, [position, data]);
+
     useEffect(() => () => clearTimeout(timer.current), []);
 
     return (
         <>
             <span
                 ref={triggerRef}
-                onMouseEnter={() => {
-                    onHoverChange?.(true);
+                onPointerEnter={(event) => {
+                    if (event.pointerType !== 'mouse') {
+                        return;
+                    }
+
+                    changeHover(true);
                     scheduleOpen();
                 }}
-                onMouseLeave={() => {
-                    onHoverChange?.(false);
+                onPointerLeave={(event) => {
+                    if (event.pointerType !== 'mouse') {
+                        return;
+                    }
+
+                    changeHover(false);
                     scheduleClose();
                 }}
                 className={className}
@@ -144,22 +255,52 @@ export function UserPreview({
             </span>
 
             {position &&
+                previewUser &&
                 createPortal(
                     <div
+                        ref={previewRef}
                         role="dialog"
-                        aria-label={`About @${user.username}`}
-                        onMouseEnter={keepOpen}
-                        onMouseLeave={scheduleClose}
-                        className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
-                        style={position}
+                        aria-label={`About @${previewUser.username}`}
+                        onPointerEnter={(event) => {
+                            if (event.pointerType !== 'mouse') {
+                                return;
+                            }
+
+                            changeHover(true);
+                            keepOpen();
+                        }}
+                        onPointerLeave={(event) => {
+                            if (event.pointerType !== 'mouse') {
+                                return;
+                            }
+
+                            changeHover(false);
+                            scheduleClose();
+                        }}
+                        data-state={isOpen ? 'open' : 'closed'}
+                        className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
+                        style={{
+                            ...position,
+                            transformOrigin: anchor
+                                ? `${avatarCentre}px ${avatarCentre}px`
+                                : `left ${position.top === undefined ? 'bottom' : 'top'}`,
+                        }}
                         data-test="user-preview"
                     >
                         <UserPreviewContent
-                            user={data?.user ?? user}
+                            user={previewUser}
                             data={data}
                             onChange={(next) => {
-                                cache.set(user.username, next);
+                                cache.set(previewUrl, next);
                                 setData(next);
+                            }}
+                            onMenuOpenChange={(isOpen) => {
+                                isMenuOpen.current = isOpen;
+                                clearTimeout(timer.current);
+
+                                if (!isOpen && !isPointerOver.current) {
+                                    scheduleClose();
+                                }
                             }}
                         />
                     </div>,
@@ -173,41 +314,61 @@ function UserPreviewContent({
     user,
     data,
     onChange,
+    onMenuOpenChange,
 }: {
     user: User | Profile;
     data: PreviewData | null;
     onChange: (data: PreviewData) => void;
+    onMenuOpenChange: (isOpen: boolean) => void;
 }) {
     const { auth } = usePage().props;
-    const isCurrentUser = auth.user.id === user.id;
+    const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
 
+    const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        user,
+        data?.isFollowing ?? false,
+    );
+
+    const [pendingFollows, setPendingFollows] = useState<boolean | null>(null);
+    const shownIsFollowing = pendingFollows ?? isFollowing;
+
+    /**
+     * The button flips right away, but like every other follow control the shared state only changes once the server confirms, so there is nothing to roll back.
+     */
     const toggleFollow = () => {
-        if (!data) {
+        if (!data || data.isUnavailable || pendingFollows !== null) {
             return;
         }
 
-        const previous = data;
-        const isFollowing = !data.isFollowing;
-
-        onChange({
-            ...data,
-            isFollowing,
-            user: {
-                ...data.user,
-                followers_count:
-                    data.user.followers_count + (isFollowing ? 1 : -1),
-            },
-        });
+        const follows = !isFollowing;
+        setPendingFollows(follows);
 
         router.visit(
-            isFollowing
+            follows
                 ? UserFollowController.store(user)
                 : UserFollowController.destroy(user),
             {
                 preserveScroll: true,
                 preserveState: true,
-                onError: () => onChange(previous),
+                onSuccess: () => {
+                    setIsFollowing(follows);
+                    onChange({
+                        ...data,
+                        isFollowing: follows,
+                        user: {
+                            ...data.user,
+                            followers_count:
+                                data.user.followers_count +
+                                Number(follows) -
+                                Number(data.isFollowing),
+                        },
+                    });
+                },
+                onHttpException: (response) =>
+                    onFollowHttpException(user, response),
+                onFinish: () => setPendingFollows(null),
             },
         );
     };
@@ -224,33 +385,45 @@ function UserPreviewContent({
 
                 {!isCurrentUser &&
                     (data ? (
-                        <Button
-                            size="sm"
-                            variant={data.isFollowing ? 'outline' : 'default'}
-                            className="group/follow min-w-24"
-                            onClick={toggleFollow}
-                            aria-label={
-                                data.isFollowing
-                                    ? `Unfollow @${user.username}`
-                                    : `Follow @${user.username}`
-                            }
-                            data-test="user-preview-follow-button"
-                        >
-                            {data.isFollowing ? (
-                                <>
-                                    <span className="group-hover/follow:hidden">
-                                        Following
-                                    </span>
-                                    <span className="hidden text-destructive group-hover/follow:inline">
-                                        Unfollow
-                                    </span>
-                                </>
-                            ) : (
-                                'Follow'
+                        <div className="flex gap-2">
+                            {auth.user && (
+                                <UserSafetyMenu
+                                    user={user}
+                                    isMuting={data.isMuting}
+                                    isBlocking={data.isBlocking}
+                                    className="size-8"
+                                    onOpenChange={onMenuOpenChange}
+                                />
                             )}
-                        </Button>
+                            {!data.isUnavailable && (
+                                <Button
+                                    size="sm"
+                                    variant={
+                                        shownIsFollowing ? 'outline' : 'default'
+                                    }
+                                    className="group/follow min-w-24"
+                                    onClick={() => {
+                                        markToggled();
+                                        toggleFollow();
+                                    }}
+                                    onMouseLeave={onMouseLeave}
+                                    aria-label={
+                                        shownIsFollowing
+                                            ? `Unfollow @${user.username}`
+                                            : `Follow @${user.username}`
+                                    }
+                                    aria-busy={pendingFollows !== null}
+                                    data-test="user-preview-follow-button"
+                                >
+                                    <FollowLabel
+                                        isFollowing={shownIsFollowing}
+                                        isJustToggled={isJustToggled}
+                                    />
+                                </Button>
+                            )}
+                        </div>
                     ) : (
-                        <span className="h-8 w-24 rounded-md bg-muted motion-safe:animate-pulse" />
+                        <span className="h-8 w-24 rounded-md bg-muted-foreground/15 motion-safe:animate-pulse" />
                     ))}
             </div>
 
@@ -271,16 +444,27 @@ function UserPreviewContent({
                         Follows you
                     </span>
                 )}
+                {data?.isMuting && (
+                    <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                        Muted
+                    </span>
+                )}
             </p>
 
-            {user.bio && (
+            {user.bio && !data?.isUnavailable && (
                 <p className="mt-2 line-clamp-3 text-sm text-pretty">
                     {user.bio}
                 </p>
             )}
 
             <div className="mt-3 flex gap-4 text-sm">
-                {data ? (
+                {data?.isUnavailable ? (
+                    <p className="text-muted-foreground">
+                        {data.isBlocking
+                            ? `You blocked @${user.username}.`
+                            : 'This profile is unavailable.'}
+                    </p>
+                ) : data ? (
                     <>
                         <span>
                             <span className="font-mono font-medium">
@@ -318,11 +502,7 @@ function UserPreviewContent({
                         </Link>
                     </>
                 ) : (
-                    <span
-                        className={cn(
-                            'h-4 w-48 rounded bg-muted motion-safe:animate-pulse',
-                        )}
-                    />
+                    <span className="my-0.5 h-4 w-48 rounded bg-muted-foreground/15 motion-safe:animate-pulse" />
                 )}
             </div>
         </div>

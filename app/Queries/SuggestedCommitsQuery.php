@@ -17,8 +17,8 @@ final readonly class SuggestedCommitsQuery
     {
         return Commit::query()
             ->visibleTo($user)
+            ->withoutMutedAuthorsFor($user)
             ->topLevel()
-            ->with('user')
             ->withStarsFor($user)
             ->whereNot('user_id', $user->id)
             ->latest()
@@ -28,6 +28,7 @@ final readonly class SuggestedCommitsQuery
             ->unique('user_id')
             ->take($limit)
             ->values()
+            ->load('user')
             ->toBase();
     }
 }

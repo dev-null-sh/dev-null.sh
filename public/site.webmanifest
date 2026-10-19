@@ -3,11 +3,19 @@
     "name": "/dev/null",
     "short_name": "/dev/null",
     "description": "A social network for developers. Sign in with GitHub, commit plain text to a shared log.",
+    "lang": "en",
+    "dir": "ltr",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
+    "orientation": "any",
     "background_color": "#f6f7f8",
     "theme_color": "#f6f7f8",
+    "categories": ["social", "developer tools"],
+    "prefer_related_applications": false,
+    "launch_handler": {
+        "client_mode": "navigate-existing"
+    },
     "icons": [
         {
             "src": "/icon-192.png",
@@ -26,6 +34,26 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Following",
+            "description": "Commits from the people you follow",
+            "url": "/log/following",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+        },
+        {
+            "name": "Latest",
+            "description": "Every commit, newest first",
+            "url": "/log/latest",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+        },
+        {
+            "name": "Notifications",
+            "description": "Replies, stars, mentions, and follows",
+            "url": "/notifications",
+            "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
         }
     ]
 }

@@ -137,11 +137,11 @@ it('refuses files that are not images, storing none of the images', function ():
     ]);
 })->throws(ValidationException::class);
 
-it('refuses formats other than jpeg, png, gif and webp', function (): void {
-    $file = UploadedFile::fake()->image('image.bmp', 10, 10);
+it('refuses formats other than jpeg, png and webp', function (string $name): void {
+    $file = UploadedFile::fake()->image($name, 10, 10);
 
     resolve(CreateCommitImages::class)->handle(Commit::factory()->create(), [$file]);
-})->throws(ValidationException::class);
+})->throws(ValidationException::class)->with(['image.bmp', 'image.gif']);
 
 it('refuses images too large to decode safely', function (): void {
     resolve(CreateCommitImages::class)->handle(Commit::factory()->create(), [UploadedFile::fake()->image('huge.png', 6001, 10)]);

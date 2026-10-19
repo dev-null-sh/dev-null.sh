@@ -21,13 +21,16 @@ final class ListUsersTool extends Tool
 {
     public function handle(Request $request, Presenter $presenter, UserSearchQuery $query): Response|ResponseFactory
     {
+        $user = $request->user();
+        assert($user instanceof User);
+
         $validated = $request->validate([
             'query' => ['required', 'string', 'max:100'],
         ]);
 
         return Response::structured([
-            'users' => $query->get($validated['query'])
-                ->map(fn (User $user): array => $presenter->user($user))
+            'users' => $query->get($validated['query'], $user)
+                ->map(fn (User $found): array => $presenter->user($found))
                 ->all(),
         ]);
     }

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Actions\CreateTomFriendship;
+use App\Enums\Log;
+use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -12,7 +15,9 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Passport\Contracts\OAuthenticatable;
 use Laravel\Passport\HasApiTokens;
 
@@ -27,17 +32,37 @@ use Laravel\Passport\HasApiTokens;
  * @property-read string|null $location
  * @property-read string|null $website
  * @property-read string|null $company
+ * @property-read bool $has_sponsors_listing
  * @property-read int|null $preferred_lane
+ * @property-read string|null $lane_color
+ * @property-read bool $pasteis_mode
+ * @property-read bool $remotes_enabled
+ * @property-read RemotesFrom $remotes_from
+ * @property-read bool $pull_receipts
+ * @property-read int $pasteis_received
+ * @property-read int $pasteis_given_today
+ * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read string|null $timezone
+ * @property-read Log $log
+ * @property-read CarbonInterface|null $onboarded_at
+ * @property-read CarbonInterface|null $github_follows_imported_at
  * @property-read string|null $remember_token
+ * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
  * @property-read Collection<int, Commit> $starredCommits
  * @property-read Collection<int, User> $following
  * @property-read Collection<int, User> $followers
+ * @property-read Collection<int, User> $muting
+ * @property-read Collection<int, User> $mutedBy
+ * @property-read Collection<int, User> $blocking
+ * @property-read Collection<int, User> $blockers
  * @property-read Collection<int, Notification> $notifications
  * @property-read Collection<int, SshKey> $sshKeys
+ * @property-read Collection<int, PollVote> $pollVotes
+ * @property-read Collection<int, Device> $devices
  * @property-read int $commits_count
  * @property-read int $following_count
  * @property-read int $followers_count
@@ -47,7 +72,19 @@ use Laravel\Passport\HasApiTokens;
     'email',
     'remember_token',
     'preferred_lane',
+    'lane_color',
+    'pasteis_mode',
+    'remotes_enabled',
+    'remotes_from',
+    'pull_receipts',
+    'pasteis_received',
+    'pasteis_given_today',
+    'pasteis_given_on',
     'pinned_commit_id',
+    'github_synced_at',
+    'log',
+    'onboarded_at',
+    'github_follows_imported_at',
 ])]
 final class User extends Authenticatable implements OAuthenticatable
 {
@@ -57,6 +94,22 @@ final class User extends Authenticatable implements OAuthenticatable
     use HasFactory;
 
     use HasUuids;
+
+    public const int DAILY_PASTEIS = 10;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'log' => Log::Following->value,
+        'pasteis_mode' => false,
+        'remotes_enabled' => true,
+        'remotes_from' => RemotesFrom::Following->value,
+        'pull_receipts' => true,
+        'pasteis_received' => 0,
+        'pasteis_given_today' => 0,
+        'pasteis_given_on' => null,
+    ];
 
     /**
      * @return array<string, string>
@@ -74,9 +127,23 @@ final class User extends Authenticatable implements OAuthenticatable
             'location' => 'string',
             'website' => 'string',
             'company' => 'string',
+            'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
+            'lane_color' => 'string',
+            'pasteis_mode' => 'boolean',
+            'remotes_enabled' => 'boolean',
+            'remotes_from' => RemotesFrom::class,
+            'pull_receipts' => 'boolean',
+            'pasteis_received' => 'integer',
+            'pasteis_given_today' => 'integer',
+            'pasteis_given_on' => 'date',
             'pinned_commit_id' => 'string',
+            'timezone' => 'string',
+            'log' => Log::class,
+            'onboarded_at' => 'datetime',
+            'github_follows_imported_at' => 'datetime',
             'remember_token' => 'string',
+            'github_synced_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -91,11 +158,49 @@ final class User extends Authenticatable implements OAuthenticatable
     }
 
     /**
+     * Reports keep an author in moderation for seven days, even if the reported commit is deleted.
+     */
+    public function hasRecentReports(): bool
+    {
+        return CommitReport::query()
+            ->whereNull('dismissed_at')
+            ->where('created_at', '>=', now()->subWeek())
+            ->whereIn('commit_id', $this->commits()->withTrashed()->select('id'))
+            ->exists();
+    }
+
+    /**
+     * Ten followers are enough, so the check stops at the tenth instead of counting every follower.
+     */
+    public function hasGoodReputation(): bool
+    {
+        return $this->created_at->lt(now()->subHour())
+            && $this->commits()->approved()->exists()
+            && $this->followers()->skip(9)->exists();
+    }
+
+    /**
+     * @return HasMany<PollVote, $this>
+     */
+    public function pollVotes(): HasMany
+    {
+        return $this->hasMany(PollVote::class);
+    }
+
+    /**
      * @return HasMany<SshKey, $this>
      */
     public function sshKeys(): HasMany
     {
         return $this->hasMany(SshKey::class);
+    }
+
+    /**
+     * @return HasMany<Device, $this>
+     */
+    public function devices(): HasMany
+    {
+        return $this->hasMany(Device::class);
     }
 
     /**
@@ -128,6 +233,38 @@ final class User extends Authenticatable implements OAuthenticatable
     }
 
     /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function muting(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'mutes', 'muter_id', 'muted_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function mutedBy(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'mutes', 'muted_id', 'muter_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function blocking(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'blocks', 'blocker_id', 'blocked_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function blockers(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'blocks', 'blocked_id', 'blocker_id')->withTimestamps();
+    }
+
+    /**
      * @return HasMany<Notification, $this>
      */
     public function notifications(): HasMany
@@ -141,6 +278,11 @@ final class User extends Authenticatable implements OAuthenticatable
     public function getAuthPassword(): string
     {
         return '';
+    }
+
+    public function isOnboarded(): bool
+    {
+        return $this->onboarded_at !== null;
     }
 
     public function isAdmin(): bool
@@ -174,12 +316,23 @@ final class User extends Authenticatable implements OAuthenticatable
      */
     public function openGraphImageVersion(): string
     {
-        return hash('xxh3', implode(':', [
-            $this->updated_at->getTimestamp(),
+        return hash('xxh3', (string) json_encode([
+            ...$this->openGraphIdentity(),
+            $this->bio,
             $this->commits_count,
             $this->following_count,
             $this->followers_count,
         ]));
+    }
+
+    /**
+     * What every link preview image draws of the user, so saving anything else leaves them cached.
+     *
+     * @return list<int|string|null>
+     */
+    public function openGraphIdentity(): array
+    {
+        return [$this->name, $this->username, $this->avatar_url, $this->lane()];
     }
 
     /**
@@ -195,9 +348,86 @@ final class User extends Authenticatable implements OAuthenticatable
         return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
     }
 
-    public function lane(): int
+    public function isMuting(self $user): bool
     {
-        return $this->preferred_lane ?? $this->automaticLane();
+        return $this->muting()->newPivotQuery()->where('muted_id', $user->id)->exists();
+    }
+
+    public function isBlocking(self $user): bool
+    {
+        return $this->blocking()->newPivotQuery()->where('blocked_id', $user->id)->exists();
+    }
+
+    /**
+     * A block works both ways, so either one blocking the other keeps them apart.
+     */
+    public function hasBlockWith(self $user): bool
+    {
+        return $this->blockerIdWith($user) !== null;
+    }
+
+    /**
+     * Whether the user can have a conversation with someone at all: remotes on, someone else, and no block between
+     * them. Whether they may push to it right now is the conversation's own business.
+     */
+    public function canMessage(self $user): bool
+    {
+        return $this->remotes_enabled && ! $this->is($user) && ! $this->hasBlockWith($user);
+    }
+
+    /**
+     * Whether a first message from the sender opens the conversation straight away. When it doesn't, it waits
+     * fetched for a merge, or can't be sent at all while requests are off. Site admins can always reach anyone with
+     * remotes on.
+     */
+    public function acceptsRemotesFrom(self $sender): bool
+    {
+        return $sender->isAdmin() || ($this->remotes_from === RemotesFrom::Everyone && config('remotes.everyone')) || $this->isFollowing($sender);
+    }
+
+    /**
+     * Which of the two blocked the other, if either did.
+     */
+    public function blockerIdWith(self $user): ?string
+    {
+        $blockerId = DB::table('blocks')
+            ->where(fn (QueryBuilder $query): QueryBuilder => $query->where('blocker_id', $this->id)->where('blocked_id', $user->id))
+            ->orWhere(fn (QueryBuilder $query): QueryBuilder => $query->where('blocker_id', $user->id)->where('blocked_id', $this->id))
+            ->value('blocker_id');
+
+        return is_string($blockerId) ? $blockerId : null;
+    }
+
+    /**
+     * The ids of everyone the user blocks or is blocked by, as a subquery.
+     */
+    public function idsAcrossBlocks(): QueryBuilder
+    {
+        return $this->blocking()->newPivotQuery()->select('blocked_id')
+            ->union($this->blockers()->newPivotQuery()->select('blocker_id'));
+    }
+
+    /**
+     * The ids of everyone the user mutes, as a subquery.
+     */
+    public function mutedIds(): QueryBuilder
+    {
+        return $this->muting()->newPivotQuery()->select('muted_id');
+    }
+
+    public function pasteisRemaining(): int
+    {
+        return self::DAILY_PASTEIS - ($this->pasteis_given_on?->isToday() ? $this->pasteis_given_today : 0);
+    }
+
+    public function lane(): int|string
+    {
+        return $this->preferredLane() ?? $this->automaticLane();
+    }
+
+    public function preferredLane(): int|string|null
+    {
+        return $this->lane_color ?? $this->preferred_lane;
     }
 
     /**
@@ -222,7 +452,16 @@ final class User extends Authenticatable implements OAuthenticatable
         return [
             ...parent::toArray(),
             'lane' => $this->lane(),
+            'has_github_account' => $this->hasGitHubAccount(),
         ];
+    }
+
+    /**
+     * Everyone signs in with GitHub except Tom, who was made up and has no GitHub profile to link to.
+     */
+    public function hasGitHubAccount(): bool
+    {
+        return $this->github_id !== CreateTomFriendship::GITHUB_ID;
     }
 
     private function fillCounts(int $commits): self

@@ -6,7 +6,7 @@ import ReactDOMServer from 'react-dom/server';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || '/dev/null';
 
 createServer((page) =>
     createInertiaApp({
@@ -20,7 +20,7 @@ createServer((page) =>
             ),
         setup: ({ App, props }) => {
             return (
-                <TooltipProvider delayDuration={0}>
+                <TooltipProvider delayDuration={150}>
                     <App {...props} />
                     <Toaster />
                 </TooltipProvider>

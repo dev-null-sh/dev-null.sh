@@ -6,8 +6,10 @@ namespace App\Actions;
 
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Models\Poll;
 use App\Queries\CommitBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -16,7 +18,10 @@ final readonly class UpdateCommitStatuses
 {
     public function __construct(
         private CreateReplyNotifications $createReplyNotifications,
+        private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
+        private CreateWorldReply $createWorldReply,
+        private UpdateCommitHotScores $updateCommitHotScores,
     ) {
         //
     }
@@ -48,21 +53,41 @@ final readonly class UpdateCommitStatuses
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
                 ->delete();
 
-            Notification::query()->insert($commits->map(fn (Commit $commit): array => [
-                'id' => Str::uuid7()->toString(),
-                'recipient_id' => $commit->user_id,
-                'actor_id' => $commit->user_id,
-                'type' => $status === CommitStatus::Approved ? NotificationType::Approved->value : NotificationType::Rejected->value,
-                'commit_id' => $commit->id,
-                'key' => 'moderated:'.$commit->id,
-                'reason' => $status === CommitStatus::Rejected ? $reason : null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ])->all());
+            if ($status === CommitStatus::Rejected) {
+                Notification::query()->insert($commits->map(fn (Commit $commit): array => [
+                    'id' => Str::uuid7()->toString(),
+                    'recipient_id' => $commit->user_id,
+                    'actor_id' => $commit->user_id,
+                    'type' => NotificationType::Rejected->value,
+                    'commit_id' => $commit->id,
+                    'key' => 'moderated:'.$commit->id,
+                    'reason' => $reason,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ])->values()->all());
+            }
+
+            $this->updateCommitHotScores->handle($commits->modelKeys());
 
             if ($status === CommitStatus::Approved) {
+                Poll::query()
+                    ->whereIn('commit_id', $commits->modelKeys())
+                    ->whereNull('opened_at')
+                    ->update(['opened_at' => now()]);
+
                 $this->createReplyNotifications->handle(...$commits);
+                $this->createQuoteNotifications->handle(...$commits);
                 $this->createMentionNotifications->handle(...$commits);
+
+                $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
+
+                if (filled(config('ai.providers.opencode.key'))) {
+                    foreach ($commits as $commit) {
+                        if (isset($commit->mentions[CreateTomFriendship::USERNAME]) && $commit->user?->github_id !== CreateTomFriendship::GITHUB_ID) {
+                            dispatch(new ReplyAsTom($commit->id));
+                        }
+                    }
+                }
             }
         });
     }

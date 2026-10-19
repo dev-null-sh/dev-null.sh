@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Actions\CreateCommitImages;
+use App\Actions\CreateCommitImageFiles;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\File;
@@ -58,7 +58,7 @@ arch('actions leave authorization and validation to form requests')
         ValidationException::class,
     ])
     ->ignoring([
-        CreateCommitImages::class,
+        CreateCommitImageFiles::class,
     ]);
 
 test('actions only create, update, or delete', function (): void {
@@ -81,6 +81,12 @@ test('controllers are cruddy by design, or invokable', function (): void {
 
         expect($methods === ['__invoke'] || array_diff($methods, ['index', 'create', 'store', 'show', 'edit', 'update', 'destroy']) === [])
             ->toBeTrue("{$controller} may only have the resource methods, or a single __invoke method.");
+    }
+});
+
+test('migrations only go up', function (): void {
+    foreach (File::files(database_path('migrations')) as $file) {
+        expect(method_exists(require $file->getPathname(), 'down'))->toBeFalse("{$file->getFilename()} may not have a down method.");
     }
 });
 

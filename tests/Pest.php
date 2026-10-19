@@ -3,12 +3,20 @@
 declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
+use App\Jobs\UnfurlLink;
+use App\Models\Device;
+use App\Models\Message;
 use App\Models\User;
+use App\Services\OpenAI;
+use App\Services\SignedCommits;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\Support\SshKeyPair;
 use Tests\TestCase;
 
@@ -25,6 +33,11 @@ pest()->extend(TestCase::class)
     })
     ->in('Feature', 'Unit');
 
+pest()->tia()
+    ->locally()
+    ->baselined()
+    ->defaultBranch('production');
+
 expect()->extend('toBeOne', fn () => $this->toBe(1));
 
 function something(): void
@@ -35,6 +48,92 @@ function something(): void
 function sshFixture(string $name): string
 {
     return (string) file_get_contents(__DIR__.'/Fixtures/ssh/'.$name);
+}
+
+/**
+ * A unit vector in one dimension and zero elsewhere, so two of them differ only in direction and their cosine
+ * distance is exact: 0 for the same dimension, 1 for any other.
+ *
+ * @return list<float>
+ */
+function embeddingVector(int $dimension): array
+{
+    $vector = array_fill(0, OpenAI::EMBEDDING_DIMENSIONS, 0.0);
+    $vector[$dimension] = 1.0;
+
+    return $vector;
+}
+
+/**
+ * @param  list<list<float>>  $embeddings
+ * @return array{data: list<array{index: int, embedding: list<float>}>}
+ */
+function embeddingsResponse(array $embeddings): array
+{
+    return ['data' => array_map(
+        fn (array $embedding, int $index): array => ['index' => $index, 'embedding' => $embedding],
+        $embeddings,
+        array_keys($embeddings),
+    )];
+}
+
+/**
+ * The decision model's answers: one predicate per candidate, in the order given, at even odds or better when the
+ * verdict is that it is relevant. An empty list leaves every candidate unjudged, and so kept.
+ *
+ * @param  list<bool>  $verdicts
+ * @return array{answers: list<array{type: string, name: string, probability: float}>}
+ */
+function relevanceResponse(array $verdicts): array
+{
+    return ['answers' => array_map(
+        fn (bool $relevant, int $index): array => [
+            'type' => 'predicate',
+            'name' => 'post_'.($index + 1),
+            'probability' => $relevant ? 1.0 : 0.0,
+        ],
+        $verdicts,
+        array_keys($verdicts),
+    )];
+}
+
+/**
+ * The two requests a commit search makes: embedding the term, and the decision model's verdicts on the candidates. By
+ * default every candidate is relevant, so only the filtering tests pass verdicts.
+ *
+ * @param  list<bool>  $verdicts
+ */
+function fakeSearch(array $verdicts = []): void
+{
+    Http::fake([
+        'api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(0)])),
+        'api.openai.com/v1/decisions' => Http::response(relevanceResponse($verdicts)),
+    ]);
+}
+
+/**
+ * @param  array<string, mixed>  $account
+ */
+function fakeGitHubAccount(User $user, array $account = []): void
+{
+    $account = [
+        'id' => (int) $user->github_id,
+        'login' => 'octocat',
+        'name' => 'The Octocat',
+        'email' => 'octocat@github.com',
+        'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4',
+        'bio' => 'I am the Octocat.',
+        'company' => '@github',
+        'location' => 'San Francisco',
+        'blog' => 'https://github.blog',
+        ...$account,
+    ];
+
+    Http::fake([
+        "api.github.com/user/{$user->github_id}" => Http::response($account),
+    ]);
+
+    fakeGitHubSshKeys(User::factory()->make(['github_id' => $user->github_id, 'username' => $account['login']]));
 }
 
 /**
@@ -56,18 +155,55 @@ function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []
 }
 
 /**
+ * @param  list<User>  $following
+ * @param  list<User>  $followers
+ */
+function fakeGitHubFollows(User $user, array $following = [], array $followers = []): void
+{
+    $toResponse = fn (array $users): array => array_map(
+        fn (User $user): array => ['id' => (int) $user->github_id, 'login' => $user->username],
+        $users,
+    );
+
+    Http::fake([
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
+        "api.github.com/users/{$user->username}/following*" => Http::response($toResponse($following)),
+        "api.github.com/users/{$user->username}/followers*" => Http::response($toResponse($followers)),
+    ]);
+}
+
+function fakeGitHubSponsorsListing(bool $hasSponsorsListing = false): void
+{
+    Http::fake([
+        'api.github.com/graphql' => Http::response(['data' => ['viewer' => [
+            'hasSponsorsListing' => $hasSponsorsListing,
+        ]]]),
+    ]);
+}
+
+/**
+ * @param  list<string>  $imageHashes
  * @return array{payload: string, signature: string}
  */
-function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = ''): array
+function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = '', array $imageHashes = []): array
 {
-    $payload = implode("\n", [
+    $lines = [
         $timestamp ?? now()->getTimestamp(),
         $nonce ?? bin2hex(random_bytes(16)),
         $replyTo,
-        $body,
-    ]);
+    ];
 
-    return ['payload' => $payload, 'signature' => $keyPair->sign($payload)];
+    if ($imageHashes !== []) {
+        $lines[] = implode(',', $imageHashes);
+    }
+
+    $lines[] = $body;
+
+    $payload = implode("\n", $lines);
+
+    $namespace = $imageHashes === [] ? SignedCommits::Namespace : SignedCommits::ImagesNamespace;
+
+    return ['payload' => $payload, 'signature' => $keyPair->sign($payload, $namespace)];
 }
 
 function fakeAvatar(): string
@@ -79,4 +215,127 @@ function fakeAvatar(): string
     imagepng($image);
 
     return (string) ob_get_clean();
+}
+
+/**
+ * @param  array<string, mixed>|null  $payload
+ */
+function failedJob(string $queue = 'default', ?CarbonInterface $failedAt = null, string $exception = "RuntimeException: Something broke\nStack trace:\n#0 {main}", ?array $payload = null): string
+{
+    $uuid = (string) Str::uuid();
+
+    DB::table('failed_jobs')->insert([
+        'uuid' => $uuid,
+        'connection' => 'database',
+        'queue' => $queue,
+        'payload' => json_encode($payload ?? ['uuid' => $uuid, 'displayName' => UnfurlLink::class, 'attempts' => 1]),
+        'exception' => $exception,
+        'failed_at' => $failedAt ?? now(),
+    ]);
+
+    return $uuid;
+}
+
+function queuedJob(string $queue, CarbonInterface $createdAt): void
+{
+    DB::table('jobs')->insert([
+        'queue' => $queue,
+        'payload' => json_encode(['uuid' => (string) Str::uuid(), 'displayName' => UnfurlLink::class]),
+        'attempts' => 0,
+        'available_at' => $createdAt->getTimestamp(),
+        'created_at' => $createdAt->getTimestamp(),
+    ]);
+}
+
+/**
+ * Sends a chat message the way the composer does, so tests start from real conversations.
+ */
+function sendChatMessage(User $sender, User $recipient, string $body = 'hello'): Message
+{
+    test()->actingAs($sender)->postJson(route('conversation-message.store', $recipient), [
+        'body' => $body,
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated();
+
+    return Message::query()->latest('id')->firstOrFail();
+}
+
+/**
+ * People who follow the maintainer, so they can be added to an org.
+ *
+ * @return list<User>
+ */
+function followersOf(User $maintainer, int $count): array
+{
+    return User::factory()->count($count)->create()->each(fn (User $follower) => $follower->following()->attach($maintainer))->all();
+}
+
+/**
+ * Creates an org the way the Remotes page does, and returns its id.
+ *
+ * @param  list<User>  $members
+ */
+function createOrg(User $maintainer, array $members, ?string $name = 'dev/null core'): string
+{
+    return test()->actingAs($maintainer)->postJson(route('org.store'), [
+        'name' => $name,
+        'members' => array_map(fn (User $member): string => $member->username, $members),
+    ])->assertCreated()->json('org.id');
+}
+
+function pushToOrg(User $sender, string $org, string $body = 'hello'): Message
+{
+    test()->actingAs($sender)->postJson(route('org-message.store', $org), [
+        'body' => $body,
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated();
+
+    return Message::query()->latest('id')->firstOrFail();
+}
+
+/**
+ * Signs an API request the way the mobile app does, and returns its headers as server variables.
+ *
+ * @return array<string, string>
+ */
+function signApiRequest(SshKeyPair $keyPair, string $method, string $uri, string $body = '', ?int $timestamp = null, ?string $nonce = null, string $namespace = 'devnull-api'): array
+{
+    $timestamp ??= now()->getTimestamp();
+    $nonce ??= bin2hex(random_bytes(16));
+
+    $query = parse_url(url($uri), PHP_URL_QUERY);
+    $target = parse_url(url($uri), PHP_URL_PATH).(is_string($query) ? "?{$query}" : '');
+
+    return [
+        'CONTENT_TYPE' => 'application/json',
+        'HTTP_ACCEPT' => 'application/json',
+        'HTTP_X_DEVNULL_TIMESTAMP' => (string) $timestamp,
+        'HTTP_X_DEVNULL_NONCE' => $nonce,
+        'HTTP_X_SSH_SIGNATURE' => $keyPair->sign(implode("\n", [$timestamp, $nonce, mb_strtoupper($method), $target, $body]), $namespace),
+    ];
+}
+
+/**
+ * Sends an API request signed the way the mobile app does, with the data as its JSON body.
+ *
+ * @param  array<string, mixed>|null  $data
+ */
+function signedApiRequest(SshKeyPair $keyPair, string $method, string $uri, ?array $data = null, ?int $timestamp = null, ?string $nonce = null, string $namespace = 'devnull-api'): TestResponse
+{
+    $body = $data === null ? '' : json_encode($data, JSON_THROW_ON_ERROR);
+
+    return test()->call($method, $uri, server: signApiRequest($keyPair, $method, $uri, $body, $timestamp, $nonce, $namespace), content: $body);
+}
+
+/**
+ * Gives the user a key approved as a device, that the mobile app signs API requests with. It isn't on their GitHub
+ * account, as the API doesn't need it to be.
+ */
+function apiKeyPairFor(User $user): SshKeyPair
+{
+    $keyPair = SshKeyPair::generate();
+
+    Device::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
+
+    return $keyPair;
 }

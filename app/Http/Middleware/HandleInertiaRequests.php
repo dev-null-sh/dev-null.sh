@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Enums\Log;
+use App\Enums\RepliesPerPage;
+use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\ConversationsQuery;
+use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -38,7 +43,7 @@ final class HandleInertiaRequests extends Middleware
     {
         $isAdmin = $request->user()?->isAdmin() ?? false;
         $user = $request->user();
-        $showsWhoToFollow = $request->cookie('who_to_follow') !== 'false';
+        $showsWhoToFollow = $user instanceof User && $request->cookie('who_to_follow') !== 'false';
 
         return [
             ...parent::share($request),
@@ -46,13 +51,31 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $isAdmin,
-                'unreadNotificationsCount' => fn (): int => $request->user()?->notifications()->relevant()->unread()->count() ?? 0,
+                'log' => fn (): ?Log => $request->user()?->log,
+                'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0,
+                'unreadMessagesCount' => fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0,
+                'remotes' => fn (): ?array => $user?->remotes_enabled ? [
+                    'from' => $user->remotes_from,
+                    'pull_receipts' => $user->pull_receipts,
+                    'requests' => (bool) config('remotes.requests'),
+                    'everyone' => (bool) config('remotes.everyone'),
+                ] : null,
+                'pasteis' => fn (): ?array => $user?->pasteis_mode ? [
+                    'remaining' => $user->pasteisRemaining(),
+                    'day' => today()->toDateString(),
+                ] : null,
             ],
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            ...$user instanceof User && $showsWhoToFollow ? [
-                'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get($user)),
+            'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
+            'repliesPerPage' => RepliesPerPage::of($request)->value,
+            // Onboarding has no sidebar to show them in, and the people followed during it change who is suggested.
+            ...$user instanceof User && $showsWhoToFollow && ! $request->routeIs('onboarding.show') ? [
+                'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(
+                    $user,
+                    round: max(0, (int) $request->cookie('who_to_follow_round')),
+                ))->once(),
             ] : [],
         ];
     }

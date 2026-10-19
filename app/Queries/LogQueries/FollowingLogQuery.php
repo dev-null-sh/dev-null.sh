@@ -7,15 +7,17 @@ namespace App\Queries\LogQueries;
 use App\Contracts\Queries\LogQuery;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\CommitBuilder;
 use Illuminate\Database\Eloquent\Builder;
 
 final readonly class FollowingLogQuery implements LogQuery
 {
-    /**
-     * @return Builder<Commit>
-     */
-    public function builder(User $user): Builder
+    public function builder(?User $user): CommitBuilder
     {
+        if (! $user instanceof User) {
+            return Commit::query()->whereRaw('1 = 0');
+        }
+
         $following = $user->following();
 
         return Commit::query()
@@ -23,11 +25,11 @@ final readonly class FollowingLogQuery implements LogQuery
                 ->whereIn('user_id', $following->newPivotQuery()->select($following->getRelatedPivotKeyName()))
                 ->orWhere('user_id', $user->id))
             ->visibleTo($user)
+            ->withoutMutedAuthorsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)
-            ->withSavedState($user)
-            ->with(['user', 'linkPreview', 'images'])
-            ->withStarsFor($user)
+            ->withReplyPreviews($user)
+            ->withCardDataFor($user)
             ->latest()
             ->latest('id');
     }

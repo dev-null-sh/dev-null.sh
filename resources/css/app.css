@@ -6,6 +6,123 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant in-place (&:is(:root[data-view-transition] *));
+
+/* Hovering or focusing a reply only reveals that reply's own controls, not those of the commits it sits inside. */
+@custom-variant commit-hover {
+    @media (hover: hover) {
+        [data-commit]:hover:not(:has([data-reply]:hover)) & {
+            @slot;
+        }
+    }
+}
+@custom-variant commit-focus-within ([data-commit]:focus-within:not(:has([data-reply]:focus-within)) &);
+@custom-variant nav-wide {
+    @media (width >= 64rem) {
+        &:where([data-nav='expanded'], [data-nav='expanded'] *) {
+            @slot;
+        }
+    }
+}
+@media (min-width: 64rem) {
+    [data-nav] {
+        --sidebar-width: 256px;
+    }
+
+    [data-nav='collapsed'] {
+        --sidebar-width: 80px;
+    }
+
+    /* Off-screen commits skip layout, so the feed's width changing stays cheap however long it is. */
+    [data-nav-content] [data-commit] {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 320px;
+    }
+}
+
+/* The rail and the feed slide only while the navigation collapses or expands, not when a page changes the feed's width. */
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+    :root[data-nav-sliding] [data-nav-rail] {
+        transition: width 300ms cubic-bezier(0.33, 1, 0.68, 1);
+    }
+
+    :root[data-nav-sliding] [data-main] {
+        transition: max-width 300ms cubic-bezier(0.33, 1, 0.68, 1);
+    }
+}
+
+:root[data-nav-measuring] [data-nav],
+:root[data-nav-measuring] [data-nav] * {
+    transition: none !important;
+}
+
+:root[data-nav-pinning],
+:root[data-nav-pinning] body {
+    overflow-anchor: none;
+}
+
+/* Commit text that re-wraps while the navigation collapses or expands shows as a diff: removed, then added. */
+[data-commit-body][data-diff] {
+    position: relative;
+}
+
+/* Avatars and their lane rings sit 10px left of the text, so the markers fit that gap. They repeat once per line,
+   however long the text, and as images rather than text, screen readers skip them. */
+[data-commit-body][data-diff]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(-0.6em - 2px);
+    width: 0.6em;
+    mask: var(--diff-marker) center top / 100% 1lh repeat-y;
+    transition: opacity 600ms ease;
+}
+
+[data-commit-body][data-diff='del']::before {
+    --diff-marker: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 24'%3E%3Cpath d='M2.5 12h4' stroke='%23000' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-color: var(--destructive);
+}
+
+[data-commit-body]:is([data-diff='add'], [data-diff='settle'])::before {
+    --diff-marker: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 24'%3E%3Cpath d='M2.5 12h4M4.5 10v4' stroke='%23000' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-color: var(--lane-1);
+}
+
+[data-commit-body][data-diff='settle']::before {
+    opacity: 0;
+}
+
+[data-commit-hash][data-hunk]::before {
+    content: attr(data-hunk) / '';
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 0.5rem);
+    translate: 0 -50%;
+    padding: 0 0.375rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: nowrap;
+    color: var(--primary);
+    background-color: var(--primary-soft);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+}
+
+[data-commit-hash][data-hunk-shown]::before {
+    opacity: 1;
+}
+
+@custom-variant reply-hover {
+    @media (hover: hover) {
+        [data-reply]:hover:not(:has([data-reply]:hover)) & {
+            @slot;
+        }
+    }
+}
 
 @theme {
     --font-sans:
@@ -58,6 +175,40 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+
+    --ease-spring: linear(
+        0,
+        0.058,
+        0.2,
+        0.38,
+        0.567,
+        0.738,
+        0.88,
+        0.986,
+        1.058,
+        1.099,
+        1.116,
+        1.114,
+        1.1,
+        1.08,
+        1.058,
+        1.038,
+        1.02,
+        1.006,
+        0.996,
+        0.99,
+        0.987,
+        0.986,
+        0.988,
+        0.99,
+        0.992,
+        0.995,
+        0.997,
+        0.999,
+        1,
+        1.001,
+        1
+    );
 
     --animate-node-in: node-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-rail-draw: rail-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -124,6 +275,7 @@
     --ring: #3b6fe0;
     --rail: #d3d7dd;
     --radius: 0.5rem;
+    --brand: #ff2d20;
 
     --lane-0: #d9480f;
     --lane-1: #2f9e44;
@@ -181,6 +333,8 @@
 
     body {
         @apply bg-background text-foreground;
+        /* Installed on a phone with a notch, the page reaches the screen's edges; keep the content out of them. */
+        padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
         caret-color: var(--primary);
         font-feature-settings: 'ss01', 'cv11';
     }
@@ -216,15 +370,148 @@
     }
 }
 
+/* The stable scrollbar gutter already keeps the page in place when a dialog locks scrolling. */
+html body[data-scroll-locked] {
+    margin-right: 0 !important;
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
     animation-duration: 160ms;
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+::view-transition-group(*) {
+    animation-duration: 220ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-group(*.tab-indicator),
+::view-transition-group(nav-active-item) {
+    animation-duration: 280ms;
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+::view-transition-group(*.tab-header),
+::view-transition-group(mobile-nav),
+::view-transition-group(toasts) {
+    animation-duration: 160ms;
+}
+
+::view-transition-old(*):only-child {
+    animation-duration: 100ms;
+}
+
+::view-transition-new(*):only-child {
+    animation-duration: 160ms;
+}
+
+:root[data-view-transition='theme']::view-transition-group(*),
+:root[data-view-transition='theme']::view-transition-old(*),
+:root[data-view-transition='theme']::view-transition-new(*) {
+    animation-duration: 320ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+::view-transition-group(*.indicator-label) {
+    z-index: 1;
+}
+
+::view-transition-group(*.tab-header),
+::view-transition-group(*.tab-indicator),
+::view-transition-group(mobile-nav) {
+    z-index: 2;
+}
+
+::view-transition-group(mobile-nav-active-item) {
+    z-index: 3;
+}
+
+::view-transition-group(*.mobile-nav-icon) {
+    z-index: 4;
+}
+
+::view-transition-group(toasts) {
+    z-index: 5;
+}
+
+::view-transition-group(*.tab-content) {
+    animation-name: none;
+    animation-duration: 160ms;
+    overflow-x: clip;
+}
+
+[data-sonner-toaster] {
+    view-transition-name: toasts;
+}
+
+@media (pointer: coarse) {
+    :root[data-lane-swipe] {
+        overscroll-behavior-x: none;
+    }
+}
+
+@media (max-width: 767px) {
+    :root[data-fixed-page],
+    :root[data-fixed-page] body {
+        overflow: hidden;
+        overscroll-behavior: none;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    :root[data-tab-slide]::view-transition-old(*.tab-content),
+    :root[data-tab-slide]::view-transition-new(*.tab-content) {
+        animation-duration: 280ms;
+        animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+        mix-blend-mode: normal;
+    }
+
+    :root[data-tab-slide='forward']::view-transition-old(*.tab-content) {
+        animation-name: tab-slide-to-left;
+    }
+
+    :root[data-tab-slide='forward']::view-transition-new(*.tab-content) {
+        animation-name: tab-slide-from-right;
+    }
+
+    :root[data-tab-slide='back']::view-transition-old(*.tab-content) {
+        animation-name: tab-slide-to-right;
+    }
+
+    :root[data-tab-slide='back']::view-transition-new(*.tab-content) {
+        animation-name: tab-slide-from-left;
+    }
+}
+
+@keyframes tab-slide-to-left {
+    to {
+        transform: translateX(-100%);
+    }
+}
+
+@keyframes tab-slide-from-right {
+    from {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes tab-slide-to-right {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes tab-slide-from-left {
+    from {
+        transform: translateX(-100%);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
-    ::view-transition-old(root),
-    ::view-transition-new(root) {
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
         animation: none;
     }
 }
@@ -237,7 +524,7 @@
 
     .hl-type,
     .hl-generic {
-        color: var(--lane-2);
+        color: var(--brand);
     }
 
     .hl-property {

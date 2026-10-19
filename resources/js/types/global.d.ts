@@ -1,11 +1,16 @@
 import type { Auth, SuggestedUser } from '@/types/auth';
-import type { CommittedFlash, FlashToast } from '@/types/ui';
+import type { Commit } from '@/types/commit';
+import type { CommittedFlash, DeletedFlash, FlashToast } from '@/types/ui';
 
 declare module '@inertiajs/core' {
     export interface InertiaConfig {
         flashDataType: {
             toast?: FlashToast;
             committed?: CommittedFlash;
+            deleted?: DeletedFlash;
+            restored?: Commit;
+            scheduled?: boolean;
+            localSignIn?: boolean;
         };
         sharedPageProps: {
             name: string;
@@ -13,6 +18,8 @@ declare module '@inertiajs/core' {
             hasUnmoderatedCommits: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
+            dimsLanes: boolean;
+            repliesPerPage: number;
             suggestedUsers?: SuggestedUser[];
             [key: string]: unknown;
         };

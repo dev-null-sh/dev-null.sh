@@ -10,12 +10,10 @@ use Dom\HTMLDocument;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\IpUtils;
-use Throwable;
 use Uri\WhatWg\Url;
 
 final readonly class UpdateLinkPreview
@@ -66,22 +64,13 @@ final readonly class UpdateLinkPreview
     }
 
     /**
-     * Fetches the page behind the link and stores its Open Graph metadata. It never throws: a page that can't or
-     * mustn't be fetched is marked as fetched without metadata, so it is not tried again.
+     * Fetches the page behind the link and stores its Open Graph metadata. A page that can't or mustn't be fetched is
+     * marked as fetched without metadata, so it is not tried again. Failures that may pass, such as connection errors,
+     * timeouts, rate limits and server errors, are thrown instead, so the caller can try again later.
      */
     public function handle(LinkPreview $linkPreview): void
     {
-        $metadata = self::NO_METADATA;
-
-        try {
-            $metadata = $this->fetchMetadata($linkPreview->url);
-        } catch (HttpClientException) {
-            //
-        } catch (Throwable $exception) {
-            report($exception);
-        }
-
-        $linkPreview->update([...$metadata, 'fetched_at' => now()]);
+        $linkPreview->update([...$this->fetchMetadata($linkPreview->url), 'fetched_at' => now()]);
     }
 
     /**
@@ -101,6 +90,10 @@ final readonly class UpdateLinkPreview
             }
 
             $response = $this->get($page, $address);
+
+            if ($response->serverError() || $response->tooManyRequests()) {
+                $response->throw();
+            }
 
             if (! $response->redirect()) {
                 return $response->successful() && $this->isHtml($response)
@@ -142,7 +135,8 @@ final readonly class UpdateLinkPreview
      * Connects to the address that was checked rather than resolving the host again, so DNS rebinding can't swap in a
      * private address. The empty host and port in CURLOPT_CONNECT_TO match every request, so the pin holds even if
      * cURL were to read the URL differently than we do. Bodies are cut off after 1 MB, and a body that was cut off
-     * (by that limit or by the timeout) is still used, as metadata lives at the top of the page.
+     * (by that limit or by the timeout) is still used, as metadata lives at the top of the page. English is asked for
+     * explicitly, as sites such as YouTube otherwise pick the language from the server's location.
      */
     private function get(Url $url, string $address): Response
     {
@@ -150,6 +144,7 @@ final readonly class UpdateLinkPreview
 
         $request = Http::withUserAgent(sprintf('Mozilla/5.0 (compatible; devnull-linkpreview/1.0; +%s)', config()->string('app.url')))
             ->accept('text/html')
+            ->withHeaders(['Accept-Language' => 'en-US,en;q=0.9'])
             ->connectTimeout(3)
             ->timeout(5)
             ->withoutRedirecting()

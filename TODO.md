@@ -1,4 +1,4 @@
-# devnull.com — TODO
+# /dev/null — TODO
 
 A social network for developers. Sign in with GitHub, have a Twitter-style profile imported from GitHub, follow people, make commits (short text updates), and read the log.
 
@@ -9,7 +9,7 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 ## Decisions
 
 - **Auth:** GitHub is the only way to sign in (`laravel/socialite`). No email/password, password reset, email verification, 2FA, or passkeys — Fortify removed.
-- **Profile:** Twitter-style, mirrored from GitHub on every login (avatar, name, username, bio, location, website, company). No editing on devnull.
+- **Profile:** Twitter-style, mirrored from GitHub on every login (avatar, name, username, bio, location, website, company). No editing on /dev/null.
 - **Commits:** a post is a *commit*: a required title (max 72 characters, like a git subject line) and an optional description (max 500 characters). The author can create and delete — no editing (no `--amend`). Rate limited to 10 commits per minute per user.
 - **Log:** a timeline is a *log*. "Following" = my commits + commits from people I follow; "Everyone" = all commits. Newest first, Inertia infinite scroll. A profile shows that user's log. Each log is a `Log` enum case served by `LogController@show`.
 - **Metaphor, nouns only:** the git vocabulary is limited to *commit* and *log*. No branches, forks, pushes, diffs, or PRs. A *star* is the engagement action (star a commit), not a git ref.
@@ -25,7 +25,7 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 
 **follows** — (`follower_id`, `followed_id`) primary key, both cascade delete, timestamps; index on `followed_id`
 
-**notifications** — `id` (uuid), `recipient_id` / `actor_id` (users, cascade delete), `type` (`NotificationType`), `commit_id` (nullable, cascade delete), `key` (unique per recipient: `followed:{actor}`, `replied:{commit}`), `read_at` (nullable), timestamps
+**notifications** — `id` (uuid), `recipient_id` / `actor_id` (users, cascade delete), `type` (`NotificationType`), `commit_id` (nullable, cascade delete), `key` (unique per recipient: `followed:{actor}`, `replied:{commit}`, `quoted:{commit}`), `read_at` (nullable), timestamps
 
 ---
 
@@ -86,10 +86,10 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 
 - [ ] Create a GitHub OAuth app and fill `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` (callback: `{APP_URL}/auth/github/callback`)
 - [ ] Re-run `php artisan boost:install` so AI guidelines/skills stop referencing Fortify
-- [ ] Rewrite `README.md` for devnull
+- [ ] Rewrite `README.md` for /dev/null
 - [ ] Handle GitHub username renames colliding with an existing (stale) username
 - [ ] Deleting a post far down the feed reloads the first page — consider optimistic removal
 
 ## Not now
 
-Comments, reposts (forks), editing (amend), images/media, mentions, hashtags, search, DMs, other OAuth providers, public API, admin/moderation tools, blocking/muting, header/banner images, importing real GitHub commits, email/push notifications. Stars are in: anyone who can see a commit can star and unstar it, and the count sits on the commit.
+Comments, reposts without a comment (quotes are in), editing (amend), images/media, mentions, hashtags, search, DMs, other OAuth providers, public API, admin/moderation tools, blocking/muting, header/banner images, importing real GitHub commits, email/push notifications. Stars are in: anyone who can see a commit can star and unstar it, and the count sits on the commit.

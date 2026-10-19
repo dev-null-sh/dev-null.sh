@@ -44,6 +44,16 @@ it('finds at most two commits for ambiguous hashes', function (): void {
     expect(resolve(CommitByReferenceQuery::class)->get(User::factory()->create(), '0be0130'))->toHaveCount(2);
 });
 
+it('rejects UUIDs embedded in longer identifiers', function (string $reference): void {
+    Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+
+    expect(resolve(CommitByReferenceQuery::class)->get(User::factory()->create(), $reference))->toBeNull();
+})->with([
+    'leading character' => 'f01a14036-b0fc-7085-95c9-6e52b0be0130',
+    'trailing character' => '01a14036-b0fc-7085-95c9-6e52b0be0130f',
+    'trailing hyphen' => '01a14036-b0fc-7085-95c9-6e52b0be0130-extra',
+]);
+
 it('returns null for references that are not hashes or links', function (string $reference): void {
     expect(resolve(CommitByReferenceQuery::class)->get(User::factory()->create(), $reference))->toBeNull();
 })->with(['abc', 'not-a-hash', '%0130']);

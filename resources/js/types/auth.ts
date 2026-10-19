@@ -1,3 +1,11 @@
+import type { RemotesFrom } from '@/types/conversation';
+import type { Log } from '@/types/log';
+
+/**
+ * A lane from the palette, or a custom hex color.
+ */
+export type Lane = number | string;
+
 export type User = {
     id: string;
     username: string;
@@ -7,7 +15,10 @@ export type User = {
     location: string | null;
     website: string | null;
     company: string | null;
-    lane: number;
+    has_sponsors_listing: boolean;
+    has_github_account: boolean;
+    lane: Lane;
+    timezone: string | null;
     created_at: string;
     updated_at: string;
 };
@@ -18,10 +29,22 @@ export type Profile = User & {
     following_count: number;
 };
 
+/**
+ * Commits and profiles are public, so guests browse them too, without a user or a log.
+ */
 export type Auth = {
-    user: Profile;
+    user: Profile | null;
     isAdmin: boolean;
+    log: Log | null;
     unreadNotificationsCount: number;
+    unreadMessagesCount: number;
+    remotes: {
+        from: RemotesFrom;
+        pull_receipts: boolean;
+        requests: boolean;
+        everyone: boolean;
+    } | null;
+    pasteis: { remaining: number; day: string } | null;
 };
 
 export type SuggestedUser = User & {

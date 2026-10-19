@@ -4,24 +4,35 @@ import { pickImages } from '@/components/commit-image-picker';
 
 export type UseImageAttachmentsReturn = {
     readonly images: File[];
+    readonly descriptions: string[];
     readonly error: string | null;
     readonly attach: (files: File[]) => void;
+    readonly describe: (index: number, description: string) => void;
     readonly remove: (index: number) => void;
     readonly clear: () => void;
     readonly onPaste: (event: ClipboardEvent<HTMLElement>) => void;
-    readonly onDragOver: (event: DragEvent<HTMLElement>) => void;
-    readonly onDrop: (event: DragEvent<HTMLElement>) => void;
+    readonly isDraggingFiles: boolean;
+    readonly dropzone: {
+        readonly onDragEnter: (event: DragEvent<HTMLElement>) => void;
+        readonly onDragOver: (event: DragEvent<HTMLElement>) => void;
+        readonly onDragLeave: (event: DragEvent<HTMLElement>) => void;
+        readonly onDrop: (event: DragEvent<HTMLElement>) => void;
+    };
 };
 
 const hasFiles = (dataTransfer: DataTransfer): boolean =>
     Array.from(dataTransfer.types).includes('Files');
 
 /**
- * Keeps the images attached to a commit being written, picked, pasted, or dropped.
+ * Keeps the images attached to a commit being written, picked, pasted, or dropped, and the description written for each.
  */
-export function useImageAttachments(): UseImageAttachmentsReturn {
-    const [images, setImages] = useState<File[]>([]);
+export function useImageAttachments(
+    images: File[],
+    descriptions: string[],
+    onChange: (images: File[], descriptions: string[]) => void,
+): UseImageAttachmentsReturn {
     const [error, setError] = useState<string | null>(null);
+    const [dragDepth, setDragDepth] = useState(0);
 
     const attach = (files: File[]) => {
         if (files.length === 0) {
@@ -30,20 +41,37 @@ export function useImageAttachments(): UseImageAttachmentsReturn {
 
         const picked = pickImages(images, files);
 
-        setImages(picked.images);
+        onChange(
+            picked.images,
+            picked.images.map((_, index) => descriptions[index] ?? ''),
+        );
         setError(picked.error);
     };
 
     return {
         images,
+        descriptions,
         error,
         attach,
+        describe: (index, description) => {
+            onChange(
+                images,
+                images.map((_, position) =>
+                    position === index
+                        ? description
+                        : (descriptions[position] ?? ''),
+                ),
+            );
+        },
         remove: (index) => {
-            setImages(images.filter((_, position) => position !== index));
+            onChange(
+                images.filter((_, position) => position !== index),
+                descriptions.filter((_, position) => position !== index),
+            );
             setError(null);
         },
         clear: () => {
-            setImages([]);
+            onChange([], []);
             setError(null);
         },
         onPaste: (event) => {
@@ -54,16 +82,32 @@ export function useImageAttachments(): UseImageAttachmentsReturn {
                 attach(files);
             }
         },
-        onDragOver: (event) => {
-            if (hasFiles(event.dataTransfer)) {
-                event.preventDefault();
-            }
-        },
-        onDrop: (event) => {
-            if (hasFiles(event.dataTransfer)) {
-                event.preventDefault();
-                attach(Array.from(event.dataTransfer.files));
-            }
+        isDraggingFiles: dragDepth > 0,
+        dropzone: {
+            onDragEnter: (event) => {
+                if (hasFiles(event.dataTransfer)) {
+                    event.preventDefault();
+                    setDragDepth((depth) => depth + 1);
+                }
+            },
+            onDragOver: (event) => {
+                if (hasFiles(event.dataTransfer)) {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'copy';
+                }
+            },
+            onDragLeave: (event) => {
+                if (hasFiles(event.dataTransfer)) {
+                    setDragDepth((depth) => Math.max(0, depth - 1));
+                }
+            },
+            onDrop: (event) => {
+                if (hasFiles(event.dataTransfer)) {
+                    event.preventDefault();
+                    setDragDepth(0);
+                    attach(Array.from(event.dataTransfer.files));
+                }
+            },
         },
     };
 }

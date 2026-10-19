@@ -1,16 +1,18 @@
 import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
+import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { FollowButton } from '@/components/follow-button';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
-import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
+import { useComposerVisibility } from '@/hooks/use-composer-visibility';
+import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
@@ -19,17 +21,48 @@ import type { Commit, CursorPaginated, Log } from '@/types';
 export default function Show({
     log,
     commits,
+    isRanked,
     newCommitsCount = 0,
     suggestions,
 }: {
     log: Log;
     commits: CursorPaginated<Commit>;
+    isRanked: boolean;
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
-    const { auth } = usePage().props;
-    const newestId = commits.data[0]?.id;
-    const firstSeenId = useLastVisit(auth.user.id, log, commits.data);
+    const {
+        props: { auth },
+    } = usePage();
+    const user = auth.user;
+    const commitDialogClosedCount = useCommitDialogClosedCount();
+    const viewerId = user?.id ?? 'guest';
+    const newestId = isRanked ? undefined : commits.data[0]?.id;
+    const tabsRef = useRef<HTMLDivElement>(null);
+    const [tabsHeight, setTabsHeight] = useState(0);
+    const feedRef = useRef<HTMLDivElement>(null);
+    const [composer, setComposer] = useState<HTMLDivElement | null>(null);
+    useLaneSwipe(feedRef, log);
+    useComposerVisibility(composer, tabsHeight);
+
+    useEffect(() => {
+        const tabs = tabsRef.current;
+
+        if (!tabs) {
+            return;
+        }
+
+        const updateHeight = () =>
+            setTabsHeight(tabs.getBoundingClientRect().height);
+        updateHeight();
+
+        const observer = new ResizeObserver(updateHeight);
+        observer.observe(tabs);
+
+        return () => observer.disconnect();
+    }, []);
+
+    const firstSeenId = useLastVisit(viewerId, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
         30_000,
@@ -41,6 +74,11 @@ export default function Show({
         { autoStart: newestId !== undefined },
     );
 
+    // Showing a log remembers it, so pages prefetched before it still carry the previous log in their shared props.
+    useEffect(() => {
+        router.flushAll();
+    }, [log]);
+
     useEffect(
         () =>
             router.on('location', (event) => {
@@ -51,7 +89,7 @@ export default function Show({
         [stopPolling],
     );
 
-    const showNewCommits = () =>
+    const reloadNewestFirst = () =>
         router.reload({
             only: ['commits', 'newCommitsCount'],
             reset: ['commits'],
@@ -62,89 +100,112 @@ export default function Show({
 
     return (
         <>
-            <Head title={log === 'following' ? 'Log' : 'Everyone'} />
+            <Head title={titles[log]} />
 
-            <div className="sticky top-0 z-10 bg-card">
-                <h1 className="sr-only">
-                    {log === 'following' ? 'Log' : 'Everyone'}
-                </h1>
+            <div
+                ref={tabsRef}
+                className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]"
+            >
+                <h1 className="sr-only">{titles[log]}</h1>
                 <PageTabs
                     label="Logs"
+                    prefetch={false}
                     tabs={[
                         {
-                            title: 'Log',
+                            title: 'Following',
                             href: LogController.show('following'),
                             isActive: log === 'following',
                         },
                         {
-                            title: 'Everyone',
-                            href: LogController.show('everyone'),
-                            isActive: log === 'everyone',
+                            title: 'Latest',
+                            href: LogController.show('latest'),
+                            isActive: log === 'latest',
+                        },
+                        {
+                            title: 'Trending',
+                            href: LogController.show('trending'),
+                            isActive: log === 'trending',
                         },
                     ]}
                 />
-
-                {newCommitsCount > 0 && (
-                    <div className="absolute inset-x-0 top-full flex justify-center pt-3">
-                        <button
-                            type="button"
-                            onClick={showNewCommits}
-                            className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
-                        >
-                            <ArrowUp className="size-4" />
-                            {newCommitsCount}{' '}
-                            {newCommitsCount === 1
-                                ? 'new commit'
-                                : 'new commits'}
-                        </button>
-                    </div>
-                )}
             </div>
 
-            <CommitComposer />
+            {user !== null && (
+                <div ref={setComposer}>
+                    <CommitComposer key={commitDialogClosedCount} />
+                </div>
+            )}
 
-            <CommitFeed
-                commits={commits}
-                firstLane="var(--rail)"
-                firstSeenId={firstSeenId}
-                end="That's the root commit. There's nothing before it."
-                interlude={(lane, isDimmed) => (
-                    <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
-                )}
-                empty={
-                    log === 'following' ? (
-                        <EmptyFeed command="fatal: your log does not have any commits yet">
-                            Your log shows your commits and commits from people
-                            you follow.{' '}
-                            {suggestions.length > 0
-                                ? 'Here is what a few developers committed lately:'
-                                : 'Find someone worth following on '}
-                            {suggestions.length === 0 && (
-                                <>
-                                    <Link
-                                        href={LogController.show('everyone')}
-                                        className="font-medium text-primary underline"
-                                    >
-                                        Everyone
-                                    </Link>
-                                    .
-                                </>
-                            )}
-                            {suggestions.length > 0 && (
-                                <Suggestions suggestions={suggestions} />
-                            )}
-                        </EmptyFeed>
-                    ) : (
-                        <EmptyFeed command="fatal: no commits yet">
-                            Nobody has committed anything. Be the first. It's
-                            280 characters; you'll be fine.
-                        </EmptyFeed>
-                    )
-                }
-            />
+            {newCommitsCount > 0 && (
+                <div
+                    className="pointer-events-none sticky z-10 flex h-0 items-start justify-center"
+                    style={{ top: tabsHeight }}
+                >
+                    <button
+                        type="button"
+                        onClick={reloadNewestFirst}
+                        className="pointer-events-auto mt-3 flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                    >
+                        <ArrowUp className="size-4" />
+                        {newCommitsCount}{' '}
+                        {newCommitsCount === 1 ? 'new commit' : 'new commits'}
+                    </button>
+                </div>
+            )}
+
+            <div
+                ref={feedRef}
+                className="[view-transition-class:tab-content] [view-transition-name:log-feed]"
+            >
+                <CommitFeed
+                    commits={commits}
+                    firstSeenId={firstSeenId}
+                    isRanked={isRanked}
+                    end="That's the root commit. There's nothing before it."
+                    interlude={() => <WhoToFollowInLog />}
+                    empty={
+                        log === 'following' ? (
+                            <EmptyFeed command="fatal: your log does not have any commits yet">
+                                Your log shows your commits and commits from
+                                people you follow.{' '}
+                                {suggestions.length > 0
+                                    ? 'Here is what a few developers committed lately:'
+                                    : 'Find someone worth following on '}
+                                {suggestions.length === 0 && (
+                                    <>
+                                        <Link
+                                            href={LogController.show(
+                                                'trending',
+                                            )}
+                                            className="font-medium text-primary underline"
+                                        >
+                                            Trending
+                                        </Link>
+                                        .
+                                    </>
+                                )}
+                                {suggestions.length > 0 && (
+                                    <Suggestions suggestions={suggestions} />
+                                )}
+                            </EmptyFeed>
+                        ) : (
+                            <EmptyFeed command="fatal: no commits yet">
+                                Nobody has committed anything. Be the first.
+                                It's just plain text; you'll be fine.
+                            </EmptyFeed>
+                        )
+                    }
+                />
+            </div>
         </>
     );
 }
+
+const titles: Record<Log, string> = {
+    following: 'Following',
+    latest: 'Latest',
+    trending: 'Trending',
+};
 
 function Suggestions({ suggestions }: { suggestions: Commit[] }) {
     return (
@@ -167,29 +228,28 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
-                                <LinkifiedText text={emojify(commit.body)} />
+                                <LinkifiedText
+                                    text={emojify(commit.body)}
+                                    mentions={commit.mentions}
+                                />
                             </p>
                         </div>
-                        <Button size="sm" asChild>
-                            <Link
-                                href={UserFollowController.store(commit.user)}
-                                as="button"
-                                preserveScroll
-                                aria-label={`Follow @${commit.user.username}`}
-                            >
-                                Follow
-                            </Link>
-                        </Button>
+                        <FollowButton
+                            user={commit.user}
+                            isFollowing={false}
+                            size="sm"
+                            className="min-w-24 shrink-0"
+                        />
                     </li>
                 ))}
             </ul>
             <p className="mt-4 text-sm text-muted-foreground">
                 Or browse{' '}
                 <Link
-                    href={LogController.show('everyone')}
+                    href={LogController.show('trending')}
                     className="font-medium text-primary underline"
                 >
-                    Everyone
+                    Trending
                 </Link>{' '}
                 for more.
             </p>

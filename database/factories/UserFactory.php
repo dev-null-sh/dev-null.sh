@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\RemotesFrom;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -30,9 +31,22 @@ final class UserFactory extends Factory
             'location' => fake()->city(),
             'website' => fake()->url(),
             'company' => fake()->company(),
+            'has_sponsors_listing' => false,
             'preferred_lane' => null,
+            'timezone' => null,
+            'lane_color' => null,
+            'pinned_commit_id' => null,
+            'onboarded_at' => now(),
             'remember_token' => Str::random(10),
+            'github_synced_at' => null,
         ];
+    }
+
+    public function notOnboarded(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'onboarded_at' => null,
+        ]);
     }
 
     public function withoutProfile(): self
@@ -44,6 +58,17 @@ final class UserFactory extends Factory
             'location' => null,
             'website' => null,
             'company' => null,
+        ]);
+    }
+
+    /**
+     * Remotes turned on. Everyone may push by default here, so tests opt into requests on purpose.
+     */
+    public function withRemotes(RemotesFrom $from = RemotesFrom::Everyone): self
+    {
+        return $this->state(fn (): array => [
+            'remotes_enabled' => true,
+            'remotes_from' => $from,
         ]);
     }
 }

@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Models\Notification;
+use App\Models\User;
+use Carbon\CarbonImmutable;
 
 final readonly class UpdateNotificationsReadAt
 {
-    public function handle(Notification ...$notifications): void
+    public function handle(User $user): CarbonImmutable
     {
-        Notification::query()
-            ->whereKey(array_map(fn (Notification $notification): string => $notification->id, $notifications))
+        $readAt = CarbonImmutable::now()->startOfSecond();
+
+        $user->notifications()
+            ->relevant()
             ->unread()
-            ->update(['read_at' => now()]);
+            ->update(['read_at' => $readAt]);
+
+        return $readAt;
     }
 }
