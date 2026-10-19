@@ -9,11 +9,10 @@ final class LevelRewards
 {
     /** @var array<int, array{bytes: int, skin: ?string}> */
     public const array MILESTONES = [
-        5 => ['bytes' => 25, 'skin' => null],
-        10 => ['bytes' => 75, 'skin' => null],
-        25 => ['bytes' => 250, 'skin' => 'matrix'],
-        45 => ['bytes' => 750, 'skin' => null],
-        70 => ['bytes' => 1600, 'skin' => 'kernel-red'],
-        100 => ['bytes' => 5000, 'skin' => null],
+        2 => ['bytes' => 75, 'skin' => null],
+        3 => ['bytes' => 250, 'skin' => 'matrix'],
+        4 => ['bytes' => 750, 'skin' => null],
+        5 => ['bytes' => 1600, 'skin' => 'kernel-red'],
+        6 => ['bytes' => 5000, 'skin' => null],
     ];
 }

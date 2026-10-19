@@ -30,9 +30,7 @@ export function ShadowSprite({
     compact?: boolean;
 }) {
     const appearance = SKIN_COLORS[skin];
-    const stage = [100, 70, 45, 25, 10].filter(
-        (milestone) => level >= milestone,
-    ).length;
+    const stage = Math.min(5, Math.max(0, level - 1));
     const symbol = glyph.slice(0, 2);
 
     if (compact) {

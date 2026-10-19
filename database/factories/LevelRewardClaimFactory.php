@@ -20,8 +20,8 @@ final class LevelRewardClaimFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'level' => 5,
-            'bytes' => 25,
+            'level' => 2,
+            'bytes' => 75,
         ];
     }
 }

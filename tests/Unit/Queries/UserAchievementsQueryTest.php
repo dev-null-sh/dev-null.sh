@@ -26,7 +26,7 @@ it('calculates initial rank and zero progress for a new user without activity', 
     expect($result['level'])->toBe(1)
         ->and($result['rank'])->toBe(UnixRank::User->value)
         ->and($result['xp'])->toBe(0)
-        ->and($result['next_level_xp'])->toBe(40)
+        ->and($result['next_level_xp'])->toBe(50)
         ->and($result['level_progress'])->toBe(0)
         ->and($result['ranks'])->toHaveCount(6)
         ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
@@ -154,27 +154,49 @@ it('unlocks uptime badge for 7-day streak and calculates streak xp', function ()
 
     expect($uptime['unlocked'])->toBeTrue()
         ->and($uptime['progress'])->toBe(7)
-        // Seven approved commits on seven days plus streak XP: 175 XP, Level 3 (user rank).
+        // 7 commits * 10 = 70 XP, 7 longest streak * 15 = 105 XP -> Total 175 XP -> Level 3 Operator
         ->and($result['xp'])->toBe(175)
         ->and($result['level'])->toBe(3)
-        ->and($result['rank'])->toBe(UnixRank::User->value);
+        ->and($result['rank'])->toBe(UnixRank::Operator->value);
 });
 
-it('uses a hundred steep levels and six unix rank milestones', function (): void {
+it('resolves correct unix ranks across all progression boundaries', function (): void {
     $user = User::factory()->create();
-    $result = resolve(UserAchievementsQuery::class)->get($user, $user);
+    $query = resolve(UserAchievementsQuery::class);
 
-    expect($result)->toMatchArray(['level' => 1, 'rank' => 'user', 'next_level_xp' => 40]);
-    expect(array_column($result['ranks'], 'level'))->toBe([1, 10, 25, 45, 70, 100]);
-});
+    // Level 1: user (0 - 49 XP)
+    expect($query->get($user, $user, ['longest' => 0, 'current' => 0]))
+        ->toMatchArray(['level' => 1, 'rank' => 'user', 'next_level_xp' => 50, 'level_progress' => 0]);
 
-it('caps contribution XP at three approved posts per day', function (): void {
-    $user = User::factory()->create();
-    Commit::factory()->for($user)->count(20)->create();
+    // Level 2: daemon (50 - 149 XP)
+    // 5 commits = 50 XP
+    Commit::factory()->for($user)->count(5)->create();
+    expect($query->get($user, $user, ['longest' => 0, 'current' => 0]))
+        ->toMatchArray(['level' => 2, 'rank' => 'daemon', 'next_level_xp' => 150, 'level_progress' => 0]);
 
-    $data = resolve(UserAchievementsQuery::class)->get($user, $user);
-    expect($data['xp_breakdown']['commits'])->toBe(['count' => 3, 'multiplier' => 10, 'xp' => 30])
-        ->and($data['xp'])->toBe(45);
+    // Level 3: operator (150 - 399 XP)
+    // 15 commits = 150 XP
+    Commit::factory()->for($user)->count(10)->create();
+    expect($query->get($user, $user, ['longest' => 0, 'current' => 0]))
+        ->toMatchArray(['level' => 3, 'rank' => 'operator', 'next_level_xp' => 400, 'level_progress' => 0]);
+
+    // Level 4: maintainer (400 - 999 XP)
+    // 40 commits = 400 XP
+    Commit::factory()->for($user)->count(25)->create();
+    expect($query->get($user, $user, ['longest' => 0, 'current' => 0]))
+        ->toMatchArray(['level' => 4, 'rank' => 'maintainer', 'next_level_xp' => 1000, 'level_progress' => 0]);
+
+    // Level 5: wheel (1000 - 2499 XP)
+    // 100 commits = 1000 XP
+    Commit::factory()->for($user)->count(60)->create();
+    expect($query->get($user, $user, ['longest' => 0, 'current' => 0]))
+        ->toMatchArray(['level' => 5, 'rank' => 'wheel', 'next_level_xp' => 2500, 'level_progress' => 0]);
+
+    // Level 6: root (2500+ XP)
+    // 250 commits = 2500 XP
+    Commit::factory()->for($user)->count(150)->create();
+    expect($query->get($user, $user, ['longest' => 0, 'current' => 0]))
+        ->toMatchArray(['level' => 6, 'rank' => 'root', 'next_level_xp' => null, 'level_progress' => 100]);
 });
 
 it('respects visibility scope of viewer for unapproved commits', function (): void {
@@ -187,7 +209,7 @@ it('respects visibility scope of viewer for unapproved commits', function (): vo
 
     // Author sees their own pending commit
     $authorResult = $query->get($user, $user);
-    expect($authorResult['xp'])->toBe(0);
+    expect($authorResult['xp'])->toBe(25);
 
     // Another viewer does not see pending commit
     $viewerResult = $query->get($user, $viewer);
@@ -234,8 +256,47 @@ it('reuses passed streaks without re-running streak calculation', function (): v
     $mockStreaks = ['longest' => 42, 'current' => 5];
     $result = resolve(UserAchievementsQuery::class)->get($user, $user, $mockStreaks);
 
-    expect($result['xp_breakdown']['streak']['count'])->toBe(1)
-        ->and($result['xp_breakdown']['streak']['xp'])->toBe(15);
+    expect($result['xp_breakdown']['streak']['count'])->toBe(42)
+        ->and($result['xp_breakdown']['streak']['xp'])->toBe(42 * 15);
+});
+
+it('tracks sweet tooth from the account total without requiring surviving commits or pasteis mode', function (int $received, int $progress, bool $unlocked): void {
+    $user = User::factory()->create(['pasteis_received' => $received, 'pasteis_mode' => false]);
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, null);
+
+    expect(collect($result['badges'])->firstWhere('id', 'sweet_tooth'))->toMatchArray([
+        'name' => 'sweet tooth',
+        'target' => 100,
+        'progress' => $progress,
+        'unlocked' => $unlocked,
+    ])->and($result['xp'])->toBe(0);
+})->with([
+    'below threshold' => [99, 99, false],
+    'at threshold' => [100, 100, true],
+    'above threshold' => [125, 100, true],
+]);
+
+it('does not grant luddite to Tom or someone he has never befriended', function (): void {
+    $tom = User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID]);
+    $user = User::factory()->create();
+
+    foreach ([$tom, $user] as $profile) {
+        $result = resolve(UserAchievementsQuery::class)->get($profile, null);
+
+        expect(collect($result['badges'])->firstWhere('id', 'luddite')['unlocked'])->toBeFalse()
+            ->and($result['xp_breakdown']['luddite']['xp'])->toBe(0);
+    }
+});
+
+it('does not identify Tom by a mutable username', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create(['username' => 'tom']);
+    $other->following()->attach($user);
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, null);
+
+    expect(collect($result['badges'])->firstWhere('id', 'luddite')['unlocked'])->toBeFalse();
 });
 
 it('awards one-time social XP per distinct contributor and unlocked skin', function (): void {
@@ -279,7 +340,7 @@ it('awards one-time social XP per distinct contributor and unlocked skin', funct
     expect($data['xp_breakdown']['kudos_given'])->toBe(['count' => 1, 'multiplier' => 5, 'xp' => 5])
         ->and($data['xp_breakdown']['kudos_received'])->toBe(['count' => 2, 'multiplier' => 5, 'xp' => 10])
         ->and($data['xp_breakdown']['skins_unlocked'])->toBe(['count' => 2, 'multiplier' => 10, 'xp' => 20])
-        ->and($data['xp'])->toBe(60);
+        ->and($data['xp'])->toBe(45);
 });
 
 it('does not grant social XP for pending, rejected or deleted commits', function (): void {
@@ -303,43 +364,4 @@ it('does not grant social XP for pending, rejected or deleted commits', function
     expect($data['xp_breakdown']['kudos_given']['xp'])->toBe(0)
         ->and($data['xp_breakdown']['skins_unlocked']['xp'])->toBe(0)
         ->and($data['xp'])->toBe(0);
-});
-
-it('tracks sweet tooth from the account total without requiring surviving commits or pasteis mode', function (int $received, int $progress, bool $unlocked): void {
-    $user = User::factory()->create(['pasteis_received' => $received, 'pasteis_mode' => false]);
-
-    $result = resolve(UserAchievementsQuery::class)->get($user, null);
-
-    expect(collect($result['badges'])->firstWhere('id', 'sweet_tooth'))->toMatchArray([
-        'name' => 'sweet tooth',
-        'target' => 100,
-        'progress' => $progress,
-        'unlocked' => $unlocked,
-    ])->and($result['xp'])->toBe(0);
-})->with([
-    'below threshold' => [99, 99, false],
-    'at threshold' => [100, 100, true],
-    'above threshold' => [125, 100, true],
-]);
-
-it('does not grant luddite to Tom or someone he has never befriended', function (): void {
-    $tom = User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID]);
-    $user = User::factory()->create();
-
-    foreach ([$tom, $user] as $profile) {
-        $result = resolve(UserAchievementsQuery::class)->get($profile, null);
-
-        expect(collect($result['badges'])->firstWhere('id', 'luddite')['unlocked'])->toBeFalse()
-            ->and($result['xp_breakdown']['luddite']['xp'])->toBe(0);
-    }
-});
-
-it('does not identify Tom by a mutable username', function (): void {
-    $user = User::factory()->create();
-    $other = User::factory()->create(['username' => 'tom']);
-    $other->following()->attach($user);
-
-    $result = resolve(UserAchievementsQuery::class)->get($user, null);
-
-    expect(collect($result['badges'])->firstWhere('id', 'luddite')['unlocked'])->toBeFalse();
 });

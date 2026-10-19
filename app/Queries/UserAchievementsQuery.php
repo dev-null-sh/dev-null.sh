@@ -8,10 +8,8 @@ use App\Actions\CreateTomFriendship;
 use App\Enums\Achievement;
 use App\Enums\CommitStatus;
 use App\Enums\UnixRank;
-use App\Models\Commit;
 use App\Models\LevelRewardClaim;
 use App\Models\User;
-use App\Support\LevelProgression;
 use App\Support\LevelRewards;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
@@ -128,38 +126,17 @@ final readonly class UserAchievementsQuery
             ['amber-crt', 'matrix', 'cyber-cyan', 'kernel-red'],
         ));
 
-        // Public, moderated activity drives XP, even for the author's own page.
-        // Only the first three approved commits per day earn contribution XP.
-        $longestStreak = $this->streaks->get($user, null)['longest'];
-        $badgeLongestStreak = ($streaks ?? $this->streaks->get($user, $viewer))['longest'];
-        $rewardedCommitsCount = (int) $user->commits()
-            ->approved()
-            ->selectRaw('date(created_at) as day, count(*) as daily_count')
-            ->groupByRaw('date(created_at)')
-            ->pluck('daily_count')
-            ->sum(fn (mixed $count): int => is_numeric($count) ? min(3, (int) $count) : 0);
+        $longestStreak = ($streaks ?? $this->streaks->get($user, $viewer))['longest'];
         $hasSshKey = $user->sshKeys()->exists();
         $hasUnfollowedTom = $user->followers()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists()
             && ! $user->following()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists();
 
         // XP breakdown: 10 per commit, 15 per streak day, 5 per star received, 5 per reply, 2 per star given
-        $commitsXp = $rewardedCommitsCount * 10;
+        $commitsXp = $commitsCount * 10;
         $streakXp = $longestStreak * 15;
-        $approvedStarsReceived = (int) DB::table('stars')
-            ->whereIn('commit_id', $user->commits()->approved()->select('id'))
-            ->where('user_id', '!=', $user->id)
-            ->count();
-        $approvedReplies = $user->commits()->approved()
-            ->whereNotNull('parent_id')
-            ->whereIn('parent_id', Commit::query()->withTrashed()->where('user_id', '!=', $user->id)->select('id'))
-            ->count();
-        $approvedStarsGiven = $user->starredCommits()
-            ->where('commits.user_id', '!=', $user->id)
-            ->where(fn (CommitBuilder $query): CommitBuilder => $query->approved())
-            ->count();
-        $starsReceivedXp = $approvedStarsReceived * 5;
-        $repliesXp = $approvedReplies * 5;
-        $starsGivenXp = $approvedStarsGiven * 2;
+        $starsReceivedXp = $starsReceivedCount * 5;
+        $repliesXp = $repliesCount * 5;
+        $starsGivenXp = $starsGivenCount * 2;
         $kudosGivenXp = $kudosGivenCount * 5;
         $kudosReceivedXp = $kudosReceivedCount * 5;
         $skinsUnlockedXp = $skinsUnlockedCount * 10;
@@ -168,15 +145,19 @@ final readonly class UserAchievementsQuery
         $xp = max(0, $commitsXp + $streakXp + $starsReceivedXp + $repliesXp + $starsGivenXp
             + $kudosGivenXp + $kudosReceivedXp + $skinsUnlockedXp + $ludditeXp);
 
-        [$level, $nextLevelXp, $levelProgress] = LevelProgression::progress($xp);
-        $currentRank = LevelProgression::rankForLevel($level);
+        $currentRank = UnixRank::forXp($xp);
+        $nextRank = $currentRank->next();
+
+        $levelProgress = $nextRank instanceof UnixRank
+            ? min(100, max(0, (int) round((($xp - $currentRank->minXp()) / ($nextRank->minXp() - $currentRank->minXp())) * 100)))
+            : 100;
 
         $xpBreakdown = [
-            'commits' => ['count' => $rewardedCommitsCount, 'multiplier' => 10, 'xp' => $commitsXp],
+            'commits' => ['count' => $commitsCount, 'multiplier' => 10, 'xp' => $commitsXp],
             'streak' => ['count' => $longestStreak, 'multiplier' => 15, 'xp' => $streakXp],
-            'stars_received' => ['count' => $approvedStarsReceived, 'multiplier' => 5, 'xp' => $starsReceivedXp],
-            'replies' => ['count' => $approvedReplies, 'multiplier' => 5, 'xp' => $repliesXp],
-            'stars_given' => ['count' => $approvedStarsGiven, 'multiplier' => 2, 'xp' => $starsGivenXp],
+            'stars_received' => ['count' => $starsReceivedCount, 'multiplier' => 5, 'xp' => $starsReceivedXp],
+            'replies' => ['count' => $repliesCount, 'multiplier' => 5, 'xp' => $repliesXp],
+            'stars_given' => ['count' => $starsGivenCount, 'multiplier' => 2, 'xp' => $starsGivenXp],
             'kudos_given' => ['count' => $kudosGivenCount, 'multiplier' => 5, 'xp' => $kudosGivenXp],
             'kudos_received' => ['count' => $kudosReceivedCount, 'multiplier' => 5, 'xp' => $kudosReceivedXp],
             'skins_unlocked' => ['count' => $skinsUnlockedCount, 'multiplier' => 10, 'xp' => $skinsUnlockedXp],
@@ -185,7 +166,7 @@ final readonly class UserAchievementsQuery
 
         $ranks = array_map(fn (UnixRank $rank): array => [
             'rank' => $rank->value,
-            'level' => $rank->minLevel(),
+            'level' => $rank->level(),
             'min_xp' => $rank->minXp(),
             'description' => $rank->description(),
             'achieved' => $xp >= $rank->minXp(),
@@ -201,15 +182,15 @@ final readonly class UserAchievementsQuery
                 'target' => Achievement::Syntax->target(),
             ],
             Achievement::Uptime->value => [
-                'progress' => min($badgeLongestStreak, Achievement::Uptime->target()),
+                'progress' => min($longestStreak, Achievement::Uptime->target()),
                 'target' => Achievement::Uptime->target(),
             ],
             Achievement::Daemon->value => [
-                'progress' => min($badgeLongestStreak, Achievement::Daemon->target()),
+                'progress' => min($longestStreak, Achievement::Daemon->target()),
                 'target' => Achievement::Daemon->target(),
             ],
             Achievement::Sysadmin->value => [
-                'progress' => min($badgeLongestStreak, Achievement::Sysadmin->target()),
+                'progress' => min($longestStreak, Achievement::Sysadmin->target()),
                 'target' => Achievement::Sysadmin->target(),
             ],
             Achievement::Stdout->value => [
@@ -275,15 +256,15 @@ final readonly class UserAchievementsQuery
                 'bytes' => $reward['bytes'],
                 'skin' => $reward['skin'],
                 'claimed' => in_array($milestone, $claimedRewardLevels, true),
-                'eligible' => $level >= $milestone,
+                'eligible' => $currentRank->level() >= $milestone,
             ];
         }
 
         return [
-            'level' => $level,
+            'level' => $currentRank->level(),
             'rank' => $currentRank->value,
             'xp' => $xp,
-            'next_level_xp' => $nextLevelXp,
+            'next_level_xp' => $nextRank?->minXp(),
             'level_progress' => $levelProgress,
             'xp_breakdown' => $xpBreakdown,
             'level_rewards' => $levelRewards,

@@ -58,6 +58,9 @@ export function AchievementsDialog({
     const [tab, setTab] = useState<'badges' | 'ranks'>('badges');
 
     const unlockedCount = achievements.badges.filter((b) => b.unlocked).length;
+    const nextRank = achievements.ranks.find(
+        (r) => r.level === achievements.level + 1,
+    );
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -96,9 +99,9 @@ export function AchievementsDialog({
                                 : `${achievements.xp} XP`}
                         </span>
                         <span>
-                            {achievements.next_level_xp !== null
-                                ? `${achievements.next_level_xp - achievements.xp} XP to level ${achievements.level + 1}`
-                                : 'Level 100 reached'}
+                            {nextRank
+                                ? `${nextRank.min_xp - achievements.xp} XP to ${nextRank.rank}`
+                                : 'Maximum rank (UID 0)'}
                         </span>
                     </div>
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
