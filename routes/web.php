@@ -43,6 +43,7 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
+use App\Http\Controllers\LiveController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
@@ -139,6 +140,7 @@ Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.
 
 // Public pages, readable by guests and crawlers...
 Route::middleware(RememberIntendedUrl::class)->group(function (): void {
+    Route::get('live', [LiveController::class, 'index'])->name('live.index');
     Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
     Route::get('@{user:username}/following', [UserFollowingController::class, 'index'])
         ->name('user-following.index');
