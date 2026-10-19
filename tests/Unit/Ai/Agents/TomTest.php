@@ -12,12 +12,14 @@ use App\Models\KnowledgeBaseSection;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Tools\Request as ToolRequest;
 
 it('executes both semantic tools through OpenCode and sends only public evidence', function (): void {
     config(['ai.providers.opencode.key' => 'test-opencode', 'services.openai.key' => 'test']);
+    Queue::fake();
     Embeddings::fake([[embeddingVector(0)], [embeddingVector(0)]]);
     $public = Commit::factory()->create(['body' => 'Public database topic', 'embedding' => embeddingVector(0)]);
     Commit::factory()->pending()->create(['body' => 'Pending secret', 'embedding' => embeddingVector(0)]);

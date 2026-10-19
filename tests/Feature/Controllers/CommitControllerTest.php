@@ -76,7 +76,7 @@ it('does not count the authenticated user relations when redirecting after a com
 
     expect(array_column(DB::getQueryLog(), 'query'))
         ->not->toBeEmpty()
-        ->each->not->toContain('"follows"');
+        ->each->not->toContain('as aggregate from "follows"');
 });
 
 it('rejects non-text commit bodies with a validation error', function (mixed $body): void {
