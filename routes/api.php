@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\OrgController;
+use App\Http\Controllers\Api\RemoteCandidateController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
@@ -141,5 +143,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // Notifications...
         Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');
         Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('api-notification-group.show');
+
+        // Remotes: finding people to push to, and starting an org, as the web's New remote and New org do...
+        Route::middleware('throttle:conversations')->group(function (): void {
+            Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('api-remote-candidate.index');
+            Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware('throttle:messages')->name('api-org.store');
+        });
     });
 });
