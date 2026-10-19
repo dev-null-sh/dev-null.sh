@@ -26,13 +26,14 @@ final readonly class CreateScheduledCommit
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null, bool|string $linkPreview = true): ScheduledCommit
+    public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null, bool|string $linkPreview = true, ?string $branch = null): ScheduledCommit
     {
         $body = mb_trim($body);
 
         return DB::transaction(fn (): ScheduledCommit => ScheduledCommit::query()->create([
             'user_id' => $user->id,
             'body' => $body,
+            'branch' => $branch,
             'poll' => $poll instanceof NewPoll ? ['options' => $poll->options, 'duration' => $poll->duration->value] : null,
             'images' => $images === [] ? null : $this->createCommitImageFiles->handle($images, $imageDescriptions),
             'link_preview_url' => match ($linkPreview) {

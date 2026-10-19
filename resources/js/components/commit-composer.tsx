@@ -7,6 +7,10 @@ import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledC
 import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
 import {
+    BranchPicker,
+    BranchPickerButton,
+} from '@/components/branch-picker';
+import {
     ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
@@ -88,6 +92,10 @@ function CommitComposerBody({
     schedule,
     poll,
     setPoll,
+    branch,
+    setBranch,
+    isPickingBranch,
+    setIsPickingBranch,
     secrets,
     isSubmittable,
     processing,
@@ -105,6 +113,10 @@ function CommitComposerBody({
     schedule: ReturnType<typeof useCommitSchedule>;
     poll: PollDraft | null;
     setPoll: (poll: PollDraft | null) => void;
+    branch: string;
+    setBranch: (branch: string) => void;
+    isPickingBranch: boolean;
+    setIsPickingBranch: (open: boolean) => void;
     secrets: ReturnType<typeof useSecretWarning>;
     isSubmittable: boolean;
     processing: boolean;
@@ -289,6 +301,26 @@ function CommitComposerBody({
                     />
                     <InputError message={error} />
 
+                    {!isPickingBranch && branch !== '' && (
+                        <input type="hidden" name="branch" value={branch} />
+                    )}
+                    {!isPickingBranch && (
+                        <InputError message={errors.branch} />
+                    )}
+
+                    {isPickingBranch && (
+                        <BranchPicker
+                            id={`${id}-branch`}
+                            value={branch}
+                            onChange={setBranch}
+                            name="branch"
+                            error={errors.branch}
+                            disabled={processing}
+                            autoFocus
+                            className="mt-2 max-w-xs"
+                        />
+                    )}
+
                     {!preview.isPreviewing && (
                         <ImagePickerPreviews
                             images={attachments.images}
@@ -350,7 +382,7 @@ function CommitComposerBody({
                             >
                                 {timezone}
                                 {scheduledAt &&
-                                !Number.isNaN(new Date(scheduledAt).getTime())
+                                    !Number.isNaN(new Date(scheduledAt).getTime())
                                     ? ` (${new Intl.DateTimeFormat(undefined, { timeZoneName: 'shortOffset' }).formatToParts(new Date(scheduledAt)).find((part) => part.type === 'timeZoneName')?.value})`
                                     : ''}
                                 . Within 30 days. Private until submitted;{' '}
@@ -443,6 +475,15 @@ function CommitComposerBody({
                                             <Clock3 className="size-5" />
                                         </Button>
                                     </ActionTooltip>
+                                    <BranchPickerButton
+                                        isOpen={isPickingBranch}
+                                        hasBranch={branch !== ''}
+                                        disabled={processing}
+                                        controls={`${id}-branch`}
+                                        onClick={() =>
+                                            setIsPickingBranch(!isPickingBranch)
+                                        }
+                                    />
                                     <LinkCardPicker
                                         linkCard={linkCard}
                                         disabled={processing}
@@ -543,6 +584,8 @@ export function CommitComposer({
         stash.updateImages,
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
+    const [branch, setBranch] = useState('');
+    const [isPickingBranch, setIsPickingBranch] = useState(false);
     const secrets = useSecretWarning(body);
 
     const hasImages = attachments.images.length > 0;
@@ -610,6 +653,8 @@ export function CommitComposer({
                 setIsScheduling(false);
                 attachments.clear();
                 setPoll(null);
+                setBranch('');
+                setIsPickingBranch(false);
 
                 if (onCommitted) {
                     onCommitted();
@@ -632,6 +677,10 @@ export function CommitComposer({
                         schedule={schedule}
                         poll={poll}
                         setPoll={setPoll}
+                        branch={branch}
+                        setBranch={setBranch}
+                        isPickingBranch={isPickingBranch}
+                        setIsPickingBranch={setIsPickingBranch}
                         secrets={secrets}
                         isSubmittable={isSubmittable}
                         processing={processing}

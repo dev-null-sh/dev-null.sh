@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitBranch } from '@/components/commit-branch';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
@@ -326,6 +327,13 @@ export function CommitCard({
                                     replying to @{commit.parent.user.username}
                                 </Link>
                             )}
+                            {commit.branch && (
+                                <CommitBranch
+                                    tag={commit.branch.name}
+                                    color={commit.branch_color}
+                                    branch={commit.branch}
+                                />
+                            )}
                             <FoldedCommitBody
                                 segments={commit.body_segments}
                                 mentions={commit.mentions}
@@ -370,7 +378,7 @@ export function CommitCard({
                                             {formatFullDateTime(
                                                 commit.created_at,
                                                 auth.user?.timezone ??
-                                                    undefined,
+                                                undefined,
                                             )}
                                         </time>
                                     </TimestampTooltip>

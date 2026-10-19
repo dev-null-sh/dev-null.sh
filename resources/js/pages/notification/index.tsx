@@ -5,6 +5,7 @@ import {
     AtSign,
     Check,
     ChevronDown,
+    Hash,
     MessageSquareReply,
     Quote,
     Star,
@@ -23,6 +24,7 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
+import TagController from '@/actions/App/Http/Controllers/TagController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
@@ -709,6 +711,9 @@ function NotificationContent({
         mentioned: AtSign,
         approved: Check,
         rejected: X,
+        tag_activity: Hash,
+        tag_member_added: Hash,
+        tag_role_changed: Hash,
     }[notification.type];
     const icon = (
         <Icon
@@ -720,14 +725,19 @@ function NotificationContent({
             aria-hidden
         />
     );
+    const isTagMembership =
+        notification.type === 'tag_member_added' ||
+        notification.type === 'tag_role_changed';
     const href =
         notification.type === 'followed' ||
         (!summary && notification.type === 'starred')
             ? show(actor)
-            : CommitController.show({
-                  user: isOwnCommit ? user : actor,
-                  commit: notification.commit,
-              });
+            : isTagMembership
+              ? TagController.show(notification.tag.name)
+              : CommitController.show({
+                    user: isOwnCommit ? user : actor,
+                    commit: notification.commit,
+                });
     const time = (
         <time
             dateTime={notification.created_at}
@@ -745,9 +755,16 @@ function NotificationContent({
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
+        tag_activity: 'committed on a hashtag you watch',
+        tag_member_added: notification.tag
+            ? `added you to #${notification.tag.name}`
+            : 'added you to a hashtag',
+        tag_role_changed: notification.tag
+            ? `changed your role on #${notification.tag.name}`
+            : 'changed your role on a hashtag',
     }[notification.type];
     const excerpt =
-        notification.type === 'followed' ? null : isOwnCommit ? (
+        notification.type === 'followed' || isTagMembership ? null : isOwnCommit ? (
             <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
                 <CommitBodyExcerpt
                     segments={notification.commit.body_segments}

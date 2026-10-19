@@ -41,6 +41,30 @@ final readonly class SystemDnsResolver implements DnsResolver
         return $addresses;
     }
 
+    public function txt(string $host): array
+    {
+        if ($this->isLocalhost($host) || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return [];
+        }
+
+        $records = @($this->lookup)($host, DNS_TXT);
+        $values = [];
+
+        foreach (is_array($records) ? $records : [] as $record) {
+            if (! is_array($record)) {
+                continue;
+            }
+
+            $text = $record['txt'] ?? null;
+
+            if (is_string($text) && $text !== '') {
+                $values[] = $text;
+            }
+        }
+
+        return $values;
+    }
+
     /**
      * Names under "localhost" always mean this machine (RFC 6761), whatever a DNS server says about them.
      */

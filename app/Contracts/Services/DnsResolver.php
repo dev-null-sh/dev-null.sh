@@ -12,4 +12,11 @@ interface DnsResolver
      * @return list<string>
      */
     public function resolve(string $host): array;
+
+    /**
+     * Looks up TXT records for a host name, returning each record's text value.
+     *
+     * @return list<string>
+     */
+    public function txt(string $host): array;
 }

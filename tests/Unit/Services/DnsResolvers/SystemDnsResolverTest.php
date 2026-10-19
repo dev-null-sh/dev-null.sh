@@ -69,3 +69,25 @@ it('returns no addresses when the lookup warns', function (): void {
 
     expect($resolver->resolve('example.com'))->toBe([]);
 });
+
+it('returns txt records for a host', function (): void {
+    $resolver = new SystemDnsResolver(function (string $host, int $type): array {
+        expect($host)->toBe('_devnull-tag.laravel.com')
+            ->and($type)->toBe(DNS_TXT);
+
+        return [
+            ['host' => '_devnull-tag.laravel.com', 'type' => 'TXT', 'txt' => 'dev-null-tag=laravel token=abc'],
+            ['host' => '_devnull-tag.laravel.com', 'type' => 'TXT', 'txt' => 'other'],
+        ];
+    });
+
+    expect($resolver->txt('_devnull-tag.laravel.com'))->toBe([
+        'dev-null-tag=laravel token=abc',
+        'other',
+    ]);
+});
+
+it('returns no txt records for localhost or failed lookups', function (): void {
+    expect(new SystemDnsResolver(fn (): never => throw new RuntimeException('No lookup expected.'))->txt('localhost'))->toBe([])
+        ->and(new SystemDnsResolver(fn (): false => false)->txt('example.com'))->toBe([]);
+});

@@ -39,6 +39,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
+use App\Http\Controllers\HashtagSuggestionController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\LocalSessionController;
@@ -68,6 +69,15 @@ use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\TagClaimController;
+use App\Http\Controllers\TagController;
+use App\Http\Controllers\TagDescriptionController;
+use App\Http\Controllers\TagMemberController;
+use App\Http\Controllers\TagVerificationApprovalController;
+use App\Http\Controllers\TagVerificationController;
+use App\Http\Controllers\TagVerificationRejectionController;
+use App\Http\Controllers\TagVerificationRequestController;
+use App\Http\Controllers\TagWatchController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
@@ -118,6 +128,11 @@ Route::middleware('guest')->group(function (): void {
 // Log, where guests read Trending and Latest...
 Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
 Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
+
+// Hashtag feed...
+Route::get('tags/{tag}', [TagController::class, 'show'])
+    ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+    ->name('tag.show');
 
 // Terms and privacy, readable by everyone...
 Route::get('terms', [TermsController::class, 'show'])->name('terms.show');
@@ -224,6 +239,38 @@ Route::middleware('auth')->group(function (): void {
     // Onboarding...
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
+
+    // Hashtag ownership, watch, and settings...
+    Route::get('tags/{tag}/settings', [TagController::class, 'edit'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag.settings');
+    Route::post('tags/{tag}/claim', [TagClaimController::class, 'store'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-claim.store');
+    Route::post('tags/{tag}/verify', [TagVerificationController::class, 'store'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-verification.store');
+    Route::put('tags/{tag}/domain', [TagVerificationController::class, 'update'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-domain.update');
+    Route::put('tags/{tag}/description', [TagDescriptionController::class, 'update'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-description.update');
+    Route::put('tags/{tag}/watch', [TagWatchController::class, 'store'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-watch.store');
+    Route::delete('tags/{tag}/watch', [TagWatchController::class, 'destroy'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-watch.destroy');
+    Route::post('tags/{tag}/members', [TagMemberController::class, 'store'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-member.store');
+    Route::put('tags/{tag}/members/{member:username}', [TagMemberController::class, 'update'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-member.update');
+    Route::delete('tags/{tag}/members/{member:username}', [TagMemberController::class, 'destroy'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-member.destroy');
 
     // Private saved commits...
     Route::get('saved', [BookmarkController::class, 'index'])->name('bookmark.index');
@@ -341,6 +388,14 @@ Route::middleware('auth')->group(function (): void {
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
     Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
+    Route::get('moderation/verifications', [TagVerificationRequestController::class, 'index'])
+        ->name('tag-verification-request.index');
+    Route::post('moderation/verifications/{tag}/approval', [TagVerificationApprovalController::class, 'store'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-verification-approval.store');
+    Route::post('moderation/verifications/{tag}/rejection', [TagVerificationRejectionController::class, 'store'])
+        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('tag-verification-rejection.store');
     Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
         ->name('commit-approval.store');
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
@@ -360,6 +415,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
         ->middleware('throttle:people')
         ->name('mention-suggestion.index');
+
+    // Hashtag Suggestions...
+    Route::get('search/hashtags', [HashtagSuggestionController::class, 'index'])
+        ->middleware('throttle:people')
+        ->name('hashtag-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));

@@ -20,6 +20,7 @@ final readonly class UpdateCommitStatuses
         private CreateReplyNotifications $createReplyNotifications,
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
+        private CreateTagActivityNotifications $createTagActivityNotifications,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
     ) {
@@ -78,6 +79,7 @@ final readonly class UpdateCommitStatuses
                 $this->createReplyNotifications->handle(...$commits);
                 $this->createQuoteNotifications->handle(...$commits);
                 $this->createMentionNotifications->handle(...$commits);
+                $this->createTagActivityNotifications->handle(...$commits);
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
 

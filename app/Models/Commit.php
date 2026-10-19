@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
+use App\Services\BranchStyles;
 use App\Services\CommitBodies;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
@@ -30,6 +31,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read float $hot_score
  * @property-read string $body
  * @property-read array<string, string>|null $mentions
+ * @property-read string|null $branch
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
  * @property-read string|null $quoted_commit_id
@@ -110,6 +112,7 @@ final class Commit extends Model
             'pasteis_count' => 'integer',
             'body' => 'string',
             'mentions' => 'array',
+            'branch' => 'string',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
             'quoted_commit_id' => 'string',
@@ -137,7 +140,17 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return [...parent::toArray(), ...resolve(CommitBodies::class)->segments($this->body), 'is_checking' => $this->isBeingChecked()];
+        $branch = is_string($this->branch)
+            ? resolve(BranchStyles::class)->summary($this->branch)
+            : null;
+
+        return [
+            ...parent::toArray(),
+            ...resolve(CommitBodies::class)->segments($this->body),
+            'is_checking' => $this->isBeingChecked(),
+            'branch' => $branch,
+            'branch_color' => $branch['brand_color'] ?? null,
+        ];
     }
 
     /**

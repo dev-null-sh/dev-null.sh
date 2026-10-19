@@ -14,6 +14,10 @@ import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLi
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
+import {
+    BranchPicker,
+    BranchPickerButton,
+} from '@/components/branch-picker';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
     ImageDropOverlay,
@@ -213,7 +217,7 @@ export function useThread(
     );
     const [shouldLoadReplies] = useState(
         (loadsReplies && count > 0) ||
-            (initial !== undefined && changedThreadIds.has(commit.id)),
+        (initial !== undefined && changedThreadIds.has(commit.id)),
     );
     const [isOpen, setIsOpen] = useState(
         initial !== undefined || shouldLoadReplies,
@@ -244,10 +248,10 @@ export function useThread(
             isPreview && (replies?.length ?? 0) <= 1
                 ? 1
                 : replies === null
-                  ? 0
-                  : nextCursor === null
-                    ? Infinity
-                    : replies.length + extra;
+                    ? 0
+                    : nextCursor === null
+                        ? Infinity
+                        : replies.length + extra;
 
         setIsLoading(true);
 
@@ -425,8 +429,8 @@ export function ThreadActions({
                                     auth.user === null
                                         ? signIn
                                         : thread.isReplying
-                                          ? thread.cancelReply
-                                          : thread.startReply
+                                            ? thread.cancelReply
+                                            : thread.startReply
                                 }
                                 aria-expanded={thread.isReplying}
                                 aria-keyshortcuts={
@@ -581,8 +585,8 @@ export function ThreadReplies({
         depth === 0
             ? threadLayouts.root
             : isFlattened
-              ? threadLayouts.flattened
-              : threadLayouts.nested;
+                ? threadLayouts.flattened
+                : threadLayouts.nested;
 
     return (
         <div
@@ -631,7 +635,7 @@ export function ThreadReplies({
                                     style={{
                                         borderColor: laneOf(
                                             thread.replies[
-                                                thread.replies.length - 1
+                                            thread.replies.length - 1
                                             ],
                                         ),
                                     }}
@@ -1014,9 +1018,12 @@ function ReplyComposer({
     const attachments = useImageAttachments(images, descriptions, updateImages);
     const linkCard = useLinkCard(body);
     const updateCommitsCount = useCommitsCountUpdate();
+    const [branch, setBranch] = useState('');
+    const [isPickingBranch, setIsPickingBranch] = useState(false);
     const request = useHttp<
         {
             body: string;
+            branch?: string;
             images: File[];
             image_descriptions: string[];
             link_preview_url?: string;
@@ -1074,6 +1081,7 @@ function ReplyComposer({
 
         request.setData(() => ({
             body,
+            ...(branch.trim() !== '' ? { branch } : {}),
             images,
             image_descriptions: descriptions,
             ...(linkCard.isChosen
@@ -1086,6 +1094,8 @@ function ReplyComposer({
                 onSuccess: (reply) => {
                     attachments.clear();
                     drop();
+                    setBranch('');
+                    setIsPickingBranch(false);
                     linkCard.reset();
                     returnFocusToCommit();
                     router.flash(() => reply);
@@ -1157,6 +1167,17 @@ function ReplyComposer({
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
             />
+            {isPickingBranch && (
+                <BranchPicker
+                    id={`reply-branch-${parent.id}`}
+                    value={branch}
+                    onChange={setBranch}
+                    error={errors.branch}
+                    disabled={processing}
+                    autoFocus
+                    className="mt-2 max-w-xs px-1"
+                />
+            )}
             {!preview.isPreviewing && (
                 <ImagePickerPreviews
                     images={attachments.images}
@@ -1185,6 +1206,14 @@ function ReplyComposer({
                         count={images.length}
                         disabled={processing}
                         onPick={attachments.attach}
+                        className="size-8"
+                    />
+                    <BranchPickerButton
+                        isOpen={isPickingBranch}
+                        hasBranch={branch !== ''}
+                        disabled={processing}
+                        controls={`reply-branch-${parent.id}`}
+                        onClick={() => setIsPickingBranch(!isPickingBranch)}
                         className="size-8"
                     />
                     <PreviewToggle preview={preview} className="-ml-2 size-8" />

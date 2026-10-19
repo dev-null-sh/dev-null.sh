@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $user_id
  * @property-read string|null $commit_id
  * @property-read string|null $body
+ * @property-read string|null $branch
  * @property-read array{options: list<string>, duration: int}|null $poll
  * @property-read list<array{path: string, width: int, height: int, description: string|null, position: int}>|null $images
  * @property-read string|null $link_preview_url
@@ -26,7 +27,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read User $user
  * @property-read Commit|null $commit
  */
-#[Fillable(['user_id', 'body', 'poll', 'images', 'link_preview_url', 'scheduled_at'])]
+#[Fillable(['user_id', 'body', 'branch', 'poll', 'images', 'link_preview_url', 'scheduled_at'])]
 final class ScheduledCommit extends Model
 {
     /** @use HasFactory<ScheduledCommitFactory> */

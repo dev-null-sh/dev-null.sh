@@ -7,7 +7,7 @@ import { UserPreview } from '@/components/user-preview';
 import { typedProse } from '@/lib/code';
 import { shortenUrl } from '@/lib/urls';
 import { shortHash } from '@/lib/utils';
-import { show } from '@/routes/mention';
+import { show as mentionShow } from '@/routes/mention';
 import type { Commit } from '@/types';
 
 // Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
@@ -30,9 +30,9 @@ const topLevelDomains = [
 // that the TLD's case can be checked.
 const urlPattern = new RegExp(
     String.raw`\b[Hh][Tt][Tt][Pp][Ss]?:\/\/[^\s<>]+` +
-        String.raw`|(?<![\p{L}\p{N}_.\/@-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+` +
-        String.raw`(?:${[...topLevelDomains, ...topLevelDomains.map((domain) => domain.toUpperCase())].join('|')})` +
-        String.raw`(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?`,
+    String.raw`|(?<![\p{L}\p{N}_.\/@-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+` +
+    String.raw`(?:${[...topLevelDomains, ...topLevelDomains.map((domain) => domain.toUpperCase())].join('|')})` +
+    String.raw`(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?`,
     'gu',
 );
 // A GitHub username after an "@" that doesn't follow a letter, digit, "_", ".", "/", "@" or "-", and doesn't run
@@ -254,7 +254,7 @@ function withMentions(
                     userId={userId}
                 >
                     <Link
-                        href={show(userId)}
+                        href={mentionShow(userId)}
                         className="font-medium text-primary hover:underline"
                         data-test="mention"
                     >

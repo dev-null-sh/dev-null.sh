@@ -6,6 +6,10 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
 import {
+    BranchPicker,
+    BranchPickerButton,
+} from '@/components/branch-picker';
+import {
     ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
@@ -117,6 +121,8 @@ function QuoteComposer({
         drop,
     } = useStash(user.id, id);
     const attachments = useImageAttachments(images, descriptions, updateImages);
+    const [branch, setBranch] = useState('');
+    const [isPickingBranch, setIsPickingBranch] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
     const keys = useKeyLabels();
@@ -167,10 +173,10 @@ function QuoteComposer({
                 transform={(data) =>
                     images.length > 0
                         ? {
-                              ...data,
-                              images,
-                              image_descriptions: descriptions,
-                          }
+                            ...data,
+                            images,
+                            image_descriptions: descriptions,
+                        }
                         : data
                 }
                 options={{ preserveScroll: true }}
@@ -178,6 +184,8 @@ function QuoteComposer({
                     if (!isRejectedSubmission(page.flash)) {
                         attachments.clear();
                         drop();
+                        setBranch('');
+                        setIsPickingBranch(false);
                         onClose();
                     }
                 }}
@@ -196,6 +204,13 @@ function QuoteComposer({
                                 name="quoted_commit_id"
                                 value={commit.id}
                             />
+                            {!isPickingBranch && branch !== '' && (
+                                <input
+                                    type="hidden"
+                                    name="branch"
+                                    value={branch}
+                                />
+                            )}
                             <label htmlFor={id} className="sr-only">
                                 Your commit
                             </label>
@@ -228,6 +243,19 @@ function QuoteComposer({
                                 message={errors.body ?? errors.quoted_commit_id}
                             />
 
+                            {isPickingBranch && (
+                                <BranchPicker
+                                    id={`${id}-branch`}
+                                    value={branch}
+                                    onChange={setBranch}
+                                    name="branch"
+                                    error={errors.branch}
+                                    disabled={processing}
+                                    autoFocus
+                                    className="mt-2 max-w-xs"
+                                />
+                            )}
+
                             <SecretWarning
                                 body={body}
                                 findings={secrets.findings}
@@ -259,6 +287,16 @@ function QuoteComposer({
                                         count={images.length}
                                         disabled={processing}
                                         onPick={attachments.attach}
+                                        className="size-8"
+                                    />
+                                    <BranchPickerButton
+                                        isOpen={isPickingBranch}
+                                        hasBranch={branch !== ''}
+                                        disabled={processing}
+                                        controls={`${id}-branch`}
+                                        onClick={() =>
+                                            setIsPickingBranch(!isPickingBranch)
+                                        }
                                         className="size-8"
                                     />
                                     {isRestored && (

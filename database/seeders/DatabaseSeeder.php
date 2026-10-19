@@ -63,6 +63,8 @@ final class DatabaseSeeder extends Seeder
         $localDeveloper->followers()->syncWithoutDetaching($users->random(5)->modelKeys());
 
         $this->converse($localDeveloper, $users);
+
+        $this->call(ExampleBranchesSeeder::class);
     }
 
     /**
