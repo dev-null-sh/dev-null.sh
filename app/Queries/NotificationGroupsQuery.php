@@ -50,6 +50,22 @@ final readonly class NotificationGroupsQuery
     }
 
     /**
+     * The inbox shows a quote with the commit it quotes, which is always the recipient's own, so only the recipient's
+     * commits load there: a reply that quotes someone else never brings along a commit the recipient may not see.
+     *
+     * @param  CursorPaginator<int, Notification>  $groups
+     * @return CursorPaginator<int, Notification>
+     */
+    public function withQuotedCommits(User $user, CursorPaginator $groups): CursorPaginator
+    {
+        new Collection($groups->items())->loadMissing([
+            'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereBelongsTo($user),
+        ]);
+
+        return $groups;
+    }
+
+    /**
      * Whether two unread notifications share a group only depends on what happened between them, so grouping from the
      * oldest unread one onward counts the same groups as grouping the whole history, which every page would pay for.
      */

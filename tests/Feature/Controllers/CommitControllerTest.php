@@ -569,6 +569,19 @@ it('shows a commit with its ancestors and reply count', function (): void {
             ->missing('commit.user.email'));
 });
 
+it('shows as many replies at a time as the viewer picked', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit, 'parent')->count(4)->create();
+
+    $this->withUnencryptedCookie('replies_per_page', '3')
+        ->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.replies_count', 4)
+            ->has('replies.data', 3)
+            ->where('replies.next_cursor', fn (?string $cursor): bool => $cursor !== null));
+});
+
 it('shows the thread the author wrote after the commit and leaves it out of its replies', function (): void {
     $author = User::factory()->create();
     $commit = Commit::factory()->for($author)->create();
@@ -656,11 +669,11 @@ it('shows the star count and whether the viewer starred each reply', function ()
             ->where('replies.data.0.starred', true));
 });
 
-it('shows the first 50 replies of a commit with a cursor to the rest', function (): void {
+it('shows the first 3 replies of a commit by default with a cursor to the rest', function (): void {
     $viewer = User::factory()->create();
     $commit = Commit::factory()->create();
 
-    Commit::factory()->for($commit, 'parent')->count(51)
+    Commit::factory()->for($commit, 'parent')->count(4)
         ->state(new Sequence(fn (Sequence $sequence): array => [
             'body' => "Reply {$sequence->index}",
             'created_at' => now()->subMinutes(100 - $sequence->index),
@@ -673,11 +686,11 @@ it('shows the first 50 replies of a commit with a cursor to the rest', function 
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('commit.replies_count', 51)
-            ->has('replies.data', 50)
+            ->where('commit.replies_count', 4)
+            ->has('replies.data', 3)
             ->where('replies.data.0.body', 'Reply 0')
             ->where('replies.data.1.body', 'Reply 1')
-            ->where('replies.data.49.body', 'Reply 49')
+            ->where('replies.data.2.body', 'Reply 2')
             ->where('replies.next_cursor', fn (string $cursor): bool => $cursor !== ''));
 });
 

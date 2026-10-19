@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Enums\Log;
+use App\Enums\RepliesPerPage;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
@@ -67,6 +68,8 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
+            'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
+            'repliesPerPage' => RepliesPerPage::of($request)->value,
             // Onboarding has no sidebar to show them in, and the people followed during it change who is suggested.
             ...$user instanceof User && $showsWhoToFollow && ! $request->routeIs('onboarding.show') ? [
                 'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(

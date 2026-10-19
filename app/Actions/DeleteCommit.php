@@ -8,6 +8,8 @@ use App\Enums\NotificationType;
 use App\Jobs\EraseDeletedCommitImages;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Services\CommitTranslations;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 final readonly class DeleteCommit
@@ -37,6 +39,8 @@ final readonly class DeleteCommit
             Notification::query()->where('type', NotificationType::Quoted)->whereIn('commit_id', $commit->quotes()->select('id'))->delete();
 
             $commit->delete();
+
+            Cache::forget(resolve(CommitTranslations::class)->key($commit));
 
             $this->updateCommitHotScores->handle([$commit->id]);
 
