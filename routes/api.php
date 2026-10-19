@@ -50,6 +50,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
+        Route::delete('me', [CurrentUserController::class, 'destroy'])->name('api-current-user.destroy');
 
         // Log...
         Route::get('log/{log}', [LogController::class, 'show'])->name('api-log.show');

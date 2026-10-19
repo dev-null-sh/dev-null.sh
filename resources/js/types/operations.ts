@@ -1,3 +1,16 @@
+import type { Activity } from './activity';
+
+export type ActivityMetric = 'commits' | 'replies' | 'signups';
+
+export type SiteActivity = Activity & { metric: ActivityMetric };
+
+export type BreakdownRow = {
+    name: string;
+    count: number;
+};
+
+export type ActivityBreakdowns = Record<'statuses' | 'authors', BreakdownRow[]>;
+
 export type QueueBacklog = {
     queue: string;
     size: number;
@@ -32,10 +45,11 @@ export type LinkPreviewHealth = {
     failed: number;
 };
 
-export type Volume = Record<
-    'signups' | 'commits' | 'replies',
-    { day: number; week: number }
->;
+export type Counter = 'signups' | 'commits' | 'replies' | 'authors';
+
+export type Today = Record<Counter, { today: number; yesterday: number }>;
+
+export type Overall = Record<Counter, number> & { since: string | null };
 
 export type GitHubRateLimit = {
     remaining: number;
