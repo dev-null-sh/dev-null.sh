@@ -605,7 +605,7 @@ function ReplyLinks({
                 <ThreadElbow from={parentLane} to={lane} />
             ) : (
                 <span
-                    className={cn(replyLink, 'top-0 h-[22px] sm:h-6')}
+                    className={cn(replyLink, 'top-0 h-1.5')}
                     style={laneStrokeStyle(lane)}
                     data-test="reply-link"
                 />
@@ -646,7 +646,7 @@ function ThreadElbow({ from, to }: { from: string; to: string }) {
     return (
         <svg
             aria-hidden
-            className="pointer-events-none absolute top-0 left-[calc(var(--spine)-0.5px)] h-[22px] w-[calc(var(--indent)-var(--spine)-3px)] overflow-visible sm:h-6"
+            className="pointer-events-none absolute top-0 left-(--spine) h-[22px] w-[calc(var(--indent)-var(--spine)-4px)] overflow-visible sm:h-6"
             viewBox="0 0 32 24"
             preserveAspectRatio="none"
             fill="none"
@@ -668,7 +668,7 @@ function ThreadElbow({ from, to }: { from: string; to: string }) {
             </defs>
             {/* Quarter-circle corner matching rounded-bl-xl. */}
             <path
-                d="M 0.5 0 L 0.5 12 Q 0.5 23.5 12.5 23.5 L 32 23.5"
+                d="M 0 0 L 0 12 Q 0 23.5 12 23.5 L 32 23.5"
                 stroke={from === to ? from : `url(#${gradientId})`}
                 strokeWidth="1"
                 strokeDasharray="2 2"
