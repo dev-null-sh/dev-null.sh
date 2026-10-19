@@ -57,7 +57,7 @@ import {
     isRejectedSubmission,
     laneColor,
 } from '@/lib/utils';
-import type { User } from '@/types';
+import type { Repo, User } from '@/types';
 
 function focusBody(id: string): void {
     requestAnimationFrame(() => document.getElementById(id)?.focus());
@@ -470,20 +470,25 @@ function CommitComposerBody({
     );
 }
 
+/**
+ * In a repo, the commit goes to the repo's contributors only. Issue commands open GitHub issues, so they stay out.
+ */
 export function CommitComposer({
     id = 'body',
     isInDialog = false,
+    repo = null,
     onCommitted,
 }: {
     id?: string;
     isInDialog?: boolean;
+    repo?: Repo | null;
     onCommitted?: () => void;
 }) {
     const schedule = useCommitSchedule();
     const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
         schedule;
     const { user } = useUser();
-    const stash = useStash(user.id, 'commit');
+    const stash = useStash(user.id, repo ? `repo-${repo.id}` : 'commit');
     const { body } = stash;
     const linkCard = useLinkCard(body);
     const [draftVersion, setDraftVersion] = useState(0);
@@ -514,7 +519,7 @@ export function CommitComposer({
     const issue = useIssueCommand({
         body,
         updateBody: stash.updateBody,
-        enabled: !hasImages && poll === null && !isScheduling,
+        enabled: repo === null && !hasImages && poll === null && !isScheduling,
         hasSecrets: secrets.findings.length > 0,
         onCreated: () => {
             drop();
@@ -543,6 +548,7 @@ export function CommitComposer({
             onBefore={() => issue.command === null && secrets.beforeSubmit()}
             transform={(data) => ({
                 ...data,
+                ...(repo && { repo_id: repo.id }),
                 ...(hasImages && {
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,

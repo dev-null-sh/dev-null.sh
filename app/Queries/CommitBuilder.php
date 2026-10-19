@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Models\Repo;
 use App\Models\User;
 use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Eloquent\Builder;
@@ -56,8 +57,7 @@ final class CommitBuilder extends Builder
 
     /**
      * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
-     * A block hides each one's commits from the other. Repo commits stay inside their repo, so lists never show them, while
-     * its contributors still open them by link (Commit::isVisibleTo()).
+     * A block hides each one's commits from the other, and repo commits are only visible to the repo's contributors.
      */
     public function visibleTo(?User $user): self
     {
@@ -65,12 +65,20 @@ final class CommitBuilder extends Builder
             return $this->outsideRepos()->where($this->qualifyColumn('status'), CommitStatus::Approved);
         }
 
-        return $this->outsideRepos()->where(fn (Builder $query): Builder => $query
-            ->where($this->qualifyColumn('status'), CommitStatus::Approved)
-            ->orWhere($this->qualifyColumn('user_id'), $user->id))
+        return $this->where(fn (Builder $query): Builder => $query
+            ->whereNull($this->qualifyColumn('repo_id'))
+            ->orWhereIn($this->qualifyColumn('repo_id'), $user->repos()->newPivotQuery()->select('repo_id')))
+            ->where(fn (Builder $query): Builder => $query
+                ->where($this->qualifyColumn('status'), CommitStatus::Approved)
+                ->orWhere($this->qualifyColumn('user_id'), $user->id))
             ->where(fn (Builder $query): Builder => $query
                 ->whereNull($this->qualifyColumn('user_id'))
                 ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
+    }
+
+    public function inRepo(Repo $repo): self
+    {
+        return $this->where($this->qualifyColumn('repo_id'), $repo->id);
     }
 
     /**
@@ -108,6 +116,10 @@ final class CommitBuilder extends Builder
                 ->orWhereExists($replies));
     }
 
+    /**
+     * Repo commits stay inside their repo: logs, profiles, search, and anything public leave them out, even for its
+     * contributors.
+     */
     public function outsideRepos(): self
     {
         return $this->whereNull($this->qualifyColumn('repo_id'));

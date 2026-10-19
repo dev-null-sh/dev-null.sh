@@ -47,7 +47,8 @@ final class Repo extends Model
     }
 
     /**
-     * Maintainers add and remove contributors, promote and demote them, and delete any commit in the repo.
+     * Maintainers add and remove contributors, promote and demote them, and delete any commit in the repo
+     * (Commit::isDeletableBy()).
      */
     public function isMaintainedBy(User $user): bool
     {
@@ -69,14 +70,6 @@ final class Repo extends Model
     public function isLastMaintainer(User $user): bool
     {
         return $this->isMaintainedBy($user) && $this->contributors()->where('role', RepoRole::Maintainer)->count() === 1;
-    }
-
-    /**
-     * On top of authors deleting their own, maintainers delete any commit in their repo.
-     */
-    public function canDeleteCommit(User $user, Commit $commit): bool
-    {
-        return $commit->repo_id === $this->id && $this->isMaintainedBy($user);
     }
 
     /**

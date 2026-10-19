@@ -8,7 +8,9 @@ use App\Actions\CreateCommitImages;
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\Commit;
+use App\Models\Repo;
 use App\Models\User;
+use App\Rules\ContributedRepo;
 use App\Rules\VisibleCommit;
 use App\Services\CommitBodies;
 use App\Services\Urls;
@@ -38,6 +40,21 @@ final class CreateCommitRequest extends FormRequest
         if (is_string($request->input('body'))) {
             $request->merge(['body' => resolve(CommitBodies::class)->normalize($request->string('body')->value())]);
         }
+    }
+
+    /**
+     * A commit goes to a repo only when its author contributes to it, by every request that takes a commit.
+     *
+     * @return array<int, string|ValidationRule>
+     */
+    public static function repoRules(User $user): array
+    {
+        return ['bail', 'nullable', 'uuid', new ContributedRepo($user)];
+    }
+
+    public static function repoFrom(FormRequest $request): ?Repo
+    {
+        return $request->filled('repo_id') ? Repo::query()->find($request->string('repo_id')->value()) : null;
     }
 
     /**
@@ -84,6 +101,7 @@ final class CreateCommitRequest extends FormRequest
             'body' => $this->hasFile('images') ? self::BODY_WITH_IMAGES_RULES : self::BODY_RULES,
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
+            'repo_id' => self::repoRules($user),
             ...self::attachmentRules(),
         ];
     }
@@ -161,6 +179,11 @@ final class CreateCommitRequest extends FormRequest
         return $this->filled('quoted_commit_id')
             ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
             : null;
+    }
+
+    public function repo(): ?Repo
+    {
+        return self::repoFrom($this);
     }
 
     public function prepareForValidation(): void

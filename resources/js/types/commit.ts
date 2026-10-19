@@ -80,6 +80,7 @@ export type Commit = {
     poll?: Poll | null;
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
+    repo_id?: string | null;
     images?: CommitImage[];
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;

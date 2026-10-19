@@ -58,6 +58,9 @@ use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\RemoteCandidateController;
+use App\Http\Controllers\RepoContributorCandidateController;
+use App\Http\Controllers\RepoContributorController;
+use App\Http\Controllers\RepoController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
@@ -271,6 +274,17 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-reply.destroy');
     Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
         ->name('commit-poll-vote.store');
+
+    // Repos...
+    Route::get('repos', [RepoController::class, 'index'])->name('repo.index');
+    Route::post('repos', [RepoController::class, 'store'])->middleware('throttle:10,1')->name('repo.store');
+    Route::get('repos/{repo:slug}', [RepoController::class, 'show'])->name('repo.show');
+    Route::middleware('throttle:repos')->group(function (): void {
+        Route::get('repos/{repo:slug}/candidates', [RepoContributorCandidateController::class, 'index'])->name('repo-contributor-candidate.index');
+        Route::post('repos/{repo:slug}/contributors', [RepoContributorController::class, 'store'])->name('repo-contributor.store');
+        Route::put('repos/{repo:slug}/contributors/{contributor:username}', [RepoContributorController::class, 'update'])->withoutScopedBindings()->name('repo-contributor.update');
+        Route::delete('repos/{repo:slug}/contributors/{contributor:username}', [RepoContributorController::class, 'destroy'])->withoutScopedBindings()->name('repo-contributor.destroy');
+    });
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');

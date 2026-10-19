@@ -24,11 +24,12 @@ final readonly class CreateWorldReply
     }
 
     /**
-     * @world answers an approved hello world, once. A pending one waits until it is approved.
+     * @world answers an approved hello world, once. A pending one waits until it is approved. Repos keep it out, since
+     * it isn't a contributor.
      */
     public function handle(Commit $commit): void
     {
-        if (! $this->helloWorld->matches($commit->body)) {
+        if ($commit->repo_id !== null || ! $this->helloWorld->matches($commit->body)) {
             return;
         }
 

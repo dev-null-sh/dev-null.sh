@@ -389,7 +389,6 @@ export function OrgMembersDialog({
                         {members.map((member) => (
                             <MemberRow
                                 key={member.user.id}
-                                org={org}
                                 member={member}
                                 user={user}
                                 canManage={
@@ -398,6 +397,13 @@ export function OrgMembersDialog({
                                 isLastMaintainer={
                                     member.role === 'maintainer' &&
                                     maintainers === 1
+                                }
+                                removeLabel="Remove from org"
+                                onRoleChange={(role) =>
+                                    setOrgMemberRole(org, member.user, role)
+                                }
+                                onRemove={() =>
+                                    removeOrgMember(org, member.user, false)
                                 }
                             />
                         ))}
@@ -450,18 +456,25 @@ export function OrgMembersDialog({
     );
 }
 
-function MemberRow({
-    org,
+/**
+ * Someone in an org or a repo, with their role, and a menu for maintainers to change it or remove them.
+ */
+export function MemberRow({
     member,
     user,
     canManage,
     isLastMaintainer,
+    removeLabel,
+    onRoleChange,
+    onRemove,
 }: {
-    org: OrgRef;
-    member: OrgMember;
+    member: { user: User; role: OrgRole | null };
     user: User;
     canManage: boolean;
     isLastMaintainer: boolean;
+    removeLabel: string;
+    onRoleChange: (role: OrgRole) => Promise<void>;
+    onRemove: () => Promise<void>;
 }) {
     const [isBusy, setIsBusy] = useState(false);
 
@@ -538,11 +551,7 @@ function MemberRow({
                                         disabled={isLastMaintainer}
                                         onSelect={() =>
                                             void run(() =>
-                                                setOrgMemberRole(
-                                                    org,
-                                                    member.user,
-                                                    'contributor',
-                                                ),
+                                                onRoleChange('contributor'),
                                             )
                                         }
                                     >
@@ -552,11 +561,7 @@ function MemberRow({
                                     <DropdownMenuItem
                                         onSelect={() =>
                                             void run(() =>
-                                                setOrgMemberRole(
-                                                    org,
-                                                    member.user,
-                                                    'maintainer',
-                                                ),
+                                                onRoleChange('maintainer'),
                                             )
                                         }
                                     >
@@ -566,18 +571,10 @@ function MemberRow({
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                     variant="destructive"
-                                    onSelect={() =>
-                                        void run(() =>
-                                            removeOrgMember(
-                                                org,
-                                                member.user,
-                                                false,
-                                            ),
-                                        )
-                                    }
+                                    onSelect={() => void run(onRemove)}
                                     data-test="org-member-remove"
                                 >
-                                    Remove from org
+                                    {removeLabel}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -590,8 +587,6 @@ function MemberRow({
 type PeopleMode =
     | { kind: 'create' }
     | { kind: 'add'; org: OrgRef; members: OrgMember[] };
-
-type Found = { term: string; candidates: Candidate[] };
 
 /**
  * Picks people for a new org, or to add to one. Anyone who can't be added stays in the list, greyed out, with the
@@ -609,45 +604,18 @@ export function OrgPeopleDialog({
     onDone: (org: OrgRef) => void;
 }) {
     const [name, setName] = useState('');
-    const [query, setQuery] = useState('');
-    const [found, setFound] = useState<Found | null>(null);
     const [picked, setPicked] = useState<User[]>([]);
     const [sharesHistory, setSharesHistory] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const isCreated = useRef(false);
-    const term = query.trim().replace(/^@/u, '');
     const orgId = mode.kind === 'add' ? mode.org.id : null;
     const current = mode.kind === 'add' ? mode.members.length : 1;
     const total = current + picked.length;
     const isFull = total >= maxMembers;
 
-    useEffect(() => {
-        if (term === '') {
-            return;
-        }
-
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => {
-            void searchCandidates(
-                term,
-                orgId === null ? { for: 'org' } : { org: orgId },
-                controller.signal,
-            )
-                .then((candidates) => setFound({ term, candidates }))
-                .catch(() => undefined);
-        }, searchDebounce);
-
-        return () => {
-            window.clearTimeout(timeout);
-            controller.abort();
-        };
-    }, [term, orgId]);
-
     const reset = () => {
         setName('');
-        setQuery('');
-        setFound(null);
         setPicked([]);
         setSharesHistory(false);
         setError(null);
@@ -692,9 +660,6 @@ export function OrgPeopleDialog({
         }
     };
 
-    const results =
-        term !== '' && found?.term === term ? found.candidates : null;
-
     return (
         <Dialog
             open={open}
@@ -721,132 +686,65 @@ export function OrgPeopleDialog({
                     onSubmit={(event) => void submit(event)}
                     className="flex min-h-0 flex-1 flex-col"
                 >
-                    <div className="space-y-3 border-b px-5 pt-5 pb-4">
-                        <div className="space-y-1">
-                            <DialogTitle>
-                                {mode.kind === 'create'
-                                    ? 'New org'
-                                    : 'Add people'}
-                            </DialogTitle>
-                            <DialogDescription className="flex justify-between gap-3">
-                                <span>
-                                    {mode.kind === 'create'
-                                        ? 'You maintain it. Everyone you add contributes.'
-                                        : 'They join as contributors.'}
-                                </span>
-                                <span
-                                    className={cn(
-                                        'shrink-0 font-mono text-xs tabular-nums',
-                                        { 'text-foreground': isFull },
-                                    )}
-                                    data-test="org-people-count"
-                                >
-                                    {total}/{maxMembers}
-                                </span>
-                            </DialogDescription>
-                        </div>
-                        {mode.kind === 'create' && (
-                            <input
-                                value={name}
-                                onChange={(event) =>
-                                    setName(event.target.value)
-                                }
-                                maxLength={60}
-                                placeholder="Name it (optional)"
-                                aria-label="Org name"
-                                className="h-9 w-full rounded-md border bg-card px-3 text-base outline-none focus-visible:border-primary md:text-sm"
-                                data-test="new-org-name"
-                            />
-                        )}
-                        <label className="relative flex items-center">
-                            <span className="sr-only">Find people</span>
-                            <Search
-                                aria-hidden
-                                className="pointer-events-none absolute left-3 size-4 text-muted-foreground"
-                            />
-                            <input
-                                autoFocus
-                                value={query}
-                                onChange={(event) =>
-                                    setQuery(event.target.value)
-                                }
-                                maxLength={100}
-                                placeholder="Find people by name or @handle"
-                                autoComplete="off"
-                                spellCheck={false}
-                                className="h-9 w-full rounded-md border bg-card pr-3 pl-9 text-base outline-none focus-visible:border-primary md:text-sm"
-                                data-test="org-people-search"
-                            />
-                        </label>
-                        <div className="flex min-h-7 flex-wrap gap-1.5">
-                            {picked.length === 0 ? (
-                                <span className="font-mono text-xs leading-7 text-muted-foreground">
-                                    nobody picked yet
-                                </span>
-                            ) : (
-                                picked.map((person) => (
-                                    <button
-                                        key={person.id}
-                                        type="button"
-                                        onClick={() => toggle(person)}
-                                        aria-label={`Remove @${person.username}`}
-                                        className="flex h-7 max-w-40 items-center gap-1.5 rounded-full bg-muted pr-2 pl-1 text-xs hover:bg-accent"
-                                    >
-                                        <UserAvatar
-                                            user={person}
-                                            className="size-5"
-                                        />
-                                        <span className="truncate font-mono">
-                                            @{person.username}
+                    <PeoplePicker
+                        search={(term, signal) =>
+                            searchCandidates(
+                                term,
+                                orgId === null
+                                    ? { for: 'org' }
+                                    : { org: orgId },
+                                signal,
+                            )
+                        }
+                        picked={picked}
+                        onToggle={toggle}
+                        reasonFor={(reason, isPicked) =>
+                            reason ??
+                            (isFull && !isPicked
+                                ? `the org is full (${maxMembers})`
+                                : null)
+                        }
+                        header={
+                            <>
+                                <div className="space-y-1">
+                                    <DialogTitle>
+                                        {mode.kind === 'create'
+                                            ? 'New org'
+                                            : 'Add people'}
+                                    </DialogTitle>
+                                    <DialogDescription className="flex justify-between gap-3">
+                                        <span>
+                                            {mode.kind === 'create'
+                                                ? 'You maintain it. Everyone you add contributes.'
+                                                : 'They join as contributors.'}
                                         </span>
-                                        <X className="size-3 shrink-0" />
-                                    </button>
-                                ))
-                            )}
-                        </div>
-                    </div>
-
-                    <ul
-                        aria-label="People"
-                        className="min-h-40 flex-1 overflow-y-auto overscroll-contain py-2"
-                    >
-                        {results === null ? (
-                            <li className="px-5 py-8 text-center text-sm text-muted-foreground">
-                                {term === ''
-                                    ? 'Type a name or handle'
-                                    : 'Searching…'}
-                            </li>
-                        ) : results.length === 0 ? (
-                            <li
-                                className="truncate px-5 py-8 text-center font-mono text-[13px] text-muted-foreground"
-                                title={`fatal: nothing matches '${term}'`}
-                            >
-                                fatal: nothing matches '{term}'
-                            </li>
-                        ) : (
-                            results.map(({ user: person, reason }) => {
-                                const isPicked = picked.some(
-                                    (item) => item.id === person.id,
-                                );
-                                const why =
-                                    reason ??
-                                    (isFull && !isPicked
-                                        ? `the org is full (${maxMembers})`
-                                        : null);
-
-                                return (
-                                    <li key={person.id}>
-                                        <CandidateRow
-                                            user={person}
-                                            reason={why}
-                                            isPicked={isPicked}
-                                            onToggle={() => toggle(person)}
-                                        />
-                                    </li>
-                                );
-                            })
-                        )}
-                    </ul>
+                                        <span
+                                            className={cn(
+                                                'shrink-0 font-mono text-xs tabular-nums',
+                                                { 'text-foreground': isFull },
+                                            )}
+                                            data-test="org-people-count"
+                                        >
+                                            {total}/{maxMembers}
+                                        </span>
+                                    </DialogDescription>
+                                </div>
+                                {mode.kind === 'create' && (
+                                    <input
+                                        value={name}
+                                        onChange={(event) =>
+                                            setName(event.target.value)
+                                        }
+                                        maxLength={60}
+                                        placeholder="Name it (optional)"
+                                        aria-label="Org name"
+                                        className="h-9 w-full rounded-md border bg-card px-3 text-base outline-none focus-visible:border-primary md:text-sm"
+                                        data-test="new-org-name"
+                                    />
+                                )}
+                            </>
+                        }
+                    />
 
                     <div className="space-y-3 border-t px-5 py-3">
                         {mode.kind === 'add' && (
@@ -891,6 +789,142 @@ export function OrgPeopleDialog({
                 </form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+type Found = { term: string; candidates: Candidate[] };
+
+/**
+ * Finds people by name or handle, with everyone picked so far above the results. Anyone who can't be picked stays in
+ * the list, greyed out, with the reason why.
+ */
+export function PeoplePicker({
+    search,
+    picked,
+    onToggle,
+    reasonFor = (reason) => reason,
+    header,
+}: {
+    search: (term: string, signal: AbortSignal) => Promise<Candidate[]>;
+    picked: User[];
+    onToggle: (person: User) => void;
+    reasonFor?: (reason: string | null, isPicked: boolean) => string | null;
+    header: ReactNode;
+}) {
+    const [query, setQuery] = useState('');
+    const [found, setFound] = useState<Found | null>(null);
+    const latestSearch = useRef(search);
+    const term = query.trim().replace(/^@/u, '');
+
+    useEffect(() => {
+        latestSearch.current = search;
+    });
+
+    useEffect(() => {
+        if (term === '') {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => {
+            void latestSearch
+                .current(term, controller.signal)
+                .then((candidates) => setFound({ term, candidates }))
+                .catch(() => undefined);
+        }, searchDebounce);
+
+        return () => {
+            window.clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [term]);
+
+    const results =
+        term !== '' && found?.term === term ? found.candidates : null;
+
+    return (
+        <>
+            <div className="space-y-3 border-b px-5 pt-5 pb-4">
+                {header}
+                <label className="relative flex items-center">
+                    <span className="sr-only">Find people</span>
+                    <Search
+                        aria-hidden
+                        className="pointer-events-none absolute left-3 size-4 text-muted-foreground"
+                    />
+                    <input
+                        autoFocus
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        maxLength={100}
+                        placeholder="Find people by name or @handle"
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="h-9 w-full rounded-md border bg-card pr-3 pl-9 text-base outline-none focus-visible:border-primary md:text-sm"
+                        data-test="org-people-search"
+                    />
+                </label>
+                <div className="flex min-h-7 flex-wrap gap-1.5">
+                    {picked.length === 0 ? (
+                        <span className="font-mono text-xs leading-7 text-muted-foreground">
+                            nobody picked yet
+                        </span>
+                    ) : (
+                        picked.map((person) => (
+                            <button
+                                key={person.id}
+                                type="button"
+                                onClick={() => onToggle(person)}
+                                aria-label={`Remove @${person.username}`}
+                                className="flex h-7 max-w-40 items-center gap-1.5 rounded-full bg-muted pr-2 pl-1 text-xs hover:bg-accent"
+                            >
+                                <UserAvatar user={person} className="size-5" />
+                                <span className="truncate font-mono">
+                                    @{person.username}
+                                </span>
+                                <X className="size-3 shrink-0" />
+                            </button>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            <ul
+                aria-label="People"
+                className="min-h-40 flex-1 overflow-y-auto overscroll-contain py-2"
+            >
+                {results === null ? (
+                    <li className="px-5 py-8 text-center text-sm text-muted-foreground">
+                        {term === '' ? 'Type a name or handle' : 'Searching…'}
+                    </li>
+                ) : results.length === 0 ? (
+                    <li
+                        className="truncate px-5 py-8 text-center font-mono text-[13px] text-muted-foreground"
+                        title={`fatal: nothing matches '${term}'`}
+                    >
+                        fatal: nothing matches '{term}'
+                    </li>
+                ) : (
+                    results.map(({ user: person, reason }) => {
+                        const isPicked = picked.some(
+                            (item) => item.id === person.id,
+                        );
+                        const why = reasonFor(reason, isPicked);
+
+                        return (
+                            <li key={person.id}>
+                                <CandidateRow
+                                    user={person}
+                                    reason={why}
+                                    isPicked={isPicked}
+                                    onToggle={() => onToggle(person)}
+                                />
+                            </li>
+                        );
+                    })
+                )}
+            </ul>
+        </>
     );
 }
 

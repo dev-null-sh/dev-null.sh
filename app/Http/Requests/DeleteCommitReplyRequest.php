@@ -29,7 +29,7 @@ final class DeleteCommitReplyRequest extends FormRequest
             return Response::denyAsNotFound();
         }
 
-        return $reply->user_id === $user->id ? Response::allow() : Response::deny();
+        return $reply->isDeletableBy($user) ? Response::allow() : Response::deny();
     }
 
     /**

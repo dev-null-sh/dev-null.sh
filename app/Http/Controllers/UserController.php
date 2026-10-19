@@ -64,6 +64,7 @@ final readonly class UserController
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' || $user->pinned_commit_id === null ? null : $user->commits()
                 ->visibleTo($currentUser)
+                ->outsideRepos()
                 ->topLevel()
                 ->withVisibleReplyCount($currentUser)
                 ->withReplyPreviews($currentUser)
@@ -71,6 +72,7 @@ final readonly class UserController
                 ->find($user->pinned_commit_id),
             'commits' => Inertia::scroll(fn () => $user->commits()
                 ->visibleTo($currentUser)
+                ->outsideRepos()
                 ->when(
                     $request->tab() === 'replies',
                     fn (CommitBuilder $query): CommitBuilder => $query

@@ -8,6 +8,7 @@ use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\Repo;
 use App\Models\User;
 
 it('answers an approved hello world once', function (): void {
@@ -100,6 +101,14 @@ it('stays quiet once a real account named world has taken the name back', functi
     $commit = Commit::factory()->create(['body' => 'hello world']);
 
     $action->handle($commit);
+
+    expect($commit->replies()->count())->toBe(0);
+});
+
+it('stays out of repos', function (): void {
+    $commit = Commit::factory()->for(Repo::factory())->create(['body' => 'Hello, World!']);
+
+    resolve(CreateWorldReply::class)->handle($commit);
 
     expect($commit->replies()->count())->toBe(0);
 });

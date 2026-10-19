@@ -99,6 +99,7 @@ final class AppServiceProvider extends ServiceProvider
 
         // Social graph...
         RateLimiter::for('follows', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));
+        RateLimiter::for('repos', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));
 
         // People search, mention suggestions, and hover cards share one bucket...
         RateLimiter::for('people', fn (Request $request): Limit => Limit::perMinute(120)->by(

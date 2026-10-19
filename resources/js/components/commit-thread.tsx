@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import { useIsDeletable } from '@/hooks/use-commit-deletion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
@@ -727,17 +728,17 @@ function CommitReply({
     thread: Thread;
     onDeleted: () => void;
 }) {
-    const { auth } = usePage().props;
     const now = useNow();
     const [isConfirming, setIsConfirming] = useState(false);
-    const request = useHttp<Record<string, never>, { deleted: DeletedFlash }>(
-        {},
-    );
+    const request = useHttp<
+        Record<string, never>,
+        { deleted?: DeletedFlash; toast?: FlashToast }
+    >({});
     const updateCommitsCount = useCommitsCountUpdate();
 
     const avatarRef = useRef<HTMLAnchorElement>(null);
 
-    const isOwn = reply.user_id === auth.user?.id;
+    const isDeletable = useIsDeletable(reply);
     const isFlattened = depth > maxIndentDepth;
     const isQuote = reply.quoted_commit_id === parent.id;
     const permalink = CommitController.show({
@@ -843,7 +844,7 @@ function CommitReply({
                             </Link>
                         </TimestampTooltip>
                         <CommitStatusBadge commit={reply} size="small" />
-                        {isOwn && (
+                        {isDeletable && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <button

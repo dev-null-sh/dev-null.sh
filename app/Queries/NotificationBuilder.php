@@ -27,18 +27,31 @@ final class NotificationBuilder extends Builder
             ->orWhere(fn (Builder $query): Builder => $query
                 ->whereIn('type', [NotificationType::Replied, NotificationType::Quoted, NotificationType::Mentioned, NotificationType::Starred])
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
-                    ->where('status', CommitStatus::Approved)))
+                    ->where('status', CommitStatus::Approved)
+                    ->where($this->inRecipientRepos(...))))
             ->orWhere(fn (Builder $query): Builder => $query
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
                     ->whereColumn('commits.user_id', 'notifications.recipient_id')
-                    ->whereColumn('commits.status', 'notifications.type'))))
+                    ->whereColumn('commits.status', 'notifications.type')
+                    ->where($this->inRecipientRepos(...)))))
             ->withoutSilencedActors();
     }
 
     public function unread(): self
     {
         return $this->whereNull('read_at');
+    }
+
+    /**
+     * A repo commit only stays relevant while the recipient contributes to its repo.
+     */
+    private function inRecipientRepos(CommitBuilder $commit): CommitBuilder
+    {
+        return $commit->whereNull('commits.repo_id')->orWhereExists(fn (QueryBuilder $contributors): QueryBuilder => $contributors
+            ->from('repo_contributors')
+            ->whereColumn('repo_contributors.repo_id', 'commits.repo_id')
+            ->whereColumn('repo_contributors.user_id', 'notifications.recipient_id'));
     }
 
     /**

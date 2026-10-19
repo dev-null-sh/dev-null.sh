@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
+use App\Models\Repo;
 use App\Models\User;
 use App\Rules\ScheduledCommitLimit;
 use App\Services\Urls;
@@ -37,6 +38,7 @@ final class CreateScheduledCommitRequest extends FormRequest
             'scheduled_at' => ['required', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
             'parent_id' => ['prohibited'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
+            'repo_id' => CreateCommitRequest::repoRules($user),
             ...CreateCommitRequest::attachmentRules(),
         ];
     }
@@ -104,6 +106,11 @@ final class CreateScheduledCommitRequest extends FormRequest
         $descriptions = $this->array('image_descriptions');
 
         return $descriptions;
+    }
+
+    public function repo(): ?Repo
+    {
+        return CreateCommitRequest::repoFrom($this);
     }
 
     public function prepareForValidation(): void

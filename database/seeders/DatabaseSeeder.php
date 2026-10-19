@@ -8,7 +8,7 @@ use App\Actions\CreateConversation;
 use App\Actions\CreateMessage;
 use App\Actions\CreateOrg;
 use App\Actions\CreateRepo;
-use App\Actions\CreateRepoContributor;
+use App\Actions\CreateRepoContributors;
 use App\Actions\UpdateCommitHotScores;
 use App\Actions\UpdateConversationReadThrough;
 use App\Enums\RemotesFrom;
@@ -28,7 +28,7 @@ final class DatabaseSeeder extends Seeder
         private readonly CreateMessage $createMessage,
         private readonly CreateOrg $createOrg,
         private readonly CreateRepo $createRepo,
-        private readonly CreateRepoContributor $createRepoContributor,
+        private readonly CreateRepoContributors $createRepoContributors,
         private readonly UpdateConversationReadThrough $updateConversationReadThrough,
     ) {
         //
@@ -79,8 +79,7 @@ final class DatabaseSeeder extends Seeder
 
         $repo = $this->createRepo->handle($localDeveloper, 'dev/null', 'dev-null', 'The social network for developers.');
 
-        $this->createRepoContributor->handle($repo, $first);
-        $this->createRepoContributor->handle($repo, $second);
+        $this->createRepoContributors->handle($repo, collect([$first, $second]));
 
         foreach ([
             [$localDeveloper, 'repos are in: commits here are only seen by the three of us', '-2 days'],

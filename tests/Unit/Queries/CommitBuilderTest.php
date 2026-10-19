@@ -55,16 +55,17 @@ it('scopes commits to the approved ones for guests', function (): void {
     expect(Commit::query()->visibleTo(null)->pluck('id')->all())->toBe([$approved->id]);
 });
 
-it('leaves repo commits out of what anyone sees, their contributors included', function (): void {
+it('shows repo commits only to the repo contributors', function (): void {
     $repo = Repo::factory()->create();
     $contributor = RepoContributor::factory()->for($repo)->create()->user;
     $commit = Commit::factory()->create();
-    Commit::factory()->for($repo)->create();
-    Commit::factory()->for($contributor)->for($repo)->pending()->create();
+    $inRepo = Commit::factory()->for($repo)->create();
+    Commit::factory()->for(Repo::factory())->create();
 
-    expect(Commit::query()->visibleTo($contributor)->pluck('id')->all())->toBe([$commit->id])
+    expect(Commit::query()->visibleTo($contributor)->pluck('id')->sort()->values()->all())->toBe(collect([$commit->id, $inRepo->id])->sort()->values()->all())
+        ->and(Commit::query()->visibleTo(User::factory()->create())->pluck('id')->all())->toBe([$commit->id])
         ->and(Commit::query()->visibleTo(null)->pluck('id')->all())->toBe([$commit->id])
-        ->and(Commit::query()->outsideRepos()->pluck('id')->all())->toBe([$commit->id]);
+        ->and(Commit::query()->visibleTo($contributor)->outsideRepos()->pluck('id')->all())->toBe([$commit->id]);
 });
 
 it('loads the star count and whether the viewer starred', function (): void {
@@ -185,4 +186,17 @@ it('leaves muted and blocked replies out of threads and reply counts', function 
 
     expect($commit->replies()->visibleInThreadTo($user)->pluck('id')->all())->toBe([$reply->id])
         ->and(Commit::query()->withVisibleReplyCount($user)->find($commit->id)->replies_count)->toBe(1);
+});
+
+it('scopes commits to a repo as its contributors see them', function (): void {
+    $repo = Repo::factory()->create();
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+    $approved = Commit::factory()->for($repo)->create();
+    $ownPending = Commit::factory()->for($contributor)->for($repo)->pending()->create();
+    Commit::factory()->for($repo)->pending()->create();
+    Commit::factory()->for(Repo::factory())->create();
+    Commit::factory()->create();
+
+    expect(Commit::query()->inRepo($repo)->visibleTo($contributor)->pluck('id')->sort()->values()->all())
+        ->toBe(collect([$approved->id, $ownPending->id])->sort()->values()->all());
 });

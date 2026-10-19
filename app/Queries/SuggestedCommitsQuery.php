@@ -17,6 +17,7 @@ final readonly class SuggestedCommitsQuery
     {
         return Commit::query()
             ->visibleTo($user)
+            ->outsideRepos()
             ->withoutMutedAuthorsFor($user)
             ->topLevel()
             ->withStarsFor($user)

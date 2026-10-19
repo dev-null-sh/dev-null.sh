@@ -6,6 +6,8 @@ use App\Actions\CreateMentionNotifications;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Models\Repo;
+use App\Models\RepoContributor;
 use App\Models\User;
 
 it('notifies everyone mentioned in approved commits', function (): void {
@@ -180,4 +182,19 @@ it('does nothing without commits', function (): void {
     $action->handle();
 
     expect(Notification::query()->count())->toBe(0);
+});
+
+it('notifies only the contributors of the repo of a repo commit', function (): void {
+    $repo = Repo::factory()->create();
+    $nuno = RepoContributor::factory()->for($repo)->for(User::factory()->state(['username' => 'nunomaduro']))->create()->user;
+    $taylor = User::factory()->create(['username' => 'taylorotwell']);
+    $commit = Commit::factory()->for($repo)->create([
+        'body' => 'Pairing with @nunomaduro and @taylorotwell',
+        'mentions' => ['nunomaduro' => $nuno->id, 'taylorotwell' => $taylor->id],
+    ]);
+
+    resolve(CreateMentionNotifications::class)->handle($commit);
+
+    expect($nuno->notifications()->count())->toBeOne()
+        ->and($taylor->notifications()->count())->toBe(0);
 });

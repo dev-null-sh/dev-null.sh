@@ -32,6 +32,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Notifications](#notifications)
   - [Remotes: direct messages](#remotes-direct-messages)
   - [Orgs: group chats](#orgs-group-chats)
+  - [Repos: private logs](#repos-private-logs)
   - [Muting and blocking](#muting-and-blocking)
   - [Reporting commits](#reporting-commits)
   - [Appearance, color, and timezone](#appearance-color-and-timezone)
@@ -243,6 +244,16 @@ The creator starts as a **Maintainer**, and invited people start as **Contributo
 Group messages support the same text, images, replies, link cards, typing indicators, and receipt preferences as direct messages. Membership and history access determine what a person can read.
 
 Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation eligibility](app/Queries/RemoteCandidatesQuery.php), [history sharing](app/Actions/CreateOrgMembers.php), [role changes](app/Http/Requests/UpdateOrgMemberRequest.php), [leaving a group](app/Actions/DeleteOrgMember.php).
+
+### Repos: private logs
+
+A **Repo** is a private log for a few developers at `/repos`, not a synchronized GitHub repository. Anyone signed in can create one with a name of up to **50 characters**, unique across /dev/null, and an optional description of up to **160 characters**. Everyone in a repo is a contributor: its creator starts as a **Maintainer**, and everyone they add starts as a **Contributor**.
+
+Commits posted in a repo are seen only by its contributors. They never appear in the Following, Latest, or Trending logs, on profiles or profile counts, in search, the public API, Atom feeds, or sitemaps, and their links are a 404 for everyone else. Otherwise a repo commit is a commit like any other: it goes through the same moderation, can carry images, a poll, and a link card, can be scheduled, starred, saved, replied to, and quoted, and mentions in it notify the contributors it mentions. Replies and quotes of a repo commit stay in its repo, so its threads never leave it. Repo commits cannot be pinned to a profile, and @world does not answer hello world inside a repo.
+
+Maintainers add people who follow them, up to **20** at a time, remove contributors, promote and demote, and delete any commit or reply in the repo, which only its author can undo. Anyone can leave; leaving cancels the commits you scheduled to the repo, and notifications about its commits disappear. At least one maintainer remains while the repo has contributors: the last maintainer cannot be demoted, and if they leave, the longest-standing contributor takes over. A repo nobody is left in is deleted, along with its commits.
+
+Sources: [repo creation](app/Http/Requests/CreateRepoRequest.php), [repo visibility](app/Queries/CommitBuilder.php), [adding contributors](app/Http/Requests/CreateRepoContributorRequest.php), [who can be added](app/Queries/RepoContributorCandidatesQuery.php), [role changes](app/Http/Requests/UpdateRepoContributorRequest.php), [leaving a repo](app/Actions/DeleteRepoContributor.php).
 
 ### Muting and blocking
 

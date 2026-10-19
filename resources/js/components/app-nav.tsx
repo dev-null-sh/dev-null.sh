@@ -4,6 +4,7 @@ import {
     Bell,
     Bookmark,
     ExternalLink,
+    FolderGit2,
     GitCommitVertical,
     History,
     Menu,
@@ -23,6 +24,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
+import RepoController from '@/actions/App/Http/Controllers/RepoController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
@@ -87,6 +89,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
               ]
             : []),
         {
+            title: 'Repos',
+            href: hrefFor(() => RepoController.index()),
+            icon: FolderGit2,
+            prefetch: false,
+        },
+        {
             title: 'Profile',
             href: hrefFor((user) => show(user)),
             icon: UserRound,
@@ -130,7 +138,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                   ? isCurrentOrParentUrl('/log')
                   : item.title === 'Remotes'
                     ? isCurrentOrParentUrl('/remotes')
-                    : isCurrentUrl(item.href)),
+                    : item.title === 'Repos'
+                      ? isCurrentOrParentUrl('/repos')
+                      : isCurrentUrl(item.href)),
     }));
 }
 

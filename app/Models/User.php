@@ -293,7 +293,7 @@ final class User extends Authenticatable
      */
     public function loadCounts(?self $viewer = null): self
     {
-        return $this->fillCounts($this->commits()->visibleTo($viewer ?? $this)->count());
+        return $this->fillCounts($this->commits()->visibleTo($viewer ?? $this)->outsideRepos()->count());
     }
 
     /**

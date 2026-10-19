@@ -455,3 +455,18 @@ it('never shows the images of a deleted commit in its tombstone', function (): v
 
     expect($tombstone->toArray())->not->toHaveKey('images');
 });
+
+it('is deletable by its author and the maintainers of its repo', function (): void {
+    $repo = Repo::factory()->create();
+    $maintainer = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+    $commit = Commit::factory()->for($contributor)->for($repo)->create();
+    $elsewhere = Commit::factory()->for(Repo::factory())->create();
+    $outside = Commit::factory()->create();
+
+    expect($commit->isDeletableBy($contributor))->toBeTrue()
+        ->and($commit->isDeletableBy($maintainer))->toBeTrue()
+        ->and($commit->isDeletableBy(RepoContributor::factory()->for($repo)->create()->user))->toBeFalse()
+        ->and($elsewhere->isDeletableBy($maintainer))->toBeFalse()
+        ->and($outside->isDeletableBy($maintainer))->toBeFalse();
+});

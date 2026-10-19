@@ -52,7 +52,7 @@ final readonly class UserAchievementsQuery
      */
     public function get(User $user, ?User $viewer, ?array $streaks = null): array
     {
-        $visibleCommitsQuery = $user->commits()->visibleTo($viewer);
+        $visibleCommitsQuery = $user->commits()->visibleTo($viewer)->outsideRepos();
 
         // Replies must be to other developers (excluding self-replies), deleted parents included
         /** @var object{total_commits: int|string, has_syntax: int|string|null, replies: int|string} $commitStats */
@@ -77,7 +77,7 @@ final readonly class UserAchievementsQuery
         // Stars given to visible commits by other developers, excluding self-stars
         $starsGivenCount = (int) $user->starredCommits()
             ->where('commits.user_id', '!=', $user->id)
-            ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer)->outsideRepos())
             ->count();
 
         $longestStreak = ($streaks ?? $this->streaks->get($user, $viewer))['longest'];

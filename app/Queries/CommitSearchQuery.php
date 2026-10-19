@@ -53,6 +53,7 @@ final readonly class CommitSearchQuery
 
         $candidates = Commit::query()
             ->visibleTo($viewer)
+            ->outsideRepos()
             ->withoutMutedAuthorsFor($viewer)
             ->whereNotNull('embedding')
             ->withVisibleReplyCount($viewer)

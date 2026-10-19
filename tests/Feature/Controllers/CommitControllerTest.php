@@ -12,6 +12,8 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\Notification;
+use App\Models\Repo;
+use App\Models\RepoContributor;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
@@ -1360,4 +1362,31 @@ it('includes the images of a commit, its ancestors and its replies', function ()
             ->has('ancestors.0.images', 1)
             ->has('replies.data.0.images', 1)
             ->missing('commit.images.0.path'));
+});
+
+it('lets repo maintainers delete any commit in the repo, without an undo', function (): void {
+    $repo = Repo::factory()->create();
+    $maintainer = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
+    $commit = Commit::factory()->for(RepoContributor::factory()->for($repo)->create()->user)->for($repo)->create();
+
+    $this->actingAs($maintainer)
+        ->fromRoute('repo.show', $repo)
+        ->delete(route('commit.destroy', $commit))
+        ->assertRedirectToRoute('repo.show', $repo)
+        ->assertInertiaFlash('toast.message', 'Commit deleted.')
+        ->assertInertiaFlashMissing('deleted');
+
+    $this->assertSoftDeleted($commit);
+});
+
+it('lets repo contributors delete only their own commits', function (): void {
+    $repo = Repo::factory()->create();
+    $contributor = RepoContributor::factory()->for($repo)->create()->user;
+    $commit = Commit::factory()->for($repo)->create();
+
+    $this->actingAs($contributor)
+        ->delete(route('commit.destroy', $commit))
+        ->assertForbidden();
+
+    $this->assertNotSoftDeleted($commit);
 });

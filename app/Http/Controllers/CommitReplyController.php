@@ -39,9 +39,16 @@ final readonly class CommitReplyController
         ], 201);
     }
 
-    public function destroy(DeleteCommitReplyRequest $request, Commit $commit, Commit $reply, DeleteCommit $action): JsonResponse
+    /**
+     * Only authors can undo a deletion, so a repo maintainer deleting someone else's reply is just told it is gone.
+     */
+    public function destroy(DeleteCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, Commit $reply, DeleteCommit $action): JsonResponse
     {
         $reply = $action->handle($reply);
+
+        if ($user->id !== $reply->user_id) {
+            return response()->json(['toast' => ['type' => 'success', 'message' => 'Reply deleted.']]);
+        }
 
         return response()->json(['deleted' => [
             'id' => $reply->id,

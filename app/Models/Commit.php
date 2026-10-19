@@ -167,6 +167,14 @@ final class Commit extends Model
     }
 
     /**
+     * Authors delete their own commits, and repo maintainers any commit in their repo.
+     */
+    public function isDeletableBy(User $user): bool
+    {
+        return $this->user_id === $user->id || $this->repo?->isMaintainedBy($user) === true;
+    }
+
+    /**
      * Approved commits are visible to everyone but people across a block. Authors can also see their own. Repo commits
      * are only ever visible to the repo's contributors.
      */

@@ -11,6 +11,7 @@ use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Repo;
 use App\Models\User;
 use App\Queries\MentionedUsersQuery;
 use App\Services\EmojiShortcodes;
@@ -38,11 +39,12 @@ final readonly class CreateCommit
 
     /**
      * The link preview is of the first URL in the body when true, of the given URL when a string, or none when false.
+     * Replies and quotes stay in the repo of what they reply to or quote, so a repo's threads never leave it.
      *
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?Repo $repo = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -50,7 +52,7 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $repo): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
@@ -63,6 +65,7 @@ final readonly class CreateCommit
                 'status' => $user->isAdmin() || ($hasGoodReputation && ! $user->hasRecentReports()) ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
                 'quoted_commit_id' => $quotedCommit?->id,
+                'repo_id' => $repo->id ?? $parent->repo_id ?? $quotedCommit?->repo_id,
                 'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),
                 'created_at' => $createdAt,
             ]);

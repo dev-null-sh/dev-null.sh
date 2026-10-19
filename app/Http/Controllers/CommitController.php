@@ -52,7 +52,7 @@ final readonly class CommitController
 
     public function store(CreateCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): RedirectResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll());
+        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), repo: $request->repo());
 
         Inertia::flash('committed', [
             'id' => $commit->id,
@@ -69,17 +69,24 @@ final readonly class CommitController
         return back();
     }
 
-    public function destroy(DeleteCommitRequest $request, Commit $commit, DeleteCommit $action): RedirectResponse
+    /**
+     * Only authors can undo a deletion, so a repo maintainer deleting someone else's commit is just told it is gone.
+     */
+    public function destroy(DeleteCommitRequest $request, #[CurrentUser] User $user, Commit $commit, DeleteCommit $action): RedirectResponse
     {
         $commit = $action->handle($commit);
 
-        Inertia::flash('deleted', [
-            'id' => $commit->id,
-            'parent_id' => $commit->parent_id,
-            'deleted_at' => $commit->deleted_at?->toJSON(),
-            'expires_at' => $commit->deleted_at?->addSeconds(Commit::RESTORABLE_SECONDS)->toJSON(),
-            'server_time' => now()->toJSON(),
-        ]);
+        if ($user->id === $commit->user_id) {
+            Inertia::flash('deleted', [
+                'id' => $commit->id,
+                'parent_id' => $commit->parent_id,
+                'deleted_at' => $commit->deleted_at?->toJSON(),
+                'expires_at' => $commit->deleted_at?->addSeconds(Commit::RESTORABLE_SECONDS)->toJSON(),
+                'server_time' => now()->toJSON(),
+            ]);
+        } else {
+            Inertia::flash('toast', ['type' => 'success', 'message' => 'Commit deleted.']);
+        }
 
         $commitUrl = route('commit.show', [$commit->user, $commit]);
 

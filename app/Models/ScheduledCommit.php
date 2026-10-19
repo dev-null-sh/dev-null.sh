@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * @property-read string $id
  * @property-read string $user_id
+ * @property-read string|null $repo_id
  * @property-read string|null $commit_id
  * @property-read string|null $body
  * @property-read array{options: list<string>, duration: int}|null $poll
@@ -24,9 +25,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read CarbonInterface|null $submitted_at
  * @property-read CarbonInterface|null $canceled_at
  * @property-read User $user
+ * @property-read Repo|null $repo
  * @property-read Commit|null $commit
  */
-#[Fillable(['user_id', 'body', 'poll', 'images', 'link_preview_url', 'scheduled_at'])]
+#[Fillable(['user_id', 'repo_id', 'body', 'poll', 'images', 'link_preview_url', 'scheduled_at'])]
 final class ScheduledCommit extends Model
 {
     /** @use HasFactory<ScheduledCommitFactory> */
@@ -50,6 +52,12 @@ final class ScheduledCommit extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return BelongsTo<Repo, $this> */
+    public function repo(): BelongsTo
+    {
+        return $this->belongsTo(Repo::class);
     }
 
     /** @return BelongsTo<Commit, $this> */

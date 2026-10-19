@@ -114,17 +114,3 @@ it('knows its last maintainer', function (): void {
     expect($repo->isLastMaintainer($maintainer))->toBeFalse()
         ->and($repo->isLastMaintainer($other))->toBeFalse();
 });
-
-it('lets maintainers delete any commit in the repo', function (): void {
-    $repo = Repo::factory()->create();
-    $maintainer = RepoContributor::factory()->for($repo)->maintainer()->create()->user;
-    $contributor = RepoContributor::factory()->for($repo)->create()->user;
-    $commit = Commit::factory()->for($contributor)->for($repo)->create();
-    $elsewhere = Commit::factory()->for(Repo::factory())->create();
-    $outside = Commit::factory()->create();
-
-    expect($repo->canDeleteCommit($maintainer, $commit))->toBeTrue()
-        ->and($repo->canDeleteCommit($contributor, $commit))->toBeFalse()
-        ->and($repo->canDeleteCommit($maintainer, $elsewhere))->toBeFalse()
-        ->and($repo->canDeleteCommit($maintainer, $outside))->toBeFalse();
-});

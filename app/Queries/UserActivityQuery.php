@@ -29,6 +29,7 @@ final readonly class UserActivityQuery
 
         $commits = $user->commits()
             ->visibleTo($viewer)
+            ->outsideRepos()
             ->where('created_at', '>=', $from);
 
         $counts = $scale->isHourly()
@@ -60,7 +61,7 @@ final readonly class UserActivityQuery
 
     private function scale(User $user, ?User $viewer, CarbonImmutable $now): ActivityScale
     {
-        $firstCommitAt = $user->commits()->visibleTo($viewer)->min('created_at');
+        $firstCommitAt = $user->commits()->visibleTo($viewer)->outsideRepos()->min('created_at');
 
         return ActivityScale::since(
             is_string($firstCommitAt) ? CarbonImmutable::parse($firstCommitAt) : $user->created_at,

@@ -33,6 +33,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { UserPreview } from '@/components/user-preview';
+import { useIsDeletable } from '@/hooks/use-commit-deletion';
 import { useNow } from '@/hooks/use-now';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import {
@@ -102,7 +103,7 @@ export function CommitCard({
 
     const hasVisibleReplies = thread.isOpen && !!thread.replies?.length;
     const isOwn = commit.user_id === auth.user?.id;
-    const isDeletable = isOwn && canDelete;
+    const isDeletable = useIsDeletable(commit) && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
 

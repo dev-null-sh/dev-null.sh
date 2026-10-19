@@ -128,7 +128,7 @@ final readonly class SuggestedUsersQuery
 
     private function committers(User $user): CommitBuilder
     {
-        return Commit::query()->visibleTo($user)->topLevel()->select('user_id');
+        return Commit::query()->visibleTo($user)->outsideRepos()->topLevel()->select('user_id');
     }
 
     /**
