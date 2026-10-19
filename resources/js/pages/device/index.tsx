@@ -1,5 +1,6 @@
 import { Head, router } from '@inertiajs/react';
 import { useRef, useState } from 'react';
+import AppleAccountController from '@/actions/App/Http/Controllers/AppleAccountController';
 import DeviceController from '@/actions/App/Http/Controllers/DeviceController';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
@@ -8,7 +9,13 @@ import SettingsLayout from '@/layouts/settings/layout';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import type { Device } from '@/types';
 
-export default function Index({ devices }: { devices: Device[] }) {
+export default function Index({
+    devices,
+    appleLinked,
+}: {
+    devices: Device[];
+    appleLinked: boolean;
+}) {
     const headingRef = useRef<HTMLHeadingElement>(null);
 
     // A revoked row unmounts with the focus inside it, so it moves to the next row, or the heading...
@@ -67,7 +74,58 @@ export default function Index({ devices }: { devices: Device[] }) {
                     </ul>
                 )}
             </section>
+
+            <AppleAccount isLinked={appleLinked} />
         </>
+    );
+}
+
+/**
+ * Sign in with Apple is a second way into the account, linked from the app, and unlinked here or in the app.
+ */
+function AppleAccount({ isLinked }: { isLinked: boolean }) {
+    const [isUnlinking, setIsUnlinking] = useState(false);
+
+    return (
+        <section className="px-4 py-6 sm:px-6">
+            <header className="mb-5">
+                <h2 className="text-lg font-semibold tracking-tight">
+                    Sign in with Apple
+                </h2>
+                <p className="mt-1 max-w-prose text-sm text-pretty text-muted-foreground">
+                    Linked from the /dev/null app, it signs the app in on
+                    another device without GitHub. Your account stays your
+                    GitHub one.
+                </p>
+            </header>
+
+            <div className="flex min-h-14 items-center gap-3 rounded-lg border px-4 py-3">
+                <p className="min-w-0 flex-1 truncate text-sm">
+                    Sign in with Apple:{' '}
+                    <span className="font-mono text-[13px]">
+                        {isLinked ? 'linked' : 'not linked'}
+                    </span>
+                </p>
+
+                {isLinked && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isUnlinking}
+                        onClick={() =>
+                            router.visit(AppleAccountController.destroy(), {
+                                preserveScroll: true,
+                                onStart: () => setIsUnlinking(true),
+                                onFinish: () => setIsUnlinking(false),
+                            })
+                        }
+                        className="min-w-20 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                        Unlink
+                    </Button>
+                )}
+            </div>
+        </section>
     );
 }
 

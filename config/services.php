@@ -16,6 +16,18 @@ return [
     |
     */
 
+    'apple' => [
+        // The bundle IDs whose Sign in with Apple tokens devnull accepts, as the tokens' audience...
+        'client_ids' => array_values(array_filter(array_map(trim(...), explode(',', (string) env('APPLE_CLIENT_IDS', 'com.simonhamp.devnull'))))),
+
+        // The app's Sign in with Apple key, to swap the code the app sends for a refresh token and revoke it once the
+        // Apple ID is unlinked or the account deleted. Without all four, nothing is swapped or revoked...
+        'client_id' => env('APPLE_CLIENT_ID', 'com.simonhamp.devnull'),
+        'team_id' => env('APPLE_TEAM_ID'),
+        'key_id' => env('APPLE_KEY_ID'),
+        'private_key' => env('APPLE_PRIVATE_KEY'),
+    ],
+
     'fathom' => [
         'token' => env('FATHOM_API_TOKEN'),
         'site_id' => env('FATHOM_SITE_ID', 'HTQONOPD'),

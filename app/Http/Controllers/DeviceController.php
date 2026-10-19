@@ -16,12 +16,14 @@ use Inertia\Response;
 final readonly class DeviceController
 {
     /**
-     * The devices that may use the signed API through the devnull app, each approved on the web from the app.
+     * The devices that may use the signed API through the devnull app, each approved on the web from the app or signed
+     * in with the Apple ID the user linked, and whether they linked one.
      */
     public function index(#[CurrentUser] User $user): Response
     {
         return Inertia::render('device/index', [
             'devices' => $user->devices()->latest('approved_at')->get(),
+            'appleLinked' => $user->apple_id !== null,
         ]);
     }
 

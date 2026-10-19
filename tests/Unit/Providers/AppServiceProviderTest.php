@@ -117,3 +117,21 @@ it('limits each user to 10 approvals of the devnull app a minute', function (): 
         ->and($limit->maxAttempts)->toBe(10)
         ->and($limit->decaySeconds)->toBe(60);
 });
+
+it('limits each user to 10 apple links and unlinks a minute', function (): void {
+    $user = User::factory()->create();
+
+    $request = Request::create('/api/v1/me/apple', 'PUT');
+    $request->setUserResolver(fn (): User => $user);
+
+    $limiter = RateLimiter::limiter('apple-accounts');
+
+    assert($limiter instanceof Closure);
+
+    $limit = $limiter($request);
+
+    expect($limit)->toBeInstanceOf(Limit::class)
+        ->and($limit->key)->toBe($user->id)
+        ->and($limit->maxAttempts)->toBe(10)
+        ->and($limit->decaySeconds)->toBe(60);
+});

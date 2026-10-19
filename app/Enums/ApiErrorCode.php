@@ -15,6 +15,9 @@ enum ApiErrorCode: string
     case InvalidGrant = 'invalid_grant';
     case UserBlocked = 'user_blocked';
     case UserUnavailable = 'user_unavailable';
+    case InvalidAppleToken = 'invalid_apple_token';
+    case AppleLinkedElsewhere = 'apple_linked_elsewhere';
+    case AppleNotLinked = 'apple_not_linked';
     case RateLimited = 'rate_limited';
 
     public function status(): int
@@ -23,6 +26,9 @@ enum ApiErrorCode: string
             self::InvalidGrant => 400,
             self::InvalidSignature, self::DeviceNotApproved => 401,
             self::UserBlocked, self::UserUnavailable => 403,
+            self::AppleNotLinked => 404,
+            self::AppleLinkedElsewhere => 409,
+            self::InvalidAppleToken => 422,
             self::RateLimited => 429,
         };
     }

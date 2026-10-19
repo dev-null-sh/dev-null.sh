@@ -7,6 +7,7 @@ use App\Jobs\UnfurlLink;
 use App\Models\Device;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\AppleIdentityTokens;
 use App\Services\OpenAI;
 use App\Services\SignedCommits;
 use Carbon\CarbonInterface;
@@ -17,6 +18,9 @@ use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use phpseclib4\Crypt\EC;
+use phpseclib4\Crypt\EC\PrivateKey as EcPrivateKey;
+use Tests\Support\AppleTokenIssuer;
 use Tests\Support\SshKeyPair;
 use Tests\TestCase;
 
@@ -338,4 +342,30 @@ function apiKeyPairFor(User $user): SshKeyPair
     Device::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
 
     return $keyPair;
+}
+
+/**
+ * Configures a Sign in with Apple key, so Apple's tokens are swapped and revoked, and returns it.
+ */
+function configureAppleKey(): EcPrivateKey
+{
+    $key = EC::createKey('nistp256');
+
+    config([
+        'services.apple.team_id' => 'J68WFCX458',
+        'services.apple.key_id' => 'ABC123DEFG',
+        'services.apple.private_key' => $key->toString('PKCS8'),
+    ]);
+
+    return $key;
+}
+
+/**
+ * Publishes the keys of the given issuers as Apple's JWKS.
+ */
+function fakeAppleKeys(AppleTokenIssuer ...$issuers): void
+{
+    Http::fake([
+        AppleIdentityTokens::KeysUrl => Http::response(['keys' => array_map(fn (AppleTokenIssuer $issuer): array => $issuer->jwk(), $issuers)]),
+    ]);
 }

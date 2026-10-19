@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\AppleAccountController;
 use App\Http\Controllers\Api\BookmarkController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitReplyController;
@@ -50,6 +51,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
+
+        // Apple Account...
+        Route::put('me/apple', [AppleAccountController::class, 'update'])
+            ->middleware('throttle:apple-accounts')
+            ->name('api-apple-account.update');
+        Route::delete('me/apple', [AppleAccountController::class, 'destroy'])
+            ->middleware('throttle:apple-accounts')
+            ->name('api-apple-account.destroy');
 
         // Log...
         Route::get('log/{log}', [LogController::class, 'show'])->name('api-log.show');

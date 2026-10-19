@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Http\Controllers\AboutController;
+use App\Http\Controllers\AppleAccountController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\ChangelogController;
@@ -399,6 +400,7 @@ Route::middleware('auth')->group(function (): void {
     // Devices...
     Route::get('settings/devices', [DeviceController::class, 'index'])->name('device.index');
     Route::delete('settings/devices/{device}', [DeviceController::class, 'destroy'])->name('device.destroy');
+    Route::delete('settings/apple', [AppleAccountController::class, 'destroy'])->name('apple-account.destroy');
 
     // Mobile Authorization...
     Route::get('mobile/authorize', [MobileAuthorizationController::class, 'show'])->name('mobile-authorization.show');

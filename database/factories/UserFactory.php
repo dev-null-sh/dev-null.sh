@@ -39,6 +39,8 @@ final class UserFactory extends Factory
             'onboarded_at' => now(),
             'remember_token' => Str::random(10),
             'github_synced_at' => null,
+            'apple_id' => null,
+            'apple_refresh_token' => null,
         ];
     }
 

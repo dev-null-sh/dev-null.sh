@@ -43,6 +43,14 @@ final class ApiException extends HttpException
         return new self(ApiErrorCode::InvalidGrant, __('This sign-in has expired or was already used. Sign in again in the app.'));
     }
 
+    /**
+     * The one answer to a Sign in with Apple token that can't be trusted, whatever is wrong with it.
+     */
+    public static function invalidAppleToken(): self
+    {
+        return new self(ApiErrorCode::InvalidAppleToken, __('Sign in with Apple did not work. Try again.'));
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([

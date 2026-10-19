@@ -9,11 +9,13 @@ use App\Dto\MobileAuthorization;
 use App\Models\Device;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Services\AppleIdentityTokens;
 use Illuminate\Cache\Events\CacheHit;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
+use Tests\Support\AppleTokenIssuer;
 use Tests\Support\SshKeyPair;
 
 beforeEach(function (): void {
@@ -34,7 +36,8 @@ it('approves the key that redeems the code as a device, and answers like me', fu
         ->assertJsonPath('data.username', 'octocat')
         ->assertJsonPath('data.lane', $this->user->lane())
         ->assertJsonPath('data.commits_count', 0)
-        ->assertJsonPath('unread_notifications_count', 0);
+        ->assertJsonPath('unread_notifications_count', 0)
+        ->assertJsonPath('apple_linked', false);
 
     $device = Device::query()->sole();
 
@@ -184,3 +187,122 @@ it('limits each address to 60 tries a minute, before checking signatures', funct
         ->assertTooManyRequests()
         ->assertJsonPath('code', 'rate_limited');
 });
+
+it('signs in with the apple id the user linked, and approves the key as a device', function (): void {
+    $issuer = AppleTokenIssuer::generate();
+    fakeAppleKeys($issuer);
+    $this->user->forceFill(['apple_id' => '001234.0a1b2c3d4e5f.1234'])->save();
+
+    $response = signedApiRequest($this->keyPair, 'POST', route('api-device.store'), [
+        'apple_identity_token' => $issuer->token(),
+        'nonce' => 'raw-nonce',
+        'device_name' => 'devnull on iPad',
+    ]);
+
+    $response->assertOk()
+        ->assertJsonPath('data.id', $this->user->id)
+        ->assertJsonPath('apple_linked', true);
+
+    $device = Device::query()->sole();
+
+    expect($device->user_id)->toBe($this->user->id)
+        ->and($device->fingerprint)->toBe($this->keyPair->publicKey->fingerprint())
+        ->and($device->name)->toBe('devnull on iPad');
+
+    signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'))->assertOk();
+});
+
+it('never makes an account for an apple id nobody linked', function (): void {
+    $issuer = AppleTokenIssuer::generate();
+    fakeAppleKeys($issuer);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), [
+        'apple_identity_token' => $issuer->token(),
+        'nonce' => 'raw-nonce',
+        'device_name' => 'devnull on iPad',
+    ])->assertNotFound()
+        ->assertExactJson([
+            'message' => 'No /dev/null account is linked to this Apple ID. Sign in with GitHub, then link Apple in settings.',
+            'code' => 'apple_not_linked',
+        ]);
+
+    expect(Device::query()->exists())->toBeFalse()
+        ->and(User::query()->count())->toBe(1);
+});
+
+it('refuses an apple token apple did not make for the app and the nonce', function (): void {
+    $issuer = AppleTokenIssuer::generate();
+    fakeAppleKeys($issuer);
+    $this->user->forceFill(['apple_id' => '001234.0a1b2c3d4e5f.1234'])->save();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), [
+        'apple_identity_token' => $issuer->token(),
+        'nonce' => 'another-nonce',
+        'device_name' => 'devnull on iPad',
+    ])->assertUnprocessable()
+        ->assertExactJson(['message' => 'Sign in with Apple did not work. Try again.', 'code' => 'invalid_apple_token']);
+
+    expect(Device::query()->exists())->toBeFalse();
+});
+
+it('takes either a code or an apple token, with what each needs', function (array $data, string $field): void {
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), $data)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors($field);
+
+    expect(Device::query()->exists())->toBeFalse();
+})->with([
+    'neither' => [[], 'code'],
+    'both' => [['code' => 'the-code', 'code_verifier' => str_repeat('a', 43), 'apple_identity_token' => 'token', 'nonce' => 'n', 'device_name' => 'd'], 'code'],
+    'a token without a nonce' => [['apple_identity_token' => 'token', 'device_name' => 'devnull on iPad'], 'nonce'],
+    'a token without a device name' => [['apple_identity_token' => 'token', 'nonce' => 'raw-nonce'], 'device_name'],
+    'a long device name' => [['apple_identity_token' => 'token', 'nonce' => 'raw-nonce', 'device_name' => str_repeat('a', 101)], 'device_name'],
+]);
+
+it('counts apple sign-ins against the same limit per key', function (): void {
+    $issuer = AppleTokenIssuer::generate();
+    fakeAppleKeys($issuer);
+    $data = ['apple_identity_token' => $issuer->token(), 'nonce' => 'raw-nonce', 'device_name' => 'devnull on iPad'];
+
+    foreach (range(1, 12) as $attempt) {
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), $data)->assertNotFound();
+    }
+
+    $this->user->forceFill(['apple_id' => '001234.0a1b2c3d4e5f.1234'])->save();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), $data)
+        ->assertTooManyRequests()
+        ->assertJsonPath('code', 'rate_limited');
+
+    expect(Device::query()->exists())->toBeFalse();
+});
+
+it('approves nothing when apple cannot be reached to check the token', function (): void {
+    Http::fake([AppleIdentityTokens::KeysUrl => Http::response(status: 500)]);
+    $this->user->forceFill(['apple_id' => '001234.0a1b2c3d4e5f.1234'])->save();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), [
+        'apple_identity_token' => AppleTokenIssuer::generate()->token(),
+        'nonce' => 'raw-nonce',
+        'device_name' => 'devnull on iPad',
+    ])->assertServiceUnavailable();
+
+    expect(Device::query()->exists())->toBeFalse();
+});
+
+it('leaves a key approved before as it was when signing in with apple fails', function (string $nonce, int $status): void {
+    $issuer = AppleTokenIssuer::generate();
+    fakeAppleKeys($issuer);
+    $previous = Device::factory()->withPublicKey($this->keyPair->publicKey)->create(['name' => 'devnull on iPhone']);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), [
+        'apple_identity_token' => $issuer->token(),
+        'nonce' => $nonce,
+        'device_name' => 'devnull on iPad',
+    ])->assertStatus($status);
+
+    expect(Device::query()->sole()->only(['id', 'user_id', 'name']))->toBe($previous->only(['id', 'user_id', 'name']));
+})->with([
+    'an apple id nobody linked' => ['raw-nonce', 404],
+    'a bad token' => ['another-nonce', 422],
+]);
