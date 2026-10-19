@@ -7,6 +7,7 @@ import UserFollowersController from '@/actions/App/Http/Controllers/UserFollower
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import {
     FollowLabel,
+    onFollowHttpException,
     useFollowHover,
     useIsFollowing,
 } from '@/components/follow-button';
@@ -330,15 +331,19 @@ function UserPreviewContent({
         data?.isFollowing ?? false,
     );
 
+    const [pendingFollows, setPendingFollows] = useState<boolean | null>(null);
+    const shownIsFollowing = pendingFollows ?? isFollowing;
+
     /**
-     * Like every other follow control, the shared state only changes once the server confirms, so there is nothing to roll back.
+     * The button flips right away, but like every other follow control the shared state only changes once the server confirms, so there is nothing to roll back.
      */
     const toggleFollow = () => {
-        if (!data || data.isUnavailable) {
+        if (!data || data.isUnavailable || pendingFollows !== null) {
             return;
         }
 
         const follows = !isFollowing;
+        setPendingFollows(follows);
 
         router.visit(
             follows
@@ -361,7 +366,9 @@ function UserPreviewContent({
                         },
                     });
                 },
-                onHttpException: (response) => !toastWhenThrottled(response),
+                onHttpException: (response) =>
+                    onFollowHttpException(user, response),
+                onFinish: () => setPendingFollows(null),
             },
         );
     };
@@ -392,7 +399,7 @@ function UserPreviewContent({
                                 <Button
                                     size="sm"
                                     variant={
-                                        isFollowing ? 'outline' : 'default'
+                                        shownIsFollowing ? 'outline' : 'default'
                                     }
                                     className="group/follow min-w-24"
                                     onClick={() => {
@@ -401,14 +408,15 @@ function UserPreviewContent({
                                     }}
                                     onMouseLeave={onMouseLeave}
                                     aria-label={
-                                        isFollowing
+                                        shownIsFollowing
                                             ? `Unfollow @${user.username}`
                                             : `Follow @${user.username}`
                                     }
+                                    aria-busy={pendingFollows !== null}
                                     data-test="user-preview-follow-button"
                                 >
                                     <FollowLabel
-                                        isFollowing={isFollowing}
+                                        isFollowing={shownIsFollowing}
                                         isJustToggled={isJustToggled}
                                     />
                                 </Button>

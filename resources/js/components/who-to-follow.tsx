@@ -1,7 +1,7 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
 import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { FollowButton } from '@/components/follow-button';
+import { FollowButton, useHasBlockWith } from '@/components/follow-button';
 import { RailSegment } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,51 +44,82 @@ export function SuggestedUserRow({
 }) {
     const reason = reasonFor(user);
     const avatarRef = useRef<HTMLSpanElement>(null);
+    const hasBlock = useHasBlockWith(user);
+    const [isGone, setIsGone] = useState(false);
+
+    if (isGone) {
+        return null;
+    }
 
     return (
-        <li className={cn('flex items-center gap-3', className)}>
-            <UserPreview
-                user={user}
-                anchor={avatarRef}
-                className="flex min-w-0 flex-1"
-            >
-                <Link
-                    href={show(user)}
-                    className="group flex min-w-0 flex-1 items-center gap-3"
-                >
-                    <span ref={avatarRef} className="inline-flex shrink-0">
-                        <UserAvatar user={user} className="size-9" />
-                    </span>
-                    <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold group-hover:underline">
-                            {user.name}
-                        </span>
-                        <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
+        <li
+            inert={hasBlock}
+            className={cn(
+                'grid grid-cols-1 transition-[grid-template-rows,opacity,margin] duration-300 ease-out',
+                hasBlock
+                    ? 'm-0 grid-rows-[0fr] border-0 opacity-0'
+                    : 'grid-rows-[1fr]',
+            )}
+            onTransitionEnd={(event) =>
+                hasBlock &&
+                event.target === event.currentTarget &&
+                event.propertyName === 'grid-template-rows' &&
+                setIsGone(true)
+            }
+        >
+            <div className={cn('min-h-0', { 'overflow-hidden': hasBlock })}>
+                <div className={cn('flex items-center gap-3', className)}>
+                    <UserPreview
+                        user={user}
+                        anchor={avatarRef}
+                        className="flex min-w-0 flex-1"
+                    >
+                        <Link
+                            href={show(user)}
+                            className="group flex min-w-0 flex-1 items-center gap-3"
+                        >
                             <span
-                                aria-hidden
-                                className="size-1.5 shrink-0 rounded-full"
-                                style={{ background: laneColor(user.lane) }}
-                            />
-                            <span className="truncate">@{user.username}</span>
-                        </span>
-                        {reason && (
-                            <span className="line-clamp-2 block text-xs text-muted-foreground">
-                                {reason}
+                                ref={avatarRef}
+                                className="inline-flex shrink-0"
+                            >
+                                <UserAvatar user={user} className="size-9" />
                             </span>
-                        )}
-                    </span>
-                </Link>
-            </UserPreview>
-            <FollowButton
-                user={user}
-                isFollowing={false}
-                size="sm"
-                className={cn('min-w-24 shrink-0', buttonClassName)}
-                only={['auth']}
-                preserveState
-                onSuccess={() => router.flushAll()}
-                data-test="suggested-follow-button"
-            />
+                            <span className="min-w-0">
+                                <span className="block truncate text-sm font-semibold group-hover:underline">
+                                    {user.name}
+                                </span>
+                                <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                                    <span
+                                        aria-hidden
+                                        className="size-1.5 shrink-0 rounded-full"
+                                        style={{
+                                            background: laneColor(user.lane),
+                                        }}
+                                    />
+                                    <span className="truncate">
+                                        @{user.username}
+                                    </span>
+                                </span>
+                                {reason && (
+                                    <span className="line-clamp-2 block text-xs text-muted-foreground">
+                                        {reason}
+                                    </span>
+                                )}
+                            </span>
+                        </Link>
+                    </UserPreview>
+                    <FollowButton
+                        user={user}
+                        isFollowing={false}
+                        size="sm"
+                        className={cn('min-w-24 shrink-0', buttonClassName)}
+                        only={['auth']}
+                        preserveState
+                        onSuccess={() => router.flushAll()}
+                        data-test="suggested-follow-button"
+                    />
+                </div>
+            </div>
         </li>
     );
 }

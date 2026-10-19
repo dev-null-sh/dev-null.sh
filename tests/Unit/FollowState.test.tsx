@@ -9,6 +9,7 @@ type Props = Record<string, unknown> & { children?: ReactNode };
 
 let showPreview = false;
 type VisitOptions = {
+    onHttpException?: (response: { status: number }) => boolean | void;
     onSuccess?: () => void;
     onError?: () => void;
     onNetworkError?: () => void;
@@ -16,6 +17,7 @@ type VisitOptions = {
 };
 
 const visits: (VisitOptions & { method?: string })[] = [];
+const toasts: string[] = [];
 
 vi.doMock('react', () => ({
     ...React,
@@ -44,6 +46,13 @@ vi.doMock('@inertiajs/react', async () => ({
         flushAll: () => {},
         visit: (url: { method: string }, options: VisitOptions) =>
             visits.push({ ...options, method: url.method }),
+    },
+}));
+
+vi.doMock('sonner', () => ({
+    toast: {
+        error: (message: string) => toasts.push(message),
+        success: (message: string) => toasts.push(message),
     },
 }));
 
@@ -108,13 +117,31 @@ function suggestion(username: string): SuggestedUser {
 }
 
 function suggestionLabel(user: SuggestedUser): unknown {
-    const row = SuggestedUserRow({ user }) as ReactElement<Props>;
-    const button = React.Children.toArray(row.props.children)[1];
-    assert.ok(React.isValidElement<Props>(button));
+    const button = find(
+        SuggestedUserRow({ user }),
+        (props) => props['data-test'] === 'suggested-follow-button',
+    );
+    assert.ok(button);
 
     return find(render(button), (props) => 'aria-label' in props)?.props[
         'aria-label'
     ];
+}
+
+function isSuggested(user: SuggestedUser): boolean {
+    const row = SuggestedUserRow({ user }) as ReactElement<Props>;
+
+    return row.props.inert !== true;
+}
+
+function blockFromSafetyMenu(user: SuggestedUser): void {
+    const block = find(
+        UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
+        (props) => props.children === 'Block',
+    );
+    assert.ok(block);
+    (block.props.onClick as () => void)();
+    visits.at(-1)?.onSuccess?.();
 }
 
 function previewFollowButton(
@@ -174,15 +201,53 @@ test('blocking someone you follow shows them as not followed in who to follow', 
     const user = suggestion('blocked');
     followFromProfile(user);
 
-    const block = find(
-        UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
-        (props) => props.children === 'Block',
-    );
-    assert.ok(block);
-    (block.props.onClick as () => void)();
-    visits.at(-1)?.onSuccess?.();
+    blockFromSafetyMenu(user);
 
     assert.equal(suggestionLabel(user), 'Follow @blocked');
+});
+
+test('blocking someone from their preview or profile takes them out of who to follow', () => {
+    const user = suggestion('unwanted');
+    assert.ok(isSuggested(user));
+
+    blockFromSafetyMenu(user);
+
+    assert.ok(!isSuggested(user));
+});
+
+test('a follow refused because they blocked you says so and takes them out of who to follow', () => {
+    const user = suggestion('blocker');
+    const button = find(
+        SuggestedUserRow({ user }),
+        (props) => props['data-test'] === 'suggested-follow-button',
+    );
+    assert.ok(button);
+    const follow = find(
+        render(button),
+        (props) => props['data-test'] === 'suggested-follow-button',
+    );
+    assert.ok(follow);
+
+    const showsErrorPage = (
+        follow.props.onHttpException as (response: {
+            status: number;
+        }) => boolean
+    )({ status: 403 });
+
+    assert.equal(showsErrorPage, false);
+    assert.equal(toasts.at(-1), "You can't follow @blocker.");
+    assert.ok(!isSuggested(user));
+});
+
+test('a follow from their preview refused because they blocked you takes them out of who to follow', () => {
+    const user = suggestion('previewblocker');
+
+    (previewFollowButton(user).props.onClick as () => void)();
+    const showsErrorPage = visits.at(-1)?.onHttpException?.({ status: 403 });
+
+    assert.equal(showsErrorPage, false);
+    assert.equal(toasts.at(-1), "You can't follow @previewblocker.");
+    assert.ok(!isSuggested(user));
 });
 
 test('a follow from their preview shows in who to follow', () => {
@@ -212,6 +277,7 @@ test('blocking someone you follow from chat shows them as not followed in who to
     await new Promise((resolve) => setTimeout(resolve));
 
     assert.equal(suggestionLabel(user), 'Follow @chatter');
+    assert.ok(!isSuggested(user));
 });
 
 for (const failure of ['onError', 'onNetworkError', 'onCancel'] as const) {

@@ -3,7 +3,7 @@ import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
-import { forgetFollowing } from '@/components/follow-button';
+import { rememberBlock } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -138,7 +138,7 @@ export function UserSafetyMenu({
                             disabled={isSaving}
                             onClick={() =>
                                 visit(UserBlockController.store(user), () =>
-                                    forgetFollowing(user),
+                                    rememberBlock(user),
                                 )
                             }
                             data-test="confirm-block-button"
