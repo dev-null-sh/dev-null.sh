@@ -216,17 +216,27 @@ export function Repliable({
             setOffset(0);
         };
 
+        // A second finger anywhere on the screen cancels the pull, so a pinch or a stray touch never replies.
         const onTouchStart = (event: TouchEvent) => {
             const touch = event.touches[0];
 
-            start =
-                event.touches.length === 1 && touch
-                    ? { x: touch.clientX, y: touch.clientY }
-                    : null;
+            if (event.touches.length !== 1 || touch === undefined) {
+                reset();
+
+                return;
+            }
+
+            start = { x: touch.clientX, y: touch.clientY };
         };
 
         const onTouchMove = (event: TouchEvent) => {
             const touch = event.touches[0];
+
+            if (event.touches.length !== 1) {
+                reset();
+
+                return;
+            }
 
             if (start === null || touch === undefined) {
                 return;
@@ -250,7 +260,13 @@ export function Repliable({
             setOffset(pull);
         };
 
-        const onTouchEnd = () => {
+        const onTouchEnd = (event: TouchEvent) => {
+            if (event.touches.length > 0) {
+                reset();
+
+                return;
+            }
+
             if (isPulling && pull >= replyThreshold) {
                 navigator.vibrate?.(8);
                 reply.current?.();
