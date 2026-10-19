@@ -87,6 +87,8 @@ A signed profile also says `is_muting` and has the web's `achievements`, with th
 
 `GET /api/v1/notifications` groups notifications like the web and takes the web's `?type=` filter: `all` (the default), `none`, or a comma-separated list of `replies`, `quotes`, `stars`, `mentions`, `follows` and `moderation`. The response echoes it as `filters.type`. Listing them marks every notification as read, whatever the filter, and `read_at` says when, so the groups read at or after it are the new ones. `GET /api/v1/notifications/{id}/group` lists the notifications of one group, with the same filter, the way the web expands it.
 
+`DELETE /api/v1/me` deletes the signed-in user's account the way Delete account does on the web, with their commits and every device they approved. It answers `204`, and from then on the key gets `device_not_approved`.
+
 Each request sends three headers:
 
 | Header | Value |

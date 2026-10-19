@@ -1,7 +1,9 @@
 import {
     Award,
+    BotOff,
     Box,
     ChevronRight,
+    Cookie,
     FileCode,
     Flame,
     GitMerge,
@@ -34,6 +36,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     sparkles: Sparkles,
     'git-merge': GitMerge,
     key: Key,
+    cookie: Cookie,
+    'bot-off': BotOff,
 };
 
 export function AchievementsShelf({
