@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Http\Controllers\AboutController;
+use App\Http\Controllers\ActorController;
+use App\Http\Controllers\ActorFollowersController;
+use App\Http\Controllers\ActorInboxController;
+use App\Http\Controllers\ActorOutboxController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\ChangelogController;
@@ -76,6 +80,7 @@ use App\Http\Controllers\TrafficController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserFederationController;
 use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
@@ -92,6 +97,7 @@ use App\Http\Controllers\UserRemotesController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
 use App\Http\Controllers\UserTimezoneController;
+use App\Http\Controllers\WebFingerController;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
@@ -180,6 +186,15 @@ Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'sho
 Route::get('@{user:username}/feed.atom', [UserFeedController::class, 'show'])
     ->middleware('cache.headers:public;max_age=300;etag')
     ->name('user-feed.show');
+
+// Federation, read by Mastodon and other ActivityPub servers...
+Route::get('.well-known/webfinger', [WebFingerController::class, 'show'])->name('webfinger.show');
+Route::get('@{user:username}/actor', [ActorController::class, 'show'])->name('actor.show');
+Route::get('@{user:username}/actor/followers', [ActorFollowersController::class, 'index'])->name('actor-followers.index');
+Route::get('@{user:username}/actor/outbox', [ActorOutboxController::class, 'index'])->name('actor-outbox.index');
+Route::post('@{user:username}/inbox', [ActorInboxController::class, 'store'])
+    ->middleware('throttle:120,1')
+    ->name('actor-inbox.store');
 
 // User activity graph, embedded in READMEs...
 Route::get('@{user:username}/graph.svg', [UserActivityGraphController::class, 'show'])
@@ -390,6 +405,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
 
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
+    Route::put('settings/federation', [UserFederationController::class, 'update'])->name('user-federation.update');
 
     Route::put('settings/remotes', [UserRemotesController::class, 'update'])->name('user-remotes.update');
 

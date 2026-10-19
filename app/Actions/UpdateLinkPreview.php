@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Contracts\Services\DnsResolver;
 use App\Models\LinkPreview;
+use App\Services\PublicAddresses;
 use Dom\HTMLDocument;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Psr7\Utils;
@@ -13,7 +13,6 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpFoundation\IpUtils;
 use Uri\WhatWg\Url;
 
 final readonly class UpdateLinkPreview
@@ -24,33 +23,6 @@ final readonly class UpdateLinkPreview
 
     private const int MAX_IMAGE_URL_LENGTH = 2048;
 
-    /**
-     * Non-public ranges that filter_var's private and reserved range flags let through: carrier-grade NAT, IETF protocol
-     * assignments, 6to4 relays, benchmarking, documentation and multicast for IPv4; NAT64, discard, Teredo,
-     * documentation, 6to4, site-local, multicast and IPv4-translated addresses for IPv6.
-     *
-     * @var list<string>
-     */
-    private const array BLOCKED_RANGES = [
-        '100.64.0.0/10',
-        '192.0.0.0/24',
-        '192.0.2.0/24',
-        '192.88.99.0/24',
-        '198.18.0.0/15',
-        '198.51.100.0/24',
-        '203.0.113.0/24',
-        '224.0.0.0/4',
-        '64:ff9b::/96',
-        '64:ff9b:1::/48',
-        '100::/64',
-        '2001::/32',
-        '2001:db8::/32',
-        '2002::/16',
-        'fec0::/10',
-        'ff00::/8',
-        '::ffff:0:0:0/96',
-    ];
-
     private const array NO_METADATA = [
         'title' => null,
         'description' => null,
@@ -58,7 +30,7 @@ final readonly class UpdateLinkPreview
         'site_name' => null,
     ];
 
-    public function __construct(private DnsResolver $dns)
+    public function __construct(private PublicAddresses $publicAddresses)
     {
         //
     }
@@ -83,7 +55,7 @@ final readonly class UpdateLinkPreview
         $page = Url::parse($url);
 
         for ($hop = 0; $hop <= self::MAX_REDIRECTS && $page instanceof Url; $hop++) {
-            $address = $this->publicAddress($page);
+            $address = $this->publicAddresses->of($page);
 
             if ($address === null) {
                 return self::NO_METADATA;
@@ -108,40 +80,12 @@ final readonly class UpdateLinkPreview
     }
 
     /**
-     * Returns the address to connect to, or null when the URL must not be fetched: anything but plain http(s) on a
-     * default port without credentials, or a host that resolves to nothing or to any non-public address.
-     */
-    private function publicAddress(Url $url): ?string
-    {
-        if (! in_array($url->getScheme(), ['http', 'https'], true)
-            || ($url->getUsername() ?? '') !== ''
-            || ($url->getPassword() ?? '') !== ''
-            || ! in_array($url->getPort(), [null, 80, 443], true)) {
-            return null;
-        }
-
-        $addresses = $this->dns->resolve(mb_trim((string) $url->getAsciiHost(), '[]'));
-
-        return $addresses !== [] && array_all($addresses, $this->isPublic(...)) ? $addresses[0] : null;
-    }
-
-    private function isPublic(string $address): bool
-    {
-        return filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false
-            && ! IpUtils::checkIp($address, self::BLOCKED_RANGES);
-    }
-
-    /**
-     * Connects to the address that was checked rather than resolving the host again, so DNS rebinding can't swap in a
-     * private address. The empty host and port in CURLOPT_CONNECT_TO match every request, so the pin holds even if
-     * cURL were to read the URL differently than we do. Bodies are cut off after 1 MB, and a body that was cut off
+     * Connects to the address that was checked, see PublicAddresses::pin(). Bodies are cut off after 1 MB, and a body that was cut off
      * (by that limit or by the timeout) is still used, as metadata lives at the top of the page. English is asked for
      * explicitly, as sites such as YouTube otherwise pick the language from the server's location.
      */
     private function get(Url $url, string $address): Response
     {
-        $port = $url->getPort() ?? ($url->getScheme() === 'https' ? 443 : 80);
-
         $request = Http::withUserAgent(sprintf('Mozilla/5.0 (compatible; devnull-linkpreview/1.0; +%s)', config()->string('app.url')))
             ->accept('text/html')
             ->withHeaders(['Accept-Language' => 'en-US,en;q=0.9'])
@@ -151,9 +95,7 @@ final readonly class UpdateLinkPreview
             ->withOptions([
                 'decode_content' => false,
                 'progress' => fn (int $expected, int $downloaded): bool => $downloaded > self::MAX_BODY_BYTES,
-                'curl' => [
-                    CURLOPT_CONNECT_TO => [sprintf('::%s:%d', str_contains($address, ':') ? "[{$address}]" : $address, $port)],
-                ],
+                'curl' => $this->publicAddresses->pin($url, $address),
             ]);
 
         try {

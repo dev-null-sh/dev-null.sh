@@ -47,6 +47,9 @@ use Illuminate\Support\Facades\DB;
  * @property-read LivePlatform|null $live_platform
  * @property-read string|null $live_url
  * @property-read CarbonInterface|null $live_ends_at
+ * @property-read bool $federates
+ * @property-read string|null $public_key
+ * @property-read string|null $private_key
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
@@ -66,6 +69,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read Collection<int, PollVote> $pollVotes
  * @property-read Collection<int, Device> $devices
+ * @property-read Collection<int, RemoteFollower> $remoteFollowers
  * @property-read int $commits_count
  * @property-read int $following_count
  * @property-read int $followers_count
@@ -91,6 +95,9 @@ use Illuminate\Support\Facades\DB;
     'live_platform',
     'live_url',
     'live_ends_at',
+    'federates',
+    'public_key',
+    'private_key',
 ])]
 final class User extends Authenticatable
 {
@@ -121,6 +128,9 @@ final class User extends Authenticatable
         'live_platform' => null,
         'live_url' => null,
         'live_ends_at' => null,
+        'federates' => false,
+        'public_key' => null,
+        'private_key' => null,
     ];
 
     /**
@@ -158,6 +168,9 @@ final class User extends Authenticatable
             'live_platform' => LivePlatform::class,
             'live_url' => 'string',
             'live_ends_at' => 'datetime',
+            'federates' => 'boolean',
+            'public_key' => 'string',
+            'private_key' => 'encrypted',
             'github_synced_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -208,6 +221,14 @@ final class User extends Authenticatable
     public function sshKeys(): HasMany
     {
         return $this->hasMany(SshKey::class);
+    }
+
+    /**
+     * @return HasMany<RemoteFollower, $this>
+     */
+    public function remoteFollowers(): HasMany
+    {
+        return $this->hasMany(RemoteFollower::class);
     }
 
     /**

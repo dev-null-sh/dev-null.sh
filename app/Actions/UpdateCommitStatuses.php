@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Jobs\FederateCommit;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -80,6 +81,10 @@ final readonly class UpdateCommitStatuses
                 $this->createMentionNotifications->handle(...$commits);
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
+
+                $commits->loadMissing('user')
+                    ->filter(fn (Commit $commit): bool => $commit->parent_id === null && $commit->user?->federates === true)
+                    ->each(fn (Commit $commit) => dispatch(new FederateCommit($commit))->afterCommit());
 
                 if (filled(config('ai.providers.opencode.key'))) {
                     foreach ($commits as $commit) {

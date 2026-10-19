@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
 use App\Jobs\EmbedCommit;
+use App\Jobs\FederateCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
@@ -99,6 +100,10 @@ final readonly class CreateCommit
 
             if ($commit->body !== '' && filled(config('services.openai.key'))) {
                 dispatch(new EmbedCommit($commit))->afterCommit();
+            }
+
+            if ($commit->status === CommitStatus::Approved && $commit->parent_id === null && $user->federates) {
+                dispatch(new FederateCommit($commit))->afterCommit();
             }
 
             return $commit;
