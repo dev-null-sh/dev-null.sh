@@ -42,6 +42,23 @@ final class NotificationBuilder extends Builder
     }
 
     /**
+     * Narrows to the types the inbox filter shows: a comma-separated list of its categories, 'all' for every type, and
+     * 'none' for no type at all.
+     */
+    public function ofType(string $type): self
+    {
+        return $this->when($type !== 'all', fn (self $query): self => $query->whereIn('type', array_merge(...array_map(fn (string $category): array => match ($category) {
+            'replies' => [NotificationType::Replied],
+            'quotes' => [NotificationType::Quoted],
+            'stars' => [NotificationType::Starred],
+            'mentions' => [NotificationType::Mentioned],
+            'follows' => [NotificationType::Followed],
+            'moderation' => [NotificationType::Approved, NotificationType::Rejected],
+            default => [],
+        }, explode(',', $type)))));
+    }
+
+    /**
      * Leaves out what actors the recipient mutes did, and anything from across a block. Moderation
      * notifications are their own actor, and nobody can mute or block themselves.
      */

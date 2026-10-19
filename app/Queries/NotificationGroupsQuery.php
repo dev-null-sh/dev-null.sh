@@ -90,7 +90,7 @@ final readonly class NotificationGroupsQuery
             return 0;
         }
 
-        $oldestUnread = $this->visible($user)->unread()->oldest()->first();
+        $oldestUnread = $this->visible($user)->unread()->ofType($type)->oldest()->first();
 
         return $oldestUnread instanceof Notification
             ? $this->groupsSince($user, $oldestUnread->created_at, $type)->where('group_rank', 1)->where('unread_count', '>', 0)->count()
@@ -132,15 +132,7 @@ final readonly class NotificationGroupsQuery
                 'identified.group_id',
                 fn (QueryBuilder $query): QueryBuilder => $query->from('identified')->where('id', $member->id)->select('group_id'),
             ))
-            ->when($type !== 'all', fn (NotificationBuilder $query): NotificationBuilder => $query->whereIn('type', array_merge(...array_map(fn (string $category): array => match ($category) {
-                'replies' => ['replied'],
-                'quotes' => ['quoted'],
-                'stars' => ['starred'],
-                'mentions' => ['mentioned'],
-                'follows' => ['followed'],
-                'moderation' => ['approved', 'rejected'],
-                default => [],
-            }, explode(',', $type)))));
+            ->ofType($type);
 
         $gap = match (DB::connection($visible->getModel()->getConnectionName())->getDriverName()) {
             'mysql', 'mariadb' => 'TIMESTAMPDIFF(SECOND, previous_match_at, created_at)',
