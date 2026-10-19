@@ -165,11 +165,14 @@ final class User extends Authenticatable
             ->exists();
     }
 
+    /**
+     * Ten followers are enough, so the check stops at the tenth instead of counting every follower.
+     */
     public function hasGoodReputation(): bool
     {
         return $this->created_at->lt(now()->subHour())
             && $this->commits()->approved()->exists()
-            && $this->followers()->count() >= 10;
+            && $this->followers()->skip(9)->exists();
     }
 
     /**

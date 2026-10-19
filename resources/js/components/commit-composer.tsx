@@ -177,7 +177,7 @@ function CommitComposerBody({
             />
 
             <div
-                className={cn('flex min-w-0 flex-1 pt-3 pr-4 pb-3', {
+                className={cn('flex min-w-0 flex-1 py-3 pr-4', {
                     'border-b': !isInDialog,
                 })}
             >
@@ -220,7 +220,14 @@ function CommitComposerBody({
                                 preview.handleShortcut(event) ||
                                 onKeyDown(event)
                             }
-                            onFocus={isRestored ? moveCaretToEnd : undefined}
+                            onFocus={(event) => {
+                                issue.focus();
+
+                                if (isRestored) {
+                                    moveCaretToEnd(event);
+                                }
+                            }}
+                            onBlur={issue.blur}
                             maxLength={maxBodyLength}
                             placeholder={
                                 issue.command?.placeholder ??
@@ -470,7 +477,7 @@ function CommitComposerBody({
                                         issue.processing || !isSubmittable
                                     }
                                     onClick={() => void issue.submit()}
-                                    className="min-w-[7.5rem]"
+                                    className="min-w-30"
                                     data-test="open-issue-button"
                                 >
                                     {issue.processing
@@ -488,7 +495,7 @@ function CommitComposerBody({
                                 <Button
                                     type="submit"
                                     disabled={processing || !isSubmittable}
-                                    className="min-w-[7.5rem]"
+                                    className="min-w-30"
                                     data-test="create-commit-button"
                                 >
                                     {isScheduling

@@ -180,7 +180,7 @@ export function InboxPanel({
                         autoComplete="off"
                         spellCheck={false}
                         className={cn(
-                            'w-full min-w-0 rounded-md border bg-card pr-9 pl-9 text-base outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none md:text-sm [&::-webkit-search-cancel-button]:hidden',
+                            'w-full min-w-0 rounded-md border bg-card px-9 text-base outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none md:text-sm [&::-webkit-search-cancel-button]:hidden',
                             isCompact ? 'h-8' : 'h-9',
                         )}
                         data-test="conversation-search"
@@ -243,7 +243,7 @@ export function InboxPanel({
 
             <div
                 role="tabpanel"
-                className="min-h-0 flex-1 [scrollbar-width:thin] overflow-y-auto overscroll-contain"
+                className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain"
             >
                 <ConversationList
                     conversations={list}

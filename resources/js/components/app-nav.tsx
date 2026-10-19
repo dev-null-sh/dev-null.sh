@@ -234,7 +234,7 @@ export function AppNav({
     const keys = useKeyLabels();
 
     return (
-        <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
+        <header className="sticky top-0 hidden h-svh w-20 shrink-0 scrollbar-none flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
             <LogoMenu>
                 <Link
                     href={
@@ -334,7 +334,7 @@ export function AppNav({
                 aria-label="Write a commit"
                 aria-keyshortcuts="c"
                 title="Write a commit (C)"
-                className="mt-4 h-[52px] w-[52px] shrink-0 rounded-lg text-[15px] lg:w-auto"
+                className="mt-4 size-[52px] shrink-0 rounded-lg text-[15px] lg:w-auto"
                 data-test="nav-commit-button"
             >
                 <SquarePen className="size-5" />
@@ -342,7 +342,7 @@ export function AppNav({
             </Button>
 
             {auth.user === null ? (
-                <SignInButton className="mt-auto h-[52px] w-[52px] rounded-lg lg:w-auto" />
+                <SignInButton className="mt-auto size-[52px] rounded-lg lg:w-auto" />
             ) : (
                 <DropdownMenu>
                     <DropdownMenuTrigger

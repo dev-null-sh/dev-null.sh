@@ -1,6 +1,6 @@
 import { InfiniteScroll, router, usePage } from '@inertiajs/react';
 import { Pin } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { PointerEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
@@ -9,6 +9,7 @@ import {
     restoreFeedCommit,
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
+import { isDeliberateHover } from '@/lib/feed-hover';
 import { formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -56,17 +57,61 @@ export function CommitFeed({
         null,
     );
     const unhighlightTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    const isScrolling = useRef(false);
+    const authorUnderPointer = useRef<string | null>(null);
 
     useEffect(() => () => clearTimeout(unhighlightTimer.current), []);
 
-    const highlightCommit = (commitId: string, isHovering: boolean) => {
-        clearTimeout(unhighlightTimer.current);
+    useEffect(() => {
+        let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
+        const unhighlight = () => {
+            isScrolling.current = true;
+            clearTimeout(unhighlightTimer.current);
+            setHighlightedCommit(null);
+            setHighlightedAuthor(null);
+
+            clearTimeout(settleTimer);
+            settleTimer = setTimeout(() => {
+                isScrolling.current = false;
+            }, 300);
+        };
+
+        window.addEventListener('scroll', unhighlight, { passive: true });
+
+        return () => {
+            window.removeEventListener('scroll', unhighlight);
+            clearTimeout(settleTimer);
+        };
+    }, []);
+
+    const highlightAuthor = (userId: string, isHovering: boolean) => {
+        authorUnderPointer.current = isHovering ? userId : null;
+
+        if (!isHovering) {
+            setHighlightedAuthor(null);
+        } else if (!isScrolling.current) {
+            setHighlightedAuthor(userId);
+        }
+    };
+
+    const highlightCommit = (
+        commitId: string,
+        isHovering: boolean,
+        event: PointerEvent<HTMLElement>,
+    ) => {
         if (isHovering) {
-            setHighlightedCommit(commitId);
+            if (isDeliberateHover(event, isScrolling.current)) {
+                clearTimeout(unhighlightTimer.current);
+                setHighlightedCommit(commitId);
+                // Author targets only report entering, so one that slid under the pointer while scrolling lights up on the next move.
+                setHighlightedAuthor(authorUnderPointer.current);
+            }
 
             return;
         }
+
+        clearTimeout(unhighlightTimer.current);
 
         // Crossing a day marker between two commits shouldn't flash the whole feed back on.
         unhighlightTimer.current = setTimeout(
@@ -159,9 +204,11 @@ export function CommitFeed({
             threadActions={threadActions?.(commit)}
             isFolded={isFolded}
             onAuthorHover={(isHovering) =>
-                setHighlightedAuthor(isHovering ? commit.user_id : null)
+                highlightAuthor(commit.user_id, isHovering)
             }
-            onHover={(isHovering) => highlightCommit(commit.id, isHovering)}
+            onHover={(isHovering, event) =>
+                highlightCommit(commit.id, isHovering, event)
+            }
         />
     );
 
@@ -180,8 +227,8 @@ export function CommitFeed({
                         commit={pinnedCommit}
                         endsWithDot
                         isDimmed={isDimmed(pinnedCommit)}
-                        onHover={(isHovering) =>
-                            highlightCommit(pinnedCommit.id, isHovering)
+                        onHover={(isHovering, event) =>
+                            highlightCommit(pinnedCommit.id, isHovering, event)
                         }
                         isHighlighted={
                             highlightedPeriod !== null &&

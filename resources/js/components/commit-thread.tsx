@@ -1220,7 +1220,7 @@ function ReplyComposer({
                     type="submit"
                     size="sm"
                     disabled={processing || !isReplyable}
-                    className="min-w-[4.75rem]"
+                    className="min-w-19"
                     data-test="submit-reply-button"
                 >
                     {processing ? 'Replying…' : 'Reply'}

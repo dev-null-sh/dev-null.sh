@@ -28,7 +28,7 @@ export function useFlashToast(): void {
             if (committed) {
                 toast(
                     <span
-                        className="line-clamp-3 font-mono text-[13px] [overflow-wrap:anywhere]"
+                        className="line-clamp-3 font-mono text-[13px] wrap-anywhere"
                         title={committed.body}
                     >
                         [log {shortHash(committed.id)}]{' '}
