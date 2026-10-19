@@ -27,6 +27,7 @@ import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGr
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
+import { replaceFailedImage } from '@/components/commit-images';
 import {
     onFollowHttpException,
     useIsFollowing,
@@ -783,6 +784,13 @@ function NotificationContent({
     const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
     const isOwnCommit = notification.type === 'starred' || moderation;
+    const starredImages =
+        notification.type === 'starred'
+            ? (notification.commit.images ?? [])
+            : [];
+    const isImageOnly =
+        starredImages.length > 0 &&
+        notification.commit?.body_segments.length === 0;
     const isActorsCommit =
         notification.type === 'replied' ||
         notification.type === 'quoted' ||
@@ -827,13 +835,15 @@ function NotificationContent({
         followed: 'followed you',
         replied: 'replied to your commit',
         quoted: 'quoted your commit',
-        starred: 'starred your commit',
+        starred: isImageOnly
+            ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
+            : 'starred your commit',
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
     }[notification.type];
     const excerpt =
-        notification.type === 'followed' ? null : isOwnCommit ? (
+        notification.type === 'followed' || isImageOnly ? null : isOwnCommit ? (
             <OwnCommitExcerpt segments={notification.commit.body_segments} />
         ) : (
             <CommitBodyExcerpt
@@ -1005,36 +1015,53 @@ function NotificationContent({
                                     )}
                                     {time}
                                 </div>
-                                <p className="mt-1 text-[15px] wrap-anywhere">
-                                    {isNew && (
-                                        <span className="sr-only">New. </span>
+                                <div className="mt-1 flex items-center gap-3">
+                                    <p className="min-w-0 flex-1 text-[15px] wrap-anywhere">
+                                        {isNew && (
+                                            <span className="sr-only">
+                                                New.{' '}
+                                            </span>
+                                        )}
+                                        {moderation ? (
+                                            `${action}.`
+                                        ) : (
+                                            <>
+                                                <span
+                                                    className="inline-block max-w-full truncate align-bottom font-semibold"
+                                                    title={actor.name}
+                                                >
+                                                    {actor.name}
+                                                </span>{' '}
+                                                {otherActors > 0 ? (
+                                                    `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
+                                                ) : (
+                                                    <>
+                                                        <span
+                                                            className="inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
+                                                            title={`@${actor.username}`}
+                                                        >
+                                                            @{actor.username}
+                                                        </span>{' '}
+                                                    </>
+                                                )}
+                                                {action}
+                                            </>
+                                        )}
+                                    </p>
+                                    {starredImages[0] && (
+                                        <img
+                                            src={starredImages[0].url}
+                                            alt=""
+                                            loading="lazy"
+                                            onError={(event) =>
+                                                replaceFailedImage(
+                                                    event.currentTarget,
+                                                )
+                                            }
+                                            className="size-10 shrink-0 rounded-md border bg-muted object-cover"
+                                        />
                                     )}
-                                    {moderation ? (
-                                        `${action}.`
-                                    ) : (
-                                        <>
-                                            <span
-                                                className="inline-block max-w-full truncate align-bottom font-semibold"
-                                                title={actor.name}
-                                            >
-                                                {actor.name}
-                                            </span>{' '}
-                                            {otherActors > 0 ? (
-                                                `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
-                                            ) : (
-                                                <>
-                                                    <span
-                                                        className="inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
-                                                        title={`@${actor.username}`}
-                                                    >
-                                                        @{actor.username}
-                                                    </span>{' '}
-                                                </>
-                                            )}
-                                            {action}
-                                        </>
-                                    )}
-                                </p>
+                                </div>
                             </>
                         )}
                         {excerpt}
