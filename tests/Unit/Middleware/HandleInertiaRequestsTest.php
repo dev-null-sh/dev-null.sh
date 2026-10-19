@@ -279,6 +279,8 @@ it('shows 3 replies at a time unless the user picked one of the other counts', f
     'one' => ['1', 1],
     'not an option' => ['7', 3],
     'garbage' => ['many', 3],
+    'garbage after an option' => ['10garbage', 3],
+    'an option as a decimal' => ['1.0', 3],
 ]);
 
 it('does not share suggested users with guests', function (): void {

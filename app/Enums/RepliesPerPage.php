@@ -25,6 +25,6 @@ enum RepliesPerPage: int
             return self::One;
         }
 
-        return self::tryFrom((int) $request->cookie('replies_per_page')) ?? self::Three;
+        return array_find(self::cases(), fn (self $count): bool => (string) $count->value === $request->cookie('replies_per_page')) ?? self::Three;
     }
 }
