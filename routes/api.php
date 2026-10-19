@@ -58,7 +58,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
         Route::delete('me', [CurrentUserController::class, 'destroy'])->name('api-current-user.destroy');
-      
+
         // Pastéis...
         Route::put('me/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('api-user-pasteis-mode.update');
 
