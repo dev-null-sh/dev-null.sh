@@ -9,4 +9,5 @@ enum EmbedKind: string
     case Video = 'video';
     case Audio = 'audio';
     case Code = 'code';
+    case Call = 'call';
 }

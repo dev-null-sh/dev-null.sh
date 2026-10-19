@@ -42,6 +42,14 @@ final readonly class Embed implements Arrayable
     }
 
     /**
+     * A call is joined in a new tab rather than played in place, so it has no size.
+     */
+    public static function call(string $provider, string $src): self
+    {
+        return new self($provider, EmbedKind::Call, $src, null, null);
+    }
+
+    /**
      * @return array{provider: string, kind: string, src: string, aspect_ratio: string|null, height: int|null, poster: string|null}
      */
     public function toArray(): array

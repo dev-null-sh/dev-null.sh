@@ -209,7 +209,9 @@ URLs and bare domains in commits and replies become clickable links. Long URLs a
 
 Supported links can also show click-to-play embedded players: YouTube, Vimeo, Loom, Twitch, Spotify, SoundCloud, Apple Music, Suno, CodePen, and asciinema. Embeds depend on server configuration and the linked URL being supported. Third-party player content loads only after you press play; those providers have their own privacy policies. This is embedding a link, not uploading a video or audio file to /dev/null.
 
-Sources: [link rendering](resources/js/components/linkified-text.tsx), [link-card selection](app/Http/Requests/CreateCommitRequest.php), [embed configuration](config/embeds.php), [embedded player](resources/js/components/link-embed.tsx).
+Jitsi Meet links (`meet.jit.si/{room}`) show a call card instead of a player. **Join call** opens the room on meet.jit.si in a new tab; the call itself is never embedded, because meet.jit.si ends calls framed in another site after five minutes.
+
+Sources: [link rendering](resources/js/components/linkified-text.tsx), [link-card selection](app/Http/Requests/CreateCommitRequest.php), [embed configuration](config/embeds.php), [embedded player](resources/js/components/link-embed.tsx), [Jitsi Meet links](app/Services/EmbedProviders/JitsiMeet.php).
 
 ### Replies and threads
 
@@ -297,9 +299,11 @@ Livestream history: the notification requirements on [day one at 5:28:53](https:
 
 Messages support up to **2,000 characters**, replies to messages, link cards, and up to three images with the same file limits and descriptions as commit attachments. An image makes message text optional. Typing indicators show recent activity. Read receipts, called **pull receipts**, are shared only when both relevant people enable them. Stashing a conversation archives it for you without deleting it; unstash to bring it back.
 
+The camera button next to the message box starts a video call: it opens a new, randomly named Jitsi Meet room in a new tab and pushes the room's link to the conversation, where it shows as a call card for the others to join. Calls run on meet.jit.si, not on /dev/null, and anyone with the link can join. The button is only there while you can send messages in the conversation.
+
 Some deployments enable message requests and an **everyone** contact option. With requests enabled, a first message from someone outside the accepted contact policy waits in **Fetched**. The recipient can **merge** the request to accept or **drop** it privately. The sender cannot keep sending while waiting, and the recipient must merge before replying. These options are disabled by default in repository configuration; do not assume every installation exposes them.
 
-Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx), [configuration](config/remotes.php).
+Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx), [configuration](config/remotes.php), [message composer and calls](resources/js/components/chat/conversation-thread.tsx).
 
 ### Orgs: group chats
 
@@ -307,7 +311,7 @@ An **Org** is a private group chat within Remotes, not a synchronized GitHub org
 
 The creator starts as a **Maintainer**, and invited people start as **Contributors**. Maintainers can rename the group, add or remove members, and change roles. Contributors can read and send messages. When adding members, a maintainer can share existing history or only new messages. Members can leave or stash the group for themselves. At least one maintainer remains while the group has members; if the last maintainer leaves, the longest-standing remaining member takes over.
 
-Group messages support the same text, images, replies, link cards, typing indicators, and receipt preferences as direct messages. Membership and history access determine what a person can read.
+Group messages support the same text, images, replies, link cards, video calls, typing indicators, and receipt preferences as direct messages. Membership and history access determine what a person can read.
 
 Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation eligibility](app/Queries/RemoteCandidatesQuery.php), [history sharing](app/Actions/CreateOrgMembers.php), [role changes](app/Http/Requests/UpdateOrgMemberRequest.php), [leaving a group](app/Actions/DeleteOrgMember.php).
 

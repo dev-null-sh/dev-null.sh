@@ -35,6 +35,14 @@ it('has an embed when its link can be played in place', function (): void {
         ->and(LinkPreview::factory()->create(['url' => 'https://example.com'])->toArray()['embed'])->toBeNull();
 });
 
+it('has a call embed when its link is a meeting room', function (): void {
+    expect(LinkPreview::factory()->create(['url' => 'https://meet.jit.si/DevNullStandup'])->toArray()['embed'])->toMatchArray([
+        'provider' => 'Jitsi Meet',
+        'kind' => 'call',
+        'src' => 'https://meet.jit.si/DevNullStandup',
+    ]);
+});
+
 it('hashes its url', function (): void {
     $linkPreview = LinkPreview::factory()->create(['url' => 'https://example.com']);
 

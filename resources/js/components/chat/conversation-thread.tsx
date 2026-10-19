@@ -1,4 +1,4 @@
-import { ArrowDown, X } from 'lucide-react';
+import { ArrowDown, Video, X } from 'lucide-react';
 import type {
     ClipboardEvent,
     FormEvent,
@@ -16,6 +16,7 @@ import {
     useState,
 } from 'react';
 import { toast } from 'sonner';
+import { ActionTooltip } from '@/components/action-tooltip';
 import {
     MessageImages,
     MessageLinkCard,
@@ -50,6 +51,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
+import { callUrl } from '@/lib/calls';
 import {
     settleRequest,
     loadOlderMessages,
@@ -1150,6 +1152,24 @@ function Composer({
         input.current?.focus();
     };
 
+    /**
+     * Opens a new room and pushes its link on its own, leaving the draft as it was. The tab opens within the click, so
+     * popup blockers let it through.
+     */
+    const startCall = () => {
+        const url = callUrl();
+
+        window.open(url, '_blank', 'noopener,noreferrer');
+        onSend();
+        sendMessage(target, {
+            body: url,
+            replyTo: null,
+            images: [],
+            descriptions: [],
+            linkPreviewUrl: undefined,
+        });
+    };
+
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (event.defaultPrevented) {
             return;
@@ -1311,6 +1331,22 @@ function Composer({
                             isCompact ? 'size-9' : 'size-10',
                         )}
                     />
+                    <ActionTooltip label="Start a video call">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={startCall}
+                            aria-label="Start a call"
+                            className={cn(
+                                '-mx-1 shrink-0 text-muted-foreground',
+                                isCompact ? 'size-9' : 'size-10',
+                            )}
+                            data-test="start-call-button"
+                        >
+                            <Video className="size-5" />
+                        </Button>
+                    </ActionTooltip>
                     <MentionTextarea
                         id={id}
                         ref={input}
