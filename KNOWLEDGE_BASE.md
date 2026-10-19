@@ -148,7 +148,7 @@ Sources: [image picker](resources/js/components/commit-image-picker.tsx), [image
 
 ### Links, link cards, and embedded players
 
-URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the composer, choose another link from the body or choose no card. Missing site metadata may leave a link without a rich preview.
+URLs and bare domains in commits, replies, and profile bios become clickable links; `@handles` in a bio stay plain text. Long URLs are shortened visually; hover reveals the full destination. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the composer, choose another link from the body or choose no card. Missing site metadata may leave a link without a rich preview.
 
 Supported links can also show click-to-play embedded players: YouTube, Vimeo, Loom, Twitch, Spotify, SoundCloud, Apple Music, Suno, CodePen, and asciinema. Embeds depend on server configuration and the linked URL being supported. Third-party player content loads only after you press play; those providers have their own privacy policies. This is embedding a link, not uploading a video or audio file to /dev/null.
 

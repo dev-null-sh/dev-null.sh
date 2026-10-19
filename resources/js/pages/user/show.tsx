@@ -21,6 +21,7 @@ import { ActivityStreaks } from '@/components/activity-streaks';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
+import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileShareButton } from '@/components/profile-share-button';
@@ -214,7 +215,7 @@ export default function Show({
 
                 {user.bio && (
                     <p className="mt-3 max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-wrap">
-                        {user.bio}
+                        <LinkifiedText text={user.bio} mentions={null} />
                     </p>
                 )}
 
