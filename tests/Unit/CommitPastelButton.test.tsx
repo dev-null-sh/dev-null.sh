@@ -239,3 +239,17 @@ test('a network failure with no allowance left refunds nothing', async () => {
     assert.equal(count(), 5);
     assert.equal(toastError.mock.calls.length, 1);
 });
+
+test('a refresh before a failed award keeps the server count', async () => {
+    const clicked = click();
+
+    assert.equal(count(), 6);
+
+    values.set(countKey, 5);
+
+    pendings[0].reject(new Error('failed'));
+    await clicked;
+
+    assert.equal(count(), 5);
+    assert.equal(allowance(), 3);
+});

@@ -66,8 +66,9 @@ export function CommitPastelButton({
         let exhausted = false;
 
         let reserved = 0;
+        let optimistic = 0;
 
-        setCount((current) => current + 1);
+        setCount((current) => (optimistic = current + 1));
         setRemaining((current) => {
             reserved = Math.min(1, Math.max(0, current));
 
@@ -88,7 +89,12 @@ export function CommitPastelButton({
                 onError: () => {
                     errorShown = true;
                     exhausted = true;
-                    setCount((current) => Math.max(0, current - 1));
+                    // A refresh since the click already holds the server count.
+                    setCount((current) =>
+                        current === optimistic
+                            ? Math.max(0, current - 1)
+                            : current,
+                    );
                     refreshSharedState(
                         new Map([[`pasteis-allowance:${userId}:${day}`, 0]]),
                     );
@@ -123,7 +129,9 @@ export function CommitPastelButton({
             }
         } catch {
             if (!exhausted) {
-                setCount((current) => Math.max(0, current - 1));
+                setCount((current) =>
+                    current === optimistic ? Math.max(0, current - 1) : current,
+                );
                 setRemaining((current) => current + reserved);
             }
 
