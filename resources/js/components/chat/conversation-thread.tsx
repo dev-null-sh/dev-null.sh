@@ -299,8 +299,9 @@ export function ConversationThread({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [contentKey, thread?.isLoaded]);
 
-    // A row below the visible ones can still change height, as reactions or a link card arrive, which in a scroller
-    // anchored at its bottom would move what is being read. The top visible row is kept where it was.
+    // A row below the visible ones can still change height, as reactions or a link card arrive, and the scroller itself
+    // shrinks as the composer grows or the keyboard opens. Anchored at its bottom, either would move what is being read,
+    // so the top visible row is kept where it was.
     useEffect(() => {
         const element = scroller.current;
         const content = list.current;
@@ -316,6 +317,7 @@ export function ConversationThread({
         });
 
         observer.observe(content);
+        observer.observe(element);
 
         return () => observer.disconnect();
     }, [thread?.isLoaded]);
