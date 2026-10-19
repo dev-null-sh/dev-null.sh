@@ -12,7 +12,9 @@ use App\Models\MessageImage;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
+use App\Services\CommitTranslations;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -36,6 +38,13 @@ final readonly class DeleteUser
 
             $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user)];
 
+            $translationKeys = Commit::query()->withTrashed()
+                ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
+                    ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')))
+                ->select(['id', 'body'])
+                ->lazyById(500)
+                ->map(resolve(CommitTranslations::class)->key(...))->unique()->all();
+
             foreach ($user->repos()->get() as $repo) {
                 $this->deleteRepoContributor->handle($repo, $user);
             }
@@ -52,6 +61,10 @@ final readonly class DeleteUser
             $user->commits()->withTrashed()->update(['user_id' => null]);
 
             $user->delete();
+
+            foreach ($translationKeys as $key) {
+                Cache::forget($key);
+            }
 
             return $imagePaths;
         });

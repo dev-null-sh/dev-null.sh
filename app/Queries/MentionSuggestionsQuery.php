@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Models\Conversation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
@@ -15,11 +16,12 @@ final readonly class MentionSuggestionsQuery
     /**
      * Without a term, the people the user follows, most recently followed first, so a bare "@" already has
      * suggestions. With one, the same matches as people search, people the user follows first within each tier.
-     * Never the user themselves, people they mute, or anyone across a block.
+     * Within an org, only its members, and a bare "@" lists them all, people the user follows first. Never the user
+     * themselves, people they mute, or anyone across a block.
      *
      * @return Collection<int, User>
      */
-    public function get(User $user, string $term, int $limit = 6): Collection
+    public function get(User $user, string $term, ?Conversation $org = null, int $limit = 6): Collection
     {
         $term = Str::of($term)
             ->trim()
@@ -29,7 +31,7 @@ final readonly class MentionSuggestionsQuery
 
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
 
-        if ($term === '') {
+        if ($term === '' && ! $org instanceof Conversation) {
             return $user->following()
                 ->whereNotIn('users.id', $user->mutedIds())
                 ->orderByPivot('created_at', 'desc')
@@ -44,6 +46,7 @@ final readonly class MentionSuggestionsQuery
             ->whereKeyNot($user->id)
             ->whereNotIn('id', $user->mutedIds())
             ->whereNotIn('id', $user->idsAcrossBlocks())
+            ->when($org, fn (Builder $query, Conversation $org): Builder => $query->whereIn('id', $org->participants()->select('user_id')))
             ->where(fn (Builder $query): Builder => $query
                 ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
                 ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))

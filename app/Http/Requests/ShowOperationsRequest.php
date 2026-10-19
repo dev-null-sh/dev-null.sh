@@ -19,7 +19,7 @@ final class ShowOperationsRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {

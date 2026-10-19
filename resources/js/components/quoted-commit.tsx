@@ -8,7 +8,12 @@ import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { LinkPreview } from '@/components/link-preview';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
-import { cn, formatRelativeTime, isDeleted } from '@/lib/utils';
+import {
+    cn,
+    formatFullDateTime,
+    formatRelativeTime,
+    isDeleted,
+} from '@/lib/utils';
 import type { DeletedCommit, QuotedCommit as QuotedCommitData } from '@/types';
 
 export function QuotedCommit({
@@ -53,7 +58,7 @@ export function QuotedCommit({
                 </span>
                 <time
                     dateTime={commit.created_at}
-                    title={new Date(commit.created_at).toLocaleString()}
+                    title={formatFullDateTime(commit.created_at)}
                     className="shrink-0 font-mono text-xs text-muted-foreground"
                 >
                     {formatRelativeTime(commit.created_at, now)}

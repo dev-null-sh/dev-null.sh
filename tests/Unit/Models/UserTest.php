@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\RepoRole;
 use App\Models\Commit;
+use App\Models\Device;
 use App\Models\Repo;
 use App\Models\RepoContributor;
 use App\Models\SshKey;
@@ -29,6 +30,7 @@ test('to array', function (): void {
             'timezone',
             'lane',
             'has_github_account',
+            'live',
         ]);
 });
 
@@ -61,6 +63,14 @@ it('has repos', function (): void {
 
     expect($user->repos->modelKeys())->toBe([$repo->id])
         ->and($user->repos->sole()->pivot->getAttribute('role'))->toBe(RepoRole::Maintainer->value);
+});
+
+it('has devices', function (): void {
+    $user = User::factory()->create();
+    Device::factory()->for($user)->count(2)->create();
+    Device::factory()->create();
+
+    expect($user->devices)->toHaveCount(2);
 });
 
 it('has following and followers', function (): void {

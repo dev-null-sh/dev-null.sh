@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
 import { cn } from '@/lib/utils';
 import type { User } from '@/types';
@@ -22,7 +23,7 @@ type Props = {
 const dimmable = 'transition-opacity duration-200';
 
 // Nodes fade inside an opaque backdrop so the lane line behind them stays hidden.
-const dimmedNode = 'group-data-dimmed/rail-node:opacity-30';
+const dimmedNode = 'group-data-dimmed/rail-node:opacity-60';
 
 export function GraphRail({
     lane,
@@ -67,7 +68,7 @@ export function GraphRail({
                         'absolute top-0 left-1/2 h-8 w-0.5 -translate-x-1/2',
                         dimmable,
                         {
-                            'opacity-30': isPreviousDimmed,
+                            'opacity-60': isPreviousDimmed,
                             'h-1/2': nodePosition === 'center',
                             'h-[23px]': nodePosition === 'author',
                             'bottom-5 h-auto': nodePosition === 'bottom',
@@ -86,7 +87,7 @@ export function GraphRail({
                             'absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane)',
                             dimmable,
                             {
-                                'opacity-30': isDimmed,
+                                'opacity-60': isDimmed,
                                 'bottom-5': endsWithDot,
                                 'top-1/2': nodePosition === 'center',
                                 'top-[23px]': nodePosition === 'author',
@@ -101,7 +102,7 @@ export function GraphRail({
                         'absolute top-8 bottom-0 left-1/2 -translate-x-1/2 border-l border-dashed border-(--lane)',
                         dimmable,
                         {
-                            'opacity-30': isDimmed,
+                            'opacity-60': isDimmed,
                             'top-[23px]': nodePosition === 'author',
                             'top-1/2': nodePosition === 'center',
                             'top-auto h-5':
@@ -165,20 +166,25 @@ export function RailAvatar({
     user,
     isStaged = false,
 }: {
-    user: Pick<User, 'name' | 'avatar_url'>;
+    user: Pick<User, 'name' | 'avatar_url' | 'live'>;
     isStaged?: boolean;
 }) {
+    const isLive = Boolean(user.live);
+
     return (
-        <span className="flex rounded-full bg-card">
+        <span className="relative flex rounded-full bg-card">
             <span
                 className={cn(
                     'flex rounded-full border-2 border-(--lane) p-0.5 transition-[border-color,opacity] duration-200',
                     dimmedNode,
-                    { 'border-dashed': isStaged },
+                    { 'border-dashed': isStaged, 'border-red-600': isLive },
                 )}
             >
                 <UserAvatar user={user} className="size-10" />
             </span>
+            {isLive && (
+                <LiveAvatarMarker className="px-1 text-[9px] leading-3.5" />
+            )}
         </span>
     );
 }
@@ -197,7 +203,7 @@ export function RailSegment({
                     className={cn(
                         'absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2',
                         dimmable,
-                        { 'opacity-30': isDimmed },
+                        { 'opacity-60': isDimmed },
                     )}
                     style={{ background: lane }}
                 />

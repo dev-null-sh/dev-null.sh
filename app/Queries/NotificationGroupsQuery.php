@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Enums\NotificationType;
 use App\Models\Notification;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -45,6 +46,36 @@ final readonly class NotificationGroupsQuery
         $groups = $query->cursorPaginate($perPage)->appends(request()->except('through'));
 
         $this->loadStackedActors($groups->items());
+
+        return $groups;
+    }
+
+    /**
+     * The inbox shows a quote with the commit it quotes, which is always the recipient's own, so only the recipient's
+     * commits load there: a reply that quotes someone else never brings along a commit the recipient may not see.
+     *
+     * @param  CursorPaginator<int, Notification>  $groups
+     * @return CursorPaginator<int, Notification>
+     */
+    public function withQuotedCommits(User $user, CursorPaginator $groups): CursorPaginator
+    {
+        new Collection($groups->items())->loadMissing([
+            'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereBelongsTo($user),
+        ]);
+
+        return $groups;
+    }
+
+    /**
+     * A star is always on the recipient's own commit, so its images may show beside it: an image-only commit has nothing
+     * else to show.
+     *
+     * @param  CursorPaginator<int, Notification>  $groups
+     * @return CursorPaginator<int, Notification>
+     */
+    public function withStarredCommitImages(CursorPaginator $groups): CursorPaginator
+    {
+        new Collection($groups->items())->where('type', NotificationType::Starred)->loadMissing('commit.images');
 
         return $groups;
     }

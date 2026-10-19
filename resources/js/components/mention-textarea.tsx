@@ -19,7 +19,7 @@ type Trigger = {
 };
 
 type Suggestions = {
-    query: string;
+    key: string;
     users: User[];
 };
 
@@ -147,10 +147,11 @@ function positionFor(textarea: HTMLTextAreaElement, index: number): Position {
 
 async function fetchSuggestions(
     query: string,
+    org: string | undefined,
     signal: AbortSignal,
 ): Promise<User[]> {
     const response = await fetch(
-        MentionSuggestionController.index({ query: { q: query } }).url,
+        MentionSuggestionController.index({ query: { q: query, org } }).url,
         {
             headers: {
                 Accept: 'application/json',
@@ -167,7 +168,7 @@ async function fetchSuggestions(
     }
 
     const data = (await response.json()) as { users: User[] };
-    cache.set(query.toLowerCase(), data.users);
+    cache.set(`${org ?? ''}:${query.toLowerCase()}`, data.users);
 
     return data.users;
 }
@@ -209,7 +210,7 @@ function Highlighted({ text, query }: { text: string; query: string }) {
 /**
  * A textarea that suggests developers to mention as soon as "@" is typed, right under the "@", unless it doesn't
  * suggest mentions, suggests emoji for the ":shortcode" being typed, and turns emoji shortcodes into emoji as they
- * are typed.
+ * are typed. Within an org, it only suggests the org's members.
  */
 export function MentionTextarea({
     ref,
@@ -220,12 +221,14 @@ export function MentionTextarea({
     onBlur,
     maxLength,
     suggestsMentions = true,
+    org,
     ...props
 }: Omit<ComponentProps<'textarea'>, 'value' | 'onChange'> & {
     ref?: Ref<HTMLTextAreaElement>;
     value: string;
     onValueChange: (value: string) => void;
     suggestsMentions?: boolean;
+    org?: string;
 }) {
     const id = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -237,6 +240,7 @@ export function MentionTextarea({
 
     const query =
         trigger?.kind === 'mention' ? trigger.query.toLowerCase() : null;
+    const key = query === null ? null : `${org ?? ''}:${query}`;
 
     const setRefs = (element: HTMLTextAreaElement | null) => {
         textareaRef.current = element;
@@ -275,15 +279,15 @@ export function MentionTextarea({
     };
 
     useEffect(() => {
-        if (query === null || cache.has(query)) {
+        if (query === null || key === null || cache.has(key)) {
             return;
         }
 
         const controller = new AbortController();
         const timeout = setTimeout(
             () =>
-                fetchSuggestions(query, controller.signal)
-                    .then((users) => setResults({ query, users }))
+                fetchSuggestions(query, org, controller.signal)
+                    .then((users) => setResults({ key, users }))
                     .catch(() => undefined),
             query === '' ? 0 : debounce,
         );
@@ -292,7 +296,7 @@ export function MentionTextarea({
             clearTimeout(timeout);
             controller.abort();
         };
-    }, [query]);
+    }, [key, query, org]);
 
     useEffect(() => {
         if (!trigger) {
@@ -330,11 +334,10 @@ export function MentionTextarea({
             ?.scrollIntoView({ block: 'nearest' });
     }, [activeIndex]);
 
-    const cached = query === null ? undefined : cache.get(query);
-    const current =
-        query !== null && cached ? { query, users: cached } : results;
+    const cached = key === null ? undefined : cache.get(key);
+    const current = key !== null && cached ? { key, users: cached } : results;
     const suggestions =
-        query !== null && current?.query === query ? current.users : [];
+        key !== null && current?.key === key ? current.users : [];
     const emojiQuery =
         trigger?.kind === 'emoji' ? trigger.query.toLowerCase() : '';
     const emojis = emojiQuery === '' ? [] : searchEmoji(emojiQuery);
@@ -440,7 +443,7 @@ export function MentionTextarea({
           : suggestions[activeIndex] &&
             `${id}-mention-${suggestions[activeIndex].id}`;
 
-    const isSearching = current?.query !== query;
+    const isSearching = current?.key !== key;
     const listId =
         trigger?.kind === 'emoji' ? `${id}-emojis` : `${id}-mentions`;
 
@@ -563,12 +566,12 @@ export function MentionTextarea({
                                 aria-label="Mention a developer"
                                 className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
                             >
-                                {current?.query === '' && (
+                                {current?.key === `${org ?? ''}:` && (
                                     <li
                                         role="presentation"
                                         className="px-2.5 pt-1 pb-1.5 text-xs text-muted-foreground"
                                     >
-                                        People you follow
+                                        {org ? 'Members' : 'People you follow'}
                                     </li>
                                 )}
                                 {suggestions.map((user, index) => (

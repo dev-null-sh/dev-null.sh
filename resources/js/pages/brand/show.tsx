@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { Download } from 'lucide-react';
+import { Fragment } from 'react';
 import { toast } from 'sonner';
 import {
     DocumentList,
@@ -61,14 +62,40 @@ const backgrounds = [
         kind: 'banner',
         title: 'Profile banner',
         size: '1500 × 500',
-        aspect: 'aspect-[3/1]',
+        aspect: 'aspect-3/1',
     },
     {
         kind: 'social',
         title: 'Social card',
         size: '1200 × 630',
-        aspect: 'aspect-[1200/630]',
+        aspect: 'aspect-1200/630',
     },
+] as const;
+
+/**
+ * The wallpapers rendered by resources/scripts/brand-wallpapers.ts, each in light and dark, for desktops and phones.
+ */
+const wallpapers = [
+    {
+        kind: 'mark',
+        title: 'Mark',
+        description: 'The two slashes, alone.',
+    },
+    {
+        kind: 'redirect',
+        title: 'Redirect',
+        description: 'The one line every developer has typed.',
+    },
+    {
+        kind: 'log',
+        title: 'Log',
+        description: 'Our own history, as git prints it.',
+    },
+] as const;
+
+const wallpaperFormats = [
+    { kind: 'desktop', title: 'Desktop', size: '3840 × 2160' },
+    { kind: 'phone', title: 'Phone', size: '1290 × 2796' },
 ] as const;
 
 const colors = [
@@ -91,11 +118,20 @@ function asset(name: string, extension: 'svg' | 'png' | 'zip') {
     return `/images/brand/dev-null-${name}.${extension}`;
 }
 
-function DownloadLink({ href, children }: { href: string; children: string }) {
+function DownloadLink({
+    href,
+    title,
+    children,
+}: {
+    href: string;
+    title?: string;
+    children: string;
+}) {
     return (
         <a
             href={href}
             download
+            title={title}
             className="inline-flex h-7 items-center gap-1 rounded-md border bg-background px-2 font-mono text-xs text-foreground no-underline! transition-colors hover:bg-muted"
         >
             <Download aria-hidden className="size-3.5" />
@@ -131,6 +167,84 @@ function LogoVariant({ kind, theme }: { kind: string; theme: Theme }) {
                 <span className="flex gap-1.5">
                     <DownloadLink href={asset(name, 'svg')}>SVG</DownloadLink>
                     <DownloadLink href={asset(name, 'png')}>PNG</DownloadLink>
+                </span>
+            </figcaption>
+        </figure>
+    );
+}
+
+function Background({
+    background,
+    mode,
+}: {
+    background: (typeof backgrounds)[number];
+    mode: 'light' | 'dark';
+}) {
+    const name = `${background.kind}-${mode}`;
+
+    return (
+        <figure className="overflow-hidden rounded-lg border">
+            <img
+                src={asset(name, 'png')}
+                alt={`${background.title}, ${mode}`}
+                loading="lazy"
+                className={cn(
+                    'w-full bg-muted object-cover',
+                    background.aspect,
+                )}
+            />
+            <figcaption className="flex items-center justify-between gap-2 border-t bg-card px-3 py-2">
+                <span className="text-sm">
+                    {background.title}{' '}
+                    <span className="font-mono text-xs text-muted-foreground">
+                        {mode} · {background.size}
+                    </span>
+                </span>
+                <span className="flex gap-1.5">
+                    <DownloadLink href={asset(name, 'svg')}>SVG</DownloadLink>
+                    <DownloadLink href={asset(name, 'png')}>PNG</DownloadLink>
+                </span>
+            </figcaption>
+        </figure>
+    );
+}
+
+function Wallpaper({
+    kind,
+    title,
+    mode,
+}: {
+    kind: string;
+    title: string;
+    mode: 'light' | 'dark';
+}) {
+    return (
+        <figure className="overflow-hidden rounded-lg border">
+            <img
+                src={asset(`wallpaper-${kind}-${mode}-desktop-preview`, 'png')}
+                alt={`${title} wallpaper, ${mode}`}
+                loading="lazy"
+                width={1920}
+                height={1080}
+                className="aspect-video w-full bg-muted object-cover"
+            />
+            <figcaption className="flex flex-wrap items-center justify-between gap-2 border-t bg-card px-3 py-2">
+                <span className="text-sm text-muted-foreground">
+                    {themeLabels[mode]}
+                </span>
+                <span className="flex gap-1.5">
+                    {wallpaperFormats.map((format) => (
+                        <DownloadLink
+                            key={format.kind}
+                            href={asset(
+                                `wallpaper-${kind}-${mode}-${format.kind}`,
+                                'png',
+                            )}
+                            title={format.size}
+                        >
+                            {format.title}
+                        </DownloadLink>
+                    ))}
                 </span>
             </figcaption>
         </figure>
@@ -302,51 +416,51 @@ export default function Show() {
                 <DocumentSection id="backgrounds" title="Backgrounds">
                     <p>
                         The logo on a commit graph, for your desktop, your
-                        profile header, or a link preview.
+                        phone, your profile header, or a link preview.
                     </p>
                     <div className="space-y-4">
-                        {backgrounds.map((background) =>
-                            (['light', 'dark'] as const).map((mode) => {
-                                const name = `${background.kind}-${mode}`;
-
-                                return (
-                                    <figure
-                                        key={name}
-                                        className="overflow-hidden rounded-lg border"
-                                    >
-                                        <img
-                                            src={asset(name, 'png')}
-                                            alt={`${background.title}, ${mode}`}
-                                            loading="lazy"
-                                            className={cn(
-                                                'w-full bg-muted object-cover',
-                                                background.aspect,
-                                            )}
-                                        />
-                                        <figcaption className="flex items-center justify-between gap-2 border-t bg-card px-3 py-2">
-                                            <span className="text-sm">
-                                                {background.title}{' '}
-                                                <span className="font-mono text-xs text-muted-foreground">
-                                                    {mode} · {background.size}
+                        {backgrounds.map((background) => (
+                            <Fragment key={background.kind}>
+                                {(['light', 'dark'] as const).map((mode) => (
+                                    <Background
+                                        key={mode}
+                                        background={background}
+                                        mode={mode}
+                                    />
+                                ))}
+                                {background.kind === 'wallpaper' &&
+                                    wallpapers.map((design, index) => (
+                                        <div
+                                            key={design.kind}
+                                            id={
+                                                index === 0
+                                                    ? 'wallpapers'
+                                                    : undefined
+                                            }
+                                            className="scroll-mt-18 space-y-3"
+                                        >
+                                            <h3 className="font-medium">
+                                                {design.title}{' '}
+                                                <span className="font-normal text-muted-foreground">
+                                                    {design.description}
                                                 </span>
-                                            </span>
-                                            <span className="flex gap-1.5">
-                                                <DownloadLink
-                                                    href={asset(name, 'svg')}
-                                                >
-                                                    SVG
-                                                </DownloadLink>
-                                                <DownloadLink
-                                                    href={asset(name, 'png')}
-                                                >
-                                                    PNG
-                                                </DownloadLink>
-                                            </span>
-                                        </figcaption>
-                                    </figure>
-                                );
-                            }),
-                        )}
+                                            </h3>
+                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                {(
+                                                    ['dark', 'light'] as const
+                                                ).map((mode) => (
+                                                    <Wallpaper
+                                                        key={mode}
+                                                        kind={design.kind}
+                                                        title={design.title}
+                                                        mode={mode}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                            </Fragment>
+                        ))}
                     </div>
                 </DocumentSection>
 
@@ -374,8 +488,8 @@ export default function Show() {
                         ]}
                     />
                     <p className="text-muted-foreground">
-                        Tip: right-click the logo in the sidebar to come back
-                        here.
+                        Tip: right-click the logo in the sidebar for a shortcut
+                        back here.
                     </p>
                 </DocumentSection>
             </DocumentPage>

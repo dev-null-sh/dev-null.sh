@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import Index from '../../resources/js/pages/notification/index';
 import type { Commit, NotificationGroup, User } from '../../resources/js/types';
 
@@ -72,7 +73,11 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
             />
         ),
         render: renderToString,
-        setup: ({ App, props }) => <App {...props} />,
+        setup: ({ App, props }) => (
+            <TooltipProvider>
+                <App {...props} />
+            </TooltipProvider>
+        ),
     });
 
     assert.ok(result);
@@ -118,3 +123,30 @@ for (const isFollowing of [false, true]) {
         assert.doesNotMatch(body, /```/);
     });
 }
+
+void test('shows the image of a starred image-only commit beside who starred it', async () => {
+    const starred = {
+        ...notification,
+        type: 'starred',
+        actors_count: 3,
+        commit: {
+            id: 'image-only',
+            body: '',
+            body_segments: [],
+            images: [
+                {
+                    id: 'image',
+                    url: '/commit-images/image',
+                    width: 1200,
+                    height: 800,
+                    description: null,
+                },
+            ],
+        } as unknown as Omit<Commit, 'user'>,
+    } as NotificationGroup;
+    const body = (await render([starred])).replaceAll('<!-- -->', '');
+
+    assert.match(body, /and 2 others starred your image</);
+    assert.match(body, /<img[^>]*src="\/commit-images\/image"/);
+    assert.doesNotMatch(body, /<div[^>]*>(?:<div[^>]*>)*(?:<\/div>)+<\/a>/);
+});

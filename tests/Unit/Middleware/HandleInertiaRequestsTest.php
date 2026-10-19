@@ -236,6 +236,53 @@ it('shares no unread notifications for guests', function (): void {
     expect($shared['auth']['unreadNotificationsCount']())->toBe(0);
 });
 
+it('dims lanes by default or when enabled', function (string $cookie): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+
+    if ($cookie !== '') {
+        $request->cookies->set('lane_dimming', $cookie);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['dimsLanes'])->toBeTrue();
+})->with(['', 'true']);
+
+it('does not dim lanes when disabled', function (): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->cookies->set('lane_dimming', 'false');
+
+    $shared = $middleware->share($request);
+
+    expect($shared['dimsLanes'])->toBeFalse();
+});
+
+it('shows 3 replies at a time unless the user picked one of the other counts', function (string $cookie, int $count): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+
+    if ($cookie !== '') {
+        $request->cookies->set('replies_per_page', $cookie);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['repliesPerPage'])->toBe($count);
+})->with([
+    'default' => ['', 3],
+    'picked' => ['20', 20],
+    'one' => ['1', 1],
+    'not an option' => ['7', 3],
+    'garbage' => ['many', 3],
+    'garbage after an option' => ['10garbage', 3],
+    'an option as a decimal' => ['1.0', 3],
+]);
+
 it('does not share suggested users with guests', function (): void {
     $middleware = new HandleInertiaRequests();
 

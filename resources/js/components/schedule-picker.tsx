@@ -15,7 +15,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { useNow } from '@/hooks/use-now';
-import { cn } from '@/lib/utils';
+import { cn, dateLocale } from '@/lib/utils';
 
 export const maxScheduleDays = 30;
 
@@ -103,7 +103,7 @@ export function SchedulePicker({
                     <CalendarClock aria-hidden="true" />
                     {selected === undefined
                         ? 'Pick a date and time'
-                        : new Intl.DateTimeFormat(undefined, {
+                        : new Intl.DateTimeFormat(dateLocale, {
                               weekday: 'short',
                               month: 'short',
                               day: 'numeric',

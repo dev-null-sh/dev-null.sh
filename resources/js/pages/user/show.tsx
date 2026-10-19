@@ -21,8 +21,13 @@ import { ActivityStreaks } from '@/components/activity-streaks';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
+import {
+    LiveAvatarMarker,
+    LiveStreamTrigger,
+} from '@/components/live-stream-card';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
+import { ProfileActionsMenu } from '@/components/profile-actions-menu';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -30,7 +35,7 @@ import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
-import { laneColor } from '@/lib/utils';
+import { dateLocale, laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
     Activity,
@@ -110,12 +115,36 @@ export default function Show({
 
             <header className="border-b px-4 pt-6 pb-5 sm:px-6">
                 <div className="flex items-start justify-between gap-4">
-                    <UserAvatar
-                        user={user}
-                        className="size-20 text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
-                        pixels={160}
-                        style={{ '--lane': lane } as CSSProperties}
-                    />
+                    {user.live ? (
+                        <LiveStreamTrigger
+                            user={user}
+                            showProfile={false}
+                            className="flex"
+                        >
+                            <a
+                                href={user.live.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`Watch ${user.name} live on YouTube`}
+                                className="relative flex rounded-full"
+                                data-test="profile-live-avatar"
+                            >
+                                <UserAvatar
+                                    user={user}
+                                    className="size-20 text-2xl ring-2 ring-red-600 ring-offset-4 ring-offset-card"
+                                    pixels={160}
+                                />
+                                <LiveAvatarMarker className="-bottom-2.5" />
+                            </a>
+                        </LiveStreamTrigger>
+                    ) : (
+                        <UserAvatar
+                            user={user}
+                            className="size-20 text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
+                            pixels={160}
+                            style={{ '--lane': lane } as CSSProperties}
+                        />
+                    )}
 
                     <div className="flex shrink-0 gap-1.5 sm:gap-2">
                         <ProfileShareButton
@@ -123,16 +152,19 @@ export default function Show({
                             href={show(user).url}
                         />
                         {isCurrentUser ? (
-                            <Button variant="outline" asChild>
-                                <a
-                                    href="https://github.com/settings/profile"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    Edit on GitHub
-                                    <ArrowUpRight />
-                                </a>
-                            </Button>
+                            <>
+                                <ProfileActionsMenu user={user} />
+                                <Button variant="outline" asChild>
+                                    <a
+                                        href="https://github.com/settings/profile"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        Edit on GitHub
+                                        <ArrowUpRight />
+                                    </a>
+                                </Button>
+                            </>
                         ) : (
                             <>
                                 {auth.user && (
@@ -200,8 +232,8 @@ export default function Show({
                         onClick={() => setIsAchievementsOpen(true)}
                         className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] font-medium transition hover:brightness-110"
                         style={{
-                            borderColor: `${lane}40`,
-                            backgroundColor: `${lane}15`,
+                            borderColor: laneTint(lane, 25),
+                            backgroundColor: laneTint(lane, 8),
                             color: lane,
                         }}
                         title="View achievements and Unix rank"
@@ -213,7 +245,7 @@ export default function Show({
                 </div>
 
                 {user.bio && (
-                    <p className="mt-3 max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+                    <p className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap">
                         {user.bio}
                     </p>
                 )}
@@ -274,7 +306,7 @@ export default function Show({
                         <CalendarDays className="size-4" />
                         Joined{' '}
                         {new Date(user.created_at).toLocaleDateString(
-                            undefined,
+                            dateLocale,
                             { month: 'long', year: 'numeric' },
                         )}
                     </li>

@@ -573,7 +573,7 @@ it('hides deleted commits from profiles', function (): void {
 it('only shows top-level commits on profiles', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
     $parent = Commit::factory()->for($user)->create(['body' => 'Root']);
-    Commit::factory()->for($user)->for($parent, 'parent')->create();
+    Commit::factory()->for($parent, 'parent')->create();
 
     $response = $this->actingAs(User::factory()->create())
         ->get('/@octocat');
@@ -582,6 +582,20 @@ it('only shows top-level commits on profiles', function (): void {
         ->assertInertia(fn ($page) => $page
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'Root')
+            ->where('commits.data.0.replies_count', 1));
+});
+
+it('leaves the next commit of the author thread out of the reply count on profiles', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $parent = Commit::factory()->for($user)->create();
+    $next = Commit::factory()->for($user)->for($parent, 'parent')->create();
+    Commit::factory()->for($parent, 'parent')->create();
+
+    $this->actingAs(User::factory()->create())
+        ->get('/@octocat')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.continuation_id', $next->id)
             ->where('commits.data.0.replies_count', 1));
 });
 
@@ -626,7 +640,7 @@ it('preloads only replies visible to the profile visitor', function (): void {
     $viewer->muting()->attach($muted);
     $blocked->blocking()->attach($viewer);
     $parent = Commit::factory()->for($author)->create();
-    Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    $visible = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
     $ownPending = Commit::factory()->for($parent, 'parent')->for($viewer)->pending()->create(['created_at' => now()->subMinute()]);
     Commit::factory()->for($parent, 'parent')->pending()->create();
     Commit::factory()->for($parent, 'parent')->rejected()->create();
@@ -637,8 +651,10 @@ it('preloads only replies visible to the profile visitor', function (): void {
     $this->actingAs($viewer)->get(route('user.show', $author))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commits.data.0.replies_count', 2)
+        ->has('commits.data.0.reply_preview.data', 2)
         ->where('commits.data.0.reply_preview.data.0.id', $ownPending->id)
-        ->where('commits.data.0.reply_preview.next_cursor', fn (string $cursor): bool => $cursor !== '')
+        ->where('commits.data.0.reply_preview.data.1.id', $visible->id)
+        ->where('commits.data.0.reply_preview.next_cursor', null)
         ->missing('commits.data.0.reply_preview.data.0.user.email'));
 });
 

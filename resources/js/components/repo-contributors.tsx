@@ -122,7 +122,7 @@ export function RepoContributorsDialog({
                 }}
             >
                 <DialogContent
-                    className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+                    className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
                     onOpenAutoFocus={(event) => {
                         event.preventDefault();
                         (event.currentTarget as HTMLElement).focus();
@@ -294,7 +294,7 @@ export function RepoPeopleDialog({
             }}
         >
             <DialogContent
-                className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+                className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
                 data-test="repo-people"
             >
                 <form

@@ -28,6 +28,7 @@ export type XpBreakdown = {
     stars_received: XpMetric;
     replies: XpMetric;
     stars_given: XpMetric;
+    luddite: XpMetric;
 };
 
 export type Achievements = {

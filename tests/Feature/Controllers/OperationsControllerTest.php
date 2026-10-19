@@ -15,7 +15,6 @@ it('shows the operational health of the app to admins', function (): void {
     $admin = User::factory()->create(['username' => 'admin']);
 
     Commit::factory()->pending()->count(2)->create();
-    Commit::factory()->for(Commit::factory(), 'parent')->create();
     LinkPreview::factory()->create();
     LinkPreview::factory()->failed()->create();
     queuedJob('default', now()->subMinutes(5));
@@ -33,9 +32,7 @@ it('shows the operational health of the app to admins', function (): void {
             ->where('connectivity', ['database' => true, 'cache' => true])
             ->where('linkPreviews', ['pending' => 1, 'failed' => 1])
             ->where('pendingModerationCount', 2)
-            ->where('volume.signups', ['day' => 5, 'week' => 5])
-            ->where('volume.commits', ['day' => 3, 'week' => 3])
-            ->where('volume.replies', ['day' => 1, 'week' => 1])
+            ->where('hasTraffic', false)
             ->missing('githubRateLimit'));
 });
 
@@ -57,6 +54,15 @@ it('shows the GitHub rate limit when GitHub credentials are configured', functio
             ->loadDeferredProps(fn ($reload) => $reload
                 ->where('githubRateLimit.remaining', 4321)
                 ->where('githubRateLimit.limit', 5000)));
+});
+
+it('offers the traffic tab when a Fathom token is configured', function (): void {
+    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
+
+    $this->actingAs(User::factory()->create(['username' => 'admin']))
+        ->get(route('operations.show'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('hasTraffic', true));
 });
 
 it('is a 404 for non admins', function (): void {

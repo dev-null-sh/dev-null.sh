@@ -21,8 +21,9 @@ export function CommitBody({
 
     return (
         <div
+            data-commit-body
             className={cn(
-                'leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap',
+                'leading-relaxed wrap-break-word whitespace-pre-wrap',
                 className,
             )}
         >

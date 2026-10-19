@@ -5,12 +5,21 @@ import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
-import { FollowLabel, useFollowHover } from '@/components/follow-button';
+import {
+    FollowLabel,
+    onFollowHttpException,
+    useFollowHover,
+    useIsFollowing,
+} from '@/components/follow-button';
+import {
+    LiveAvatarMarker,
+    LiveStreamCard,
+} from '@/components/live-stream-card';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { toastWhenThrottled } from '@/lib/throttle';
-import { laneColor } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
 import { show as userPreview } from '@/routes/user-preview';
@@ -321,38 +330,49 @@ function UserPreviewContent({
     const lane = laneColor(user.lane);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        user,
+        data?.isFollowing ?? false,
+    );
 
+    const [pendingFollows, setPendingFollows] = useState<boolean | null>(null);
+    const shownIsFollowing = pendingFollows ?? isFollowing;
+
+    /**
+     * The button flips right away, but like every other follow control the shared state only changes once the server confirms, so there is nothing to roll back.
+     */
     const toggleFollow = () => {
-        if (!data || data.isUnavailable) {
+        if (!data || data.isUnavailable || pendingFollows !== null) {
             return;
         }
 
-        const previous = data;
-        const isFollowing = !data.isFollowing;
-
-        onChange({
-            ...data,
-            isFollowing,
-            user: {
-                ...data.user,
-                followers_count:
-                    data.user.followers_count + (isFollowing ? 1 : -1),
-            },
-        });
+        const follows = !isFollowing;
+        setPendingFollows(follows);
 
         router.visit(
-            isFollowing
+            follows
                 ? UserFollowController.store(user)
                 : UserFollowController.destroy(user),
             {
                 preserveScroll: true,
                 preserveState: true,
-                onError: () => onChange(previous),
-                onHttpException: (response) => {
-                    onChange(previous);
-
-                    return !toastWhenThrottled(response);
+                onSuccess: () => {
+                    setIsFollowing(follows);
+                    onChange({
+                        ...data,
+                        isFollowing: follows,
+                        user: {
+                            ...data.user,
+                            followers_count:
+                                data.user.followers_count +
+                                Number(follows) -
+                                Number(data.isFollowing),
+                        },
+                    });
                 },
+                onHttpException: (response) =>
+                    onFollowHttpException(user, response),
+                onFinish: () => setPendingFollows(null),
             },
         );
     };
@@ -360,11 +380,15 @@ function UserPreviewContent({
     return (
         <div style={{ '--lane': lane } as CSSProperties}>
             <div className="flex items-start justify-between gap-3">
-                <Link href={show(user)} className="rounded-full">
+                <Link href={show(user)} className="relative rounded-full">
                     <UserAvatar
                         user={user}
-                        className="size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover"
+                        className={cn(
+                            'size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover',
+                            { 'ring-red-600': user.live },
+                        )}
                     />
+                    {user.live && <LiveAvatarMarker className="ring-popover" />}
                 </Link>
 
                 {!isCurrentUser &&
@@ -383,7 +407,7 @@ function UserPreviewContent({
                                 <Button
                                     size="sm"
                                     variant={
-                                        data.isFollowing ? 'outline' : 'default'
+                                        shownIsFollowing ? 'outline' : 'default'
                                     }
                                     className="group/follow min-w-24"
                                     onClick={() => {
@@ -392,14 +416,15 @@ function UserPreviewContent({
                                     }}
                                     onMouseLeave={onMouseLeave}
                                     aria-label={
-                                        data.isFollowing
+                                        shownIsFollowing
                                             ? `Unfollow @${user.username}`
                                             : `Follow @${user.username}`
                                     }
+                                    aria-busy={pendingFollows !== null}
                                     data-test="user-preview-follow-button"
                                 >
                                     <FollowLabel
-                                        isFollowing={data.isFollowing}
+                                        isFollowing={shownIsFollowing}
                                         isJustToggled={isJustToggled}
                                     />
                                 </Button>
@@ -488,6 +513,12 @@ function UserPreviewContent({
                     <span className="my-0.5 h-4 w-48 rounded bg-muted-foreground/15 motion-safe:animate-pulse" />
                 )}
             </div>
+
+            {user.live && !data?.isUnavailable && (
+                <div className="mt-4 border-t pt-4">
+                    <LiveStreamCard user={user} stream={user.live} />
+                </div>
+            )}
         </div>
     );
 }

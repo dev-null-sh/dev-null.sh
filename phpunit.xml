@@ -35,5 +35,9 @@
         <env name="SIGNUP_REQUIRE_VERIFIED_EMAIL" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="OPENAI_API_KEY" value=""/>
+        <env name="OPENCODE_API_KEY" value="" force="true"/>
+        <server name="OPENCODE_API_KEY" value="" force="true"/>
+        <env name="FATHOM_API_TOKEN" value=""/>
     </php>
 </phpunit>

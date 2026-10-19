@@ -1,5 +1,7 @@
 import {
+    BotOff,
     Box,
+    Cookie,
     FileCode,
     Flame,
     GitMerge,
@@ -20,7 +22,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { cn, laneTint } from '@/lib/utils';
 import type { Achievements, Profile, User } from '@/types';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -35,6 +37,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     sparkles: Sparkles,
     'git-merge': GitMerge,
     key: Key,
+    cookie: Cookie,
+    'bot-off': BotOff,
 };
 
 export function AchievementsDialog({
@@ -71,8 +75,8 @@ export function AchievementsDialog({
                         <span
                             className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-medium text-foreground"
                             style={{
-                                borderColor: `${lane}40`,
-                                backgroundColor: `${lane}15`,
+                                borderColor: laneTint(lane, 25),
+                                backgroundColor: laneTint(lane, 8),
                             }}
                         >
                             Lv. {achievements.level} · {achievements.rank}
@@ -278,7 +282,7 @@ export function AchievementsDialog({
                 {/* Dry Unix XP Formula Footnote */}
                 <p className="border-t pt-2 text-center font-mono text-[11px] text-muted-foreground">
                     XP: 10/commit · 15/day streak · 5/star received · 5/reply ·
-                    2/star given
+                    2/star given · −100/luddite (minimum 0 XP)
                 </p>
             </DialogContent>
         </Dialog>

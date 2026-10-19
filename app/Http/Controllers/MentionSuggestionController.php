@@ -15,7 +15,7 @@ final readonly class MentionSuggestionController
     public function index(#[CurrentUser] User $user, ListMentionSuggestionsRequest $request, MentionSuggestionsQuery $suggestions): JsonResponse
     {
         return response()->json([
-            'users' => $suggestions->get($user, $request->string('q')->value()),
+            'users' => $suggestions->get($user, $request->string('q')->value(), $request->org()),
         ]);
     }
 }
