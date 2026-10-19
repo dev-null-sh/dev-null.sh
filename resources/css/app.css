@@ -294,7 +294,8 @@ html body[data-scroll-locked] {
 
 ::view-transition-group(*.tab-header),
 ::view-transition-group(mobile-nav),
-::view-transition-group(toasts) {
+::view-transition-group(toasts),
+::view-transition-group(achievement-toasts) {
     animation-duration: 160ms;
 }
 
@@ -331,7 +332,8 @@ html body[data-scroll-locked] {
     z-index: 4;
 }
 
-::view-transition-group(toasts) {
+::view-transition-group(toasts),
+::view-transition-group(achievement-toasts) {
     z-index: 5;
 }
 
@@ -343,6 +345,10 @@ html body[data-scroll-locked] {
 
 [data-sonner-toaster] {
     view-transition-name: toasts;
+}
+
+[data-sonner-toaster].toaster-achievements {
+    view-transition-name: achievement-toasts;
 }
 
 @media (pointer: coarse) {
