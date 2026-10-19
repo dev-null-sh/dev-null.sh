@@ -26,6 +26,7 @@ import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
+import { useCommitTranslation } from '@/components/commit-translation';
 import {
     ComposerPreviewBody,
     PreviewToggle,
@@ -785,6 +786,7 @@ function CommitReply({
 }) {
     const { auth } = usePage().props;
     const now = useNow();
+    const { bodyRef, ...translation } = useCommitTranslation(reply);
     const [isConfirming, setIsConfirming] = useState(false);
     const request = useHttp<Record<string, never>, { deleted: DeletedFlash }>(
         {},
@@ -928,12 +930,15 @@ function CommitReply({
                         </p>
                     )}
 
-                    <FoldedCommitBody
-                        segments={reply.body_segments}
-                        mentions={reply.mentions}
-                        previewSegments={reply.preview_segments}
-                        className="text-[15px]"
-                    />
+                    <div ref={bodyRef} style={translation.bodyStyle}>
+                        <FoldedCommitBody
+                            segments={translation.segments}
+                            mentions={reply.mentions}
+                            previewSegments={translation.previewSegments}
+                            className="text-[15px]"
+                        />
+                    </div>
+                    {translation.notice}
                     <CommitImages commit={reply} />
                     {reply.link_preview && (
                         <LinkPreview
@@ -980,6 +985,7 @@ function CommitReply({
                                         commit={reply}
                                         className="px-2 py-0.5"
                                     />
+                                    {translation.button}
                                 </>
                             }
                         />

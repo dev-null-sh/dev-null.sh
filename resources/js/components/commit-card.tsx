@@ -18,6 +18,7 @@ import {
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
+import { useCommitTranslation } from '@/components/commit-translation';
 import {
     GraphRail,
     RailAvatar,
@@ -102,6 +103,7 @@ export function CommitCard({
         component,
     } = usePage();
     const now = useNow();
+    const { bodyRef, ...translation } = useCommitTranslation(commit);
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const deleteButtonRef = useRef<HTMLButtonElement>(null);
     const thread = useThread(
@@ -326,19 +328,24 @@ export function CommitCard({
                                     replying to @{commit.parent.user.username}
                                 </Link>
                             )}
-                            <FoldedCommitBody
-                                segments={commit.body_segments}
-                                mentions={commit.mentions}
-                                previewSegments={
-                                    isFolded && !isFocused
-                                        ? commit.preview_segments
-                                        : null
-                                }
-                                className={cn(
-                                    'mt-0.5',
-                                    isFocused ? 'text-[17px]' : 'text-[15px]',
-                                )}
-                            />
+                            <div ref={bodyRef} style={translation.bodyStyle}>
+                                <FoldedCommitBody
+                                    segments={translation.segments}
+                                    mentions={commit.mentions}
+                                    previewSegments={
+                                        isFolded && !isFocused
+                                            ? translation.previewSegments
+                                            : null
+                                    }
+                                    className={cn(
+                                        'mt-0.5',
+                                        isFocused
+                                            ? 'text-[17px]'
+                                            : 'text-[15px]',
+                                    )}
+                                />
+                            </div>
+                            {translation.notice}
                             {showImages && <CommitImages commit={commit} />}
                             {commit.poll && (
                                 <CommitPoll
@@ -387,8 +394,8 @@ export function CommitCard({
                             {!isFocused && <ShowThreadLink commit={commit} />}
 
                             {commit.replies_count === undefined ? (
-                                <div className="mt-1 -ml-2 flex items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">
-                                    <div className="flex items-center gap-0.5">
+                                <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">
+                                    <div className="flex flex-wrap items-center gap-0.5">
                                         <CommitStarButton
                                             commit={commit}
                                             className="px-2 py-0.5"
@@ -401,6 +408,7 @@ export function CommitCard({
                                             commit={commit}
                                             keyShortcut="q"
                                         />
+                                        {translation.button}
                                     </div>
                                     <CommitSecondaryActions commit={commit} />
                                 </div>
@@ -422,6 +430,7 @@ export function CommitCard({
                                                 commit={commit}
                                                 keyShortcut="q"
                                             />
+                                            {translation.button}
                                             {threadActions}
                                         </>
                                     }

@@ -15,6 +15,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Following, Latest, and Trending logs](#following-latest-and-trending-logs)
   - [Searching developers and commits](#searching-developers-and-commits)
   - [Writing commits](#writing-commits)
+  - [Translating commits](#translating-commits)
   - [Code, emoji, and mentions](#code-emoji-and-mentions)
   - [Draft previews and secret warnings](#draft-previews-and-secret-warnings)
   - [Stashed drafts](#stashed-drafts)
@@ -117,6 +118,14 @@ A **commit** is a post on /dev/null, not a Git commit in a repository. Open the 
 Commits, replies, and terminal submissions share a limit of 10 submissions per minute per user. Posts go through moderation, so a newly submitted commit may be pending rather than public immediately.
 
 Sources: [composer](resources/js/components/commit-composer.tsx), [commit model](app/Models/Commit.php), [commit validation](app/Http/Requests/CreateCommitRequest.php), [submission throttle](app/Http/Middleware/ThrottleCommits.php).
+
+### Translating commits
+
+Public commits and replies offer **Translate** when their detected language differs from the browser's preferred language. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.
+
+DeepSeek through OpenCode translates only the post text. The result replaces its displayed text, with **Translated from [language]** and **Show original** to switch back; the original post is never changed. Cached translations are included on subsequent page loads, including for guests. Exact duplicate text shares translations across authors using a SHA-256 content key, with separate text for each target language. The cache expires seven days after its creation, without extending on reads or additional target languages. The database cache is physically pruned hourly; Redis expires entries itself. Deleting a post or account evicts its shared translations, which surviving duplicates can generate again. No private messages are translated.
+
+Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController.php), [agent](app/Ai/Agents/CommitTranslator.php), [cache](app/Services/CommitTranslations.php), [controls](resources/js/components/commit-translation.tsx).
 
 ### Code, emoji, and mentions
 
@@ -397,7 +406,7 @@ Sources: [greeting matching](app/Services/HelloWorld.php), [world reply](app/Act
 | Asset tooling | **Vite+ / Vite** builds frontend assets; **Bun** manages frontend dependencies and runs scripts. |
 | PHP dependencies | **Composer** manages backend dependencies. |
 | Testing and quality | **Pest**, **PHPStan / Larastan**, **TypeScript**, **Laravel Pint**, **Rector**, and frontend formatting and linting through **Vite+**. |
-| AI services | **Laravel AI SDK** runs Tom with **DeepSeek Flash** through **OpenCode Zen** and generates and caches semantic search query embeddings through **OpenAI**. The existing OpenAI integration handles batch embeddings, commit relevance checks, and moderation. |
+| AI services | **Laravel AI SDK** runs Tom and public-post translation with **DeepSeek Flash** through **OpenCode Zen** and generates and caches semantic search query embeddings through **OpenAI**. The existing OpenAI integration handles batch embeddings, commit relevance checks, and moderation. |
 
 The repository defaults to database-backed queues, cache, and sessions. File storage is configurable, with local and S3-compatible storage supported. These are repository defaults and supported options, not a claim about every production environment setting.
 
