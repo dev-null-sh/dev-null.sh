@@ -19,7 +19,8 @@ final class CreateCommitTranslationRequest extends FormRequest
         $commit = $this->route('commit');
         assert($commit instanceof Commit);
 
-        return $commit->status === CommitStatus::Approved && $commit->isVisibleTo($this->user())
+        return (($commit->status === CommitStatus::Approved && $commit->isVisibleTo($this->user()))
+            || ($commit->status === CommitStatus::Pending && $this->user()?->isAdmin()))
             && $commit->body !== '' && resolve(CommitTranslations::class)->enabled()
             ? Response::allow() : Response::denyAsNotFound();
     }
