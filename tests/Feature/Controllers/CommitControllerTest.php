@@ -61,7 +61,7 @@ it('flashes only the badge the new commit unlocked', function (): void {
     $response->assertInertiaFlash('achievementsUnlocked', ['syntax']);
 });
 
-it('does not count the authenticated user relations when redirecting after a commit', function (): void {
+it('does not count the authenticated user follows when redirecting after a commit', function (): void {
     $user = User::factory()->create();
 
     DB::enableQueryLog();
@@ -76,7 +76,7 @@ it('does not count the authenticated user relations when redirecting after a com
 
     expect(array_column(DB::getQueryLog(), 'query'))
         ->not->toBeEmpty()
-        ->each->not->toContain('"follows"');
+        ->each->not->toContain('select count(*) as "aggregate" from "follows"');
 });
 
 it('rejects non-text commit bodies with a validation error', function (mixed $body): void {

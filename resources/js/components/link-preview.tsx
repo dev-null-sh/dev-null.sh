@@ -146,7 +146,7 @@ export function LinkPreview({
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     onError={() => setIsImageBroken(true)}
-                    className="my-2 ml-2 size-20 shrink-0 rounded-md bg-muted object-cover"
+                    className="my-2 ml-2 size-20 shrink-0 rounded-md bg-muted object-contain"
                 />
             )}
 

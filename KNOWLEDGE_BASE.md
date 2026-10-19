@@ -67,7 +67,6 @@ This file documents the platform's features, stack, and stories. Feature entries
 ## Repository
 
 - **Root / upstream repository:** [nunomaduro/dev-null.sh](https://github.com/nunomaduro/dev-null.sh).
-- **This fork:** [paulinevos/dev-null.sh](https://github.com/paulinevos/dev-null.sh).
 - **Setup and development:** [README](README.md).
 - **Product terminology and behavior:** [Product guide](PRODUCT.md).
 
@@ -496,6 +495,8 @@ The livestream team included:
 - **Pauline Vos** — [@paulinevos](https://github.com/paulinevos).
 
 They built live from the JetBrains office, with community contributions becoming part of the project.
+**Márk Magyar** [@xHeaven](https://github.com/xHeaven) was later added to the core development team, due to the large amount of valuable contributions
+he made to the project during the livestream. Most contributions from those two days came from him.
 
 Watch the livestreams:
 
@@ -528,7 +529,7 @@ During the livestream, **Fernando Andrade — [@fernandofreamunde](https://dev-n
 
 On [day two at 5:47:37](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=20857s), the team reads the message that he is downstairs with the pastries and arranges to meet him. At [5:58:16](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=21496s), they thank Fernando and describe the Portuguese treats he brought. Earlier, at [5:34:42](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=20082s), they had suggested dedicating a feature to the pastries, floating achievement badges. That was an idea, not the implementation of Pastéis mode.
 
-Another possible precursor appears on [day two at 7:18:53](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=26333s): the team discusses a single custom emoji, a daily allowance, and giving multiple rewards, then defers it with “Not today.” The captions garble the proposed icon's name, so its connection to Pastéis mode remains tentative rather than a confirmed origin or implementation date.
+Another possible precursor appears on [day two at 7:18:53](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=26333s): the team discusses a single custom emoji, a daily allowance, and giving multiple rewards, then defers it with “Not today.”
 
 The **pastel emoji** and **Pastéis mode** are a tribute to Fernando and that delivery. A real-world act of feeding the team became part of the platform's shared lore.
 
@@ -543,7 +544,7 @@ Sources:
 
 ### The pushup break
 
-The development stream also had an impromptu pushup break. On [day two at 2:16:46](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=8206s), a call for ten pushups interrupts a discussion of image moderation. Counting and laughter follow, then someone asks, “Why are we doing push-ups?” at [2:17:14](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=8234s). It is a livestream moment, not a product feature; the captions do not establish how many pushups anyone completed.
+The development stream also had an impromptu pushup break. On [day two at 2:16:46](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=8206s), a call for ten pushups interrupts a discussion of image moderation. Counting and laughter follow, then Pauline asks, “Why are we doing push-ups?” at [2:17:14](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=8234s). @nunomaduro and @paulinevos each proceeded to do ten push-ups. It is a livestream moment, not a product feature.
 
 ### The codename that stuck
 

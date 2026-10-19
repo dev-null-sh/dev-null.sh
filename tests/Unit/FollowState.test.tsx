@@ -189,6 +189,18 @@ function followFromProfile(user: SuggestedUser): void {
     (profileButton.props.onSuccess as () => void)();
 }
 
+test('a suggestion who follows you offers to follow back, at a width that fits it', () => {
+    const user = { ...suggestion('freek'), follows_you: true };
+    const button = find(
+        SuggestedUserRow({ user }),
+        (props) => props['data-test'] === 'suggested-follow-button',
+    );
+
+    assert.equal(suggestionLabel(user), 'Follow back @freek');
+    assert.match(String(button?.props.className), /\bmin-w-26\b/);
+    assert.equal(suggestionLabel(suggestion('jess')), 'Follow @jess');
+});
+
 test('a follow from their profile shows in who to follow', () => {
     const user = suggestion('taylor');
 
