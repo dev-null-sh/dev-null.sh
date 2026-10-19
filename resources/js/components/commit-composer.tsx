@@ -50,6 +50,7 @@ import {
 } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
+import type { IssueKind } from '@/lib/issue-commands';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import {
     characterCount,
@@ -553,10 +554,12 @@ function CommitComposerBody({
 export function CommitComposer({
     id = 'body',
     isInDialog = false,
+    issue: initialIssue = null,
     onCommitted,
 }: {
     id?: string;
     isInDialog?: boolean;
+    issue?: IssueKind | null;
     onCommitted?: () => void;
 }) {
     const schedule = useCommitSchedule();
@@ -602,6 +605,7 @@ export function CommitComposer({
             poll === null &&
             !isScheduling,
         hasSecrets: secrets.findings.length > 0,
+        initialKind: initialIssue,
         onCreated: () => {
             drop();
             focusBody(id);

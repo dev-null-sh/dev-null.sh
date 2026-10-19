@@ -34,15 +34,19 @@ export function useIssueCommand({
     updateBody,
     enabled,
     hasSecrets,
+    initialKind = null,
     onCreated,
 }: {
     body: string;
     updateBody: (body: string) => void;
     enabled: boolean;
     hasSecrets: boolean;
+    initialKind?: IssueKind | null;
     onCreated: () => void;
 }) {
-    const [kind, setKind] = useState<IssueKind | null>(null);
+    const [kind, setKind] = useState<IssueKind | null>(
+        enabled ? initialKind : null,
+    );
     const [selected, setSelected] = useState(0);
     const [dismissed, setDismissed] = useState(false);
     const [focused, setFocused] = useState(false);
