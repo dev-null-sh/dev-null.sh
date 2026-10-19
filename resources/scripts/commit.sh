@@ -15,7 +15,9 @@
 #
 # What this script does, and nothing else:
 #   1. Lists your public keys (`ssh-add -L` and ~/.ssh/*.pub) and asks /dev/null which one is
-#      on your GitHub account. Public keys are public: GitHub publishes them too.
+#      on your GitHub account. Public keys are public: GitHub publishes them too. Besides
+#      $SSH_AUTH_SOCK, it asks the agent that ~/.ssh/config sets for GitHub with IdentityAgent
+#      (1Password, Secretive...), as `ssh -F ~/.ssh/config -G` resolves it.
 #   2. Signs your message (and the SHA-256 of each image) with that key, using `ssh-keygen -Y sign`
 #      with the "devnull-commit" namespace ("devnull-commit-images" when images are attached): the
 #      signature is only valid for /dev/null commits, it can't be used to sign git commits or to
@@ -119,6 +121,11 @@ main() {
   trap 'exit 130' HUP INT TERM
 
   # 1. Find a local key that is on the GitHub account of a /dev/null user.
+  local agent
+  AGENTS=("${SSH_AUTH_SOCK:-}")
+  agent="$(ssh -F "$HOME/.ssh/config" -G git@github.com < /dev/null 2> /dev/null | awk '$1 == "identityagent" { sub(/^identityagent /, ""); print; exit }')" || true
+  [ ! -S "$agent" ] || AGENTS+=("$agent")
+
   local public_key
   {
     agent_keys
@@ -137,11 +144,16 @@ main() {
   grep -qxF -- "$key" "$TMP_DIR/candidates" || fail "Unexpected answer from $DEVNULL_URL."
 
   # 2. Sign with that key: through the agent if it has it, otherwise with the private key file.
-  local signing_key=""
-  if agent_keys | key_id | grep -qxF -- "$key"; then
-    signing_key="$TMP_DIR/key.pub"
-    printf '%s\n' "$key" > "$signing_key"
-  else
+  local signing_key="" signing_agent="${SSH_AUTH_SOCK:-}"
+  for agent in "${AGENTS[@]}"; do
+    if SSH_AUTH_SOCK="$agent" ssh-add -L 2> /dev/null | key_id | grep -qxF -- "$key"; then
+      signing_agent="$agent"
+      signing_key="$TMP_DIR/key.pub"
+      printf '%s\n' "$key" > "$signing_key"
+      break
+    fi
+  done
+  if [ -z "$signing_key" ]; then
     for public_key in "$HOME"/.ssh/*.pub; do
       if [ -f "$public_key" ] && [ "$(head -n 1 -- "$public_key" | key_id)" = "$key" ]; then
         signing_key="${public_key%.pub}"
@@ -173,7 +185,7 @@ main() {
   fi
 
   # Passphrase prompts go to /dev/tty: keep ssh-keygen away from stdin, which is this script.
-  if ! ssh-keygen -Y sign -n "$NAMESPACE" -f "$signing_key" "$TMP_DIR/commit" < /dev/null 2> "$TMP_DIR/ssh-keygen.log"; then
+  if ! SSH_AUTH_SOCK="$signing_agent" ssh-keygen -Y sign -n "$NAMESPACE" -f "$signing_key" "$TMP_DIR/commit" < /dev/null 2> "$TMP_DIR/ssh-keygen.log"; then
     sanitize < "$TMP_DIR/ssh-keygen.log" >&2
     fail "Could not sign your commit with $signing_key."
   fi
@@ -256,7 +268,10 @@ key_id() {
 }
 
 agent_keys() {
-  ssh-add -L 2> /dev/null | grep -E '^(ssh-ed25519|ssh-rsa) ' || true
+  local agent
+  for agent in "${AGENTS[@]}"; do
+    SSH_AUTH_SOCK="$agent" ssh-add -L 2> /dev/null | grep -E '^(ssh-ed25519|ssh-rsa) ' || true
+  done
 }
 
 main "$@"
