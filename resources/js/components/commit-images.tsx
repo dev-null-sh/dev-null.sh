@@ -126,10 +126,10 @@ function CommitImageThumbnail({
 type CommitImagesProps =
     | { commit: Commit; images?: never; onOpen?: never }
     | {
-        commit?: never;
-        images: ShownImage[];
-        onOpen?: (index: number) => void;
-    };
+          commit?: never;
+          images: ShownImage[];
+          onOpen?: (index: number) => void;
+      };
 
 const isModifiedClick = (event: MouseEvent): boolean =>
     event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
