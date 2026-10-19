@@ -11,6 +11,14 @@ use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
 use App\Http\Controllers\CommitContinuationController;
 use App\Http\Controllers\CommitController;
+use App\Http\Controllers\BranchClaimApprovalController;
+use App\Http\Controllers\BranchClaimController;
+use App\Http\Controllers\BranchClaimRejectionController;
+use App\Http\Controllers\BranchClaimRequestController;
+use App\Http\Controllers\BranchDescriptionController;
+use App\Http\Controllers\BranchMemberCandidateController;
+use App\Http\Controllers\BranchMemberController;
+use App\Http\Controllers\BranchTransferController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchSuggestionController;
 use App\Http\Controllers\BranchWatchController;
@@ -374,6 +382,44 @@ Route::middleware('auth')->group(function (): void {
     Route::put('branches/{branch}/watch', [BranchWatchController::class, 'store'])
         ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
         ->name('branch-watch.store');
+    Route::get('branches/{branch}/settings', [BranchController::class, 'edit'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch.settings');
+    Route::post('branches/{branch}/claim', [BranchClaimController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-claim.store');
+    Route::delete('branches/{branch}/claim', [BranchClaimController::class, 'destroy'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-claim.destroy');
+    Route::post('branches/{branch}/transfer', [BranchTransferController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-transfer.store');
+    Route::put('branches/{branch}/description', [BranchDescriptionController::class, 'update'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-description.update');
+    Route::get('branches/{branch}/members/candidates', [BranchMemberCandidateController::class, 'index'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-member-candidate.index');
+    Route::post('branches/{branch}/members', [BranchMemberController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-member.store');
+    Route::put('branches/{branch}/members/{member:username}', [BranchMemberController::class, 'update'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->withoutScopedBindings()
+        ->name('branch-member.update');
+    Route::delete('branches/{branch}/members/{member:username}', [BranchMemberController::class, 'destroy'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->withoutScopedBindings()
+        ->name('branch-member.destroy');
+    Route::get('moderation/claims', [BranchClaimRequestController::class, 'index'])
+        ->name('branch-claim-request.index');
+    Route::post('moderation/claims/{branch}/approve', [BranchClaimApprovalController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-claim-approval.store');
+    Route::post('moderation/claims/{branch}/reject', [BranchClaimRejectionController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-claim-rejection.store');
+
     Route::delete('branches/{branch}/watch', [BranchWatchController::class, 'destroy'])
         ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
         ->name('branch-watch.destroy');

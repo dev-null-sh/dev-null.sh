@@ -27,9 +27,9 @@ type PreviewData = {
     isMuting: boolean;
     isBlocking: boolean;
 } & (
-    | { isUnavailable: false; user: Profile }
-    | { isUnavailable: true; user: User }
-);
+        | { isUnavailable: false; user: Profile }
+        | { isUnavailable: true; user: User }
+    );
 
 type Position =
     | { left: number; top: number; bottom?: never }
@@ -97,6 +97,7 @@ export function UserPreview({
     children,
     className,
     anchor,
+    badge,
     onHoverChange,
 }: {
     user: User | Pick<User, 'username'>;
@@ -104,6 +105,7 @@ export function UserPreview({
     children: ReactNode;
     className?: string;
     anchor?: RefObject<HTMLElement | null>;
+    badge?: ReactNode;
     onHoverChange?: (isHovering: boolean) => void;
 }) {
     const previewUrl = userId ? preview(userId).url : userPreview(user).url;
@@ -290,6 +292,7 @@ export function UserPreview({
                         <UserPreviewContent
                             user={previewUser}
                             data={data}
+                            badge={badge}
                             onChange={(next) => {
                                 cache.set(previewUrl, next);
                                 setData(next);
@@ -313,11 +316,13 @@ export function UserPreview({
 function UserPreviewContent({
     user,
     data,
+    badge,
     onChange,
     onMenuOpenChange,
 }: {
     user: User | Profile;
     data: PreviewData | null;
+    badge?: ReactNode;
     onChange: (data: PreviewData) => void;
     onMenuOpenChange: (isOpen: boolean) => void;
 }) {
@@ -433,19 +438,24 @@ function UserPreviewContent({
             >
                 {user.name}
             </Link>
-            <p className="flex items-center gap-1.5 font-mono text-[13px] text-muted-foreground">
+            <p className="flex flex-wrap items-center gap-1.5 font-mono text-[13px] text-muted-foreground">
                 <span
                     aria-hidden
                     className="size-2 shrink-0 rounded-full bg-(--lane)"
                 />
                 <span className="truncate">@{user.username}</span>
+                {badge ? (
+                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs text-foreground">
+                        {badge}
+                    </span>
+                ) : null}
                 {data?.followsYou && (
-                    <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Follows you
                     </span>
                 )}
                 {data?.isMuting && (
-                    <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Muted
                     </span>
                 )}

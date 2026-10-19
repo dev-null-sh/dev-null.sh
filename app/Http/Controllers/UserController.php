@@ -14,6 +14,7 @@ use App\Queries\PinnedCommitQuery;
 use App\Queries\PushAccessQuery;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
+use App\Queries\UserBranchesQuery;
 use App\Queries\UserCommitsQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
@@ -28,7 +29,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, UserBranchesQuery $branches, PinnedCommitQuery $pinned, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -62,10 +63,17 @@ final readonly class UserController
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
             'tab' => $request->tab(...),
-            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' ? null : $pinned->get($user, $currentUser),
-            'commits' => Inertia::scroll(fn () => $commits->builder($user, $currentUser, $request->tab() === 'replies')
-                ->cursorPaginate(20)
-                ->appends(['tab' => $request->tab()])),
+            'branches' => fn (): array => $branches->get($user),
+            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null,
+            'commits' => Inertia::scroll(function () use ($commits, $user, $currentUser, $request) {
+                if ($request->tab() === 'branches') {
+                    return Commit::query()->whereKey([])->cursorPaginate(20);
+                }
+
+                return $commits->builder($user, $currentUser, $request->tab() === 'replies')
+                    ->cursorPaginate(20)
+                    ->appends(['tab' => $request->tab()]);
+            }),
         ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->user($getCountedUser())]);
     }
 

@@ -1,6 +1,7 @@
 import { Form, Head, Link, usePage } from '@inertiajs/react';
 import { BadgeCheck, Eye, EyeOff, GitBranch } from 'lucide-react';
 import { useState } from 'react';
+import BranchClaimController from '@/actions/App/Http/Controllers/BranchClaimController';
 import BranchController from '@/actions/App/Http/Controllers/BranchController';
 import BranchWatchController from '@/actions/App/Http/Controllers/BranchWatchController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
@@ -138,6 +139,14 @@ export default function Show({
 }) {
     const { auth, errors: pageErrors } = usePage().props;
     const user = auth.user;
+    const showClaim =
+        user !== null && !branch.is_owned && branch.can_claim;
+    const showOwnPendingClaim =
+        user !== null &&
+        !branch.is_owned &&
+        branch.claim_pending &&
+        branch.claim_requested_by_viewer;
+    const showOthersPendingClaim =
         user !== null &&
         !branch.is_owned &&
         branch.claim_pending &&
@@ -148,6 +157,8 @@ export default function Show({
         !branch.can_claim &&
         !branch.claim_pending &&
         branch.org_locked;
+    const hasClaimErrors = Boolean(pageErrors.branch);
+    const [claimOpen, setClaimOpen] = useState(hasClaimErrors);
 
     return (
         <>
@@ -226,7 +237,135 @@ export default function Show({
                                     )}
                                 </Form>
                             )}
-                                                                                                                {showOrgLocked && (
+                            {showClaim && (
+                                <Popover
+                                    open={claimOpen || hasClaimErrors}
+                                    onOpenChange={setClaimOpen}
+                                >
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1.5 border-amber-500/35 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600 dark:text-amber-400 dark:hover:bg-amber-400/10 dark:hover:text-amber-400"
+                                            data-test="branch-claim-toggle"
+                                        >
+                                            <BadgeCheck
+                                                className="size-4 fill-amber-400/25 text-amber-500 dark:fill-amber-400/20 dark:text-amber-400"
+                                                strokeWidth={1.75}
+                                            />
+                                            Claim
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                        align="end"
+                                        className="w-80 space-y-3"
+                                    >
+                                        <Form
+                                            {...BranchClaimController.store.form(
+                                                branch.name,
+                                            )}
+                                            className="space-y-3"
+                                        >
+                                            {({ processing, errors }) => (
+                                                <>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Request ownership of #
+                                                        {branch.name}. A
+                                                        moderator must approve
+                                                        before you become a
+                                                        maintainer. Domain
+                                                        verification is optional
+                                                        afterward.
+                                                    </p>
+                                                    <Button
+                                                        type="submit"
+                                                        disabled={processing}
+                                                    >
+                                                        Request ownership
+                                                    </Button>
+                                                    {errors.branch && (
+                                                        <p className="text-sm text-destructive">
+                                                            {errors.branch}
+                                                        </p>
+                                                    )}
+                                                </>
+                                            )}
+                                        </Form>
+                                    </PopoverContent>
+                                </Popover>
+                            )}
+                            {showOwnPendingClaim && (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-1.5 border-amber-500/35 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600 dark:text-amber-400 dark:hover:bg-amber-400/10 dark:hover:text-amber-400"
+                                            data-test="branch-claim-pending"
+                                        >
+                                            <BadgeCheck
+                                                className="size-4 fill-amber-400/25 text-amber-500 dark:fill-amber-400/20 dark:text-amber-400"
+                                                strokeWidth={1.75}
+                                            />
+                                            Pending
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                        align="end"
+                                        className="w-80 space-y-3"
+                                    >
+                                        <p className="text-sm text-muted-foreground">
+                                            Your ownership request for #
+                                            {branch.name} is waiting for
+                                            moderator review.
+                                        </p>
+                                        <Form
+                                            {...BranchClaimController.destroy.form(
+                                                branch.name,
+                                            )}
+                                        >
+                                            {({ processing }) => (
+                                                <Button
+                                                    type="submit"
+                                                    variant="outline"
+                                                    disabled={processing}
+                                                >
+                                                    Cancel request
+                                                </Button>
+                                            )}
+                                        </Form>
+                                    </PopoverContent>
+                                </Popover>
+                            )}
+                            {showOthersPendingClaim && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="inline-flex">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled
+                                                className="gap-1.5 border-amber-500/35 text-amber-600 dark:text-amber-400"
+                                                data-test="branch-claim-pending-other"
+                                            >
+                                                <BadgeCheck
+                                                    className="size-4 fill-amber-400/25 text-amber-500 dark:fill-amber-400/20 dark:text-amber-400"
+                                                    strokeWidth={1.75}
+                                                />
+                                                Pending
+                                            </Button>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-56 text-left">
+                                        Someone already requested ownership of #
+                                        {branch.name}.
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
+                            {showOrgLocked && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <span className="inline-flex">

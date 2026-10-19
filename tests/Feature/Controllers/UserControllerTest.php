@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Enums\BranchRole;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Models\Branch;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
@@ -40,12 +42,34 @@ it('renders a user profile', function (): void {
             ->where('isFollowing', true)
             ->where('followsYou', false)
             ->has('achievements')
+            ->where('branches', [])
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('lists branches the user maintains or contributes to on their profile', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+    $maintained = Branch::factory()->create(['name' => 'laravel']);
+    $contributed = Branch::factory()->create(['name' => 'php']);
+
+    $maintained->members()->create(['user_id' => $user->id, 'role' => BranchRole::Maintainer]);
+    $contributed->members()->create(['user_id' => $user->id, 'role' => BranchRole::Contributor]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('user.show', ['user' => $user, 'tab' => 'branches']))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->where('tab', 'branches')
+            ->has('branches', 2)
+            ->where('branches.0.name', 'laravel')
+            ->where('branches.0.role', 'maintainer')
+            ->where('branches.1.name', 'php')
+            ->where('branches.1.role', 'contributor')
+            ->has('commits.data', 0));
 });
 
 it('renders whether the user can be sponsored on github', function (): void {

@@ -20,8 +20,10 @@ use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteUser
 {
-    public function __construct(private UpdateCommitHotScores $updateCommitHotScores)
-    {
+    public function __construct(
+        private UpdateCommitHotScores $updateCommitHotScores,
+        private DeleteBranchMember $deleteBranchMember,
+    ) {
         //
     }
 
@@ -29,6 +31,7 @@ final readonly class DeleteUser
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author, so the replies under them keep their thread.
      * The database cascades the image rows of erased commits and the user's scheduled commits, but the image files are erased here.
+     * Branch memberships are left through DeleteBranchMember first so the last maintainer hands off or clears ownership.
      */
     public function handle(User $user): void
     {
@@ -36,6 +39,10 @@ final readonly class DeleteUser
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
             $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user)];
+
+            $user->branchMemberships()->with('branch')->get()->each(function ($membership) use ($user): void {
+                $this->deleteBranchMember->handle($membership->branch, $user, $user);
+            });
 
             $translationKeys = Commit::query()->withTrashed()
                 ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
