@@ -340,7 +340,7 @@ export function OrgMembersDialog({
                 >
                     <div className="space-y-1 border-b px-5 pt-5 pb-4">
                         <DialogTitle
-                            className="truncate pr-6"
+                            className="truncate"
                             title={org.name ?? undefined}
                         >
                             {org.name ?? 'Org'}

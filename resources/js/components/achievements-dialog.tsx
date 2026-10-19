@@ -64,7 +64,7 @@ export function AchievementsDialog({
                 style={{ '--lane': lane } as CSSProperties}
             >
                 <DialogHeader className="text-left">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
                         <DialogTitle className="text-base font-semibold">
                             Developer Achievements
                         </DialogTitle>

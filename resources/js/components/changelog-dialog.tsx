@@ -179,7 +179,7 @@ export function ChangelogDialog({
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden bg-popover p-0 sm:max-w-2xl">
-                <div className="border-b px-5 py-4 pr-12">
+                <div className="border-b px-5 py-4">
                     <DialogTitle className="text-base">Changelog</DialogTitle>
                     <DialogDescription className="mt-1">
                         Every pull request merged into{' '}
