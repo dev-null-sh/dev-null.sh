@@ -15,6 +15,9 @@ use Illuminate\Support\Str;
 
 /**
  * Verified example branches for local Docker / demos.
+ *
+ * Sets ownership and verification, then pulls site meta the same way
+ * `php artisan branches:refresh-site-meta` does.
  */
 final class ExampleBranchesSeeder extends Seeder
 {
@@ -31,6 +34,7 @@ final class ExampleBranchesSeeder extends Seeder
         'tailwind' => 'tailwindcss.com',
         'pestphp' => 'pestphp.com',
         'laravel' => 'laravel.com',
+        'unihomes' => 'unihomes.co.uk',
     ];
 
     public function __construct(private readonly RefreshBranchSiteMeta $refreshSiteMeta)
@@ -53,18 +57,20 @@ final class ExampleBranchesSeeder extends Seeder
      */
     private function seedBranch(string $name, string $domain, Collection $team): void
     {
-        $branch = Branch::query()->updateOrCreate(
+        $branch = Branch::query()->firstOrCreate(
             ['name' => $name],
-            [
-                'domain' => $domain,
-                'verified_domain' => $domain,
-                'verified_at' => now(),
-                'verification_token' => Str::random(32),
-                'verification_requested_at' => null,
-            ],
+            ['id' => (string) Str::uuid7()],
         );
 
-        $branch = $this->refreshSiteMeta->handle($branch);
+        $branch->forceFill([
+            'domain' => $domain,
+            'verified_domain' => $domain,
+            'verified_at' => now(),
+            'verification_token' => $branch->verification_token ?? Str::random(32),
+            'verification_requested_at' => null,
+        ])->save();
+
+        $branch = $this->refreshSiteMeta->handle($branch->refresh());
         $this->seedMembers($branch, $team);
 
         foreach ($team->take(3) as $author) {
@@ -76,7 +82,9 @@ final class ExampleBranchesSeeder extends Seeder
         }
 
         $this->command?->info(
-            "{$name} ← {$domain}".($branch->brand_color ? " ({$branch->brand_color})" : '').
+            "{$name} ← {$domain}".
+            ($branch->brand_color ? " ({$branch->brand_color})" : ' (no brand colour)').
+            ($branch->og_image_url ? ' · og:image' : '').
             ' · '.$branch->members()->count().' members',
         );
     }

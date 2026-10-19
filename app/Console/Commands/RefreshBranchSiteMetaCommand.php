@@ -19,46 +19,71 @@ final class RefreshBranchSiteMetaCommand extends Command
         $name = $this->argument('branch');
 
         if (is_string($name) && $name !== '') {
-            $branch = Branch::query()->where('name', mb_strtolower($name))->first();
+            return $this->refreshOne($action, mb_strtolower($name));
+        }
 
-            if (! $branch instanceof Branch) {
-                $this->components->error("No branch named {$name}.");
+        return $this->refreshVerified($action);
+    }
 
-                return self::FAILURE;
-            }
+    private function refreshOne(RefreshBranchSiteMeta $action, string $name): int
+    {
+        $branch = Branch::query()->where('name', $name)->first();
 
-            if (! $branch->isVerified()) {
-                $this->components->error("#{$branch->name} is not verified.");
+        if (! $branch instanceof Branch) {
+            $this->components->error("No branch named {$name}.");
 
-                return self::FAILURE;
-            }
+            return self::FAILURE;
+        }
 
-            $branch = $action->handle($branch);
-            $this->components->info(
-                "#{$branch->name} ← {$branch->verified_domain}".
-                ($branch->brand_color ? " ({$branch->brand_color})" : ' (no brand colour)'),
+        if (! $branch->isVerified()) {
+            $this->components->error(
+                "#{$branch->name} is not verified. Seed examples with `php artisan db:seed --class=ExampleBranchesSeeder`, or verify the branch first.",
+            );
+
+            return self::FAILURE;
+        }
+
+        $branch = $action->handle($branch);
+        $this->lineDetail($branch);
+
+        return self::SUCCESS;
+    }
+
+    private function refreshVerified(RefreshBranchSiteMeta $action): int
+    {
+        $branches = Branch::query()
+            ->whereNotNull('verified_at')
+            ->whereNotNull('verified_domain')
+            ->orderBy('name')
+            ->get();
+
+        if ($branches->isEmpty()) {
+            $this->components->warn(
+                'No verified branches to refresh. Seed examples with `php artisan db:seed --class=ExampleBranchesSeeder`.',
             );
 
             return self::SUCCESS;
         }
 
-        $refreshed = 0;
+        foreach ($branches as $branch) {
+            $branch = $action->handle($branch);
+            $this->lineDetail($branch);
+        }
 
-        Branch::query()
-            ->whereNotNull('verified_at')
-            ->whereNotNull('verified_domain')
-            ->orderBy('name')
-            ->each(function (Branch $branch) use ($action, &$refreshed): void {
-                $branch = $action->handle($branch);
-                $refreshed++;
-                $this->components->twoColumnDetail(
-                    "#{$branch->name}",
-                    ($branch->brand_color ?? '—').' · '.($branch->verified_domain ?? ''),
-                );
-            });
-
-        $this->components->info("Refreshed site meta for {$refreshed} verified branches.");
+        $this->components->info("Refreshed site meta for {$branches->count()} verified branches.");
 
         return self::SUCCESS;
+    }
+
+    private function lineDetail(Branch $branch): void
+    {
+        $meta = mb_trim(implode(' · ', array_filter([
+            $branch->brand_color,
+            $branch->og_image_url ? 'og:image' : null,
+            filled($branch->description) || filled($branch->domain_description) ? 'description' : null,
+            $branch->verified_domain,
+        ], fn (?string $part): bool => filled($part))));
+
+        $this->components->twoColumnDetail("#{$branch->name}", $meta !== '' ? $meta : 'no site meta');
     }
 }
