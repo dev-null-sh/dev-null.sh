@@ -328,3 +328,37 @@ void test('says which level and rank a level-up reached, linking to the profile'
     assert.match(body, /Member of the trusted wheel administrative group/);
     assert.match(body, /<a[^>]*href="\/@mnapoli"/);
 });
+
+void test('links every actor of a stacked group to their own profile', async () => {
+    const followers = ['first', 'second', 'third'].map(
+        (id) => ({ ...actor, id, name: id, username: id }) as User,
+    );
+    const followed = {
+        ...notification,
+        id: 'group',
+        group_id: 'group',
+        event_count: 5,
+        type: 'followed',
+        actor: followers[0],
+        actors: followers,
+        actors_count: 5,
+        commit: null,
+        commit_id: null,
+        subject_id: null,
+    } as NotificationGroup;
+    const body = (await render([followed])).replaceAll('<!-- -->', '');
+    const links = [...body.matchAll(/<a\b[^>]*>/g)].map((match) => match[0]);
+
+    assert.deepEqual(
+        links.slice(0, 3).map((link) => link.match(/href="([^"]*)"/)?.[1]),
+        ['/@first', '/@second', '/@third'],
+    );
+    assert.deepEqual(
+        links
+            .slice(0, 3)
+            .map((link) => link.match(/aria-label="([^"]*)"/)?.[1]),
+        ['first (@first)', 'second (@second)', 'third (@third)'],
+    );
+    assert.match(body, /<span aria-hidden="true"[^>]*>\+2<\/span>/);
+    assert.match(body, /and 4 others <a\b[^>]*data-notification-link/);
+});
