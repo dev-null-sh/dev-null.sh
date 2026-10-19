@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('commits:submit-scheduled')->everyMinute()->withoutOverlapping(5);
 Schedule::job(new EmbedKnowledgeBase())->hourly();
+Schedule::command('commits:embed')->hourly()->withoutOverlapping()->when(fn (): bool => filled(config('services.openai.key')));
 
 Schedule::call(function (): void {
     $store = 'cache.stores.'.config()->string('cache.default');

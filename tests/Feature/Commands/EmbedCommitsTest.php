@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use Illuminate\Console\Scheduling\Event;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
@@ -80,4 +82,17 @@ it('leaves deleted commits alone', function (): void {
         ->assertSuccessful();
 
     Http::assertNothingSent();
+});
+
+it('runs every hour while an openai key is set, so commits the job gave up on are embedded later', function (): void {
+    $event = collect(resolve(Schedule::class)->events())
+        ->sole(fn (Event $event): bool => str_contains((string) $event->command, 'commits:embed'));
+
+    expect($event)->expression->toBe('0 * * * *')
+        ->withoutOverlapping->toBeTrue()
+        ->and($event->filtersPass(app()))->toBeTrue();
+
+    config(['services.openai.key' => null]);
+
+    expect($event->filtersPass(app()))->toBeFalse();
 });
