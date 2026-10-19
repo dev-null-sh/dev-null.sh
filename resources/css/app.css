@@ -61,37 +61,32 @@
     overflow-anchor: none;
 }
 
-/* Commit text that re-wraps while the navigation collapses or expands shows as a diff: removed, then added. The
-   markers are decoration, so their alt text is empty and screen readers skip them. */
+/* Commit text that re-wraps while the navigation collapses or expands shows as a diff: removed, then added. */
 [data-commit-body][data-diff] {
     position: relative;
 }
 
-/* Avatars and their lane rings sit 10px left of the text, so the markers narrow to fit the gap. */
+/* Avatars and their lane rings sit 10px left of the text, so the markers fit that gap. They repeat once per line,
+   however long the text, and as images rather than text, screen readers skip them. */
 [data-commit-body][data-diff]::before {
+    content: '';
     position: absolute;
     top: 0;
     bottom: 0;
     left: calc(-0.6em - 2px);
     width: 0.6em;
-    overflow: hidden;
-    scale: 0.7 1;
-    font-family: var(--font-mono);
-    text-align: center;
-    white-space: pre;
+    mask: var(--diff-marker) center top / 100% 1lh repeat-y;
     transition: opacity 600ms ease;
 }
 
 [data-commit-body][data-diff='del']::before {
-    content: '-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A' /
-        '';
-    color: var(--destructive);
+    --diff-marker: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 24'%3E%3Cpath d='M2.5 12h4' stroke='%23000' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-color: var(--destructive);
 }
 
 [data-commit-body]:is([data-diff='add'], [data-diff='settle'])::before {
-    content: '+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A' /
-        '';
-    color: var(--lane-1);
+    --diff-marker: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 24'%3E%3Cpath d='M2.5 12h4M4.5 10v4' stroke='%23000' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-color: var(--lane-1);
 }
 
 [data-commit-body][data-diff='settle']::before {

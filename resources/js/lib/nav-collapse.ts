@@ -143,7 +143,7 @@ function inFinalLayout<T>(open: boolean, read: () => T): T {
 
 /**
  * Where a text's lines break, so text that wraps the same either way can be left alone. Only text counts: a code
- * block's box follows the feed's width without anything in it re-wrapping.
+ * block's box follows the feed's width on its own, while its code counts once it wraps.
  */
 function lineBreaks(element: HTMLElement): string {
     const { top, left } = element.getBoundingClientRect();
@@ -218,12 +218,18 @@ function pinScroll(content: Element, duration: number): void {
     }
 
     const root = document.documentElement;
-    const scrollInputs = ['wheel', 'touchmove', 'keydown'] as const;
     const current = { anchor, top: anchor.getBoundingClientRect().top, until };
     let frame = 0;
+    let heldAt = window.scrollY;
+    // Scrolling yourself, by wheel, touch, keys or the scrollbar, leaves the page somewhere the hold didn't put it.
+    const onScroll = (): void => {
+        if (Math.abs(window.scrollY - heldAt) > 1) {
+            unpin();
+        }
+    };
     const unpin = (): void => {
         cancelAnimationFrame(frame);
-        scrollInputs.forEach((type) => removeEventListener(type, unpin, true));
+        removeEventListener('scroll', onScroll);
 
         if (pin === current) {
             pin = null;
@@ -233,10 +239,7 @@ function pinScroll(content: Element, duration: number): void {
 
     pin = current;
     root.dataset.navPinning = '';
-    // Scrolling yourself, or the commit leaving the page, ends the hold.
-    scrollInputs.forEach((type) =>
-        addEventListener(type, unpin, { capture: true, passive: true }),
-    );
+    addEventListener('scroll', onScroll, { passive: true });
 
     const hold = (now: number): void => {
         if (pin !== current || !anchor.isConnected) {
@@ -246,6 +249,7 @@ function pinScroll(content: Element, duration: number): void {
         }
 
         window.scrollBy(0, anchor.getBoundingClientRect().top - current.top);
+        heldAt = window.scrollY;
 
         if (now < current.until) {
             frame = requestAnimationFrame(hold);
