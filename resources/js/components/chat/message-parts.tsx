@@ -95,7 +95,7 @@ export function MessageLinkCard({ message }: { message: Message }) {
     }
 
     return (
-        <div className="w-64 max-w-full sm:w-80 [&>*]:mt-1">
+        <div className="w-64 max-w-full *:mt-1 sm:w-80">
             <LinkPreview
                 refreshUrl={MessageLinkPreviewController.show.url(message.id)}
                 preview={message.link_preview}

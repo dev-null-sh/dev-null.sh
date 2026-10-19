@@ -466,7 +466,7 @@ export function EmojiPicker({
                 id={`${id}-emoji`}
                 role="listbox"
                 aria-label="Emoji"
-                className="min-h-0 flex-1 [scrollbar-width:thin] overflow-y-auto overscroll-contain px-1.5 pb-1.5"
+                className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-1.5 pb-1.5"
             >
                 {isSearching && all.length === 0 && (
                     <p className="px-2 py-8 text-center font-mono text-[13px] text-muted-foreground">

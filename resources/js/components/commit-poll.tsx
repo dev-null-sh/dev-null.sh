@@ -108,7 +108,7 @@ export function CommitPoll({
                         {poll.options.map((option) => (
                             <li
                                 key={option.id}
-                                className="rounded-md border px-3 py-2 text-[15px] [overflow-wrap:anywhere]"
+                                className="rounded-md border px-3 py-2 text-[15px] wrap-anywhere"
                             >
                                 {emojify(option.label)}
                             </li>
@@ -137,7 +137,7 @@ export function CommitPoll({
                                     }
                                     className="size-4 accent-primary"
                                 />
-                                <span className="min-w-0 [overflow-wrap:anywhere]">
+                                <span className="min-w-0 wrap-anywhere">
                                     {emojify(option.label)}
                                 </span>
                             </label>
@@ -185,7 +185,7 @@ export function CommitPoll({
                                     <span className="relative flex items-center gap-2">
                                         <span
                                             className={cn(
-                                                'min-w-0 flex-1 [overflow-wrap:anywhere]',
+                                                'min-w-0 flex-1 wrap-anywhere',
                                                 option.voted && 'font-medium',
                                             )}
                                         >

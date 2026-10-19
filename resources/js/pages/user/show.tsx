@@ -32,7 +32,7 @@ import AppLayout from '@/layouts/app-layout';
 import { authorStarsKey, showAuthorStars } from '@/lib/author-stars';
 import { commitStateKey } from '@/lib/commit-state';
 import { formatCount } from '@/lib/numbers';
-import { laneColor, laneTint } from '@/lib/utils';
+import { dateLocale, laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
     Activity,
@@ -228,7 +228,7 @@ export default function Show({
                 </div>
 
                 {user.bio && (
-                    <p className="mt-3 max-w-prose text-[15px] leading-relaxed break-words whitespace-pre-wrap">
+                    <p className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap">
                         {user.bio}
                     </p>
                 )}
@@ -289,7 +289,7 @@ export default function Show({
                         <CalendarDays className="size-4" />
                         Joined{' '}
                         {new Date(user.created_at).toLocaleDateString(
-                            undefined,
+                            dateLocale,
                             { month: 'long', year: 'numeric' },
                         )}
                     </li>

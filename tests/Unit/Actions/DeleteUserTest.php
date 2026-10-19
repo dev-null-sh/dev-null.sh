@@ -6,6 +6,7 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Device;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\Poll;
@@ -112,6 +113,16 @@ it('erases authored polls and the users votes while keeping other polls and vote
     expect(Poll::query()->sole()->is($other))->toBeTrue()
         ->and(PollOption::query()->pluck('id')->sort()->values()->all())->toBe($other->options->pluck('id')->sort()->values()->all())
         ->and(PollVote::query()->sole()->is($keptVote))->toBeTrue();
+});
+
+it('erases the devices of a deleted user', function (): void {
+    $user = User::factory()->create();
+    Device::factory()->for($user)->create();
+    $other = Device::factory()->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Device::query()->pluck('id')->all())->toBe([$other->id]);
 });
 
 it('erases the images of a deleted user and of the replies under their commits', function (): void {

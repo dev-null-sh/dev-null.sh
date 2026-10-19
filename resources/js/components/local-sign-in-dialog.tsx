@@ -56,7 +56,7 @@ export function LocalSignInDialog() {
                                     maxLength={39}
                                     placeholder="local_dev"
                                     aria-invalid={!!errors.username}
-                                    className="h-full w-full bg-transparent pr-3 pl-1 font-mono text-base outline-none placeholder:text-muted-foreground md:text-[15px]"
+                                    className="size-full bg-transparent pr-3 pl-1 font-mono text-base outline-none placeholder:text-muted-foreground md:text-[15px]"
                                     data-test="local-sign-in-username"
                                 />
                             </div>

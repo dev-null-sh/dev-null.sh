@@ -25,7 +25,7 @@ final readonly class CommitStarController
 
         return response()->json([
             'starred' => true,
-            'stars_count' => $commit->stars()->count(),
+            'stars_count' => $commit->stars()->newPivotQuery()->count(),
             'author_stars' => $commit->user instanceof User ? ['user_id' => $commit->user->id, ...$stars->snapshot($commit->user, $user)] : null,
         ]);
     }
@@ -36,7 +36,7 @@ final readonly class CommitStarController
 
         return response()->json([
             'starred' => false,
-            'stars_count' => $commit->stars()->count(),
+            'stars_count' => $commit->stars()->newPivotQuery()->count(),
             'author_stars' => $commit->user instanceof User ? ['user_id' => $commit->user->id, ...$stars->snapshot($commit->user, $user)] : null,
         ]);
     }

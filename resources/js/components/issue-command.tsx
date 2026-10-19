@@ -43,6 +43,7 @@ export function useIssueCommand({
     const [kind, setKind] = useState<IssueKind | null>(null);
     const [selected, setSelected] = useState(0);
     const [dismissed, setDismissed] = useState(false);
+    const [focused, setFocused] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(isHintDismissed);
     const request = useHttp<
         { command: string; body: string },
@@ -50,8 +51,11 @@ export function useIssueCommand({
     >({ command: '', body: '' });
     const command =
         issueCommands.find((candidate) => candidate.kind === kind) ?? null;
+    // A draft restored from the stash can be a lone slash: the menu only opens while the user is typing in it.
     const suggestions =
-        enabled && kind === null && !dismissed ? suggestedCommands(body) : [];
+        enabled && kind === null && !dismissed && focused
+            ? suggestedCommands(body)
+            : [];
     const hint =
         enabled && kind === null && !hintDismissed ? hintedCommand(body) : null;
 
@@ -201,6 +205,8 @@ export function useIssueCommand({
         selected: selected % Math.max(suggestions.length, 1),
         processing: request.processing,
         change,
+        focus: () => setFocused(true),
+        blur: () => setFocused(false),
         start,
         exit: () => setKind(null),
         submit,
@@ -279,7 +285,7 @@ export function IssueCommandSuggestions({
                             className="size-4 shrink-0 text-muted-foreground"
                             aria-hidden="true"
                         />
-                        <span className="w-16 shrink-0 font-mono">
+                        <span className="w-20 shrink-0 font-mono">
                             {command.name}
                         </span>
                         <span className="min-w-0 truncate text-muted-foreground">

@@ -92,7 +92,7 @@ export default function Index({
                 }
             />
 
-            <div className="flex min-h-0 bg-card max-md:fixed max-md:inset-x-0 max-md:top-14 max-md:bottom-[var(--mobile-nav-height,4.5rem)] md:h-svh">
+            <div className="flex min-h-0 bg-card max-md:fixed max-md:inset-x-0 max-md:top-14 max-md:bottom-(--mobile-nav-height,4.5rem) md:h-svh">
                 <section
                     aria-label="Conversations"
                     className={cn(

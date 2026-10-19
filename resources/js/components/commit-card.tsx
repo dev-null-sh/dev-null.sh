@@ -1,6 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, Trash2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { PointerEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
@@ -82,7 +82,7 @@ export function CommitCard({
     isHighlighted?: boolean;
     isGroupedWithPrevious?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
-    onHover?: (isHovering: boolean) => void;
+    onHover?: (isHovering: boolean, event: PointerEvent<HTMLElement>) => void;
     actions?: ReactNode;
     isFocused?: boolean;
     canDelete?: boolean;
@@ -155,11 +155,12 @@ export function CommitCard({
             data-commit={commit.id}
             data-permalink={permalink.url}
             data-test="commit"
-            onPointerEnter={
+            onPointerMove={
                 onHover &&
-                ((event) => event.pointerType === 'mouse' && onHover(true))
+                ((event) =>
+                    event.pointerType === 'mouse' && onHover(true, event))
             }
-            onPointerLeave={onHover && (() => onHover(false))}
+            onPointerLeave={onHover && ((event) => onHover(false, event))}
         >
             <div className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]">
                 <GraphRail
@@ -186,7 +187,7 @@ export function CommitCard({
                                 href={show(commit.user)}
                                 tabIndex={-1}
                                 className={cn('group/node flex rounded-full', {
-                                    '-translate-y-[9px]':
+                                    'translate-y-[-9px]':
                                         isGroupedWithPrevious &&
                                         railNodePosition === 'top',
                                 })}
@@ -229,7 +230,7 @@ export function CommitCard({
                                     <Link
                                         href={show(commit.user)}
                                         tabIndex={-1}
-                                        className="shrink-[4] truncate font-mono text-[13px] text-muted-foreground"
+                                        className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
                                     >
                                         @{commit.user.username}
                                     </Link>

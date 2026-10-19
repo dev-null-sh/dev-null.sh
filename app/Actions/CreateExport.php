@@ -9,6 +9,7 @@ use App\Models\Bookmark;
 use App\Models\CommitImage;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
+use App\Models\Device;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
@@ -27,7 +28,7 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, sessions: Collection<int, stdClass>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
@@ -71,6 +72,12 @@ final readonly class CreateExport
             'messages' => $this->messages($user),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
+            'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
+                'name' => $device->name,
+                'fingerprint' => $device->fingerprint,
+                'approved_at' => $device->approved_at->toIso8601String(),
+                'last_used_at' => $device->last_used_at?->toIso8601String(),
+            ])->all(),
             'sessions' => $this->sessions($user),
         ];
     }

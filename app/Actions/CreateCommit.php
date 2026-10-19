@@ -8,6 +8,7 @@ use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
+use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
@@ -86,6 +87,12 @@ final readonly class CreateCommit
             }
 
             $this->createWorldReply->handle($commit);
+
+            if ($commit->status === CommitStatus::Approved && isset($commit->mentions[CreateTomFriendship::USERNAME])
+                && $user->github_id !== CreateTomFriendship::GITHUB_ID && filled(config('ai.providers.opencode.key'))) {
+                dispatch(new ReplyAsTom($commit->id));
+            }
+
             if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation && filled(config('services.openai.key'))) {
                 dispatch(new ModerateCommit($commit))->afterCommit();
             }

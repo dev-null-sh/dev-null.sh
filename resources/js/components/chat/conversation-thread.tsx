@@ -376,7 +376,7 @@ export function ConversationThread({
             <div
                 ref={scroller}
                 onScroll={onScroll}
-                className="flex min-h-0 flex-1 [scrollbar-width:thin] flex-col overflow-y-auto overscroll-contain"
+                className="flex min-h-0 flex-1 scrollbar-thin flex-col overflow-y-auto overscroll-contain"
                 data-test="conversation-messages"
             >
                 {thread === null || !thread.isLoaded ? (
@@ -859,9 +859,9 @@ function BubbleWithMeta({
                                     ? 'bg-primary text-primary-foreground'
                                     : 'bg-muted text-foreground',
                                 {
-                                    'bg-transparent text-foreground outline-[1.5px] -outline-offset-[1.5px] outline-primary outline-dashed':
+                                    'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-primary outline-dashed':
                                         status === 'staged',
-                                    'bg-transparent text-foreground outline-[1.5px] -outline-offset-[1.5px] outline-destructive outline-solid':
+                                    'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-destructive outline-solid':
                                         status === 'rejected',
                                 },
                             )}

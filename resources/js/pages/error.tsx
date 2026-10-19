@@ -119,7 +119,7 @@ export default function ErrorPage({ status }: { status: Status }) {
                             <span className="absolute top-2.5 left-1/2 size-3.5 -translate-1/2 rounded-full border-2 border-muted-foreground bg-background" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="font-mono text-[13px] [overflow-wrap:anywhere] text-muted-foreground">
+                            <p className="font-mono text-[13px] wrap-anywhere text-muted-foreground">
                                 {copy.command}
                             </p>
                             <h1 className="mt-4 text-[clamp(1.75rem,4vw,2.5rem)] leading-tight font-semibold tracking-tight text-balance">
