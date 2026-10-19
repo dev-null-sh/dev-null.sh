@@ -16,12 +16,17 @@ use InvalidArgumentException;
  * with images is signed under its own namespace, so the signature states which format it covers, and
  * carries one more line before the body: the comma-separated SHA-256 of each image, in the order
  * they are attached, so the signature covers the images as well as the text.
+ *
+ * The line of the commit to reply to holds "quote:<commit>" for a quote instead: a reference never
+ * starts with that prefix, so what older scripts sign keeps its meaning.
  */
 final readonly class SignedCommits
 {
     public const string Namespace = 'devnull-commit';
 
     public const string ImagesNamespace = 'devnull-commit-images';
+
+    public const string QuotePrefix = 'quote:';
 
     public function __construct(private SshSignatures $sshSignatures)
     {
@@ -30,7 +35,7 @@ final readonly class SignedCommits
 
     /**
      * @param  (Closure(): list<string>)|null  $imageHashes
-     * @return array{user: User, reply_to: string|null, body: string}
+     * @return array{user: User, reply_to: string|null, quote: string|null, body: string}
      */
     public function verify(string $payload, string $signature, ?Closure $imageHashes = null): array
     {
@@ -49,6 +54,10 @@ final readonly class SignedCommits
             [$timestamp, $nonce, $replyTo, $body] = $parts;
             $signedHashes = '';
         }
+
+        $quote = str_starts_with($replyTo, self::QuotePrefix) ? mb_substr($replyTo, mb_strlen(self::QuotePrefix)) : null;
+
+        throw_if($quote === '', InvalidArgumentException::class, 'Malformed payload.');
 
         throw_if(
             $withImages && preg_match('/^[0-9a-f]{64}(,[0-9a-f]{64}){0,'.(CreateCommitImages::MAX_IMAGES - 1).'}$/', $signedHashes) !== 1,
@@ -74,7 +83,8 @@ final readonly class SignedCommits
 
         return [
             'user' => $user,
-            'reply_to' => $replyTo === '' ? null : $replyTo,
+            'reply_to' => $replyTo === '' || $quote !== null ? null : $replyTo,
+            'quote' => $quote,
             'body' => mb_trim($body),
         ];
     }

@@ -69,6 +69,7 @@ beforeEach(function (): void {
             'DEVNULL_SSH_KEY' => $this->privateKey,
             'DEVNULL_BODY' => "Released v2.0.0.\n\nhttps://github.com/nunomaduro/pest/releases/tag/v2.0.0",
             'DEVNULL_REPLY_TO' => '',
+            'DEVNULL_QUOTE' => '',
             ...$env,
         ])
         ->timeout(20)
@@ -111,6 +112,13 @@ it('replies to a commit', function (): void {
 
     expect($result->exitCode())->toBe(0)
         ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n0be0130\nAgreed!$/');
+});
+
+it('quotes a commit', function (): void {
+    $result = ($this->runAction)(['DEVNULL_QUOTE' => '0be0130', 'DEVNULL_BODY' => 'Shipped the fix for this.']);
+
+    expect($result->exitCode())->toBe(0)
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\nquote:0be0130\nShipped the fix for this\.$/');
 });
 
 it('attaches the images, one path per line, signed so devnull accepts them', function (): void {

@@ -16,7 +16,7 @@ use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\File;
 
 /**
- * A commit signed by the `devnull commit` script, which replies by commit hash or link instead of by ID.
+ * A commit signed by the `devnull commit` script, which replies or quotes by commit hash or link instead of by ID.
  */
 final class CreateCliCommitRequest extends FormRequest
 {
@@ -37,6 +37,7 @@ final class CreateCliCommitRequest extends FormRequest
         return [
             'body' => CreateCommitRequest::BODY_RULES,
             'reply_to' => ['nullable', 'string', new CommitReference($user)],
+            'quote' => ['nullable', 'string', new CommitReference($user, 'quote')],
             'images' => $attachmentRules['images'],
             'images.*' => $attachmentRules['images.*'],
         ];
@@ -49,6 +50,16 @@ final class CreateCliCommitRequest extends FormRequest
 
         return $this->filled('reply_to')
             ? resolve(CommitByReferenceQuery::class)->get($user, $this->string('reply_to')->value())?->first()
+            : null;
+    }
+
+    public function quotedCommit(): ?Commit
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return $this->filled('quote')
+            ? resolve(CommitByReferenceQuery::class)->get($user, $this->string('quote')->value())?->first()
             : null;
     }
 
