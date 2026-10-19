@@ -65,7 +65,7 @@ final readonly class CommitTranslations
     }
 
     /** @param Collection<int, Commit> $commits */
-    public function attach(Collection $commits): void
+    public function attach(Collection $commits, bool $includePending = false): void
     {
         if (! $this->enabled()) {
             return;
@@ -74,14 +74,14 @@ final readonly class CommitTranslations
         Cache::memo()->many($commits->map($this->key(...))->all());
 
         foreach ($commits as $commit) {
-            $commit->setAttribute('translation', $this->display($commit));
+            $commit->setAttribute('translation', $this->display($commit, includePending: $includePending));
         }
     }
 
     /** @return array<string, mixed>|null */
-    public function display(Commit $commit, ?string $language = null): ?array
+    public function display(Commit $commit, ?string $language = null, bool $includePending = false): ?array
     {
-        if ($commit->trashed() || $commit->status !== CommitStatus::Approved || $commit->body === '' || ! $this->enabled()) {
+        if ($commit->trashed() || ! in_array($commit->status, $includePending ? [CommitStatus::Approved, CommitStatus::Pending] : [CommitStatus::Approved], true) || $commit->body === '' || ! $this->enabled()) {
             return null;
         }
 

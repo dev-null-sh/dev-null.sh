@@ -1,4 +1,5 @@
 import { http } from '@inertiajs/react';
+import type { SharedValue } from '@/hooks/use-shared-state';
 import { refreshSharedState } from '@/hooks/use-shared-state';
 
 const fields = [
@@ -9,6 +10,7 @@ const fields = [
     'is_saved',
     'replies_count',
     'commits_count',
+    'continuation_id',
 ] as const;
 
 type CommitStateField = (typeof fields)[number];
@@ -24,7 +26,7 @@ const parse = (data: string): unknown => {
     }
 };
 
-function collect(value: unknown, fresh: Map<string, boolean | number>): void {
+function collect(value: unknown, fresh: Map<string, SharedValue>): void {
     if (Array.isArray(value)) {
         value.forEach((item) => collect(item, fresh));
 
@@ -43,7 +45,9 @@ function collect(value: unknown, fresh: Map<string, boolean | number>): void {
 
             if (
                 typeof fieldValue === 'boolean' ||
-                typeof fieldValue === 'number'
+                typeof fieldValue === 'number' ||
+                typeof fieldValue === 'string' ||
+                (field === 'continuation_id' && fieldValue === null)
             ) {
                 fresh.set(commitStateKey(field, record.id), fieldValue);
             }
@@ -55,7 +59,7 @@ function collect(value: unknown, fresh: Map<string, boolean | number>): void {
 
 export function initializeCommitState(): void {
     http.onResponse((response) => {
-        const fresh = new Map<string, boolean | number>();
+        const fresh = new Map<string, SharedValue>();
 
         collect(parse(response.data), fresh);
         refreshSharedState(fresh);

@@ -11,7 +11,8 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * A commit from the mobile app, sent as JSON. It has no images yet.
+ * A commit from the mobile app, sent as JSON. It may reply to a commit or quote one, as on the web, but not both. It has
+ * no images or poll yet.
  */
 final class CreateApiCommitRequest extends FormRequest
 {
@@ -39,6 +40,7 @@ final class CreateApiCommitRequest extends FormRequest
         return [
             'body' => CreateCommitRequest::BODY_RULES,
             'parent_id' => ['bail', 'nullable', 'uuid', new VisibleCommit($user)],
+            'quoted_commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
         ];
     }
 
@@ -52,6 +54,16 @@ final class CreateApiCommitRequest extends FormRequest
 
         return $this->filled('parent_id')
             ? Commit::query()->visibleTo($user)->findOrFail($this->string('parent_id')->value())
+            : null;
+    }
+
+    public function quotedCommit(): ?Commit
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return $this->filled('quoted_commit_id')
+            ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
             : null;
     }
 }

@@ -20,6 +20,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import type { Commit } from '@/types';
 
 const reasons = [
@@ -78,6 +79,7 @@ export function CommitReportDialog({
     children?: ReactNode;
 }) {
     const [failure, setFailure] = useState('');
+    const commitNotFound = useCommitNotFound();
     const id = useId();
     const form = useForm({ reason: '', details: '' });
 
@@ -116,6 +118,12 @@ export function CommitReportDialog({
                                 form.reset();
                             },
                             onHttpException: (response) => {
+                                if (commitNotFound(commit.id, response)) {
+                                    onOpenChange(false);
+
+                                    return false;
+                                }
+
                                 setFailure(
                                     response.status === 429
                                         ? 'Too many reports. Please wait a minute and try again.'

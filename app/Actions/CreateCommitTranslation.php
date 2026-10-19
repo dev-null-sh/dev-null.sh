@@ -61,7 +61,7 @@ final readonly class CreateCommitTranslation
             DB::transaction(function () use ($commit, $language, $key, $cached, $source, $body): void {
                 $current = Commit::query()->lockForUpdate()->find($commit->id);
 
-                if (! $current instanceof Commit || $current->status !== CommitStatus::Approved || $current->body !== $commit->body) {
+                if (! $current instanceof Commit || ! in_array($current->status, [CommitStatus::Approved, CommitStatus::Pending], true) || $current->body !== $commit->body) {
                     throw new RuntimeException('Commit changed during translation.');
                 }
 

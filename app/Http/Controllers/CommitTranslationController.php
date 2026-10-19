@@ -21,11 +21,15 @@ final readonly class CommitTranslationController
         } catch (Throwable $throwable) {
             report($throwable instanceof CommitProcessingFailed ? $throwable : new CommitProcessingFailed('Translation', $commit->id, $throwable));
 
-            return response()->json(['message' => 'Could not translate this commit. Try again.'], 503)
+            $message = $throwable instanceof CommitProcessingFailed && $throwable->reason === 'unsupported_source_language'
+                ? 'The translation service returned an unsupported source language. Try again.'
+                : 'Could not translate this commit. Try again.';
+
+            return response()->json(['message' => $message], 503)
                 ->header('Cache-Control', 'no-store, private');
         }
 
-        return response()->json(['translation' => $translations->display($commit, $request->string('language')->value())])
+        return response()->json(['translation' => $translations->display($commit, $request->string('language')->value(), includePending: true)])
             ->header('Cache-Control', 'no-store, private');
     }
 }

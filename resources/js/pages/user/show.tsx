@@ -21,8 +21,13 @@ import { ActivityStreaks } from '@/components/activity-streaks';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
+import {
+    LiveAvatarMarker,
+    LiveStreamTrigger,
+} from '@/components/live-stream-card';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
+import { ProfileActionsMenu } from '@/components/profile-actions-menu';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -110,12 +115,36 @@ export default function Show({
 
             <header className="border-b px-4 pt-6 pb-5 sm:px-6">
                 <div className="flex items-start justify-between gap-4">
-                    <UserAvatar
-                        user={user}
-                        className="size-20 text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
-                        pixels={160}
-                        style={{ '--lane': lane } as CSSProperties}
-                    />
+                    {user.live ? (
+                        <LiveStreamTrigger
+                            user={user}
+                            showProfile={false}
+                            className="flex"
+                        >
+                            <a
+                                href={user.live.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label={`Watch ${user.name} live on YouTube`}
+                                className="relative flex rounded-full"
+                                data-test="profile-live-avatar"
+                            >
+                                <UserAvatar
+                                    user={user}
+                                    className="size-20 text-2xl ring-2 ring-red-600 ring-offset-4 ring-offset-card"
+                                    pixels={160}
+                                />
+                                <LiveAvatarMarker className="-bottom-2.5" />
+                            </a>
+                        </LiveStreamTrigger>
+                    ) : (
+                        <UserAvatar
+                            user={user}
+                            className="size-20 text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
+                            pixels={160}
+                            style={{ '--lane': lane } as CSSProperties}
+                        />
+                    )}
 
                     <div className="flex shrink-0 gap-1.5 sm:gap-2">
                         <ProfileShareButton
@@ -123,16 +152,19 @@ export default function Show({
                             href={show(user).url}
                         />
                         {isCurrentUser ? (
-                            <Button variant="outline" asChild>
-                                <a
-                                    href="https://github.com/settings/profile"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    Edit on GitHub
-                                    <ArrowUpRight />
-                                </a>
-                            </Button>
+                            <>
+                                <ProfileActionsMenu user={user} />
+                                <Button variant="outline" asChild>
+                                    <a
+                                        href="https://github.com/settings/profile"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        Edit on GitHub
+                                        <ArrowUpRight />
+                                    </a>
+                                </Button>
+                            </>
                         ) : (
                             <>
                                 {auth.user && (

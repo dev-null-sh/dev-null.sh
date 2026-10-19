@@ -11,6 +11,8 @@
         "Unit/ComposerDraft.test.tsx",
         "Unit/SearchDialogComposition.test.tsx",
         "Unit/FollowState.test.tsx",
+        "Unit/DraftImageReads.test.tsx",
+        "Unit/ImageAttachments.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]

@@ -14,10 +14,12 @@ import {
 } from '@/components/commit-composer-dialog';
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
+import { DeletedPageDialog } from '@/components/deleted-page-dialog';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { SearchDialog } from '@/components/search-dialog';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
+import { usePageDeletion } from '@/hooks/use-deleted-resources';
 import { useFixedPage } from '@/hooks/use-fixed-page';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useNavOpen } from '@/hooks/use-nav-open';
@@ -41,6 +43,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const isMessages = component.startsWith('conversation/');
     const hasComposer = component === 'log/show' && !isGuest;
     const isComposerInView = useIsComposerInView();
+    const { deletedPage, markPageDeleted } = usePageDeletion();
     const compose = useCallback(() => {
         if (isGuest) {
             signIn();
@@ -68,7 +71,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
             data-nav={isLayoutOpen ? 'expanded' : 'collapsed'}
             className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center"
         >
-            {component !== 'notification/index' && <NotificationCountPolling />}
+            {component !== 'notification/index' && deletedPage === null && (
+                <NotificationCountPolling onNotFound={markPageDeleted} />
+            )}
             <div
                 data-nav-rail
                 className="sticky top-0 hidden h-svh w-20 shrink-0 md:block lg:w-(--sidebar-width)"
@@ -108,7 +113,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 )}
             </MobileNav>
 
-            <CommitImageViewer />
+            {deletedPage === null ? (
+                <CommitImageViewer />
+            ) : (
+                <DeletedPageDialog page={deletedPage} />
+            )}
 
             {auth.user !== null && auth.remotes !== null && !isMessages && (
                 <ChatDock user={auth.user} />
@@ -132,10 +141,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
     );
 }
 
-function NotificationCountPolling() {
+/**
+ * The counts reload with the page's own URL, so they are also what first finds out that the page's commit is gone: the
+ * page then stays as it was, instead of turning into a 404, and the polling stops until another page is visited.
+ */
+function NotificationCountPolling({ onNotFound }: { onNotFound: () => void }) {
     usePoll(
         30_000,
-        { only: ['auth.unreadNotificationsCount', 'auth.unreadMessagesCount'] },
+        {
+            only: ['auth.unreadNotificationsCount', 'auth.unreadMessagesCount'],
+            onHttpException: (response) => {
+                if (response.status !== 404) {
+                    return;
+                }
+
+                onNotFound();
+
+                return false;
+            },
+        },
         { mode: 'rest', background: 'pause' },
     );
 

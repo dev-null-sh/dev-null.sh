@@ -5,6 +5,7 @@ import {
     pickImages,
     revokeObjectUrls,
 } from '@/components/commit-image-picker';
+import { cancelImageRead, cancelImageReads } from '@/lib/draft-image-reads';
 import type { StoredImages } from '@/lib/image-storage';
 import {
     deleteStoredImages,
@@ -15,6 +16,7 @@ import { stashableBody } from '@/lib/sensitive-text';
 import { readStorage, storedKeys, writeStorage } from '@/lib/storage';
 
 export type UseStashReturn = {
+    readonly key: string;
     readonly body: string;
     readonly images: File[];
     readonly descriptions: string[];
@@ -168,6 +170,7 @@ export function discardSeriesStash(userId: string): void {
 
 export function clearStashes(userId: string): void {
     const prefix = prefixFor(userId);
+    cancelImageReads(prefix);
 
     [...pending.keys(), ...storedKeys()]
         .filter((key) => key.startsWith(prefix))
@@ -246,6 +249,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
     };
 
     const drop = (): void => {
+        cancelImageRead(key);
         setBody('');
         setIsDraftRestored(false);
         discardBody(key);
@@ -253,6 +257,7 @@ export function useStash(userId: string, name: string): UseStashReturn {
     };
 
     return {
+        key,
         body,
         images: draftImages,
         descriptions,

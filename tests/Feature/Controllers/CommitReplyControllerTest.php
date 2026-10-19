@@ -306,6 +306,7 @@ it('may reply to a commit', function (): void {
     $response->assertCreated()
         ->assertExactJson([
             'committed' => ['id' => $reply->id, 'body' => 'Agreed, ship it.'],
+            'parent' => ['id' => $parent->id, 'replies_count' => 1, 'continuation_id' => null],
             'toast' => [
                 'type' => 'info',
                 'message' => 'Your commit is pending review. Everyone will see it once it is approved.',
@@ -314,6 +315,22 @@ it('may reply to a commit', function (): void {
 
     expect($reply->parent_id)->toBe($parent->id)
         ->and($reply->status)->toBe(CommitStatus::Pending);
+});
+
+it('continues the author thread with their first reply to their own commit, leaving it out of the reply count', function (): void {
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+    Commit::factory()->for($commit, 'parent')->create();
+
+    $first = $this->actingAs($author)->postJson(route('commit-reply.store', $commit), ['body' => 'Part two']);
+    $continuation = $author->commits()->where('body', 'Part two')->sole();
+
+    $first->assertCreated()
+        ->assertJsonPath('parent', ['id' => $commit->id, 'replies_count' => 1, 'continuation_id' => $continuation->id]);
+
+    $this->actingAs($author)->postJson(route('commit-reply.store', $commit), ['body' => 'An aside'])
+        ->assertCreated()
+        ->assertJsonPath('parent', ['id' => $commit->id, 'replies_count' => 2, 'continuation_id' => $continuation->id]);
 });
 
 it('publishes replies of admins right away', function (): void {
@@ -933,3 +950,20 @@ it('lists the newest reply with a cursor to older replies when requested', funct
     $second->assertOk()->assertJsonCount(3, 'data')->assertJsonPath('next_cursor', null);
     expect($second->json('data.*.id'))->toBe(array_slice($expected, 1));
 });
+
+it('lists replies in pages of any size up to 50', function (int $limit, int $status): void {
+    $parent = Commit::factory()->create();
+    Commit::factory()->for($parent, 'parent')->count(4)->create();
+
+    $response = $this->getJson(route('commit-reply.index', [$parent, 'limit' => $limit]))->assertStatus($status);
+
+    if ($status === 200) {
+        $response->assertJsonCount(min($limit, 4), 'data');
+    }
+})->with([
+    'a single reply' => [1, 200],
+    'a few' => [3, 200],
+    'the most' => [50, 200],
+    'none' => [0, 422],
+    'too many' => [51, 422],
+]);

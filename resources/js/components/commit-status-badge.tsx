@@ -1,4 +1,4 @@
-import { Clock3 } from 'lucide-react';
+import { Check, Clock3 } from 'lucide-react';
 import { useState } from 'react';
 import {
     Popover,
@@ -58,6 +58,7 @@ export function CommitStatusBadge({
         <>
             {state === 'checking' && <Spinner aria-hidden className="size-3" />}
             {state === 'review' && <Clock3 aria-hidden className="size-3" />}
+            {state === 'approved' && <Check aria-hidden className="size-3" />}
             {state === 'checking'
                 ? 'checking…'
                 : state === 'review'

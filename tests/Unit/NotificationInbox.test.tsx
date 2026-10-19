@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import Index from '../../resources/js/pages/notification/index';
 import type { NotificationGroup, User } from '../../resources/js/types';
 
@@ -88,7 +89,11 @@ async function renderInbox(notifications: NotificationGroup[], type = 'all') {
             />
         ),
         render: renderToString,
-        setup: ({ App, props }) => <App {...props} />,
+        setup: ({ App, props }) => (
+            <TooltipProvider>
+                <App {...props} />
+            </TooltipProvider>
+        ),
     });
 
     assert.ok(result);
@@ -107,6 +112,40 @@ void test('renders quote notifications with their label and quoting commit desti
     );
 });
 
+void test('shows the quoted commit under a quote, or a tombstone once it is deleted', async () => {
+    const html = await renderInbox([
+        {
+            ...quote,
+            commit: {
+                ...quote.commit,
+                quoted_commit: {
+                    id: 'quoted-commit',
+                    body_segments: [{ type: 'text', text: 'My quoted commit' }],
+                },
+            },
+        },
+    ]);
+
+    assert.match(html, /My quote commentary.*My quoted commit/s);
+    assert.doesNotMatch(html, /<a\b[^>]*>(?:(?!<\/a>).)*<a\b/s);
+    assert.match(
+        await renderInbox([
+            {
+                ...quote,
+                commit: {
+                    ...quote.commit,
+                    quoted_commit: {
+                        id: 'quoted-commit',
+                        parent_id: null,
+                        deleted_at: timestamp,
+                    },
+                },
+            },
+        ]),
+        /This commit was deleted/,
+    );
+});
+
 void test('includes quotes in the unfiltered empty inbox message', async () => {
     assert.match(await renderInbox([]), /replies, quotes, mentions/);
 });
@@ -118,13 +157,10 @@ void test('renders a follow-back control outside the follower profile link', asy
         commit_id: null,
         subject_id: null,
         commit: null,
-        event_count: 2,
-        actors_count: 2,
     };
     const html = await renderInbox([follow]);
 
-    assert.match(html, /Quoter<\/span> and 1 other followed you/);
-    assert.match(html, /aria-expanded="false"[^>]*>.*2 followers/s);
+    assert.match(html, /Quoter<\/span>.*@quoter<\/span> followed you/s);
     assert.match(html, /<button[^>]*aria-label="Follow @quoter"/);
     assert.doesNotMatch(html, /<a\b[^>]*>(?:(?!<\/a>).)*<button\b/s);
     assert.match(
@@ -133,6 +169,24 @@ void test('renders a follow-back control outside the follower profile link', asy
         ]),
         /aria-label="Unfollow @quoter"/,
     );
+});
+
+void test('leaves follow-back out of a group of followers until it is expanded', async () => {
+    const html = await renderInbox([
+        {
+            ...quote,
+            type: 'followed',
+            commit_id: null,
+            subject_id: null,
+            commit: null,
+            event_count: 2,
+            actors_count: 2,
+        },
+    ]);
+
+    assert.match(html, /Quoter<\/span> and 1 other followed you/);
+    assert.match(html, /aria-expanded="false"[^>]*>.*2 followers/s);
+    assert.doesNotMatch(html, /aria-label="(Follow|Unfollow) @/);
 });
 
 void test('renders notification code without altering emoji shortcodes or nesting interactive controls', async () => {
