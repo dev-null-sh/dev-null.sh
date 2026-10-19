@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Device;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -65,4 +66,48 @@ it('counts unread notifications in groups, like the web', function (): void {
 
 it('rejects requests that are not signed', function (): void {
     $this->getJson(route('api-current-user.show'))->assertUnauthorized();
+});
+
+it('deletes the account of the signed-in user, with their commits and devices', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    Device::factory()->for($user)->create();
+    Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create();
+
+    signedApiRequest($keyPair, 'DELETE', route('api-current-user.destroy'))->assertNoContent();
+
+    expect($user->fresh())->toBeNull()
+        ->and($user->commits()->withTrashed()->count())->toBe(0)
+        ->and(Device::query()->count())->toBe(0);
+});
+
+it('stops the key of a deleted account from signing in', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+
+    signedApiRequest($keyPair, 'DELETE', route('api-current-user.destroy'))->assertNoContent();
+
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))
+        ->assertUnauthorized()
+        ->assertJsonPath('code', 'device_not_approved');
+});
+
+it('leaves other users alone when deleting an account', function (): void {
+    $other = User::factory()->create();
+    apiKeyPairFor($other);
+    $commit = Commit::factory()->for($other)->create();
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'DELETE', route('api-current-user.destroy'))->assertNoContent();
+
+    expect($other->fresh())->not->toBeNull()
+        ->and($commit->fresh())->not->toBeNull()
+        ->and($other->devices()->count())->toBe(1);
+});
+
+it('rejects deleting an account without a signed request', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->deleteJson(route('api-current-user.destroy'))->assertUnauthorized();
+
+    expect($user->fresh())->not->toBeNull();
 });

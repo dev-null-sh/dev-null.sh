@@ -11,6 +11,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Public browsing and GitHub sign-in](#public-browsing-and-github-sign-in)
   - [First-time setup](#first-time-setup)
   - [Profiles and GitHub sync](#profiles-and-github-sync)
+  - [Achievement badges and XP](#achievement-badges-and-xp)
   - [Following developers and suggestions](#following-developers-and-suggestions)
   - [Following, Latest, and Trending logs](#following-latest-and-trending-logs)
   - [Searching developers and commits](#searching-developers-and-commits)
@@ -96,7 +97,35 @@ Every developer has a profile at `/@{username}`, with their GitHub identity, bio
 
 Change your name, avatar, bio, company, location, or website on GitHub, not on /dev/null. Settings → Profile offers **Edit on GitHub** and **Sync from GitHub**. Profile details also refresh on sign-in. Manual sync is limited to once a minute. A GitHub username rename is picked up on sign-in; accounts are not merged with another user's account.
 
+Profiles also show [achievement badges and an XP-based Unix rank](#achievement-badges-and-xp). Click a badge or rank to inspect unlock requirements and progress.
+
 Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [identity sync](app/Actions/UpdateOrCreateUser.php).
+
+### Achievement badges and XP
+
+Profiles display **13 achievement badges**. Locked badges show progress toward their requirements; unlocked badges are highlighted. Open the achievements dialog from a profile's badge or rank to see the full list.
+
+| Badge | When it unlocks |
+| --- | --- |
+| **init** | Publish your first commit. |
+| **syntax** | Write a commit containing a triple-backtick code fence. |
+| **uptime** | Reach a longest commit streak of **7 consecutive days**. |
+| **daemon** | Reach a longest commit streak of **30 consecutive days**. |
+| **sysadmin** | Reach a longest commit streak of **100 consecutive days**. |
+| **stdout** | Reach **50 commits**. |
+| **kernel space** | Reach **100 commits**. |
+| **stargazer** | Star **10 commits by other developers**, excluding your own. |
+| **superstar** | Receive **25 stars across your commits**, excluding self-stars. The stars need not be on one commit or from 25 distinct people. |
+| **pipe** | Write **5 replies to other developers' commits**, excluding self-replies. Replies still count when their parent commit is soft-deleted. |
+| **authorized_keys** | Have at least one public SSH key linked from GitHub. |
+| **sweet tooth** | Receive **100 pastéis across your account**, not on a single commit. Pastéis mode does not need to be enabled, and the total survives deletion of the awarded commits. |
+| **luddite** | Stop following Tom while he still follows you. This deducts **100 XP**; following him again removes the badge and penalty. Accounts Tom has never befriended do not qualify. |
+
+Commit counts include replies and quotes. Commit-based badges and XP use non-deleted commits visible to the person viewing the profile, so an author may see progress from pending or rejected commits that other viewers cannot see. Streak badges use the **longest** streak, not the current streak: missing a day does not by itself remove them. Days follow the activity graph's app-timezone grouping, not the user's selected display timezone.
+
+Badges are calculated from current account data, not permanently recorded awards. Removing qualifying activity can reduce progress or lock a badge again; for example, unstarring a commit can remove **stargazer**. Unlocking a badge does not normally give bonus XP. XP comes from **10 per commit**, **15 per day in the longest streak**, **5 per star received**, **5 per reply to another developer**, and **2 per star given to another developer**. The **luddite** penalty applies once while the badge is unlocked, not once per unfollow, and total XP cannot fall below zero. A qualifying reply contributes both commit XP and reply XP; pastéis do not add XP.
+
+Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
 
 ### Following developers and suggestions
 
@@ -407,9 +436,9 @@ Sources: [moderation access](app/Http/Requests/ShowModerationRequest.php), [mode
 
 ### Operations dashboard
 
-Administrators can open `/operations` to inspect database and cache connectivity, queue backlogs, recent failed jobs, pending moderation, link-preview health, and recent signup/commit/reply volume. The GitHub API rate limit is shown when credentials are configured, and Fathom site traffic when a Fathom API token is configured: visitors on the site now, plus visitors, pageviews, average time on site, bounce rate, and the top pages, referrers, countries, devices, and browsers for a chosen date range (the last 7 days by default). The dashboard refreshes periodically and offers retry or forget controls for failed jobs. Its Features section switches site-wide features, currently translations, off and on for everyone. Non-admin users cannot access it.
+Administrators can open `/operations`, split into tabs under a sticky header like Settings. The Health tab (`/operations`) inspects database and cache connectivity, the GitHub API rate limit when credentials are configured, queue backlogs, recent failed jobs with retry or forget controls, pending moderation, and link-preview health. The Features tab (`/operations/features`) switches site-wide features, currently translations, off and on for everyone. The Activity tab (`/operations/activity`) opens with today's signups, commits, replies, and active authors (UTC day) next to yesterday's, the same four counts since the first signup, then draws everyone's commits, replies, or signups on the same graph as a profile (hourly cells over the last 24 hours, daily cells over 7 or 30 days, or a year grid), with pickers for the series and the window; the 24h, 7d and 30d windows end now, so the first cell only holds the end of the hour or day the window starts in. A Breakdown section follows, listing the window's commits and replies by status (approved, pending, rejected) and its ten busiest authors, each previewing and linking to their profile. The Traffic tab (`/operations/traffic`) exists when a Fathom API token is configured: visitors on the site now, plus visitors, pageviews, average time on site, bounce rate, and the top pages, referrers, countries, devices, and browsers for a chosen date range (the last 7 days by default). Every tab refreshes periodically. Non-admin users cannot access any of them.
 
-Sources: [operations controller](app/Http/Controllers/OperationsController.php), [feature switches](app/Services/Features.php), [access check](app/Http/Requests/ShowOperationsRequest.php), [operations page](resources/js/pages/operations/show.tsx).
+Sources: [operations controller](app/Http/Controllers/OperationsController.php), [site activity controller](app/Http/Controllers/SiteActivityController.php), [traffic controller](app/Http/Controllers/TrafficController.php), [feature switches](app/Services/Features.php), [access check](app/Http/Requests/ShowOperationsRequest.php), [operations layout](resources/js/layouts/operations/layout.tsx), [health tab](resources/js/pages/operations/show.tsx), [features tab](resources/js/pages/operations/features.tsx), [activity tab](resources/js/pages/operations/activity.tsx), [traffic tab](resources/js/pages/operations/traffic.tsx).
 
 ### About, changelog, and policies
 
