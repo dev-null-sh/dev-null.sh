@@ -85,7 +85,14 @@ export function GraphRail({
 
             {hasTail &&
                 (variant === 'staged' ? (
-                    <span className="absolute top-8 bottom-0 left-1/2 -translate-x-1/2 border-l-2 border-dashed border-rail" />
+                    <span
+                        className="absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2"
+                        style={laneStrokeStyle(
+                            'var(--rail)',
+                            nextLane ?? 'var(--rail)',
+                        )}
+                        data-test="rail-staged-tail"
+                    />
                 ) : (
                     <span
                         className={cn(
@@ -240,9 +247,11 @@ export function RailAvatar({
 export function RailSegment({
     lane,
     isDimmed = false,
+    isDashed = false,
 }: {
     lane?: string;
     isDimmed?: boolean;
+    isDashed?: boolean;
 }) {
     return (
         <div aria-hidden className="relative w-16 shrink-0 sm:w-18">
@@ -253,7 +262,9 @@ export function RailSegment({
                         dimmable,
                         { 'opacity-60': isDimmed },
                     )}
-                    style={{ background: lane }}
+                    style={
+                        isDashed ? laneStrokeStyle(lane) : { background: lane }
+                    }
                 />
             )}
         </div>

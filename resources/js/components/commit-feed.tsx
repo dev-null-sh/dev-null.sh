@@ -27,6 +27,7 @@ export function CommitFeed({
     isRanked = false,
     isFolded = true,
     interlude,
+    isBelowComposer = false,
 }: {
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
@@ -39,6 +40,7 @@ export function CommitFeed({
     isRanked?: boolean;
     isFolded?: boolean;
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
+    isBelowComposer?: boolean;
 }) {
     const now = useNow();
     const page = usePage();
@@ -260,11 +262,15 @@ export function CommitFeed({
                         (!previous ||
                             localDayKey(previous.created_at) !==
                                 localDayKey(commit.created_at));
+                    const stagedLane =
+                        isBelowComposer && index === 0 && !pinnedCommit
+                            ? laneColor(commit.user.lane)
+                            : undefined;
 
                     return (
                         <Fragment key={commit.id}>
                             {!isRanked && commit.id === firstSeenId && (
-                                <LastVisitMarker />
+                                <LastVisitMarker stagedLane={stagedLane} />
                             )}
                             {startsDay && (
                                 <DayMarker
@@ -272,6 +278,7 @@ export function CommitFeed({
                                         commit.created_at,
                                         now,
                                     )}
+                                    stagedLane={stagedLane}
                                 />
                             )}
                             {card(commit)}
@@ -301,10 +308,16 @@ export function CommitFeed({
     );
 }
 
-function DayMarker({ label }: { label: string }) {
+function DayMarker({
+    label,
+    stagedLane,
+}: {
+    label: string;
+    stagedLane?: string;
+}) {
     return (
         <div className="flex">
-            <RailSegment />
+            <RailSegment lane={stagedLane} isDashed />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <h3 className="font-mono text-xs text-muted-foreground">
                     {label}
@@ -314,14 +327,14 @@ function DayMarker({ label }: { label: string }) {
     );
 }
 
-function LastVisitMarker() {
+function LastVisitMarker({ stagedLane }: { stagedLane?: string }) {
     return (
         <div
             role="separator"
             aria-label="Commits above are new since your last visit"
             className="flex"
         >
-            <RailSegment />
+            <RailSegment lane={stagedLane} isDashed />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <span className="font-mono text-xs text-muted-foreground">
                     HEAD@{'{last visit}'}
