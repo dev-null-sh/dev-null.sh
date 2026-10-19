@@ -69,8 +69,10 @@ use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
+use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TermsController;
+use App\Http\Controllers\TrafficController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
@@ -354,6 +356,9 @@ Route::middleware('auth')->group(function (): void {
 
     // Operations...
     Route::get('operations', [OperationsController::class, 'show'])->name('operations.show');
+    Route::get('operations/features', [FeatureController::class, 'index'])->name('feature.index');
+    Route::get('operations/activity', [SiteActivityController::class, 'show'])->name('site-activity.show');
+    Route::get('operations/traffic', [TrafficController::class, 'show'])->name('traffic.show');
     Route::post('operations/failed-jobs/{failedJob}/retry', [FailedJobRetryController::class, 'store'])
         ->whereUuid('failedJob')
         ->name('failed-job-retry.store');
