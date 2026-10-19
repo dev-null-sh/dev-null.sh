@@ -20,6 +20,31 @@ The setup script installs dependencies, creates `.env`, generates an app key, ru
 
 With `APP_ENV=local`, run `composer dev`, visit `http://localhost:8000` (or your configured `APP_URL`), and sign in: a modal asks for a username and signs you in as that user, creating it if it doesn't exist yet. GitHub isn't involved at all. The routes are only registered in the local environment, see `routes/web.php`.
 
+### Testing broadcast remotes locally
+
+Broadcasts are subscriber-only message channels: an owner and selected publishers can post, while subscribers can read and react. Channels can accept anyone or require an invitation. The latest 30 public channels appear on the owner's profile; **Browse broadcasts** opens the searchable directory prefilled with their handle. The directory inside Remotes provides further pages. A subscription never reveals messages from before the user's first join; leaving removes access, and rejoining preserves that original cutoff.
+
+After migrating, load the optional local-only demo (safe to rerun):
+
+```bash
+php artisan db:seed --class=BroadcastDemoSeeder
+```
+
+Sign in locally with any of these usernames, using separate browser profiles for simultaneous sessions:
+
+| Username | Demo role |
+|---|---|
+| `broadcast-owner` | Owns an open channel and an invite-only channel; can invite and manage publishers |
+| `broadcast-publisher` | Can post in the open channel |
+| `broadcast-reader` | Already subscribed; can read but not post |
+| `broadcast-new` | Not subscribed; can discover and join the open channel |
+| `broadcast-invitee` | Has an invitation to the invite-only channel |
+| `broadcast-returning` | Left the open channel; rejoining restores messages since their first join |
+
+To moderate subscribers as `broadcast-owner`, open a channel and click its name. **Members and bans** lets you search members, kick or ban them, and unban banned accounts. Kicking permits rejoining an open channel; banning prevents it until unbanned. Both remove publishing privileges and preserve the original history cutoff. Unbanning does not automatically resubscribe anyone.
+
+Open Remotes after signing in. The open channel includes one message from before the subscribers joined (visible only to its owner) and messages after they joined. To test invite-only delivery, accept the invitation as `broadcast-invitee`, then publish a new message as the owner. Accounts need Remotes enabled in Settings → Profile; the demo enables it for these accounts. No GitHub credentials or AI keys are needed for this demo.
+
 ### GitHub login
 
 Outside the local environment, users sign in with GitHub. Create a [GitHub OAuth app](https://github.com/settings/developers) with the callback URL `{APP_URL}/auth/github/callback`, then set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `.env`.

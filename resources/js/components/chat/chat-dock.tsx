@@ -9,8 +9,10 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
+import BroadcastController from '@/actions/App/Http/Controllers/BroadcastController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
+import { BroadcastHeader, BroadcastTile } from '@/components/chat/broadcast';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { ConversationThread } from '@/components/chat/conversation-thread';
 import { InboxPanel } from '@/components/chat/inbox-panel';
@@ -99,7 +101,13 @@ function DockedChat({ user }: { user: User }) {
                                 ? ConversationController.index()
                                 : target.kind === 'direct'
                                   ? ConversationController.show(target.partner)
-                                  : OrgController.show({ org: target.org.id })
+                                  : target.kind === 'org'
+                                    ? OrgController.show({
+                                          org: target.org.id,
+                                      })
+                                    : BroadcastController.show({
+                                          broadcast: target.broadcast.id,
+                                      })
                         }
                         onClick={(event) => event.stopPropagation()}
                         aria-label="Open in Remotes"
@@ -176,6 +184,23 @@ function DockedChat({ user }: { user: User }) {
                                     after={tools}
                                     onLeft={leave}
                                 />
+                            ) : target.kind === 'broadcast' ? (
+                                <BroadcastHeader
+                                    broadcast={target.broadcast}
+                                    user={user}
+                                    isCompact
+                                    before={
+                                        <DockButton
+                                            label="All remotes"
+                                            onClick={leave}
+                                            className="-ml-1.5"
+                                        >
+                                            <ChevronLeft className="size-4" />
+                                        </DockButton>
+                                    }
+                                    after={tools}
+                                    onLeft={leave}
+                                />
                             ) : (
                                 <DirectDockHeader
                                     partner={target.partner}
@@ -198,6 +223,8 @@ function DockedChat({ user }: { user: User }) {
                                     user={target.partner}
                                     className="size-7"
                                 />
+                            ) : target.kind === 'broadcast' ? (
+                                <BroadcastTile isCompact />
                             ) : (
                                 <MemberStack
                                     users={(thread?.members ?? []).map(
@@ -210,13 +237,15 @@ function DockedChat({ user }: { user: User }) {
                             <span className="min-w-0 truncate text-sm font-semibold">
                                 {target.kind === 'direct'
                                     ? target.partner.name
-                                    : orgTitle(
-                                          target.org,
-                                          thread?.members ??
-                                              summary?.members ??
-                                              null,
-                                          user,
-                                      )}
+                                    : target.kind === 'broadcast'
+                                      ? target.broadcast.name
+                                      : orgTitle(
+                                            target.org,
+                                            thread?.members ??
+                                                summary?.members ??
+                                                null,
+                                            user,
+                                        )}
                             </span>
                             {unread > 0 && (
                                 <span className="rounded-full bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums">

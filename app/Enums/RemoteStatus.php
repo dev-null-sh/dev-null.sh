@@ -13,4 +13,5 @@ enum RemoteStatus: string
     case Open = 'open';
     case Fetched = 'fetched';
     case Dropped = 'dropped';
+    case Banned = 'banned';
 }

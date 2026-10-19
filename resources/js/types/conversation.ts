@@ -51,9 +51,29 @@ export type Message = {
     created_at: string;
 };
 
-export type ConversationKind = 'direct' | 'org';
+export type ConversationKind = 'direct' | 'org' | 'broadcast';
 
 export type OrgRole = 'maintainer' | 'contributor';
+
+export type BroadcastRole = 'owner' | 'publisher' | 'subscriber';
+
+export type BroadcastVisibility = 'public' | 'invite';
+
+/**
+ * Where the viewer stands with a broadcast: their role while subscribed, an invitation waiting, or nothing.
+ */
+export type BroadcastMembership = BroadcastRole | 'invited' | 'none';
+
+export type BroadcastMember = {
+    user: User;
+    role: BroadcastRole | null;
+    is_banned: boolean;
+};
+
+export type BroadcastMemberPage = {
+    members: BroadcastMember[];
+    next_cursor: number | null;
+};
 
 /**
  * What happened in an org, logged between its messages.
@@ -69,6 +89,12 @@ export type OrgEvent =
     | 'inherited';
 
 export type OrgRef = { id: string; name: string | null };
+
+export type BroadcastRef = {
+    id: string;
+    name: string;
+    visibility?: BroadcastVisibility;
+};
 
 export type OrgMember = {
     user: User;
@@ -114,6 +140,46 @@ export type OrgThread = {
     is_archived: boolean;
     role: OrgRole | null;
     access: PushAccess;
+};
+
+export type BroadcastThread = {
+    messages: Message[];
+    has_older: boolean;
+    reactions_version: number;
+    reaction_changes: MessageReactionChange[];
+    read_through_id: number;
+    publishers: User[];
+    subscriber_count: number;
+    typing: string[];
+    is_archived: boolean;
+    role: BroadcastRole;
+    can_post: boolean;
+};
+
+/**
+ * What the directory and a broadcast's landing page know about it, including where the viewer stands.
+ */
+export type BroadcastSummary = {
+    id: string;
+    name: string;
+    visibility: BroadcastVisibility;
+    owner: User;
+    subscriber_count: number;
+    membership: BroadcastMembership;
+};
+
+export type BroadcastDirectoryPage = {
+    broadcasts: BroadcastSummary[];
+    has_more: boolean;
+};
+
+/**
+ * One of the public broadcasts a profile's owner runs: its name and size, nothing more.
+ */
+export type PublicBroadcast = {
+    id: string;
+    name: string;
+    subscriber_count: number;
 };
 
 /**

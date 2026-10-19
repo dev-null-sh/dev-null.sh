@@ -6,6 +6,15 @@ use App\Enums\Log;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\BroadcastArchiveController;
+use App\Http\Controllers\BroadcastController;
+use App\Http\Controllers\BroadcastInvitationController;
+use App\Http\Controllers\BroadcastMemberController;
+use App\Http\Controllers\BroadcastMessageController;
+use App\Http\Controllers\BroadcastPublisherController;
+use App\Http\Controllers\BroadcastReadController;
+use App\Http\Controllers\BroadcastSubscriptionController;
+use App\Http\Controllers\BroadcastTypingController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
@@ -293,6 +302,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('remotes', [ConversationController::class, 'index'])->name('conversation.index');
     Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
     Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereUuid('org')->name('org.show');
+    Route::get('remotes/broadcasts', [BroadcastController::class, 'index'])->name('broadcast.index');
+    Route::get('remotes/broadcasts/{broadcast}', [BroadcastController::class, 'show'])->whereUuid('broadcast')->name('broadcast.show');
     Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])->whereUuid('messageImage')->name('message-image.show');
 
     Route::middleware('throttle:conversations')->group(function (): void {
@@ -324,6 +335,22 @@ Route::middleware('auth')->group(function (): void {
             ->name('conversation-archive.store');
         Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
             ->name('conversation-archive.destroy');
+        Route::post('remotes/broadcasts', [BroadcastController::class, 'store'])->middleware('throttle:messages')->name('broadcast.store');
+        Route::put('remotes/broadcasts/{broadcast}', [BroadcastController::class, 'update'])->whereUuid('broadcast')->name('broadcast.update');
+        Route::get('remotes/broadcasts/{broadcast}/messages', [BroadcastMessageController::class, 'index'])->whereUuid('broadcast')->name('broadcast-message.index');
+        Route::put('remotes/broadcasts/{broadcast}/read', [BroadcastReadController::class, 'update'])->whereUuid('broadcast')->name('broadcast-read.update');
+        Route::put('remotes/broadcasts/{broadcast}/typing', [BroadcastTypingController::class, 'update'])->whereUuid('broadcast')->name('broadcast-typing.update');
+        Route::post('remotes/broadcasts/{broadcast}/archive', [BroadcastArchiveController::class, 'store'])->whereUuid('broadcast')->name('broadcast-archive.store');
+        Route::delete('remotes/broadcasts/{broadcast}/archive', [BroadcastArchiveController::class, 'destroy'])->whereUuid('broadcast')->name('broadcast-archive.destroy');
+        Route::get('remotes/broadcasts/{broadcast}/members', [BroadcastMemberController::class, 'index'])->whereUuid('broadcast')->name('broadcast-member.index');
+        Route::put('remotes/broadcasts/{broadcast}/members/{member:username}', [BroadcastMemberController::class, 'update'])->whereUuid('broadcast')->withoutScopedBindings()->name('broadcast-member.update');
+        Route::delete('remotes/broadcasts/{broadcast}/members/{member:username}', [BroadcastMemberController::class, 'destroy'])->whereUuid('broadcast')->withoutScopedBindings()->name('broadcast-member.destroy');
+        Route::post('remotes/broadcasts/{broadcast}/subscriptions', [BroadcastSubscriptionController::class, 'store'])->whereUuid('broadcast')->name('broadcast-subscription.store');
+        Route::delete('remotes/broadcasts/{broadcast}/subscriptions', [BroadcastSubscriptionController::class, 'destroy'])->whereUuid('broadcast')->name('broadcast-subscription.destroy');
+        Route::post('remotes/broadcasts/{broadcast}/invitations', [BroadcastInvitationController::class, 'store'])->whereUuid('broadcast')->middleware('throttle:messages')->name('broadcast-invitation.store');
+        Route::delete('remotes/broadcasts/{broadcast}/invitations/{invitee:username}', [BroadcastInvitationController::class, 'destroy'])->whereUuid('broadcast')->withoutScopedBindings()->name('broadcast-invitation.destroy');
+        Route::post('remotes/broadcasts/{broadcast}/publishers/{publisher:username}', [BroadcastPublisherController::class, 'store'])->whereUuid('broadcast')->withoutScopedBindings()->name('broadcast-publisher.store');
+        Route::delete('remotes/broadcasts/{broadcast}/publishers/{publisher:username}', [BroadcastPublisherController::class, 'destroy'])->whereUuid('broadcast')->withoutScopedBindings()->name('broadcast-publisher.destroy');
         Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
             ->whereNumber('message')
             ->name('message-link-preview.show');
@@ -343,6 +370,10 @@ Route::middleware('auth')->group(function (): void {
         ->whereUuid('org')
         ->middleware('throttle:messages')
         ->name('org-message.store');
+    Route::post('remotes/broadcasts/{broadcast}/messages', [BroadcastMessageController::class, 'store'])
+        ->whereUuid('broadcast')
+        ->middleware('throttle:messages')
+        ->name('broadcast-message.store');
 
     // Moderation...
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');

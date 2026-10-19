@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Actions\UpdateConversationTyping;
+use App\Enums\BroadcastRole;
 use App\Enums\OrgRole;
 use App\Enums\PushAccess;
 use App\Enums\RemoteStatus;
@@ -73,7 +74,7 @@ final readonly class ConversationThreadQuery
             'read_through_id' => $mine->read_through_id,
             'members' => $participants->map(fn (ConversationParticipant $participant): array => [
                 'user' => $participant->user,
-                'role' => $participant->role,
+                'role' => $participant->orgRole(),
                 'read_through_id' => $user->pull_receipts && $participant->user->pull_receipts ? $participant->read_through_id : 0,
             ])->values()->toBase(),
             'typing' => $participants
@@ -83,8 +84,45 @@ final readonly class ConversationThreadQuery
                 ->values()
                 ->all(),
             'is_archived' => $mine->archived_at !== null,
-            'role' => $mine->role,
+            'role' => $mine->orgRole(),
             'access' => PushAccess::Open,
+        ];
+    }
+
+    /**
+     * A broadcast the user subscribes to, from where their history starts. Only the owner and publishers can post;
+     * subscribers read, react, and keep their place.
+     *
+     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, publishers: EloquentCollection<int, User>, subscriber_count: int, typing: array<int, string>, is_archived: bool, role: BroadcastRole, can_post: bool}
+     */
+    public function broadcast(User $user, Conversation $broadcast, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
+    {
+        $mine = $broadcast->participants()
+            ->where('user_id', $user->id)
+            ->where('status', RemoteStatus::Open)
+            ->firstOrFail();
+        [$messages, $hasOlder] = $this->page($broadcast, $mine->visible_from_id, $after, $before, withPeople: true);
+        $publishers = $broadcast->participants()->with('user')
+            ->where('status', RemoteStatus::Open)
+            ->whereIn('role', [BroadcastRole::Owner, BroadcastRole::Publisher])
+            ->oldest('id')->get();
+        $typingKeys = $publishers
+            ->reject(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id)
+            ->mapWithKeys(fn (ConversationParticipant $participant): array => [$participant->user->username => UpdateConversationTyping::key($participant->user, $broadcast)]);
+        $typing = Cache::many($typingKeys->values()->all());
+
+        return [
+            'messages' => $messages,
+            'has_older' => $hasOlder,
+            'reactions_version' => $broadcast->reactions_version,
+            'reaction_changes' => $this->reactionChanges($broadcast, $mine->visible_from_id, $reactionsAfter),
+            'read_through_id' => $mine->read_through_id,
+            'publishers' => $publishers->map(fn (ConversationParticipant $participant): User => $participant->user)->values(),
+            'subscriber_count' => $broadcast->participants()->where('status', RemoteStatus::Open)->count(),
+            'typing' => $typingKeys->filter(fn (string $key): bool => isset($typing[$key]))->keys()->all(),
+            'is_archived' => $mine->archived_at !== null,
+            'role' => $mine->broadcastRole() ?? BroadcastRole::Subscriber,
+            'can_post' => $mine->role === BroadcastRole::Owner || $mine->role === BroadcastRole::Publisher,
         ];
     }
 
@@ -128,6 +166,15 @@ final readonly class ConversationThreadQuery
             : $query->where('id', '>', $after)->orderBy('id')->limit(self::PAGE * 2)->get();
 
         $hasOlder = $after === null && $messages->count() > self::PAGE;
+
+        // A broadcast post may quote a message from before the viewer joined: they see the post, not the quote.
+        if ($conversation->isBroadcast()) {
+            $messages->each(function (Message $message) use ($visibleFrom): void {
+                if ($message->reply_to_id !== null && $message->reply_to_id <= $visibleFrom) {
+                    $message->setRelation('replyTo', null);
+                }
+            });
+        }
 
         return [($hasOlder ? $messages->slice(1)->values() : $messages)->toBase(), $hasOlder];
     }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Casts\ParticipantRole;
+use App\Enums\BroadcastRole;
 use App\Enums\OrgRole;
 use App\Enums\RemoteStatus;
 use Carbon\CarbonInterface;
@@ -17,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $conversation_id
  * @property-read string $user_id
  * @property-read RemoteStatus $status
- * @property-read OrgRole|null $role
+ * @property-read OrgRole|BroadcastRole|null $role
  * @property-read int $visible_from_id
  * @property-read CarbonInterface|null $last_message_at
  * @property-read int $read_through_id
@@ -51,7 +53,7 @@ final class ConversationParticipant extends Model
             'conversation_id' => 'string',
             'user_id' => 'string',
             'status' => RemoteStatus::class,
-            'role' => OrgRole::class,
+            'role' => ParticipantRole::class,
             'visible_from_id' => 'integer',
             'last_message_at' => 'datetime',
             'read_through_id' => 'integer',
@@ -68,5 +70,21 @@ final class ConversationParticipant extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The role this row holds in its org, or null in a broadcast or pair.
+     */
+    public function orgRole(): ?OrgRole
+    {
+        return $this->role instanceof OrgRole ? $this->role : null;
+    }
+
+    /**
+     * The role this row holds in its broadcast, or null in an org or pair.
+     */
+    public function broadcastRole(): ?BroadcastRole
+    {
+        return $this->role instanceof BroadcastRole ? $this->role : null;
     }
 }

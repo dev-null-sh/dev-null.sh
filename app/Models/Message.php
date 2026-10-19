@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\ConversationKind;
 use App\Enums\OrgEvent;
+use App\Enums\RemoteStatus;
 use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
 use Database\Factories\MessageFactory;
 use Illuminate\Database\Eloquent\Attributes\Visible;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -136,7 +139,8 @@ final class Message extends Model
     }
 
     /**
-     * Only the people in the conversation see a message, and in an org only from where their history starts.
+     * Only the people in the conversation see a message, in an org from where their history starts, and in a
+     * broadcast only while they are subscribed.
      */
     public function isVisibleTo(User $user): bool
     {
@@ -144,6 +148,7 @@ final class Message extends Model
             ->where('conversation_id', $this->conversation_id)
             ->where('user_id', $user->id)
             ->where('visible_from_id', '<', $this->id)
+            ->when($this->conversation->kind === ConversationKind::Broadcast, fn (Builder $query): Builder => $query->where('status', RemoteStatus::Open))
             ->exists();
     }
 

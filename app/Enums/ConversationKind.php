@@ -8,4 +8,5 @@ enum ConversationKind: string
 {
     case Direct = 'direct';
     case Org = 'org';
+    case Broadcast = 'broadcast';
 }

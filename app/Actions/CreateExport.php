@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\NotificationType;
 use App\Models\Bookmark;
+use App\Models\BroadcastInvitation;
 use App\Models\CommitImage;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
@@ -30,7 +31,7 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, sessions: Collection<int, stdClass>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, broadcast_invitations: Generator<int, array{name: string, created_at: string}>, notifications: Generator<int, array<string, string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
@@ -72,6 +73,7 @@ final readonly class CreateExport
             'muting' => $this->usernames($user->muting()),
             'blocking' => $this->usernames($user->blocking()),
             'messages' => $this->messages($user),
+            'broadcast_invitations' => $this->broadcastInvitations($user),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
@@ -189,16 +191,37 @@ final readonly class CreateExport
             ->whereIn('id', ConversationParticipant::query()->select('conversation_id')->where('user_id', $user->id))
             ->with('participants.user')
             ->get()
-            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $conversation->isOrg()
-                ? 'org: '.($conversation->name ?? $conversation->id)
-                : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username,
-            ]);
+            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => match (true) {
+                $conversation->isOrg() => 'org: '.($conversation->name ?? $conversation->id),
+                $conversation->isBroadcast() => 'broadcast: '.($conversation->name ?? $conversation->id),
+                default => $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username,
+            }]);
 
         foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->lazyById(500) as $message) {
             yield [
                 'to' => $recipients->get($message->conversation_id),
                 'body' => $message->body,
                 'created_at' => $message->created_at->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * The broadcasts the user has been invited to, by name and when.
+     *
+     * @return Generator<int, array{name: string, created_at: string}>
+     */
+    private function broadcastInvitations(User $user): Generator
+    {
+        $invitations = BroadcastInvitation::query()
+            ->where('user_id', $user->id)
+            ->with('conversation:id,name')
+            ->lazyById(500);
+
+        foreach ($invitations as $invitation) {
+            yield [
+                'name' => $invitation->conversation->name ?? $invitation->conversation->id,
+                'created_at' => $invitation->created_at->toIso8601String(),
             ];
         }
     }
