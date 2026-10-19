@@ -25,19 +25,20 @@ it('adds people with or without the history', function (bool $sharesHistory, int
     'from now on' => [false, 0],
 ]);
 
-it('lets only maintainers add, up to fifteen', function (): void {
+it('lets only maintainers add, up to a hundred', function (): void {
     $mark = User::factory()->create();
-    $followers = followersOf($mark, 15);
-    $org = createOrg($mark, array_slice($followers, 0, 13));
+    $followers = followersOf($mark, Conversation::MAX_MEMBERS);
+    [$last, $extra] = array_slice($followers, -2);
+    $org = createOrg($mark, array_slice($followers, 0, -2));
 
-    $this->actingAs($followers[0])->postJson(route('org-member.store', $org), ['members' => [$followers[13]->username], 'share_history' => true])->assertForbidden();
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$followers[13]->username, $followers[14]->username], 'share_history' => true])
+    $this->actingAs($followers[0])->postJson(route('org-member.store', $org), ['members' => [$last->username], 'share_history' => true])->assertForbidden();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$last->username, $extra->username], 'share_history' => true])
         ->assertUnprocessable()->assertJsonValidationErrors('members');
     $this->postJson(route('org-member.store', $org), ['members' => ['nobody-by-that-name'], 'share_history' => true])
         ->assertUnprocessable()->assertJsonValidationErrors('members.0');
-    $this->postJson(route('org-member.store', $org), ['members' => [$followers[13]->username], 'share_history' => true])->assertNoContent();
-    $this->postJson(route('org-member.store', $org), ['members' => [$followers[14]->username], 'share_history' => true])
-        ->assertUnprocessable()->assertJsonValidationErrors(['members.0' => 'the org is full (15)']);
+    $this->postJson(route('org-member.store', $org), ['members' => [$last->username], 'share_history' => true])->assertNoContent();
+    $this->postJson(route('org-member.store', $org), ['members' => [$extra->username], 'share_history' => true])
+        ->assertUnprocessable()->assertJsonValidationErrors(['members.0' => 'the org is full ('.Conversation::MAX_MEMBERS.')']);
 });
 
 it('removes people, who then lose access', function (): void {

@@ -36,7 +36,7 @@ import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Message, OrgMember, OrgRef, OrgRole, User } from '@/types';
 
-export const maxMembers = 15;
+export const maxMembers = 100;
 
 const searchDebounce = 150;
 
@@ -736,7 +736,7 @@ export function OrgPeopleDialog({
                                 </span>
                                 <span
                                     className={cn(
-                                        'shrink-0 font-mono text-xs tabular-nums',
+                                        'min-w-[7ch] shrink-0 text-right font-mono text-xs tabular-nums',
                                         { 'text-foreground': isFull },
                                     )}
                                     data-test="org-people-count"
@@ -778,7 +778,7 @@ export function OrgPeopleDialog({
                                 data-test="org-people-search"
                             />
                         </label>
-                        <div className="flex min-h-7 flex-wrap gap-1.5">
+                        <div className="flex max-h-15.5 min-h-7 flex-wrap gap-1.5 overflow-y-auto overscroll-contain">
                             {picked.length === 0 ? (
                                 <span className="font-mono text-xs leading-7 text-muted-foreground">
                                     nobody picked yet
