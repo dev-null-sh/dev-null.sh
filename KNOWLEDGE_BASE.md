@@ -96,6 +96,8 @@ Every developer has a profile at `/@{username}`, with their GitHub identity, bio
 
 Change your name, avatar, bio, company, location, or website on GitHub, not on /dev/null. Settings → Profile offers **Edit on GitHub** and **Sync from GitHub**. Profile details also refresh on sign-in. Manual sync is limited to once a minute. A GitHub username rename is picked up on sign-in; accounts are not merged with another user's account.
 
+Profiles show achievement badges and an XP-based Unix rank. **Sweet tooth** unlocks after receiving **100 pastéis across your account**, not on a single commit, even with Pastéis mode off. **Luddite** unlocks when Tom still follows you but you no longer follow him back, deducting **100 XP** with a minimum total of zero. Following Tom again removes the badge and penalty. Badges and ranks are recalculated from current account activity rather than permanently awarded.
+
 Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [identity sync](app/Actions/UpdateOrCreateUser.php).
 
 ### Following developers and suggestions
