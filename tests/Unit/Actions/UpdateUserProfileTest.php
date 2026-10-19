@@ -44,6 +44,18 @@ it('mirrors the github profile of the user', function (): void {
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 });
 
+it('queues the user for the search index when their name changes on github', function (): void {
+    configureAlgolia();
+
+    $user = User::factory()->create(['github_id' => '583231', 'username' => 'octocat', 'name' => 'Old name']);
+
+    fakeGitHubAccount($user, ['login' => 'octocat', 'name' => 'The Octocat']);
+
+    resolve(UpdateUserProfile::class)->handle($user);
+
+    expect(pendingSearchSyncs())->toBe([$user->id]);
+});
+
 it('clears profile fields removed on github', function (): void {
     $user = User::factory()->create();
 

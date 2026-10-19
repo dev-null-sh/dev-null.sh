@@ -281,6 +281,14 @@ final class User extends Authenticatable
         return $this->onboarded_at !== null;
     }
 
+    /**
+     * Whether the last save changed what the users search index holds about the user.
+     */
+    public function changedSearchRecord(): bool
+    {
+        return $this->wasRecentlyCreated || $this->wasChanged(['username', 'name']);
+    }
+
     public function isAdmin(): bool
     {
         /** @var list<string> $admins */

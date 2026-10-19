@@ -61,6 +61,30 @@ it('updates an existing user from github', function (): void {
         ->and($existing->bio)->toBe('New bio');
 });
 
+it('queues new and renamed users for the search index, but not a sign in that changes neither name', function (): void {
+    configureAlgolia();
+    fakeGitHubSponsorsListing();
+
+    $action = resolve(UpdateOrCreateUser::class);
+
+    $user = $action->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat', 'name' => 'The Octocat']));
+    $action->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat', 'name' => 'The Octocat']));
+    $action->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat', 'name' => 'Mona']));
+
+    expect(pendingSearchSyncs())->toBe([$user->id, $user->id]);
+});
+
+it('queues users renamed away from a username for the search index', function (): void {
+    configureAlgolia();
+    fakeGitHubSponsorsListing();
+
+    $stale = User::factory()->create(['github_id' => '999', 'username' => 'octocat']);
+
+    $user = resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat']));
+
+    expect(pendingSearchSyncs())->toBe([$stale->id, $user->id]);
+});
+
 it('falls back to the username when the name is blank', function (): void {
     fakeGitHubSponsorsListing();
 

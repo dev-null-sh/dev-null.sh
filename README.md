@@ -194,6 +194,18 @@ The app signs in the way an OAuth app does, with the authorization code flow and
 ### Maintenance
 - `composer update:requirements` - Updates the PHP and frontend dependency version constraints
 
+### Algolia developer search
+
+Developer search and the remote picker can rank people with Algolia. Every user change is noted in `search_syncs` in the same transaction, and the scheduler runs `search:sync` every ten seconds to send up to 1,000 changes per batch from the current database state. Nothing is noted while `ALGOLIA_APP_ID` or `ALGOLIA_WRITE_KEY` is missing.
+
+On Laravel Cloud, add the variables in the environment variables section of the environment's settings; they apply on the next deployment. Roll out in this order:
+
+1. Set `ALGOLIA_APP_ID` and `ALGOLIA_WRITE_KEY` (an API key with `addObject`, `deleteObject` and `editSettings`). Leave `ALGOLIA_SEARCH_KEY` empty.
+2. After the deployment has run the migrations, run `php artisan search:import users` from the environment's **Commands** tab. It configures the `production_users` index and queues every user; `search:sync` sends them. Indexes are prefixed with `APP_ENV` and an underscore.
+3. Once the index count matches the users count, set `ALGOLIA_SEARCH_KEY` (a search-only key) and deploy.
+
+Switch off `algolia-user-search` in `/operations` to go back to database search without a deployment; the index keeps syncing. Algolia errors are reported and fall back to database search.
+
 ### Semantic commit search
 
 Commit search generates and caches query embeddings with the Laravel AI SDK, using the existing `OPENAI_API_KEY`. The provider, model, and dimensions are explicitly kept compatible with stored embeddings, so no re-embedding or database migration is needed. Query embeddings are cached for one hour; result visibility and relevance are evaluated on every search.

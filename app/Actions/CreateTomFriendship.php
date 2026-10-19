@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\CommitStatus;
+use App\Enums\SearchIndex;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -16,6 +17,11 @@ final readonly class CreateTomFriendship
     public const string GITHUB_ID = 'tom';
 
     public const string USERNAME = 'tom';
+
+    public function __construct(private CreateSearchSyncs $createSearchSyncs)
+    {
+        //
+    }
 
     /**
      * Like on MySpace, Tom is everyone's first friend: he follows them and they follow him, without a notification
@@ -63,6 +69,8 @@ final readonly class CreateTomFriendship
                 'body' => 'Welcome to dev/null!',
                 'status' => CommitStatus::Approved,
             ]);
+
+            $this->createSearchSyncs->handle(SearchIndex::Users, [$tom->id]);
 
             return $tom;
         });

@@ -2,7 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Enums\Feature;
 use App\Models\User;
+use App\Services\Features;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 it('finds users by username or name, best matches first', function (): void {
     User::factory()->create(['username' => 'taylorotwell', 'name' => 'Taylor Otwell']);
@@ -110,4 +115,70 @@ it('leaves out muted people and people across a block', function (): void {
     $response->assertOk()
         ->assertJsonCount(1, 'users')
         ->assertJsonPath('users.0.username', 'taylor');
+});
+
+it('ranks users as Algolia does once its search key is set', function (): void {
+    configureAlgolia();
+
+    $first = User::factory()->create(['username' => 'nunomaduro']);
+    $second = User::factory()->create(['username' => 'nuno']);
+
+    Http::fake(['testapp-dsn.algolia.net/1/indexes/testing_users/query' => Http::response([
+        'hits' => [['objectID' => $first->id], ['objectID' => Str::uuid7()->toString()], ['objectID' => $second->id]],
+    ])]);
+
+    $this->getJson('/search/users?q=@Nuno')
+        ->assertOk()
+        ->assertJsonCount(2, 'users')
+        ->assertJsonPath('users.0.username', 'nunomaduro')
+        ->assertJsonPath('users.1.username', 'nuno');
+
+    Http::assertSent(fn (Request $request): bool => $request['query'] === 'nuno' && $request['hitsPerPage'] === 24);
+});
+
+it('leaves out muted people and people across a block from Algolia matches, up to the limit', function (): void {
+    configureAlgolia();
+
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $reachable = User::factory()->count(9)->create();
+
+    $viewer->muting()->attach($muted);
+    $viewer->blocking()->attach($blocked);
+
+    Http::fake(['testapp-dsn.algolia.net/*' => Http::response([
+        'hits' => array_map(fn (string $id): array => ['objectID' => $id], [$muted->id, $blocked->id, ...$reachable->modelKeys()]),
+    ])]);
+
+    $this->actingAs($viewer)
+        ->getJson('/search/users?q=dev')
+        ->assertOk()
+        ->assertJsonCount(8, 'users')
+        ->assertJsonPath('users.0.id', $reachable->first()?->id);
+});
+
+it('searches the database when Algolia fails', function (): void {
+    configureAlgolia();
+    Http::fake(['testapp-dsn.algolia.net/*' => Http::response([], 500)]);
+
+    User::factory()->create(['username' => 'nuno']);
+
+    $this->getJson('/search/users?q=nuno')
+        ->assertOk()
+        ->assertJsonPath('users.0.username', 'nuno');
+});
+
+it('searches the database while Algolia user search is switched off', function (): void {
+    configureAlgolia();
+    resolve(Features::class)->update(Feature::AlgoliaUserSearch, false);
+    Http::fake();
+
+    User::factory()->create(['username' => 'nuno']);
+
+    $this->getJson('/search/users?q=nuno')
+        ->assertOk()
+        ->assertJsonPath('users.0.username', 'nuno');
+
+    Http::assertNothingSent();
 });

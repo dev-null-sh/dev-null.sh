@@ -143,11 +143,11 @@ Sources: [log types](app/Enums/Log.php), [log queries](app/Queries/LogQueries), 
 
 ### Searching developers and commits
 
-Open search with **⌘/Ctrl+K** or **/**. Developer search finds people by name or GitHub username. Commit search, also available at `/search`, finds posts by meaning rather than requiring an exact phrase: describe the topic you want to read about. Commit queries must contain at least three characters and at most 100. Results respect visibility, mutes, and blocks; semantic matching does not guarantee that every relevant commit will be returned.
+Open search with **⌘/Ctrl+K** or **/**. Developer search finds people by name or GitHub username. When Algolia is configured and the `algolia-user-search` feature is on, developer search and the remote picker rank people with Algolia, then drop muted and blocked people; otherwise, or when Algolia fails, they match names and usernames in the database. Username and name changes reach Algolia within about ten seconds. Commit search, also available at `/search`, finds posts by meaning rather than requiring an exact phrase: describe the topic you want to read about. Commit queries must contain at least three characters and at most 100. Results respect visibility, mutes, and blocks; semantic matching does not guarantee that every relevant commit will be returned.
 
 The public search searches developers and commits, not this knowledge-base file. Feature documentation is available to the internal knowledge-base retriever once indexed; there is no public knowledge-base search endpoint yet.
 
-Sources: [search page](resources/js/pages/search/index.tsx), [commit search query](app/Queries/CommitSearchQuery.php), [search validation](app/Http/Requests/ListCommitSearchRequest.php), [knowledge-base query](app/Queries/KnowledgeBaseSearchQuery.php).
+Sources: [search page](resources/js/pages/search/index.tsx), [developer search query](app/Queries/UserSearchQuery.php), [Algolia service](app/Services/Algolia.php), [commit search query](app/Queries/CommitSearchQuery.php), [search validation](app/Http/Requests/ListCommitSearchRequest.php), [knowledge-base query](app/Queries/KnowledgeBaseSearchQuery.php).
 
 Livestream history: the team agreed to build semantic search on [day two at 2:57:59](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=10679s). The discussion connects immutable commits with simpler embeddings: editing would require re-embedding, versioning, and reconsidering notifications. They deferred editing and versioning “for now,” rather than declaring that those features could never exist.
 
@@ -463,6 +463,7 @@ Livestream history: on [day two at 4:08:10](https://www.youtube.com/watch?v=nfmV
 | Frontend | **React** and **TypeScript**, connected to Laravel through **Inertia**. |
 | Styling and components | **Tailwind CSS**, **Radix UI**, and **Headless UI**, with **Lucide** icons. |
 | Database | **PostgreSQL**, with **pgvector** for vector data and **pg_trgm** for text matching. |
+| Search | **Algolia** indexes developers' usernames and names for developer search; commit search stays on **pgvector**. |
 | Authentication | **GitHub OAuth** through **Laravel Socialite**. GitHub is the source of truth for user identity and profile information. |
 | Frontend routes | **Laravel Wayfinder** generates typed route helpers. |
 | Asset tooling | **Vite+ / Vite** builds frontend assets; **Bun** manages frontend dependencies and runs scripts. |

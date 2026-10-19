@@ -65,6 +65,30 @@ function embeddingVector(int $dimension): array
 }
 
 /**
+ * Sets up Algolia with write and search keys, so writes go to testapp.algolia.net and searches to
+ * testapp-dsn.algolia.net, both on indexes prefixed with the "testing" environment.
+ */
+function configureAlgolia(): void
+{
+    config([
+        'services.algolia.app_id' => 'TESTAPP',
+        'services.algolia.write_key' => 'write-key',
+        'services.algolia.search_key' => 'search-key',
+    ]);
+}
+
+/**
+ * The object ids waiting in search_syncs for the given index, oldest first.
+ *
+ * @return list<string>
+ */
+function pendingSearchSyncs(string $index = 'users'): array
+{
+    /** @var list<string> */
+    return DB::table('search_syncs')->where('index', $index)->orderBy('id')->pluck('object_id')->all();
+}
+
+/**
  * @param  list<list<float>>  $embeddings
  * @return array{data: list<array{index: int, embedding: list<float>}>}
  */

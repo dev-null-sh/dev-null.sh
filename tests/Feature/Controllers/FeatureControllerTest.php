@@ -16,7 +16,10 @@ it('lists the features to admins', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('operations/features')
-            ->where('features', [['name' => 'translations', 'enabled' => true]])
+            ->where('features', [
+                ['name' => 'translations', 'enabled' => true],
+                ['name' => 'algolia-user-search', 'enabled' => true],
+            ])
             ->where('hasTraffic', false));
 });
 
@@ -43,7 +46,7 @@ it('lets admins switch a feature off and back on for everyone', function (): voi
     $admin = User::factory()->create(['username' => 'admin']);
 
     $this->actingAs($admin)->get(route('feature.index'))
-        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => true]]));
+        ->assertInertia(fn ($page) => $page->where('features.0', ['name' => 'translations', 'enabled' => true]));
 
     $this->fromRoute('feature.index')
         ->put(route('feature.update', 'translations'), ['enabled' => false])
@@ -52,7 +55,7 @@ it('lets admins switch a feature off and back on for everyone', function (): voi
     expect(resolve(Features::class)->enabled(Feature::Translations))->toBeFalse();
     $this->assertDatabaseHas('features', ['name' => 'translations', 'enabled' => false]);
     $this->get(route('feature.index'))
-        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => false]]));
+        ->assertInertia(fn ($page) => $page->where('features.0', ['name' => 'translations', 'enabled' => false]));
 
     $this->put(route('feature.update', 'translations'), ['enabled' => true])->assertRedirect();
 
