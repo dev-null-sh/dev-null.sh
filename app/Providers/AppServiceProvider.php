@@ -70,12 +70,17 @@ final class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('commit-reports', fn (Request $request): Limit => Limit::perMinute(5)->by($this->userId($request)));
 
-        // Every sync costs four GitHub API requests, out of a shared hourly budget...
+        // Every sync costs four GitHub API requests, out of a shared hourly budget. The mobile app shares it, and gets the
+        // same message with a code...
         RateLimiter::for('profile-syncs', function (Request $request): Limit {
             $user = $request->user();
             assert($user instanceof User);
 
-            return Limit::perMinute(1)->by($user->id)->response(function (): RedirectResponse {
+            return Limit::perMinute(1)->by($user->id)->response(function (Request $request, array $headers): JsonResponse|RedirectResponse {
+                if ($request->is('api/*')) {
+                    return new ApiException(ApiErrorCode::RateLimited, __('You just synced. Try again in a minute.'), $headers)->render();
+                }
+
                 Inertia::flash('toast', [
                     'type' => 'error',
                     'message' => 'You just synced. Try again in a minute.',

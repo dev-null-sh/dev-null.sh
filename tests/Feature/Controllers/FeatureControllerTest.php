@@ -10,19 +10,48 @@ beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 });
 
+it('lists the features to admins', function (): void {
+    $this->actingAs(User::factory()->create(['username' => 'admin']))
+        ->get(route('feature.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('operations/features')
+            ->where('features', [['name' => 'translations', 'enabled' => true]])
+            ->where('hasTraffic', false));
+});
+
+it('offers the traffic tab when a Fathom token is configured', function (): void {
+    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
+
+    $this->actingAs(User::factory()->create(['username' => 'admin']))
+        ->get(route('feature.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('hasTraffic', true));
+});
+
+it('hides the features from non admins', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->get(route('feature.index'))
+        ->assertNotFound();
+});
+
+it('requires authentication to list the features', function (): void {
+    $this->get(route('feature.index'))->assertRedirectToRoute('home');
+});
+
 it('lets admins switch a feature off and back on for everyone', function (): void {
     $admin = User::factory()->create(['username' => 'admin']);
 
-    $this->actingAs($admin)->get(route('operations.show'))
+    $this->actingAs($admin)->get(route('feature.index'))
         ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => true]]));
 
-    $this->fromRoute('operations.show')
+    $this->fromRoute('feature.index')
         ->put(route('feature.update', 'translations'), ['enabled' => false])
-        ->assertRedirectToRoute('operations.show');
+        ->assertRedirectToRoute('feature.index');
 
     expect(resolve(Features::class)->enabled(Feature::Translations))->toBeFalse();
     $this->assertDatabaseHas('features', ['name' => 'translations', 'enabled' => false]);
-    $this->get(route('operations.show'))
+    $this->get(route('feature.index'))
         ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => false]]));
 
     $this->put(route('feature.update', 'translations'), ['enabled' => true])->assertRedirect();
