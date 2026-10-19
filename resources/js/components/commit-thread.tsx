@@ -911,7 +911,9 @@ function CommitReply({
             onDeleted();
             router.flash(() => response);
         } catch {
-            if (!isNotFound) {
+            if (isNotFound) {
+                setIsConfirming(false);
+            } else {
                 toast.error('Could not delete your reply. Try again.');
             }
 

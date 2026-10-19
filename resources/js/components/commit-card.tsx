@@ -168,7 +168,7 @@ export function CommitCard({
             )}
             tabIndex={-1}
             data-commit={commit.id}
-            data-permalink={permalink.url}
+            data-permalink={wasDeleted ? undefined : permalink.url}
             data-test="commit"
             onPointerMove={
                 onHover &&
