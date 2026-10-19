@@ -2,13 +2,12 @@ import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { FollowButton } from '@/components/follow-button';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
-import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
@@ -237,16 +236,12 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 />
                             </p>
                         </div>
-                        <Button size="sm" asChild>
-                            <Link
-                                href={UserFollowController.store(commit.user)}
-                                as="button"
-                                preserveScroll
-                                aria-label={`Follow @${commit.user.username}`}
-                            >
-                                Follow
-                            </Link>
-                        </Button>
+                        <FollowButton
+                            user={commit.user}
+                            isFollowing={false}
+                            size="sm"
+                            className="min-w-24 shrink-0"
+                        />
                     </li>
                 ))}
             </ul>

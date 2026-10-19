@@ -3,7 +3,7 @@ import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
-import { useIsFollowing } from '@/components/follow-button';
+import { forgetFollowing } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -38,7 +38,6 @@ export function UserSafetyMenu({
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfirmingBlock, setIsConfirmingBlock] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const [, setIsFollowing] = useIsFollowing(user, false);
 
     const changeOpen = (menu: boolean, dialog: boolean) => {
         setIsMenuOpen(menu);
@@ -139,7 +138,7 @@ export function UserSafetyMenu({
                             disabled={isSaving}
                             onClick={() =>
                                 visit(UserBlockController.store(user), () =>
-                                    setIsFollowing(false),
+                                    forgetFollowing(user),
                                 )
                             }
                             data-test="confirm-block-button"

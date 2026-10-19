@@ -4,7 +4,7 @@ import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { Button } from '@/components/ui/button';
-import { useSharedState } from '@/hooks/use-shared-state';
+import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,9 @@ export function useFollowHover() {
     };
 }
 
+const isFollowingKey = (user: Pick<User, 'id'>): string =>
+    `is_following:${user.id}`;
+
 /**
  * Every follow control shares whether you follow someone, so a follow from a profile or a preview also shows in "Who to follow".
  */
@@ -30,7 +33,14 @@ export function useIsFollowing(
     user: Pick<User, 'id'>,
     isFollowing: boolean,
 ): [boolean, (isFollowing: boolean) => void] {
-    return useSharedState(`is_following:${user.id}`, isFollowing);
+    return useSharedState(isFollowingKey(user), isFollowing);
+}
+
+/**
+ * Blocking someone also ends your follow of them.
+ */
+export function forgetFollowing(user: Pick<User, 'id'>): void {
+    refreshSharedState(new Map([[isFollowingKey(user), false]]));
 }
 
 export function FollowLabel({

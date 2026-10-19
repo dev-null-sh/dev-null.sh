@@ -46,6 +46,11 @@ vi.doMock('@inertiajs/react', async () => ({
     },
 }));
 
+vi.doMock('../../resources/js/lib/chat', async () => ({
+    ...(await vi.importActual('../../resources/js/lib/chat')),
+    blockPartner: async () => true,
+}));
+
 const { FollowButton } =
     await import('../../resources/js/components/follow-button');
 const { UserPreview } =
@@ -54,6 +59,8 @@ const { SuggestedUserRow } =
     await import('../../resources/js/components/who-to-follow');
 const { UserSafetyMenu } =
     await import('../../resources/js/components/user-safety-menu');
+const { ConversationActions } =
+    await import('../../resources/js/components/chat/conversation-actions');
 
 vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
 vi.stubGlobal('document', { body: {} });
@@ -178,6 +185,26 @@ test('a follow from their preview shows in who to follow', () => {
     (previewFollowButton(user).props.onClick as () => void)();
 
     assert.equal(suggestionLabel(user), 'Unfollow @nuno');
+});
+
+test('blocking someone you follow from chat shows them as not followed in who to follow', async () => {
+    const user = suggestion('chatter');
+    followFromProfile(user);
+
+    const block = find(
+        ConversationActions({
+            target: { kind: 'direct', partner: user },
+            title: '@chatter',
+            user: suggestion('viewer'),
+            isArchived: false,
+        }),
+        (props) => props['data-test'] === 'confirm-block-button',
+    );
+    assert.ok(block);
+    (block.props.onClick as () => void)();
+    await new Promise((resolve) => setTimeout(resolve));
+
+    assert.equal(suggestionLabel(user), 'Follow @chatter');
 });
 
 for (const failure of ['onError', 'onNetworkError', 'onCancel'] as const) {
