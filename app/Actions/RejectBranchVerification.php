@@ -18,7 +18,10 @@ final readonly class RejectBranchVerification
             throw ValidationException::withMessages(['branch' => 'This branch is not waiting for verification.']);
         }
 
-        $branch->forceFill(['verification_requested_at' => null])->save();
+        $branch->forceFill([
+            'verification_requested_at' => null,
+            'txt_matched_at' => null,
+        ])->save();
 
         return $branch->refresh();
     }

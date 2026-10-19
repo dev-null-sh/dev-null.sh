@@ -25,7 +25,7 @@ final readonly class BranchSuggestionsQuery
             ->lower()
             ->value();
 
-        if (mb_strlen($term) < 2 || ! preg_match('/^[a-z0-9][a-z0-9_]{0,49}$/', $term)) {
+        if (mb_strlen($term) < 2 || ! preg_match('/^[a-z0-9][a-z0-9_-]{0,49}$/', $term)) {
             return [];
         }
 

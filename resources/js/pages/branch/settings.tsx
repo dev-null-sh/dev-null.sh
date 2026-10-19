@@ -1,6 +1,6 @@
-import { Form, Head, Link, usePage } from '@inertiajs/react';
+import { Form, Head, Link, router, usePage } from '@inertiajs/react';
 import { BadgeCheck, ChevronLeft, GitBranch } from 'lucide-react';
-import { type CSSProperties, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import BranchController from '@/actions/App/Http/Controllers/BranchController';
 import BranchDescriptionController from '@/actions/App/Http/Controllers/BranchDescriptionController';
@@ -46,6 +46,7 @@ type BranchPayload = {
     verified_domain: string | null;
     is_verified: boolean;
     verification_pending: boolean;
+    dns_matched: boolean;
     can_verify: boolean;
     org_locked: boolean;
     verification_host: string | null;
@@ -184,6 +185,8 @@ export default function Settings({ branch }: { branch: BranchPayload }) {
     const { auth } = usePage().props;
     const viewerUsername = auth.user?.username;
     const canManage = branch.viewer_role === 'maintainer';
+    const checkingDns =
+        branch.verification_pending && !branch.dns_matched && !branch.is_verified;
     const transferCandidates = branch.members.filter(
         (member) => member.user.username !== viewerUsername,
     );
@@ -196,6 +199,18 @@ export default function Settings({ branch }: { branch: BranchPayload }) {
     );
     const [pickedUsername, setPickedUsername] = useState<string | null>(null);
     const [memberPickerKey, setMemberPickerKey] = useState(0);
+
+    useEffect(() => {
+        if (!checkingDns) {
+            return;
+        }
+
+        const id = window.setInterval(() => {
+            router.reload({ only: ['branch'], preserveScroll: true });
+        }, 5000);
+
+        return () => window.clearInterval(id);
+    }, [checkingDns, branch.name]);
 
     return (
         <>
@@ -289,19 +304,24 @@ export default function Settings({ branch }: { branch: BranchPayload }) {
                         <section className="px-4 py-6 sm:px-6">
                             <Heading
                                 title="Domain verification"
-                                description="Prove you control a domain with a DNS TXT record. Moderators grant the verified badge after the record matches."
+                                description="Prove you control a domain with a DNS TXT record. We'll keep checking after you request — you can leave this page."
                             />
 
                             <div className="mb-5">
                                 {branch.is_verified && branch.verified_domain ? (
                                     <VerifiedDomain domain={branch.verified_domain} />
+                                ) : checkingDns ? (
+                                    <p className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/30 bg-sky-500/8 px-2.5 py-1.5 font-mono text-[13px] text-sky-700 dark:text-sky-400">
+                                        <Spinner className="size-3.5 shrink-0" />
+                                        Checking DNS… you can leave this page
+                                    </p>
                                 ) : branch.verification_pending ? (
                                     <p className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/8 px-2.5 py-1.5 font-mono text-[13px] text-amber-700 dark:text-amber-400">
                                         <BadgeCheck
                                             className="size-3.5 shrink-0"
                                             aria-hidden
                                         />
-                                        Verification requested — waiting for review
+                                        DNS matched — waiting for review
                                     </p>
                                 ) : (
                                     <p className="text-sm text-muted-foreground">
@@ -357,7 +377,8 @@ export default function Settings({ branch }: { branch: BranchPayload }) {
                                     <div className="mt-5 max-w-xl space-y-4">
                                         <p className="text-sm text-muted-foreground">
                                             Add this TXT record, then request
-                                            verification when it propagates.
+                                            verification. We'll keep checking
+                                            until it matches.
                                         </p>
                                         <div className="space-y-3">
                                             <div className="space-y-1.5">
@@ -388,7 +409,7 @@ export default function Settings({ branch }: { branch: BranchPayload }) {
                                                     options={{ preserveScroll: true }}
                                                     onSuccess={() =>
                                                         savedToast(
-                                                            'Verification requested',
+                                                            "We'll keep checking DNS — you can leave this page",
                                                         )
                                                     }
                                                 >
@@ -404,7 +425,7 @@ export default function Settings({ branch }: { branch: BranchPayload }) {
                                                                     <Spinner />
                                                                 )}
                                                                 {processing
-                                                                    ? 'Checking DNS…'
+                                                                    ? 'Requesting…'
                                                                     : 'Request verification'}
                                                             </Button>
                                                             {errors.domain && (

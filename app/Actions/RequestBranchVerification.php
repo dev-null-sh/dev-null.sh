@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Jobs\CheckPendingBranchDnsVerifications;
 use App\Models\Branch;
-use App\Services\BranchDnsVerification;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Queues a branch for moderator review once its TXT record is present.
+ * Queues a branch for DNS checking, then moderator review once the TXT record matches.
  */
 final readonly class RequestBranchVerification
 {
-    public function __construct(private BranchDnsVerification $verification)
-    {
-        //
-    }
-
     public function handle(Branch $branch): Branch
     {
         if ($branch->isVerified()) {
@@ -32,15 +27,14 @@ final readonly class RequestBranchVerification
             throw ValidationException::withMessages(['domain' => 'Set a domain for this branch first.']);
         }
 
-        if (! $this->verification->matches($branch)) {
-            throw ValidationException::withMessages([
-                'domain' => 'No matching TXT record at '.$this->verification->hostFor($branch->domain).'.',
-            ]);
+        if ($branch->verification_requested_at === null) {
+            $branch->forceFill([
+                'verification_requested_at' => now(),
+                'txt_matched_at' => null,
+            ])->save();
         }
 
-        if ($branch->verification_requested_at === null) {
-            $branch->forceFill(['verification_requested_at' => now()])->save();
-        }
+        CheckPendingBranchDnsVerifications::dispatch($branch->refresh());
 
         return $branch->refresh();
     }

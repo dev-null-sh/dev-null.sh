@@ -27,6 +27,7 @@ final readonly class UpdateBranchDomain
             'domain' => $domain,
             'verification_token' => $this->verification->newToken(),
             'verification_requested_at' => null,
+            'txt_matched_at' => null,
             'verified_at' => null,
             'verified_domain' => null,
             'domain_description' => null,

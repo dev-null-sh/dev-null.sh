@@ -21,10 +21,11 @@ final readonly class PendingBranchVerificationsQuery
     {
         return Branch::query()
             ->whereNotNull('verification_requested_at')
+            ->whereNotNull('txt_matched_at')
             ->whereNull('verified_at')
             ->whereHas('members')
             ->with(['members.user'])
-            ->oldest('verification_requested_at')
+            ->oldest('txt_matched_at')
             ->oldest('id')
             ->cursorPaginate(20)
             ->through(fn (Branch $branch): array => $this->payload($branch));

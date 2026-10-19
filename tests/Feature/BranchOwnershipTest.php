@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CheckPendingBranchDnsVerifications;
 use App\Actions\ClearStaleBranchVerifications;
 use App\Actions\CreateBranchMembers;
 use App\Actions\DeleteUser;
@@ -106,7 +107,8 @@ it('requests ownership without granting membership until a moderator approves', 
         ->assertRedirect();
 
     expect($branch->refresh()->isVerified())->toBeFalse()
-        ->and($branch->hasPendingVerification())->toBeTrue();
+        ->and($branch->hasPendingVerification())->toBeTrue()
+        ->and($branch->hasMatchedDns())->toBeTrue();
 
     $this->actingAs($admin)->get(route('branch-verification-request.index'))
         ->assertOk()
@@ -203,6 +205,7 @@ it('lets moderators reject a verification request', function (): void {
         'domain' => 'php.net',
         'verification_token' => 'token',
         'verification_requested_at' => now(),
+        'txt_matched_at' => now(),
     ]);
     $branch->members()->create(['user_id' => $owner->id, 'role' => BranchRole::Maintainer]);
 
@@ -210,7 +213,76 @@ it('lets moderators reject a verification request', function (): void {
         ->assertRedirect();
 
     expect($branch->refresh()->hasPendingVerification())->toBeFalse()
+        ->and($branch->hasMatchedDns())->toBeFalse()
         ->and($branch->isVerified())->toBeFalse();
+});
+
+it('queues verification before the TXT record matches', function (): void {
+    $owner = User::factory()->create();
+    $admin = User::factory()->create(['username' => 'admin']);
+    config(['app.admins' => ['admin']]);
+
+    $branch = Branch::factory()->create(['name' => 'laravel']);
+    $branch->members()->create(['user_id' => $owner->id, 'role' => BranchRole::Maintainer]);
+
+    $this->actingAs($owner)->put(route('branch-domain.update', 'laravel'), [
+        'domain' => 'laravel.com',
+    ])->assertRedirect();
+
+    $branch->refresh();
+    $expected = resolve(BranchDnsVerification::class)->recordValue($branch);
+
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return [];
+        }
+
+        public function txt(string $host): ?array
+        {
+            return [];
+        }
+    });
+
+    $this->actingAs($owner)->post(route('branch-verification.store', 'laravel'))
+        ->assertRedirect();
+
+    expect($branch->refresh()->hasPendingVerification())->toBeTrue()
+        ->and($branch->hasMatchedDns())->toBeFalse();
+
+    $this->actingAs($admin)->get(route('branch-verification-request.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('moderation/verifications')
+            ->has('verifications.data', 0));
+
+    $this->app->instance(DnsResolver::class, new readonly class($expected) implements DnsResolver
+    {
+        public function __construct(private string $txt)
+        {
+            //
+        }
+
+        public function resolve(string $host): array
+        {
+            return ['93.184.216.34'];
+        }
+
+        public function txt(string $host): ?array
+        {
+            return $host === '_devnull-branch.laravel.com' ? [$this->txt] : [];
+        }
+    });
+
+    expect(resolve(CheckPendingBranchDnsVerifications::class)->handle())->toBe(1)
+        ->and($branch->refresh()->hasMatchedDns())->toBeTrue();
+
+    $this->actingAs($admin)->get(route('branch-verification-request.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('moderation/verifications')
+            ->where('verifications.data.0.name', 'laravel'));
 });
 
 it('clears verification when the TXT record is removed', function (): void {

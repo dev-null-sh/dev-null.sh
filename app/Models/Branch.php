@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read string|null $domain
  * @property-read string|null $verification_token
  * @property-read CarbonInterface|null $verification_requested_at
+ * @property-read CarbonInterface|null $txt_matched_at
  * @property-read CarbonInterface|null $verified_at
  * @property-read string|null $verified_domain
  * @property-read CarbonInterface|null $claim_requested_at
@@ -65,6 +66,7 @@ final class Branch extends Model
             'domain' => 'string',
             'verification_token' => 'string',
             'verification_requested_at' => 'datetime',
+            'txt_matched_at' => 'datetime',
             'verified_at' => 'datetime',
             'verified_domain' => 'string',
             'claim_requested_at' => 'datetime',
@@ -82,6 +84,11 @@ final class Branch extends Model
     public function hasPendingVerification(): bool
     {
         return $this->verification_requested_at !== null && ! $this->isVerified();
+    }
+
+    public function hasMatchedDns(): bool
+    {
+        return $this->txt_matched_at !== null;
     }
 
     public function hasPendingClaim(): bool

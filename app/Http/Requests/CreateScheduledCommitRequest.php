@@ -59,7 +59,7 @@ final class CreateScheduledCommitRequest extends FormRequest
     {
         return [
             'link_preview_url.in' => 'The link card must be one of the links in the body.',
-            'branch.regex' => 'Enter a branch name with letters, digits, or underscores (at least one letter).',
+            'branch.regex' => 'Enter a branch name with letters, digits, underscores, or hyphens (at least one letter).',
         ];
     }
 

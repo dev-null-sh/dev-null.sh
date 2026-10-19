@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Branch;
-use App\Services\BranchStyles;
 use App\Services\BranchDnsVerification;
+use App\Services\BranchStyles;
 
 final readonly class ClearStaleBranchVerifications
 {
@@ -41,6 +41,7 @@ final readonly class ClearStaleBranchVerifications
                     'verified_at' => null,
                     'verified_domain' => null,
                     'verification_requested_at' => null,
+                    'txt_matched_at' => null,
                     'domain_description' => null,
                     'og_image_url' => null,
                     'brand_color' => null,

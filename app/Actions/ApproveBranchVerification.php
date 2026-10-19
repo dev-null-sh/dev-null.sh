@@ -44,6 +44,7 @@ final readonly class ApproveBranchVerification
                 'verified_at' => now(),
                 'verified_domain' => $branch->domain,
                 'verification_requested_at' => null,
+                'txt_matched_at' => null,
             ])->save();
 
             return $branch->refresh();

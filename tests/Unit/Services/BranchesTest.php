@@ -74,9 +74,11 @@ it('validates stored branch names', function (string $branch, bool $valid): void
     'simple' => ['laravel', true],
     'with digits' => ['100daysofcode', true],
     'with underscore' => ['hello_world', true],
+    'with hyphen' => ['another-random-thing', true],
     'uppercase' => ['Laravel', false],
     'with hash' => ['#laravel', false],
     'empty' => ['', false],
     'numeric only' => ['42', false],
+    'leading hyphen' => ['-laravel', false],
     'too long' => [str_repeat('a', 51), false],
 ]);

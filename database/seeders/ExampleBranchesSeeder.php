@@ -68,6 +68,7 @@ final class ExampleBranchesSeeder extends Seeder
             'verified_at' => now(),
             'verification_token' => $branch->verification_token ?? Str::random(32),
             'verification_requested_at' => null,
+            'txt_matched_at' => null,
         ])->save();
 
         $branch = $this->refreshSiteMeta->handle($branch->refresh());

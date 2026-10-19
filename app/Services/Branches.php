@@ -12,15 +12,15 @@ final readonly class Branches
     public const int MAX_PER_COMMIT = 1;
 
     /**
-     * Stored branch names: 1–50 lowercase letters, digits or underscores, with at least one letter. Keep in sync with
-     * resources/js/lib/branches.ts and the `#branch` linkifier in resources/js/components/linkified-text.tsx.
+     * Stored branch names: 1–50 lowercase letters, digits, underscores or hyphens, with at least one letter. Keep in
+     * sync with resources/js/lib/branches.ts and the `#branch` linkifier in resources/js/components/linkified-text.tsx.
      */
-    public const string NAME_PATTERN = '/^(?=[a-z0-9][a-z0-9_]{0,49}$)(?=.*[a-z])[a-z0-9_]+$/';
+    public const string NAME_PATTERN = '/^(?=[a-z0-9][a-z0-9_-]{0,49}$)(?=.*[a-z])[a-z0-9_-]+$/';
 
     /**
      * Legacy "#branch" in prose (for linkifying old bodies). Keep in sync with linkified-text.tsx.
      */
-    private const string INLINE_PATTERN = '/(?<![\p{L}\p{N}_#\/])#([A-Za-z0-9][A-Za-z0-9_]{0,49})(?![A-Za-z0-9_])/u';
+    private const string INLINE_PATTERN = '/(?<![\p{L}\p{N}_#\/-])#([A-Za-z0-9][A-Za-z0-9_-]{0,49})(?![A-Za-z0-9_-])/u';
 
     public function __construct(private CodeSpans $codeSpans)
     {

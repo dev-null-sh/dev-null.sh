@@ -10,8 +10,8 @@ use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
-use App\Services\CommitBodies;
 use App\Services\Branches;
+use App\Services\CommitBodies;
 use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -145,7 +145,7 @@ final class CreateCommitRequest extends FormRequest
     {
         return [
             'link_preview_url.in' => 'The link card must be one of the links in the body.',
-            'branch.regex' => 'Enter a branch name with letters, digits, or underscores (at least one letter).',
+            'branch.regex' => 'Enter a branch name with letters, digits, underscores, or hyphens (at least one letter).',
         ];
     }
 

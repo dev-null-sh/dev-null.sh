@@ -88,6 +88,7 @@ final readonly class BranchController
             'verified_domain' => $branch->verified_domain,
             'is_verified' => $branch->isVerified(),
             'verification_pending' => $branch->hasPendingVerification(),
+            'dns_matched' => $branch->hasMatchedDns(),
             'is_owned' => $branch->isOwned(),
             'claim_pending' => $branch->hasPendingClaim(),
             'claim_requested_by_viewer' => $user instanceof User
