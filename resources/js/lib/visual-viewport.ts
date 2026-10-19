@@ -4,9 +4,8 @@ const keyboardMinHeight = 120;
  * Keeps the part of the layout viewport the user can see in CSS: `--visual-viewport-top`, `--visual-viewport-height`,
  * and `--visual-viewport-bottom`, how far its bottom edge sits above the layout viewport's. On iOS the keyboard covers
  * the page instead of resizing it, so anything fixed that must stay visible above the keyboard sizes itself with
- * these, falling back to the full viewport where they are unset. While a field is focused and the keyboard takes
- * room, the root also carries `data-keyboard-open`. Only the keyboard's own resize clears it, not the field losing focus,
- * so a tap that blurs the field lands before the layout moves.
+ * these, falling back to the full viewport where they are unset. While the keyboard takes room, the root also carries
+ * `data-keyboard-open`.
  */
 export function trackVisualViewport(): void {
     const viewport =
@@ -35,9 +34,11 @@ export function trackVisualViewport(): void {
         root.style.setProperty('--visual-viewport-bottom', `${bottom}px`);
         root.toggleAttribute(
             'data-keyboard-open',
-            isTyping() &&
-                root.clientHeight - viewport.height * viewport.scale >
-                    keyboardMinHeight,
+            isKeyboardOpen(
+                root.hasAttribute('data-keyboard-open'),
+                isTyping(),
+                root.clientHeight - viewport.height * viewport.scale,
+            ),
         );
     };
 
@@ -45,6 +46,18 @@ export function trackVisualViewport(): void {
     viewport.addEventListener('resize', update);
     viewport.addEventListener('scroll', update);
     document.addEventListener('focusin', update);
+}
+
+/**
+ * Only a focused field opens the keyboard, but the field loses focus before the keyboard is gone, so once open it stays
+ * open until the room it took comes back. A tap that blurs the field then lands before the layout moves.
+ */
+export function isKeyboardOpen(
+    wasOpen: boolean,
+    isTyping: boolean,
+    coveredHeight: number,
+): boolean {
+    return (wasOpen || isTyping) && coveredHeight > keyboardMinHeight;
 }
 
 function isTyping(): boolean {

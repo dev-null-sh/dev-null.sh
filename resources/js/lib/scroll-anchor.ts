@@ -37,8 +37,13 @@ export function restoreScrollAnchor(
         return;
     }
 
-    const offset =
-        row.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    const shift =
+        row.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top -
+        anchor.offset;
 
-    scroller.scrollTop += offset - anchor.offset;
+    // Only a real shift is corrected, so content loading elsewhere never interrupts a scroll in motion.
+    if (Math.abs(shift) >= 1) {
+        scroller.scrollTop += shift;
+    }
 }

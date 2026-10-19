@@ -151,6 +151,7 @@ export function ConversationThread({
     // Renaming an org updates the thread's target, not the one this was opened with.
     const current = thread?.target ?? target;
     const scroller = useRef<HTMLDivElement>(null);
+    const list = useRef<HTMLOListElement>(null);
     const headLine = useRef<HTMLDivElement>(null);
     const isPinned = useRef(true);
     const hasScrolledIn = useRef(false);
@@ -298,6 +299,27 @@ export function ConversationThread({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [contentKey, thread?.isLoaded]);
 
+    // A row below the visible ones can still change height, as reactions or a link card arrive, which in a scroller
+    // anchored at its bottom would move what is being read. The top visible row is kept where it was.
+    useEffect(() => {
+        const element = scroller.current;
+        const content = list.current;
+
+        if (element === null || content === null) {
+            return;
+        }
+
+        const observer = new ResizeObserver(() => {
+            if (!isPinned.current && anchor.current !== null) {
+                restoreScrollAnchor(element, anchor.current);
+            }
+        });
+
+        observer.observe(content);
+
+        return () => observer.disconnect();
+    }, [thread?.isLoaded]);
+
     const onScroll = () => {
         const element = scroller.current;
 
@@ -356,6 +378,7 @@ export function ConversationThread({
                     <ThreadSkeleton isCompact={isCompact} />
                 ) : (
                     <ol
+                        ref={list}
                         aria-live="polite"
                         aria-relevant="additions"
                         className={cn(
