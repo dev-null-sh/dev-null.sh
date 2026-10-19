@@ -37,6 +37,9 @@ export function useIsFollowing(
     return useSharedState(isFollowingKey(user), isFollowing);
 }
 
+const isPendingKey = (user: Pick<User, 'id'>): string =>
+    `follow_pending:${user.id}`;
+
 const hasBlockKey = (user: Pick<User, 'id'>): string => `has_block:${user.id}`;
 
 /**
@@ -102,6 +105,9 @@ export function FollowLabel({
     );
 }
 
+/**
+ * Follows are async visits, so following several people in a row never cancels the follows still on their way. Each person's follow waits for the one before it to answer, so a double click can't follow and then unfollow.
+ */
 export function FollowButton({
     user,
     isFollowing: initialIsFollowing,
@@ -120,6 +126,10 @@ export function FollowButton({
     const [isFollowing, setIsFollowing] = useIsFollowing(
         user,
         initialIsFollowing,
+    );
+    const [isPending, setIsPending] = useSharedState<boolean>(
+        isPendingKey(user),
+        false,
     );
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
 
@@ -152,6 +162,11 @@ export function FollowButton({
                 }
                 as="button"
                 preserveScroll
+                async
+                onBefore={() => !isPending}
+                onStart={() => setIsPending(true)}
+                onFinish={() => setIsPending(false)}
+                aria-disabled={isPending}
                 onHttpException={(response) =>
                     onFollowHttpException(user, response)
                 }
