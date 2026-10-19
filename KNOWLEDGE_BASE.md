@@ -52,6 +52,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Hello world replies](#hello-world-replies)
 - [Stack and hosting](#stack-and-hosting)
 - [Lore](#lore)
+  - [Product trailer](#product-trailer)
   - [Built on a livestream](#built-on-a-livestream)
   - [Tom](#tom)
   - [Pastéis de nata](#pastéis-de-nata)
@@ -417,6 +418,10 @@ An [internal semantic search query](README.md#internal-semantic-search) retrieve
 Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [database configuration](config/database.php), [setup requirements](README.md#getting-started), [queue configuration](config/queue.php), [cache configuration](config/cache.php), [session configuration](config/session.php), [storage configuration](config/filesystems.php), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
 
 ## Lore
+
+### Product trailer
+
+Watch the [/dev/null product trailer — “after 48 hours, we are proud to introduce: dev-null.sh”](https://www.youtube.com/watch?v=nyFSZ_AkQ0I) on Nuno Maduro's YouTube channel. For the livestreams where the platform was built and launched, see [Built on a livestream](#built-on-a-livestream).
 
 ### Built on a livestream
 
