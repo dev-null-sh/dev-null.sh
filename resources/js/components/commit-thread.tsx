@@ -14,6 +14,10 @@ import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLi
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
+import {
+    BranchPicker,
+    BranchPickerButton,
+} from '@/components/branch-picker';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
     ImageDropOverlay,
@@ -48,10 +52,6 @@ import {
 } from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
-import {
-    useCommitNotFound,
-    useIsCommitDeleted,
-} from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
@@ -98,6 +98,9 @@ type CreatedReply = {
 };
 
 const replyFailedMessage = 'Could not send your reply. Try again.';
+
+const parentUnavailableMessage =
+    'That commit is no longer available to reply to.';
 
 const changedThreadIds = new Set<string>();
 
@@ -252,7 +255,7 @@ export function useThread(
     );
     const [shouldLoadReplies] = useState(
         (loadsReplies && count > 0) ||
-            (initial !== undefined && changedThreadIds.has(commit.id)),
+        (initial !== undefined && changedThreadIds.has(commit.id)),
     );
     const [isOpen, setIsOpen] = useState(
         initial !== undefined || shouldLoadReplies,
@@ -283,8 +286,8 @@ export function useThread(
             replies === null || (isPreview && replies.length <= repliesPerPage)
                 ? repliesPerPage
                 : nextCursor === null
-                  ? Infinity
-                  : replies.length + extra;
+                    ? Infinity
+                    : replies.length + extra;
 
         setIsLoading(true);
 
@@ -480,8 +483,8 @@ export function ThreadActions({
                                     auth.user === null
                                         ? signIn
                                         : thread.isReplying
-                                          ? thread.cancelReply
-                                          : thread.startReply
+                                            ? thread.cancelReply
+                                            : thread.startReply
                                 }
                                 aria-expanded={thread.isReplying}
                                 aria-keyshortcuts={
@@ -638,8 +641,8 @@ export function ThreadReplies({
         depth === 0
             ? threadLayouts.root
             : isFlattened
-              ? threadLayouts.flattened
-              : threadLayouts.nested;
+                ? threadLayouts.flattened
+                : threadLayouts.nested;
 
     return (
         <div
@@ -688,7 +691,7 @@ export function ThreadReplies({
                                     style={{
                                         borderColor: laneOf(
                                             thread.replies[
-                                                thread.replies.length - 1
+                                            thread.replies.length - 1
                                             ],
                                         ),
                                     }}
@@ -875,8 +878,6 @@ function CommitReply({
     const { auth } = usePage().props;
     const now = useNow();
     const { bodyRef, ...translation } = useCommitTranslation(reply);
-    const wasDeleted = useIsCommitDeleted(reply.id);
-    const commitNotFound = useCommitNotFound();
     const [isConfirming, setIsConfirming] = useState(false);
     const request = useHttp<Record<string, never>, { deleted: DeletedFlash }>(
         {},
@@ -894,16 +895,9 @@ function CommitReply({
     });
 
     const deleteReply = async () => {
-        let isNotFound = false;
-
         try {
             const response = await request.submit(
                 CommitReplyController.destroy({ commit: parent, reply }),
-                {
-                    onHttpException: (response) => {
-                        isNotFound = commitNotFound(reply.id, response);
-                    },
-                },
             );
 
             router.flushAll();
@@ -911,11 +905,7 @@ function CommitReply({
             onDeleted();
             router.flash(() => response);
         } catch {
-            if (isNotFound) {
-                setIsConfirming(false);
-            } else {
-                toast.error('Could not delete your reply. Try again.');
-            }
+            toast.error('Could not delete your reply. Try again.');
 
             return;
         }
@@ -955,12 +945,7 @@ function CommitReply({
                     )}
                 </div>
 
-                <div
-                    inert={wasDeleted}
-                    className={cn('min-w-0 flex-1', {
-                        'opacity-50': wasDeleted,
-                    })}
-                >
+                <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-1.5 text-sm">
                         <UserPreview
                             user={reply.user}
@@ -1114,7 +1099,6 @@ function ReplyComposer({
     onReplied: (parent: RepliedParent) => void;
 }) {
     const { user } = useUser();
-    const commitNotFound = useCommitNotFound();
     const {
         body,
         images,
@@ -1127,9 +1111,12 @@ function ReplyComposer({
     const attachments = useImageAttachments(images, descriptions, updateImages);
     const linkCard = useLinkCard(body);
     const updateCommitsCount = useCommitsCountUpdate();
+    const [branch, setBranch] = useState('');
+    const [isPickingBranch, setIsPickingBranch] = useState(false);
     const request = useHttp<
         {
             body: string;
+            branch?: string;
             images: File[];
             image_descriptions: string[];
             link_preview_url?: string;
@@ -1187,6 +1174,7 @@ function ReplyComposer({
 
         request.setData(() => ({
             body,
+            ...(branch.trim() !== '' ? { branch } : {}),
             images,
             image_descriptions: descriptions,
             ...(linkCard.isChosen
@@ -1199,6 +1187,8 @@ function ReplyComposer({
                 onSuccess: (reply) => {
                     attachments.clear();
                     drop();
+                    setBranch('');
+                    setIsPickingBranch(false);
                     linkCard.reset();
                     returnFocusToCommit();
                     router.flash(() => reply);
@@ -1207,9 +1197,13 @@ function ReplyComposer({
                     onReplied(reply.parent);
                 },
                 onHttpException: (response) => {
-                    if (!commitNotFound(parent.id, response)) {
-                        toast.error(replyFailureMessage(response));
+                    if (response.status === 404) {
+                        request.setError('body', parentUnavailableMessage);
+
+                        return;
                     }
+
+                    toast.error(replyFailureMessage(response));
                 },
                 onNetworkError: () => {
                     toast.error(replyFailedMessage);
@@ -1266,6 +1260,17 @@ function ReplyComposer({
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
             />
+            {isPickingBranch && (
+                <BranchPicker
+                    id={`reply-branch-${parent.id}`}
+                    value={branch}
+                    onChange={setBranch}
+                    error={errors.branch}
+                    disabled={processing}
+                    autoFocus
+                    className="mt-2 max-w-xs px-1"
+                />
+            )}
             {!preview.isPreviewing && (
                 <ImagePickerPreviews
                     images={attachments.images}
@@ -1294,6 +1299,14 @@ function ReplyComposer({
                         count={images.length}
                         disabled={processing}
                         onPick={attachments.attach}
+                        className="size-8"
+                    />
+                    <BranchPickerButton
+                        isOpen={isPickingBranch}
+                        hasBranch={branch !== ''}
+                        disabled={processing}
+                        controls={`reply-branch-${parent.id}`}
+                        onClick={() => setIsPickingBranch(!isPickingBranch)}
                         className="size-8"
                     />
                     <PreviewToggle preview={preview} className="-ml-2 size-8" />

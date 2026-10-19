@@ -54,6 +54,16 @@ void test('leaves mentions without captured identities as plain text', () => {
     assert.equal(html, 'Thanks @original!');
 });
 
+void test('leaves #hashes in prose as plain text (branches come from the composer)', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText text="Shipped #Laravel and issue #42." mentions={null} />,
+    );
+
+    assert.equal(html.includes('data-test="branch"'), false);
+    assert.equal(html.includes('/branches/'), false);
+    assert.equal(html, 'Shipped #Laravel and issue #42.');
+});
+
 void test('keeps captured mention identities in regular bodies alongside highlighted code', () => {
     const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
     const html = renderPage(

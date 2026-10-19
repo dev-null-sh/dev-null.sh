@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitBranch } from '@/components/commit-branch';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
@@ -39,10 +40,6 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { UserPreview } from '@/components/user-preview';
-import {
-    useCommitNotFound,
-    useIsCommitDeleted,
-} from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import {
@@ -116,8 +113,6 @@ export function CommitCard({
         loadsReplies,
         exceptReplyId,
     );
-    const wasDeleted = useIsCommitDeleted(commit.id);
-    const commitNotFound = useCommitNotFound();
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
     >('idle');
@@ -145,13 +140,6 @@ export function CommitCard({
                 router.visit(CommitController.destroy(commit), {
                     ...commitMutationOptions(component),
                     onError: () => setDeletion('idle'),
-                    onHttpException: (response) => {
-                        if (commitNotFound(commit.id, response)) {
-                            setDeletion('idle');
-
-                            return false;
-                        }
-                    },
                 }),
             prefersReducedMotion ? 0 : 700,
         );
@@ -168,7 +156,7 @@ export function CommitCard({
             )}
             tabIndex={-1}
             data-commit={commit.id}
-            data-permalink={wasDeleted ? undefined : permalink.url}
+            data-permalink={permalink.url}
             data-test="commit"
             onPointerMove={
                 onHover &&
@@ -224,10 +212,8 @@ export function CommitCard({
                     )}
                 >
                     <div
-                        inert={wasDeleted}
                         className={cn('flex transition-opacity duration-200', {
                             'opacity-70': isDimmed,
-                            'opacity-50': wasDeleted,
                         })}
                     >
                         <div className="min-w-0 flex-1">
@@ -346,6 +332,12 @@ export function CommitCard({
                                     replying to @{commit.parent.user.username}
                                 </Link>
                             )}
+                            {commit.branch && (
+                                <CommitBranch
+                                    branch={commit.branch}
+                                    color={commit.branch_color}
+                                />
+                            )}
                             <div ref={bodyRef} style={translation.bodyStyle}>
                                 <FoldedCommitBody
                                     segments={translation.segments}
@@ -395,7 +387,7 @@ export function CommitCard({
                                             {formatFullDateTime(
                                                 commit.created_at,
                                                 auth.user?.timezone ??
-                                                    undefined,
+                                                undefined,
                                             )}
                                         </time>
                                     </TimestampTooltip>
