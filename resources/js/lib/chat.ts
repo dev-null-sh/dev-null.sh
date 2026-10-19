@@ -75,6 +75,10 @@ export type ThreadState = {
     typing: string[];
     role: OrgRole | null;
     is_archived: boolean;
+    /**
+     * Whether the user follows the partner of a one-to-one conversation. Null until the server has said, and in orgs.
+     */
+    is_following: boolean | null;
     access: PushAccess;
     pending: PendingMessage[];
     /**
@@ -465,6 +469,7 @@ function emptyThread(target: ChatTarget): ThreadState {
         typing: [],
         role: null,
         is_archived: false,
+        is_following: null,
         access: 'open',
         pending: [],
         reactions_version: null,
@@ -490,6 +495,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               partner_read_at: thread.partner_read_at,
               partner_typing: thread.partner_typing,
               is_archived: thread.is_archived,
+              is_following: thread.is_following,
               access: thread.access,
           };
 }

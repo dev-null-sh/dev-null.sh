@@ -25,7 +25,7 @@ final readonly class ConversationThreadQuery
      * A one-to-one conversation. Reads only show as pulled when both people share them, and only once the partner
      * has merged the conversation.
      *
-     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, partner_read_through_id: int, partner_read_at: string|null, partner_typing: bool, is_archived: bool, access: PushAccess}
+     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, partner_read_through_id: int, partner_read_at: string|null, partner_typing: bool, is_archived: bool, is_following: bool, access: PushAccess}
      */
     public function get(User $user, User $partner, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
     {
@@ -50,6 +50,7 @@ final readonly class ConversationThreadQuery
             'partner_read_at' => $sharesReads ? $theirs->read_at?->toJSON() : null,
             'partner_typing' => $access === PushAccess::Open && $conversation instanceof Conversation && Cache::has(UpdateConversationTyping::key($partner, $conversation)),
             'is_archived' => $mine?->archived_at !== null,
+            'is_following' => $user->isFollowing($partner),
             'access' => $access,
         ];
     }

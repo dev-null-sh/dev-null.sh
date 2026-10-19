@@ -292,6 +292,7 @@ function ThreadHeader({
                 title={`@${partner.username}`}
                 user={user}
                 isArchived={threads[partner.username]?.is_archived ?? false}
+                isFollowing={threads[partner.username]?.is_following}
                 onLeave={onLeave}
                 className="ml-auto size-9"
             />

@@ -295,11 +295,11 @@ Livestream history: the notification requirements on [day one at 5:28:53](https:
 
 **Remotes** is /dev/null's private messaging inbox at `/remotes`. Open it from navigation or use a developer's **Remote** control. Remotes can be disabled in Settings → Profile; disabling keeps existing conversations but stops new messaging. By default, you can contact someone who follows you, provided both accounts have Remotes enabled and neither has blocked the other. Administrators have a contact-policy exception.
 
-Messages support up to **2,000 characters**, replies to messages, link cards, and up to three images with the same file limits and descriptions as commit attachments. An image makes message text optional. Typing indicators show recent activity. Read receipts, called **pull receipts**, are shared only when both relevant people enable them. Stashing a conversation archives it for you without deleting it; unstash to bring it back.
+Messages support up to **2,000 characters**, replies to messages, link cards, and up to three images with the same file limits and descriptions as commit attachments. An image makes message text optional. Typing indicators show recent activity. Read receipts, called **pull receipts**, are shared only when both relevant people enable them. Stashing a conversation archives it for you without deleting it; unstash to bring it back. A one-to-one conversation's menu also lets you follow or unfollow the other person without leaving the chat, for example to follow back someone who messaged you.
 
 Some deployments enable message requests and an **everyone** contact option. With requests enabled, a first message from someone outside the accepted contact policy waits in **Fetched**. The recipient can **merge** the request to accept or **drop** it privately. The sender cannot keep sending while waiting, and the recipient must merge before replying. These options are disabled by default in repository configuration; do not assume every installation exposes them.
 
-Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx), [configuration](config/remotes.php).
+Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx), [conversation menu](resources/js/components/chat/conversation-actions.tsx), [configuration](config/remotes.php).
 
 ### Orgs: group chats
 

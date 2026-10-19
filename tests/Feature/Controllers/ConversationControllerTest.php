@@ -59,6 +59,23 @@ it('opens an empty conversation with someone new', function (): void {
             ->where('thread.messages', []));
 });
 
+it('says whether you follow the person, so the conversation can offer to follow them back', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno->following()->attach($mark);
+    sendChatMessage($nuno, $mark, 'ship it');
+
+    $this->actingAs($mark)->get(route('conversation.show', $nuno))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('thread.is_following', false));
+    $this->getJson(route('conversation-message.index', $nuno))->assertJsonPath('is_following', false);
+
+    $mark->following()->attach($nuno);
+
+    $this->get(route('conversation.show', $nuno))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('thread.is_following', true));
+    $this->getJson(route('conversation-message.index', $nuno))->assertJsonPath('is_following', true);
+});
+
 it('hides conversations you cannot have', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create();

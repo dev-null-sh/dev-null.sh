@@ -381,3 +381,72 @@ test('a second click on a follow still on its way sends nothing', () => {
 
     assert.equal((suggestionFollowLink(user).onBefore as () => boolean)(), true);
 });
+
+function conversationFollowItem(
+    user: SuggestedUser,
+    isFollowing?: boolean | null,
+): ReactElement<Props> | null {
+    const item = find(
+        ConversationActions({
+            target: { kind: 'direct', partner: user as User },
+            title: `@${user.username}`,
+            user: suggestion('viewer') as unknown as User,
+            isArchived: false,
+            isFollowing,
+        }),
+        (props) => 'partner' in props && 'isFollowing' in props,
+    );
+
+    return item
+        ? find(
+              render(item),
+              (props) => props['data-test'] === 'conversation-follow',
+          )
+        : null;
+}
+
+function itemLabel(item: ReactElement<Props>): string {
+    return React.Children.toArray(item.props.children)
+        .filter((child) => typeof child === 'string')
+        .join('');
+}
+
+test('following from a conversation shows in who to follow', () => {
+    const user = suggestion('remoter');
+    const item = conversationFollowItem(user, false);
+    assert.ok(item);
+    assert.equal(itemLabel(item), 'Follow @remoter');
+
+    (item.props.onSelect as () => void)();
+    const follow = visits.at(-1) as VisitOptions & {
+        method?: string;
+        async?: boolean;
+        only?: string[];
+    };
+    assert.equal(follow.method, 'post');
+    assert.equal(follow.async, true);
+    assert.deepEqual(follow.only, ['auth']);
+    follow.onSuccess?.();
+
+    assert.equal(suggestionLabel(user), 'Unfollow @remoter');
+    assert.equal(
+        itemLabel(conversationFollowItem(user, false) as ReactElement<Props>),
+        'Unfollow @remoter',
+    );
+    assert.equal(toasts.at(-1), 'Following @remoter.');
+});
+
+test('a conversation with someone you follow offers to unfollow them', () => {
+    const user = suggestion('remoted');
+    const item = conversationFollowItem(user, true);
+    assert.ok(item);
+    assert.equal(itemLabel(item), 'Unfollow @remoted');
+
+    (item.props.onSelect as () => void)();
+    assert.equal(visits.at(-1)?.method, 'delete');
+});
+
+test('a conversation offers no follow until it knows whether you follow them', () => {
+    assert.equal(conversationFollowItem(suggestion('unloaded'), null), null);
+    assert.equal(conversationFollowItem(suggestion('unloaded')), null);
+});

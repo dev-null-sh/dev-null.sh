@@ -100,6 +100,7 @@ export type Thread = {
     partner_read_at: string | null;
     partner_typing: boolean;
     is_archived: boolean;
+    is_following: boolean;
     access: PushAccess;
 };
 

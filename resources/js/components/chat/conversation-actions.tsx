@@ -5,11 +5,18 @@ import {
     Ban,
     Ellipsis,
     LogOut,
+    UserMinus,
+    UserPlus,
     UserRound,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { rememberBlock } from '@/components/follow-button';
+import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
+import {
+    onFollowHttpException,
+    rememberBlock,
+    useIsFollowing,
+} from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -37,14 +44,65 @@ import { show } from '@/routes/user';
 import type { User } from '@/types';
 
 /**
- * Stash (archive), pop (unarchive), and block or leave, from the conversation's own header or from its row in the
- * inbox.
+ * Follows or unfollows the partner without leaving the conversation. Every follow control shares whether you follow
+ * someone, so "Who to follow" and their profile change with it.
+ */
+function FollowPartnerItem({
+    partner,
+    isFollowing: initialIsFollowing,
+}: {
+    partner: User;
+    isFollowing: boolean;
+}) {
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        partner,
+        initialIsFollowing,
+    );
+
+    const toggle = () => {
+        const follows = !isFollowing;
+
+        router.visit(
+            follows
+                ? UserFollowController.store(partner)
+                : UserFollowController.destroy(partner),
+            {
+                async: true,
+                preserveScroll: true,
+                preserveState: true,
+                only: ['auth'],
+                onSuccess: () => {
+                    setIsFollowing(follows);
+                    toast.success(
+                        follows
+                            ? `Following @${partner.username}.`
+                            : `Unfollowed @${partner.username}.`,
+                    );
+                },
+                onHttpException: (response) =>
+                    onFollowHttpException(partner, response),
+            },
+        );
+    };
+
+    return (
+        <DropdownMenuItem onSelect={toggle} data-test="conversation-follow">
+            {isFollowing ? <UserMinus /> : <UserPlus />}
+            {isFollowing ? 'Unfollow' : 'Follow'} @{partner.username}
+        </DropdownMenuItem>
+    );
+}
+
+/**
+ * Follow (once the open conversation knows whether you do), stash (archive), pop (unarchive), and block or leave,
+ * from the conversation's own header or from its row in the inbox.
  */
 export function ConversationActions({
     target,
     title,
     user,
     isArchived,
+    isFollowing,
     onLeave,
     onBlocked,
     onOpenChange,
@@ -57,6 +115,10 @@ export function ConversationActions({
     title: string;
     user: User;
     isArchived: boolean;
+    /**
+     * Whether the user follows the partner, from the open conversation. Without it, the menu offers no follow.
+     */
+    isFollowing?: boolean | null;
     /**
      * Called once the conversation leaves the list being shown, so an open thread can step back to the inbox.
      */
@@ -164,6 +226,13 @@ export function ConversationActions({
                             </Link>
                         </DropdownMenuItem>
                     )}
+                    {target.kind === 'direct' &&
+                        typeof isFollowing === 'boolean' && (
+                            <FollowPartnerItem
+                                partner={target.partner}
+                                isFollowing={isFollowing}
+                            />
+                        )}
                     <DropdownMenuItem onSelect={() => void archive()}>
                         {isArchived ? <ArchiveRestore /> : <Archive />}
                         {isArchived ? 'Pop' : 'Stash'}
