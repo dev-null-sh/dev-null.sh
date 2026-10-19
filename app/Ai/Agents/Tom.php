@@ -9,6 +9,7 @@ use App\Ai\Tools\CommunityStats;
 use App\Ai\Tools\RepositoryInsights;
 use App\Ai\Tools\SearchCommits;
 use App\Ai\Tools\SearchKnowledgeBase;
+use App\Ai\Tools\SearchRepositoryHistory;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
@@ -83,6 +84,7 @@ final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
             new SearchCommits,
             new SearchKnowledgeBase,
             new RepositoryInsights,
+            new SearchRepositoryHistory,
             new CommunityStats,
         ];
     }
