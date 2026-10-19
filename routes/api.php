@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\ScheduledCommitController;
 use App\Http\Controllers\Api\StarredCommitController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
@@ -88,6 +89,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
             ->name('api-commit.store');
         Route::delete('commits/{commit}', [ApiCommitController::class, 'destroy'])->name('api-commit.destroy');
+
+        // Scheduled Commit...
+        Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
+            ->name('api-scheduled-commit.store');
 
         // Commit Reply...
         Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
