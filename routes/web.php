@@ -37,6 +37,7 @@ use App\Http\Controllers\ConversationMergeController;
 use App\Http\Controllers\ConversationMessageController;
 use App\Http\Controllers\ConversationReadController;
 use App\Http\Controllers\ConversationTypingController;
+use App\Http\Controllers\DeviceActivationController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
@@ -438,6 +439,12 @@ Route::middleware('auth')->group(function (): void {
     Route::post('mobile/authorize', [MobileAuthorizationController::class, 'store'])
         ->middleware('throttle:mobile-authorizations')
         ->name('mobile-authorization.store');
+
+    // Device Activation...
+    Route::middleware('throttle:device-activations')->group(function (): void {
+        Route::get('activate', [DeviceActivationController::class, 'show'])->name('device-activation.show');
+        Route::post('activate', [DeviceActivationController::class, 'store'])->name('device-activation.store');
+    });
 
     // User...
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');

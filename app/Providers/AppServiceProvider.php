@@ -109,6 +109,9 @@ final class AppServiceProvider extends ServiceProvider
         // Approving the devnull app on the web hands out a code each time...
         RateLimiter::for('mobile-authorizations', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
 
+        // Looking up the code a terminal shows is where one could be guessed, so each user gets a few tries...
+        RateLimiter::for('device-activations', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
+
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
 
