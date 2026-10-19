@@ -9,8 +9,8 @@ services:
         extra_hosts:
             - "host.docker.internal:host-gateway"
         ports:
-            - "${APP_PORT:-80}:80"
-            - "${VITE_PORT:-5173}:${VITE_PORT:-5173}"
+            - "127.0.0.1:${APP_PORT:-80}:80"
+            - "127.0.0.1:${VITE_PORT:-5173}:${VITE_PORT:-5173}"
         environment:
             WWWUSER: "${WWWUSER}"
             LARAVEL_SAIL: 1
@@ -26,7 +26,7 @@ services:
     pgsql:
         image: "pgvector/pgvector:pg17"
         ports:
-            - "${FORWARD_DB_PORT:-5432}:5432"
+            - "127.0.0.1:${FORWARD_DB_PORT:-5432}:5432"
         environment:
             PGPASSWORD: "${DB_PASSWORD:-secret}"
             POSTGRES_DB: "${DB_DATABASE}"

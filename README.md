@@ -34,10 +34,16 @@ Create a `devnull` database for the app and a `testing` database for the test su
 ```bash
 git clone https://github.com/nunomaduro/dev-null.sh.git
 cd dev-null.sh
+cp .env.example .env
+```
+
+Edit `.env` for host PostgreSQL before setup: set `DB_HOST=127.0.0.1` and your `DB_PASSWORD` (`.env.example` defaults to Sail's `pgsql` host and password). Then:
+
+```bash
 composer setup
 ```
 
-The setup script installs dependencies, creates `.env`, generates an app key, runs migrations, and builds assets. Point `DB_HOST` at `127.0.0.1` when PostgreSQL runs on the host.
+The setup script installs dependencies, generates an app key, runs migrations, and builds assets.
 
 ### Local sign-in
 
