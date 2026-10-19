@@ -394,7 +394,7 @@ export function CommitCard({
                                 </p>
                             )}
 
-                            {!isFocused && <ShowThreadLink commit={commit} />}
+                            {!isFocused && <ShowThreadLink thread={thread} />}
 
                             {commit.replies_count === undefined ? (
                                 <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">

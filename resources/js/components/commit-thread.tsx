@@ -81,8 +81,15 @@ const maxIndentDepth = 3;
 
 const maxRepliesPerRequest = 50;
 
+type RepliedParent = {
+    id: string;
+    replies_count: number;
+    continuation_id: string | null;
+};
+
 type CreatedReply = {
     committed: CommittedFlash;
+    parent: RepliedParent;
     toast?: FlashToast;
 };
 
@@ -124,6 +131,7 @@ type Thread = {
     count: number;
     replies: ThreadCommit[] | null;
     hasMore: boolean;
+    continuationId: string | null;
     remaining: number;
     perPage: number;
     isOpen: boolean;
@@ -135,7 +143,7 @@ type Thread = {
     loadAll: () => void;
     startReply: () => void;
     cancelReply: () => void;
-    onReplied: () => void;
+    onReplied: (parent: RepliedParent) => void;
     onDeleted: () => void;
 };
 
@@ -221,12 +229,20 @@ export function useThread(
     exceptReplyId?: string,
 ): Thread {
     const preview = !isDeleted(commit) ? commit.reply_preview : undefined;
-    const except =
-        exceptReplyId ??
-        (isDeleted(commit) ? undefined : (commit.continuation_id ?? undefined));
+    const continuationOf = isDeleted(commit)
+        ? null
+        : (commit.continuation_id ?? null);
+    const [continuationId, setContinuationId] = useState(continuationOf);
+    const [previousContinuationOf, setPreviousContinuationOf] =
+        useState(continuationOf);
+    if (continuationOf !== previousContinuationOf) {
+        setPreviousContinuationOf(continuationOf);
+        setContinuationId(continuationOf);
+    }
+    const except = exceptReplyId ?? continuationId ?? undefined;
     const isPreview = preview !== undefined;
     const initial = preview ?? initialReplies;
-    const { repliesPerPage } = usePage().props;
+    const { repliesPerPage, continuation } = usePage().props;
     const [replies, setReplies] = useState<ThreadCommit[] | null>(
         initial?.data ?? null,
     );
@@ -372,6 +388,7 @@ export function useThread(
         count,
         replies,
         hasMore: replies !== null && nextCursor !== null,
+        continuationId,
         remaining: Math.max(count - (replies?.length ?? 0), 0),
         perPage: repliesPerPage,
         isOpen,
@@ -389,12 +406,23 @@ export function useThread(
         loadAll: () => loadUntil(Infinity),
         startReply: () => setIsReplying(true),
         cancelReply: () => setIsReplying(false),
-        onReplied: () => {
+        onReplied: (parent) => {
             changedThreadIds.add(commit.id);
             setIsReplying(false);
-            setIsOpen(true);
-            setCount((current) => current + 1);
-            reload();
+            setCount(parent.replies_count);
+
+            if (parent.continuation_id === continuationId) {
+                setIsOpen(true);
+                reload();
+
+                return;
+            }
+
+            setContinuationId(parent.continuation_id);
+
+            if (continuation !== undefined) {
+                router.reload({ only: ['commit', 'continuation'] });
+            }
         },
         onDeleted: () => {
             changedThreadIds.add(commit.id);
@@ -404,8 +432,10 @@ export function useThread(
     };
 }
 
-export function ShowThreadLink({ commit }: { commit: Commit }) {
-    if (!commit.continuation_id) {
+export function ShowThreadLink({ thread }: { thread: Thread }) {
+    const { commit } = thread;
+
+    if (thread.continuationId === null || isDeleted(commit)) {
         return null;
     }
 
@@ -1009,7 +1039,7 @@ function CommitReply({
                             preview={reply.link_preview}
                         />
                     )}
-                    <ShowThreadLink commit={reply} />
+                    <ShowThreadLink thread={thread} />
 
                     {isConfirming ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-destructive/8 px-3 py-1.5 text-sm">
@@ -1066,7 +1096,7 @@ function ReplyComposer({
 }: {
     parent: Commit;
     onCancel: () => void;
-    onReplied: () => void;
+    onReplied: (parent: RepliedParent) => void;
 }) {
     const { user } = useUser();
     const {
@@ -1158,7 +1188,7 @@ function ReplyComposer({
                     router.flash(() => reply);
                     router.flushAll();
                     updateCommitsCount(1);
-                    onReplied();
+                    onReplied(reply.parent);
                 },
                 onHttpException: (response) => {
                     if (response.status === 404) {
