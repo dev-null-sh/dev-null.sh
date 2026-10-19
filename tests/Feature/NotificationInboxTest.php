@@ -61,6 +61,24 @@ it('filters the menu count using the current users saved notification types', fu
     'partially invalid saved filter' => ['replies,invalid', 3],
 ]);
 
+it('marks only what the filter shows as read, so the rest is still new under another filter', function (): void {
+    $user = User::factory()->create();
+    $reply = Notification::factory()->for($user, 'recipient')->replied()->create();
+    $follow = Notification::factory()->for($user, 'recipient')->create();
+
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'replies']))->assertOk();
+
+    expect($reply->refresh()->read_at)->not->toBeNull()
+        ->and($follow->refresh()->read_at)->toBeNull();
+
+    $this->travel(1)->minute();
+
+    $this->get(route('notification.index', ['type' => 'all']))->assertOk()
+        ->assertInertia(fn ($page) => $page->where('readAt', $follow->refresh()->read_at?->toJSON()));
+
+    expect($reply->refresh()->read_at)->toBeLessThan($follow->read_at);
+});
+
 it('refreshes the entire loaded inbox window without losing older pages', function (): void {
     $user = User::factory()->create();
     $notices = collect();
@@ -130,7 +148,7 @@ it('polls fresh filtered groups and excludes activity that is no longer relevant
         ->assertJsonPath('props.auth.unreadNotificationsCount', 0);
 
     expect($latest->refresh()->read_at)->not->toBeNull()
-        ->and($follow->refresh()->read_at)->not->toBeNull()
+        ->and($follow->refresh()->read_at)->toBeNull()
         ->and($other->refresh()->read_at)->toBeNull();
 });
 
