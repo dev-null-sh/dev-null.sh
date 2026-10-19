@@ -102,6 +102,15 @@ export async function resolveIsFollowing(
             },
         });
 
+        // Another follow control may have confirmed state while this preview was in flight.
+        const writtenWhilePending = peekSharedState<boolean>(
+            isFollowingKey(user),
+        );
+
+        if (writtenWhilePending !== undefined) {
+            return writtenWhilePending;
+        }
+
         if (!response.ok) {
             toastWhenThrottled(response);
 

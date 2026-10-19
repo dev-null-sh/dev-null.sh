@@ -22,6 +22,8 @@ let preview: {
     isUnavailable?: boolean;
 } | null = { isFollowing: false };
 let fetchCount = 0;
+let holdFetch = false;
+let releaseFetch: (() => void) | null = null;
 
 vi.doMock('react', () => ({
     ...React,
@@ -74,6 +76,12 @@ vi.stubGlobal('window', {
 vi.stubGlobal('document', { body: {} });
 vi.stubGlobal('fetch', async () => {
     fetchCount += 1;
+
+    if (holdFetch) {
+        await new Promise<void>((resolve) => {
+            releaseFetch = resolve;
+        });
+    }
 
     if (preview === null) {
         return {
@@ -223,6 +231,25 @@ test('resolveIsFollowing gives up when the author is unavailable', async () => {
     preview = { isFollowing: false, isUnavailable: true };
 
     assert.equal(await resolveIsFollowing(author('blocked-author')), null);
+});
+
+test('a follow that lands while the preview is pending wins over a stale response', async () => {
+    authUser = { id: 'viewer' };
+    const user = author('raced');
+    preview = { isFollowing: false };
+    holdFetch = true;
+
+    const pending = resolveIsFollowing(user);
+    await new Promise((resolve) => setTimeout(resolve));
+    const resume = releaseFetch;
+
+    assert.equal(typeof resume, 'function');
+
+    followFromProfile(user);
+    resume?.();
+    holdFetch = false;
+
+    assert.equal(await pending, true);
 });
 
 test('toggleFollow posts a follow and reports success', () => {
