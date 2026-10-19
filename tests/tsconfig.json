@@ -6,9 +6,11 @@
     },
     "include": [
         "Unit/**/*.test.ts",
+        "Unit/CommitAuthorFollow.test.tsx",
         "Unit/DraftStash.test.tsx",
         "Unit/ComposerDraft.test.tsx",
         "Unit/SearchDialogComposition.test.tsx",
+        "Unit/FollowState.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]
