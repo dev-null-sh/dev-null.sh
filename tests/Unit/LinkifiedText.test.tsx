@@ -195,6 +195,20 @@ for (const [text, trailing] of [
     });
 }
 
+test('hides the trailing slash of a link without an ellipsis while retaining the full URL', () => {
+    const slashed = 'https://www.example.com/';
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text={slashed} mentions={null} />,
+    );
+
+    assert.ok(markup.includes(`href="${slashed}"`));
+    assert.ok(
+        markup.includes('>example.com<span class="text-[0px]">/</span>'),
+    );
+    assert.ok(!markup.includes('…'));
+    assert.equal(markup.replace(/<[^>]+>/g, ''), slashed);
+});
+
 test('keeps every distinct card URL in order without joining prose across code', () => {
     assert.deepEqual(
         typedLinks(
