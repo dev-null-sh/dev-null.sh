@@ -8,6 +8,7 @@ type Element = ReactElement<Record<string, unknown>>;
 type Update = number | ((current: number) => number);
 
 const day = '2026-10-16';
+let now = new Date(`${day}T12:00:00Z`);
 const values = new Map<string, number>();
 const refs = new Map<number, unknown[]>();
 let instance = 0;
@@ -52,7 +53,7 @@ vi.doMock('@/actions/App/Http/Controllers/CommitPastelController', () => ({
     store: () => 'store',
 }));
 vi.doMock('@/hooks/use-now', () => ({
-    useNow: () => new Date(`${day}T12:00:00Z`),
+    useNow: () => now,
 }));
 vi.doMock('@/lib/throttle', () => ({ toastWhenThrottled: () => false }));
 vi.doMock('@/hooks/use-shared-state', () => ({
@@ -144,6 +145,7 @@ beforeEach(() => {
     values.clear();
     refs.clear();
     pendings.length = 0;
+    now = new Date(`${day}T12:00:00Z`);
 });
 
 test('awarding a pastel updates the count and allowance while pending', async () => {
@@ -252,4 +254,20 @@ test('a refresh before a failed award keeps the server count', async () => {
 
     assert.equal(count(), 5);
     assert.equal(allowance(), 3);
+});
+
+test('a click after midnight is ignored while an earlier award is pending', async () => {
+    now = new Date(`${day}T23:59:59Z`);
+
+    const first = click(0);
+
+    now = new Date('2026-10-17T00:00:01Z');
+
+    const second = click(1);
+
+    assert.equal(submit.mock.calls.length, 1);
+
+    await second;
+    pendings[0].resolve({ pasteis_count: 6, remaining: 2, day, recipient });
+    await first;
 });

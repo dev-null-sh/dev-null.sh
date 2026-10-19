@@ -11,8 +11,8 @@ import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const exhaustedMessage = 'you ran out of pastéis. wait until tomorrow.';
-// One award per user and day at a time, so a response is never reconciled
-// against another award still in flight.
+// One award per user at a time, even across midnight, so a response is never
+// reconciled against another award still in flight.
 const awarding = new Set<string>();
 
 export function CommitPastelButton({
@@ -54,14 +54,12 @@ export function CommitPastelButton({
     const label = `${count} ${count === 1 ? 'pastel' : 'pastéis'}`;
 
     const award = async () => {
-        const allowanceKey = `${userId}:${day}`;
-
-        if (busy.current || awarding.has(allowanceKey)) {
+        if (busy.current || awarding.has(userId)) {
             return;
         }
 
         busy.current = true;
-        awarding.add(allowanceKey);
+        awarding.add(userId);
         let errorShown = false;
         let exhausted = false;
 
@@ -139,7 +137,7 @@ export function CommitPastelButton({
                 toast.error('Could not award a pastel. Please try again.');
             }
         } finally {
-            awarding.delete(allowanceKey);
+            awarding.delete(userId);
             busy.current = false;
         }
     };
