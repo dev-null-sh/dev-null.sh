@@ -9,8 +9,12 @@ export default defineConfig({
     },
     test: {
         include: [
+            'tests/Unit/ActivityCells.test.tsx',
             'tests/Unit/AuthorHover.test.tsx',
+            'tests/Unit/FollowState.test.tsx',
             'tests/Unit/DraftStash.test.tsx',
+            'tests/Unit/DraftImageReads.test.tsx',
+            'tests/Unit/ImageAttachments.test.tsx',
             'tests/Unit/ComposerDraft.test.tsx',
             'tests/Unit/QuoteDraft.test.tsx',
             'tests/Unit/EmojiSearch.test.tsx',
@@ -19,6 +23,8 @@ export default defineConfig({
             'tests/Unit/SearchDialogComposition.test.tsx',
             'tests/Unit/ProfileTabs.test.tsx',
             'tests/Unit/AuthorStars.test.tsx',
+            'tests/Unit/ReportResolution.test.tsx',
+            'tests/Unit/LinkifiedText.test.tsx',
         ],
     },
 });

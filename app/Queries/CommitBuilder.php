@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Enums\CommitStatus;
+use App\Enums\RepliesPerPage;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\CommitTranslations;
 use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -145,16 +147,18 @@ final class CommitBuilder extends Builder
     }
 
     /**
-     * The newest reply or quote of each commit is picked first, and only the picked ones are then loaded as cards, so
-     * a commit with thousands of replies does not have every one of them counted and checked for the viewer.
+     * The newest replies and quotes of each commit, as many as the viewer shows at a time, are picked first, and only
+     * the picked ones are then loaded as cards, so a commit with thousands of replies does not have every one of them
+     * counted and checked for the viewer.
      */
     public function withReplyPreviews(?User $user): self
     {
-        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user);
+        $count = RepliesPerPage::of(request())->value;
+        $newest = fn (HasMany $relation): HasMany => $this->newestVisibleOf($relation, $user, $count);
 
         return $this->with(['replies' => $newest, 'quotes' => $newest])
             ->withContinuationId($user)
-            ->afterQuery(fn (Collection $commits): Collection => $this->attachReplyPreviews($commits, $user));
+            ->afterQuery(fn (Collection $commits): Collection => $this->attachReplyPreviews($commits, $user, $count));
     }
 
     /**
@@ -288,7 +292,8 @@ final class CommitBuilder extends Builder
             ->withQuotedCommitFor($viewer)
             ->withSavedState($viewer)
             ->withStarsFor($viewer)
-            ->withPollFor($viewer);
+            ->withPollFor($viewer)
+            ->afterQuery(fn (Collection $commits) => resolve(CommitTranslations::class)->attach($commits));
     }
 
     /**
@@ -315,13 +320,13 @@ final class CommitBuilder extends Builder
      * @param  HasMany<Commit, Commit>  $relation
      * @return HasMany<Commit, Commit>
      */
-    private function newestVisibleOf(HasMany $relation, ?User $user): HasMany
+    private function newestVisibleOf(HasMany $relation, ?User $user, int $count): HasMany
     {
         return $relation
             ->visibleInThreadTo($user)
             ->select($relation->getRelated()->qualifyColumns(['id', 'parent_id', 'quoted_commit_id', 'created_at']))
             ->newestFirst()
-            ->limit(2);
+            ->limit($count + 1);
     }
 
     /**
@@ -343,14 +348,15 @@ final class CommitBuilder extends Builder
      * @param  Collection<int, Commit>  $commits
      * @return Collection<int, Commit>
      */
-    private function attachReplyPreviews(Collection $commits, ?User $user): Collection
+    private function attachReplyPreviews(Collection $commits, ?User $user, int $count): Collection
     {
         $previewed = $commits->filter(fn (Commit $commit): bool => $commit->relationLoaded('replies') && $commit->relationLoaded('quotes'));
         $newest = $previewed->mapWithKeys(fn (Commit $commit): array => [$commit->id => $commit->replies->merge($commit->quotes)
             ->reject(fn (Commit $reply): bool => $reply->id === $commit->continuation_id)
             ->sortByDesc(fn (Commit $reply): string => $reply->created_at->format('Y-m-d H:i:s.u').$reply->id)
-            ->first()]);
-        $ids = $newest->filter()->map(fn (Commit $reply): string => $reply->id)->values()->all();
+            ->take($count)
+            ->modelKeys()]);
+        $ids = $newest->flatten()->all();
         $cards = $ids === [] ? new Collection() : Commit::query()
             ->withTrashed()
             ->whereKey($ids)
@@ -362,13 +368,14 @@ final class CommitBuilder extends Builder
             ->keyBy('id');
 
         foreach ($previewed as $commit) {
-            $reply = $cards->get($newest[$commit->id]->id ?? '');
-            $cursor = $reply instanceof Commit && $commit->replies_count > 1
-                ? new Cursor(['created_at' => $reply->getRawOriginal('created_at'), 'id' => $reply->id])->encode()
+            $replies = collect($newest[$commit->id])->map(fn (string $id): ?Commit => $cards->get($id))->filter()->values();
+            $oldest = $replies->last();
+            $cursor = $oldest instanceof Commit && $commit->replies_count > $replies->count()
+                ? new Cursor(['created_at' => $oldest->getRawOriginal('created_at'), 'id' => $oldest->id])->encode()
                 : null;
 
             $commit->setAttribute('reply_preview', [
-                'data' => $reply instanceof Commit ? [$reply->toArray()] : [],
+                'data' => $replies->map(fn (Commit $reply): array => $reply->toArray())->all(),
                 'next_cursor' => $cursor,
                 'prev_cursor' => null,
             ]);

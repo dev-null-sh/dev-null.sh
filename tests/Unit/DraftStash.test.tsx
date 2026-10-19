@@ -26,9 +26,10 @@ const storedImages = new Map<
 let state: unknown[] = [];
 let cursor = 0;
 
-vi.doMock('react', () => ({
+const mockReactHooks = () => ({
     ...React,
     useEffect: (effect: () => void) => effect(),
+    useLayoutEffect: (effect: () => void | (() => void)) => effect(),
     useState: (initial: unknown) => {
         const index = cursor++;
 
@@ -40,6 +41,12 @@ vi.doMock('react', () => ({
 
         return [state[index], (value: unknown) => (current[index] = value)];
     },
+    useRef: (initial: unknown) => {
+        const index = cursor++;
+        if (!(index in state)) state[index] = { current: initial };
+
+        return state[index];
+    },
     useSyncExternalStore: (
         subscribe: (callback: () => void) => () => void,
         snapshot: () => unknown,
@@ -49,7 +56,9 @@ vi.doMock('react', () => ({
 
         return snapshot();
     },
-}));
+});
+
+vi.doMock('react', mockReactHooks);
 
 vi.doMock('../../resources/js/lib/storage', () => ({
     readStorage: (key: string) => bodies.get(key) ?? '',
@@ -209,6 +218,7 @@ test('drafts keep sensitive text in the editor and images in storage without sto
 
 test('drafts keep descriptions paired with repeated files through filtering, removal, restoration and clearing', async () => {
         vi.resetModules();
+        vi.doMock('react', mockReactHooks);
         const name = 'described';
         const key = `stash:described:${name}`;
         const invalid = new File(['text'], 'invalid.txt', {
@@ -235,6 +245,7 @@ test('drafts keep descriptions paired with repeated files through filtering, rem
                 draft.images,
                 draft.descriptions,
                 draft.updateImages,
+                draft.key,
             );
             return { draft, attachments };
         };

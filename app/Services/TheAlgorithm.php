@@ -11,7 +11,7 @@ final readonly class TheAlgorithm
     /**
      * A commit needs twice the engagement to rank with one committed this many seconds later.
      */
-    private const int DOUBLING_PERIOD = 6 * 60 * 60;
+    private const int DOUBLING_PERIOD = 3 * 60 * 60;
 
     /**
      * Replying or quoting takes more than starring, so each developer replying or quoting in a thread counts for this many

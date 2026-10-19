@@ -38,6 +38,20 @@ enum ActivityScale: string
         };
     }
 
+    /**
+     * The start of the window ending now, as the operations page has always counted: the last 24 hours, 7 days, or
+     * 30 days. The year keeps its whole weeks, since its grid needs them.
+     */
+    public function rollingStart(CarbonImmutable $now): CarbonImmutable
+    {
+        return match ($this) {
+            self::Day => $now->subDay(),
+            self::Week => $now->subWeek(),
+            self::Month => $now->subDays(30),
+            self::Year => $this->start($now),
+        };
+    }
+
     public function isHourly(): bool
     {
         return $this === self::Day;

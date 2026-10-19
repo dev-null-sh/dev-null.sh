@@ -17,6 +17,7 @@ const original = {
     quoted_commit_id: null,
     created_at: new Date().toISOString(),
     status: 'approved',
+    body: 'The original commit',
     body_segments: [{ type: 'text', text: 'The original commit' }],
     user: { id: 'author', name: 'Author', username: 'author', lane: 1 },
 } as Commit;
@@ -26,6 +27,7 @@ const reply = (id: string, overrides: Partial<Commit>): Commit =>
         ...original,
         id,
         user_id: id,
+        body: `Body of ${id}`,
         body_segments: [{ type: 'text', text: `Body of ${id}` }],
         preview_segments: null,
         replies_count: 0,
@@ -89,4 +91,29 @@ test('labels a quote listed under the commit it quotes and links to it', async (
     assert.equal(labels.length, 1);
     assert.match(labels[0][0], /href="\/@quoter\/commits\/quoter"/);
     assert.match(html, /data-test="quote-reply-label"[^>]*>quoted<\/a>/);
+});
+
+test('shows cached translations to guests while leaving other replies in their original language', async () => {
+    const html = await renderReplies([
+        reply('translated', {
+            parent_id: 'original',
+            translation: {
+                language: 'en',
+                source_language: 'de',
+                source_name: 'German',
+                available: true,
+                translated: {
+                    body_segments: [{ type: 'text', text: 'Good morning' }],
+                    preview_segments: null,
+                },
+            },
+        }),
+        reply('untranslated', { parent_id: 'original' }),
+    ]);
+
+    assert.match(html, /Good morning/);
+    assert.match(html, /Translated from German/);
+    assert.match(html, /Show original/);
+    assert.doesNotMatch(html, /Body of translated/);
+    assert.match(html, /Body of untranslated/);
 });

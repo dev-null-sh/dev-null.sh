@@ -222,7 +222,7 @@ final class StressSeeder extends Seeder
 
         DB::statement(<<<'SQL'
             insert into users (id, github_id, username, name, created_at, updated_at, onboarded_at, log)
-            values (pg_temp.uuid7(localtimestamp - interval '730 days'), 'local', 'local_dev', 'Local Developer',
+            values (pg_temp.uuid7(localtimestamp - interval '730 days'), 'local', 'local-dev', 'Local Developer',
                 localtimestamp - interval '730 days', localtimestamp, localtimestamp - interval '730 days', 'following')
             on conflict (github_id) do nothing
             SQL);
@@ -695,7 +695,7 @@ final class StressSeeder extends Seeder
                 group by roots.id
             )
             update commits set hot_score = round((log(2, (1 + coalesce(engaged.stargazers, 0) + 3 * coalesce(engaged.repliers, 0))::numeric)
-                + extract(epoch from commits.created_at)::numeric / 21600), 6)
+                + extract(epoch from commits.created_at)::numeric / 10800), 6)
             from commits as roots
             left join engaged on engaged.id = roots.id
             where commits.id = roots.id and roots.parent_id is null and roots.deleted_at is null
