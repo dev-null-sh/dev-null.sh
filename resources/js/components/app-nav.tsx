@@ -5,7 +5,6 @@ import {
     Bookmark,
     GitCommitVertical,
     History,
-    Menu,
     MessagesSquare,
     PanelLeftClose,
     PanelLeftOpen,
@@ -28,6 +27,7 @@ import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
 import { GitHubIcon } from '@/components/github-icon';
 import { LogoMenu } from '@/components/logo-menu';
+import { MobileMenuIcon } from '@/components/mobile-menu-icon';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -623,7 +623,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                             },
                         )}
                     >
-                        <Menu className="size-5" />
+                        <MobileMenuIcon className="size-5" />
                     </span>
                     <span>Menu</span>
                 </DropdownMenuTrigger>

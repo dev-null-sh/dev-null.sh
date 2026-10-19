@@ -912,6 +912,16 @@ function NotificationContent({
         );
     }
 
+    const rowLink = (
+        <Link
+            href={href}
+            data-notification-link
+            className="after:absolute after:inset-0 after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
+        >
+            {action}
+        </Link>
+    );
+
     return (
         <div className="flex">
             <GraphRail
@@ -944,33 +954,32 @@ function NotificationContent({
             />
             <div className="min-w-0 flex-1 border-b py-3 pr-4">
                 <div className="flex items-start gap-3">
-                    <Link
-                        href={href}
-                        data-notification-link
-                        className="min-w-0 flex-1 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
-                    >
+                    <div className="relative min-w-0 flex-1">
                         {isActorsCommit ? (
                             <>
                                 <div className="flex items-baseline gap-1.5 text-[15px]">
                                     {isNew && (
                                         <span className="sr-only">New. </span>
                                     )}
-                                    <span
-                                        className="truncate font-semibold"
+                                    <Link
+                                        href={show(actor)}
+                                        className="relative z-10 truncate font-semibold hover:underline"
                                         title={actor.name}
                                     >
                                         {actor.name}
-                                    </span>
-                                    <span
-                                        className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
+                                    </Link>
+                                    <Link
+                                        href={show(actor)}
+                                        tabIndex={-1}
+                                        className="relative z-10 shrink-4 truncate font-mono text-[13px] text-muted-foreground"
                                         title={`@${actor.username}`}
                                     >
                                         @{actor.username}
-                                    </span>
+                                    </Link>
                                     {time}
                                 </div>
                                 <p className="text-sm text-muted-foreground first-letter:uppercase">
-                                    {action}
+                                    {rowLink}
                                 </p>
                             </>
                         ) : (
@@ -989,7 +998,7 @@ function NotificationContent({
                                         </span>
                                     ) : (
                                         <span
-                                            className="flex -space-x-2"
+                                            className="isolate flex -space-x-2"
                                             aria-hidden
                                         >
                                             {actors.map((stacked, position) => (
@@ -1022,31 +1031,33 @@ function NotificationContent({
                                                 New.{' '}
                                             </span>
                                         )}
-                                        {moderation ? (
-                                            `${action}.`
-                                        ) : (
+                                        {!moderation && (
                                             <>
-                                                <span
-                                                    className="inline-block max-w-full truncate align-bottom font-semibold"
+                                                <Link
+                                                    href={show(actor)}
+                                                    className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
                                                     title={actor.name}
                                                 >
                                                     {actor.name}
-                                                </span>{' '}
+                                                </Link>{' '}
                                                 {otherActors > 0 ? (
                                                     `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
                                                 ) : (
                                                     <>
-                                                        <span
-                                                            className="inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
+                                                        <Link
+                                                            href={show(actor)}
+                                                            tabIndex={-1}
+                                                            className="relative z-10 inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
                                                             title={`@${actor.username}`}
                                                         >
                                                             @{actor.username}
-                                                        </span>{' '}
+                                                        </Link>{' '}
                                                     </>
                                                 )}
-                                                {action}
                                             </>
                                         )}
+                                        {rowLink}
+                                        {moderation && '.'}
                                     </p>
                                     {starredImages[0] && (
                                         <img
@@ -1067,7 +1078,7 @@ function NotificationContent({
                         {excerpt}
                         {quote}
                         {reason}
-                    </Link>
+                    </div>
                     {notification.type === 'followed' && actorsCount === 1 && (
                         <span className="flex h-10 items-center">
                             <FollowBackButton actor={actor} />
