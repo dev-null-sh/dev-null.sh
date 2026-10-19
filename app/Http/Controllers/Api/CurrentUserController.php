@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Actions\DeleteUser;
-use App\Http\Resources\CurrentUserResource;
 use App\Http\Requests\DeleteApiCurrentUserRequest;
+use App\Http\Resources\CurrentUserResource;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
