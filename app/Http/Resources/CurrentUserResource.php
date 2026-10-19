@@ -10,8 +10,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * The signed-in user: their public profile, plus what only they see on the web's profile settings. That is the lane
- * or custom color they chose (`null` for Automatic) and the one Automatic gives them, their GitHub Sponsors page, and when their profile
- * was last mirrored from GitHub.
+ * or custom color they chose (`null` for Automatic) and the one Automatic gives them, their GitHub Sponsors page, when their profile
+ * was last mirrored from GitHub, and the timezone they chose (`null` when unset, so the web uses the browser's).
  *
  * @mixin User
  */
@@ -32,6 +32,7 @@ final class CurrentUserResource extends JsonResource
             'automatic_lane' => $this->automaticLane(),
             'sponsors_url' => $this->has_sponsors_listing ? "https://github.com/sponsors/{$this->username}" : null,
             'github_synced_at' => $this->github_synced_at?->toIso8601ZuluString(),
+            'timezone' => $this->timezone,
         ];
     }
 }

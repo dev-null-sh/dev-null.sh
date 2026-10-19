@@ -60,6 +60,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'automatic_lane' => $user->automaticLane(),
                 'sponsors_url' => null,
                 'github_synced_at' => null,
+                'timezone' => null,
             ],
             'unread_notifications_count' => 1,
         ]);
@@ -72,6 +73,7 @@ it('returns what the web shows only the user on their profile settings', functio
         'preferred_lane' => 1,
         'has_sponsors_listing' => true,
         'github_synced_at' => '2026-10-01 09:30:00',
+        'timezone' => 'Europe/Lisbon',
     ]);
     $keyPair = apiKeyPairFor($user);
 
@@ -82,11 +84,12 @@ it('returns what the web shows only the user on their profile settings', functio
         ->assertJsonPath('data.preferred_lane', 1)
         ->assertJsonPath('data.automatic_lane', 4)
         ->assertJsonPath('data.sponsors_url', 'https://github.com/sponsors/octocat')
-        ->assertJsonPath('data.github_synced_at', '2026-10-01T09:30:00Z');
+        ->assertJsonPath('data.github_synced_at', '2026-10-01T09:30:00Z')
+        ->assertJsonPath('data.timezone', 'Europe/Lisbon');
 });
 
 it('keeps those to the signed-in user, even on their own profile', function (): void {
-    $user = User::factory()->create(['preferred_lane' => 1]);
+    $user = User::factory()->create(['preferred_lane' => 1, 'timezone' => 'Europe/Lisbon']);
     $keyPair = apiKeyPairFor($user);
 
     $response = signedApiRequest($keyPair, 'GET', route('api-user.show', $user));
@@ -96,7 +99,8 @@ it('keeps those to the signed-in user, even on their own profile', function (): 
         ->assertJsonMissingPath('data.preferred_lane')
         ->assertJsonMissingPath('data.automatic_lane')
         ->assertJsonMissingPath('data.sponsors_url')
-        ->assertJsonMissingPath('data.github_synced_at');
+        ->assertJsonMissingPath('data.github_synced_at')
+        ->assertJsonMissingPath('data.timezone');
 });
 
 it('counts unread notifications in groups, like the web', function (): void {

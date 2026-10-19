@@ -97,6 +97,8 @@ A signed profile also says `is_muting` and has the web's `achievements`, with th
 
 `GET /api/v1/me` also has what only the user sees in the web's profile settings: `preferred_lane` (a lane, a custom `#rrggbb` color, or `null` for Automatic), the `automatic_lane` Automatic picks for them, their `sponsors_url` (or `null`), and `github_synced_at`, when their profile was last synced from GitHub (`null` if it only was when they signed in). `PUT /api/v1/me/github` syncs it from GitHub again, like Sync from GitHub on the web, and shares its limit of one sync a minute. `PUT /api/v1/me/lane` saves their color, with a `lane` from `0` to `5`, or `null` for Automatic, or a custom `color` as lowercase `#rrggbb` with a `null` lane, as the web's color picker does. Both answer like `GET /api/v1/me`.
 
+`GET /api/v1/me` also has the user's `timezone`, an IANA name like `Europe/Lisbon`, or `null` when they haven't chosen one and the web uses the browser's. `PUT /api/v1/me/timezone` saves it, or unsets it with a `null` `timezone`, as the web's Timezone setting does, and answers like `GET /api/v1/me`.
+
 `DELETE /api/v1/me` deletes the signed-in user's account the way Delete account does on the web, with their commits and every device they approved. It answers `204`, and from then on the key gets `device_not_approved`.
 
 Each request sends three headers:
