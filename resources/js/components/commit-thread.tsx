@@ -417,7 +417,7 @@ export function useThread(
             setContinuationId(parent.continuation_id);
 
             if (continuation !== undefined) {
-                router.reload({ only: ['commit', 'continuation'] });
+                router.reload({ only: ['commit', 'continuation', 'replies'] });
             }
         },
         onDeleted: () => {
