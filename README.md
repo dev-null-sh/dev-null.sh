@@ -93,6 +93,8 @@ A signed profile also says `is_muting` and has the web's `achievements`, with th
 
 `POST /api/v1/commits` takes a `body`, and either a `parent_id` to reply to a commit or a `quoted_commit_id` to quote one, but not both. Returns a `201` on successful commit creation.
 
+A commit can also carry up to 3 images, as on the web: JPEG, PNG or WebP, at most 10 MB and 6000 pixels a side each, with an optional `image_descriptions` list in the same order, up to 1000 characters each. With images, the body may be short or left out. They are sent as multipart, signed as shown under the headers below. The images of the user's own commits that aren't published yet come with a temporary `url` that works without a session for at least an hour, since the app has none.
+
 `POST /api/v1/commits/{id}/reports` reports a commit to the moderators, privately, as the web's Report button does. It takes a `reason`, one of `spam`, `harassment`, `unsafe` or `other`, and optional `details` of up to 500 characters, and answers `204`. Reporting doesn't hide the commit. Only someone else's published commit can be reported: the user's own is a `403` with `own_commit`, and one that is pending, rejected, deleted, missing or across a block is a `404` with `commit_unavailable`. Reporting a commit again also answers `204` and keeps the first report. Each user can send 5 reports a minute.
 
 `GET /api/v1/me` also has what only the user sees in the web's profile settings: `preferred_lane` (a lane, a custom `#rrggbb` color, or `null` for Automatic), the `automatic_lane` Automatic picks for them, their `sponsors_url` (or `null`), and `github_synced_at`, when their profile was last synced from GitHub (`null` if it only was when they signed in). `PUT /api/v1/me/github` syncs it from GitHub again, like Sync from GitHub on the web, and shares its limit of one sync a minute. `PUT /api/v1/me/lane` saves their color, with a `lane` from `0` to `5`, or `null` for Automatic, or a custom `color` as lowercase `#rrggbb` with a `null` lane, as the web's color picker does. Both answer like `GET /api/v1/me`.
@@ -107,7 +109,7 @@ Each request sends three headers:
 | `X-Devnull-Nonce` | 32 random hex characters, used once |
 | `X-SSH-Signature` | The SSHSIG signature, base64 on one line |
 
-The signature is made with `ssh-keygen -Y sign -n devnull-api` over these lines, joined by `\n`: the timestamp, the nonce, the method, the path with its query string exactly as sent, and the raw body. A body goes as JSON, with `Content-Type: application/json`, since the signature covers its bytes but not how they are read. Any other body is refused.
+The signature is made with `ssh-keygen -Y sign -n devnull-api` over these lines, joined by `\n`: the timestamp, the nonce, the method, the path with its query string exactly as sent, and the raw body. A body goes as JSON, with `Content-Type: application/json`, since the signature covers its bytes but not how they are read. Any other body is refused, except for a request with images, below.
 
 ```text
 1760534400
@@ -115,6 +117,17 @@ The signature is made with `ssh-keygen -Y sign -n devnull-api` over these lines,
 POST
 /api/v1/commits
 {"body":"Hello from my phone"}
+```
+
+A request with images is sent as `multipart/form-data` instead, like a commit with images from `devnull commit`: the JSON body goes in a `payload` file part, the images in `images[]`, and nothing else. It is signed with `-n devnull-api-images`, with one more line before the body: the SHA-256 of each image, in hex, comma-separated in the order they are attached.
+
+```text
+1760534400
+3f9c2a7e5b1d4c8f9a0b2c3d4e5f6a7b
+POST
+/api/v1/commits
+9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08,60303ae22b998861bce3b28f33eec1be758a213c86c93c076dbe9f558c11c752
+{"body":"Shipped it","image_descriptions":["The new settings page",null]}
 ```
 
 A request with any of these headers has to be signed right. A bad or expired signature is a `401`, never the public view. A request without them always gets the public view, and across a block a signed request gets neither profile: it is a `403`, `user_blocked` for the one who blocked and `user_unavailable` for the other, and their commits are hidden as on the web.
