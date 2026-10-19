@@ -11,6 +11,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Public browsing and GitHub sign-in](#public-browsing-and-github-sign-in)
   - [First-time setup](#first-time-setup)
   - [Profiles and GitHub sync](#profiles-and-github-sync)
+  - [Achievement badges and XP](#achievement-badges-and-xp)
   - [Following developers and suggestions](#following-developers-and-suggestions)
   - [Following, Latest, and Trending logs](#following-latest-and-trending-logs)
   - [Searching developers and commits](#searching-developers-and-commits)
@@ -96,9 +97,35 @@ Every developer has a profile at `/@{username}`, with their GitHub identity, bio
 
 Change your name, avatar, bio, company, location, or website on GitHub, not on /dev/null. Settings → Profile offers **Edit on GitHub** and **Sync from GitHub**. Profile details also refresh on sign-in. Manual sync is limited to once a minute. A GitHub username rename is picked up on sign-in; accounts are not merged with another user's account.
 
-Profiles show achievement badges and an XP-based Unix rank. **Sweet tooth** unlocks after receiving **100 pastéis across your account**, not on a single commit, even with Pastéis mode off. **Luddite** unlocks when Tom still follows you but you no longer follow him back, deducting **100 XP** with a minimum total of zero. Following Tom again removes the badge and penalty. Badges and ranks are recalculated from current account activity rather than permanently awarded.
+Profiles also show [achievement badges and an XP-based Unix rank](#achievement-badges-and-xp). Click a badge or rank to inspect unlock requirements and progress.
 
 Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [identity sync](app/Actions/UpdateOrCreateUser.php).
+
+### Achievement badges and XP
+
+Profiles display **13 achievement badges**. Locked badges show progress toward their requirements; unlocked badges are highlighted. Open the achievements dialog from a profile's badge or rank to see the full list.
+
+| Badge | When it unlocks |
+| --- | --- |
+| **init** | Publish your first commit. |
+| **syntax** | Write a commit containing a triple-backtick code fence. |
+| **uptime** | Reach a longest commit streak of **7 consecutive days**. |
+| **daemon** | Reach a longest commit streak of **30 consecutive days**. |
+| **sysadmin** | Reach a longest commit streak of **100 consecutive days**. |
+| **stdout** | Reach **50 commits**. |
+| **kernel space** | Reach **100 commits**. |
+| **stargazer** | Star **10 commits by other developers**, excluding your own. |
+| **superstar** | Receive **25 stars across your commits**, excluding self-stars. The stars need not be on one commit or from 25 distinct people. |
+| **pipe** | Write **5 replies to other developers' commits**, excluding self-replies. Replies still count when their parent commit is soft-deleted. |
+| **authorized_keys** | Have at least one public SSH key linked from GitHub. |
+| **sweet tooth** | Receive **100 pastéis across your account**, not on a single commit. Pastéis mode does not need to be enabled, and the total survives deletion of the awarded commits. |
+| **luddite** | Stop following Tom while he still follows you. This deducts **100 XP**; following him again removes the badge and penalty. Accounts Tom has never befriended do not qualify. |
+
+Commit counts include replies and quotes. Commit-based badges and XP use non-deleted commits visible to the person viewing the profile, so an author may see progress from pending or rejected commits that other viewers cannot see. Streak badges use the **longest** streak, not the current streak: missing a day does not by itself remove them. Days follow the activity graph's app-timezone grouping, not the user's selected display timezone.
+
+Badges are calculated from current account data, not permanently recorded awards. Removing qualifying activity can reduce progress or lock a badge again; for example, unstarring a commit can remove **stargazer**. Unlocking a badge does not normally give bonus XP. XP comes from **10 per commit**, **15 per day in the longest streak**, **5 per star received**, **5 per reply to another developer**, and **2 per star given to another developer**. The **luddite** penalty applies once while the badge is unlocked, not once per unfollow, and total XP cannot fall below zero. A qualifying reply contributes both commit XP and reply XP; pastéis do not add XP.
+
+Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
 
 ### Following developers and suggestions
 
