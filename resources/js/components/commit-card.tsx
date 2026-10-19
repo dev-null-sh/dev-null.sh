@@ -176,7 +176,7 @@ export function CommitCard({
     return (
         <article
             className={cn(
-                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none hover:not-has-[[data-reply]:hover]:bg-accent/50 focus-visible:bg-accent',
+                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none hover:bg-accent/50 focus-visible:bg-accent',
                 {
                     'bg-primary-soft/60': isHighlighted,
                     'cursor-pointer': !isFocused && !wasDeleted,
