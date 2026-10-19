@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
+use App\Http\Controllers\Api\CommitPollVoteController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CommitStarController;
@@ -104,6 +105,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
             ->middleware('throttle:60,1')
             ->name('api-commit-pastel.store');
+
+        // Commit Poll Vote...
+        Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])->name('api-commit-poll-vote.store');
 
         // Private starred commits...
         Route::get('starred', [StarredCommitController::class, 'index'])->name('api-starred.index');

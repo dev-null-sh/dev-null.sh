@@ -433,6 +433,7 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - commit, reply, and quote, and delete your commits;
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
 - star or unstar, and save or unsave;
+- vote on polls;
 - switch Pastéis mode and give pastéis;
 - report commits;
 - sync from GitHub and save your lane color;

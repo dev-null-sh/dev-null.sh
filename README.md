@@ -79,7 +79,7 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ## Signed requests
 
-The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, saved commits, committing, deleting, following, starring, saving, muting, blocking, reporting and pastéis only take signed requests. Signed requests are limited to 120 a minute per user.
+The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, saved commits, committing, deleting, following, starring, saving, muting, blocking, reporting, voting and pastéis only take signed requests. Signed requests are limited to 120 a minute per user.
 
 Commits in a signed response carry what the web's cards show: `preview_segments`, the excerpt a list shows of a long commit (or `null`), the `poll` with the user's view of its votes and each option's `percentage`, the `quoted_commit` (a tombstone once deleted, or `null` when the user may not see it, while `quoted_commit_id` still says a commit was quoted), and in lists the `reply_preview` the web shows under each commit. Its `next_cursor` continues with `GET /api/v1/commits/{id}/replies?newest=1&cursor=…`, as on the web.
 
@@ -94,6 +94,8 @@ A signed profile also says `is_muting` and has the web's `achievements`, with th
 `POST /api/v1/commits` takes a `body`, and either a `parent_id` to reply to a commit or a `quoted_commit_id` to quote one, but not both. Returns a `201` on successful commit creation.
 
 `POST /api/v1/commits/{id}/reports` reports a commit to the moderators, privately, as the web's Report button does. It takes a `reason`, one of `spam`, `harassment`, `unsafe` or `other`, and optional `details` of up to 500 characters, and answers `204`. Reporting doesn't hide the commit. Only someone else's published commit can be reported: the user's own is a `403` with `own_commit`, and one that is pending, rejected, deleted, missing or across a block is a `404` with `commit_unavailable`. Reporting a commit again also answers `204` and keeps the first report. Each user can send 5 reports a minute.
+
+`POST /api/v1/commits/{id}/poll/votes` votes on the commit's poll with an `option` id, as the web's Vote button does, and answers with the commit, whose `poll` now shows the results. Votes are final, and authors see their results instead of voting, so a second vote, a vote on the user's own poll, and one on a poll that isn't open yet or has closed are a `422` that says why. A commit the user may not see is a `404`.
 
 `GET /api/v1/me` also has what only the user sees in the web's profile settings: `preferred_lane` (a lane, a custom `#rrggbb` color, or `null` for Automatic), the `automatic_lane` Automatic picks for them, their `sponsors_url` (or `null`), and `github_synced_at`, when their profile was last synced from GitHub (`null` if it only was when they signed in). `PUT /api/v1/me/github` syncs it from GitHub again, like Sync from GitHub on the web, and shares its limit of one sync a minute. `PUT /api/v1/me/lane` saves their color, with a `lane` from `0` to `5`, or `null` for Automatic, or a custom `color` as lowercase `#rrggbb` with a `null` lane, as the web's color picker does. Both answer like `GET /api/v1/me`.
 
