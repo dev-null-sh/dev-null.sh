@@ -306,6 +306,7 @@ it('may reply to a commit', function (): void {
     $response->assertCreated()
         ->assertExactJson([
             'committed' => ['id' => $reply->id, 'body' => 'Agreed, ship it.'],
+            'parent' => ['id' => $parent->id, 'replies_count' => 1, 'continuation_id' => null],
             'toast' => [
                 'type' => 'info',
                 'message' => 'Your commit is pending review. Everyone will see it once it is approved.',
@@ -314,6 +315,22 @@ it('may reply to a commit', function (): void {
 
     expect($reply->parent_id)->toBe($parent->id)
         ->and($reply->status)->toBe(CommitStatus::Pending);
+});
+
+it('continues the author thread with their first reply to their own commit, leaving it out of the reply count', function (): void {
+    $author = User::factory()->create();
+    $commit = Commit::factory()->for($author)->create();
+    Commit::factory()->for($commit, 'parent')->create();
+
+    $first = $this->actingAs($author)->postJson(route('commit-reply.store', $commit), ['body' => 'Part two']);
+    $continuation = $author->commits()->where('body', 'Part two')->sole();
+
+    $first->assertCreated()
+        ->assertJsonPath('parent', ['id' => $commit->id, 'replies_count' => 1, 'continuation_id' => $continuation->id]);
+
+    $this->actingAs($author)->postJson(route('commit-reply.store', $commit), ['body' => 'An aside'])
+        ->assertCreated()
+        ->assertJsonPath('parent', ['id' => $commit->id, 'replies_count' => 2, 'continuation_id' => $continuation->id]);
 });
 
 it('publishes replies of admins right away', function (): void {

@@ -43,6 +43,7 @@ export function useCommitTranslation(commit: Commit) {
         request.transform(() => ({ language: translation?.language ?? 'en' }));
 
         let isNotFound = false;
+        let failureMessage = 'Could not translate this commit. Try again.';
 
         try {
             const response = await request.submit(
@@ -50,6 +51,18 @@ export function useCommitTranslation(commit: Commit) {
                 {
                     onHttpException: (response) => {
                         isNotFound = commitNotFound(commit.id, response);
+
+                        if (
+                            response.status === 503 &&
+                            response.headers['content-type']?.includes(
+                                'application/json',
+                            )
+                        ) {
+                            const { message } = JSON.parse(response.data) as {
+                                message: string;
+                            };
+                            failureMessage = message;
+                        }
                     },
                 },
             );
@@ -60,7 +73,7 @@ export function useCommitTranslation(commit: Commit) {
             setShowsOriginal(false);
         } catch {
             if (!isNotFound) {
-                toast.error('Could not translate this commit. Try again.');
+                toast.error(failureMessage);
             }
         }
     };
