@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { rememberBlock } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -124,6 +125,7 @@ export function ConversationActions({
             return;
         }
 
+        rememberBlock(target.partner);
         router.flushAll();
         (onBlocked ?? onLeave)?.();
     };

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-type SharedValue = boolean | number;
+export type SharedValue = boolean | number | string | null;
 
 type Update<T> = T | ((current: T) => T);
 

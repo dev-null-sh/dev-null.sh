@@ -22,6 +22,11 @@ export type Connectivity = {
     cache: boolean;
 };
 
+export type Feature = {
+    name: 'translations';
+    enabled: boolean;
+};
+
 export type LinkPreviewHealth = {
     pending: number;
     failed: number;

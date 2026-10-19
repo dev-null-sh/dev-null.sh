@@ -37,6 +37,7 @@ it('shows the operational health of the app to admins', function (): void {
             ->where('volume.signups', ['day' => 5, 'week' => 5])
             ->where('volume.commits', ['day' => 3, 'week' => 3])
             ->where('volume.replies', ['day' => 1, 'week' => 1])
+            ->where('features', [['name' => 'translations', 'enabled' => true]])
             ->missing('githubRateLimit')
             ->missing('traffic'));
 });

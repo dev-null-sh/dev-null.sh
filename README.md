@@ -77,7 +77,7 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ## Signed requests
 
-The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, committing, deleting and following only take signed requests. Signed requests are limited to 120 a minute per user.
+The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, saved commits, committing, deleting, following, starring and saving only take signed requests. Signed requests are limited to 120 a minute per user.
 
 Commits in a signed response carry what the web's cards show: `preview_segments`, the excerpt a list shows of a long commit (or `null`), the `poll` with the user's view of its votes and each option's `percentage`, the `quoted_commit` (a tombstone once deleted, or `null` when the user may not see it, while `quoted_commit_id` still says a commit was quoted), and in lists the `reply_preview` the web shows under each commit. Its `next_cursor` continues with `GET /api/v1/commits/{id}/replies?newest=1&cursor=…`, as on the web.
 
@@ -126,7 +126,7 @@ An error is JSON with a `message` to show the user. The errors the app has to te
 | `401` | `device_not_approved` | Nobody approved the key as a device, or it was revoked. |
 | `403` | `user_blocked` | The user blocked the profile they asked for. Neither of them sees the other's commits. |
 | `403` | `user_unavailable` | The profile isn't available to the user, because it blocked them. |
-| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, 30 follows and unfollows a minute, or 60 failed signatures a minute from one IP. `Retry-After` says when to try again. |
+| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, 30 follows and unfollows a minute, 60 stars and unstars a minute, 60 saves and unsaves a minute, or 60 failed signatures a minute from one IP. `Retry-After` says when to try again. |
 
 Other errors have no `code`, like a `422` for a commit that fails validation or a `404` for one that doesn't exist. Unsigned requests to the public endpoints get the same errors as before, without codes.
 
@@ -229,6 +229,24 @@ Continue by tagging Tom in a reply. He sees at most twelve public ancestor posts
 Tom's job timeout is 600 seconds. The outbound request budget can reach 520 seconds: three model steps at up to 40 seconds each, four query embeddings at up to 70 seconds each, and two relevance checks at up to 60 seconds each. Model and embedding budgets include the SDK's one retry and up to ten seconds of backoff. The remaining time allows for database and queue work; normal replies do not wait for this ceiling.
 
 The database, Redis and Beanstalkd connections default to a 660-second `retry_after`, keeping jobs reserved beyond Tom's timeout. If you override `DB_QUEUE_RETRY_AFTER`, `REDIS_QUEUE_RETRY_AFTER` or `BEANSTALKD_QUEUE_RETRY_AFTER`, keep the value at least 660 seconds; for SQS, configure its visibility timeout to at least 660 seconds. Restart workers after deploying these settings. This reservation applies to every job on the connection, so a worker crash can delay redelivery of other jobs until it expires.
+
+#### Translation workers and failure recovery
+
+Background language detection runs on the `translations` queue using the existing `QUEUE_CONNECTION`. Run a separate worker so these jobs cannot occupy the workers processing moderation:
+
+```sh
+php artisan queue:work --queue=translations --sleep=3 --tries=3 --timeout=120
+```
+
+Keep the existing default-queue workers running separately. No new environment variable is needed, and do not change the connection's default queue (`DB_QUEUE` or `REDIS_QUEUE`) to `translations`. For local development, run the same additional worker alongside `composer dev`. Explicit Translate requests still generate translations in the HTTP request, not in this queue.
+
+On Laravel Cloud with database or Redis queues, add a worker cluster from the environment's infrastructure canvas, keep it awake, and add the command above under **Background processes → New background process → Custom worker**, initially with one process. Save and deploy the environment changes before or alongside the code that routes jobs to `translations`. Cloud restarts the workers on deployment. Each configured process runs on every cluster replica. See the [Cloud worker documentation](https://cloud.laravel.com/docs/workers).
+
+If the environment already uses `QUEUE_CONNECTION=cloud`, create a standard managed queue named `translations` instead, leaving the existing default queue unchanged. Use Pro compute because this job's 120-second timeout exceeds managed Flex's 90-second limit. Do not introduce managed queues just to add this worker: creating the first managed queue changes the environment's default connection and requires the AWS SDK dependency. See the [managed queue documentation](https://cloud.laravel.com/docs/queues).
+
+Detection and moderation make at most three attempts, with 60-second and 600-second backoffs. Translation allows 35 seconds to obtain its lock and up to 70 seconds for two 30-second provider attempts plus retry delay; its lock lasts 90 seconds after acquisition and its job timeout is 120 seconds. Moderation allows 180 seconds for up to three 15-second image/text checks and two 60-second reviews. Both job timeouts remain below the connection's 660-second reservation. Failed moderation stays pending for human review, never automatically approved. Search logs for `Moderation failed for commit`, `Translation failed for commit`, or `Language detection dispatch failed for commit`; errors retain exception types and codes, not provider messages or response bodies.
+
+For database/Redis queues, retry individual failed jobs through `/operations` or `php artisan queue:retry <uuid>`. Existing queued and failed payloads retain their original queue and retry settings, so keep default workers running while those drain. For Cloud managed queues, use Cloud's **Monitoring → Queues** retry controls instead; Artisan failed-job commands do not support that driver. A missing job class still requires workers on the correct release before retrying: application-level catches cannot execute before the job has been deserialized.
 
 #### Automatic production updates
 

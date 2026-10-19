@@ -46,7 +46,7 @@ final class DatabaseSeeder extends Seeder
 
         $localDeveloper = User::query()->firstOrCreate(
             ['github_id' => 'local'],
-            ['username' => 'local_dev', 'name' => 'Local Developer'],
+            ['username' => 'local-dev', 'name' => 'Local Developer'],
         );
 
         Commit::factory()->for($localDeveloper)->count(3)->sequence(

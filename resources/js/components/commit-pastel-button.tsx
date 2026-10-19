@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { toast } from 'sonner';
 import { store } from '@/actions/App/Http/Controllers/CommitPastelController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
@@ -20,6 +21,7 @@ export function CommitPastelButton({
     className?: string;
 }) {
     const { auth } = usePage().props;
+    const commitNotFound = useCommitNotFound();
     const day = useNow().toISOString().slice(0, 10);
     const [count, setCount] = useSharedState(
         commitStateKey('pasteis_count', commit.id),
@@ -68,7 +70,9 @@ export function CommitPastelButton({
                     toast(exhaustedMessage, { id: 'pasteis-exhausted' });
                 },
                 onHttpException: (response) => {
-                    errorShown = toastWhenThrottled(response);
+                    errorShown =
+                        commitNotFound(commit.id, response) ||
+                        toastWhenThrottled(response);
                     return true;
                 },
             });
