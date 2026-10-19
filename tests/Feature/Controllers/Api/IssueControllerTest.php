@@ -55,7 +55,7 @@ it('keeps the draft when GitHub rejects the issue or does not respond, with a co
     ]);
 
     signedApiRequest($this->keyPair, 'POST', route('api-issue.store'), ['command' => '/bug', 'body' => 'Broken.'])
-        ->assertStatus(502)
+        ->assertServiceUnavailable()
         ->assertExactJson(['message' => $message, 'code' => 'github_issue_failed']);
 })->with([
     'rejected' => [fn () => Http::response(['message' => 'Validation Failed'], 422), 'GitHub did not create the issue. Your draft is safe.'],
@@ -112,7 +112,7 @@ it('does not count rejected drafts or failed attempts towards the limit', functi
     signedApiRequest($this->keyPair, 'POST', route('api-issue.store'), ['command' => '/deploy', 'body' => 'Nope.'])->assertUnprocessable();
 
     foreach (range(1, 6) as $attempt) {
-        signedApiRequest($this->keyPair, 'POST', route('api-issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertStatus(502);
+        signedApiRequest($this->keyPair, 'POST', route('api-issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertServiceUnavailable();
         $this->travel(11)->seconds();
     }
 

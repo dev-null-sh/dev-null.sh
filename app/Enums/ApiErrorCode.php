@@ -31,8 +31,7 @@ enum ApiErrorCode: string
             self::CommitUnavailable => 404,
             self::PasteisExhausted => 422,
             self::RateLimited => 429,
-            self::GitHubIssueFailed => 502,
-            self::GitHubSyncFailed => 503,
+            self::GitHubSyncFailed, self::GitHubIssueFailed => 503,
         };
     }
 }
