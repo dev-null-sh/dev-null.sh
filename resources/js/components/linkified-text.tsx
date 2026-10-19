@@ -10,7 +10,7 @@ import { mentionPattern } from '@/lib/mentions';
 import { shortenUrl } from '@/lib/urls';
 import { shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
-import type { Commit } from '@/types';
+import type { BodySegment, Commit } from '@/types';
 
 // Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
 
@@ -109,6 +109,17 @@ export function typedLinks(text: string): string[] {
     }
 
     return [...links];
+}
+
+/**
+ * Whether the prose outside code mentions someone, by the same rules that link a mention.
+ */
+export function hasMention(segments: BodySegment[]): boolean {
+    return segments.some(
+        (segment) =>
+            segment.type === 'text' &&
+            segment.text.search(mentionPattern) !== -1,
+    );
 }
 
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.

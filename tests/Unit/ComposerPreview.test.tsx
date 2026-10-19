@@ -13,7 +13,9 @@ import {
     useComposerPreview,
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
+import { hasMention } from '../../resources/js/components/linkified-text';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
+import { bodySegments } from '../../resources/js/lib/code';
 import { minBodyLength } from '../../resources/js/lib/commit';
 
 function renderPage(
@@ -295,6 +297,54 @@ for (const isAdmin of [false, true]) {
         );
     });
 }
+
+for (const [body, expected] of [
+    ['Pairing with @alice', true],
+    ['@bob-builder, take a look', true],
+    ['Mail me at alice@example.com', false],
+    ['Run `@alice` in the shell', false],
+    ['```java\n@Override\n```', false],
+    ['Install @inertiajs/react and @vue.js', false],
+] as const) {
+    test(`${expected ? 'finds' : 'finds no'} mention in "${body}"`, () => {
+        assert.equal(hasMention(bodySegments(body)), expected);
+    });
+}
+
+test('links the mentions the server found in the preview', () => {
+    const preview = previewFor({
+        body: 'Pairing with @alice and @nobody-here',
+        isSubmittable: true,
+    });
+    const markup = renderPage(
+        <ComposerPreviewBody
+            preview={{
+                ...preview,
+                mentions: { alice: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b' },
+            }}
+            images={[]}
+            url={null}
+        />,
+    );
+
+    assert.equal((markup.match(/data-test="mention"/g) ?? []).length, 1);
+    assert.match(markup, /<a[^>]*>@alice<\/a>/);
+    assert.ok(markup.includes('@nobody-here'));
+});
+
+test('shows mentions as text until the server has found them', () => {
+    const preview = previewFor({
+        body: 'Pairing with @alice',
+        isSubmittable: true,
+    });
+    const markup = renderPage(
+        <ComposerPreviewBody preview={preview} images={[]} url={null} />,
+    );
+
+    assert.equal(preview.mentions, null);
+    assert.ok(markup.includes('Pairing with @alice'));
+    assert.ok(!markup.includes('data-test="mention"'));
+});
 
 test('previews attached image descriptions without a published photo link', () => {
     const images = [
