@@ -428,7 +428,7 @@ export function CommitCard({
                                             {formatFullDateTime(
                                                 commit.created_at,
                                                 auth.user?.timezone ??
-                                                undefined,
+                                                    undefined,
                                             )}
                                         </time>
                                     </TimestampTooltip>

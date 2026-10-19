@@ -173,14 +173,14 @@ function SearchResults({
                             index === 0
                                 ? undefined
                                 : laneColor(
-                                    results.commits[index - 1].user.lane,
-                                )
+                                      results.commits[index - 1].user.lane,
+                                  )
                         }
                         nextLane={
                             index < results.commits.length - 1
                                 ? laneColor(
-                                    results.commits[index + 1].user.lane,
-                                )
+                                      results.commits[index + 1].user.lane,
+                                  )
                                 : undefined
                         }
                     />
