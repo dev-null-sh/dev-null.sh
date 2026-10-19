@@ -236,7 +236,7 @@ it('shares no unread notifications for guests', function (): void {
     expect($shared['auth']['unreadNotificationsCount']())->toBe(0);
 });
 
-it('does not dim lanes by default', function (string $cookie): void {
+it('dims lanes by default or when enabled', function (string $cookie): void {
     $middleware = new HandleInertiaRequests();
 
     $request = Request::create('/', 'GET');
@@ -247,18 +247,18 @@ it('does not dim lanes by default', function (string $cookie): void {
 
     $shared = $middleware->share($request);
 
-    expect($shared['dimsLanes'])->toBeFalse();
-})->with(['', 'false']);
+    expect($shared['dimsLanes'])->toBeTrue();
+})->with(['', 'true']);
 
-it('dims lanes once the user turns it on', function (): void {
+it('does not dim lanes when disabled', function (): void {
     $middleware = new HandleInertiaRequests();
 
     $request = Request::create('/', 'GET');
-    $request->cookies->set('lane_dimming', 'true');
+    $request->cookies->set('lane_dimming', 'false');
 
     $shared = $middleware->share($request);
 
-    expect($shared['dimsLanes'])->toBeTrue();
+    expect($shared['dimsLanes'])->toBeFalse();
 });
 
 it('shows 3 replies at a time unless the user picked one of the other counts', function (string $cookie, int $count): void {

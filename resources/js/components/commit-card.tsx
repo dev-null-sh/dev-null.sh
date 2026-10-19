@@ -147,7 +147,7 @@ export function CommitCard({
     return (
         <article
             className={cn(
-                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
+                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none hover:bg-accent/50 focus-visible:bg-accent',
                 { 'bg-primary-soft/60': isHighlighted },
                 deletion === 'deleting'
                     ? 'grid-rows-[0fr] opacity-0 delay-400'
@@ -212,7 +212,7 @@ export function CommitCard({
                 >
                     <div
                         className={cn('flex transition-opacity duration-200', {
-                            'opacity-50': isDimmed,
+                            'opacity-70': isDimmed,
                         })}
                     >
                         <div className="min-w-0 flex-1">
@@ -505,7 +505,7 @@ export function CommitCard({
                             <div
                                 className={cn(
                                     'transition-opacity duration-200',
-                                    { 'opacity-50': isDimmed },
+                                    { 'opacity-70': isDimmed },
                                 )}
                             >
                                 <ThreadReplies thread={thread} depth={0} />
