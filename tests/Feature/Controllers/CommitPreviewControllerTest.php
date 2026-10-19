@@ -46,6 +46,26 @@ it('previews drafts without publishing or spending its commit budget', function 
         ->assertSessionHasNoErrors();
 });
 
+it('previews and publishes nested fences without changing the code', function (): void {
+    $user = User::factory()->create();
+    $body = "````markdown\n```\nhello\n```\n\n\n:fire:\n````";
+
+    $preview = $this->actingAs($user)->postJson(route('commit-preview.store'), ['body' => $body]);
+
+    $this->actingAs($user)->post(route('commit.store'), ['body' => $body])
+        ->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->body)->toBe($body);
+
+    $preview->assertOk()
+        ->assertJsonCount(1, 'segments')
+        ->assertJsonPath('segments.0.type', 'block')
+        ->assertJsonPath('segments.0.language', 'markdown')
+        ->assertExactJson(['segments' => $commit->toArray()['body_segments'], 'mentions' => $commit->mentions]);
+});
+
 it('collapses runs of blank lines in the preview like in the commit', function (): void {
     $user = User::factory()->create();
     $body = "Shipped it.\n\n\n\nFinally.";

@@ -1,13 +1,28 @@
 import type { BodySegment } from '@/types';
 
-// Keep in sync with app/Services/CodeSpans.php: a fenced code block, from a line starting with ``` or more (and maybe
-// a language) to a line that is only ``` or more, or inline code between two backticks on one line.
-const committedCode = String.raw`(?<![^\n])\`{3,}[^\`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\`{3,}[ \t]*(?![^\r\n])|\`[^\`\r\n]+\``;
-const codePattern = new RegExp(`(${committedCode})`);
+// Keep in sync with app/Services/CodeSpans.php: a fenced code block closed by at least as many backticks as it opens
+// with, or inline code between two backticks on one line.
+const committedCode = String.raw`(?<![^\n])(\`{3,})[^\`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\1\`*[ \t]*(?![^\r\n])|\`[^\`\r\n]+\``;
+const codePattern = new RegExp(committedCode, 'g');
 // While typing, a block or inline code that isn't closed yet also runs to the end of the text.
 const typedCodePattern = new RegExp(
-    `(${committedCode}|${String.raw`(?<![^\n])\`\`\`[\s\S]*$|\`[^\`\r\n]*$`})`,
+    `${committedCode}|${String.raw`(?<![^\n])\`\`\`[\s\S]*$|\`[^\`\r\n]*$`}`,
+    'g',
 );
+
+function splitCode(text: string, pattern: RegExp): string[] {
+    const parts: string[] = [];
+    let offset = 0;
+
+    for (const match of text.matchAll(pattern)) {
+        parts.push(text.slice(offset, match.index), match[0]);
+        offset = match.index + match[0].length;
+    }
+
+    parts.push(text.slice(offset));
+
+    return parts;
+}
 
 const isBlock = (part: string | undefined): boolean =>
     part?.startsWith('```') ?? false;
@@ -39,8 +54,7 @@ export function mapTypedProse(
     text: string,
     callback: (prose: string) => string,
 ): string {
-    return text
-        .split(typedCodePattern)
+    return splitCode(text, typedCodePattern)
         .map((part, index) => (index % 2 === 0 ? callback(part) : part))
         .join('');
 }
@@ -50,7 +64,7 @@ export function mapTypedProse(
  * only the server highlights code.
  */
 export function bodySegments(text: string): BodySegment[] {
-    const parts = text.split(codePattern);
+    const parts = splitCode(text, codePattern);
     const segments: BodySegment[] = [];
 
     parts.forEach((part, index) => {
@@ -90,5 +104,7 @@ export function hasCodeBlock(segments: BodySegment[]): boolean {
  * The prose being typed, without the code.
  */
 export function typedProse(text: string): string[] {
-    return text.split(typedCodePattern).filter((_, index) => index % 2 === 0);
+    return splitCode(text, typedCodePattern).filter(
+        (_, index) => index % 2 === 0,
+    );
 }

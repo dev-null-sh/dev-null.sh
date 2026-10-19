@@ -14,6 +14,9 @@ it('splits text into alternating prose and code', function (string $text, array 
     'code block' => ["look:\n```php\necho 1;\n```\nnice", ["look:\n", "```php\necho 1;\n```", "\nnice"]],
     'code block with crlf' => ["```\r\necho 1;\r\n```", ['', "```\r\necho 1;\r\n```", '']],
     'backticks inside a code block' => ["```js\nconst a = `b`;\n```", ['', "```js\nconst a = `b`;\n```", '']],
+    'nested fences' => ["````markdown\n```\nhello\n```\n````", ['', "````markdown\n```\nhello\n```\n````", '']],
+    'nested fences with crlf' => ["````markdown\r\n```\r\nhello\r\n```\r\n````", ['', "````markdown\r\n```\r\nhello\r\n```\r\n````", '']],
+    'several shorter fences' => ["`````\n````\n```\nhello\n```\n````\n`````", ['', "`````\n````\n```\nhello\n```\n````\n`````", '']],
 ]);
 
 it('leaves code that is never closed as prose', function (string $text): void {
@@ -33,6 +36,16 @@ it('maps the prose only', function (): void {
 
     expect($codeSpans->mapProse("hi `hi`\n```\nhi\n```", mb_strtoupper(...)))
         ->toBe("HI `hi`\n```\nhi\n```");
+});
+
+it('keeps prose transformations outside nested fences', function (): void {
+    $code = "````markdown\n```\nhello\n```\n:fire: @example\n````";
+    $codeSpans = resolve(CodeSpans::class);
+
+    expect($codeSpans->mapProse("before\n{$code}\nafter", mb_strtoupper(...)))
+        ->toBe("BEFORE\n{$code}\nAFTER")
+        ->and($codeSpans->withoutCode("before\n{$code}\nafter"))
+        ->toBe("before\n\n\nafter");
 });
 
 it('removes the code', function (): void {
@@ -139,6 +152,14 @@ it('accepts fences of more than three backticks', function (): void {
         ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-variable">$login</span>;'],
     ])->and($codeSpans->highlight("```\n// test\n````"))->toBe([
         ['type' => 'block', 'language' => null, 'html' => '// test'],
+    ]);
+});
+
+it('renders shorter fences as part of the code block', function (): void {
+    expect(resolve(CodeSpans::class)->highlight("before\n````\n```\nhello\n```\n````\nafter"))->toBe([
+        ['type' => 'text', 'text' => 'before'],
+        ['type' => 'block', 'language' => null, 'html' => "```\nhello\n```"],
+        ['type' => 'text', 'text' => 'after'],
     ]);
 });
 
