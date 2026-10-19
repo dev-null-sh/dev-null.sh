@@ -761,11 +761,15 @@ export function ActorAvatar({
     user,
     anchor,
     className,
+    linked = false,
 }: {
     user: User;
     anchor: RefObject<HTMLSpanElement | null>;
     className?: string;
+    linked?: boolean;
 }) {
+    const avatar = <UserAvatar user={user} className={className} />;
+
     return (
         <UserPreview
             user={user}
@@ -773,7 +777,18 @@ export function ActorAvatar({
             className="flex shrink-0 self-start"
         >
             <span ref={anchor} className="flex">
-                <UserAvatar user={user} className={className} />
+                {linked ? (
+                    <Link
+                        href={show(user)}
+                        tabIndex={-1}
+                        aria-hidden
+                        className="flex rounded-full"
+                    >
+                        {avatar}
+                    </Link>
+                ) : (
+                    avatar
+                )}
             </span>
         </UserPreview>
     );
@@ -900,6 +915,60 @@ export function NotificationContent({
         </div>
     );
 
+    if (!summary && isActorsCommit) {
+        return (
+            <div className="flex min-w-0 gap-2.5">
+                <ActorAvatar
+                    user={actor}
+                    anchor={actorRef}
+                    className="size-7"
+                    linked
+                />
+                <div className="min-w-0 flex-1">
+                    <div className="flex h-7 items-center gap-1.5 text-[15px]">
+                        <UserPreview
+                            user={actor}
+                            anchor={actorRef}
+                            className="relative z-10 flex min-w-0 items-center"
+                        >
+                            <Link
+                                href={show(actor)}
+                                className="flex min-w-0 items-center gap-1.5 rounded-md outline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                            >
+                                <span
+                                    className="truncate font-semibold"
+                                    title={actor.name}
+                                >
+                                    {actor.name}
+                                </span>
+                                <span
+                                    className="hidden shrink-4 truncate font-mono text-[13px] text-muted-foreground sm:inline"
+                                    title={`@${actor.username}`}
+                                >
+                                    @{actor.username}
+                                </span>
+                            </Link>
+                        </UserPreview>
+                        <span className="sr-only">
+                            {isNew && 'New. '}
+                            {action}
+                        </span>
+                        <Link
+                            href={href}
+                            className="ml-auto flex shrink-0 items-center gap-2 rounded-md pl-2 outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
+                        >
+                            {icon}
+                            {time}
+                        </Link>
+                    </div>
+                    <Link href={href} tabIndex={-1} className="block">
+                        {excerpt}
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
     if (!summary) {
         return (
             <div className="flex items-start gap-3">
@@ -1006,6 +1075,7 @@ export function NotificationContent({
                                         user={actor}
                                         anchor={actorRef}
                                         className="size-10"
+                                        linked
                                     />
                                 )}
                             </span>
@@ -1068,6 +1138,10 @@ export function NotificationContent({
                                                 user={actor}
                                                 anchor={actorRef}
                                                 className="size-8 ring-2 ring-card"
+                                                linked={
+                                                    notification.type !==
+                                                    'followed'
+                                                }
                                             />
                                         </span>
                                     ) : (

@@ -110,7 +110,7 @@ const previewedAvatars = (body: string): number =>
 
 const previewedNames = (body: string): number =>
     body.match(
-        /<span class="relative z-10[^"]*">(?:<a|<span)[^>]*title="Matthieu Napoli"/g,
+        /<span class="relative z-10[^"]*">(?:<a[^>]*>)?(?:<a|<span)[^>]*title="Matthieu Napoli"/g,
     )?.length ?? 0;
 
 const other = { ...actor, id: 'other', name: 'Other', username: 'other' };
@@ -120,7 +120,7 @@ void test('renders a code block highlighted in a notification', async () => {
 
     assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
     assert.doesNotMatch(body, /```/);
-    assert.equal(body.match(/<a\b/g)?.length, 3);
+    assert.equal(body.match(/<a\b/g)?.length, 4);
     assert.doesNotMatch(body, /<button\b/);
     assert.match(body, /<pre[^>]*tabindex="-1"/i);
 });
@@ -140,7 +140,7 @@ for (const isFollowing of [false, true]) {
         const body = await render([notification, followed]);
 
         assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
-        assert.equal(body.match(/<a\b/g)?.length, 6);
+        assert.equal(body.match(/<a\b/g)?.length, 7);
         assert.equal(body.match(/<button\b/g)?.length, 1);
         assert.doesNotMatch(body, /<a\b[^>]*>(?:(?!<\/a>).)*<button\b/s);
         assert.match(
@@ -191,10 +191,11 @@ void test('links the actor to their profile apart from the commit link', async (
 
     assert.deepEqual(
         links.map((link) => link.match(/href="([^"]*)"/)?.[1]),
-        ['/@mnapoli', '/@mnapoli', '/@nunomaduro/commits/reply'],
+        ['/@mnapoli', '/@mnapoli', '/@mnapoli', '/@nunomaduro/commits/reply'],
     );
-    assert.match(links[0], /hover:underline/);
-    assert.doesNotMatch(links[1], /hover:underline/);
+    assert.match(links[0], /tabindex="-1"/);
+    assert.match(links[1], /hover:underline/);
+    assert.doesNotMatch(links[2], /hover:underline/);
     assert.doesNotMatch(body, /<a\b(?:(?!<\/a>).)*<a\b/s);
     assert.match(body, /starred your commit<\/a>/);
 });
@@ -243,3 +244,63 @@ for (const type of ['replied', 'starred']) {
         assert.equal(previewedNames(body), 1);
     });
 }
+
+const avatarLink =
+    /<span class="flex shrink-0 self-start"><span class="flex"><a tabindex="-1"[^>]*href="\/@mnapoli"/;
+
+const nestedLink = /<a\b(?:(?!<\/a>).)*<a\b/s;
+
+for (const type of ['replied', 'starred']) {
+    void test(`links the avatar of a single ${type} notification to the profile`, async () => {
+        const body = await render([
+            { ...notification, type } as NotificationGroup,
+        ]);
+
+        assert.match(body, avatarLink);
+        assert.doesNotMatch(body, nestedLink);
+    });
+}
+
+void test('leaves the avatar of a single follow unlinked, as the row already opens the profile', async () => {
+    const body = await render([
+        {
+            ...notification,
+            type: 'followed',
+            actor: { ...actor, is_followed: false },
+            commit: null,
+            commit_id: null,
+            subject_id: null,
+        } as NotificationGroup,
+    ]);
+
+    assert.doesNotMatch(body, avatarLink);
+});
+
+void test('links an expanded reply to its author and to the reply', async () => {
+    const body = await renderItem(notification);
+
+    assert.match(body, avatarLink);
+    assert.match(
+        body,
+        /<a [^>]*href="\/@mnapoli"[^>]*><span class="[^"]*font-semibold[^"]*" title="Matthieu Napoli">/,
+    );
+    assert.match(
+        body,
+        /<a [^>]*href="\/@mnapoli\/commits\/reply"[^>]*>(?:(?!<\/a>).)*<time\b/s,
+    );
+    assert.match(
+        body,
+        /<a tabindex="-1"[^>]*href="\/@mnapoli\/commits\/reply"[^>]*><div class="[^"]*max-h-40/,
+    );
+    assert.doesNotMatch(body, nestedLink);
+});
+
+void test('keeps an expanded star as one link to the profile', async () => {
+    const body = await renderItem({
+        ...notification,
+        type: 'starred',
+    } as Notification);
+
+    assert.equal(body.match(/<a\b/g)?.length, 1);
+    assert.match(body, /<a [^>]*href="\/@mnapoli"/);
+});
