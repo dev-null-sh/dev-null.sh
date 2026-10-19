@@ -36,7 +36,7 @@ final readonly class NotificationGroupsQuery
                 'actor' => fn (BelongsTo $query): BelongsTo => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
                 'commit',
-                'tag',
+                'branch',
             ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable

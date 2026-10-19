@@ -23,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read NotificationType $type
  * @property-read string|null $commit_id
  * @property-read string|null $subject_id
- * @property-read string|null $tag_id
+ * @property-read string|null $branch_id
  * @property-read string $key
  * @property-read string|null $reason
  * @property-read CarbonInterface|null $read_at
@@ -32,7 +32,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read User $recipient
  * @property-read User $actor
  * @property-read Commit|null $commit
- * @property-read Tag|null $tag
+ * @property-read Branch|null $branch
  * @property-read string $group_id
  * @property-read int $event_count
  * @property-read int $actors_count
@@ -68,7 +68,7 @@ final class Notification extends Model
             'type' => NotificationType::class,
             'commit_id' => 'string',
             'subject_id' => 'string',
-            'tag_id' => 'string',
+            'branch_id' => 'string',
             'key' => 'string',
             'reason' => 'string',
             'read_at' => 'datetime',
@@ -104,10 +104,10 @@ final class Notification extends Model
     }
 
     /**
-     * @return BelongsTo<Tag, $this>
+     * @return BelongsTo<Branch, $this>
      */
-    public function tag(): BelongsTo
+    public function branch(): BelongsTo
     {
-        return $this->belongsTo(Tag::class);
+        return $this->belongsTo(Branch::class);
     }
 }

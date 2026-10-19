@@ -13,7 +13,7 @@ enum NotificationType: string
     case Rejected = 'rejected';
     case Quoted = 'quoted';
     case Starred = 'starred';
-    case TagActivity = 'tag_activity';
-    case TagMemberAdded = 'tag_member_added';
-    case TagRoleChanged = 'tag_role_changed';
+    case BranchActivity = 'branch_activity';
+    case BranchMemberAdded = 'branch_member_added';
+    case BranchRoleChanged = 'branch_role_changed';
 }

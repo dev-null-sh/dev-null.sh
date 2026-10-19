@@ -37,7 +37,7 @@ it('allows committing without a branch', function (): void {
     expect($author->commits()->sole()->branch)->toBeNull();
 });
 
-it('shows a hashtag feed of matching top-level commits', function (): void {
+it('shows a branch feed of matching top-level commits', function (): void {
     $this->withoutVite();
 
     $author = User::factory()->create();
@@ -60,21 +60,21 @@ it('shows a hashtag feed of matching top-level commits', function (): void {
         'branch' => 'laravel',
     ]);
 
-    $this->actingAs($viewer)->get(route('tag.show', 'laravel'))
+    $this->actingAs($viewer)->get(route('branch.show', 'laravel'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->component('tag/show')
-            ->where('tag.name', 'laravel')
+            ->component('branch/show')
+            ->where('branch.name', 'laravel')
             ->has('commits.data', 1)
             ->where('commits.data.0.id', $match->id));
 });
 
-it('redirects mixed-case tag urls and rejects invalid tags', function (): void {
+it('redirects mixed-case branch urls and rejects invalid branches', function (): void {
     $this->withoutVite();
 
-    $this->get(route('tag.show', 'Laravel'))
-        ->assertRedirect(route('tag.show', 'laravel'));
+    $this->get(route('branch.show', 'Laravel'))
+        ->assertRedirect(route('branch.show', 'laravel'));
 
-    $this->get('/tags/42')->assertNotFound();
-    $this->get('/tags/_private')->assertNotFound();
+    $this->get('/branches/42')->assertNotFound();
+    $this->get('/branches/_private')->assertNotFound();
 });

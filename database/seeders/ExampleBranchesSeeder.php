@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
-use App\Actions\RefreshTagSiteMeta;
-use App\Enums\TagRole;
+use App\Actions\RefreshBranchSiteMeta;
+use App\Enums\BranchRole;
+use App\Models\Branch;
 use App\Models\Commit;
-use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Seeder;
@@ -33,7 +33,7 @@ final class ExampleBranchesSeeder extends Seeder
         'laravel' => 'laravel.com',
     ];
 
-    public function __construct(private readonly RefreshTagSiteMeta $refreshSiteMeta)
+    public function __construct(private readonly RefreshBranchSiteMeta $refreshSiteMeta)
     {
         //
     }
@@ -53,7 +53,7 @@ final class ExampleBranchesSeeder extends Seeder
      */
     private function seedBranch(string $name, string $domain, Collection $team): void
     {
-        $tag = Tag::query()->updateOrCreate(
+        $branch = Branch::query()->updateOrCreate(
             ['name' => $name],
             [
                 'domain' => $domain,
@@ -64,8 +64,8 @@ final class ExampleBranchesSeeder extends Seeder
             ],
         );
 
-        $tag = $this->refreshSiteMeta->handle($tag);
-        $this->seedMembers($tag, $team);
+        $branch = $this->refreshSiteMeta->handle($branch);
+        $this->seedMembers($branch, $team);
 
         foreach ($team->take(3) as $author) {
             Commit::factory()->for($author)->create([
@@ -76,8 +76,8 @@ final class ExampleBranchesSeeder extends Seeder
         }
 
         $this->command?->info(
-            "{$name} ← {$domain}".($tag->brand_color ? " ({$tag->brand_color})" : '').
-            ' · '.$tag->members()->count().' members',
+            "{$name} ← {$domain}".($branch->brand_color ? " ({$branch->brand_color})" : '').
+            ' · '.$branch->members()->count().' members',
         );
     }
 
@@ -86,29 +86,29 @@ final class ExampleBranchesSeeder extends Seeder
      *
      * @param  Collection<int, User>  $team
      */
-    private function seedMembers(Tag $tag, Collection $team): void
+    private function seedMembers(Branch $branch, Collection $team): void
     {
-        $tag->members()->delete();
+        $branch->members()->delete();
 
-        $maintainers = $team->take(match ($tag->name) {
+        $maintainers = $team->take(match ($branch->name) {
             'laravel', 'rails', 'docker' => 3,
             default => 2,
         });
 
         foreach ($maintainers as $user) {
-            $tag->members()->create([
+            $branch->members()->create([
                 'user_id' => $user->id,
-                'role' => TagRole::Maintainer,
+                'role' => BranchRole::Maintainer,
             ]);
         }
 
-        if (in_array($tag->name, ['laravel', 'rails', 'tailwind', 'vercel'], true)) {
+        if (in_array($branch->name, ['laravel', 'rails', 'tailwind', 'vercel'], true)) {
             $contributor = $team->skip($maintainers->count())->first();
 
             if ($contributor instanceof User) {
-                $tag->members()->create([
+                $branch->members()->create([
                     'user_id' => $contributor->id,
-                    'role' => TagRole::Contributor,
+                    'role' => BranchRole::Contributor,
                 ]);
             }
         }

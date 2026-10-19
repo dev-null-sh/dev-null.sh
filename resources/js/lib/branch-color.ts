@@ -43,7 +43,7 @@ export function isDarkBrandColor(color: string): boolean {
 }
 
 /**
- * Foreground for plain brand text (tag titles). Dark brands stay themselves in light
+ * Foreground for plain brand text (branch titles). Dark brands stay themselves in light
  * mode and flip to white in dark mode.
  */
 export function branchTextColor(

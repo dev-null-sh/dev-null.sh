@@ -42,7 +42,7 @@ dataset('rate limits', [
         fn (): array => [
             ['GET', route('user-search.index', ['q' => 'nuno'])],
             ['GET', route('mention-suggestion.index', ['q' => 'nuno'])],
-            ['GET', route('hashtag-suggestion.index', ['q' => 'la'])],
+            ['GET', route('branch-suggestion.index', ['q' => 'la'])],
             ['GET', route('user-preview.show', User::factory()->create())],
             ['GET', route('mention.preview', User::factory()->create())],
         ],

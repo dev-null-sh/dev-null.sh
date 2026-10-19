@@ -1,7 +1,7 @@
 /**
- * Keep in sync with app/Services/Hashtags.php (NAME_PATTERN and MAX_PER_COMMIT).
+ * Keep in sync with app/Services/Branches.php (NAME_PATTERN and MAX_PER_COMMIT).
  */
-export const maxHashtagsPerCommit = 1;
+export const maxBranchesPerCommit = 1;
 
 const namePattern = /^(?=[a-z0-9][a-z0-9_]{0,49}$)(?=.*[a-z])[a-z0-9_]+$/;
 

@@ -1,6 +1,6 @@
 import { GitBranch, X } from 'lucide-react';
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
-import HashtagSuggestionController from '@/actions/App/Http/Controllers/HashtagSuggestionController';
+import BranchSuggestionController from '@/actions/App/Http/Controllers/BranchSuggestionController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -27,7 +27,7 @@ async function fetchSuggestions(
     }
 
     const response = await fetch(
-        HashtagSuggestionController.index({ query: { q: query } }).url,
+        BranchSuggestionController.index({ query: { q: query } }).url,
         {
             headers: { Accept: 'application/json' },
             signal,
@@ -38,10 +38,10 @@ async function fetchSuggestions(
         return [];
     }
 
-    const data = (await response.json()) as { hashtags: Suggestion[] };
-    cache.set(query, data.hashtags);
+    const data = (await response.json()) as { branches: Suggestion[] };
+    cache.set(query, data.branches);
 
-    return data.hashtags;
+    return data.branches;
 }
 
 /**

@@ -34,12 +34,12 @@ return new class extends Migration
 
         $names = [];
 
-        foreach ($matches[1] as $tag) {
-            if (! preg_match('/[A-Za-z]/', $tag)) {
+        foreach ($matches[1] as $branch) {
+            if (! preg_match('/[A-Za-z]/', $branch)) {
                 continue;
             }
 
-            $names[mb_strtolower($tag)] ??= mb_strtolower($tag);
+            $names[mb_strtolower($branch)] ??= mb_strtolower($branch);
         }
 
         return array_values($names);

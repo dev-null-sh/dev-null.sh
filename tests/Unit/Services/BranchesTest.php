@@ -14,17 +14,17 @@ it('normalizes a branch field', function (?string $input, ?string $expected): vo
     'null' => [null, null],
 ]);
 
-it('finds legacy hashtags in prose, lowercased and once each', function (): void {
-    $hashtags = resolve(Branches::class);
+it('finds legacy branches in prose, lowercased and once each', function (): void {
+    $branches = resolve(Branches::class);
 
-    expect($hashtags->namesInBody('#Laravel and #PHP, thanks! cc #laravel'))
+    expect($branches->namesInBody('#Laravel and #PHP, thanks! cc #laravel'))
         ->toBe(['laravel']);
 });
 
-it('finds hashtags next to punctuation', function (string $text, array $names): void {
-    $hashtags = resolve(Branches::class);
+it('finds branches next to punctuation', function (string $text, array $names): void {
+    $branches = resolve(Branches::class);
 
-    expect($hashtags->namesInBody($text))->toBe($names);
+    expect($branches->namesInBody($text))->toBe($names);
 })->with([
     'sentence end' => ['Shipped #laravel.', ['laravel']],
     'question' => ['Ready for #php?', ['php']],
@@ -34,10 +34,10 @@ it('finds hashtags next to punctuation', function (string $text, array $names): 
     'colon' => ['#laravel: look', ['laravel']],
 ]);
 
-it('ignores what only looks like a hashtag', function (string $text): void {
-    $hashtags = resolve(Branches::class);
+it('ignores what only looks like a branch', function (string $text): void {
+    $branches = resolve(Branches::class);
 
-    expect($hashtags->namesInBody($text))->toBe([]);
+    expect($branches->namesInBody($text))->toBe([]);
 })->with([
     'fragment after path' => ['See docs/path#anchor'],
     'url fragment' => ['https://example.com/#section'],
@@ -48,28 +48,28 @@ it('ignores what only looks like a hashtag', function (string $text): void {
     'too long' => ['#'.str_repeat('a', 51)],
 ]);
 
-it('allows tags of up to 50 characters', function (): void {
-    $hashtags = resolve(Branches::class);
-    $tag = str_repeat('a', 50);
+it('allows branches of up to 50 characters', function (): void {
+    $branches = resolve(Branches::class);
+    $branch = str_repeat('a', 50);
 
-    expect($hashtags->namesInBody('#'.$tag))->toBe([$tag]);
+    expect($branches->namesInBody('#'.$branch))->toBe([$branch]);
 });
 
-it('keeps at most one hashtag, first wins', function (): void {
-    $hashtags = resolve(Branches::class);
+it('keeps at most one branch, first wins', function (): void {
+    $branches = resolve(Branches::class);
 
-    expect($hashtags->namesInBody('#one #two #three #one'))->toBe(['one']);
+    expect($branches->namesInBody('#one #two #three #one'))->toBe(['one']);
 });
 
-it('skips hashtags in code', function (): void {
-    $hashtags = resolve(Branches::class);
+it('skips branches in code', function (): void {
+    $branches = resolve(Branches::class);
 
-    expect($hashtags->namesInBody("shipped #laravel with `#define`\n```c\n#define MAX 1\n```"))
+    expect($branches->namesInBody("shipped #laravel with `#define`\n```c\n#define MAX 1\n```"))
         ->toBe(['laravel']);
 });
 
-it('validates stored tag names', function (string $tag, bool $valid): void {
-    expect(resolve(Branches::class)->isValid($tag))->toBe($valid);
+it('validates stored branch names', function (string $branch, bool $valid): void {
+    expect(resolve(Branches::class)->isValid($branch))->toBe($valid);
 })->with([
     'simple' => ['laravel', true],
     'with digits' => ['100daysofcode', true],

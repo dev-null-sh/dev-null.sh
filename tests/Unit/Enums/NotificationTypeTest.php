@@ -13,8 +13,8 @@ it('has the types of a notification', function (): void {
         'Rejected' => 'rejected',
         'Quoted' => 'quoted',
         'Starred' => 'starred',
-        'TagActivity' => 'tag_activity',
-        'TagMemberAdded' => 'tag_member_added',
-        'TagRoleChanged' => 'tag_role_changed',
+        'BranchActivity' => 'branch_activity',
+        'BranchMemberAdded' => 'branch_member_added',
+        'BranchRoleChanged' => 'branch_role_changed',
     ]);
 });

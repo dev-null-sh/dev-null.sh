@@ -92,4 +92,4 @@ A social network for developers. Sign in with GitHub, have a Twitter-style profi
 
 ## Not now
 
-Comments, reposts without a comment (quotes are in), editing (amend), images/media, DMs (remotes are in), other OAuth providers, a write API or API tokens, header/banner images, importing real GitHub commits, email/push notifications. Mentions, hashtags, people search, semantic commit search, stars, blocking/muting, and moderation tools are in.
+Comments, reposts without a comment (quotes are in), editing (amend), images/media, DMs (remotes are in), other OAuth providers, a write API or API tokens, header/banner images, importing real GitHub commits, email/push notifications. Mentions, branches, people search, semantic commit search, stars, blocking/muting, and moderation tools are in.

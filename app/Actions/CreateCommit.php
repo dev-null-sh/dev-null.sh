@@ -34,8 +34,8 @@ final readonly class CreateCommit
         private EmojiShortcodes $emojiShortcodes,
         private Urls $urls,
         private Branches $branches,
-        private UpsertTags $upsertBranches,
-        private CreateTagActivityNotifications $createBranchActivityNotifications,
+        private UpsertBranches $upsertBranches,
+        private CreateBranchActivityNotifications $createBranchActivityNotifications,
         private MentionedUsersQuery $mentionedUsers,
     ) {
         //

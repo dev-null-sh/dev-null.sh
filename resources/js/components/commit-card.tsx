@@ -329,7 +329,7 @@ export function CommitCard({
                             )}
                             {commit.branch && (
                                 <CommitBranch
-                                    tag={commit.branch.name}
+                                    branch={commit.branch.name}
                                     color={commit.branch_color}
                                     branch={commit.branch}
                                 />

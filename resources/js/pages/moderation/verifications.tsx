@@ -1,14 +1,14 @@
 import { Head, InfiniteScroll, Link, router } from '@inertiajs/react';
 import { Check, GitBranch, X } from 'lucide-react';
 import { useState } from 'react';
-import { store as approve } from '@/actions/App/Http/Controllers/TagVerificationApprovalController';
-import { store as reject } from '@/actions/App/Http/Controllers/TagVerificationRejectionController';
+import { store as approve } from '@/actions/App/Http/Controllers/BranchVerificationApprovalController';
+import { store as reject } from '@/actions/App/Http/Controllers/BranchVerificationRejectionController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
-import { show as tagShow } from '@/routes/tag';
+import { show as tagShow } from '@/routes/branch';
 import type { CursorPaginated } from '@/types';
 
 type Maintainer = {

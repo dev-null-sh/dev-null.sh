@@ -5,6 +5,16 @@ declare(strict_types=1);
 use App\Enums\Log;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\BookmarkController;
+use App\Http\Controllers\BranchClaimController;
+use App\Http\Controllers\BranchController;
+use App\Http\Controllers\BranchDescriptionController;
+use App\Http\Controllers\BranchMemberController;
+use App\Http\Controllers\BranchSuggestionController;
+use App\Http\Controllers\BranchVerificationApprovalController;
+use App\Http\Controllers\BranchVerificationController;
+use App\Http\Controllers\BranchVerificationRejectionController;
+use App\Http\Controllers\BranchVerificationRequestController;
+use App\Http\Controllers\BranchWatchController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
@@ -39,7 +49,6 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
-use App\Http\Controllers\HashtagSuggestionController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\LocalSessionController;
@@ -69,15 +78,6 @@ use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SitemapController;
-use App\Http\Controllers\TagClaimController;
-use App\Http\Controllers\TagController;
-use App\Http\Controllers\TagDescriptionController;
-use App\Http\Controllers\TagMemberController;
-use App\Http\Controllers\TagVerificationApprovalController;
-use App\Http\Controllers\TagVerificationController;
-use App\Http\Controllers\TagVerificationRejectionController;
-use App\Http\Controllers\TagVerificationRequestController;
-use App\Http\Controllers\TagWatchController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBlockController;
@@ -129,10 +129,10 @@ Route::middleware('guest')->group(function (): void {
 Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
 Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
 
-// Hashtag feed...
-Route::get('tags/{tag}', [TagController::class, 'show'])
-    ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-    ->name('tag.show');
+// Branch feed...
+Route::get('branches/{branch}', [BranchController::class, 'show'])
+    ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+    ->name('branch.show');
 
 // Terms and privacy, readable by everyone...
 Route::get('terms', [TermsController::class, 'show'])->name('terms.show');
@@ -240,37 +240,37 @@ Route::middleware('auth')->group(function (): void {
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
 
-    // Hashtag ownership, watch, and settings...
-    Route::get('tags/{tag}/settings', [TagController::class, 'edit'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag.settings');
-    Route::post('tags/{tag}/claim', [TagClaimController::class, 'store'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-claim.store');
-    Route::post('tags/{tag}/verify', [TagVerificationController::class, 'store'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-verification.store');
-    Route::put('tags/{tag}/domain', [TagVerificationController::class, 'update'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-domain.update');
-    Route::put('tags/{tag}/description', [TagDescriptionController::class, 'update'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-description.update');
-    Route::put('tags/{tag}/watch', [TagWatchController::class, 'store'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-watch.store');
-    Route::delete('tags/{tag}/watch', [TagWatchController::class, 'destroy'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-watch.destroy');
-    Route::post('tags/{tag}/members', [TagMemberController::class, 'store'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-member.store');
-    Route::put('tags/{tag}/members/{member:username}', [TagMemberController::class, 'update'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-member.update');
-    Route::delete('tags/{tag}/members/{member:username}', [TagMemberController::class, 'destroy'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-member.destroy');
+    // Branch ownership, watch, and settings...
+    Route::get('branches/{branch}/settings', [BranchController::class, 'edit'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch.settings');
+    Route::post('branches/{branch}/claim', [BranchClaimController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-claim.store');
+    Route::post('branches/{branch}/verify', [BranchVerificationController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-verification.store');
+    Route::put('branches/{branch}/domain', [BranchVerificationController::class, 'update'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-domain.update');
+    Route::put('branches/{branch}/description', [BranchDescriptionController::class, 'update'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-description.update');
+    Route::put('branches/{branch}/watch', [BranchWatchController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-watch.store');
+    Route::delete('branches/{branch}/watch', [BranchWatchController::class, 'destroy'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-watch.destroy');
+    Route::post('branches/{branch}/members', [BranchMemberController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-member.store');
+    Route::put('branches/{branch}/members/{member:username}', [BranchMemberController::class, 'update'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-member.update');
+    Route::delete('branches/{branch}/members/{member:username}', [BranchMemberController::class, 'destroy'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-member.destroy');
 
     // Private saved commits...
     Route::get('saved', [BookmarkController::class, 'index'])->name('bookmark.index');
@@ -388,14 +388,14 @@ Route::middleware('auth')->group(function (): void {
     Route::get('moderation', [ModerationController::class, 'show'])->name('moderation.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
     Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
-    Route::get('moderation/verifications', [TagVerificationRequestController::class, 'index'])
-        ->name('tag-verification-request.index');
-    Route::post('moderation/verifications/{tag}/approval', [TagVerificationApprovalController::class, 'store'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-verification-approval.store');
-    Route::post('moderation/verifications/{tag}/rejection', [TagVerificationRejectionController::class, 'store'])
-        ->where('tag', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
-        ->name('tag-verification-rejection.store');
+    Route::get('moderation/verifications', [BranchVerificationRequestController::class, 'index'])
+        ->name('branch-verification-request.index');
+    Route::post('moderation/verifications/{branch}/approval', [BranchVerificationApprovalController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-verification-approval.store');
+    Route::post('moderation/verifications/{branch}/rejection', [BranchVerificationRejectionController::class, 'store'])
+        ->where('branch', '[A-Za-z0-9][A-Za-z0-9_]{0,49}')
+        ->name('branch-verification-rejection.store');
     Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
         ->name('commit-approval.store');
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
@@ -416,10 +416,10 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:people')
         ->name('mention-suggestion.index');
 
-    // Hashtag Suggestions...
-    Route::get('search/hashtags', [HashtagSuggestionController::class, 'index'])
+    // Branch Suggestions...
+    Route::get('search/branches', [BranchSuggestionController::class, 'index'])
         ->middleware('throttle:people')
-        ->name('hashtag-suggestion.index');
+        ->name('branch-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));

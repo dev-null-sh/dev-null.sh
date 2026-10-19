@@ -1,6 +1,6 @@
 import { show } from '@/actions/App/Http/Controllers/ModerationController';
 import { index as reports } from '@/actions/App/Http/Controllers/ReportedCommitController';
-import { index as verifications } from '@/actions/App/Http/Controllers/TagVerificationRequestController';
+import { index as verifications } from '@/actions/App/Http/Controllers/BranchVerificationRequestController';
 import { PageTabs } from '@/components/page-tabs';
 
 export function ModerationTabs({

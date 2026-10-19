@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\CommitStatus;
-use App\Models\Tag;
+use App\Models\Branch;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -44,7 +44,7 @@ final class BranchStyles
     {
         self::$summaries = null;
         Cache::forget('branch-styles');
-            }
+    }
 
     /**
      * @return array<string, array{name: string, commits_count: int, is_verified: bool, brand_color: string|null}>
@@ -77,10 +77,10 @@ final class BranchStyles
                 ];
             }
 
-            Tag::query()
+            Branch::query()
                 ->whereNotNull('verified_at')
                 ->get(['name', 'brand_color', 'verified_at', 'verified_domain'])
-                ->each(function (Tag $branch) use (&$summaries): void {
+                ->each(function (Branch $branch) use (&$summaries): void {
                     $summaries[$branch->name] ??= [
                         'name' => $branch->name,
                         'commits_count' => 0,

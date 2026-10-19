@@ -30,31 +30,31 @@ export type Notification =
           type: 'followed';
           commit_id: null;
           subject_id: null;
-          tag_id: null;
+          branch_id: null;
           commit: null;
-          tag: null;
+          branch: null;
       })
     | (BaseNotification & {
           type: 'replied' | 'starred';
           commit_id: string;
           subject_id: string;
-          tag_id: null;
+          branch_id: null;
           commit: Omit<Commit, 'user'>;
-          tag: null;
+          branch: null;
       })
     | (BaseNotification & {
-          type: 'quoted' | 'mentioned' | 'approved' | 'rejected' | 'tag_activity';
+          type: 'quoted' | 'mentioned' | 'approved' | 'rejected' | 'branch_activity';
           commit_id: string;
           subject_id: null;
-          tag_id: null;
+          branch_id: null;
           commit: Omit<Commit, 'user'>;
-          tag: null;
+          branch: null;
       })
     | (BaseNotification & {
-          type: 'tag_member_added' | 'tag_role_changed';
+          type: 'branch_member_added' | 'branch_role_changed';
           commit_id: null;
           subject_id: null;
-          tag_id: string;
+          branch_id: string;
           commit: null;
-          tag: NotificationTag;
+          branch: NotificationTag;
       });

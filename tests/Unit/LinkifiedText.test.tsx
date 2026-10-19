@@ -59,8 +59,8 @@ void test('leaves #hashes in prose as plain text (branches come from the compose
         <LinkifiedText text="Shipped #Laravel and issue #42." mentions={null} />,
     );
 
-    assert.equal(html.includes('data-test="hashtag"'), false);
-    assert.equal(html.includes('/tags/'), false);
+    assert.equal(html.includes('data-test="branch"'), false);
+    assert.equal(html.includes('/branches/'), false);
     assert.equal(html, 'Shipped #Laravel and issue #42.');
 });
 

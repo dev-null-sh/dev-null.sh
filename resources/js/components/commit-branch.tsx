@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/tooltip';
 import { branchColorStyle } from '@/lib/branch-color';
 import { cn } from '@/lib/utils';
-import { show as tagShow } from '@/routes/tag';
+import { show as tagShow } from '@/routes/branch';
 import type { CommitBranchSummary } from '@/types/commit';
 
 /**
@@ -15,12 +15,12 @@ import type { CommitBranchSummary } from '@/types/commit';
  * Verified branches use the favicon's primary colour.
  */
 export function CommitBranch({
-    tag,
+    branch,
     color,
     branch,
     className,
 }: {
-    tag: string;
+    branch: string;
     color?: string | null;
     branch?: CommitBranchSummary | null;
     className?: string;
@@ -35,7 +35,7 @@ export function CommitBranch({
             : `${commits} ${commits === 1 ? 'commit' : 'commits'}`;
     const label =
         commitLabel === null
-            ? tag
+            ? branch
             : verified
                 ? commitLabel
                 : `${commitLabel} · unverified`;
@@ -44,7 +44,7 @@ export function CommitBranch({
         <Tooltip>
             <TooltipTrigger asChild>
                 <Link
-                    href={tagShow(tag)}
+                    href={tagShow(branch)}
                     style={branchColorStyle(brandColor)}
                     className={cn(
                         'mt-1 inline-flex w-fit max-w-full items-center gap-1 rounded-md border border-primary/35 bg-primary-soft px-1.5 py-0.5 font-mono text-xs text-primary hover:opacity-90',
@@ -53,7 +53,7 @@ export function CommitBranch({
                     data-test="commit-branch"
                 >
                     <GitBranch className="size-3 shrink-0" aria-hidden />
-                    <span className="truncate">{tag}</span>
+                    <span className="truncate">{branch}</span>
                 </Link>
             </TooltipTrigger>
             <TooltipContent className="flex items-center gap-1.5 font-mono text-[12px]">
