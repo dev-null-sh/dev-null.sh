@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\NotificationType;
 use App\Jobs\EraseDeletedCommitImages;
+use App\Jobs\FederateCommitDeletion;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Services\CommitTranslations;
@@ -47,6 +48,12 @@ final readonly class DeleteCommit
             dispatch(new EraseDeletedCommitImages($commit))
                 ->delay(now()->addSeconds(Commit::RESTORABLE_SECONDS))
                 ->afterCommit();
+
+            if ($commit->user?->federates === true) {
+                dispatch(new FederateCommitDeletion($commit))
+                    ->delay(now()->addSeconds(Commit::RESTORABLE_SECONDS))
+                    ->afterCommit();
+            }
 
             return $commit->refresh();
         }, attempts: 3);
