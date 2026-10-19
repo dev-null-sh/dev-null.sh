@@ -68,3 +68,8 @@ php artisan serve --host=127.0.0.1 --port=8767
 ```
 
 Open `http://127.0.0.1:8767/_demo/reactions`. It signs into a synthetic local account and displays the real picker, real public star behavior, and real encrypted outbox, with an example Actions match. The demo switch blocks all mirror verification and delivery HTTP requests, and the route only exists locally and accepts loopback requests. Nothing is sent to GitHub, and the Actions job is not run locally. Remove the demo switch to test a real connection later.
+
+
+The picker opens immediately from an account-scoped browser cache and refreshes in the background. Connected repository labels also arrive with the signed-in page, so opening the picker never waits for its state endpoint. A failed refresh keeps the cached controls usable, and an older response cannot overwrite a newer reaction change. Checkbox choices remain stable while the picker is open.
+
+Each reaction chip shows its public reactors on hover or keyboard focus. Names come only from public reactions (up to 20 names plus a remaining count). Private-only reactions appear as locked chips only for their owner; click the chip beside the post to remove one. The picker has no duplicate “Your reactions” row.

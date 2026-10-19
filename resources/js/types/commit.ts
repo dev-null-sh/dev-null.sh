@@ -84,7 +84,12 @@ export type Commit = {
     starred: boolean;
     star_flavor?: StarFlavor | null;
     star_flavors?: StarFlavor[];
-    reactions?: { emoji: string; count: number; reacted: boolean }[];
+    reactions?: {
+        emoji: string;
+        count: number;
+        reacted: boolean;
+        users?: { id: string; name: string; username: string }[];
+    }[];
     user: User;
     replies_count?: number;
     reply_preview?: CursorPaginated<ThreadCommit>;

@@ -51,6 +51,9 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $isAdmin,
+                'reactionRepositories' => fn (): Collection => $user instanceof User
+                    ? \App\Models\RepositoryMirror::query()->where('user_id', $user->id)->orderBy('repository')->get(['id', 'repository', 'private'])
+                    : collect(),
                 'log' => fn (): ?Log => $request->user()?->log,
                 'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0,
                 'unreadMessagesCount' => fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0,

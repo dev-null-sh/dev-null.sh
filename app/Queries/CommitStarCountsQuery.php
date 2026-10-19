@@ -12,7 +12,7 @@ final readonly class CommitStarCountsQuery
 {
     /**
      * @param  list<string>  $ids
-     * @return Collection<int, array{id: string, stars_count: int, starred: bool, star_flavor: string|null, star_flavors: list<string>, reactions: list<array{emoji: string, count: int, reacted: bool}>}>
+     * @return Collection<int, array{id: string, stars_count: int, starred: bool, star_flavor: string|null, star_flavors: list<string>, reactions: list<array{emoji: string, count: int, reacted: bool, users: list<array{id: string, name: string, username: string}>}>}>
      */
     public function get(User $viewer, array $ids): Collection
     {

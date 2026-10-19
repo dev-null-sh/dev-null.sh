@@ -129,12 +129,12 @@ it('polls an own reply after another viewer stars and unstars it through JSON', 
 
     $this->actingAs($author)->postJson(route('commit-star.store', $reply))->assertForbidden();
     $this->actingAs($viewer)->postJson(route('commit-star.store', $reply))
-        ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => true]]]);
+        ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => true, 'users' => [$viewer->only(['id', 'name', 'username'])]]]]);
     $this->getJson($url)->assertExactJson(['commits' => [
-        ['id' => $reply->id, 'starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => true]]],
+        ['id' => $reply->id, 'starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => true, 'users' => [$viewer->only(['id', 'name', 'username'])]]]],
     ]]);
     $this->actingAs($author)->getJson($url)->assertExactJson(['commits' => [
-        ['id' => $reply->id, 'starred' => false, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => false]]],
+        ['id' => $reply->id, 'starred' => false, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => false, 'users' => [$viewer->only(['id', 'name', 'username'])]]]],
     ]]);
 
     $this->actingAs($viewer)->deleteJson(route('commit-star.destroy', $reply))

@@ -34,6 +34,11 @@ export type Profile = User & {
  */
 export type Auth = {
     user: Profile | null;
+    reactionRepositories?: {
+        id: string;
+        repository: string;
+        private: boolean;
+    }[];
     isAdmin: boolean;
     log: Log | null;
     unreadNotificationsCount: number;

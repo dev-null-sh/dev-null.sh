@@ -1,5 +1,5 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
-import { Star } from 'lucide-react';
+import { LockKeyhole, Star } from 'lucide-react';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Ref } from 'react';
 import { toast } from 'sonner';
@@ -9,7 +9,12 @@ import {
     CommitReactionPicker,
     type ReactionDestinations,
 } from '@/components/commit-reaction-picker';
+import { CommitReactionTooltip } from '@/components/commit-reaction-tooltip';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
+import {
+    commitReactionCache,
+    useCommitReactions,
+} from '@/hooks/use-commit-reactions';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
@@ -53,7 +58,7 @@ export function CommitStarButton({
         commitStateKey('stars_count', commit.id),
         commit.stars_count,
     );
-    const [flavor, setFlavor] = useSharedState(
+    const [, setFlavor] = useSharedState(
         commitStateKey('star_flavor', commit.id),
         commit.star_flavor ?? null,
     );
@@ -69,6 +74,20 @@ export function CommitStarButton({
     const reactions = JSON.parse(reactionsJson) as NonNullable<
         Commit['reactions']
     >;
+    const personal = useCommitReactions(
+        isOwn ? undefined : auth.user?.id,
+        commit.id,
+        {
+            repositories: auth.reactionRepositories ?? [],
+            reactions: reactions
+                .filter((reaction) => reaction.reacted)
+                .map((reaction) => ({
+                    emoji: reaction.emoji,
+                    public: true,
+                    repositories: [],
+                })),
+        },
+    );
     const hasStar =
         reactions.some(
             (reaction) => reaction.emoji === '⭐' && reaction.reacted,
@@ -148,13 +167,19 @@ export function CommitStarButton({
                     />
                 )}
                 {reactions.map((reaction) => (
-                    <span
+                    <CommitReactionTooltip
                         key={reaction.emoji}
-                        className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs"
-                        aria-label={`${emojiName(reaction.emoji)}, ${reaction.count} reactions`}
+                        reaction={reaction}
+                        viewerId={auth.user?.id}
                     >
-                        {reaction.emoji} {reaction.count}
-                    </span>
+                        <span
+                            tabIndex={0}
+                            className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs"
+                            aria-label={`${emojiName(reaction.emoji)}, ${reaction.count} reactions`}
+                        >
+                            {reaction.emoji} {reaction.count}
+                        </span>
+                    </CommitReactionTooltip>
                 ))}
             </span>
         );
@@ -167,7 +192,7 @@ export function CommitStarButton({
     const star = async (
         next: boolean,
         picked?: StarFlavor,
-        destinations: ReactionDestinations = { public: true, repositories: [] },
+        chosenDestinations?: ReactionDestinations,
     ) => {
         if (auth.user === null) {
             signIn();
@@ -185,6 +210,17 @@ export function CommitStarButton({
             return;
         }
 
+        const destinations = chosenDestinations ?? {
+            public: true,
+            repositories:
+                personal.reactions.find((reaction) => reaction.emoji === picked)
+                    ?.repositories ?? [],
+        };
+        const finishCache = commitReactionCache.begin(
+            auth.user.id,
+            commit.id,
+            personal,
+        );
         request.transform(() => ({
             ...(picked ? { flavor: picked } : {}),
             ...destinations,
@@ -204,6 +240,7 @@ export function CommitStarButton({
                 },
             );
 
+            finishCache({ emoji: picked, ...(next ? { destinations } : {}) });
             setReactionsJson(JSON.stringify(response.reactions));
             setStarred(response.starred);
             setCount(response.stars_count);
@@ -217,6 +254,7 @@ export function CommitStarButton({
                 );
             router.flushAll();
         } catch {
+            finishCache();
             toast.error('Could not save your reaction. Please try again.');
         } finally {
             finishMutation();
@@ -230,61 +268,107 @@ export function CommitStarButton({
         >
             {(reactions.length === 0 ||
                 reactions.some((reaction) => reaction.emoji === '⭐')) && (
-                <button
-                    aria-disabled={request.processing}
-                    type="button"
-                    onClick={() => void star(!hasStar, '⭐')}
-                    aria-pressed={hasStar}
-                    aria-label={starLabel(hasStar, starCount)}
-                    className={cn(
-                        'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors select-none [-webkit-touch-callout:none] hover:bg-accent hover:text-foreground',
-                        hasStar && 'text-primary hover:text-primary',
-                        className,
-                    )}
-                    data-test="star-commit-button"
+                <CommitReactionTooltip
+                    reaction={
+                        reactions.find(
+                            (reaction) => reaction.emoji === '⭐',
+                        ) ?? { emoji: '⭐', count: 0, reacted: false }
+                    }
+                    viewerId={auth.user?.id}
                 >
-                    <Star className={cn('size-4', hasStar && 'fill-current')} />
-                    <span
-                        data-test="star-count"
-                        className="min-w-[1ch] text-left"
+                    <button
+                        aria-disabled={request.processing}
+                        type="button"
+                        onClick={() => void star(!hasStar, '⭐')}
+                        aria-pressed={hasStar}
+                        aria-label={starLabel(hasStar, starCount)}
+                        className={cn(
+                            'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors select-none [-webkit-touch-callout:none] hover:bg-accent hover:text-foreground',
+                            hasStar && 'text-primary hover:text-primary',
+                            className,
+                        )}
+                        data-test="star-commit-button"
                     >
-                        {count > 0
-                            ? formatCount(
-                                  reactions.find(
-                                      (reaction) => reaction.emoji === '⭐',
-                                  )?.count ?? count,
-                              )
-                            : ''}
-                    </span>
-                </button>
+                        <Star
+                            className={cn('size-4', hasStar && 'fill-current')}
+                        />
+                        <span
+                            data-test="star-count"
+                            className="min-w-[1ch] text-left"
+                        >
+                            {count > 0
+                                ? formatCount(
+                                      reactions.find(
+                                          (reaction) => reaction.emoji === '⭐',
+                                      )?.count ?? count,
+                                  )
+                                : ''}
+                        </span>
+                    </button>
+                </CommitReactionTooltip>
             )}
             {reactions
                 .filter((reaction) => reaction.emoji !== '⭐')
                 .map((reaction) => (
-                    <button
+                    <CommitReactionTooltip
                         key={reaction.emoji}
-                        type="button"
-                        disabled={request.processing}
-                        aria-label={`${reaction.reacted ? 'Remove' : 'Add'} ${emojiName(reaction.emoji)} reaction, ${reaction.count}`}
-                        aria-pressed={reaction.reacted}
-                        className={cn(
-                            'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs hover:bg-accent disabled:opacity-50',
-                            reaction.reacted &&
-                                'border-primary/40 bg-primary/10 text-primary',
-                        )}
-                        onClick={() =>
-                            void star(!reaction.reacted, reaction.emoji)
-                        }
+                        reaction={reaction}
+                        viewerId={auth.user?.id}
                     >
-                        <span>{reaction.emoji}</span>
-                        <span className="font-mono">{reaction.count}</span>
-                    </button>
+                        <button
+                            type="button"
+                            disabled={request.processing}
+                            aria-label={`${reaction.reacted ? 'Remove' : 'Add'} ${emojiName(reaction.emoji)} reaction, ${reaction.count}`}
+                            aria-pressed={reaction.reacted}
+                            className={cn(
+                                'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs hover:bg-accent disabled:opacity-50',
+                                reaction.reacted &&
+                                    'border-primary/40 bg-primary/10 text-primary',
+                            )}
+                            onClick={() =>
+                                void star(!reaction.reacted, reaction.emoji)
+                            }
+                        >
+                            <span>{reaction.emoji}</span>
+                            <span className="font-mono">{reaction.count}</span>
+                        </button>
+                    </CommitReactionTooltip>
                 ))}
+            {auth.user !== null &&
+                personal.reactions
+                    .filter((reaction) => !reaction.public)
+                    .map((reaction) => (
+                        <CommitReactionTooltip
+                            key={`private-${reaction.emoji}`}
+                            reaction={{
+                                emoji: reaction.emoji,
+                                count: 1,
+                                reacted: true,
+                            }}
+                            privateOnly
+                        >
+                            <button
+                                type="button"
+                                disabled={request.processing}
+                                aria-label={`Remove private ${emojiName(reaction.emoji)} reaction`}
+                                aria-pressed={true}
+                                className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-xs text-primary hover:bg-accent disabled:opacity-50"
+                                onClick={() => void star(false, reaction.emoji)}
+                            >
+                                {reaction.emoji}
+                                <LockKeyhole aria-hidden className="size-3" />
+                            </button>
+                        </CommitReactionTooltip>
+                    ))}
             {auth.user !== null && (
                 <CommitReactionPicker
                     commitId={commit.id}
-                    flavor={flavor}
-                    starred={starred}
+                    userId={auth.user.id}
+                    state={{
+                        ...personal,
+                        repositories:
+                            auth.reactionRepositories ?? personal.repositories,
+                    }}
                     disabled={request.processing}
                     onPick={(emoji, destination) =>
                         void star(true, emoji, destination)

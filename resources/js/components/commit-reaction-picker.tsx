@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { LockKeyhole, Settings2, SmilePlus, X } from 'lucide-react';
+import { LockKeyhole, Settings2, SmilePlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
     EmojiPicker,
@@ -12,73 +12,39 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import { emojiName } from '@/lib/emoji';
-
-export type ReactionDestinations = { public: boolean; repositories: string[] };
-type ReactionState = {
-    reactions: ({ emoji: string } & ReactionDestinations)[];
-    public: boolean;
-    repositories: {
-        id: string;
-        repository: string;
-        private: boolean;
-        selected: boolean;
-        flavor: string | null;
-    }[];
-};
+import { commitReactionCache } from '@/hooks/use-commit-reactions';
+import type {
+    ReactionDestinations,
+    ReactionState,
+} from '@/lib/commit-reaction-cache';
+export type { ReactionDestinations } from '@/lib/commit-reaction-cache';
 
 export function CommitReactionPicker({
     commitId,
+    userId,
+    state,
     disabled,
     onPick,
     onRemove,
     onClear,
 }: {
     commitId: string;
-    flavor: string | null;
-    starred: boolean;
+    userId: string;
+    state: ReactionState;
     disabled: boolean;
     onPick: (emoji: string, destinations: ReactionDestinations) => void;
     onRemove: (emoji: string) => void;
     onClear: () => void;
 }) {
     const [open, setOpen] = useState(false);
-    const [state, setState] = useState<ReactionState | null>(null);
     const [destinationsChanged, setDestinationsChanged] = useState(false);
-    const [error, setError] = useState(false);
     const [destinations, setDestinations] = useState<ReactionDestinations>({
         public: true,
         repositories: [],
     });
     useEffect(() => {
-        if (!open) return;
-        const controller = new AbortController();
         void preloadEmojiGroups();
-        void fetch(`/commits/${commitId}/my-reaction`, {
-            headers: { Accept: 'application/json' },
-            signal: controller.signal,
-        })
-            .then(async (response) => {
-                if (!response.ok) throw new Error('Could not load reaction');
-                const next = (await response.json()) as ReactionState;
-                if (!controller.signal.aborted) {
-                    setState(next);
-                    const recent = next.reactions[0];
-                    setDestinations(
-                        recent
-                            ? {
-                                  public: recent.public,
-                                  repositories: recent.repositories,
-                              }
-                            : { public: true, repositories: [] },
-                    );
-                }
-            })
-            .catch(() => {
-                if (!controller.signal.aborted) setError(true);
-            });
-        return () => controller.abort();
-    }, [open, commitId]);
+    }, []);
     const hasDestination =
         destinations.public || destinations.repositories.length > 0;
     return (
@@ -87,9 +53,17 @@ export function CommitReactionPicker({
             onOpenChange={(next) => {
                 setOpen(next);
                 if (next) {
-                    setState(null);
+                    const recent = state.reactions[0];
+                    setDestinations(
+                        recent
+                            ? {
+                                  public: recent.public,
+                                  repositories: recent.repositories,
+                              }
+                            : { public: true, repositories: [] },
+                    );
+                    void commitReactionCache.refresh(userId, commitId);
                     setDestinationsChanged(false);
-                    setError(false);
                 }
             }}
         >
@@ -128,9 +102,7 @@ export function CommitReactionPicker({
                                 size="sm"
                                 className="h-6 px-1 text-xs text-muted-foreground"
                                 disabled={
-                                    disabled ||
-                                    !state ||
-                                    state.reactions.length === 0
+                                    disabled || state.reactions.length === 0
                                 }
                                 onClick={() => {
                                     setOpen(false);
@@ -141,185 +113,104 @@ export function CommitReactionPicker({
                             </Button>
                         </div>
                     </div>
-                    {state && (
-                        <fieldset
-                            aria-label="Save reaction to"
-                            className="max-h-40 space-y-1 overflow-y-auto"
-                        >
-                            <label className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-1 text-sm hover:bg-accent">
+                    <fieldset
+                        aria-label="Save reaction to"
+                        className="max-h-40 space-y-1 overflow-y-auto"
+                    >
+                        <label className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-1 text-sm hover:bg-accent">
+                            <Checkbox
+                                checked={destinations.public}
+                                onCheckedChange={(checked) => {
+                                    setDestinationsChanged(true);
+                                    setDestinations((current) => ({
+                                        ...current,
+                                        public: checked === true,
+                                    }));
+                                }}
+                            />
+                            <span>Public</span>
+                            <span className="ml-auto text-xs text-muted-foreground">
+                                dev-null
+                            </span>
+                        </label>
+                        {state.repositories.map((repo) => (
+                            <label
+                                key={repo.id}
+                                className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-accent"
+                            >
                                 <Checkbox
-                                    checked={destinations.public}
+                                    checked={destinations.repositories.includes(
+                                        repo.id,
+                                    )}
                                     onCheckedChange={(checked) => {
                                         setDestinationsChanged(true);
                                         setDestinations((current) => ({
                                             ...current,
-                                            public: checked === true,
+                                            repositories:
+                                                checked === true
+                                                    ? [
+                                                          ...current.repositories,
+                                                          repo.id,
+                                                      ]
+                                                    : current.repositories.filter(
+                                                          (id) =>
+                                                              id !== repo.id,
+                                                      ),
                                         }));
                                     }}
                                 />
-                                <span>Public</span>
-                                <span className="ml-auto text-xs text-muted-foreground">
-                                    dev-null
+                                <span className="min-w-0 font-mono text-xs break-all">
+                                    {repo.repository}
                                 </span>
-                            </label>
-                            {state.repositories.map((repo) => (
-                                <label
-                                    key={repo.id}
-                                    className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-accent"
-                                >
-                                    <Checkbox
-                                        checked={destinations.repositories.includes(
-                                            repo.id,
-                                        )}
-                                        onCheckedChange={(checked) => {
-                                            setDestinationsChanged(true);
-                                            setDestinations((current) => ({
-                                                ...current,
-                                                repositories:
-                                                    checked === true
-                                                        ? [
-                                                              ...current.repositories,
-                                                              repo.id,
-                                                          ]
-                                                        : current.repositories.filter(
-                                                              (id) =>
-                                                                  id !==
-                                                                  repo.id,
-                                                          ),
-                                            }));
-                                        }}
-                                    />
-                                    <span className="min-w-0 font-mono text-xs break-all">
-                                        {repo.repository}
-                                    </span>
-                                    {repo.private && (
-                                        <>
-                                            <LockKeyhole
-                                                aria-hidden
-                                                className="ml-auto size-3.5 shrink-0 text-muted-foreground"
-                                            />
-                                            <span className="sr-only">
-                                                Private repository
-                                            </span>
-                                        </>
-                                    )}
-                                </label>
-                            ))}
-                        </fieldset>
-                    )}
-                    {state && (
-                        <p
-                            className="mt-2 text-xs leading-relaxed text-muted-foreground"
-                            aria-live="polite"
-                        >
-                            {!hasDestination
-                                ? 'Choose at least one destination.'
-                                : destinations.public
-                                  ? 'Shown on dev-null. Pick an emoji to save.'
-                                  : 'Hidden on dev-null. Pick an emoji to save.'}
-                            {state.repositories.some(
-                                (repo) =>
-                                    !repo.private &&
-                                    destinations.repositories.includes(repo.id),
-                            ) &&
-                                ' Selected public repos are visible to everyone.'}
-                        </p>
-                    )}
-                </div>
-                {state && state.reactions.length > 0 && (
-                    <div className="shrink-0 border-b p-3">
-                        <p className="mb-2 text-xs text-muted-foreground">
-                            Your reactions
-                        </p>
-                        <div className="flex max-h-20 flex-wrap gap-1 overflow-y-auto">
-                            {state.reactions.map((reaction) => (
-                                <button
-                                    type="button"
-                                    key={reaction.emoji}
-                                    disabled={disabled}
-                                    aria-label={`Remove ${emojiName(reaction.emoji)} reaction`}
-                                    title={`${reaction.public ? 'Public on dev-null' : 'Hidden on dev-null'}${
-                                        reaction.repositories.length
-                                            ? ' · ' +
-                                              state.repositories
-                                                  .filter((repo) =>
-                                                      reaction.repositories.includes(
-                                                          repo.id,
-                                                      ),
-                                                  )
-                                                  .map(
-                                                      (repo) => repo.repository,
-                                                  )
-                                                  .join(', ')
-                                            : ''
-                                    }`}
-                                    className="inline-flex items-center gap-1 rounded-md border px-1.5 py-1 text-sm hover:bg-accent disabled:opacity-50"
-                                    onClick={() => {
-                                        setOpen(false);
-                                        onRemove(reaction.emoji);
-                                    }}
-                                >
-                                    {reaction.emoji}
-                                    {!reaction.public && (
+                                {repo.private && (
+                                    <>
                                         <LockKeyhole
                                             aria-hidden
-                                            className="size-3"
+                                            className="ml-auto size-3.5 shrink-0 text-muted-foreground"
                                         />
-                                    )}
-                                    <X
-                                        aria-hidden
-                                        className="size-3 text-muted-foreground"
-                                    />
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                {!state ? (
-                    <p
-                        role="status"
-                        className="p-4 text-sm text-muted-foreground"
-                    >
-                        {error
-                            ? 'Could not load your settings. Close and reopen to retry.'
-                            : 'Loading your reaction…'}
-                    </p>
-                ) : (
-                    <>
-                        {hasDestination ? (
-                            <EmojiPicker
-                                showPreview={false}
-                                usage={[]}
-                                reacted={
-                                    new Set(
-                                        state.reactions.map(
-                                            (reaction) => reaction.emoji,
-                                        ),
-                                    )
-                                }
-                                onPick={(emoji) => {
-                                    if (!disabled) {
-                                        setOpen(false);
-                                        if (
-                                            !destinationsChanged &&
-                                            state.reactions.some(
-                                                (reaction) =>
-                                                    reaction.emoji === emoji,
-                                            )
+                                        <span className="sr-only">
+                                            Private repository
+                                        </span>
+                                    </>
+                                )}
+                            </label>
+                        ))}
+                    </fieldset>
+                </div>
+                <>
+                    {hasDestination ? (
+                        <EmojiPicker
+                            showPreview={false}
+                            usage={[]}
+                            reacted={
+                                new Set(
+                                    state.reactions.map(
+                                        (reaction) => reaction.emoji,
+                                    ),
+                                )
+                            }
+                            onPick={(emoji) => {
+                                if (!disabled) {
+                                    setOpen(false);
+                                    if (
+                                        !destinationsChanged &&
+                                        state.reactions.some(
+                                            (reaction) =>
+                                                reaction.emoji === emoji,
                                         )
-                                            onRemove(emoji);
-                                        else onPick(emoji, destinations);
-                                    }
-                                }}
-                            />
-                        ) : (
-                            <p className="flex-1 p-4 text-sm text-muted-foreground">
-                                Select Public or a repository above to choose an
-                                emoji.
-                            </p>
-                        )}
-                    </>
-                )}
+                                    )
+                                        onRemove(emoji);
+                                    else onPick(emoji, destinations);
+                                }
+                            }}
+                        />
+                    ) : (
+                        <p className="flex-1 p-4 text-sm text-muted-foreground">
+                            Select Public or a repository above to choose an
+                            emoji.
+                        </p>
+                    )}
+                </>
             </PopoverContent>
         </Popover>
     );

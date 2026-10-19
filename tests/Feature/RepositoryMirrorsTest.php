@@ -330,8 +330,9 @@ it('counts each public emoji independently for multiple people', function (): vo
     resolve(CreateCommitStar::class)->handle($first, $commit, '🔥');
     resolve(CreateCommitStar::class)->handle($second, $commit, '🚀');
     $reactions = collect(Commit::query()->withStarsFor($first)->findOrFail($commit->id)->reactions)->keyBy('emoji');
-    expect($reactions['🚀'])->toBe(['emoji' => '🚀', 'count' => 2, 'reacted' => true])
-        ->and($reactions['🔥'])->toBe(['emoji' => '🔥', 'count' => 1, 'reacted' => true]);
+    expect($reactions['🚀'])->toMatchArray(['emoji' => '🚀', 'count' => 2, 'reacted' => true])
+        ->and(array_column($reactions['🚀']['users'], 'id'))->toEqualCanonicalizing([$first->id, $second->id])
+        ->and($reactions['🔥'])->toBe(['emoji' => '🔥', 'count' => 1, 'reacted' => true, 'users' => [$first->only(['id', 'name', 'username'])]]);
 });
 
 it('treats legacy flavor aliases and their emoji as the same reaction', function (): void {
@@ -344,4 +345,28 @@ it('treats legacy flavor aliases and their emoji as the same reaction', function
         ->and(RepositoryMirrorEvent::query()->count())->toBe(1);
     $this->actingAs($user)->deleteJson(route('commit-star.destroy', $commit), ['flavor' => 'fire'])->assertOk()->assertJsonCount(0, 'reactions');
     expect(DB::table('repository_reactions')->count())->toBe(0);
+});
+
+it('keeps private reactors out of public hover names', function (): void {
+    $public = User::factory()->create();
+    $private = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $mirror = connectedMirror($private);
+    resolve(CreateCommitStar::class)->handle($public, $commit, '🚀');
+    resolve(CreateCommitStar::class)->handle($private, $commit, '🚀', false, [$mirror->id]);
+    $reaction = Commit::query()->withStarsFor(null)->findOrFail($commit->id)->reactions[0];
+    expect($reaction['count'])->toBe(1)
+        ->and($reaction['users'])->toBe([$public->only(['id', 'name', 'username'])]);
+});
+
+it('bootstraps only the signed-in viewers repository labels without credentials', function (): void {
+    $viewer = User::factory()->create();
+    $mine = connectedMirror($viewer);
+    connectedMirror(User::factory()->create());
+    $this->actingAs($viewer)->get(route('user-profile.edit'))->assertOk()->assertInertia(fn ($page) => $page
+        ->has('auth.reactionRepositories', 1)
+        ->where('auth.reactionRepositories.0.id', $mine->id)
+        ->where('auth.reactionRepositories.0.private', true)
+        ->missing('auth.reactionRepositories.0.token')
+        ->etc());
 });

@@ -42,9 +42,7 @@ export default function ReactionDemo({
                     </Link>
                 </nav>
                 <h1 className="max-w-2xl text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">
-                    Any emoji. Your repository.
-                    <br />
-                    Your automations.
+                    Slack-style reacjis that can trigger Actions workflows
                 </h1>
                 <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
                     React publicly, keep it in your own repo, or do both. Your
