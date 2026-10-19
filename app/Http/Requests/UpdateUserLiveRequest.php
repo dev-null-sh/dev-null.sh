@@ -7,6 +7,7 @@ namespace App\Http\Requests;
 use App\Enums\LivePlatform;
 use App\Models\User;
 use App\Rules\LiveStreamUrl;
+use App\Rules\UnclaimedLiveStreamUrl;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -22,8 +23,11 @@ final class UpdateUserLiveRequest extends FormRequest
      */
     public function rules(): array
     {
+        $user = $this->user();
+        assert($user instanceof User);
+
         return [
-            'url' => ['bail', 'required', 'string', 'max:2048', new LiveStreamUrl()],
+            'url' => ['bail', 'required', 'string', 'max:2048', new LiveStreamUrl(), new UnclaimedLiveStreamUrl($user)],
             'hours' => ['required', 'integer', 'between:1,'.User::MAX_LIVE_HOURS],
         ];
     }

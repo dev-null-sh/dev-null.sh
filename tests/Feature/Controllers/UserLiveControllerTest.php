@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\LivePlatform;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 function liveUser(): User
 {
@@ -67,6 +68,50 @@ it('rejects links that are not a YouTube video', function (array $payload): void
     'playlist' => fn (): array => ['url' => 'https://www.youtube.com/playlist?list=PL590L5WQmH8fJ54F369BLDSqIwcs-TCfs'],
     'too long' => fn (): array => ['url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&x='.str_repeat('a', 2048)],
 ]);
+
+it('rejects a stream someone else is already live with', function (string $url): void {
+    liveUser();
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->putJson(route('user-live.update'), ['url' => $url, 'hours' => 2])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['url' => 'Someone else is already live with this stream.']);
+
+    expect($user->refresh()->live_url)->toBeNull();
+})->with([
+    'same link' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    'other link to the same stream' => 'https://youtu.be/dQw4w9WgXcQ',
+]);
+
+it('goes live again with their own stream', function (): void {
+    $user = liveUser();
+
+    $this->actingAs($user)->putJson(route('user-live.update'), ['url' => 'https://youtu.be/dQw4w9WgXcQ', 'hours' => 5])
+        ->assertRedirect();
+
+    expect($user->refresh()->live_ends_at?->toIso8601String())->toBe(now()->addHours(5)->toIso8601String());
+});
+
+it('takes over a stream whose hours are up but was not cleared yet', function (): void {
+    $previous = liveUser();
+    $this->travel(2)->hours();
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->putJson(route('user-live.update'), ['url' => 'https://youtu.be/dQw4w9WgXcQ', 'hours' => 1])
+        ->assertRedirect();
+
+    expect($user->refresh()->live_url)->toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+        ->and($previous->refresh())
+        ->live_platform->toBeNull()
+        ->live_url->toBeNull()
+        ->live_ends_at->toBeNull();
+});
+
+it('keeps a stream link to one user in the database', function (): void {
+    liveUser();
+
+    expect(fn (): User => liveUser())->toThrow(UniqueConstraintViolationException::class);
+});
 
 it('takes between one and twelve hours', function (mixed $hours): void {
     $user = User::factory()->create();
