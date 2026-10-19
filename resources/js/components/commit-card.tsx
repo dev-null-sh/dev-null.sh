@@ -265,7 +265,10 @@ export function CommitCard({
 
                                 <CommitStatusBadge commit={commit} />
 
-                                <span className="relative ml-auto flex shrink-0 items-center self-center">
+                                <span
+                                    data-commit-hash
+                                    className="relative ml-auto flex shrink-0 items-center self-center"
+                                >
                                     <Link
                                         href={permalink}
                                         tabIndex={-1}

@@ -24,28 +24,103 @@
         }
     }
 }
-@property --sidebar-width {
-    syntax: '<length>';
-    inherits: true;
-    initial-value: 80px;
-}
-
 @media (min-width: 64rem) {
     [data-nav] {
         --sidebar-width: 256px;
-        transition: --sidebar-width 300ms cubic-bezier(0.33, 1, 0.68, 1);
     }
 
     [data-nav='collapsed'] {
         --sidebar-width: 80px;
     }
-}
 
-@media (prefers-reduced-motion: reduce) {
-    [data-nav] {
-        transition: none;
+    /* Off-screen commits skip layout, so the feed's width changing stays cheap however long it is. */
+    [data-nav-content] [data-commit] {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 320px;
     }
 }
+
+/* The rail and the feed slide only while the navigation collapses or expands, not when a page changes the feed's width. */
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+    :root[data-nav-sliding] [data-nav-rail] {
+        transition: width 300ms cubic-bezier(0.33, 1, 0.68, 1);
+    }
+
+    :root[data-nav-sliding] [data-main] {
+        transition: max-width 300ms cubic-bezier(0.33, 1, 0.68, 1);
+    }
+}
+
+:root[data-nav-measuring] [data-nav],
+:root[data-nav-measuring] [data-nav] * {
+    transition: none !important;
+}
+
+:root[data-nav-pinning],
+:root[data-nav-pinning] body {
+    overflow-anchor: none;
+}
+
+/* Commit text that re-wraps while the navigation collapses or expands shows as a diff: removed, then added. The
+   markers are decoration, so their alt text is empty and screen readers skip them. */
+[data-commit-body][data-diff] {
+    position: relative;
+}
+
+/* Avatars and their lane rings sit 10px left of the text, so the markers narrow to fit the gap. */
+[data-commit-body][data-diff]::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(-0.6em - 2px);
+    width: 0.6em;
+    overflow: hidden;
+    scale: 0.7 1;
+    font-family: var(--font-mono);
+    text-align: center;
+    white-space: pre;
+    transition: opacity 600ms ease;
+}
+
+[data-commit-body][data-diff='del']::before {
+    content: '-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A-\A' /
+        '';
+    color: var(--destructive);
+}
+
+[data-commit-body]:is([data-diff='add'], [data-diff='settle'])::before {
+    content: '+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A+\A' /
+        '';
+    color: var(--lane-1);
+}
+
+[data-commit-body][data-diff='settle']::before {
+    opacity: 0;
+}
+
+[data-commit-hash][data-hunk]::before {
+    content: attr(data-hunk) / '';
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 0.5rem);
+    translate: 0 -50%;
+    padding: 0 0.375rem;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: nowrap;
+    color: var(--primary);
+    background-color: var(--primary-soft);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+}
+
+[data-commit-hash][data-hunk-shown]::before {
+    opacity: 1;
+}
+
 @custom-variant reply-hover {
     @media (hover: hover) {
         [data-reply]:hover:not(:has([data-reply]:hover)) & {

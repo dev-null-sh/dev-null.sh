@@ -188,6 +188,10 @@ function NavLink({
     );
 }
 
+/**
+ * The tooltip stays in the tree whether or not it can show, so toggling the navigation keeps each link and its label
+ * fades instead of being replaced.
+ */
 function NavTooltip({
     label,
     children,
@@ -195,12 +199,17 @@ function NavTooltip({
     label: string | null;
     children: ReactElement;
 }) {
-    if (label === null) {
-        return children;
+    const [isOpen, setIsOpen] = useState(false);
+
+    if (label === null && isOpen) {
+        setIsOpen(false);
     }
 
     return (
-        <Tooltip>
+        <Tooltip
+            open={label !== null && isOpen}
+            onOpenChange={(open) => setIsOpen(label !== null && open)}
+        >
             <TooltipTrigger asChild>{children}</TooltipTrigger>
             <TooltipContent side="right">{label}</TooltipContent>
         </Tooltip>
@@ -260,15 +269,15 @@ export function AppNav({
     onSearch: () => void;
     onCompose: () => void;
 }) {
-    const { auth, sidebarOpen } = usePage().props;
-    const { setNavOpen } = useNavOpen();
+    const { auth } = usePage().props;
+    const { isNavOpen: sidebarOpen, isLayoutOpen, setNavOpen } = useNavOpen();
     const items = useNavItems();
     const keys = useKeyLabels();
 
-    const iconsOnly = !(useMediaQuery('(min-width: 64rem)') && sidebarOpen);
+    const iconsOnly = !(useMediaQuery('(min-width: 64rem)') && isLayoutOpen);
 
     return (
-        <header className="flex h-svh w-full scrollbar-none flex-col items-stretch overflow-x-hidden overflow-y-auto px-3.5 py-6 whitespace-nowrap transition-[padding] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none nav-wide:px-4">
+        <header className="flex h-svh w-full scrollbar-none flex-col items-stretch overflow-x-hidden overflow-y-auto px-3.5 py-6 whitespace-nowrap">
             <LogoMenu>
                 <Link
                     href={
@@ -299,7 +308,7 @@ export function AppNav({
                         item={item}
                         iconsOnly={iconsOnly}
                         className={cn(
-                            'relative isolate block h-11 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground nav-wide:pl-3',
+                            'relative isolate block h-11 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                             {
                                 'text-primary hover:bg-transparent hover:text-primary':
                                     item.isActive,
@@ -338,7 +347,7 @@ export function AppNav({
                     <button
                         type="button"
                         onClick={onSearch}
-                        className="flex h-11 items-center gap-3 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground xl:hidden nav-wide:pl-3"
+                        className="flex h-11 items-center gap-3 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground xl:hidden"
                     >
                         <Search className="size-5" />
                         <span className={navLabelClassName}>Search</span>
@@ -354,7 +363,7 @@ export function AppNav({
                         aria-label="Write a commit"
                         aria-keyshortcuts="c"
                         title={iconsOnly ? undefined : 'Write a commit (C)'}
-                        className="flex h-11 items-center gap-3 rounded-lg bg-primary py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none nav-wide:pl-3"
+                        className="flex h-11 items-center gap-3 rounded-lg bg-primary py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                         data-test="nav-commit-button"
                     >
                         <SquarePen className="size-5 shrink-0" />
@@ -382,7 +391,7 @@ export function AppNav({
                                   ? 'Collapse navigation'
                                   : 'Expand navigation'
                         }
-                        className="hidden h-11 items-center gap-3 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:flex nav-wide:pl-3"
+                        className="hidden h-11 items-center gap-3 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:flex"
                         data-test="nav-collapse-button"
                     >
                         {sidebarOpen ? (
