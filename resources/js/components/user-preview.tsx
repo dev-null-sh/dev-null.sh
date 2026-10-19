@@ -325,7 +325,10 @@ function UserPreviewContent({
     const lane = laneColor(user.lane);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
-    const [, setIsFollowing] = useIsFollowing(user, false);
+    const [isFollowingEverywhere, setIsFollowingEverywhere] = useIsFollowing(
+        user,
+        data?.isFollowing ?? false,
+    );
 
     const toggleFollow = () => {
         if (!data || data.isUnavailable) {
@@ -333,13 +336,14 @@ function UserPreviewContent({
         }
 
         const previous = data;
+        const wasFollowingEverywhere = isFollowingEverywhere;
         const isFollowing = !data.isFollowing;
         const restore = () => {
             onChange(previous);
-            setIsFollowing(previous.isFollowing);
+            setIsFollowingEverywhere(wasFollowingEverywhere);
         };
 
-        setIsFollowing(isFollowing);
+        setIsFollowingEverywhere(isFollowing);
         onChange({
             ...data,
             isFollowing,
@@ -358,6 +362,8 @@ function UserPreviewContent({
                 preserveScroll: true,
                 preserveState: true,
                 onError: restore,
+                onNetworkError: restore,
+                onCancel: restore,
                 onHttpException: (response) => {
                     restore();
 

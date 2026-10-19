@@ -8,7 +8,14 @@ import type { Profile, SuggestedUser, User } from '../../resources/js/types';
 type Props = Record<string, unknown> & { children?: ReactNode };
 
 let showPreview = false;
-const visits: { onError?: () => void }[] = [];
+type VisitOptions = {
+    onSuccess?: () => void;
+    onError?: () => void;
+    onNetworkError?: () => void;
+    onCancel?: () => void;
+};
+
+const visits: VisitOptions[] = [];
 
 vi.doMock('react', () => ({
     ...React,
@@ -35,8 +42,7 @@ vi.doMock('@inertiajs/react', async () => ({
     usePage: () => ({ props: { auth: { user: { id: 'viewer' } } } }),
     router: {
         flushAll: () => {},
-        visit: (_url: unknown, options: { onError?: () => void }) =>
-            visits.push(options),
+        visit: (_url: unknown, options: VisitOptions) => visits.push(options),
     },
 }));
 
@@ -46,6 +52,8 @@ const { UserPreview } =
     await import('../../resources/js/components/user-preview');
 const { SuggestedUserRow } =
     await import('../../resources/js/components/who-to-follow');
+const { UserSafetyMenu } =
+    await import('../../resources/js/components/user-safety-menu');
 
 vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
 vi.stubGlobal('document', { body: {} });
@@ -131,8 +139,7 @@ function previewFollowButton(user: SuggestedUser): ReactElement<Props> {
     return button;
 }
 
-test('a follow from their profile shows in who to follow', () => {
-    const user = suggestion('taylor');
+function followFromProfile(user: SuggestedUser): void {
     const profileButton = find(
         FollowButton({ user, isFollowing: false }),
         (props) => props['data-test'] === 'follow-button',
@@ -140,8 +147,29 @@ test('a follow from their profile shows in who to follow', () => {
     assert.ok(profileButton);
 
     (profileButton.props.onSuccess as () => void)();
+}
+
+test('a follow from their profile shows in who to follow', () => {
+    const user = suggestion('taylor');
+
+    followFromProfile(user);
 
     assert.equal(suggestionLabel(user), 'Unfollow @taylor');
+});
+
+test('blocking someone you follow shows them as not followed in who to follow', () => {
+    const user = suggestion('blocked');
+    followFromProfile(user);
+
+    const block = find(
+        UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
+        (props) => props.children === 'Block',
+    );
+    assert.ok(block);
+    (block.props.onClick as () => void)();
+    visits.at(-1)?.onSuccess?.();
+
+    assert.equal(suggestionLabel(user), 'Follow @blocked');
 });
 
 test('a follow from their preview shows in who to follow', () => {
@@ -152,11 +180,23 @@ test('a follow from their preview shows in who to follow', () => {
     assert.equal(suggestionLabel(user), 'Unfollow @nuno');
 });
 
-test('a failed follow from their preview leaves who to follow unchanged', () => {
-    const user = suggestion('jess');
+for (const failure of ['onError', 'onNetworkError', 'onCancel'] as const) {
+    test(`a follow from their preview that ends in ${failure} leaves who to follow unchanged`, () => {
+        const user = suggestion(`jess-${failure}`);
+
+        (previewFollowButton(user).props.onClick as () => void)();
+        visits.at(-1)?.[failure]?.();
+
+        assert.equal(suggestionLabel(user), `Follow @jess-${failure}`);
+    });
+}
+
+test('a failed follow from a stale preview keeps an earlier follow in who to follow', () => {
+    const user = suggestion('stale');
+    followFromProfile(user);
 
     (previewFollowButton(user).props.onClick as () => void)();
     visits.at(-1)?.onError?.();
 
-    assert.equal(suggestionLabel(user), 'Follow @jess');
+    assert.equal(suggestionLabel(user), 'Unfollow @stale');
 });
