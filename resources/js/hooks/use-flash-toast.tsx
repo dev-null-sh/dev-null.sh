@@ -6,8 +6,6 @@ import { dropConfetti } from '@/lib/confetti';
 import { emojify } from '@/lib/emoji';
 import { shortHash } from '@/lib/utils';
 
-const achievementToasterId = 'achievements';
-
 export function useFlashToast(): void {
     useEffect(() => {
         return router.on('flash', (event) => {
@@ -21,13 +19,9 @@ export function useFlashToast(): void {
             if (achievementsUnlocked?.length) {
                 dropConfetti();
 
-                for (const name of achievementsUnlocked) {
-                    toast('achievement unlocked 🎉', {
-                        description: name,
-                        toasterId: achievementToasterId,
-                        duration: 5000,
-                    });
-                }
+                achievementsUnlocked.forEach((name) =>
+                    toast('achievement unlocked 🎉', { description: name }),
+                );
             }
 
             if (deleted) {

@@ -68,15 +68,15 @@ final readonly class CommitController
 
         $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll());
 
-        $unlocked = array_values(array_diff($achievements->unlockedBadgeNames($user), $before));
+        $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 
         Inertia::flash('committed', [
             'id' => $commit->id,
             'body' => $commit->body,
         ]);
 
-        if ($unlocked !== []) {
-            Inertia::flash('achievementsUnlocked', $unlocked);
+        if ($unlocked->isNotEmpty()) {
+            Inertia::flash('achievementsUnlocked', $unlocked->all());
         }
 
         if ($commit->status === CommitStatus::Pending) {

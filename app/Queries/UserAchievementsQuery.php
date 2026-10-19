@@ -8,6 +8,7 @@ use App\Enums\Achievement;
 use App\Enums\UnixRank;
 use App\Models\User;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 final readonly class UserAchievementsQuery
@@ -18,19 +19,14 @@ final readonly class UserAchievementsQuery
     }
 
     /**
-     * @return list<string>
+     * @return Collection<int, string>
      */
-    public function unlockedBadgeNames(User $user): array
+    public function unlockedBadgeNames(User $user): Collection
     {
-        $names = [];
-
-        foreach ($this->get($user, $user)['badges'] as $badge) {
-            if ($badge['unlocked']) {
-                $names[] = $badge['name'];
-            }
-        }
-
-        return $names;
+        return collect($this->get($user, $user)['badges'])
+            ->filter(fn (array $badge): bool => $badge['unlocked'])
+            ->map(fn (array $badge): string => $badge['name'])
+            ->values();
     }
 
     /**
