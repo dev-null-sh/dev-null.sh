@@ -57,6 +57,55 @@ it('queues a mention only after approval and ignores code mentions', function ()
     Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $commit->id);
 });
 
+it('answers direct replies without a mention only after approval', function (bool $approved): void {
+    config(['ai.providers.opencode.key' => 'test']);
+    Queue::fake([ReplyAsTom::class]);
+    Tom::fake(['Glad to help.']);
+    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $root = Commit::factory()->create();
+    $answer = Commit::factory()->for($root, 'parent')->for($tom)->create();
+    $user = User::factory()->create();
+    config(['app.admins' => $approved ? [$user->username] : []]);
+
+    $commit = resolve(CreateCommit::class)->handle($user, 'Thanks for explaining!', parent: $answer);
+
+    if (! $approved) {
+        Queue::assertNotPushed(ReplyAsTom::class);
+        resolve(CreateTomReply::class)->handle($commit->id);
+        Tom::assertNeverPrompted();
+        resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+    }
+
+    Queue::assertPushed(ReplyAsTom::class, 1);
+    Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $commit->id);
+    resolve(CreateTomReply::class)->handle($commit->id);
+    resolve(CreateTomReply::class)->handle($commit->id);
+
+    $reply = $commit->replies()->sole();
+    expect($reply->user_id)->toBe($tom->id)
+        ->and($reply->root_id)->toBe($root->id)
+        ->and($reply->body)->toBe('Glad to help.');
+})->with([true, false]);
+
+it('does not answer deeper replies without a mention', function (bool $approved): void {
+    config(['ai.providers.opencode.key' => 'test']);
+    Queue::fake([ReplyAsTom::class]);
+    Tom::fake()->preventStrayPrompts();
+    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $root = Commit::factory()->for($tom)->create();
+    $parent = Commit::factory()->for($root, 'parent')->create();
+    $user = User::factory()->create();
+    config(['app.admins' => $approved ? [$user->username] : []]);
+
+    $commit = resolve(CreateCommit::class)->handle($user, 'I agree with you.', parent: $parent);
+    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+    resolve(CreateTomReply::class)->handle($commit->id);
+
+    Queue::assertNotPushed(ReplyAsTom::class);
+    Tom::assertNeverPrompted();
+    expect($commit->replies()->count())->toBe(0);
+})->with([true, false]);
+
 it('keeps a Tom reply reserved beyond its full provider budget and job timeout', function (): void {
     $queue = Queue::connection('database');
     $queue->push(new ReplyAsTom(fake()->uuid()), queue: 'tom-timeout');

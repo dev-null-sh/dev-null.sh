@@ -233,3 +233,29 @@ it('keeps the same suggestions when there is nobody else to suggest', function (
 
     expect($query->get($user, round: 1)->pluck('id')->all())->toBe($query->get($user)->pluck('id')->all());
 });
+
+it('marks the popular people who follow the user', function (): void {
+    $user = User::factory()->create();
+    [$follower, $stranger] = User::factory()->count(2)->has(Commit::factory())->create();
+
+    $follower->following()->attach($user);
+
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user)->keyBy('id');
+
+    expect($suggestions)->toHaveCount(2)
+        ->and($suggestions[$follower->id]->follows_you)->toBeTrue()
+        ->and($suggestions[$stranger->id]->follows_you)->toBeFalse();
+});
+
+it('marks the people the user might know who follow the user', function (): void {
+    $user = User::factory()->create();
+    [$follower, $stranger] = vouchedFor($user, 2);
+
+    $follower->following()->attach($user);
+
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user)->keyBy('id');
+
+    expect($suggestions)->toHaveCount(2)
+        ->and($suggestions[$follower->id]->follows_you)->toBeTrue()
+        ->and($suggestions[$stranger->id]->follows_you)->toBeFalse();
+});

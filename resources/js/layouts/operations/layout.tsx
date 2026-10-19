@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { PropsWithChildren } from 'react';
 import FeatureController from '@/actions/App/Http/Controllers/FeatureController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
+import ProductMetricsController from '@/actions/App/Http/Controllers/ProductMetricsController';
 import SiteActivityController from '@/actions/App/Http/Controllers/SiteActivityController';
 import TrafficController from '@/actions/App/Http/Controllers/TrafficController';
 import { PageTabs } from '@/components/page-tabs';
@@ -17,7 +18,8 @@ type OperationsTab =
     | 'operations/show'
     | 'operations/features'
     | 'operations/activity'
-    | 'operations/traffic';
+    | 'operations/traffic'
+    | 'operations/metrics';
 
 /**
  * The props each tab polls and refreshes, listed since a plain reload would skip the deferred ones.
@@ -34,6 +36,13 @@ export const TAB_PROPS: Record<OperationsTab, string[]> = {
     'operations/features': ['features'],
     'operations/activity': ['today', 'overall', 'activity', 'breakdowns'],
     'operations/traffic': ['traffic', 'trafficRange'],
+    'operations/metrics': [
+        'funnel',
+        'activeUsers',
+        'responses',
+        'newcomerFollows',
+        'activeUserCounts',
+    ],
 };
 
 function Poll({ only }: { only: string[] }) {
@@ -48,6 +57,8 @@ export default function OperationsLayout({ children }: PropsWithChildren) {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const only =
         component in TAB_PROPS ? TAB_PROPS[component as OperationsTab] : [];
+    // Metrics move by the day and take a while to count, so that tab only refreshes on demand...
+    const polls = component !== ('operations/metrics' satisfies OperationsTab);
 
     const refresh = () => {
         if (isRefreshing) {
@@ -96,15 +107,21 @@ export default function OperationsLayout({ children }: PropsWithChildren) {
         });
     }
 
+    tabs.push({
+        title: 'Metrics',
+        href: ProductMetricsController.show(),
+        isActive: isCurrentUrl(ProductMetricsController.show()),
+    });
+
     return (
         <>
-            <Poll key={component} only={only} />
+            {polls && <Poll key={component} only={only} />}
 
             <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:operations-header]">
                 <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
                     <h1 className="font-semibold">Operations</h1>
                     <p className="ml-auto font-mono text-[13px] text-muted-foreground">
-                        every {REFRESH_SECONDS}s
+                        {polls && `every ${REFRESH_SECONDS}s`}
                     </p>
                     <Button
                         variant="ghost"

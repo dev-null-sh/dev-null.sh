@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Poll;
 use App\Models\User;
 use App\Queries\CommitSearchQuery;
 use Illuminate\Http\Client\Request;
@@ -110,6 +111,7 @@ it('loads the commits as the feeds do, so the card renders them', function (): v
     $viewer = User::factory()->create();
     $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $viewer->starredCommits()->attach($commit);
+    Poll::factory()->for($commit)->withOptions('Tabs', 'Spaces')->create();
 
     $result = resolve(CommitSearchQuery::class)->get('a query', $viewer)->sole();
 
@@ -117,7 +119,9 @@ it('loads the commits as the feeds do, so the card renders them', function (): v
         ->and($result->stars_count)->toBe(1)
         ->and($result->starred)->toBeTrue()
         ->and($result->replies_count)->toBe(0)
-        ->and($result->is_saved)->toBeFalse();
+        ->and($result->is_saved)->toBeFalse()
+        ->and($result->relationLoaded('poll'))->toBeTrue()
+        ->and($result->poll->options)->toHaveCount(2);
 });
 
 it('leaves out commits the viewer may not see', function (): void {

@@ -37,6 +37,9 @@ export function useIsFollowing(
     return useSharedState(isFollowingKey(user), isFollowing);
 }
 
+const isPendingKey = (user: Pick<User, 'id'>): string =>
+    `follow_pending:${user.id}`;
+
 const hasBlockKey = (user: Pick<User, 'id'>): string => `has_block:${user.id}`;
 
 /**
@@ -80,12 +83,14 @@ export function onFollowHttpException(
 export function FollowLabel({
     isFollowing,
     isJustToggled,
+    followsYou = false,
 }: {
     isFollowing: boolean;
     isJustToggled: boolean;
+    followsYou?: boolean;
 }) {
     if (!isFollowing) {
-        return 'Follow';
+        return followsYou ? 'Follow back' : 'Follow';
     }
 
     if (isJustToggled) {
@@ -102,9 +107,13 @@ export function FollowLabel({
     );
 }
 
+/**
+ * Follows are async visits, so following several people in a row never cancels the follows still on their way. Each person's follow waits for the one before it to answer, so a double click can't follow and then unfollow.
+ */
 export function FollowButton({
     user,
     isFollowing: initialIsFollowing,
+    followsYou = false,
     size,
     className,
     onClick,
@@ -113,6 +122,7 @@ export function FollowButton({
 }: {
     user: Pick<User, 'id' | 'username'>;
     isFollowing: boolean;
+    followsYou?: boolean;
     size?: ComponentProps<typeof Button>['size'];
     className?: string;
 } & Omit<InertiaLinkProps, 'href' | 'as' | 'method' | 'size' | 'className'>) {
@@ -120,6 +130,10 @@ export function FollowButton({
     const [isFollowing, setIsFollowing] = useIsFollowing(
         user,
         initialIsFollowing,
+    );
+    const [isPending, setIsPending] = useSharedState<boolean>(
+        isPendingKey(user),
+        false,
     );
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
 
@@ -152,13 +166,18 @@ export function FollowButton({
                 }
                 as="button"
                 preserveScroll
+                async
+                onBefore={() => !isPending}
+                onStart={() => setIsPending(true)}
+                onFinish={() => setIsPending(false)}
+                disabled={isPending}
                 onHttpException={(response) =>
                     onFollowHttpException(user, response)
                 }
                 aria-label={
                     isFollowing
                         ? `Unfollow @${user.username}`
-                        : `Follow @${user.username}`
+                        : `${followsYou ? 'Follow back' : 'Follow'} @${user.username}`
                 }
                 data-test="follow-button"
                 onClick={(event) => {
@@ -175,6 +194,7 @@ export function FollowButton({
                 <FollowLabel
                     isFollowing={isFollowing}
                     isJustToggled={isJustToggled}
+                    followsYou={followsYou}
                 />
             </Link>
         </Button>

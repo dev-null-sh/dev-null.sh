@@ -12,6 +12,9 @@ import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const exhaustedMessage = 'you ran out of pastéis. wait until tomorrow.';
+// One award per user at a time, even across midnight, so a response is never
+// reconciled against another award still in flight.
+const awarding = new Set<string>();
 
 export function CommitPastelButton({
     commit,
@@ -27,7 +30,7 @@ export function CommitPastelButton({
         commitStateKey('pasteis_count', commit.id),
         commit.pasteis_count,
     );
-    const [remaining] = useSharedState(
+    const [remaining, setRemaining] = useSharedState(
         `pasteis-allowance:${auth.user?.id}:${day}`,
         auth.pasteis?.day === day ? auth.pasteis.remaining : 10,
     );
@@ -53,17 +56,45 @@ export function CommitPastelButton({
     const label = `${count} ${count === 1 ? 'pastel' : 'pastéis'}`;
 
     const award = async () => {
-        if (busy.current) {
+        if (busy.current || awarding.has(userId)) {
             return;
         }
 
         busy.current = true;
+        awarding.add(userId);
         let errorShown = false;
+        let exhausted = false;
+
+        let reserved = 0;
+        let optimistic = 0;
+
+        setCount((current) => (optimistic = current + 1));
+        setRemaining((current) => {
+            reserved = Math.min(1, Math.max(0, current));
+
+            return current - reserved;
+        });
+        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            emoji.current
+                ?.getAnimations()
+                .forEach((animation) => animation.cancel());
+            emoji.current?.animate(
+                { transform: ['scale(1)', 'scale(1.25)', 'scale(1)'] },
+                { duration: 300, easing: 'ease-out' },
+            );
+        }
 
         try {
             const response = await request.submit(store(commit), {
                 onError: () => {
                     errorShown = true;
+                    exhausted = true;
+                    // A refresh since the click already holds the server count.
+                    setCount((current) =>
+                        current === optimistic
+                            ? Math.max(0, current - 1)
+                            : current,
+                    );
                     refreshSharedState(
                         new Map([[`pasteis-allowance:${userId}:${day}`, 0]]),
                     );
@@ -78,17 +109,6 @@ export function CommitPastelButton({
             });
 
             setCount((current) => Math.max(current, response.pasteis_count));
-            if (
-                !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-            ) {
-                emoji.current
-                    ?.getAnimations()
-                    .forEach((animation) => animation.cancel());
-                emoji.current?.animate(
-                    { transform: ['scale(1)', 'scale(1.25)', 'scale(1)'] },
-                    { duration: 300, easing: 'ease-out' },
-                );
-            }
             refreshSharedState(
                 new Map([
                     [
@@ -110,10 +130,18 @@ export function CommitPastelButton({
                 toast(exhaustedMessage, { id: 'pasteis-exhausted' });
             }
         } catch {
+            if (!exhausted) {
+                setCount((current) =>
+                    current === optimistic ? Math.max(0, current - 1) : current,
+                );
+                setRemaining((current) => current + reserved);
+            }
+
             if (!errorShown) {
                 toast.error('Could not award a pastel. Please try again.');
             }
         } finally {
+            awarding.delete(userId);
             busy.current = false;
         }
     };

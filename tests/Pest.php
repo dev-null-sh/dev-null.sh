@@ -33,11 +33,6 @@ pest()->extend(TestCase::class)
     })
     ->in('Feature', 'Unit');
 
-pest()->tia()
-    ->locally()
-    ->baselined()
-    ->defaultBranch('production');
-
 expect()->extend('toBeOne', fn () => $this->toBe(1));
 
 function something(): void

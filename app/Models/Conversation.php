@@ -45,9 +45,9 @@ final class Conversation extends Model
     use HasUuids;
 
     /**
-     * An org holds the maintainer and up to fourteen others.
+     * An org holds the maintainer and up to ninety-nine others.
      */
-    public const int MAX_MEMBERS = 15;
+    public const int MAX_MEMBERS = 100;
 
     /**
      * Two people share exactly one conversation, whichever of them started it.

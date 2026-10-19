@@ -27,6 +27,7 @@ test('to array', function (): void {
             'timezone',
             'lane',
             'has_github_account',
+            'live',
         ]);
 });
 

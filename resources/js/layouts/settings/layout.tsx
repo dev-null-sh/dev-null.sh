@@ -1,11 +1,7 @@
 import type { PropsWithChildren } from 'react';
 import { PageTabs } from '@/components/page-tabs';
 import { useCurrentUrl } from '@/hooks/use-current-url';
-import { edit as editAppearance } from '@/routes/appearance';
-import { index as devices } from '@/routes/device';
-import { edit as editSafety } from '@/routes/safety';
-import { show as showTerminal } from '@/routes/terminal';
-import { edit } from '@/routes/user-profile';
+import { settingsTabs } from '@/layouts/settings/tabs';
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
     const { isCurrentUrl } = useCurrentUrl();
@@ -18,33 +14,10 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                 </h1>
                 <PageTabs
                     label="Settings"
-                    tabs={[
-                        {
-                            title: 'Profile',
-                            href: edit(),
-                            isActive: isCurrentUrl(edit()),
-                        },
-                        {
-                            title: 'Appearance',
-                            href: editAppearance(),
-                            isActive: isCurrentUrl(editAppearance()),
-                        },
-                        {
-                            title: 'Terminal',
-                            href: showTerminal(),
-                            isActive: isCurrentUrl(showTerminal()),
-                        },
-                        {
-                            title: 'Safety',
-                            href: editSafety(),
-                            isActive: isCurrentUrl(editSafety()),
-                        },
-                        {
-                            title: 'Devices',
-                            href: devices(),
-                            isActive: isCurrentUrl(devices()),
-                        },
-                    ]}
+                    tabs={settingsTabs.map((tab) => ({
+                        ...tab,
+                        isActive: isCurrentUrl(tab.href),
+                    }))}
                 />
             </div>
 

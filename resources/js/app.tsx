@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
+import { trackAnalyticsEvents } from '@/lib/analytics';
 import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
 import { registerServiceWorker } from '@/lib/service-worker';
@@ -16,6 +17,7 @@ const appName = import.meta.env.VITE_APP_NAME || '/dev/null';
 
 trackCurrentPage();
 trackVisualViewport();
+trackAnalyticsEvents();
 
 void createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

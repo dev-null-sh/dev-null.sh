@@ -1,6 +1,7 @@
 import type { InertiaLinkProps } from '@inertiajs/react';
 import type { ClassValue } from 'clsx';
 import { clsx } from 'clsx';
+import type { CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
 import type { DeletedCommit, Lane, ThreadCommit } from '@/types';
@@ -104,6 +105,37 @@ export function laneColor(lane: Lane): string {
  */
 export function laneTint(color: string, percent: number): string {
     return `color-mix(in oklab, ${color} ${percent}%, transparent)`;
+}
+
+type LaneStrokeOptions = {
+    axis?: 'vertical' | 'horizontal';
+    /** The length of each dash and of each gap, in pixels. */
+    dash?: number;
+    /** Ends the dashes on a whole gap, so a dashed path that continues below picks up the same rhythm. */
+    anchor?: 'start' | 'end';
+};
+
+/**
+ * Dashed lane connectors.
+ */
+export function laneStrokeStyle(
+    lane: string,
+    options: LaneStrokeOptions = {},
+): CSSProperties {
+    const isVertical = (options.axis ?? 'vertical') === 'vertical';
+    const length = options.dash ?? 2;
+    const dash =
+        options.anchor === 'end'
+            ? `repeating-linear-gradient(${isVertical ? 'to top' : 'to left'}, transparent 0 ${length}px, #000 ${length}px ${length * 2}px)`
+            : `repeating-linear-gradient(${isVertical ? 'to bottom' : 'to right'}, #000 0 ${length}px, transparent ${length}px ${length * 2}px)`;
+
+    return {
+        backgroundColor: lane,
+        WebkitMaskImage: dash,
+        maskImage: dash,
+        WebkitMaskRepeat: 'repeat',
+        maskRepeat: 'repeat',
+    };
 }
 
 export function isDeleted(commit: {

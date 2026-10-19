@@ -23,12 +23,16 @@ final readonly class CreateCommitStar
     public function handle(User $user, Commit $commit): void
     {
         DB::transaction(function () use ($user, $commit): void {
-            $user->starredCommits()->newPivotStatement()->insertOrIgnore([
+            $inserted = $user->starredCommits()->newPivotStatement()->insertOrIgnore([
                 'user_id' => $user->id,
                 'commit_id' => $commit->id,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            if ($inserted === 0) {
+                return;
+            }
 
             $this->createStarNotification->handle($user, $commit);
 
