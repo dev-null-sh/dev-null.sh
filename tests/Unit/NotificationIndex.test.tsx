@@ -1,12 +1,16 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import Index from '../../resources/js/pages/notification/index';
-import type { Commit, NotificationGroup, User } from '../../resources/js/types';
+import type {
+    NotificationCommit,
+    NotificationGroup,
+    User,
+} from '../../resources/js/types';
 
 const actor = {
     id: 'actor',
@@ -39,7 +43,8 @@ const notification = {
                 html: '<span class="hl-keyword">return</span> round($score, 6);',
             },
         ],
-    } as Omit<Commit, 'user'>,
+        images_count: 0,
+    } as NotificationCommit,
 } as NotificationGroup;
 
 async function render(notifications: NotificationGroup[]): Promise<string> {
@@ -85,7 +90,7 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
     return result.body.slice(result.body.indexOf('<article'));
 }
 
-void test('renders a code block highlighted in a notification', async () => {
+test('renders a code block highlighted in a notification', async () => {
     const body = await render([notification]);
 
     assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
@@ -95,8 +100,34 @@ void test('renders a code block highlighted in a notification', async () => {
     assert.match(body, /<pre[^>]*tabindex="-1"/i);
 });
 
+for (const [imagesCount, label] of [
+    [1, 'Image'],
+    [3, '3 images'],
+] as const) {
+    test(`says "${label}" for a starred commit of images alone instead of an empty excerpt`, async () => {
+        const starred = {
+            ...notification,
+            type: 'starred',
+            commit_id: 'images',
+            subject_id: 'images',
+            commit: {
+                id: 'images',
+                body: '',
+                body_segments: [],
+                images_count: imagesCount,
+            } as NotificationCommit,
+        } as NotificationGroup;
+        const body = await render([starred]);
+        const block = body.match(
+            /<div class="(?:[^"]* )?border(?: [^"]*)?">(.*?)<\/div>/s,
+        );
+
+        assert.equal(block?.[1].replace(/<[^>]+>/g, ''), label);
+    });
+}
+
 for (const isFollowing of [false, true]) {
-    void test(`keeps ${isFollowing ? 'unfollow' : 'follow-back'} separate from highlighted notification links`, async () => {
+    test(`keeps ${isFollowing ? 'unfollow' : 'follow-back'} separate from highlighted notification links`, async () => {
         const followed = {
             ...notification,
             id: 'follow-notification',

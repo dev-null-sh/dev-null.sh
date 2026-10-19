@@ -12,6 +12,10 @@ type BaseNotification = {
     reason: string | null;
 };
 
+export type NotificationCommit = Omit<Commit, 'user'> & {
+    images_count: number;
+};
+
 export type NotificationGroup = Notification & {
     group_id: string;
     event_count: number;
@@ -31,15 +35,18 @@ export type Notification =
           type: 'replied' | 'starred';
           commit_id: string;
           subject_id: string;
-          commit: Omit<Commit, 'user'>;
+          commit: NotificationCommit;
       })
     | (BaseNotification & {
           type: 'quoted';
           commit_id: string;
           subject_id: null;
-          commit: Omit<Commit, 'user' | 'quoted_commit'> & {
+          commit: Omit<NotificationCommit, 'quoted_commit'> & {
               quoted_commit?:
-                  | Pick<Commit, 'id' | 'body_segments' | 'deleted_at'>
+                  | Pick<
+                        NotificationCommit,
+                        'id' | 'body_segments' | 'deleted_at' | 'images_count'
+                    >
                   | DeletedCommit
                   | null;
           };
@@ -48,5 +55,5 @@ export type Notification =
           type: 'mentioned' | 'approved' | 'rejected';
           commit_id: string;
           subject_id: null;
-          commit: Omit<Commit, 'user'>;
+          commit: NotificationCommit;
       });

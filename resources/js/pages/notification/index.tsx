@@ -5,6 +5,7 @@ import {
     AtSign,
     Check,
     ChevronDown,
+    ImageIcon,
     MessageSquareReply,
     Quote,
     Star,
@@ -54,15 +55,20 @@ import {
 } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type {
-    BodySegment,
     Commit,
     CursorPaginated,
     DeletedCommit,
     Notification,
+    NotificationCommit,
     NotificationGroup,
 } from '@/types';
 
 type Filters = { type: string };
+
+type ExcerptedCommit = Pick<
+    NotificationCommit,
+    'body_segments' | 'images_count'
+>;
 
 const filterOptions: {
     type: Filters['type'];
@@ -730,10 +736,10 @@ function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
     );
 }
 
-function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
+function OwnCommitExcerpt({ commit }: { commit: ExcerptedCommit }) {
     return (
         <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
-            <CommitBodyExcerpt segments={segments} className="max-h-[73px]" />
+            <NotificationCommitBody commit={commit} className="max-h-[73px]" />
         </div>
     );
 }
@@ -745,13 +751,16 @@ function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
 function QuotedOwnCommit({
     commit,
 }: {
-    commit: Pick<Commit, 'body_segments' | 'deleted_at'> | DeletedCommit | null;
+    commit:
+        | (ExcerptedCommit & Pick<Commit, 'deleted_at'>)
+        | DeletedCommit
+        | null;
 }) {
     if (commit === null || isDeleted(commit)) {
         return <QuotedCommit commit={commit} />;
     }
 
-    return <OwnCommitExcerpt segments={commit.body_segments} />;
+    return <OwnCommitExcerpt commit={commit} />;
 }
 
 function NotificationContent({
@@ -834,10 +843,10 @@ function NotificationContent({
     }[notification.type];
     const excerpt =
         notification.type === 'followed' ? null : isOwnCommit ? (
-            <OwnCommitExcerpt segments={notification.commit.body_segments} />
+            <OwnCommitExcerpt commit={notification.commit} />
         ) : (
-            <CommitBodyExcerpt
-                segments={notification.commit.body_segments}
+            <NotificationCommitBody
+                commit={notification.commit}
                 className="mt-1 max-h-40"
             />
         );
@@ -1050,6 +1059,40 @@ function NotificationContent({
                 {children}
             </div>
         </div>
+    );
+}
+
+/**
+ * A commit of images alone has no body to excerpt, so it says how many images it holds instead.
+ */
+function NotificationCommitBody({
+    commit,
+    className,
+}: {
+    commit: ExcerptedCommit;
+    className: string;
+}) {
+    if (commit.body_segments.length > 0) {
+        return (
+            <CommitBodyExcerpt
+                segments={commit.body_segments}
+                className={className}
+            />
+        );
+    }
+
+    return (
+        <p
+            className={cn(
+                'flex items-center gap-1.5 text-[15px] text-muted-foreground',
+                className,
+            )}
+        >
+            <ImageIcon className="size-4 shrink-0" aria-hidden />
+            {commit.images_count === 1
+                ? 'Image'
+                : `${commit.images_count} images`}
+        </p>
     );
 }
 

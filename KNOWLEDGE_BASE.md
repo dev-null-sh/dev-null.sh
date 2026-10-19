@@ -283,7 +283,7 @@ Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [
 
 ### Notifications
 
-Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages. The navigation shows unread activity. Related activity is grouped, with expandable details, and filters let you choose categories or all/none. Opening the inbox marks relevant notifications read. You can follow back or unfollow from follower notifications.
+Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages. The navigation shows unread activity. Related activity is grouped, with expandable details, and filters let you choose categories or all/none. Opening the inbox marks relevant notifications read. You can follow back or unfollow from follower notifications. A commit posted with only images shows an image icon and "Image" or "N images" where its text would be.
 
 Pending replies, quotes, and mentions wait for approval before notifying others. Self-actions do not notify you; mentioning the parent or quoted author does not duplicate their reply or quote notification. A new follower notifies only once even if they unfollow and follow again. Deleted or unavailable sources, mutes, and blocks affect which notifications remain visible. Rejected commits can produce a moderation message with a reason, without revealing a moderator's identity.
 

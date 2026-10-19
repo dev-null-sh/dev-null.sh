@@ -1,9 +1,9 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import Index from '../../resources/js/pages/notification/index';
 import type { NotificationGroup, User } from '../../resources/js/types';
@@ -55,6 +55,7 @@ const quote: NotificationGroup = {
         stars_count: 0,
         starred: false,
         quoted_commit_id: 'quoted-commit',
+        images_count: 0,
     },
 };
 
@@ -100,19 +101,16 @@ async function renderInbox(notifications: NotificationGroup[], type = 'all') {
     return result.body.replaceAll('<!-- -->', '');
 }
 
-void test('renders quote notifications with their label and quoting commit destination', async () => {
+test('renders quote notifications with their label and quoting commit destination', async () => {
     const html = await renderInbox([quote]);
 
     assert.match(html, /quoted your commit/);
     assert.match(html, /href="\/@quoter\/commits\/quote-commit"/);
     assert.match(html, /My quote commentary/);
-    assert.match(
-        html,
-        /<button[^>]*aria-pressed="true"[^>]*>Quotes<\/button>/,
-    );
+    assert.match(html, /<button[^>]*aria-pressed="true"[^>]*>Quotes<\/button>/);
 });
 
-void test('shows the quoted commit under a quote, or a tombstone once it is deleted', async () => {
+test('shows the quoted commit under a quote, or a tombstone once it is deleted', async () => {
     const html = await renderInbox([
         {
             ...quote,
@@ -121,6 +119,7 @@ void test('shows the quoted commit under a quote, or a tombstone once it is dele
                 quoted_commit: {
                     id: 'quoted-commit',
                     body_segments: [{ type: 'text', text: 'My quoted commit' }],
+                    images_count: 0,
                 },
             },
         },
@@ -146,11 +145,32 @@ void test('shows the quoted commit under a quote, or a tombstone once it is dele
     );
 });
 
-void test('includes quotes in the unfiltered empty inbox message', async () => {
+test('says "Image" for a quoted commit of images alone instead of an empty excerpt', async () => {
+    const html = await renderInbox([
+        {
+            ...quote,
+            commit: {
+                ...quote.commit,
+                quoted_commit: {
+                    id: 'quoted-commit',
+                    body_segments: [],
+                    images_count: 1,
+                },
+            },
+        },
+    ]);
+    const block = html.match(
+        /<div class="(?:[^"]* )?border(?: [^"]*)?">(.*?)<\/div>/s,
+    );
+
+    assert.equal(block?.[1].replace(/<[^>]+>/g, ''), 'Image');
+});
+
+test('includes quotes in the unfiltered empty inbox message', async () => {
     assert.match(await renderInbox([]), /replies, quotes, mentions/);
 });
 
-void test('renders a follow-back control outside the follower profile link', async () => {
+test('renders a follow-back control outside the follower profile link', async () => {
     const follow: NotificationGroup = {
         ...quote,
         type: 'followed',
@@ -171,7 +191,7 @@ void test('renders a follow-back control outside the follower profile link', asy
     );
 });
 
-void test('leaves follow-back out of a group of followers until it is expanded', async () => {
+test('leaves follow-back out of a group of followers until it is expanded', async () => {
     const html = await renderInbox([
         {
             ...quote,
@@ -189,7 +209,7 @@ void test('leaves follow-back out of a group of followers until it is expanded',
     assert.doesNotMatch(html, /aria-label="(Follow|Unfollow) @/);
 });
 
-void test('renders notification code without altering emoji shortcodes or nesting interactive controls', async () => {
+test('renders notification code without altering emoji shortcodes or nesting interactive controls', async () => {
     const html = await renderInbox([
         {
             ...quote,
@@ -205,7 +225,7 @@ void test('renders notification code without altering emoji shortcodes or nestin
     assert.doesNotMatch(html, /Copy code/);
 });
 
-void test('renders highlighted notification blocks without a nested copy button', async () => {
+test('renders highlighted notification blocks without a nested copy button', async () => {
     const html = await renderInbox([
         {
             ...quote,
@@ -230,14 +250,13 @@ void test('renders highlighted notification blocks without a nested copy button'
     assert.doesNotMatch(html, /Copy code/);
 });
 
-
-void test('renders all notification categories as enabled toggle buttons by default', async () => {
+test('renders all notification categories as enabled toggle buttons by default', async () => {
     const body = await renderInbox([]);
     assert.equal((body.match(/aria-pressed="true"/g) ?? []).length, 6);
     assert.doesNotMatch(body, /aria-current="page"|role="tab"/);
 });
 
-void test('renders independent category selections and the all-off empty state', async () => {
+test('renders independent category selections and the all-off empty state', async () => {
     const selected = await renderInbox([], 'replies,mentions');
     assert.equal((selected.match(/aria-pressed="true"/g) ?? []).length, 2);
     assert.equal((selected.match(/aria-pressed="false"/g) ?? []).length, 4);

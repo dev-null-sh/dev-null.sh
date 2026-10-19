@@ -16,6 +16,6 @@ final readonly class NotificationGroupController
     public function show(ShowNotificationGroupRequest $request, #[CurrentUser] User $user, Notification $notification, NotificationGroupsQuery $query): JsonResponse
     {
         return response()->json($query->members($user, $notification, $request->type())
-            ->with('commit')->latest()->latest('id')->cursorPaginate(20)->withQueryString());
+            ->latest()->latest('id')->cursorPaginate(20)->withQueryString());
     }
 }

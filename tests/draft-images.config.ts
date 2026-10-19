@@ -23,6 +23,8 @@ export default defineConfig({
             'tests/Unit/SearchDialogComposition.test.tsx',
             'tests/Unit/ReportResolution.test.tsx',
             'tests/Unit/LinkifiedText.test.tsx',
+            'tests/Unit/NotificationIndex.test.tsx',
+            'tests/Unit/NotificationInbox.test.tsx',
         ],
     },
 });
