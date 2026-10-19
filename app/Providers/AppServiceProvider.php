@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Contracts\Services\DnsResolver;
+use App\Enums\ApiErrorCode;
+use App\Exceptions\ApiException;
 use App\Models\User;
+use App\Services\CodeTheme;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\JsonResponse;
@@ -15,12 +18,14 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
+use Tempest\Highlight\Highlighter;
 
 final class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
+        $this->app->bind(Highlighter::class, fn (): Highlighter => new Highlighter(new CodeTheme()));
     }
 
     public function boot(): void
@@ -47,7 +52,7 @@ final class AppServiceProvider extends ServiceProvider
             if ($response->statusCode() === 419) {
                 Inertia::flash('toast', [
                     'type' => 'error',
-                    'message' => __('Page expired: your session timed out before that went through. Try again.'),
+                    'message' => 'Page expired: your session timed out before that went through. Try again.',
                 ]);
 
                 return back();
@@ -79,14 +84,31 @@ final class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(1)->by($user->id)->response(function (): RedirectResponse {
                 Inertia::flash('toast', [
                     'type' => 'error',
-                    'message' => __('You just synced. Try again in a minute.'),
+                    'message' => 'You just synced. Try again in a minute.',
                 ]);
 
                 return back();
             });
         });
 
-        RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
+        // The mobile app's 429 comes with a code. The public API's stays as it is...
+        $rateLimited = fn (Request $request, array $headers): JsonResponse => new ApiException(ApiErrorCode::RateLimited, 'Too Many Attempts.', $headers)->render();
+
+        RateLimiter::for('api', function (Request $request) use ($rateLimited): Limit {
+            $user = $request->user();
+
+            // Signed requests from the mobile app share one budget per user, whichever network the phone is on...
+            return $user instanceof User
+                ? Limit::perMinute(120)->by($user->id)->response($rateLimited)
+                : Limit::perMinute(60)->by((string) $request->ip());
+        });
+
+        // Redeeming a code for a device is limited per key once the signature checks out. Before that, each address gets
+        // a ceiling, so unsigned or badly signed requests can't force signature checks...
+        RateLimiter::for('devices', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip())->response($rateLimited));
+
+        // Approving the devnull app on the web hands out a code each time...
+        RateLimiter::for('mobile-authorizations', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
 
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
@@ -95,6 +117,10 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('bookmarks', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('pins', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
+
+        // Messages: polling an open conversation every second or so stays well under the first...
+        RateLimiter::for('conversations', fn (Request $request): Limit => Limit::perMinute(300)->by($this->userId($request)));
+        RateLimiter::for('messages', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));
 
         // Social graph...
         RateLimiter::for('follows', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));

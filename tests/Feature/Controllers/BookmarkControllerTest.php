@@ -253,7 +253,7 @@ it('returns only the viewers saved state across logs profiles commit pages and r
 
     $this->actingAs($user)->get(route('commit.show', [$other, $commit]))->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.is_saved', true)
-        ->where('replies.data.0.is_saved', true));
+        ->where('continuation.data.0.is_saved', true));
     $this->getJson(route('commit-reply.index', $commit))->assertOk()->assertJsonPath('data.0.is_saved', true);
     $this->get(route('commit.show', [$reply->user, $reply]))->assertOk()->assertInertia(fn ($page) => $page
         ->where('ancestors.0.is_saved', true));

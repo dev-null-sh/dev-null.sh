@@ -2,8 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateTomFriendship;
+use App\Actions\CreateTomReply;
 use App\Actions\DeleteUser;
+use App\Ai\Agents\Tom;
 use App\Enums\CommitStatus;
+use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
@@ -12,6 +16,46 @@ use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+
+it('answers a casual public Tom mention in the same thread', function (): void {
+    config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test']);
+    Queue::fake([ReplyAsTom::class]);
+    Tom::fake(['A little rusty, but happy to see you. :-D'])->preventStrayPrompts();
+    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $user = User::factory()->create(['username' => 'alice']);
+    $parent = Commit::factory()->create();
+
+    $response = $this->actingAs($user)->postJson(route('commit-reply.store', $parent), ['body' => '@tom how are your rusty joints?'])->assertCreated();
+    $mention = Commit::query()->findOrFail($response->json('committed.id'));
+    Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $mention->id);
+    new ReplyAsTom($mention->id)->handle(resolve(CreateTomReply::class));
+
+    $this->getJson(route('commit-reply.index', $mention))->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.body', 'A little rusty, but happy to see you. :-D')
+        ->assertJsonPath('data.0.user.id', $tom->id)
+        ->assertJsonPath('data.0.root_id', $parent->id);
+    Tom::assertPrompted('@tom how are your rusty joints?');
+});
+
+it('rejects non-text reply bodies with a validation error', function (mixed $body): void {
+    $parent = Commit::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', $parent), ['body' => $body])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('body');
+
+    expect($parent->replies()->count())->toBe(0)
+        ->and(LinkPreview::query()->count())->toBe(0);
+})->with([
+    'list' => [['Hello, world!']],
+    'object' => [['text' => 'Hello, world!']],
+    'empty array' => [[]],
+    'number' => [123],
+    'boolean' => [true],
+    'null' => [null],
+]);
 
 it('lists visible replies oldest first with their own reply counts', function (): void {
     $viewer = User::factory()->create();
@@ -36,6 +80,38 @@ it('lists visible replies oldest first with their own reply counts', function ()
         ->assertJsonPath('data.0.user.id', fn (string $id): bool => $id !== '')
         ->assertJsonMissingPath('data.0.user.email')
         ->assertJsonPath('next_cursor', null);
+});
+
+it('may leave out the next commit of the author thread', function (): void {
+    $parent = Commit::factory()->create();
+    $next = Commit::factory()->for($parent, 'parent')->for($parent->user)->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+
+    $response = $this->getJson(route('commit-reply.index', [$parent, 'except' => $next->id]));
+
+    $response->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $reply->id);
+});
+
+it('leaves the next commit of a reply thread out of its reply count', function (): void {
+    $parent = Commit::factory()->create();
+    $reply = Commit::factory()->for($parent, 'parent')->create();
+    $next = Commit::factory()->for($reply, 'parent')->for($reply->user)->create();
+    Commit::factory()->for($reply, 'parent')->create();
+
+    $this->getJson(route('commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonPath('data.0.continuation_id', $next->id)
+        ->assertJsonPath('data.0.replies_count', 1);
+});
+
+it('requires the left out reply to be a commit id', function (): void {
+    $parent = Commit::factory()->create();
+
+    $this->getJson(route('commit-reply.index', [$parent, 'except' => 'not-an-id']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('except');
 });
 
 it('lists replies 50 at a time with a cursor to the next page', function (): void {
@@ -329,6 +405,26 @@ it('may attach images to a reply', function (): void {
         ->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(2);
 });
 
+it('may reply with images without a body', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit-reply.store', $parent), [
+            'body' => '',
+            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
+        ], ['Accept' => 'application/json'])
+        ->assertCreated();
+
+    $reply = $user->commits()->sole();
+
+    expect($reply->body)->toBe('')
+        ->and($reply->parent_id)->toBe($parent->id)
+        ->and($reply->images)->toHaveCount(1);
+});
+
 it('may describe the images attached to a reply', function (): void {
     Storage::fake();
 
@@ -370,7 +466,7 @@ it('may not describe an image of a reply in more than a thousand characters', fu
     expect($user->commits()->count())->toBe(0);
 });
 
-it('may only attach jpeg, png, gif or webp images to a reply', function (): void {
+it('may only attach jpeg, png or webp images to a reply', function (): void {
     Storage::fake();
 
     $user = User::factory()->create();
@@ -644,7 +740,10 @@ it('keeps account deletion tombstones in threads while filtering silenced author
 it('keeps approved account deletion tombstones readable to guests without exposing the deleted author', function (): void {
     $user = User::factory()->create(['username' => 'deletedauthor']);
     $root = Commit::factory()->create();
-    $parent = Commit::factory()->for($user)->for($root, 'parent')->create(['body' => 'Deleted body']);
+    $parent = Commit::factory()->for($user)->for($root, 'parent')->create([
+        'body' => 'Deleted body @deletedauthor',
+        'mentions' => ['deletedauthor' => $user->id],
+    ]);
     $reply = Commit::factory()->for($parent, 'parent')->create();
     resolve(DeleteUser::class)->handle($user);
 
@@ -659,6 +758,7 @@ it('keeps approved account deletion tombstones readable to guests without exposi
         ->assertInertia(fn ($page) => $page
             ->where('ancestors.1.id', $parent->id)
             ->missing('ancestors.1.body')
+            ->missing('ancestors.1.mentions')
             ->missing('ancestors.1.user'));
 
     $this->getJson(route('commit-reply.index', $parent))

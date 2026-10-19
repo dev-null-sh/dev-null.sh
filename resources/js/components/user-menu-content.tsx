@@ -1,7 +1,20 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Activity, Bookmark, LogOut, Settings, UserRound } from 'lucide-react';
+import {
+    Activity,
+    BookOpen,
+    Bookmark,
+    FileText,
+    LogOut,
+    Settings,
+    Shield,
+    UserRound,
+} from 'lucide-react';
+import AboutController from '@/actions/App/Http/Controllers/AboutController';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
+import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
+import TermsController from '@/actions/App/Http/Controllers/TermsController';
+import { GitHubIcon } from '@/components/github-icon';
 import {
     DropdownMenuGroup,
     DropdownMenuItem,
@@ -11,6 +24,7 @@ import {
 import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { clearStashes } from '@/hooks/use-stash';
+import { repositoryUrl } from '@/lib/about';
 import { logout } from '@/routes';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
@@ -83,6 +97,52 @@ export function UserMenuContent({ user }: Props) {
                         </Link>
                     </DropdownMenuItem>
                 )}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={AboutController.show()}
+                        onClick={cleanup}
+                    >
+                        <BookOpen className="mr-2" />
+                        About
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={TermsController.show()}
+                        onClick={cleanup}
+                    >
+                        <FileText className="mr-2" />
+                        Terms
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={PrivacyController.show()}
+                        onClick={cleanup}
+                    >
+                        <Shield className="mr-2" />
+                        Privacy
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <a
+                        href={repositoryUrl}
+                        className="cursor-pointer"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={cleanup}
+                        data-test="source-code-link"
+                    >
+                        <GitHubIcon className="mr-2" />
+                        GitHub
+                    </a>
+                </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>

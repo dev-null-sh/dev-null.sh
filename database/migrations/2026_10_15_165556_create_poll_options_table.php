@@ -20,9 +20,4 @@ return new class extends Migration
             $table->unique(['poll_id', 'position']);
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('poll_options');
-    }
 };

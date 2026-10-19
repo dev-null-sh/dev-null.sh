@@ -95,6 +95,35 @@ it('limits the number of suggestions', function (): void {
         ->assertJsonCount(6, 'users');
 });
 
+it("only suggests an org's members within it, people the user follows first", function (): void {
+    $mark = User::factory()->create(['username' => 'mark']);
+    [$taylor, $jess] = followersOf($mark, 2);
+    $taylor->update(['username' => 'taylor']);
+    $jess->update(['username' => 'jess']);
+    User::factory()->create(['username' => 'taylorotwell']);
+    $org = createOrg($mark, [$taylor, $jess]);
+    $mark->following()->attach($taylor);
+
+    $this->actingAs($mark)
+        ->getJson(route('mention-suggestion.index', ['q' => '', 'org' => $org]))
+        ->assertOk()
+        ->assertJsonPath('users.*.username', ['taylor', 'jess']);
+
+    $this->getJson(route('mention-suggestion.index', ['q' => 'tay', 'org' => $org]))
+        ->assertOk()
+        ->assertJsonPath('users.*.username', ['taylor']);
+});
+
+it("does not suggest an org's members to people outside it", function (): void {
+    $mark = User::factory()->create();
+    [$taylor] = followersOf($mark, 1);
+    $org = createOrg($mark, [$taylor]);
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('mention-suggestion.index', ['q' => '', 'org' => $org]))
+        ->assertNotFound();
+});
+
 it('rejects overly long queries', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->getJson('/search/mentions?q='.str_repeat('a', 101));

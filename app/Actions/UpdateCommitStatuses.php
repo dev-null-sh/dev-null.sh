@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\Poll;
@@ -79,6 +80,14 @@ final readonly class UpdateCommitStatuses
                 $this->createMentionNotifications->handle(...$commits);
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
+
+                if (filled(config('ai.providers.opencode.key'))) {
+                    foreach ($commits as $commit) {
+                        if (isset($commit->mentions[CreateTomFriendship::USERNAME]) && $commit->user?->github_id !== CreateTomFriendship::GITHUB_ID) {
+                            dispatch(new ReplyAsTom($commit->id));
+                        }
+                    }
+                }
             }
         });
     }

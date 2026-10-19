@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
 use App\Jobs\UnfurlLink;
+use App\Models\Device;
+use App\Models\Message;
 use App\Models\User;
 use App\Services\OpenAI;
+use App\Services\SignedCommits;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +16,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\Support\SshKeyPair;
 use Tests\TestCase;
 
@@ -28,6 +32,11 @@ pest()->extend(TestCase::class)
         $this->freezeTime();
     })
     ->in('Feature', 'Unit');
+
+pest()->tia()
+    ->locally()
+    ->baselined()
+    ->defaultBranch('production');
 
 expect()->extend('toBeOne', fn () => $this->toBe(1));
 
@@ -173,18 +182,28 @@ function fakeGitHubSponsorsListing(bool $hasSponsorsListing = false): void
 }
 
 /**
+ * @param  list<string>  $imageHashes
  * @return array{payload: string, signature: string}
  */
-function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = ''): array
+function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = '', array $imageHashes = []): array
 {
-    $payload = implode("\n", [
+    $lines = [
         $timestamp ?? now()->getTimestamp(),
         $nonce ?? bin2hex(random_bytes(16)),
         $replyTo,
-        $body,
-    ]);
+    ];
 
-    return ['payload' => $payload, 'signature' => $keyPair->sign($payload)];
+    if ($imageHashes !== []) {
+        $lines[] = implode(',', $imageHashes);
+    }
+
+    $lines[] = $body;
+
+    $payload = implode("\n", $lines);
+
+    $namespace = $imageHashes === [] ? SignedCommits::Namespace : SignedCommits::ImagesNamespace;
+
+    return ['payload' => $payload, 'signature' => $keyPair->sign($payload, $namespace)];
 }
 
 function fakeAvatar(): string
@@ -226,4 +245,97 @@ function queuedJob(string $queue, CarbonInterface $createdAt): void
         'available_at' => $createdAt->getTimestamp(),
         'created_at' => $createdAt->getTimestamp(),
     ]);
+}
+
+/**
+ * Sends a chat message the way the composer does, so tests start from real conversations.
+ */
+function sendChatMessage(User $sender, User $recipient, string $body = 'hello'): Message
+{
+    test()->actingAs($sender)->postJson(route('conversation-message.store', $recipient), [
+        'body' => $body,
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated();
+
+    return Message::query()->latest('id')->firstOrFail();
+}
+
+/**
+ * People who follow the maintainer, so they can be added to an org.
+ *
+ * @return list<User>
+ */
+function followersOf(User $maintainer, int $count): array
+{
+    return User::factory()->count($count)->create()->each(fn (User $follower) => $follower->following()->attach($maintainer))->all();
+}
+
+/**
+ * Creates an org the way the Remotes page does, and returns its id.
+ *
+ * @param  list<User>  $members
+ */
+function createOrg(User $maintainer, array $members, ?string $name = 'dev/null core'): string
+{
+    return test()->actingAs($maintainer)->postJson(route('org.store'), [
+        'name' => $name,
+        'members' => array_map(fn (User $member): string => $member->username, $members),
+    ])->assertCreated()->json('org.id');
+}
+
+function pushToOrg(User $sender, string $org, string $body = 'hello'): Message
+{
+    test()->actingAs($sender)->postJson(route('org-message.store', $org), [
+        'body' => $body,
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated();
+
+    return Message::query()->latest('id')->firstOrFail();
+}
+
+/**
+ * Signs an API request the way the mobile app does, and returns its headers as server variables.
+ *
+ * @return array<string, string>
+ */
+function signApiRequest(SshKeyPair $keyPair, string $method, string $uri, string $body = '', ?int $timestamp = null, ?string $nonce = null, string $namespace = 'devnull-api'): array
+{
+    $timestamp ??= now()->getTimestamp();
+    $nonce ??= bin2hex(random_bytes(16));
+
+    $query = parse_url(url($uri), PHP_URL_QUERY);
+    $target = parse_url(url($uri), PHP_URL_PATH).(is_string($query) ? "?{$query}" : '');
+
+    return [
+        'CONTENT_TYPE' => 'application/json',
+        'HTTP_ACCEPT' => 'application/json',
+        'HTTP_X_DEVNULL_TIMESTAMP' => (string) $timestamp,
+        'HTTP_X_DEVNULL_NONCE' => $nonce,
+        'HTTP_X_SSH_SIGNATURE' => $keyPair->sign(implode("\n", [$timestamp, $nonce, mb_strtoupper($method), $target, $body]), $namespace),
+    ];
+}
+
+/**
+ * Sends an API request signed the way the mobile app does, with the data as its JSON body.
+ *
+ * @param  array<string, mixed>|null  $data
+ */
+function signedApiRequest(SshKeyPair $keyPair, string $method, string $uri, ?array $data = null, ?int $timestamp = null, ?string $nonce = null, string $namespace = 'devnull-api'): TestResponse
+{
+    $body = $data === null ? '' : json_encode($data, JSON_THROW_ON_ERROR);
+
+    return test()->call($method, $uri, server: signApiRequest($keyPair, $method, $uri, $body, $timestamp, $nonce, $namespace), content: $body);
+}
+
+/**
+ * Gives the user a key approved as a device, that the mobile app signs API requests with. It isn't on their GitHub
+ * account, as the API doesn't need it to be.
+ */
+function apiKeyPairFor(User $user): SshKeyPair
+{
+    $keyPair = SshKeyPair::generate();
+
+    Device::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
+
+    return $keyPair;
 }

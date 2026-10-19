@@ -2,53 +2,48 @@ import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
+import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { FollowButton } from '@/components/follow-button';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
-import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
+import { useComposerVisibility } from '@/hooks/use-composer-visibility';
+import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
 import { emojify } from '@/lib/emoji';
-import { readStorage, writeStorage } from '@/lib/storage';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
     log,
     commits,
     isRanked,
-    newestCommitId,
-    latestCommits,
     newCommitsCount = 0,
     suggestions,
 }: {
     log: Log;
     commits: CursorPaginated<Commit>;
     isRanked: boolean;
-    newestCommitId: string | null;
-    latestCommits: Commit[];
     newCommitsCount?: number;
     suggestions: Commit[];
 }) {
     const {
-        flash,
         props: { auth },
     } = usePage();
     const user = auth.user;
+    const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
-    const markerKey = `latest-marker:${viewerId}:${log}`;
-    const [markerId, setMarkerId] = useState(
-        () =>
-            (flash.committed ? readStorage(markerKey) : '') ||
-            (newestCommitId ?? ''),
-    );
-    const newestId = isRanked ? markerId || undefined : commits.data[0]?.id;
+    const newestId = isRanked ? undefined : commits.data[0]?.id;
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
+    const feedRef = useRef<HTMLDivElement>(null);
+    const [composer, setComposer] = useState<HTMLDivElement | null>(null);
+    useLaneSwipe(feedRef, log);
+    useComposerVisibility(composer, tabsHeight);
 
     useEffect(() => {
         const tabs = tabsRef.current;
@@ -67,7 +62,6 @@ export default function Show({
         return () => observer.disconnect();
     }, []);
 
-    useEffect(() => writeStorage(markerKey, markerId), [markerKey, markerId]);
     const firstSeenId = useLastVisit(viewerId, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
@@ -94,33 +88,6 @@ export default function Show({
             }),
         [stopPolling],
     );
-
-    const showNewCommits = () =>
-        isRanked ? prependNewCommits() : reloadNewestFirst();
-
-    const prependNewCommits = () =>
-        router.reload({
-            only: ['latestCommits'],
-            data: { since: newestId },
-            preserveUrl: true,
-            onSuccess: (page) => {
-                const next =
-                    newestOf(
-                        (page.props.latestCommits as Commit[]).filter(
-                            (commit) => commit.user_id !== user?.id,
-                        ),
-                    )?.id ?? markerId;
-
-                setMarkerId(next);
-                router.replaceProp('newCommitsCount', 0);
-                router.reload({
-                    only: ['newCommitsCount'],
-                    data: { since: next },
-                    preserveUrl: true,
-                });
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            },
-        });
 
     const reloadNewestFirst = () =>
         router.reload({
@@ -164,17 +131,21 @@ export default function Show({
                 />
             </div>
 
-            {user !== null && <CommitComposer />}
+            {user !== null && (
+                <div ref={setComposer}>
+                    <CommitComposer key={commitDialogClosedCount} />
+                </div>
+            )}
 
             {newCommitsCount > 0 && (
                 <div
-                    className="sticky z-10 flex justify-center border-b bg-card py-3"
+                    className="pointer-events-none sticky z-10 flex h-0 items-start justify-center"
                     style={{ top: tabsHeight }}
                 >
                     <button
                         type="button"
-                        onClick={showNewCommits}
-                        className="flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                        onClick={reloadNewestFirst}
+                        className="pointer-events-auto mt-3 flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                     >
                         <ArrowUp className="size-4" />
                         {newCommitsCount}{' '}
@@ -183,12 +154,13 @@ export default function Show({
                 </div>
             )}
 
-            <div className="[view-transition-class:tab-content] [view-transition-name:log-feed]">
+            <div
+                ref={feedRef}
+                className="[view-transition-class:tab-content] [view-transition-name:log-feed]"
+            >
                 <CommitFeed
                     commits={commits}
-                    firstLane="var(--rail)"
                     firstSeenId={firstSeenId}
-                    latestCommits={latestCommits}
                     isRanked={isRanked}
                     end="That's the root commit. There's nothing before it."
                     interlude={(lane, isDimmed) => (
@@ -238,21 +210,6 @@ const titles: Record<Log, string> = {
     trending: 'Trending',
 };
 
-/**
- * Commits fetched earlier are older than the ones fetched last, so the newest of all is where the next fetch starts.
- */
-function newestOf(commits: Commit[]): Commit | undefined {
-    return commits.reduce<Commit | undefined>(
-        (newest, commit) =>
-            newest === undefined ||
-            commit.created_at > newest.created_at ||
-            (commit.created_at === newest.created_at && commit.id > newest.id)
-                ? commit
-                : newest,
-        undefined,
-    );
-}
-
 function Suggestions({ suggestions }: { suggestions: Commit[] }) {
     return (
         <>
@@ -274,19 +231,18 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
-                                <LinkifiedText text={emojify(commit.body)} />
+                                <LinkifiedText
+                                    text={emojify(commit.body)}
+                                    mentions={commit.mentions}
+                                />
                             </p>
                         </div>
-                        <Button size="sm" asChild>
-                            <Link
-                                href={UserFollowController.store(commit.user)}
-                                as="button"
-                                preserveScroll
-                                aria-label={`Follow @${commit.user.username}`}
-                            >
-                                Follow
-                            </Link>
-                        </Button>
+                        <FollowButton
+                            user={commit.user}
+                            isFollowing={false}
+                            size="sm"
+                            className="min-w-24 shrink-0"
+                        />
                     </li>
                 ))}
             </ul>

@@ -31,7 +31,11 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <env name="SIGNUP_MIN_ACCOUNT_AGE_DAYS" value="0"/>
+        <env name="SIGNUP_REQUIRE_VERIFIED_EMAIL" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="OPENAI_API_KEY" value=""/>
+        <env name="FATHOM_API_TOKEN" value=""/>
     </php>
 </phpunit>

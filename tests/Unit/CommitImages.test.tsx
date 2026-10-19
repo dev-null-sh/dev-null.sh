@@ -1,8 +1,12 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { ReactElement, SyntheticEvent } from 'react';
-import { CommitImages } from '../../resources/js/components/commit-images';
+import { renderToStaticMarkup } from 'react-dom/server';
+import {
+    CommitImages,
+    replaceFailedImage,
+} from '../../resources/js/components/commit-images';
+import { scrambleHash } from '../../resources/js/hooks/use-scrambled-hash';
 import type { Commit } from '../../resources/js/types/commit';
 
 const commit: Commit = {
@@ -12,6 +16,7 @@ const commit: Commit = {
     hot_score: 41484.833333,
     quoted_commit_id: null,
     body: 'Photo from the build',
+    mentions: {},
     body_segments: [],
     preview_segments: null,
     status: 'approved',
@@ -40,7 +45,7 @@ const commit: Commit = {
     },
     images: [
         {
-            id: 'image-1',
+            id: '9f3a6c1e-4b2d-4e8a-9c1f-2d7e5b8a0c3d',
             url: '/images/missing.webp',
             width: 100,
             height: 100,
@@ -49,18 +54,53 @@ const commit: Commit = {
     ],
 };
 
-function renderedImage() {
-    const gallery = CommitImages({ commit });
-    const link = gallery!.props.children[0];
-
-    return link.props.children as ReactElement<{
-        src: string;
-        onError: (event: SyntheticEvent<HTMLImageElement>) => void;
-    }>;
-}
-
 void test('keeps the uploaded image until it fails to load', () => {
-    assert.equal(renderedImage().props.src, '/images/missing.webp');
+    assert.ok(
+        renderToStaticMarkup(<CommitImages commit={commit} />).includes(
+            'src="/images/missing.webp"',
+        ),
+    );
+});
+
+void test('shows the short image hash instead of the alt text while the image loads', () => {
+    const markup = renderToStaticMarkup(<CommitImages commit={commit} />);
+    const placeholder = markup.match(
+        /<div aria-hidden="true" data-test="commit-image-loading".*?<\/div><\/div><\/div>/,
+    );
+
+    assert.ok(placeholder);
+    assert.equal(placeholder[0].replace(/<[^>]+>/g, ''), 'commitb8a0c3d');
+});
+
+void test('scrambles each hash differently, locking it in from left to right, then rolls again', () => {
+    const lockedAt = (frame: number) =>
+        scrambleHash('9f3a6c1', frame)
+            .filter(({ isLocked }) => isLocked)
+            .map(({ character }) => character)
+            .join('');
+
+    assert.equal(lockedAt(0), '');
+    assert.equal(lockedAt(3), '9');
+    assert.equal(lockedAt(9), '9f3');
+    assert.equal(lockedAt(21), '9f3a6c1');
+    assert.equal(lockedAt(30), '9f3a6c1');
+    assert.equal(lockedAt(31), '');
+    assert.notEqual(
+        scrambleHash('9f3a6c1', 4)
+            .slice(1)
+            .map(({ character }) => character)
+            .join(''),
+        scrambleHash('b8a0c3d', 4)
+            .slice(1)
+            .map(({ character }) => character)
+            .join(''),
+    );
+    assert.equal(
+        scrambleHash('9f3a6c1', null)
+            .map(({ character }) => character)
+            .join(''),
+        '9f3a6c1',
+    );
 });
 
 void test('replaces a failed image with the site logo without retrying the fallback', () => {
@@ -72,22 +112,15 @@ void test('replaces a failed image with the site logo without retrying the fallb
             source = value;
             replacements++;
         },
-        classList: {
-            replace: (from: string, to: string) => {
-                assert.equal(from, 'object-cover');
-                assert.equal(to, 'object-contain');
-            },
-        },
+        dataset: {} as DOMStringMap,
     };
-    const event = {
-        currentTarget: target,
-    } as unknown as SyntheticEvent<HTMLImageElement>;
-    const { onError } = renderedImage().props;
+    const image = target as unknown as HTMLImageElement;
 
-    onError(event);
+    replaceFailedImage(image);
     assert.equal(source, '/favicon.svg');
+    assert.equal(image.dataset.fallback, '');
 
-    onError(event);
+    replaceFailedImage(image);
     assert.equal(replacements, 1);
 });
 

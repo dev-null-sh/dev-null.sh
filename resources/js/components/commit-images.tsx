@@ -1,3 +1,6 @@
+import type { MouseEvent } from 'react';
+import { useState } from 'react';
+import { useScrambledHash } from '@/hooks/use-scrambled-hash';
 import { commitPhotoUrl, openCommitPhoto } from '@/lib/commit-photo';
 import { cn } from '@/lib/utils';
 import type { Commit, CommitImage } from '@/types';
@@ -16,16 +19,103 @@ export function commitImageAlt(
         : 'Attached image';
 }
 
-type ShownImage = Pick<CommitImage, 'id' | 'url' | 'description'> &
+export type ShownImage = Pick<CommitImage, 'id' | 'url' | 'description'> &
     Partial<Pick<CommitImage, 'width' | 'height'>>;
 
+export function replaceFailedImage(image: HTMLImageElement): void {
+    if (image.getAttribute('src') !== '/favicon.svg') {
+        image.src = '/favicon.svg';
+        image.dataset.fallback = '';
+    }
+}
+
+function CommitImageLoading({ hash }: { hash: string }) {
+    const characters = useScrambledHash(hash);
+
+    return (
+        <div
+            aria-hidden="true"
+            data-test="commit-image-loading"
+            className="absolute inset-0 grid animate-in place-items-center font-mono delay-300 duration-300 fill-mode-both fade-in"
+        >
+            <div className="text-center">
+                <div className="text-[0.625rem] tracking-wide text-muted-foreground/60">
+                    commit
+                </div>
+                <div className="text-lg tracking-wider text-muted-foreground">
+                    {characters.map(({ character, isLocked }, index) => (
+                        <span
+                            key={index}
+                            className={cn(isLocked && 'text-primary')}
+                        >
+                            {character}
+                        </span>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function CommitImageThumbnail({
+    image,
+    alt,
+    className,
+}: {
+    image: ShownImage;
+    alt: string;
+    className: string;
+}) {
+    const [isLoaded, setIsLoaded] = useState(false);
+
+    return (
+        <>
+            {!isLoaded && (
+                <CommitImageLoading
+                    hash={image.id.replace(/[^0-9a-f]/g, '').slice(-7)}
+                />
+            )}
+            <img
+                ref={(element) => {
+                    if (element?.complete && element.naturalWidth > 0) {
+                        setIsLoaded(true);
+                    }
+                }}
+                src={image.url}
+                alt={alt}
+                width={image.width}
+                height={image.height}
+                loading="lazy"
+                onLoad={() => setIsLoaded(true)}
+                onError={(event) => replaceFailedImage(event.currentTarget)}
+                className={cn(
+                    className,
+                    'transition-opacity duration-300',
+                    !isLoaded && 'opacity-0',
+                )}
+            />
+        </>
+    );
+}
+
+/**
+ * A commit's images open in its photo viewer. Other images, like a message's, open wherever `onOpen` shows them.
+ */
 type CommitImagesProps =
-    | { commit: Commit; images?: never }
-    | { commit?: never; images: ShownImage[] };
+    | { commit: Commit; images?: never; onOpen?: never }
+    | {
+          commit?: never;
+          images: ShownImage[];
+          onOpen?: (index: number) => void;
+      };
+
+const isModifiedClick = (event: MouseEvent): boolean =>
+    event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
 
 export function CommitImages({
     commit,
     images: draftImages,
+    onOpen,
 }: CommitImagesProps) {
     const images = commit ? (commit.images ?? []) : draftImages;
 
@@ -46,29 +136,16 @@ export function CommitImages({
             data-test="commit-images"
         >
             {images.map((image, index) => {
-                const className = cn('block min-h-0 bg-muted', {
+                const className = cn('relative block min-h-0 bg-muted', {
                     'row-span-2': images.length === 3 && index === 0,
                 });
                 const thumbnail = (
-                    <img
-                        src={image.url}
+                    <CommitImageThumbnail
+                        image={image}
                         alt={commitImageAlt(image, index, images.length)}
-                        width={image.width}
-                        height={image.height}
-                        loading="lazy"
-                        onError={(event) => {
-                            const image = event.currentTarget;
-                            if (image.getAttribute('src') !== '/favicon.svg') {
-                                image.src = '/favicon.svg';
-                                image.classList.replace(
-                                    'object-cover',
-                                    'object-contain',
-                                );
-                            }
-                        }}
                         className={cn(
-                            'w-full object-cover',
-                            hasMultipleImages ? 'h-full' : 'max-h-[32rem]',
+                            'w-full object-cover data-fallback:object-contain',
+                            hasMultipleImages ? 'h-full' : 'max-h-128',
                         )}
                     />
                 );
@@ -80,17 +157,30 @@ export function CommitImages({
                         onClick={(event) => {
                             event.stopPropagation();
 
-                            if (
-                                event.metaKey ||
-                                event.ctrlKey ||
-                                event.shiftKey ||
-                                event.altKey
-                            ) {
+                            if (isModifiedClick(event)) {
                                 return;
                             }
 
                             event.preventDefault();
                             openCommitPhoto(commit, index);
+                        }}
+                        className={className}
+                    >
+                        {thumbnail}
+                    </a>
+                ) : onOpen ? (
+                    <a
+                        key={image.id}
+                        href={image.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(event) => {
+                            if (isModifiedClick(event)) {
+                                return;
+                            }
+
+                            event.preventDefault();
+                            onOpen(index);
                         }}
                         className={className}
                     >

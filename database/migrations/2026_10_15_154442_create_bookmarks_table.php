@@ -21,9 +21,4 @@ return new class extends Migration
             $table->index('commit_id');
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists('bookmarks');
-    }
 };

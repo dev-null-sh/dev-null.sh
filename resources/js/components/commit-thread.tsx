@@ -2,6 +2,7 @@ import { Link, router, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
     CornerDownRight,
+    ListTree,
     MessageSquareReply,
     Trash2,
 } from 'lucide-react';
@@ -9,11 +10,13 @@ import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
+import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
-import { BookmarkButton } from '@/components/bookmark-button';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
+    ImageDropOverlay,
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
@@ -21,15 +24,14 @@ import {
 import { CommitImages } from '@/components/commit-images';
 import { CommitImpressionCount } from '@/components/commit-impression-count';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
-import { CommitReportButton } from '@/components/commit-report-button';
+import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
+import { CommitStatusBadge } from '@/components/commit-status-badge';
 import {
     ComposerPreviewBody,
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
-import { CopyLinkButton } from '@/components/copy-link-button';
-import { EmojiSuggestionHint } from '@/components/emoji-suggestion';
 import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -37,7 +39,13 @@ import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
+import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useCommitImpression } from '@/hooks/use-commit-impression';
@@ -52,7 +60,6 @@ import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
-import { completeEmoji, suggestEmoji } from '@/lib/emoji';
 import { hasModKey } from '@/lib/keyboard';
 import {
     characterCount,
@@ -133,10 +140,16 @@ async function fetchReplies(
     cursor: string | null,
     newest = false,
     limit = 50,
+    except?: string,
 ): Promise<CursorPaginated<ThreadCommit>> {
     const response = await fetch(
         CommitReplyController.index(commit, {
-            query: { cursor, newest: newest ? 1 : 0, limit },
+            query: {
+                cursor,
+                newest: newest ? 1 : 0,
+                limit,
+                ...(except ? { except } : {}),
+            },
         }).url,
         {
             headers: {
@@ -157,13 +170,20 @@ async function fetchRepliesUntil(
     commit: ThreadCommit,
     minimum: number,
     newest = false,
+    except?: string,
 ): Promise<CursorPaginated<ThreadCommit>> {
-    const page = await fetchReplies(commit, null, newest, newest ? 1 : 50);
+    const page = await fetchReplies(
+        commit,
+        null,
+        newest,
+        newest ? 1 : 50,
+        except,
+    );
     let data = page.data;
     let cursor = page.next_cursor;
 
     while (cursor !== null && data.length < minimum) {
-        const next = await fetchReplies(commit, cursor, newest);
+        const next = await fetchReplies(commit, cursor, newest, 50, except);
         data = [...data, ...next.data];
         cursor = next.next_cursor;
     }
@@ -175,8 +195,12 @@ export function useThread(
     commit: ThreadCommit,
     initialReplies?: CursorPaginated<ThreadCommit>,
     loadsReplies = false,
+    exceptReplyId?: string,
 ): Thread {
     const preview = !isDeleted(commit) ? commit.reply_preview : undefined;
+    const except =
+        exceptReplyId ??
+        (isDeleted(commit) ? undefined : (commit.continuation_id ?? undefined));
     const isPreview = preview !== undefined;
     const initial = preview ?? initialReplies;
     const [replies, setReplies] = useState<ThreadCommit[] | null>(
@@ -229,7 +253,7 @@ export function useThread(
 
         setIsLoading(true);
 
-        fetchRepliesUntil(commit, minimum, isPreview)
+        fetchRepliesUntil(commit, minimum, isPreview, except)
             .then((page) => applyPage(page.data, page.next_cursor))
             .catch(() => undefined)
             .finally(() => setIsLoading(false));
@@ -244,7 +268,13 @@ export function useThread(
 
         let isCurrent = true;
 
-        fetchReplies({ id: commitId }, null, isPreview, isPreview ? 1 : 50)
+        fetchReplies(
+            { id: commitId },
+            null,
+            isPreview,
+            isPreview ? 1 : 50,
+            except,
+        )
             .then((page) => {
                 if (isCurrent) {
                     setReplies(page.data);
@@ -256,7 +286,21 @@ export function useThread(
         return () => {
             isCurrent = false;
         };
-    }, [commitId, shouldLoadReplies, isPreview]);
+    }, [commitId, shouldLoadReplies, isPreview, except]);
+
+    const onExceptChanged = useEffectEvent(() => {
+        if (replies !== null && !shouldLoadReplies) {
+            reload();
+        }
+    });
+
+    const loadedExcept = useRef(except);
+    useEffect(() => {
+        if (loadedExcept.current !== except) {
+            loadedExcept.current = except;
+            onExceptChanged();
+        }
+    }, [except]);
 
     const onRestored = useEffectEvent((restored: Commit) => {
         changedThreadIds.add(commit.id);
@@ -310,7 +354,7 @@ export function useThread(
 
             setIsLoading(true);
 
-            fetchReplies(commit, nextCursor, isPreview)
+            fetchReplies(commit, nextCursor, isPreview, 50, except)
                 .then((page) =>
                     applyPage([...replies, ...page.data], page.next_cursor),
                 )
@@ -334,6 +378,24 @@ export function useThread(
     };
 }
 
+export function ShowThreadLink({ commit }: { commit: Commit }) {
+    if (!commit.continuation_id) {
+        return null;
+    }
+
+    return (
+        <Link
+            href={CommitController.show({ user: commit.user, commit })}
+            className="mt-2 -ml-2 flex w-fit items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            aria-label={`Show thread by @${commit.user.username}`}
+            data-test="show-thread-link"
+        >
+            <ListTree className="size-4" aria-hidden />
+            Show thread
+        </Link>
+    );
+}
+
 export function ThreadActions({
     thread,
     actions,
@@ -346,96 +408,96 @@ export function ThreadActions({
     const { auth } = usePage().props;
     const { commit } = thread;
     const hasStash = useHasStash(auth.user?.id ?? null, `reply-${commit.id}`);
+    const hasReplyShortcut = hasKeyboardShortcuts && !thread.isReplying;
 
     return (
         <>
-            <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px]">
-                <div className="flex flex-wrap items-center gap-0.5">
+            <div className="mt-1 -ml-2 flex flex-wrap items-center gap-0.5 text-[13px]">
+                <div className="flex flex-wrap items-center gap-0.5 max-md:contents">
                     {actions}
 
                     {!isDeleted(commit) && (
-                        <button
-                            type="button"
-                            onClick={
-                                auth.user === null
-                                    ? signIn
-                                    : thread.isReplying
-                                      ? thread.cancelReply
-                                      : thread.startReply
-                            }
-                            aria-expanded={thread.isReplying}
-                            aria-keyshortcuts={
-                                hasKeyboardShortcuts && !thread.isReplying
-                                    ? 'r'
-                                    : undefined
-                            }
-                            title={
-                                hasKeyboardShortcuts ? 'Reply (r)' : undefined
-                            }
-                            className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                            data-test="reply-button"
+                        <ActionTooltip
+                            label="Reply"
+                            shortcut={hasReplyShortcut ? 'r' : undefined}
                         >
-                            <MessageSquareReply className="size-4" />
-                            Reply
-                            {hasStash && !thread.isReplying && (
-                                <span
-                                    title="You have an unsent reply here"
-                                    className="font-mono text-[11px] opacity-70"
-                                    data-test="reply-stash-hint"
-                                >
-                                    {'stash@{0}'}
-                                </span>
-                            )}
-                        </button>
+                            <button
+                                type="button"
+                                onClick={
+                                    auth.user === null
+                                        ? signIn
+                                        : thread.isReplying
+                                          ? thread.cancelReply
+                                          : thread.startReply
+                                }
+                                aria-expanded={thread.isReplying}
+                                aria-keyshortcuts={
+                                    hasReplyShortcut ? 'r' : undefined
+                                }
+                                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                data-test="reply-button"
+                            >
+                                <MessageSquareReply className="size-4" />
+                                Reply
+                                {hasStash && !thread.isReplying && (
+                                    <span
+                                        title="You have an unsent reply here"
+                                        className="font-mono text-[11px] opacity-70"
+                                        data-test="reply-stash-hint"
+                                    >
+                                        {'stash@{0}'}
+                                    </span>
+                                )}
+                            </button>
+                        </ActionTooltip>
                     )}
 
                     {thread.count > 0 && !thread.isPreview && (
-                        <button
-                            type="button"
-                            onClick={thread.toggle}
-                            aria-expanded={thread.isOpen}
-                            aria-keyshortcuts={
-                                hasKeyboardShortcuts ? 'o' : undefined
+                        <ActionTooltip
+                            label={
+                                thread.isOpen ? 'Hide replies' : 'Show replies'
                             }
-                            title={
-                                hasKeyboardShortcuts
-                                    ? `${thread.isOpen ? 'Hide' : 'Show'} replies (o)`
-                                    : undefined
-                            }
-                            className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
-                            data-test="toggle-replies-button"
+                            shortcut={hasKeyboardShortcuts ? 'o' : undefined}
                         >
-                            <ChevronDown
-                                className={cn('size-4 transition-transform', {
-                                    '-rotate-90': !thread.isOpen,
-                                })}
-                            />
-                            {thread.isOpen
-                                ? 'Hide replies'
-                                : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
-                        </button>
+                            <button
+                                type="button"
+                                onClick={thread.toggle}
+                                aria-expanded={thread.isOpen}
+                                aria-keyshortcuts={
+                                    hasKeyboardShortcuts ? 'o' : undefined
+                                }
+                                className="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium text-primary transition-colors hover:bg-primary-soft"
+                                data-test="toggle-replies-button"
+                            >
+                                <ChevronDown
+                                    className={cn(
+                                        'size-4 transition-transform',
+                                        {
+                                            '-rotate-90': !thread.isOpen,
+                                        },
+                                    )}
+                                />
+                                {thread.isOpen
+                                    ? 'Hide replies'
+                                    : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
+                            </button>
+                        </ActionTooltip>
                     )}
                 </div>
 
-                <div className="ml-auto flex items-center gap-0.5">
-                    {!isDeleted(commit) && commit.status === 'approved' && (
-                        <CommitImpressionCount
-                            count={commit.impressions_count}
-                        />
-                    )}
-                    {!isDeleted(commit) && commit.is_saved !== undefined && (
-                        <BookmarkButton commit={commit} />
-                    )}
-                    {!isDeleted(commit) && (
-                        <CopyLinkButton
+                {!isDeleted(commit) && (
+                    <div className="ml-auto flex items-center gap-0.5">
+                        {commit.status === 'approved' && (
+                            <CommitImpressionCount
+                                count={commit.impressions_count}
+                            />
+                        )}
+                        <CommitSecondaryActions
                             commit={commit}
                             keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
                         />
-                    )}
-                    {!isDeleted(commit) && (
-                        <CommitReportButton commit={commit} />
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
             {thread.isReplying && !isDeleted(commit) && (
@@ -755,6 +817,11 @@ function CommitReply({
             component !== 'moderation/show',
     });
     const isFlattened = depth > maxIndentDepth;
+    const isQuote = reply.quoted_commit_id === parent.id;
+    const permalink = CommitController.show({
+        user: reply.user,
+        commit: reply,
+    });
 
     const deleteReply = async () => {
         try {
@@ -790,7 +857,12 @@ function CommitReply({
                         >
                             <UserAvatar
                                 user={reply.user}
-                                className="size-6 sm:size-7"
+                                className="size-6 ring-2 ring-(--lane) ring-offset-2 ring-offset-card sm:size-7"
+                                style={
+                                    {
+                                        '--lane': laneOf(reply),
+                                    } as CSSProperties
+                                }
                             />
                         </Link>
                     </UserPreview>
@@ -823,47 +895,46 @@ function CommitReply({
                                 @{reply.user.username}
                             </Link>
                         </UserPreview>
+                        {isQuote && (
+                            <Link
+                                href={permalink}
+                                className="shrink-0 font-mono text-xs text-primary hover:underline"
+                                data-test="quote-reply-label"
+                            >
+                                quoted
+                            </Link>
+                        )}
                         <span aria-hidden className="text-muted-foreground">
                             ·
                         </span>
-                        <Link
-                            href={CommitController.show({
-                                user: reply.user,
-                                commit: reply,
-                            })}
-                            className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
+                        <TimestampTooltip
+                            date={reply.created_at}
+                            author={reply.user}
                         >
-                            <time
-                                dateTime={reply.created_at}
-                                title={new Date(
-                                    reply.created_at,
-                                ).toLocaleString()}
+                            <Link
+                                href={permalink}
+                                className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
                             >
-                                {formatRelativeTime(reply.created_at, now)}
-                            </time>
-                        </Link>
-                        {reply.status !== 'approved' && (
-                            <span
-                                className={cn(
-                                    'shrink-0 self-center rounded-full px-1.5 font-mono text-[11px]',
-                                    reply.status === 'pending'
-                                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                                        : 'bg-destructive/10 text-destructive',
-                                )}
-                            >
-                                {reply.status}
-                            </span>
-                        )}
+                                <time dateTime={reply.created_at}>
+                                    {formatRelativeTime(reply.created_at, now)}
+                                </time>
+                            </Link>
+                        </TimestampTooltip>
+                        <CommitStatusBadge commit={reply} size="small" />
                         {isOwn && (
-                            <button
-                                type="button"
-                                onClick={() => setIsConfirming(true)}
-                                aria-label="Delete reply"
-                                title="Delete reply"
-                                className="-my-1 ml-auto shrink-0 self-center rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:reply-hover:opacity-100 [@media(hover:none)]:opacity-100"
-                            >
-                                <Trash2 className="size-3.5" />
-                            </button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsConfirming(true)}
+                                        aria-label="Delete reply"
+                                        className="-my-1 ml-auto shrink-0 self-center rounded-md p-1 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:opacity-0 sm:reply-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                                    >
+                                        <Trash2 className="size-3.5" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Delete reply</TooltipContent>
+                            </Tooltip>
                         )}
                     </div>
 
@@ -871,22 +942,30 @@ function CommitReply({
                         <p className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
                             <CornerDownRight className="size-3 shrink-0" />
                             <span className="truncate">
+                                {isQuote ? 'quoting' : 'replying to'}{' '}
                                 {isDeleted(parent)
-                                    ? 'replying to [deleted]'
-                                    : `replying to @${parent.user.username}`}
+                                    ? '[deleted]'
+                                    : `@${parent.user.username}`}
                             </span>
                         </p>
                     )}
 
                     <FoldedCommitBody
                         segments={reply.body_segments}
+                        mentions={reply.mentions}
                         previewSegments={reply.preview_segments}
                         className="text-[15px]"
                     />
                     <CommitImages commit={reply} />
                     {reply.link_preview && (
-                        <LinkPreview preview={reply.link_preview} />
+                        <LinkPreview
+                            refreshUrl={CommitLinkPreviewController.show.url(
+                                reply.id,
+                            )}
+                            preview={reply.link_preview}
+                        />
                     )}
+                    <ShowThreadLink commit={reply} />
 
                     {isConfirming ? (
                         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-destructive/8 px-3 py-1.5 text-sm">
@@ -972,8 +1051,8 @@ function ReplyComposer({
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
-    const isReplyable = characterCount(body.trim()) >= minBodyLength;
-    const suggestion = suggestEmoji(body);
+    const isReplyable =
+        images.length > 0 || characterCount(body.trim()) >= minBodyLength;
     const preview = useComposerPreview({
         body,
         textareaRef,
@@ -994,17 +1073,6 @@ function ReplyComposer({
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (preview.handleShortcut(event)) {
-            return;
-        }
-
-        if (event.key === 'Tab' && suggestion !== null) {
-            const completed = completeEmoji(body);
-
-            if (completed !== null) {
-                event.preventDefault();
-                updateBody(completed);
-            }
-
             return;
         }
 
@@ -1068,9 +1136,13 @@ function ReplyComposer({
     return (
         <form
             onSubmit={submit}
-            className="mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
+            {...attachments.dropzone}
+            className="relative mt-2 rounded-lg border bg-background p-2.5 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
             data-test="reply-composer"
         >
+            {attachments.isDraggingFiles && (
+                <ImageDropOverlay className="-inset-px" />
+            )}
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
                 Reply to @{parent.user.username}
             </label>
@@ -1085,8 +1157,6 @@ function ReplyComposer({
                     onValueChange={updateBody}
                     onKeyDown={onKeyDown}
                     onPaste={attachments.onPaste}
-                    onDragOver={attachments.onDragOver}
-                    onDrop={attachments.onDrop}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
                     maxLength={maxBodyLength}
                     placeholder={`Reply to @${parent.user.username}`}
@@ -1105,12 +1175,6 @@ function ReplyComposer({
                     />
                 )}
             </div>
-            {!preview.isPreviewing && (
-                <EmojiSuggestionHint
-                    suggestion={suggestion}
-                    className="mt-1 px-1"
-                />
-            )}
             <InputError
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
@@ -1178,7 +1242,7 @@ function ReplyComposer({
                     type="submit"
                     size="sm"
                     disabled={processing || !isReplyable}
-                    className="min-w-[4.75rem]"
+                    className="min-w-19"
                     data-test="submit-reply-button"
                 >
                     {processing ? 'Replying…' : 'Reply'}

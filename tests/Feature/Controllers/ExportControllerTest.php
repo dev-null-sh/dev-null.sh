@@ -7,6 +7,7 @@ use App\Enums\NotificationType;
 use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Device;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\PollVote;
@@ -48,6 +49,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'company' => null,
         'has_sponsors_listing' => true,
         'preferred_lane' => 3,
+        'timezone' => 'Europe/Budapest',
+        'lane_color' => '#1a2b3c',
         'pasteis_mode' => true,
         'pasteis_received' => 17,
         'pasteis_given_today' => 6,
@@ -83,10 +86,15 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'company' => null,
             'has_sponsors_listing' => true,
             'preferred_lane' => 3,
+            'timezone' => 'Europe/Budapest',
+            'lane_color' => '#1a2b3c',
             'pasteis_mode' => true,
             'pasteis_received' => 17,
             'pasteis_given_today' => 6,
             'pasteis_given_on' => '2026-10-15',
+            'remotes_enabled' => true,
+            'remotes_from' => 'following',
+            'pull_receipts' => true,
             'pinned_commit_id' => null,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
@@ -100,8 +108,10 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'followers' => [],
         'muting' => [],
         'blocking' => [],
+        'messages' => [],
         'notifications' => [],
         'ssh_keys' => [],
+        'devices' => [],
         'sessions' => [],
     ]);
     expect($response->streamedContent())->not->toContain('never-export-this-token')
@@ -341,6 +351,22 @@ it('exports ssh key fingerprints and sessions without session ids or payloads', 
         );
 });
 
+it('exports the devices approved for the app, oldest first', function (): void {
+    $user = User::factory()->create();
+    $older = Device::factory()->for($user)->create(['name' => 'devnull on iPad', 'approved_at' => now()->subWeek(), 'last_used_at' => now()->subDay()]);
+    $newer = Device::factory()->for($user)->create(['name' => 'devnull on iPhone', 'approved_at' => now()->subDay()]);
+    $other = Device::factory()->create();
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['devices'])->toBe([
+        ['name' => 'devnull on iPad', 'fingerprint' => $older->fingerprint, 'approved_at' => now()->subWeek()->toIso8601String(), 'last_used_at' => now()->subDay()->toIso8601String()],
+        ['name' => 'devnull on iPhone', 'fingerprint' => $newer->fingerprint, 'approved_at' => now()->subDay()->toIso8601String(), 'last_used_at' => null],
+    ])
+        ->and($response->streamedContent())->not->toContain($other->fingerprint);
+});
+
 it('exports all records across chunk boundaries without omissions or duplicates', function (): void {
     $user = User::factory()->create();
     $commits = Commit::factory()->for($user)->count(501)->create();
@@ -390,4 +416,18 @@ it('also limits exports to five a minute per user independently of the hourly bu
     $this->travel(1)->minute();
 
     $this->actingAs($user)->get(route('export'))->assertOk();
+});
+
+it('exports the messages the user sent, and not the ones they received', function (): void {
+    $user = User::factory()->create();
+    $partner = User::factory()->create(['username' => 'nunomaduro']);
+    $partner->following()->attach($user);
+    sendChatMessage($user, $partner, 'merged it this morning');
+    sendChatMessage($partner, $user, 'ship it');
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['messages'])->toBe([
+        ['to' => 'nunomaduro', 'body' => 'merged it this morning', 'created_at' => now()->toIso8601String()],
+    ]);
 });

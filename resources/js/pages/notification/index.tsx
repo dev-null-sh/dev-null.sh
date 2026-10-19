@@ -11,7 +11,7 @@ import {
     UserPlus,
     X,
 } from 'lucide-react';
-import type { MouseEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
     Fragment,
     useEffect,
@@ -35,6 +35,7 @@ import AppLayout from '@/layouts/app-layout';
 import {
     cn,
     formatDayLabel,
+    formatFullDateTime,
     formatRelativeTime,
     laneColor,
     localDayKey,
@@ -42,16 +43,7 @@ import {
 import { show } from '@/routes/user';
 import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
 
-type Filters = {
-    type:
-        | 'all'
-        | 'replies'
-        | 'quotes'
-        | 'stars'
-        | 'mentions'
-        | 'follows'
-        | 'moderation';
-};
+type Filters = { type: string };
 
 const filterOptions: {
     type: Filters['type'];
@@ -141,7 +133,6 @@ export default function Index({
 }) {
     const now = useNow();
     const pollRequest = useRef<CancelToken | null>(null);
-    const filterNav = useRef<HTMLElement>(null);
     const header = useRef<HTMLDivElement>(null);
     const pollAnchor = useRef<PollAnchor | null>(null);
     const [arrivals, setArrivals] = useState(0);
@@ -172,45 +163,45 @@ export default function Index({
         { mode: 'rest', background: 'pause' },
     );
     const filterVisit = useRef(0);
-    const filterLink = (type: Filters['type']) => {
-        const href = index({ query: type === 'all' ? {} : { type } });
-
-        return {
-            href: href.url,
-            onClick: (event: MouseEvent<HTMLAnchorElement>) => {
-                if (
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey ||
-                    event.button !== 0
-                ) {
-                    return;
+    const selected = filterOptions
+        .filter((option) => option.type !== 'all')
+        .filter(
+            (option) =>
+                filters.type === 'all' ||
+                filters.type.split(',').includes(option.type),
+        )
+        .map((option) => option.type);
+    const [pendingTypes, setPendingTypes] = useState<string[] | null>(null);
+    const enabled = pendingTypes ?? selected;
+    const changeFilters = (types: string[]) => {
+        const type =
+            types.length === filterOptions.length - 1
+                ? 'all'
+                : types.join(',') || 'none';
+        const visit = ++filterVisit.current;
+        setPendingTypes(types);
+        stop();
+        pollRequest.current?.cancel();
+        pollAnchor.current = null;
+        setArrivals(0);
+        router.visit(index({ query: { type } }), {
+            only: ['notifications', 'filters', 'auth'],
+            reset: ['notifications'],
+            preserveState: true,
+            preserveScroll: true,
+            onFinish: () => {
+                if (visit === filterVisit.current) {
+                    setPendingTypes(null);
+                    start();
                 }
-
-                event.preventDefault();
-                const visit = ++filterVisit.current;
-                stop();
-                pollRequest.current?.cancel();
-                pollAnchor.current = null;
-                setArrivals(0);
-                router.visit(href, {
-                    only: ['notifications', 'filters', 'auth'],
-                    reset: ['notifications'],
-                    preserveState: true,
-                    viewTransition: true,
-                    onFinish: () => {
-                        if (visit === filterVisit.current) {
-                            start();
-                        }
-                    },
-                });
             },
-        };
+        });
     };
+    const allEnabled = selected.length === filterOptions.length - 1;
     const active =
-        filterOptions.find((option) => option.type === filters.type) ??
-        filterOptions[0];
+        selected.length === 1
+            ? filterOptions.find((option) => option.type === selected[0])!
+            : filterOptions[0];
 
     useLayoutEffect(() => {
         const anchor = pollAnchor.current;
@@ -251,16 +242,6 @@ export default function Index({
         return () => window.removeEventListener('scroll', clearAtTop);
     }, [arrivals]);
 
-    useEffect(() => {
-        const nav = filterNav.current;
-        const tab = nav?.querySelector<HTMLElement>('[aria-current="page"]');
-
-        if (nav && tab) {
-            nav.scrollLeft =
-                tab.offsetLeft - (nav.clientWidth - tab.offsetWidth) / 2;
-        }
-    }, [filters.type]);
-
     return (
         <>
             <Head title="Notifications" />
@@ -268,41 +249,43 @@ export default function Index({
                 <div className="flex h-14 items-center px-4 sm:px-6">
                     <h1 className="font-semibold">Notifications</h1>
                 </div>
-                <nav
-                    ref={filterNav}
+                <div
+                    role="group"
                     aria-label="Filter notifications"
-                    className="flex [scrollbar-width:none] overflow-x-auto px-1 sm:px-3"
+                    className="flex flex-wrap gap-2 px-4 pb-3 sm:px-6"
                 >
-                    {filterOptions.map((option) => {
-                        const isActive = option.type === active.type;
+                    {filterOptions
+                        .filter((option) => option.type !== 'all')
+                        .map((option) => {
+                            const isActive = enabled.includes(option.type);
 
-                        return (
-                            <a
-                                key={option.type}
-                                {...filterLink(option.type)}
-                                aria-current={isActive ? 'page' : undefined}
-                                className={cn(
-                                    'shrink-0 px-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-offset-[-2px]',
-                                    { 'text-foreground': isActive },
-                                )}
-                            >
-                                <span className="relative block py-3">
-                                    {option.label}
-                                    {isActive && (
-                                        <span
-                                            aria-hidden
-                                            className="absolute inset-x-0 bottom-0 h-[3px] bg-primary [view-transition-class:tab-indicator]"
-                                            style={{
-                                                viewTransitionName:
-                                                    'tab-indicator-notifications',
-                                            }}
-                                        />
+                            return (
+                                <button
+                                    key={option.type}
+                                    type="button"
+                                    aria-pressed={isActive}
+                                    onClick={() =>
+                                        changeFilters(
+                                            isActive
+                                                ? enabled.filter(
+                                                      (type) =>
+                                                          type !== option.type,
+                                                  )
+                                                : [...enabled, option.type],
+                                        )
+                                    }
+                                    className={cn(
+                                        'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                                        isActive
+                                            ? 'border-primary/30 bg-primary-soft text-primary hover:bg-primary/15'
+                                            : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
                                     )}
-                                </span>
-                            </a>
-                        );
-                    })}
-                </nav>
+                                >
+                                    {option.label}
+                                </button>
+                            );
+                        })}
+                </div>
                 {arrivals > 0 && (
                     <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center pt-3">
                         <button
@@ -328,19 +311,33 @@ export default function Index({
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed
                         command={
-                            active.type === 'all'
+                            allEnabled
                                 ? '$ cat /dev/notifications'
-                                : `$ cat /dev/notifications | grep ${active.type}`
+                                : `$ cat /dev/notifications | grep -E '${selected.join('|') || '^$'}'`
                         }
                     >
-                        {active.empty}
-                        {active.type !== 'all' && (
-                            <a
-                                {...filterLink('all')}
-                                className="mt-3 block text-primary hover:underline"
+                        {selected.length === 0
+                            ? 'All categories are turned off. Enable a category to see notifications.'
+                            : allEnabled || selected.length === 1
+                              ? active.empty
+                              : 'No notifications in the selected categories yet.'}
+                        {!allEnabled && (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    changeFilters(
+                                        filterOptions
+                                            .filter(
+                                                (option) =>
+                                                    option.type !== 'all',
+                                            )
+                                            .map((option) => option.type),
+                                    )
+                                }
+                                className="mx-auto mt-3 block text-primary hover:underline"
                             >
                                 Show all notifications
-                            </a>
+                            </button>
                         )}
                     </EmptyFeed>
                 </div>
@@ -662,20 +659,15 @@ function NotificationGroupItem({
 }
 
 function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
-    const [isFollowing, setIsFollowing] = useState(actor.is_followed);
-
     return (
         <FollowButton
             user={actor}
-            isFollowing={isFollowing}
+            isFollowing={actor.is_followed}
             size="sm"
             className="min-w-24 shrink-0"
             only={['auth']}
             preserveState
-            onSuccess={() => {
-                setIsFollowing(!isFollowing);
-                router.flushAll();
-            }}
+            onSuccess={() => router.flushAll()}
         />
     );
 }
@@ -729,7 +721,8 @@ function NotificationContent({
         />
     );
     const href =
-        notification.type === 'followed'
+        notification.type === 'followed' ||
+        (!summary && notification.type === 'starred')
             ? show(actor)
             : CommitController.show({
                   user: isOwnCommit ? user : actor,
@@ -738,7 +731,7 @@ function NotificationContent({
     const time = (
         <time
             dateTime={notification.created_at}
-            title={new Date(notification.created_at).toLocaleString()}
+            title={formatFullDateTime(notification.created_at)}
             className="ml-auto min-w-[3ch] shrink-0 text-right font-mono text-[13px] text-muted-foreground"
         >
             {formatRelativeTime(notification.created_at, now)}
@@ -800,7 +793,7 @@ function NotificationContent({
                                 {actor.name}
                             </span>
                             <span
-                                className="hidden shrink-[4] truncate font-mono text-[13px] text-muted-foreground sm:inline"
+                                className="hidden shrink-4 truncate font-mono text-[13px] text-muted-foreground sm:inline"
                                 title={`@${actor.username}`}
                             >
                                 @{actor.username}

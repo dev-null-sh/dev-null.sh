@@ -8,6 +8,7 @@ use App\Http\Requests\ShowOperationsRequest;
 use App\Models\Commit;
 use App\Queries\ConnectivityQuery;
 use App\Queries\FailedJobsQuery;
+use App\Queries\FathomTrafficQuery;
 use App\Queries\GitHubRateLimitQuery;
 use App\Queries\LinkPreviewHealthQuery;
 use App\Queries\QueueBacklogQuery;
@@ -18,7 +19,7 @@ use Inertia\Response;
 final readonly class OperationsController
 {
     /**
-     * The GitHub rate limit is deferred, so a slow GitHub never holds up the page.
+     * The GitHub rate limit and Fathom traffic are deferred, so a slow third party never holds up the page.
      */
     public function show(
         ShowOperationsRequest $request,
@@ -28,6 +29,7 @@ final readonly class OperationsController
         LinkPreviewHealthQuery $linkPreviews,
         RecentVolumeQuery $volume,
         GitHubRateLimitQuery $githubRateLimit,
+        FathomTrafficQuery $traffic,
     ): Response {
         return Inertia::render('operations/show', [
             'queues' => $queues->get(...),
@@ -38,6 +40,10 @@ final readonly class OperationsController
             'volume' => $volume->get(...),
             ...$githubRateLimit->isConfigured() ? [
                 'githubRateLimit' => Inertia::defer($githubRateLimit->get(...)),
+            ] : [],
+            ...$traffic->isConfigured() ? [
+                'trafficRange' => ['from' => $request->trafficFrom()->toDateString(), 'to' => $request->trafficTo()->toDateString()],
+                'traffic' => Inertia::defer(fn (): ?array => $traffic->get($request->trafficFrom(), $request->trafficTo())),
             ] : [],
         ]);
     }

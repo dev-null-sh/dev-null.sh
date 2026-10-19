@@ -356,7 +356,7 @@ function YearGrid({
             <div
                 role="img"
                 aria-label={summary}
-                className="grid min-w-[34rem] grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5"
+                className="grid min-w-136 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5"
             >
                 <span aria-hidden />
                 <div

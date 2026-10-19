@@ -49,10 +49,6 @@ final readonly class LogController
                 ->builder($user)
                 ->cursorPaginate(20)),
             'isRanked' => $log->isRanked(),
-            'newestCommitId' => fn (): ?string => $log->isRanked() ? $latest->newestId($log, $user) : null,
-            'latestCommits' => Inertia::merge(fn (): Collection => $latest->get($log, $user, $request->since(), $request->committed()))
-                ->prepend()
-                ->matchOn('id'),
             'newCommitsCount' => Inertia::optional(function () use ($request, $user, $log, $latest): int {
                 $seen = $request->since();
 
