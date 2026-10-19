@@ -528,11 +528,17 @@ test('picking a suggestion with Enter starts an empty issue, and the shortcut op
 
     draft.body = 'Search loses its filters';
     keyDown(render(), 'Enter', { metaKey: true });
+    draft.body = `Search loses its filters${'\n'.repeat(60)}after going back`;
+    keyDown(render(), 'Enter', { metaKey: true });
+    assert.equal(http.submit.mock.calls.length, 0);
+
+    draft.body = 'Search loses its filters when going back to the results';
+    keyDown(render(), 'Enter', { metaKey: true });
     assert.equal(http.submit.mock.calls.length, 1);
     const payload = http.transform.mock.calls[0][0] as () => unknown;
     assert.deepEqual(payload(), {
         command: '/bug',
-        body: 'Search loses its filters',
+        body: 'Search loses its filters when going back to the results',
     });
 });
 

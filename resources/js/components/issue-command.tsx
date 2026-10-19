@@ -4,15 +4,17 @@ import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { store } from '@/actions/App/Http/Controllers/IssueController';
+import { normalizeBody } from '@/lib/commit';
 import type { IssueCommand, IssueKind } from '@/lib/issue-commands';
 import {
     hintedCommand,
     issueCommands,
+    minIssueBodyLength,
     suggestedCommands,
     typedCommand,
 } from '@/lib/issue-commands';
 import { hasModKey } from '@/lib/keyboard';
-import { cn } from '@/lib/utils';
+import { characterCount, cn } from '@/lib/utils';
 
 const hintDismissedKey = 'issue-command-hint-dismissed';
 
@@ -58,6 +60,8 @@ export function useIssueCommand({
             : [];
     const hint =
         enabled && kind === null && !hintDismissed ? hintedCommand(body) : null;
+    const isLongEnough =
+        characterCount(normalizeBody(body)) >= minIssueBodyLength;
 
     const start = (next: IssueKind, rest: string) => {
         setKind(next);
@@ -183,7 +187,7 @@ export function useIssueCommand({
 
         if (event.key === 'Enter' && hasModKey(event)) {
             event.preventDefault();
-            if (submittable) void submit();
+            if (submittable && isLongEnough) void submit();
             return true;
         }
 
@@ -204,6 +208,7 @@ export function useIssueCommand({
         },
         selected: selected % Math.max(suggestions.length, 1),
         processing: request.processing,
+        isLongEnough,
         change,
         focus: () => setFocused(true),
         blur: () => setFocused(false),

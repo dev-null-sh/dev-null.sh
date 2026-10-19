@@ -50,6 +50,7 @@ import {
 } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { maxBodyLength, minBodyLength } from '@/lib/commit';
+import { minIssueBodyLength } from '@/lib/issue-commands';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import {
     characterCount,
@@ -468,13 +469,19 @@ function CommitComposerBody({
                         />
                         {isIssue ? (
                             <ActionTooltip
-                                label="Open issue"
+                                label={
+                                    issue.isLongEnough
+                                        ? 'Open issue'
+                                        : `Write at least ${minIssueBodyLength} characters`
+                                }
                                 shortcut={keys.combo(keys.mod, keys.enter)}
                             >
                                 <Button
                                     type="button"
                                     disabled={
-                                        issue.processing || !isSubmittable
+                                        issue.processing ||
+                                        !isSubmittable ||
+                                        !issue.isLongEnough
                                     }
                                     onClick={() => void issue.submit()}
                                     className="min-w-30"

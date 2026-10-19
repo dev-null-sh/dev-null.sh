@@ -55,7 +55,7 @@ it('opens the issue as the app, crediting the reporter, with the label of the co
 it('asks for an installation token limited to writing issues on this repository, signed by the app', function (): void {
     fakeGitHubApp();
 
-    $this->actingAs(User::factory()->create())->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertCreated();
+    $this->actingAs(User::factory()->create())->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken: the search page loses its filters after going back.'])->assertCreated();
 
     Http::assertSent(function (Request $request): bool {
         if ($request->url() !== 'https://api.github.com/app/installations/99/access_tokens') {
@@ -74,8 +74,8 @@ it('reuses the installation token across issues', function (): void {
     fakeGitHubApp();
     $user = User::factory()->create();
 
-    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'First.'])->assertCreated();
-    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Second.'])->assertCreated();
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'First: the search page loses its filters after going back.'])->assertCreated();
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Second: the search page loses its filters after going back.'])->assertCreated();
 
     Http::assertSentCount(4);
 });
@@ -96,7 +96,7 @@ it('does not send images to GitHub', function (): void {
     fakeGitHubApp();
 
     $this->actingAs(User::factory()->create())
-        ->post(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.', 'images' => [UploadedFile::fake()->image('shot.png')]], ['Accept' => 'application/json'])
+        ->post(route('issue.store'), ['command' => '/bug', 'body' => 'Broken: the search page loses its filters after going back.', 'images' => [UploadedFile::fake()->image('shot.png')]], ['Accept' => 'application/json'])
         ->assertCreated();
 
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/issues')
@@ -110,7 +110,7 @@ it('keeps the draft when GitHub rejects the issue or does not respond', function
         'api.github.com/repos/nunomaduro/dev-null.sh/issues' => $response,
     ]);
 
-    $this->actingAs(User::factory()->create())->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])
+    $this->actingAs(User::factory()->create())->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken: the search page loses its filters after going back.'])
         ->assertStatus(502)
         ->assertJsonPath('message', fn (string $text): bool => str_contains($text, $message));
 })->with([
@@ -130,23 +130,32 @@ it('validates the command and the body', function (array $payload, string $field
     'unknown command' => [['command' => '/deploy', 'body' => 'Ship it.'], 'command'],
     'missing body' => [['command' => '/bug'], 'body'],
     'blank lines only' => [['command' => '/bug', 'body' => "a\n\n\n\n"], 'body'],
+    'body under 50 characters' => [['command' => '/bug', 'body' => str_repeat('a', 49)], 'body'],
+    'body padded with blank lines' => [['command' => '/bug', 'body' => 'Broken.'.str_repeat("\n", 60).'Really.'], 'body'],
 ]);
+
+it('opens an issue from 50 characters', function (): void {
+    fakeGitHubApp();
+
+    $this->actingAs(User::factory()->create())->postJson(route('issue.store'), ['command' => '/bug', 'body' => str_repeat('a', 50)])
+        ->assertCreated();
+});
 
 it('requires authentication and limits opened issues to five an hour', function (): void {
     fakeGitHubApp();
-    $this->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertUnauthorized();
+    $this->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken: the search page loses its filters after going back.'])->assertUnauthorized();
 
     $user = User::factory()->create();
     foreach (range(1, 5) as $attempt) {
-        $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => "Broken {$attempt}."])->assertCreated();
+        $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => "Broken {$attempt}: the search page loses its filters after going back."])->assertCreated();
     }
 
-    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken again.'])
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken again: the search page loses its filters after going back.'])
         ->assertTooManyRequests()
         ->assertJsonPath('message', 'Issue limit reached. Try again in an hour.');
 
     $this->travel(1)->hours();
-    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken later.'])->assertCreated();
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken later: the search page loses its filters after going back.'])->assertCreated();
 });
 
 it('does not count rejected drafts or failed attempts towards the limit', function (): void {
@@ -162,9 +171,9 @@ it('does not count rejected drafts or failed attempts towards the limit', functi
 
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/deploy', 'body' => 'Nope.'])->assertUnprocessable();
     foreach (range(1, 6) as $attempt) {
-        $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertStatus(502);
+        $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken: the search page loses its filters after going back.'])->assertStatus(502);
         $this->travel(11)->seconds();
     }
 
-    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertCreated();
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken: the search page loses its filters after going back.'])->assertCreated();
 });

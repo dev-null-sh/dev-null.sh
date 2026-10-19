@@ -22,6 +22,9 @@ export const issueCommands: IssueCommand[] = [
     },
 ];
 
+// Keep in sync with App\Http\Requests\CreateIssueRequest::MIN_BODY_LENGTH.
+export const minIssueBodyLength = 50;
+
 /**
  * The commands a draft could still become while it is only a slash and the start of a name.
  */
