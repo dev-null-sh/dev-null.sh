@@ -100,6 +100,24 @@ it('limits each address to 60 device redemptions a minute, before their signatur
         ->and($limit->decaySeconds)->toBe(60);
 });
 
+it('limits each user to 20 device code lookups and decisions a minute', function (): void {
+    $user = User::factory()->create();
+
+    $request = Request::create('/activate', 'POST');
+    $request->setUserResolver(fn (): User => $user);
+
+    $limiter = RateLimiter::limiter('device-activations');
+
+    assert($limiter instanceof Closure);
+
+    $limit = $limiter($request);
+
+    expect($limit)->toBeInstanceOf(Limit::class)
+        ->and($limit->key)->toBe($user->id)
+        ->and($limit->maxAttempts)->toBe(20)
+        ->and($limit->decaySeconds)->toBe(60);
+});
+
 it('limits each user to 10 approvals of the devnull app a minute', function (): void {
     $user = User::factory()->create();
 
