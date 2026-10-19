@@ -26,8 +26,8 @@ final class ShowOperationsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'from' => ['nullable', Rule::date()->format('Y-m-d')->todayOrBefore()],
-            'to' => ['nullable', Rule::date()->format('Y-m-d')->todayOrBefore(), Rule::when($this->filled('from'), 'after_or_equal:from')],
+            'from' => ['nullable', 'required_with:to', Rule::date()->format('Y-m-d')->todayOrBefore()],
+            'to' => ['nullable', 'required_with:from', Rule::date()->format('Y-m-d')->todayOrBefore(), Rule::when($this->filled('from'), 'after_or_equal:from')],
         ];
     }
 

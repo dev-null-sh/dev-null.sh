@@ -123,4 +123,6 @@ it('rejects traffic dates that are malformed, in the future, or out of order', f
     'malformed' => [['from' => '18/10/2026']],
     'in the future' => [['to' => now()->addDay()->toDateString()]],
     'out of order' => [['from' => '2026-02-01', 'to' => '2026-01-01']],
+    'missing from' => [['to' => '2026-01-01']],
+    'missing to' => [['from' => '2026-01-01']],
 ]);
