@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\CommitStatus;
+use App\Enums\SearchIndex;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\HelloWorld;
@@ -19,6 +20,7 @@ final readonly class CreateWorldReply
     public function __construct(
         private HelloWorld $helloWorld,
         private CreateReplyNotifications $createReplyNotifications,
+        private CreateSearchSyncs $createSearchSyncs,
     ) {
         //
     }
@@ -82,12 +84,16 @@ final readonly class CreateWorldReply
             return null;
         }
 
-        return User::query()->create([
+        $world = User::query()->create([
             'github_id' => self::GITHUB_ID,
             'username' => self::USERNAME,
             'name' => self::USERNAME,
             'bio' => 'I answer to hello world.',
             'onboarded_at' => now(),
         ]);
+
+        $this->createSearchSyncs->handle(SearchIndex::Users, [$world->id]);
+
+        return $world;
     }
 }

@@ -36,7 +36,7 @@ export type Connectivity = {
 };
 
 export type Feature = {
-    name: 'translations';
+    name: 'translations' | 'algolia-user-search';
     enabled: boolean;
 };
 

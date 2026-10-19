@@ -16,6 +16,12 @@ return [
     |
     */
 
+    'algolia' => [
+        'app_id' => env('ALGOLIA_APP_ID'),
+        'write_key' => env('ALGOLIA_WRITE_KEY'),
+        'search_key' => env('ALGOLIA_SEARCH_KEY'),
+    ],
+
     'fathom' => [
         'token' => env('FATHOM_API_TOKEN'),
         'site_id' => env('FATHOM_SITE_ID', 'HTQONOPD'),

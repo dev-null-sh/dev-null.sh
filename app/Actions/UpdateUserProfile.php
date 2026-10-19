@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\GitHubProfile;
+use App\Enums\SearchIndex;
 use App\Models\User;
 use App\Services\GitHub;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -21,6 +22,7 @@ final readonly class UpdateUserProfile
         private GitHub $github,
         private UpdateUserSshKeys $updateUserSshKeys,
         private UpdateStaleUsernames $updateStaleUsernames,
+        private CreateSearchSyncs $createSearchSyncs,
     ) {
         //
     }
@@ -44,6 +46,8 @@ final readonly class UpdateUserProfile
                     ...$profile->attributes(),
                     'github_synced_at' => now(),
                 ]);
+
+                $this->createSearchSyncs->handle(SearchIndex::Users, $user->changedSearchRecord() ? [$user->id] : []);
             });
         } catch (ConnectionException|RequestException|UniqueConstraintViolationException $exception) {
             report($exception);

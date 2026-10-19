@@ -20,6 +20,17 @@ it('makes tom and the user follow each other', function (): void {
         ->and($tom->notifications()->count())->toBe(0);
 });
 
+it('queues tom for the search index when creating him', function (): void {
+    configureAlgolia();
+
+    $action = resolve(CreateTomFriendship::class);
+
+    $action->handle(User::factory()->create());
+    $action->handle(User::factory()->create());
+
+    expect(pendingSearchSyncs())->toBe([User::query()->where('username', 'tom')->sole()->id]);
+});
+
 it('creates tom once, with a single welcome commit and no github account', function (): void {
     $action = resolve(CreateTomFriendship::class);
 

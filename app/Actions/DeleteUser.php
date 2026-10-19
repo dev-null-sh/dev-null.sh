@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\SearchIndex;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -20,8 +21,10 @@ use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteUser
 {
-    public function __construct(private UpdateCommitHotScores $updateCommitHotScores)
-    {
+    public function __construct(
+        private UpdateCommitHotScores $updateCommitHotScores,
+        private CreateSearchSyncs $createSearchSyncs,
+    ) {
         //
     }
 
@@ -56,6 +59,8 @@ final readonly class DeleteUser
             $user->commits()->withTrashed()->update(['user_id' => null]);
 
             $user->delete();
+
+            $this->createSearchSyncs->handle(SearchIndex::Users, [$user->id]);
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);

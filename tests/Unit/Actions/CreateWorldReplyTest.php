@@ -28,6 +28,16 @@ it('answers an approved hello world once', function (): void {
         ->and($commit->user->notifications()->sole()->commit_id)->toBe($reply->id);
 });
 
+it('queues world for the search index when creating it', function (): void {
+    configureAlgolia();
+
+    $commit = Commit::factory()->create(['body' => 'Hello, World!']);
+
+    resolve(CreateWorldReply::class)->handle($commit);
+
+    expect(pendingSearchSyncs())->toBe([User::query()->where('username', 'world')->sole()->id]);
+});
+
 it('answers when an admin commits hello world', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 

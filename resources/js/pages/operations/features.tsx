@@ -18,6 +18,11 @@ const FEATURES: Record<
         description:
             'The Translate control, cached translations, and background language detection. Off stops new detection jobs from being queued and skips any already waiting.',
     },
+    'algolia-user-search': {
+        label: 'algolia user search',
+        description:
+            'Developer search and the remote picker search Algolia once its search key is set. Off searches the database instead; the index keeps syncing either way.',
+    },
 };
 
 function FeatureRow({ feature }: { feature: Feature }) {

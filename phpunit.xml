@@ -39,5 +39,8 @@
         <env name="OPENCODE_API_KEY" value="" force="true"/>
         <server name="OPENCODE_API_KEY" value="" force="true"/>
         <env name="FATHOM_API_TOKEN" value=""/>
+        <env name="ALGOLIA_APP_ID" value=""/>
+        <env name="ALGOLIA_WRITE_KEY" value=""/>
+        <env name="ALGOLIA_SEARCH_KEY" value=""/>
     </php>
 </phpunit>

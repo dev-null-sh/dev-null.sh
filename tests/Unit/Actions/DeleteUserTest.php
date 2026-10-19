@@ -31,6 +31,16 @@ it('may delete a user', function (): void {
     expect($user->exists)->toBeFalse();
 });
 
+it('queues a deleted user for removal from the search index', function (): void {
+    configureAlgolia();
+
+    $user = User::factory()->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(pendingSearchSyncs())->toBe([$user->id]);
+});
+
 it('erases the commits of a deleted user along with the replies under them', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
