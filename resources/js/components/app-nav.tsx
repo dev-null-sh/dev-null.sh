@@ -9,6 +9,7 @@ import {
     MessagesSquare,
     PanelLeftClose,
     PanelLeftOpen,
+    Radio,
     Search,
     Settings2,
     ShieldCheck,
@@ -19,6 +20,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
+import LiveController from '@/actions/App/Http/Controllers/LiveController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
@@ -76,6 +78,13 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Log',
             href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
+            prefetch: false,
+        },
+        {
+            title: 'Live',
+            description: 'Who is streaming now',
+            href: LiveController.index(),
+            icon: Radio,
             prefetch: false,
         },
         {
@@ -532,7 +541,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     const [isChangelogOpen, setIsChangelogOpen] = useState(false);
     const allItems = useNavItems();
     const menuItems = allItems.filter((item) =>
-        ['Profile', 'Settings', 'Operations'].includes(item.title),
+        ['Live', 'Profile', 'Settings', 'Operations'].includes(item.title),
     );
     const items = allItems.filter(
         (item) =>
