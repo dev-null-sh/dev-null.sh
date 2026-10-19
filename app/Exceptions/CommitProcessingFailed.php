@@ -13,7 +13,7 @@ final class CommitProcessingFailed extends RuntimeException
     {
         parent::__construct(
             $operation.' failed for commit '.$commitId.' ('.$exception::class.', code '.$exception->getCode().').',
-            $exception->getCode(),
+            (int) $exception->getCode(),
         );
     }
 }

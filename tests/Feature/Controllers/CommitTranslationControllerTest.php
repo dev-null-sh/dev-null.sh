@@ -268,6 +268,32 @@ it('leaves failed translations uncached and can retry', function (): void {
         ->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning');
 });
 
+it('returns a safe 503 when translation fails with a string SQLSTATE code', function (): void {
+    Exceptions::fake();
+    CommitTranslator::fake(function (): never {
+        throw new class extends PDOException
+        {
+            public function __construct()
+            {
+                parent::__construct('Sensitive database response');
+
+                $this->code = 'HY000';
+            }
+        };
+    });
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertServiceUnavailable()->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('message', 'Could not translate this commit. Try again.');
+
+    expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull();
+    Exceptions::assertReported(fn (CommitProcessingFailed $exception): bool => str_contains($exception->getMessage(), 'code HY000')
+        && ! str_contains($exception->getMessage(), 'Sensitive database response')
+        && $exception->getCode() === 0 && ! $exception->getPrevious() instanceof Throwable);
+});
+
 it('holds the translation lock throughout a slow provider retry', function (): void {
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
     $key = resolve(CommitTranslations::class)->key($commit).':lock';
