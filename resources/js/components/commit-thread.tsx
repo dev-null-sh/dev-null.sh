@@ -437,7 +437,9 @@ export function ThreadActions({
                                 data-test="reply-button"
                             >
                                 <MessageSquareReply className="size-4" />
-                                Reply
+                                <span className="sr-only sm:not-sr-only">
+                                    Reply
+                                </span>
                                 {hasStash && !thread.isReplying && (
                                     <span
                                         title="You have an unsent reply here"
