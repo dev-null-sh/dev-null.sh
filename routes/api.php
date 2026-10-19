@@ -14,10 +14,12 @@ use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
 use App\Http\Controllers\Api\UserLaneController;
+use App\Http\Controllers\Api\UserMuteController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Cli\CommitController;
@@ -58,7 +60,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
         Route::delete('me', [CurrentUserController::class, 'destroy'])->name('api-current-user.destroy');
-      
+
         // Pastéis...
         Route::put('me/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('api-user-pasteis-mode.update');
 
@@ -119,6 +121,16 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('users/{user:username}/follow', [UserFollowController::class, 'destroy'])
             ->middleware('throttle:follows')
             ->name('api-user-follow.destroy');
+
+        // User Mute...
+        Route::get('me/muted', [UserMuteController::class, 'index'])->name('api-user-mute.index');
+        Route::post('users/{user:username}/mute', [UserMuteController::class, 'store'])->name('api-user-mute.store');
+        Route::delete('users/{user:username}/mute', [UserMuteController::class, 'destroy'])->name('api-user-mute.destroy');
+
+        // User Block...
+        Route::get('me/blocked', [UserBlockController::class, 'index'])->name('api-user-block.index');
+        Route::post('users/{user:username}/block', [UserBlockController::class, 'store'])->name('api-user-block.store');
+        Route::delete('users/{user:username}/block', [UserBlockController::class, 'destroy'])->name('api-user-block.destroy');
 
         // Notifications...
         Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');

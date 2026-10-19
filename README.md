@@ -77,11 +77,13 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ## Signed requests
 
-The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, saved commits, committing, deleting, following, starring, saving, reporting and pastéis only take signed requests. Signed requests are limited to 120 a minute per user.
+The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, saved commits, committing, deleting, following, starring, saving, muting, blocking, reporting and pastéis only take signed requests. Signed requests are limited to 120 a minute per user.
 
 Commits in a signed response carry what the web's cards show: `preview_segments`, the excerpt a list shows of a long commit (or `null`), the `poll` with the user's view of its votes and each option's `percentage`, the `quoted_commit` (a tombstone once deleted, or `null` when the user may not see it, while `quoted_commit_id` still says a commit was quoted), and in lists the `reply_preview` the web shows under each commit. Its `next_cursor` continues with `GET /api/v1/commits/{id}/replies?newest=1&cursor=…`, as on the web.
 
 A signed profile also says `is_muting` and has the web's `achievements`, with the Unix rank.
+
+`POST` and `DELETE /api/v1/users/{username}/mute` mute and unmute someone, and `POST` and `DELETE /api/v1/users/{username}/block` block and unblock them, as the web does: nobody can mute or block themselves, muting is silent, and blocking ends the follows both ways, which unblocking doesn't bring back. Each answers with the user and the new `is_muting` or `is_blocking`. `GET /api/v1/me/muted` and `GET /api/v1/me/blocked` list the people the user mutes and blocks, last first, as Settings → Safety does, 20 a page.
 
 `GET /api/v1/log/{log}` serves the web's three logs, `following`, `latest` and `trending`, with the same queries and 20 commits a page. Trending is ranked, so it says `is_ranked`. With `?since={id}`, every log counts the `new_commits_count` newer than that commit, which is always 0 on Trending, since the web offers none there. An empty Following log comes with a few `suggestions`.
 
@@ -130,7 +132,7 @@ An error is JSON with a `message` to show the user. The errors the app has to te
 | `400` | `invalid_grant` | `POST /api/v1/devices` only: the code is wrong, expired or used, was handed out for another key, or the verifier doesn't match. |
 | `401` | `invalid_signature` | The signature is missing, malformed or wrong, has expired, or was used already. |
 | `401` | `device_not_approved` | Nobody approved the key as a device, or it was revoked. |
-| `403` | `user_blocked` | The user blocked the profile they asked for. Neither of them sees the other's commits. |
+| `403` | `user_blocked` | The user blocked the profile they asked for. Neither of them sees the other's commits. The error comes with the `user` they blocked, as the web shows them. |
 | `403` | `user_unavailable` | The profile isn't available to the user, because it blocked them. |
 | `403` | `own_commit` | The user tried to report their own commit. |
 | `404` | `commit_unavailable` | The commit to report doesn't exist, was deleted, isn't published, or is across a block. |

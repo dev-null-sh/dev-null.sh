@@ -76,7 +76,7 @@ it('leaves out commits by muted people and across blocks', function (): void {
 });
 
 it('ranks commits that draw stars and replies above newer ones', function (): void {
-    $starred = Commit::factory()->create(['created_at' => now()->subHours(3)]);
+    $starred = Commit::factory()->create(['created_at' => now()->subHours(1)]);
     $starred->stars()->attach(User::factory()->create());
     $newer = Commit::factory()->create();
     resolve(UpdateCommitHotScores::class)->handle([$starred->id]);

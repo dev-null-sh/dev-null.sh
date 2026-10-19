@@ -695,7 +695,7 @@ final class StressSeeder extends Seeder
                 group by roots.id
             )
             update commits set hot_score = round((log(2, (1 + coalesce(engaged.stargazers, 0) + 3 * coalesce(engaged.repliers, 0))::numeric)
-                + extract(epoch from commits.created_at)::numeric / 21600), 6)
+                + extract(epoch from commits.created_at)::numeric / 10800), 6)
             from commits as roots
             left join engaged on engaged.id = roots.id
             where commits.id = roots.id and roots.parent_id is null and roots.deleted_at is null
