@@ -991,7 +991,6 @@ function CommitReply({
             data-permalink={wasDeleted ? undefined : permalink.url}
             data-test="reply"
         >
-            {links}
             <div
                 className={cn(
                     'relative isolate flex gap-2 before:absolute before:-inset-x-2 before:-top-1.5 before:-bottom-1.5 before:-z-10 before:rounded-lg before:transition-colors sm:gap-2.5',
@@ -1167,6 +1166,7 @@ function CommitReply({
                     )}
                 </div>
             </div>
+            {links}
 
             <ThreadReplies thread={thread} depth={depth} />
         </article>
