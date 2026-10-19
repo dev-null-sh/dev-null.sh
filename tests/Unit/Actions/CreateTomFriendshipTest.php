@@ -94,6 +94,22 @@ it('keeps tom out of remotes and orgs', function (): void {
         ->assertUnprocessable()->assertJsonValidationErrors(['members.0' => '@tom has remotes off.']);
 });
 
+it('turns off the remotes of the tom who already exists', function (): void {
+    $user = User::factory()->create();
+    resolve(CreateTomFriendship::class)->handle($user);
+    $tom = User::query()->where('username', 'tom')->sole();
+    $tom->update(['remotes_enabled' => true]);
+
+    $updatedAt = $tom->refresh()->updated_at;
+
+    $migration = require database_path('migrations/2026_10_19_150000_turn_off_remotes_of_tom.php');
+    $migration->up();
+
+    expect($tom->refresh()->remotes_enabled)->toBeFalse()
+        ->and($tom->updated_at->equalTo($updatedAt))->toBeTrue()
+        ->and($user->refresh()->remotes_enabled)->toBeTrue();
+});
+
 it('renders tom on his profile without a github link', function (): void {
     resolve(CreateTomFriendship::class)->handle(User::factory()->create());
 
