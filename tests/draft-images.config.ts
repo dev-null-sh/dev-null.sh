@@ -30,6 +30,7 @@ export default defineConfig({
             'tests/Unit/ReportResolution.test.tsx',
             'tests/Unit/LinkifiedText.test.tsx',
             'tests/Unit/StagedRail.test.tsx',
+            'tests/Unit/ComposerPreview.test.tsx',
         ],
     },
 });
