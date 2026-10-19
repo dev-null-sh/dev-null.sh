@@ -27,6 +27,8 @@ export function CommitReactionPicker({
     onPick,
     onRemove,
     onClear,
+    onRefresh,
+    showSettings = true,
 }: {
     commitId: string;
     userId: string;
@@ -35,6 +37,8 @@ export function CommitReactionPicker({
     onPick: (emoji: string, destinations: ReactionDestinations) => void;
     onRemove: (emoji: string) => void;
     onClear: () => void;
+    onRefresh?: () => void;
+    showSettings?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [destinationsChanged, setDestinationsChanged] = useState(false);
@@ -62,7 +66,8 @@ export function CommitReactionPicker({
                               }
                             : { public: true, repositories: [] },
                     );
-                    void commitReactionCache.refresh(userId, commitId);
+                    if (onRefresh) onRefresh();
+                    else void commitReactionCache.refresh(userId, commitId);
                     setDestinationsChanged(false);
                 }
             }}
@@ -89,14 +94,14 @@ export function CommitReactionPicker({
                     <div className="mb-2 flex items-center justify-between gap-2">
                         <h2 className="text-sm font-semibold">Save to</h2>
                         <div className="flex items-center gap-1">
-                            <Link
+                            {showSettings && <Link
                                 href="/settings/profile#repository"
                                 aria-label="Manage repositories"
                                 title="Manage repositories"
                                 className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
                             >
                                 <Settings2 aria-hidden className="size-3.5" />
-                            </Link>
+                            </Link>}
                             <Button
                                 variant="ghost"
                                 size="sm"
