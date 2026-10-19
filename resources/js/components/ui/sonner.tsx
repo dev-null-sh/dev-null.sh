@@ -6,7 +6,9 @@ import { useFlashToast } from "@/hooks/use-flash-toast"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useNewVersionToast } from "@/hooks/use-new-version-toast"
 
-const aboveMobileNav = { bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }
+const aboveMobileNav = {
+  bottom: "calc(var(--mobile-nav-height, 4.5rem + env(safe-area-inset-bottom)) + 0.75rem)",
+}
 
 function Toaster({ ...props }: ToasterProps) {
   const { appearance } = useAppearance()

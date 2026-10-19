@@ -22,7 +22,7 @@ export function CommitBody({
     return (
         <div
             className={cn(
-                'leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap',
+                'leading-relaxed wrap-break-word whitespace-pre-wrap',
                 className,
             )}
         >

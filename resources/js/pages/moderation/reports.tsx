@@ -8,6 +8,7 @@ import { EmptyFeed } from '@/components/commit-feed';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
+import { formatFullDateTime } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 type Report = {
@@ -83,16 +84,16 @@ export default function Reports({
                                         {reasons[report.reason]}
                                     </p>
                                     {report.details && (
-                                        <p className="text-sm leading-relaxed [overflow-wrap:anywhere] whitespace-pre-wrap">
+                                        <p className="text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">
                                             {report.details}
                                         </p>
                                     )}
                                     <p className="text-xs text-muted-foreground">
                                         Reported{' '}
                                         <time dateTime={report.created_at}>
-                                            {new Date(
+                                            {formatFullDateTime(
                                                 report.created_at,
-                                            ).toLocaleString()}
+                                            )}
                                         </time>
                                     </p>
                                     <div className="flex flex-wrap gap-2">

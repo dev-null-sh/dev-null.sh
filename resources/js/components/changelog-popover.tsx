@@ -91,7 +91,7 @@ function SummarySkeleton() {
                 </div>
                 <Skeleton className="h-[18px] w-20 rounded-full" />
             </div>
-            <div className="space-y-2.5 px-4 pt-3 pb-3">
+            <div className="space-y-2.5 px-4 py-3">
                 {[0, 1, 2, 3, 4].map((index) => (
                     <Skeleton key={index} className="h-5 w-full" />
                 ))}

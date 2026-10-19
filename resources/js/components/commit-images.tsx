@@ -145,7 +145,7 @@ export function CommitImages({
                         alt={commitImageAlt(image, index, images.length)}
                         className={cn(
                             'w-full object-cover data-fallback:object-contain',
-                            hasMultipleImages ? 'h-full' : 'max-h-[32rem]',
+                            hasMultipleImages ? 'h-full' : 'max-h-128',
                         )}
                     />
                 );

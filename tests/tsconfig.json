@@ -8,6 +8,7 @@
         "Unit/**/*.test.ts",
         "Unit/DraftStash.test.tsx",
         "Unit/ComposerDraft.test.tsx",
+        "Unit/SearchDialogComposition.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]

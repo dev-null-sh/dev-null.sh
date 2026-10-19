@@ -1,6 +1,6 @@
 import { InfiniteScroll, router, usePage } from '@inertiajs/react';
 import { Pin } from 'lucide-react';
-import type { FocusEvent, ReactNode } from 'react';
+import type { FocusEvent, PointerEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
@@ -9,6 +9,7 @@ import {
     restoreFeedCommit,
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
+import { isDeliberateHover } from '@/lib/feed-hover';
 import { formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -55,17 +56,61 @@ export function CommitFeed({
     const [hoveredCommit, setHoveredCommit] = useState<string | null>(null);
     const [focusedCommit, setFocusedCommit] = useState<string | null>(null);
     const unhoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    const isScrolling = useRef(false);
+    const authorUnderPointer = useRef<string | null>(null);
 
     useEffect(() => () => clearTimeout(unhoverTimer.current), []);
 
-    const hoverCommit = (commitId: string, isHovering: boolean) => {
-        clearTimeout(unhoverTimer.current);
+    useEffect(() => {
+        let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
+        const unhover = () => {
+            isScrolling.current = true;
+            clearTimeout(unhoverTimer.current);
+            setHoveredCommit(null);
+            setHighlightedAuthor(null);
+
+            clearTimeout(settleTimer);
+            settleTimer = setTimeout(() => {
+                isScrolling.current = false;
+            }, 300);
+        };
+
+        window.addEventListener('scroll', unhover, { passive: true });
+
+        return () => {
+            window.removeEventListener('scroll', unhover);
+            clearTimeout(settleTimer);
+        };
+    }, []);
+
+    const highlightAuthor = (userId: string, isHovering: boolean) => {
+        authorUnderPointer.current = isHovering ? userId : null;
+
+        if (!isHovering) {
+            setHighlightedAuthor(null);
+        } else if (!isScrolling.current) {
+            setHighlightedAuthor(userId);
+        }
+    };
+
+    const hoverCommit = (
+        commitId: string,
+        isHovering: boolean,
+        event: PointerEvent<HTMLElement>,
+    ) => {
         if (isHovering) {
-            setHoveredCommit(commitId);
+            if (isDeliberateHover(event, isScrolling.current)) {
+                clearTimeout(unhoverTimer.current);
+                setHoveredCommit(commitId);
+                // Author targets only report entering, so one that slid under the pointer while scrolling lights up on the next move.
+                setHighlightedAuthor(authorUnderPointer.current);
+            }
 
             return;
         }
+
+        clearTimeout(unhoverTimer.current);
 
         // Crossing a day marker between two commits shouldn't flash the accent off.
         unhoverTimer.current = setTimeout(() => setHoveredCommit(null), 150);
@@ -181,9 +226,11 @@ export function CommitFeed({
             threadActions={threadActions?.(commit)}
             isFolded={isFolded}
             onAuthorHover={(isHovering) =>
-                setHighlightedAuthor(isHovering ? commit.user_id : null)
+                highlightAuthor(commit.user_id, isHovering)
             }
-            onHover={(isHovering) => hoverCommit(commit.id, isHovering)}
+            onHover={(isHovering, event) =>
+                hoverCommit(commit.id, isHovering, event)
+            }
         />
     );
 
@@ -206,8 +253,8 @@ export function CommitFeed({
                         endsWithDot
                         isDimmed={isDimmed(pinnedCommit)}
                         isHovered={hoveredCommit === pinnedCommit.id}
-                        onHover={(isHovering) =>
-                            hoverCommit(pinnedCommit.id, isHovering)
+                        onHover={(isHovering, event) =>
+                            hoverCommit(pinnedCommit.id, isHovering, event)
                         }
                         isHighlighted={
                             highlightedPeriod !== null &&
