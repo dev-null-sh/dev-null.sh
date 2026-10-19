@@ -17,6 +17,20 @@
     }
 }
 @custom-variant commit-focus-within ([data-commit]:focus-within:not(:has([data-reply]:focus-within)) &);
+@custom-variant nav-wide {
+    @media (width >= 64rem) {
+        &:where([data-nav='expanded'], [data-nav='expanded'] *) {
+            @slot;
+        }
+    }
+}
+@custom-variant nav-narrow {
+    @media (width >= 64rem) {
+        &:where([data-nav='collapsed'], [data-nav='collapsed'] *) {
+            @slot;
+        }
+    }
+}
 @custom-variant reply-hover {
     @media (hover: hover) {
         [data-reply]:hover:not(:has([data-reply]:hover)) & {
@@ -287,7 +301,8 @@ html body[data-scroll-locked] {
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-::view-transition-group(*.tab-indicator) {
+::view-transition-group(*.tab-indicator),
+::view-transition-group(nav-active-item) {
     animation-duration: 280ms;
     animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
 }

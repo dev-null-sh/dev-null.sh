@@ -27,7 +27,7 @@ import type { AppLayoutProps } from '@/types';
 export default function AppLayout({ children }: AppLayoutProps) {
     const {
         component,
-        props: { auth },
+        props: { auth, sidebarOpen },
     } = usePage();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
@@ -60,14 +60,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
     useTabSlide();
 
     return (
-        <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
+        <div
+            data-nav={sidebarOpen ? 'expanded' : 'collapsed'}
+            className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center"
+        >
             {component !== 'notification/index' && <NotificationCountPolling />}
             <AppNav onSearch={openSearch} onCompose={compose} />
 
             <main
                 className={cn(
-                    'min-w-0 flex-1 bg-card pb-40 md:max-w-[620px] md:border-x md:pb-0',
-                    { 'pb-20 md:max-w-[940px]': isMessages },
+                    'min-w-0 flex-1 bg-card pb-40 transition-[max-width] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none md:max-w-[620px] md:border-x md:pb-0 nav-narrow:max-w-[796px]',
+                    {
+                        'pb-20 md:max-w-[940px] nav-narrow:max-w-[1116px]':
+                            isMessages,
+                    },
                 )}
             >
                 <MobileHeader onSearch={openSearch} />
