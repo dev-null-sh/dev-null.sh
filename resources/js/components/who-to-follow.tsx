@@ -141,10 +141,10 @@ function SuggestedUsersSkeleton({
                     className={cn('flex items-center gap-3', rowClassName)}
                 >
                     <Skeleton className="size-9 shrink-0 rounded-full" />
-                    <span className="flex-1">
-                        <Skeleton className="my-[3px] h-3.5 w-28" />
+                    <span className="min-w-0 flex-1">
+                        <Skeleton className="my-[3px] h-3.5 w-28 max-w-full" />
                         <Skeleton className="my-0.5 h-3 w-20" />
-                        <Skeleton className="my-0.5 h-3 w-32" />
+                        <Skeleton className="my-0.5 h-3 w-32 max-w-full" />
                         {hasWrappingReasons && (
                             <Skeleton className="my-0.5 h-3 w-16" />
                         )}
@@ -158,7 +158,7 @@ function SuggestedUsersSkeleton({
     );
 }
 
-function WhoToFollowRefreshButton() {
+function WhoToFollowRefreshButton({ disabled }: { disabled: boolean }) {
     const { isRefreshing, refreshSuggestedUsers } = useWhoToFollow();
 
     return (
@@ -167,6 +167,7 @@ function WhoToFollowRefreshButton() {
             size="icon"
             className="size-7 text-muted-foreground"
             onClick={refreshSuggestedUsers}
+            disabled={disabled}
             aria-disabled={isRefreshing}
             aria-label="Suggest other people"
             title="Suggest other people"
@@ -190,7 +191,7 @@ function WhoToFollowActions({
 }) {
     return (
         <div className="flex items-center gap-1">
-            {hasSuggestions && <WhoToFollowRefreshButton />}
+            <WhoToFollowRefreshButton disabled={!hasSuggestions} />
             <WhoToFollowMenu onHide={onHide} />
         </div>
     );
@@ -289,7 +290,7 @@ export function WhoToFollow() {
     return (
         <section
             aria-labelledby="aside-who-to-follow"
-            className="border-t pt-6"
+            className="-mt-4 border-t pt-4"
         >
             <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 id="aside-who-to-follow" className="text-sm font-semibold">
@@ -308,10 +309,19 @@ export function WhoToFollow() {
                 <ul className="space-y-4">
                     <Deferred
                         data="suggestedUsers"
-                        fallback={<SuggestedUsersSkeleton hasWrappingReasons />}
+                        fallback={
+                            <SuggestedUsersSkeleton
+                                rowClassName="min-h-17"
+                                hasWrappingReasons
+                            />
+                        }
                     >
                         {suggestedUsers?.map((user) => (
-                            <SuggestedUserRow key={user.id} user={user} />
+                            <SuggestedUserRow
+                                key={user.id}
+                                user={user}
+                                className="min-h-17"
+                            />
                         ))}
                     </Deferred>
                 </ul>

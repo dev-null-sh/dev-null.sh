@@ -51,6 +51,15 @@
     }
 }
 
+/* Toasts stack above the docked chat instead of covering it. */
+:root:has([data-chat-dock]) {
+    --chat-dock-height: 3rem;
+}
+
+:root:has([data-chat-dock='expanded']) {
+    --chat-dock-height: min(520px, 100dvh - 5rem);
+}
+
 :root[data-nav-measuring] [data-nav],
 :root[data-nav-measuring] [data-nav] * {
     transition: none !important;
