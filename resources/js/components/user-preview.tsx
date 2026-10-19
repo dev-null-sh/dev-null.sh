@@ -5,7 +5,11 @@ import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
-import { FollowLabel, useFollowHover } from '@/components/follow-button';
+import {
+    FollowLabel,
+    useFollowHover,
+    useIsFollowing,
+} from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -321,6 +325,7 @@ function UserPreviewContent({
     const lane = laneColor(user.lane);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
+    const [, setIsFollowing] = useIsFollowing(user, false);
 
     const toggleFollow = () => {
         if (!data || data.isUnavailable) {
@@ -329,7 +334,12 @@ function UserPreviewContent({
 
         const previous = data;
         const isFollowing = !data.isFollowing;
+        const restore = () => {
+            onChange(previous);
+            setIsFollowing(previous.isFollowing);
+        };
 
+        setIsFollowing(isFollowing);
         onChange({
             ...data,
             isFollowing,
@@ -347,9 +357,9 @@ function UserPreviewContent({
             {
                 preserveScroll: true,
                 preserveState: true,
-                onError: () => onChange(previous),
+                onError: restore,
                 onHttpException: (response) => {
-                    onChange(previous);
+                    restore();
 
                     return !toastWhenThrottled(response);
                 },

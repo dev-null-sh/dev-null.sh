@@ -659,20 +659,15 @@ function NotificationGroupItem({
 }
 
 function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
-    const [isFollowing, setIsFollowing] = useState(actor.is_followed);
-
     return (
         <FollowButton
             user={actor}
-            isFollowing={isFollowing}
+            isFollowing={actor.is_followed}
             size="sm"
             className="min-w-24 shrink-0"
             only={['auth']}
             preserveState
-            onSuccess={() => {
-                setIsFollowing(!isFollowing);
-                router.flushAll();
-            }}
+            onSuccess={() => router.flushAll()}
         />
     );
 }

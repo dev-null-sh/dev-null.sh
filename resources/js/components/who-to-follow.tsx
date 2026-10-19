@@ -1,8 +1,7 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
 import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
 import { useRef, useState } from 'react';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
-import { FollowLabel, useFollowHover } from '@/components/follow-button';
+import { FollowButton } from '@/components/follow-button';
 import { RailSegment } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +14,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useWhoToFollow } from '@/hooks/use-who-to-follow';
-import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { edit } from '@/routes/appearance';
 import { show } from '@/routes/user';
@@ -33,59 +31,6 @@ function reasonFor(user: SuggestedUser): string | null {
     }
 
     return null;
-}
-
-/**
- * Only the counts reload after a follow, so the suggestion stays where it is and flips to "Following".
- */
-function FollowButton({
-    user,
-    className,
-}: {
-    user: SuggestedUser;
-    className?: string;
-}) {
-    const [isFollowing, setIsFollowing] = useState(false);
-    const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
-
-    return (
-        <Button
-            size="sm"
-            variant={isFollowing ? 'outline' : 'default'}
-            className={cn('group/follow min-w-24 shrink-0', className)}
-            asChild
-        >
-            <Link
-                href={
-                    isFollowing
-                        ? UserFollowController.destroy(user)
-                        : UserFollowController.store(user)
-                }
-                as="button"
-                only={['auth']}
-                preserveScroll
-                preserveState
-                onSuccess={() => {
-                    setIsFollowing(!isFollowing);
-                    router.flushAll();
-                }}
-                onHttpException={(response) => !toastWhenThrottled(response)}
-                aria-label={
-                    isFollowing
-                        ? `Unfollow @${user.username}`
-                        : `Follow @${user.username}`
-                }
-                data-test="suggested-follow-button"
-                onClick={markToggled}
-                onMouseLeave={onMouseLeave}
-            >
-                <FollowLabel
-                    isFollowing={isFollowing}
-                    isJustToggled={isJustToggled}
-                />
-            </Link>
-        </Button>
-    );
 }
 
 export function SuggestedUserRow({
@@ -134,7 +79,16 @@ export function SuggestedUserRow({
                     </span>
                 </Link>
             </UserPreview>
-            <FollowButton user={user} className={buttonClassName} />
+            <FollowButton
+                user={user}
+                isFollowing={false}
+                size="sm"
+                className={cn('min-w-24 shrink-0', buttonClassName)}
+                only={['auth']}
+                preserveState
+                onSuccess={() => router.flushAll()}
+                data-test="suggested-follow-button"
+            />
         </li>
     );
 }

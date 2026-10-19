@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { Button } from '@/components/ui/button';
+import { useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,16 @@ export function useFollowHover() {
         markToggled: () => setIsJustToggled(true),
         onMouseLeave: () => setIsJustToggled(false),
     };
+}
+
+/**
+ * Every follow control shares whether you follow someone, so a follow from a profile or a preview also shows in "Who to follow".
+ */
+export function useIsFollowing(
+    user: Pick<User, 'id'>,
+    isFollowing: boolean,
+): [boolean, (isFollowing: boolean) => void] {
+    return useSharedState(`is_following:${user.id}`, isFollowing);
 }
 
 export function FollowLabel({
@@ -49,18 +60,23 @@ export function FollowLabel({
 
 export function FollowButton({
     user,
-    isFollowing,
+    isFollowing: initialIsFollowing,
     size,
     className,
     onClick,
+    onSuccess,
     ...props
 }: {
-    user: Pick<User, 'username'>;
+    user: Pick<User, 'id' | 'username'>;
     isFollowing: boolean;
     size?: ComponentProps<typeof Button>['size'];
     className?: string;
 } & Omit<InertiaLinkProps, 'href' | 'as' | 'method' | 'size' | 'className'>) {
     const { auth } = usePage().props;
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        user,
+        initialIsFollowing,
+    );
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
 
     if (auth.user === null) {
@@ -102,6 +118,10 @@ export function FollowButton({
                 onClick={(event) => {
                     markToggled();
                     onClick?.(event);
+                }}
+                onSuccess={(page) => {
+                    setIsFollowing(!isFollowing);
+                    onSuccess?.(page);
                 }}
                 onMouseLeave={onMouseLeave}
                 {...props}

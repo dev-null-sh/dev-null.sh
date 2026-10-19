@@ -10,6 +10,7 @@ export default defineConfig({
     test: {
         include: [
             'tests/Unit/AuthorHover.test.tsx',
+            'tests/Unit/FollowState.test.tsx',
             'tests/Unit/DraftStash.test.tsx',
             'tests/Unit/ComposerDraft.test.tsx',
             'tests/Unit/QuoteDraft.test.tsx',
