@@ -4,6 +4,7 @@ import type { PointerEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
+import { CommitAuthorFollowButton } from '@/components/commit-author-follow-button';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
@@ -164,6 +165,7 @@ export function CommitCard({
             }
             onPointerLeave={onHover && ((event) => onHover(false, event))}
         >
+            <CommitAuthorFollowButton user={commit.user} keyShortcut="f" />
             <div className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]">
                 <GraphRail
                     lane={laneColor(commit.user.lane)}

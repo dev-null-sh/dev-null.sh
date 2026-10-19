@@ -16,6 +16,7 @@ const shortcuts = (keys: KeyLabels): Shortcut[] => [
     { keys: ['↵'], label: 'Open the focused commit' },
     { keys: ['r'], label: 'Reply to commit' },
     { keys: ['q'], label: 'Quote commit' },
+    { keys: ['f'], label: "Follow or unfollow the focused commit's author" },
     { keys: ['o'], label: 'Show or hide replies' },
     { keys: ['c'], label: 'Write a commit' },
     { keys: [keys.mod, 'K'], label: 'Search developers and commits' },

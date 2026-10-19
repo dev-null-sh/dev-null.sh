@@ -30,6 +30,13 @@ export function refreshSharedState(fresh: Map<string, SharedValue>): void {
     }
 }
 
+/**
+ * Reads a value only when something has written it, so callers can tell "unknown" from the initial default.
+ */
+export function peekSharedState<T extends SharedValue>(key: string): T | undefined {
+    return values.has(key) ? (values.get(key) as T) : undefined;
+}
+
 export function useSharedState<T extends SharedValue>(
     key: string,
     initialValue: T,
