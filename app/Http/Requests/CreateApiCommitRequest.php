@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Dto\NewPoll;
+use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Dimensions;
+use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rules\File;
 
 /**
- * A commit from the mobile app, sent as JSON. It may reply to a commit or quote one, as on the web, but not both. It has
- * no images or poll yet.
+ * A commit from the mobile app, sent as JSON. It may reply to a commit or quote one, as on the web, but not both. Like a
+ * commit on the web, it may come with a poll, but not as a reply. It has no images yet.
  */
 final class CreateApiCommitRequest extends FormRequest
 {
@@ -30,17 +35,22 @@ final class CreateApiCommitRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string|ValidationRule>>
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum>>
      */
     public function rules(): array
     {
         $user = $this->user();
         assert($user instanceof User);
+        $attachmentRules = CreateCommitRequest::attachmentRules();
 
         return [
             'body' => CreateCommitRequest::BODY_RULES,
             'parent_id' => ['bail', 'nullable', 'uuid', new VisibleCommit($user)],
             'quoted_commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
+            'poll' => $attachmentRules['poll'],
+            'poll.options' => $attachmentRules['poll.options'],
+            'poll.options.*' => $attachmentRules['poll.options.*'],
+            'poll.duration' => $attachmentRules['poll.duration'],
         ];
     }
 
@@ -65,5 +75,17 @@ final class CreateApiCommitRequest extends FormRequest
         return $this->filled('quoted_commit_id')
             ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
             : null;
+    }
+
+    public function poll(): ?NewPoll
+    {
+        if (! $this->filled('poll')) {
+            return null;
+        }
+
+        /** @var list<string> $options */
+        $options = $this->array('poll.options');
+
+        return new NewPoll($options, PollDuration::from($this->integer('poll.duration')));
     }
 }
