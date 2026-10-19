@@ -293,7 +293,7 @@ export function CommitCard({
                                                             'confirming',
                                                         )
                                                     }
-                                                    aria-label="Delete commit"
+                                                    aria-label="Revert commit"
                                                     className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:commit-hover:opacity-100 sm:commit-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
                                                     data-test="delete-commit-button"
                                                 >
@@ -301,7 +301,7 @@ export function CommitCard({
                                                 </button>
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                                Delete commit
+                                                Revert commit
                                             </TooltipContent>
                                         </Tooltip>
                                     )}
