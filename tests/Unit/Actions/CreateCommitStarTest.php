@@ -30,6 +30,26 @@ it('is idempotent', function (): void {
     expect($user->starredCommits()->count())->toBeOne();
 });
 
+it('does not rescore a commit when starring it again', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $action = resolve(CreateCommitStar::class);
+
+    $action->handle($user, $commit);
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $action->handle($user, $commit);
+
+    $queries = collect(DB::getQueryLog())->pluck('query');
+    DB::disableQueryLog();
+
+    expect($queries->filter(
+        fn (string $query): bool => str_starts_with($query, 'update commits set hot_score')
+    ))->toBeEmpty();
+});
+
 it('keeps when an existing star was given', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->create();

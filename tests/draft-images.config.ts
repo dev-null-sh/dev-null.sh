@@ -12,6 +12,7 @@ export default defineConfig({
             'tests/Unit/ActivityCells.test.tsx',
             'tests/Unit/AuthorHover.test.tsx',
             'tests/Unit/FollowState.test.tsx',
+            'tests/Unit/GuestFollow.test.tsx',
             'tests/Unit/DraftStash.test.tsx',
             'tests/Unit/DraftImageReads.test.tsx',
             'tests/Unit/ImageAttachments.test.tsx',
@@ -21,8 +22,10 @@ export default defineConfig({
             'tests/Unit/EmojiShortcodes.test.tsx',
             'tests/Unit/QuoteReply.test.tsx',
             'tests/Unit/SearchDialogComposition.test.tsx',
+            'tests/Unit/TabSlide.test.tsx',
             'tests/Unit/ReportResolution.test.tsx',
             'tests/Unit/LinkifiedText.test.tsx',
+            'tests/Unit/StagedRail.test.tsx',
         ],
     },
 });

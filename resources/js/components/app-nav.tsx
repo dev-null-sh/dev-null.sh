@@ -5,7 +5,6 @@ import {
     Bookmark,
     GitCommitVertical,
     History,
-    Menu,
     MessagesSquare,
     PanelLeftClose,
     PanelLeftOpen,
@@ -28,6 +27,7 @@ import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
 import { GitHubIcon } from '@/components/github-icon';
 import { LogoMenu } from '@/components/logo-menu';
+import { MobileMenuIcon } from '@/components/mobile-menu-icon';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -351,7 +351,7 @@ export function AppNav({
                         onClick={onSearch}
                         className="flex h-11 items-center gap-3 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground xl:hidden"
                     >
-                        <Search className="size-5" />
+                        <Search className="size-6 shrink-0" />
                         <span className={navLabelClassName}>Search</span>
                         <kbd className="ml-auto hidden rounded border border-b-2 bg-muted px-1.5 font-mono text-xs nav-wide:block">
                             {keys.combo(keys.mod, 'K')}
@@ -623,7 +623,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                             },
                         )}
                     >
-                        <Menu className="size-5" />
+                        <MobileMenuIcon className="size-5" />
                     </span>
                     <span>Menu</span>
                 </DropdownMenuTrigger>

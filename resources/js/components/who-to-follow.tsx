@@ -32,16 +32,53 @@ function reasonFor(user: SuggestedUser): string | null {
     return null;
 }
 
+function BioComment({ bio }: { bio: string }) {
+    return (
+        <span
+            className="block truncate font-mono text-xs text-muted-foreground"
+            title={bio}
+        >
+            <span aria-hidden className="text-muted-foreground/60">
+                #{' '}
+            </span>
+            {bio}
+        </span>
+    );
+}
+
+function Reason({ reason }: { reason: string }) {
+    return (
+        <span
+            className="block truncate text-xs text-muted-foreground"
+            title={reason}
+        >
+            {reason}
+        </span>
+    );
+}
+
+/**
+ * The aside is too narrow to share a line with the button, so there the bio and reason go below on their own lines.
+ */
 export function SuggestedUserRow({
     user,
+    isStacked = false,
     className,
     buttonClassName,
 }: {
     user: SuggestedUser;
+    isStacked?: boolean;
     className?: string;
     buttonClassName?: string;
 }) {
     const reason = reasonFor(user);
+    const bio = user.bio?.trim() || null;
+    const details = (bio || reason) && (
+        <>
+            {bio && <BioComment bio={bio} />}
+            {reason && <Reason reason={reason} />}
+        </>
+    );
     const avatarRef = useRef<HTMLSpanElement>(null);
     const hasBlock = useHasBlockWith(user);
     const [isGone, setIsGone] = useState(false);
@@ -99,25 +136,29 @@ export function SuggestedUserRow({
                                         @{user.username}
                                     </span>
                                 </span>
-                                {reason && (
-                                    <span className="line-clamp-2 block text-xs text-muted-foreground">
-                                        {reason}
-                                    </span>
-                                )}
+                                {!isStacked && details}
                             </span>
                         </Link>
                     </UserPreview>
                     <FollowButton
                         user={user}
                         isFollowing={false}
+                        followsYou={user.follows_you}
                         size="sm"
-                        className={cn('min-w-24 shrink-0', buttonClassName)}
+                        className={cn(
+                            'min-w-24 shrink-0',
+                            buttonClassName,
+                            user.follows_you && 'min-w-26',
+                        )}
                         only={['auth']}
                         preserveState
                         onSuccess={() => router.flushAll()}
                         data-test="suggested-follow-button"
                     />
                 </div>
+                {isStacked && (
+                    <div className="mt-1.5 min-h-8 pl-12">{details}</div>
+                )}
             </div>
         </li>
     );
@@ -126,39 +167,44 @@ export function SuggestedUserRow({
 function SuggestedUsersSkeleton({
     rowClassName,
     buttonClassName,
-    hasWrappingReasons = false,
+    isStacked = false,
 }: {
     rowClassName?: string;
     buttonClassName?: string;
-    hasWrappingReasons?: boolean;
+    isStacked?: boolean;
 }) {
+    const details = (
+        <>
+            <Skeleton className="my-0.5 h-3 w-36" />
+            <Skeleton className="my-0.5 h-3 w-32" />
+        </>
+    );
+
     return (
         <>
             {[0, 1, 2].map((index) => (
-                <li
-                    key={index}
-                    aria-hidden
-                    className={cn('flex items-center gap-3', rowClassName)}
-                >
-                    <Skeleton className="size-9 shrink-0 rounded-full" />
-                    <span className="flex-1">
-                        <Skeleton className="my-[3px] h-3.5 w-28" />
-                        <Skeleton className="my-0.5 h-3 w-20" />
-                        <Skeleton className="my-0.5 h-3 w-32" />
-                        {hasWrappingReasons && (
-                            <Skeleton className="my-0.5 h-3 w-16" />
-                        )}
-                    </span>
-                    <Skeleton
-                        className={cn('h-8 w-24 shrink-0', buttonClassName)}
-                    />
+                <li key={index} aria-hidden className={rowClassName}>
+                    <div className="flex items-center gap-3">
+                        <Skeleton className="size-9 shrink-0 rounded-full" />
+                        <span className="flex-1">
+                            <Skeleton className="my-[3px] h-3.5 w-28" />
+                            <Skeleton className="my-0.5 h-3 w-20" />
+                            {!isStacked && details}
+                        </span>
+                        <Skeleton
+                            className={cn('h-8 w-24 shrink-0', buttonClassName)}
+                        />
+                    </div>
+                    {isStacked && (
+                        <div className="mt-1.5 min-h-8 pl-12">{details}</div>
+                    )}
                 </li>
             ))}
         </>
     );
 }
 
-function WhoToFollowRefreshButton() {
+function WhoToFollowRefreshButton({ disabled }: { disabled: boolean }) {
     const { isRefreshing, refreshSuggestedUsers } = useWhoToFollow();
 
     return (
@@ -167,6 +213,7 @@ function WhoToFollowRefreshButton() {
             size="icon"
             className="size-7 text-muted-foreground"
             onClick={refreshSuggestedUsers}
+            disabled={disabled}
             aria-disabled={isRefreshing}
             aria-label="Suggest other people"
             title="Suggest other people"
@@ -190,7 +237,7 @@ function WhoToFollowActions({
 }) {
     return (
         <div className="flex items-center gap-1">
-            {hasSuggestions && <WhoToFollowRefreshButton />}
+            <WhoToFollowRefreshButton disabled={!hasSuggestions} />
             <WhoToFollowMenu onHide={onHide} />
         </div>
     );
@@ -289,7 +336,7 @@ export function WhoToFollow() {
     return (
         <section
             aria-labelledby="aside-who-to-follow"
-            className="border-t pt-6"
+            className="-mt-4 border-t pt-4"
         >
             <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 id="aside-who-to-follow" className="text-sm font-semibold">
@@ -308,10 +355,14 @@ export function WhoToFollow() {
                 <ul className="space-y-4">
                     <Deferred
                         data="suggestedUsers"
-                        fallback={<SuggestedUsersSkeleton hasWrappingReasons />}
+                        fallback={<SuggestedUsersSkeleton isStacked />}
                     >
                         {suggestedUsers?.map((user) => (
-                            <SuggestedUserRow key={user.id} user={user} />
+                            <SuggestedUserRow
+                                key={user.id}
+                                user={user}
+                                isStacked
+                            />
                         ))}
                     </Deferred>
                 </ul>

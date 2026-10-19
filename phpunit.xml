@@ -34,6 +34,7 @@
         <env name="SIGNUP_MIN_ACCOUNT_AGE_DAYS" value="0"/>
         <env name="SIGNUP_REQUIRE_VERIFIED_EMAIL" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="TRENDING_TEMPERATURE" value="0"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="OPENAI_API_KEY" value=""/>
         <env name="OPENCODE_API_KEY" value="" force="true"/>
