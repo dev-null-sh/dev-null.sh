@@ -11,10 +11,7 @@ import {
     useFollowHover,
     useIsFollowing,
 } from '@/components/follow-button';
-import {
-    LiveAvatarMarker,
-    LiveStreamCard,
-} from '@/components/live-stream-card';
+import { LiveAvatarMarker, LiveStreamRow } from '@/components/live-stream-card';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -41,11 +38,11 @@ type Position =
 
 const openDelay = 450;
 const closeDelay = 200;
-const previewWidth = 304;
+const previewWidth = 360;
 const previewHeight = 260;
 const viewportMargin = 8;
-// Where the centre of the preview's avatar sits: border, padding and half of the size-14 avatar.
-const avatarCentre = 45;
+// Where the centre of the preview's avatar sits: border, padding and half of the size-12 avatar.
+const avatarCentre = 41;
 const cache = new Map<string, PreviewData>();
 
 async function fetchPreview(url: string): Promise<PreviewData> {
@@ -282,7 +279,7 @@ export function UserPreview({
                             scheduleClose();
                         }}
                         data-state={isOpen ? 'open' : 'closed'}
-                        className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
+                        className="fixed z-50 w-90 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
                         style={{
                             ...position,
                             transformOrigin: anchor
@@ -340,6 +337,7 @@ function UserPreviewContent({
 
     /**
      * The button flips right away, but like every other follow control the shared state only changes once the server confirms, so there is nothing to roll back.
+     * It is an async visit, as follow buttons are, so following someone else before this answers doesn't cancel it.
      */
     const toggleFollow = () => {
         if (!data || data.isUnavailable || pendingFollows !== null) {
@@ -354,6 +352,7 @@ function UserPreviewContent({
                 ? UserFollowController.store(user)
                 : UserFollowController.destroy(user),
             {
+                async: true,
                 preserveScroll: true,
                 preserveState: true,
                 onSuccess: () => {
@@ -379,21 +378,45 @@ function UserPreviewContent({
 
     return (
         <div style={{ '--lane': lane } as CSSProperties}>
-            <div className="flex items-start justify-between gap-3">
-                <Link href={show(user)} className="relative rounded-full">
+            {/* The LIVE label hangs below the avatar, so the header keeps the usual gap under it. */}
+            <div
+                className={cn('flex items-center gap-3', {
+                    'pbe-1.5': user.live,
+                })}
+            >
+                <Link
+                    href={show(user)}
+                    className="relative shrink-0 rounded-full"
+                >
                     <UserAvatar
                         user={user}
                         className={cn(
-                            'size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover',
+                            'size-12 ring-2 ring-(--lane) ring-offset-2 ring-offset-popover',
                             { 'ring-red-600': user.live },
                         )}
                     />
                     {user.live && <LiveAvatarMarker className="ring-popover" />}
                 </Link>
 
+                <div className="min-w-0 flex-1">
+                    <Link
+                        href={show(user)}
+                        className="line-clamp-2 leading-snug font-semibold wrap-break-word [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+                    >
+                        {user.name}
+                    </Link>
+                    <p className="flex items-center gap-1.5 font-mono text-[13px] text-muted-foreground">
+                        <span
+                            aria-hidden
+                            className="size-2 shrink-0 rounded-full bg-(--lane)"
+                        />
+                        <span className="truncate">@{user.username}</span>
+                    </p>
+                </div>
+
                 {!isCurrentUser &&
                     (data ? (
-                        <div className="flex gap-2">
+                        <div className="flex shrink-0 gap-1.5">
                             {auth.user && (
                                 <UserSafetyMenu
                                     user={user}
@@ -409,7 +432,7 @@ function UserPreviewContent({
                                     variant={
                                         shownIsFollowing ? 'outline' : 'default'
                                     }
-                                    className="group/follow min-w-24"
+                                    className="group/follow min-w-22"
                                     onClick={() => {
                                         markToggled();
                                         toggleFollow();
@@ -431,43 +454,34 @@ function UserPreviewContent({
                             )}
                         </div>
                     ) : (
-                        <span className="h-8 w-24 rounded-md bg-muted-foreground/15 motion-safe:animate-pulse" />
+                        <span className="h-8 w-30 shrink-0 rounded-md bg-muted-foreground/15 motion-safe:animate-pulse" />
                     ))}
             </div>
 
-            <Link
-                href={show(user)}
-                className="mt-3 block truncate font-semibold hover:underline"
-            >
-                {user.name}
-            </Link>
-            <p className="flex items-center gap-1.5 font-mono text-[13px] text-muted-foreground">
-                <span
-                    aria-hidden
-                    className="size-2 shrink-0 rounded-full bg-(--lane)"
-                />
-                <span className="truncate">@{user.username}</span>
-                {data?.followsYou && (
-                    <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
-                        Follows you
-                    </span>
-                )}
-                {data?.isMuting && (
-                    <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
-                        Muted
-                    </span>
-                )}
-            </p>
+            {(data?.followsYou || data?.isMuting) && (
+                <p className="mbs-3 flex gap-1.5 text-xs">
+                    {data.followsYou && (
+                        <span className="rounded bg-muted px-1.5 py-0.5">
+                            Follows you
+                        </span>
+                    )}
+                    {data.isMuting && (
+                        <span className="rounded bg-muted px-1.5 py-0.5">
+                            Muted
+                        </span>
+                    )}
+                </p>
+            )}
 
             {user.bio && !data?.isUnavailable && (
-                <p className="mt-2 line-clamp-3 text-sm text-pretty">
+                <p className="mbs-3 line-clamp-3 text-sm text-pretty">
                     {user.bio}
                 </p>
             )}
 
-            <div className="mt-3 flex gap-4 text-sm">
+            <div className="mbs-3 flex gap-4 font-mono text-[13px]">
                 {data?.isUnavailable ? (
-                    <p className="text-muted-foreground">
+                    <p className="font-sans text-sm text-muted-foreground">
                         {data.isBlocking
                             ? `You blocked @${user.username}.`
                             : 'This profile is unavailable.'}
@@ -486,7 +500,7 @@ function UserPreviewContent({
                         </span>
                         <Link
                             href={UserFollowingController.index(user)}
-                            className="hover:underline"
+                            className="[@media(hover:hover)_and_(pointer:fine)]:hover:underline"
                         >
                             <span className="font-mono font-medium">
                                 {data.user.following_count}
@@ -497,7 +511,7 @@ function UserPreviewContent({
                         </Link>
                         <Link
                             href={UserFollowersController.index(user)}
-                            className="hover:underline"
+                            className="[@media(hover:hover)_and_(pointer:fine)]:hover:underline"
                         >
                             <span className="font-mono font-medium">
                                 {data.user.followers_count}
@@ -515,8 +529,8 @@ function UserPreviewContent({
             </div>
 
             {user.live && !data?.isUnavailable && (
-                <div className="mt-4 border-t pt-4">
-                    <LiveStreamCard user={user} stream={user.live} />
+                <div className="mbs-3 border-bs pbs-2">
+                    <LiveStreamRow user={user} stream={user.live} />
                 </div>
             )}
         </div>
