@@ -43,6 +43,7 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
+use App\Http\Controllers\IssueImageController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
@@ -192,6 +193,9 @@ Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageCont
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('issue-images/{image}', [IssueImageController::class, 'show'])
+    ->whereUuid('image')
+    ->name('issue-image.show');
 Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
     ->name('commit-link-preview.show');
 Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])

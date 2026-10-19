@@ -33,6 +33,8 @@ final readonly class IssueController
                 $user,
                 $request->string('command')->value(),
                 $request->string('body')->value(),
+                $request->images(),
+                $request->imageDescriptions(),
             );
         } catch (ConnectionException) {
             return response()->json([

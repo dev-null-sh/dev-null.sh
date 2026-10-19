@@ -32,12 +32,16 @@ export function useIssueCommand({
     updateBody,
     enabled,
     hasSecrets,
+    images,
+    descriptions,
     onCreated,
 }: {
     body: string;
     updateBody: (body: string) => void;
     enabled: boolean;
     hasSecrets: boolean;
+    images: File[];
+    descriptions: string[];
     onCreated: () => void;
 }) {
     const [kind, setKind] = useState<IssueKind | null>(null);
@@ -46,7 +50,12 @@ export function useIssueCommand({
     const [focused, setFocused] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(isHintDismissed);
     const request = useHttp<
-        { command: string; body: string },
+        {
+            command: string;
+            body: string;
+            images?: File[];
+            image_descriptions?: string[];
+        },
         { number: number; url: string }
     >({ command: '', body: '' });
     const command =
@@ -88,7 +97,14 @@ export function useIssueCommand({
             return;
         }
 
-        request.transform(() => ({ command: command.name, body }));
+        request.transform(() => ({
+            command: command.name,
+            body,
+            ...(images.length > 0 && {
+                images,
+                image_descriptions: descriptions,
+            }),
+        }));
 
         try {
             const issue = await request.submit(store(), {

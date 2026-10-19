@@ -373,14 +373,14 @@ function CommitComposerBody({
 
                     <div className="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 sm:flex-nowrap">
                         <div className="flex min-w-0 flex-1 items-center gap-x-1 max-sm:basis-full">
+                            <ImagePickerButton
+                                count={attachments.images.length}
+                                disabled={processing || poll !== null}
+                                onPick={attachments.attach}
+                                className="-ml-2"
+                            />
                             {!isIssue && (
                                 <>
-                                    <ImagePickerButton
-                                        count={attachments.images.length}
-                                        disabled={processing || poll !== null}
-                                        onPick={attachments.attach}
-                                        className="-ml-2"
-                                    />
                                     <ActionTooltip
                                         label={
                                             hasImages
@@ -545,9 +545,24 @@ export function CommitComposer({
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(body);
 
+    const issue = useIssueCommand({
+        body,
+        updateBody: stash.updateBody,
+        enabled: poll === null && !isScheduling,
+        hasSecrets: secrets.findings.length > 0,
+        images: attachments.images,
+        descriptions: attachments.descriptions,
+        onCreated: () => {
+            drop();
+            focusBody(id);
+        },
+    });
+
     const hasImages = attachments.images.length > 0;
+    // An issue needs words: images only illustrate them.
     const isCommittable =
-        (hasImages || characterCount(body.trim()) >= minBodyLength) &&
+        ((hasImages && issue.command === null) ||
+            characterCount(body.trim()) >= minBodyLength) &&
         (poll === null ||
             poll.options.every((option) => option.trim().length > 0));
 
@@ -555,17 +570,6 @@ export function CommitComposer({
         isCommittable &&
         (!isScheduling ||
             (scheduledAt !== '' && isExistingLocalTime(scheduledAt)));
-
-    const issue = useIssueCommand({
-        body,
-        updateBody: stash.updateBody,
-        enabled: !hasImages && poll === null && !isScheduling,
-        hasSecrets: secrets.findings.length > 0,
-        onCreated: () => {
-            drop();
-            focusBody(id);
-        },
-    });
 
     useEffect(() => discardSeriesStash(user.id), [user.id]);
 

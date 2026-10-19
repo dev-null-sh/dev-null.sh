@@ -9,6 +9,8 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
@@ -92,15 +94,52 @@ it('collapses blank lines and keeps the title within the limit of GitHub', funct
         && str_starts_with((string) $request['body'], str_repeat('a', 300)."\n\nplease\n\n---"));
 });
 
-it('does not send images to GitHub', function (): void {
+it('links the images from the body, served publicly from here', function (): void {
+    Storage::fake();
     fakeGitHubApp();
 
     $this->actingAs(User::factory()->create())
-        ->post(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.', 'images' => [UploadedFile::fake()->image('shot.png')]], ['Accept' => 'application/json'])
+        ->post(route('issue.store'), [
+            'command' => '/bug',
+            'body' => 'Broken.',
+            'images' => [UploadedFile::fake()->image('shot.png')],
+            'image_descriptions' => ['The [broken] page'],
+        ], ['Accept' => 'application/json'])
         ->assertCreated();
 
+    $files = Storage::disk()->files('issue-images');
+    expect($files)->toHaveCount(1);
+    $id = pathinfo($files[0], PATHINFO_FILENAME);
+
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/issues')
-        && ! str_contains((string) $request['body'], '<img'));
+        && str_contains((string) $request['body'], "Broken.\n\n![The  broken  page](".route('issue-image.show', $id).')'));
+
+    auth()->logout();
+    $this->get(route('issue-image.show', $id))->assertOk()->assertHeader('Content-Type', 'image/webp');
+    $this->get(route('issue-image.show', Str::uuid()->toString()))->assertNotFound();
+});
+
+it('erases the images again when GitHub does not open the issue', function (): void {
+    Storage::fake();
+    Http::fake([
+        'api.github.com/repos/nunomaduro/dev-null.sh/installation' => Http::response(['id' => 99]),
+        'api.github.com/app/installations/99/access_tokens' => Http::response(['token' => 'installation-token'], 201),
+        'api.github.com/repos/nunomaduro/dev-null.sh/issues' => Http::response([], 500),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.', 'images' => [UploadedFile::fake()->image('shot.png')]], ['Accept' => 'application/json'])
+        ->assertStatus(502);
+
+    expect(Storage::disk()->files('issue-images'))->toBeEmpty();
+});
+
+it('refuses more than three images', function (): void {
+    fakeGitHubApp();
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.', 'images' => array_fill(0, 4, UploadedFile::fake()->image('shot.png'))], ['Accept' => 'application/json'])
+        ->assertInvalid('images');
 });
 
 it('keeps the draft when GitHub rejects the issue or does not respond', function (Closure $response, string $message): void {
