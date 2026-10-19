@@ -46,10 +46,11 @@ export default function Show() {
                             <>
                                 <strong>From GitHub, when you sign in:</strong>{' '}
                                 your GitHub ID, username, name, avatar, bio,
-                                company, location, website, the email address
-                                GitHub shares, whether you have a Sponsors
-                                listing, your public SSH key fingerprints, and
-                                who you follow and who follows you.
+                                company, location, website, whether you have a
+                                Sponsors listing, your public SSH key
+                                fingerprints, and who you follow and who follows
+                                you. We check that GitHub has a verified email
+                                for you but don't store it.
                             </>,
                             <>
                                 <strong>What you post and do:</strong> commits,

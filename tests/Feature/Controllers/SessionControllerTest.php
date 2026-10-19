@@ -48,7 +48,6 @@ it('creates a user and logs them in', function (): void {
     expect($user)
         ->username->toBe('octocat')
         ->name->toBe('The Octocat')
-        ->email->toBe('octocat@github.com')
         ->avatar_url->toBe('https://avatars.githubusercontent.com/u/583231')
         ->bio->toBe('I am the Octocat.')
         ->location->toBe('San Francisco')

@@ -49,7 +49,6 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $user = User::factory()->create([
         'name' => 'Zoë Example',
         'bio' => "Building tools.\nKeeping them small.",
-        'email' => 'zoe@example.test',
         'company' => null,
         'has_sponsors_listing' => true,
         'preferred_lane' => 3,
@@ -77,13 +76,12 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 2,
+        'schema_version' => 3,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
             'username' => $user->username,
             'name' => 'Zoë Example',
-            'email' => 'zoe@example.test',
             'avatar_url' => $user->avatar_url,
             'bio' => "Building tools.\nKeeping them small.",
             'location' => $user->location,
@@ -275,8 +273,8 @@ it('exports surviving replies and polls after another account is deleted', funct
 
 it('exports following and follower usernames without private identity fields', function (): void {
     $user = User::factory()->create();
-    $followed = User::factory()->create(['username' => 'demo-developer', 'email' => 'private@example.test', 'remember_token' => 'secret-token']);
-    $follower = User::factory()->create(['username' => 'demo-follower', 'email' => 'follower@example.test']);
+    $followed = User::factory()->create(['username' => 'demo-developer', 'remember_token' => 'secret-token']);
+    $follower = User::factory()->create(['username' => 'demo-follower']);
     $stranger = User::factory()->create();
     $user->following()->attach($followed);
     $user->followers()->attach($follower);
@@ -288,8 +286,8 @@ it('exports following and follower usernames without private identity fields', f
     expect($data['following'])->toBe([['username' => 'demo-developer']])
         ->and($data['followers'])->toBe([['username' => 'demo-follower']])
         ->and($response->streamedContent())->not->toContain(
-            $followed->email, $followed->github_id, $followed->id, $followed->remember_token,
-            $follower->email, $follower->id, $stranger->username,
+            $followed->github_id, $followed->id, $followed->remember_token,
+            $follower->id, $stranger->username,
         );
 });
 

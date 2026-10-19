@@ -39,7 +39,6 @@ final readonly class UpdateUserProfile
             DB::transaction(function () use ($user, $profile): void {
                 $this->updateStaleUsernames->handle($profile->username, $user->github_id);
 
-                // The email is left alone: the public API only has the public one, sign-in also knows the private one.
                 $user->update([
                     ...$profile->attributes(),
                     'github_synced_at' => now(),

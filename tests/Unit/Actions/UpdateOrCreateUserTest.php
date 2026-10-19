@@ -30,12 +30,12 @@ it('creates a user from github', function (): void {
         ->and($user->github_id)->toBe('583231')
         ->and($user->username)->toBe('octocat')
         ->and($user->name)->toBe('The Octocat')
-        ->and($user->email)->toBe('octocat@github.com')
         ->and($user->avatar_url)->toBe('https://avatars.githubusercontent.com/u/583231')
         ->and($user->bio)->toBe('I am the Octocat.')
         ->and($user->location)->toBe('San Francisco')
         ->and($user->website)->toBe('https://github.blog')
-        ->and($user->company)->toBe('@github');
+        ->and($user->company)->toBe('@github')
+        ->and($user->fresh()->getAttributes())->not->toHaveKey('email');
 });
 
 it('updates an existing user from github', function (): void {
@@ -80,15 +80,13 @@ it('stores blank profile fields as null', function (): void {
     $action = resolve(UpdateOrCreateUser::class);
 
     $user = $action->handle(GitHubUser::fake([
-        'email' => null,
         'avatar' => '',
         'bio' => '   ',
         'location' => null,
         'blog' => '',
     ]));
 
-    expect($user->email)->toBeNull()
-        ->and($user->avatar_url)->toBeNull()
+    expect($user->avatar_url)->toBeNull()
         ->and($user->bio)->toBeNull()
         ->and($user->location)->toBeNull()
         ->and($user->website)->toBeNull()

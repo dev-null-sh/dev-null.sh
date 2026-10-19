@@ -140,12 +140,11 @@ it('includes the images of the commit in order', function (): void {
 });
 
 it('never exposes hidden user fields', function (): void {
-    $user = User::factory()->create(['email' => 'octocat@github.com', 'preferred_lane' => 3]);
+    $user = User::factory()->create(['preferred_lane' => 3]);
     $commit = Commit::factory()->for($user)->create();
 
     $this->getJson(route('api-commit.show', $commit))
         ->assertOk()
-        ->assertDontSee('octocat@github.com')
         ->assertJsonMissingPath('data.author.email')
         ->assertJsonMissingPath('data.author.github_id')
         ->assertJsonMissingPath('data.author.preferred_lane')
