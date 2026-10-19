@@ -6,6 +6,7 @@ use App\Exceptions\ApiException;
 use App\Http\Controllers\Api\BookmarkController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
+use App\Http\Controllers\Api\CommitPreviewController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CommitStarController;
@@ -86,6 +87,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware(ThrottleCommits::class)
             ->name('api-commit.store');
         Route::delete('commits/{commit}', [ApiCommitController::class, 'destroy'])->name('api-commit.destroy');
+
+        // Commit Preview: a draft as the commit it would become, which keeps nothing...
+        Route::post('commits/preview', [CommitPreviewController::class, 'store'])->name('api-commit-preview.store');
 
         // Commit Reply...
         Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
