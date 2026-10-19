@@ -158,9 +158,14 @@ export default function Index({
     const { start, stop } = usePoll(
         30_000,
         () => ({
-            only: ['notifications', 'auth.unreadNotificationsCount'],
+            only: [
+                'notifications',
+                'auth.unreadNotificationsCount',
+                'auth.unreadMessagesCount',
+            ],
             reset: ['notifications'],
             data: {
+                type: filters.type,
                 cursor: '',
                 through: notifications.data.at(-1)?.created_at,
             },
@@ -364,6 +369,7 @@ export default function Index({
                 <>
                     <InfiniteScroll
                         data="notifications"
+                        params={{ data: { type: filters.type } }}
                         onlyNext
                         preserveUrl
                         loading={
