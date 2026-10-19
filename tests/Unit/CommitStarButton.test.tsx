@@ -69,6 +69,7 @@ void test('authors see an accessible empty star count', async () => {
 
     assert.match(body, /aria-label="No stars yet"/);
     assert.match(body, /disabled=""/);
+    assert.match(body, /data-test="star-count"[^>]*><\/span>/);
 });
 
 for (const user of [null, { id: 'viewer' }]) {
@@ -81,6 +82,23 @@ for (const user of [null, { id: 'viewer' }]) {
         assert.doesNotMatch(body, /data-test="own-star-count"/);
     });
 }
+
+void test('unstarred commits reserve the count slot outside the star control', async () => {
+    const body = await render({ id: 'viewer' }, { stars_count: 0 });
+
+    assert.match(
+        body,
+        /class="[^"]*mr-\[calc\(0\.25rem\+1ch\)\][^"]*" data-test="star-commit-button"/,
+    );
+    assert.doesNotMatch(body, /data-test="star-count"/);
+});
+
+void test('starred commits keep the count slot inside the star control', async () => {
+    const body = await render({ id: 'viewer' }, { stars_count: 1 });
+
+    assert.doesNotMatch(body, /mr-\[calc/);
+    assert.match(body, /data-test="star-count"[^>]*>1<\/span>/);
+});
 
 for (const status of ['pending', 'rejected'] as const) {
     void test(`other readers cannot star a ${status} commit`, async () => {

@@ -164,6 +164,7 @@ export function CommitStarButton({
                 className={cn(
                     'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                     starred && 'text-primary hover:text-primary',
+                    count === 0 && 'mr-[calc(0.25rem+1ch)]',
                     className,
                 )}
                 data-test="star-commit-button"
@@ -176,9 +177,14 @@ export function CommitStarButton({
                         isAnimating && 'motion-safe:animate-star-pop',
                     )}
                 />
-                <span data-test="star-count" className="min-w-[1ch] text-left">
-                    {count > 0 ? formatCount(count) : ''}
-                </span>
+                {count > 0 && (
+                    <span
+                        data-test="star-count"
+                        className="min-w-[1ch] text-left tabular-nums"
+                    >
+                        {formatCount(count)}
+                    </span>
+                )}
             </button>
         </ActionTooltip>
     );
