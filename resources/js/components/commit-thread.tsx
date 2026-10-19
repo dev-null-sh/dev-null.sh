@@ -280,6 +280,33 @@ export function useThread(
         }
     };
 
+    /**
+     * Requests can overlap, for example a reply posted while the next page loads, so only the latest one is applied.
+     */
+    const latestRequest = useRef(0);
+
+    const load = (
+        request: Promise<
+            Pick<CursorPaginated<ThreadCommit>, 'data' | 'next_cursor'>
+        >,
+    ) => {
+        const id = ++latestRequest.current;
+        setIsLoading(true);
+
+        request
+            .then((page) => {
+                if (id === latestRequest.current) {
+                    applyPage(page.data, page.next_cursor);
+                }
+            })
+            .catch(() => undefined)
+            .finally(() => {
+                if (id === latestRequest.current) {
+                    setIsLoading(false);
+                }
+            });
+    };
+
     const reload = (extra = 0) => {
         const minimum =
             replies === null || (isPreview && replies.length <= repliesPerPage)
@@ -288,12 +315,15 @@ export function useThread(
                   ? Infinity
                   : replies.length + extra;
 
-        setIsLoading(true);
-
-        fetchRepliesUntil(commit, minimum, repliesPerPage, isPreview, except)
-            .then((page) => applyPage(page.data, page.next_cursor))
-            .catch(() => undefined)
-            .finally(() => setIsLoading(false));
+        load(
+            fetchRepliesUntil(
+                commit,
+                minimum,
+                repliesPerPage,
+                isPreview,
+                except,
+            ),
+        );
     };
 
     const loadUntil = (minimum: number) => {
@@ -301,19 +331,16 @@ export function useThread(
             return;
         }
 
-        setIsLoading(true);
-
-        fetchRepliesAfter(
-            commit,
-            replies,
-            nextCursor,
-            minimum,
-            isPreview,
-            except,
-        )
-            .then((page) => applyPage(page.data, page.next_cursor))
-            .catch(() => undefined)
-            .finally(() => setIsLoading(false));
+        load(
+            fetchRepliesAfter(
+                commit,
+                replies,
+                nextCursor,
+                minimum,
+                isPreview,
+                except,
+            ),
+        );
     };
 
     const commitId = commit.id;
@@ -324,15 +351,21 @@ export function useThread(
         }
 
         let isCurrent = true;
+        const id = ++latestRequest.current;
 
         fetchReplies({ id: commitId }, null, isPreview, repliesPerPage, except)
             .then((page) => {
-                if (isCurrent) {
+                if (isCurrent && id === latestRequest.current) {
                     setReplies(page.data);
                     setNextCursor(page.next_cursor);
                 }
             })
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(() => {
+                if (isCurrent && id === latestRequest.current) {
+                    setIsLoading(false);
+                }
+            });
 
         return () => {
             isCurrent = false;
