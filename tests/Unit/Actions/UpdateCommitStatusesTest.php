@@ -2,10 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateTomFriendship;
 use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
+use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
+use App\Models\User;
 use App\Services\TheAlgorithm;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 it('may approve many commits', function (): void {
     $commits = Commit::factory()->pending()->count(2)->create();
@@ -20,6 +25,36 @@ it('may approve many commits', function (): void {
     }
 
     expect($other->refresh()->status)->toBe(CommitStatus::Pending);
+});
+
+it('queues direct replies to Tom in bulk without per-reply queries', function (): void {
+    config(['ai.providers.opencode.key' => 'test']);
+    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+
+    $queryCounts = collect([2, 6])->map(function (int $count) use ($tom): int {
+        $parents = Commit::factory()->for($tom)->count($count)->create(['body' => 'A developer community.']);
+        $replies = $parents->map(fn (Commit $parent): Commit => Commit::factory()->pending()->for($parent, 'parent')->create(['body' => 'Thanks for explaining!']));
+        Queue::fake([ReplyAsTom::class]);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        try {
+            resolve(UpdateCommitStatuses::class)->handle($replies->modelKeys(), CommitStatus::Approved);
+            $queryCount = count(DB::getQueryLog());
+        } finally {
+            DB::disableQueryLog();
+        }
+
+        Queue::assertPushed(ReplyAsTom::class, $count);
+        foreach ($replies as $reply) {
+            Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $reply->id);
+            expect($reply->fresh()->status)->toBe(CommitStatus::Approved);
+        }
+
+        return $queryCount;
+    });
+
+    expect($queryCounts[1])->toBe($queryCounts[0]);
 });
 
 it('may only update the commits that are still pending', function (): void {

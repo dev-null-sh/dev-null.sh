@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
-import { cn } from '@/lib/utils';
+import { cn, laneStrokeStyle } from '@/lib/utils';
 import type { User } from '@/types';
 
 type Props = {
@@ -20,6 +21,8 @@ type Props = {
 };
 
 const dimmable = 'transition-opacity duration-200';
+
+const stagedDash = 4;
 
 // Nodes fade inside an opaque backdrop so the lane line behind them stays hidden.
 const dimmedNode = 'group-data-dimmed/rail-node:opacity-60';
@@ -64,34 +67,46 @@ export function GraphRail({
             {previousLane && variant !== 'staged' && (
                 <span
                     className={cn(
-                        'absolute top-0 left-1/2 h-8 w-0.5 -translate-x-1/2',
+                        // Overlap the tail by 1px so abutting edges don't flash a hairline gap.
+                        'absolute top-0 left-1/2 h-[calc(2rem+1px)] w-0.5 -translate-x-1/2',
                         dimmable,
                         {
                             'opacity-60': isPreviousDimmed,
-                            'h-1/2': nodePosition === 'center',
-                            'h-[23px]': nodePosition === 'author',
+                            'h-[calc(50%+1px)]': nodePosition === 'center',
+                            'h-6': nodePosition === 'author',
                             'bottom-5 h-auto': nodePosition === 'bottom',
                         },
                     )}
                     style={{ background: previousLane }}
+                    data-test="rail-previous"
                 />
             )}
 
             {hasTail &&
                 (variant === 'staged' ? (
-                    <span className="absolute top-8 bottom-0 left-1/2 -translate-x-1/2 border-l-2 border-dashed border-rail" />
+                    <span
+                        className="absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2"
+                        style={laneStrokeStyle('var(--rail)', {
+                            dash: stagedDash,
+                            anchor: 'end',
+                        })}
+                        data-test="rail-staged-tail"
+                    />
                 ) : (
                     <span
                         className={cn(
-                            'absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane)',
+                            // Start 1px early so this meets the previous segment without a seam.
+                            'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane)',
                             dimmable,
                             {
                                 'opacity-60': isDimmed,
                                 'bottom-5': endsWithDot,
-                                'top-1/2': nodePosition === 'center',
-                                'top-[23px]': nodePosition === 'author',
+                                'top-[calc(50%-1px)]':
+                                    nodePosition === 'center',
+                                'top-[22px]': nodePosition === 'author',
                             },
                         )}
+                        data-test="rail-tail"
                     />
                 ))}
 
@@ -163,22 +178,64 @@ export function RailDot({
 
 export function RailAvatar({
     user,
-    isStaged = false,
+    progress,
 }: {
-    user: Pick<User, 'name' | 'avatar_url'>;
-    isStaged?: boolean;
+    user: Pick<User, 'name' | 'avatar_url' | 'live'>;
+    // Fills the ring clockwise from 0 to 1, as a post grows toward its limit. At 0 the ring stays dashed.
+    progress?: number;
 }) {
+    const isLive = Boolean(user.live);
+
     return (
-        <span className="flex rounded-full bg-card">
+        <span className="relative flex rounded-full bg-card">
             <span
                 className={cn(
-                    'flex rounded-full border-2 border-(--lane) p-0.5 transition-[border-color,opacity] duration-200',
+                    'relative flex rounded-full border-2 border-(--lane) p-0.5 transition-[border-color,opacity] duration-200',
                     dimmedNode,
-                    { 'border-dashed': isStaged },
+                    {
+                        'border-dashed': progress === 0,
+                        'border-red-600': isLive,
+                        'border-transparent':
+                            progress !== undefined && progress > 0,
+                    },
                 )}
             >
+                {progress !== undefined && progress > 0 && (
+                    <svg
+                        viewBox="0 0 48 48"
+                        className="pointer-events-none absolute -inset-0.5 size-12 -rotate-90"
+                        fill="none"
+                        strokeWidth={2}
+                    >
+                        <circle
+                            cx="24"
+                            cy="24"
+                            r="23"
+                            className={cn(
+                                isLive ? 'stroke-red-600' : 'stroke-(--lane)',
+                                'opacity-25',
+                            )}
+                        />
+                        <circle
+                            cx="24"
+                            cy="24"
+                            r="23"
+                            pathLength={1}
+                            strokeDasharray={1}
+                            strokeLinecap="round"
+                            strokeDashoffset={1 - Math.min(progress, 1)}
+                            className={cn(
+                                isLive ? 'stroke-red-600' : 'stroke-(--lane)',
+                                'transition-[stroke-dashoffset] duration-200',
+                            )}
+                        />
+                    </svg>
+                )}
                 <UserAvatar user={user} className="size-10" />
             </span>
+            {isLive && (
+                <LiveAvatarMarker className="px-1 text-[9px] leading-3.5" />
+            )}
         </span>
     );
 }
@@ -186,12 +243,19 @@ export function RailAvatar({
 export function RailSegment({
     lane,
     isDimmed = false,
+    isDashed = false,
+    className,
 }: {
     lane?: string;
     isDimmed?: boolean;
+    isDashed?: boolean;
+    className?: string;
 }) {
     return (
-        <div aria-hidden className="relative w-16 shrink-0 sm:w-18">
+        <div
+            aria-hidden
+            className={cn('relative w-16 shrink-0 sm:w-18', className)}
+        >
             {lane && (
                 <span
                     className={cn(
@@ -199,7 +263,11 @@ export function RailSegment({
                         dimmable,
                         { 'opacity-60': isDimmed },
                     )}
-                    style={{ background: lane }}
+                    style={
+                        isDashed
+                            ? laneStrokeStyle(lane, { dash: stagedDash })
+                            : { background: lane }
+                    }
                 />
             )}
         </div>

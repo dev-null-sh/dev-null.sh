@@ -6,11 +6,13 @@ declare module '@inertiajs/core' {
     export interface InertiaConfig {
         flashDataType: {
             toast?: FlashToast;
+            achievementsUnlocked?: string[];
             committed?: CommittedFlash;
             deleted?: DeletedFlash;
             restored?: Commit;
             scheduled?: boolean;
             localSignIn?: boolean;
+            signedUp?: boolean;
         };
         sharedPageProps: {
             name: string;

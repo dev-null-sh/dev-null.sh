@@ -114,11 +114,17 @@ function QuoteComposer({
         images,
         descriptions,
         isRestored,
+        key: stashKey,
         updateBody,
         updateImages,
         drop,
     } = useStash(user.id, id);
-    const attachments = useImageAttachments(images, descriptions, updateImages);
+    const attachments = useImageAttachments(
+        images,
+        descriptions,
+        updateImages,
+        stashKey,
+    );
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
     const keys = useKeyLabels();
@@ -127,7 +133,12 @@ function QuoteComposer({
         images.length > 0 || characterCount(body.trim()) >= minBodyLength;
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (event.key === 'Enter' && hasModKey(event) && isQuotable) {
+        if (
+            event.key === 'Enter' &&
+            hasModKey(event) &&
+            isQuotable &&
+            !attachments.isReading()
+        ) {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
         }
@@ -165,7 +176,9 @@ function QuoteComposer({
             <Form
                 {...CommitController.store.form()}
                 errorBag="quote"
-                onBefore={secrets.beforeSubmit}
+                onBefore={() =>
+                    !attachments.isReading() && secrets.beforeSubmit()
+                }
                 transform={(data) =>
                     images.length > 0
                         ? {
@@ -266,7 +279,8 @@ function QuoteComposer({
                                     <ImagePickerButton
                                         count={images.length}
                                         disabled={processing}
-                                        onPick={attachments.attach}
+                                        reading={attachments.reading}
+                                        onPick={attachments.pick}
                                         className="size-8"
                                     />
                                     {isRestored && (
@@ -296,7 +310,11 @@ function QuoteComposer({
                                 </Button>
                                 <Button
                                     type="submit"
-                                    disabled={processing || !isQuotable}
+                                    disabled={
+                                        processing ||
+                                        attachments.reading ||
+                                        !isQuotable
+                                    }
                                     title={`Quote (${keys.combo(keys.mod, keys.enter)})`}
                                     data-test="submit-quote-button"
                                 >

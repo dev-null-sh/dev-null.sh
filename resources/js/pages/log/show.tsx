@@ -161,6 +161,7 @@ export default function Show({
                     commits={commits}
                     firstSeenId={firstSeenId}
                     isRanked={isRanked}
+                    isBelowComposer={user !== null}
                     end="That's the root commit. There's nothing before it."
                     interlude={() => <WhoToFollowInLog />}
                     empty={
