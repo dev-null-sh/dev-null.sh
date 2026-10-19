@@ -68,7 +68,8 @@ export default function Show() {
                             <>
                                 <strong>Technical data:</strong> IP address,
                                 browser and device information, logs, and how
-                                you use the service.
+                                you use the service, such as the last day you
+                                used it.
                             </>,
                             <>
                                 <strong>Cookies and browser storage</strong>{' '}

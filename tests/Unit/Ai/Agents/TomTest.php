@@ -7,19 +7,22 @@ use App\Ai\Agents\Tom;
 use App\Ai\Tools\SearchCommits;
 use App\Ai\Tools\SearchKnowledgeBase;
 use App\Enums\CommitStatus;
+use App\Enums\Feature;
 use App\Models\Commit;
 use App\Models\KnowledgeBaseSection;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Tools\Request as ToolRequest;
 
-it('executes both semantic tools through OpenCode and sends only public evidence', function (): void {
+it('executes semantic and statistics tools through OpenCode and sends only public evidence', function (): void {
     config(['ai.providers.opencode.key' => 'test-opencode', 'services.openai.key' => 'test']);
+    resolve(Features::class)->update(Feature::Translations, false);
     Embeddings::fake([[embeddingVector(0)], [embeddingVector(0)]]);
-    $public = Commit::factory()->create(['body' => 'Public database topic', 'embedding' => embeddingVector(0)]);
+    $public = Commit::factory()->for(User::factory()->state(['location' => 'Portugal']))->create(['body' => 'Public database topic', 'embedding' => embeddingVector(0)]);
     Commit::factory()->pending()->create(['body' => 'Pending secret', 'embedding' => embeddingVector(0)]);
     Commit::factory()->rejected()->create(['body' => 'Rejected secret', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['body' => 'Deleted secret', 'deleted_at' => now(), 'embedding' => embeddingVector(0)]);
@@ -27,10 +30,13 @@ it('executes both semantic tools through OpenCode and sends only public evidence
     $question = Commit::factory()->create(['body' => '@tom explain the database and find posts about it']);
     Http::fake([
         'api.openai.com/v1/decisions' => Http::response(relevanceResponse([true])),
+        'api.github.com/repos/nunomaduro/dev-null.sh/languages' => Http::response(['PHP' => 123]),
         'opencode.ai/zen/v1/chat/completions' => Http::sequence()->push([
             'choices' => [['finish_reason' => 'tool_calls', 'message' => ['role' => 'assistant', 'content' => '', 'tool_calls' => [
                 ['id' => 'kb', 'type' => 'function', 'function' => ['name' => 'SearchKnowledgeBase', 'arguments' => '{"query":"platform database"}']],
                 ['id' => 'posts', 'type' => 'function', 'function' => ['name' => 'SearchCommits', 'arguments' => '{"query":"database"}']],
+                ['id' => 'repo', 'type' => 'function', 'function' => ['name' => 'RepositoryInsights', 'arguments' => '{"metric":"languages"}']],
+                ['id' => 'community', 'type' => 'function', 'function' => ['name' => 'CommunityStats', 'arguments' => '{"metric":"location","term":"Portugal"}']],
             ]]]],
         ])->push([
             'choices' => [['finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'PostgreSQL, with a side of rust. :-D']]],
@@ -52,6 +58,9 @@ it('executes both semantic tools through OpenCode and sends only public evidence
             && $request['thinking'] === ['type' => 'disabled']
             && str_contains($tools, 'The platform uses PostgreSQL.')
             && str_contains($tools, 'Public database topic')
+            && str_contains($tools, '"languages":{"PHP":123}')
+            && str_contains($tools, '"count":1')
+            && str_contains($tools, 'Not nationality or verified residence')
             && str_contains(stripslashes($tools), route('commit.show', [$public->user, $public]))
             && ! str_contains($tools, 'secret')
             && ! str_contains($tools, 'embedding')
@@ -66,13 +75,15 @@ it('remembers only the public ancestor branch with the correct speakers', functi
     $answer = Commit::factory()->for($root, 'parent')->for($tom)->create(['body' => 'A developer community.']);
     Commit::factory()->for($root, 'parent')->create(['body' => 'A different branch.']);
     Commit::factory()->create(['body' => 'An unrelated thread.']);
-    $question = Commit::factory()->for($answer, 'parent')->for($user)->create(['body' => '@tom and who started it?']);
+    $newcomer = User::factory()->create(['username' => 'bob']);
+    $question = Commit::factory()->for($answer, 'parent')->for($newcomer)->create(['body' => '@tom and who started it?']);
 
     expect(new Tom($question)->messages()->map(fn (Message $message): array => [$message->role->value, $message->content])->all())->toBe([
         ['user', '@alice: What is this place?'],
         ['assistant', '@tom: A developer community.'],
     ]);
-    expect(new Tom($question)->instructions())->not->toContain('2012 RAM');
+    expect(new Tom($question)->instructions())->toContain('The latest message is by @bob.')
+        ->not->toContain('@alice', '2012 RAM');
 
     $root->update(['status' => CommitStatus::Rejected]);
     expect(new Tom($question)->messages()->pluck('content')->all())->toBe(['@tom: A developer community.']);

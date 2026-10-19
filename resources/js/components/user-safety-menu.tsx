@@ -4,6 +4,7 @@ import { useState } from 'react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
 import { rememberBlock } from '@/components/follow-button';
+import { clearMentionSuggestionsCache } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -57,7 +58,10 @@ export function UserSafetyMenu({
                 changeOpen(false, false);
             },
             onSuccess: () => {
+                clearMentionSuggestionsCache();
+
                 onSuccess?.();
+
                 router.flushAll();
             },
         });

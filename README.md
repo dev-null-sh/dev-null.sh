@@ -65,6 +65,8 @@ Read-only, no authentication, JSON, versioned under `/api/v1`. Only approved com
 |---|---|
 | `GET /api/v1/users/{username}` | A public profile with commit, follower, and following counts |
 | `GET /api/v1/users/{username}/commits` | The user's top-level commits, newest first, 20 per page (`?replies=1` for their replies instead) |
+| `GET /api/v1/users/{username}/followers` | The people following the user, newest follow first, 30 per page |
+| `GET /api/v1/users/{username}/following` | The people the user follows, newest follow first, 30 per page |
 | `GET /api/v1/commits/{id}` | One commit with its author, public parent id, star and reply counts, link preview (with its `embed` player, if any), and images (`id`, `url`, `width`, `height`) |
 
 Lists are cursor-paginated: follow `links.next` (or pass `meta.next_cursor` as `?cursor=`) until it is `null`.
@@ -81,7 +83,7 @@ The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the d
 
 Commits in a signed response carry what the web's cards show: `preview_segments`, the excerpt a list shows of a long commit (or `null`), the `poll` with the user's view of its votes and each option's `percentage`, the `quoted_commit` (a tombstone once deleted, or `null` when the user may not see it, while `quoted_commit_id` still says a commit was quoted), and in lists the `reply_preview` the web shows under each commit. Its `next_cursor` continues with `GET /api/v1/commits/{id}/replies?newest=1&cursor=…`, as on the web.
 
-A signed profile also says `is_muting` and has the web's `achievements`, with the Unix rank.
+A signed profile also says `is_muting` and has the web's `achievements`, with the Unix rank. In a signed list of followers or following, each person says `is_followed`, whether the user follows them, and `follows_you`.
 
 `POST` and `DELETE /api/v1/users/{username}/mute` mute and unmute someone, and `POST` and `DELETE /api/v1/users/{username}/block` block and unblock them, as the web does: nobody can mute or block themselves, muting is silent, and blocking ends the follows both ways, which unblocking doesn't bring back. Each answers with the user and the new `is_muting` or `is_blocking`. `GET /api/v1/me/muted` and `GET /api/v1/me/blocked` list the people the user mutes and blocks, last first, as Settings → Safety does, 20 a page.
 

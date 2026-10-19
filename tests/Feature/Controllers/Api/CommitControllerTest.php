@@ -570,7 +570,7 @@ it('validates a commit from a signed request', function (Closure $data, string $
     expect($user->commits()->exists())->toBeFalse();
 })->with([
     'missing body' => [fn (): array => [], 'body', 'The body field is required.'],
-    'too short' => [fn (): array => ['body' => '  ab  '], 'body', 'The body field must be at least 3 characters.'],
+    'blank body' => [fn (): array => ['body' => '   '], 'body', 'The body field is required.'],
     'too long' => [fn (): array => ['body' => str_repeat('a', Commit::MAX_BODY_LENGTH + 1)], 'body', 'The body field must not be greater than '.Commit::MAX_BODY_LENGTH.' characters.'],
     'parent that is not a uuid' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => 'abc'], 'parent_id', 'The parent id field must be a valid UUID.'],
     'unknown parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => '0199e3a4-0000-7000-8000-000000000000'], 'parent_id', 'That commit is no longer available to reply to.'],
