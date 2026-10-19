@@ -84,23 +84,29 @@ export function createReactionCache(
                 });
             return entry.loading;
         },
-        begin(userId: string, commitId: string, fallback: ReactionState) {
+        begin(
+            userId: string,
+            commitId: string,
+            fallback: ReactionState,
+            optimistic?: {
+                emoji?: string;
+                destinations?: ReactionDestinations;
+            },
+        ) {
             const key = keyFor(userId, commitId);
             const entry = entryFor(key);
             entry.version++;
+            const previous = entry.state ?? fallback;
             entry.pending = true;
-            return (change?: {
+            const apply = (change: {
                 emoji?: string;
                 destinations?: ReactionDestinations;
             }) => {
-                entry.pending = false;
-                if (!change) return;
-                const current = entry.state ?? fallback;
                 const remaining = change.emoji
-                    ? current.reactions.filter((r) => r.emoji !== change.emoji)
+                    ? previous.reactions.filter((r) => r.emoji !== change.emoji)
                     : [];
                 save(key, entry, {
-                    ...current,
+                    ...previous,
                     reactions:
                         change.emoji && change.destinations
                             ? [
@@ -112,6 +118,15 @@ export function createReactionCache(
                               ]
                             : remaining,
                 });
+            };
+            if (optimistic) apply(optimistic);
+            return (change?: {
+                emoji?: string;
+                destinations?: ReactionDestinations;
+            }) => {
+                entry.pending = false;
+                if (change) apply(change);
+                else if (optimistic) save(key, entry, previous);
                 entry.checked = 0;
             };
         },

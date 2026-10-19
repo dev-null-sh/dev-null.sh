@@ -369,6 +369,8 @@ Route::middleware('auth')->group(function (): void {
 
     Route::post('settings/repository', [App\Http\Controllers\RepositoryMirrorController::class, 'store'])->middleware('throttle:5,1')->name('repository-mirror.store');
     Route::delete('settings/repository/{mirror}', [App\Http\Controllers\RepositoryMirrorController::class, 'destroy'])->name('repository-mirror.destroy');
+    Route::post('commits/{commit}/reactions', [App\Http\Controllers\CommitReactionController::class, 'store'])->middleware('throttle:stars')->name('commit-reaction.store');
+    Route::delete('commits/{commit}/reactions', [App\Http\Controllers\CommitReactionController::class, 'destroy'])->middleware('throttle:stars')->name('commit-reaction.destroy');
     Route::get('commits/{commit}/my-reaction', App\Http\Controllers\CommitReactionStateController::class)->middleware('throttle:stars')->name('commit-reaction-state');
 
     // User Profile...

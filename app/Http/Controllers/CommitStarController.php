@@ -17,17 +17,15 @@ final readonly class CommitStarController
 {
     public function store(CreateCommitStarRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitStar $action): JsonResponse
     {
-        /** @var list<string> $repositories */
-        $repositories = $request->validated('repositories', []);
-        $action->handle($user, $commit, $request->flavor(), $request->boolean('public', true), $repositories);
+        $action->handle($user, $commit, $request->flavor());
 
-        return response()->json(Commit::query()->withStarsFor($user)->findOrFail($commit->id)->only(['starred', 'stars_count', 'star_flavor', 'star_flavors', 'reactions']));
+        return response()->json(Commit::query()->withStarsFor($user)->findOrFail($commit->id)->only(['starred', 'stars_count', 'star_flavor', 'star_flavors']));
     }
 
     public function destroy(DeleteCommitStarRequest $request, #[CurrentUser] User $user, Commit $commit, DeleteCommitStar $action): JsonResponse
     {
-        $action->handle($user, $commit, $request->has('flavor') ? $request->string('flavor')->value() : null);
+        $action->handle($user, $commit);
 
-        return response()->json(Commit::query()->withStarsFor($user)->findOrFail($commit->id)->only(['starred', 'stars_count', 'star_flavor', 'star_flavors', 'reactions']));
+        return response()->json(Commit::query()->withStarsFor($user)->findOrFail($commit->id)->only(['starred', 'stars_count', 'star_flavor', 'star_flavors']));
     }
 }

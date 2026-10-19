@@ -1,29 +1,18 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
-import { LockKeyhole, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Ref } from 'react';
-import { toast } from 'sonner';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
 import { ActionTooltip } from '@/components/action-tooltip';
-import {
-    CommitReactionPicker,
-    type ReactionDestinations,
-} from '@/components/commit-reaction-picker';
-import { CommitReactionTooltip } from '@/components/commit-reaction-tooltip';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
-import {
-    commitReactionCache,
-    useCommitReactions,
-} from '@/hooks/use-commit-reactions';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
-import { emojiName } from '@/lib/emoji';
 import { formatCount } from '@/lib/numbers';
 import type { StarFlavor } from '@/lib/star-flavors';
-import { flavorEmoji } from '@/lib/star-flavors';
+import { flavorEmoji, starFlavors } from '@/lib/star-flavors';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -58,53 +47,21 @@ export function CommitStarButton({
         commitStateKey('stars_count', commit.id),
         commit.stars_count,
     );
-    const [, setFlavor] = useSharedState(
-        commitStateKey('star_flavor', commit.id),
-        commit.star_flavor ?? null,
-    );
-    const [flavorsJson, setFlavorsJson] = useSharedState(
-        commitStateKey('star_flavors_json', commit.id),
-        JSON.stringify(commit.star_flavors ?? []),
-    );
-    const flavors = JSON.parse(flavorsJson) as string[];
-    const [reactionsJson, setReactionsJson] = useSharedState(
-        commitStateKey('reactions_json', commit.id),
-        JSON.stringify(commit.reactions ?? []),
-    );
-    const reactions = JSON.parse(reactionsJson) as NonNullable<
-        Commit['reactions']
-    >;
-    const personal = useCommitReactions(
-        isOwn ? undefined : auth.user?.id,
-        commit.id,
-        {
-            repositories: auth.reactionRepositories ?? [],
-            reactions: reactions
-                .filter((reaction) => reaction.reacted)
-                .map((reaction) => ({
-                    emoji: reaction.emoji,
-                    public: true,
-                    repositories: [],
-                })),
-        },
-    );
-    const hasStar =
-        reactions.some(
-            (reaction) => reaction.emoji === '⭐' && reaction.reacted,
-        ) ||
-        (reactions.length === 0 && starred);
-    const starCount =
-        reactions.find((reaction) => reaction.emoji === '⭐')?.count ?? count;
+    const [flavor, setFlavor] = useState(commit.star_flavor ?? null);
+    const [flavors, setFlavors] = useState(commit.star_flavors ?? []);
+    const [isPicking, setIsPicking] = useState(false);
+    const hold = useRef<number>(undefined);
+    const wasHeld = useRef(false);
     const request = useHttp<
-        { flavor?: StarFlavor; public: boolean; repositories: string[] },
+        { flavor?: StarFlavor },
         {
             starred: boolean;
             stars_count: number;
             star_flavor: StarFlavor | null;
             star_flavors: StarFlavor[];
-            reactions: NonNullable<Commit['reactions']>;
         }
-    >({ public: true, repositories: [] });
+    >({});
+    const [isAnimating, setIsAnimating] = useState(false);
     const [localMutations] = useState(createCommitStarMutations);
     const polling = useContext(CommitStarPollingContext);
     const mutations = polling?.mutations ?? localMutations;
@@ -126,11 +83,7 @@ export function CommitStarButton({
             prepare: () =>
                 mutations.prepare(commit.id, (stars) => {
                     refreshSharedState(
-                        new Map<string, boolean | number | string | null>([
-                            [
-                                commitStateKey('reactions_json', commit.id),
-                                JSON.stringify(stars.reactions ?? []),
-                            ],
+                        new Map<string, boolean | number>([
                             [
                                 commitStateKey('starred', commit.id),
                                 stars.starred,
@@ -138,14 +91,6 @@ export function CommitStarButton({
                             [
                                 commitStateKey('stars_count', commit.id),
                                 stars.stars_count,
-                            ],
-                            [
-                                commitStateKey('star_flavor', commit.id),
-                                stars.star_flavor ?? null,
-                            ],
-                            [
-                                commitStateKey('star_flavors_json', commit.id),
-                                JSON.stringify(stars.star_flavors ?? []),
                             ],
                         ]),
                     );
@@ -155,33 +100,12 @@ export function CommitStarButton({
 
     if (isOwn) {
         return (
-            <span
+            <StarCount
                 ref={setElement}
-                className="inline-flex max-w-full flex-wrap items-center gap-1"
-            >
-                {reactions.length === 0 && (
-                    <StarCount
-                        count={count}
-                        flavors={flavors}
-                        className={className}
-                    />
-                )}
-                {reactions.map((reaction) => (
-                    <CommitReactionTooltip
-                        key={reaction.emoji}
-                        reaction={reaction}
-                        viewerId={auth.user?.id}
-                    >
-                        <span
-                            tabIndex={0}
-                            className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs"
-                            aria-label={`${emojiName(reaction.emoji)}, ${reaction.count} reactions`}
-                        >
-                            {reaction.emoji} {reaction.count}
-                        </span>
-                    </CommitReactionTooltip>
-                ))}
-            </span>
+                count={count}
+                flavors={flavors}
+                className={className}
+            />
         );
     }
 
@@ -189,11 +113,20 @@ export function CommitStarButton({
         return null;
     }
 
-    const star = async (
-        next: boolean,
-        picked?: StarFlavor,
-        chosenDestinations?: ReactionDestinations,
-    ) => {
+    /**
+     * Holding the button, a pointer resting on it or a finger pressing it, opens the flavor picker.
+     */
+    const startHold = (held: boolean) => {
+        window.clearTimeout(hold.current);
+        hold.current = window.setTimeout(() => {
+            wasHeld.current = held;
+            setIsPicking(true);
+        }, 450);
+    };
+
+    const star = async (next: boolean, picked?: StarFlavor) => {
+        setIsPicking(false);
+
         if (auth.user === null) {
             signIn();
 
@@ -210,21 +143,17 @@ export function CommitStarButton({
             return;
         }
 
-        const destinations = chosenDestinations ?? {
-            public: true,
-            repositories:
-                personal.reactions.find((reaction) => reaction.emoji === picked)
-                    ?.repositories ?? [],
-        };
-        const finishCache = commitReactionCache.begin(
-            auth.user.id,
-            commit.id,
-            personal,
-        );
-        request.transform(() => ({
-            ...(picked ? { flavor: picked } : {}),
-            ...destinations,
-        }));
+        const previous = { starred, flavor };
+        const change = next === starred ? 0 : next ? 1 : -1;
+
+        setStarred(next);
+        setFlavor(next ? (picked ?? null) : null);
+        setCount((current) => Math.max(0, current + change));
+        if (next) {
+            setIsAnimating(true);
+        }
+
+        request.transform(() => (picked ? { flavor: picked } : {}));
 
         try {
             const response = await request.submit(
@@ -240,22 +169,15 @@ export function CommitStarButton({
                 },
             );
 
-            finishCache({ emoji: picked, ...(next ? { destinations } : {}) });
-            setReactionsJson(JSON.stringify(response.reactions));
             setStarred(response.starred);
             setCount(response.stars_count);
             setFlavor(response.star_flavor);
-            setFlavorsJson(JSON.stringify(response.star_flavors));
-            if (next && destinations.repositories.length > 0)
-                toast.success(
-                    !destinations.public
-                        ? 'Repository copies queued. Hidden on dev-null.'
-                        : 'Public reaction saved. Repository copies queued.',
-                );
+            setFlavors(response.star_flavors);
             router.flushAll();
         } catch {
-            finishCache();
-            toast.error('Could not save your reaction. Please try again.');
+            setStarred(previous.starred);
+            setFlavor(previous.flavor);
+            setCount((current) => Math.max(0, current - change));
         } finally {
             finishMutation();
         }
@@ -263,120 +185,113 @@ export function CommitStarButton({
 
     return (
         <span
-            ref={setElement}
-            className="inline-flex max-w-full flex-wrap items-center gap-1"
+            className="relative inline-flex"
+            onPointerLeave={() => {
+                window.clearTimeout(hold.current);
+                setIsPicking(false);
+            }}
         >
-            {(reactions.length === 0 ||
-                reactions.some((reaction) => reaction.emoji === '⭐')) && (
-                <CommitReactionTooltip
-                    reaction={
-                        reactions.find(
-                            (reaction) => reaction.emoji === '⭐',
-                        ) ?? { emoji: '⭐', count: 0, reacted: false }
-                    }
-                    viewerId={auth.user?.id}
+            {isPicking && (
+                <span
+                    role="menu"
+                    aria-label="Star flavors"
+                    className="absolute bottom-full left-0 z-20 flex pb-1"
+                    data-test="star-flavor-picker"
                 >
-                    <button
-                        aria-disabled={request.processing}
-                        type="button"
-                        onClick={() => void star(!hasStar, '⭐')}
-                        aria-pressed={hasStar}
-                        aria-label={starLabel(hasStar, starCount)}
-                        className={cn(
-                            'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors select-none [-webkit-touch-callout:none] hover:bg-accent hover:text-foreground',
-                            hasStar && 'text-primary hover:text-primary',
-                            className,
-                        )}
-                        data-test="star-commit-button"
-                    >
-                        <Star
-                            className={cn('size-4', hasStar && 'fill-current')}
-                        />
-                        <span
-                            data-test="star-count"
-                            className="min-w-[1ch] text-left"
-                        >
-                            {count > 0
-                                ? formatCount(
-                                      reactions.find(
-                                          (reaction) => reaction.emoji === '⭐',
-                                      )?.count ?? count,
-                                  )
-                                : ''}
-                        </span>
-                    </button>
-                </CommitReactionTooltip>
-            )}
-            {reactions
-                .filter((reaction) => reaction.emoji !== '⭐')
-                .map((reaction) => (
-                    <CommitReactionTooltip
-                        key={reaction.emoji}
-                        reaction={reaction}
-                        viewerId={auth.user?.id}
-                    >
-                        <button
-                            type="button"
-                            disabled={request.processing}
-                            aria-label={`${reaction.reacted ? 'Remove' : 'Add'} ${emojiName(reaction.emoji)} reaction, ${reaction.count}`}
-                            aria-pressed={reaction.reacted}
-                            className={cn(
-                                'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs hover:bg-accent disabled:opacity-50',
-                                reaction.reacted &&
-                                    'border-primary/40 bg-primary/10 text-primary',
-                            )}
-                            onClick={() =>
-                                void star(!reaction.reacted, reaction.emoji)
-                            }
-                        >
-                            <span>{reaction.emoji}</span>
-                            <span className="font-mono">{reaction.count}</span>
-                        </button>
-                    </CommitReactionTooltip>
-                ))}
-            {auth.user !== null &&
-                personal.reactions
-                    .filter((reaction) => !reaction.public)
-                    .map((reaction) => (
-                        <CommitReactionTooltip
-                            key={`private-${reaction.emoji}`}
-                            reaction={{
-                                emoji: reaction.emoji,
-                                count: 1,
-                                reacted: true,
-                            }}
-                            privateOnly
-                        >
-                            <button
-                                type="button"
-                                disabled={request.processing}
-                                aria-label={`Remove private ${emojiName(reaction.emoji)} reaction`}
-                                aria-pressed={true}
-                                className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-xs text-primary hover:bg-accent disabled:opacity-50"
-                                onClick={() => void star(false, reaction.emoji)}
+                    <span className="flex gap-0.5 rounded-full border bg-popover p-1 shadow-md">
+                        {starFlavors.map((option) => (
+                            <ActionTooltip
+                                key={option.flavor}
+                                label={option.meaning}
                             >
-                                {reaction.emoji}
-                                <LockKeyhole aria-hidden className="size-3" />
-                            </button>
-                        </CommitReactionTooltip>
-                    ))}
-            {auth.user !== null && (
-                <CommitReactionPicker
-                    commitId={commit.id}
-                    userId={auth.user.id}
-                    state={{
-                        ...personal,
-                        repositories:
-                            auth.reactionRepositories ?? personal.repositories,
-                    }}
-                    disabled={request.processing}
-                    onPick={(emoji, destination) =>
-                        void star(true, emoji, destination)
-                    }
-                    onRemove={(emoji) => void star(false, emoji)}
-                    onClear={() => void star(false)}
-                />
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    aria-label={option.meaning}
+                                    onClick={() =>
+                                        void star(true, option.flavor)
+                                    }
+                                    className={cn(
+                                        'rounded-full px-1.5 py-0.5 text-lg leading-none transition-transform hover:scale-125 hover:bg-accent',
+                                        starred &&
+                                            (flavor ?? 'star') ===
+                                                option.flavor &&
+                                            'bg-primary-soft',
+                                    )}
+                                    data-test={`star-flavor-${option.flavor}`}
+                                >
+                                    {option.emoji}
+                                </button>
+                            </ActionTooltip>
+                        ))}
+                    </span>
+                </span>
             )}
+            <button
+                ref={setElement}
+                aria-disabled={request.processing}
+                type="button"
+                onClick={() => {
+                    window.clearTimeout(hold.current);
+
+                    if (wasHeld.current) {
+                        wasHeld.current = false;
+
+                        return;
+                    }
+
+                    void star(!starred);
+                }}
+                onPointerEnter={(event) =>
+                    event.pointerType === 'mouse' && startHold(false)
+                }
+                onPointerDown={(event) =>
+                    event.pointerType !== 'mouse' && startHold(true)
+                }
+                onPointerUp={(event) =>
+                    event.pointerType !== 'mouse' &&
+                    window.clearTimeout(hold.current)
+                }
+                onContextMenu={(event) => event.preventDefault()}
+                aria-pressed={starred}
+                aria-label={starLabel(starred, count)}
+                className={cn(
+                    'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors select-none [-webkit-touch-callout:none] hover:bg-accent hover:text-foreground',
+                    starred && 'text-primary hover:text-primary',
+                    className,
+                )}
+                data-test="star-commit-button"
+            >
+                {starred && flavor && flavor !== 'star' ? (
+                    <span
+                        onAnimationEnd={() => setIsAnimating(false)}
+                        className={cn(
+                            'text-sm leading-none',
+                            isAnimating && 'motion-safe:animate-star-pop',
+                        )}
+                        data-test="star-flavor"
+                    >
+                        {flavorEmoji(flavor)}
+                    </span>
+                ) : (
+                    <Star
+                        onAnimationEnd={() => setIsAnimating(false)}
+                        className={cn(
+                            'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
+                            starred && 'fill-current',
+                            isAnimating && 'motion-safe:animate-star-pop',
+                        )}
+                    />
+                )}
+                <TopFlavors
+                    flavors={flavors.filter(
+                        (given) => !(starred && given === flavor),
+                    )}
+                />
+                <span data-test="star-count" className="min-w-[1ch] text-left">
+                    {count > 0 ? formatCount(count) : ''}
+                </span>
+            </button>
         </span>
     );
 }

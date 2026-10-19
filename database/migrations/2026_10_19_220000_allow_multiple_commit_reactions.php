@@ -21,16 +21,6 @@ return new class extends Migration
             $table->primary(['user_id', 'commit_id', 'flavor']);
             $table->index(['commit_id', 'flavor']);
         });
-        foreach (DB::table('stars')->orderBy('commit_id')->cursor() as $star) {
-            if ($star->flavor !== null && ! is_string($star->flavor)) {
-                throw new UnexpectedValueException('Invalid legacy star flavor.');
-            }
-            DB::table('commit_reactions')->insert([
-                'user_id' => $star->user_id, 'commit_id' => $star->commit_id,
-                'flavor' => ReactionEmoji::normalize($star->flavor),
-                'created_at' => $star->created_at, 'updated_at' => $star->updated_at,
-            ]);
-        }
         Schema::table('repository_reactions', function (Blueprint $table): void {
             $table->string('emoji_key', 64)->nullable();
         });

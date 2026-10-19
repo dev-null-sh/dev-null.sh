@@ -9,6 +9,7 @@ import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
+import { CommitReactionControls } from '@/components/commit-reaction-controls';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
@@ -412,8 +413,8 @@ export function CommitCard({
                             {!isFocused && <ShowThreadLink thread={thread} />}
 
                             {commit.replies_count === undefined ? (
-                                <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">
-                                    <div className="flex flex-wrap items-center gap-0.5">
+                                <div className="mt-1 -ml-2 flex flex-wrap items-start justify-between gap-0.5 text-[13px] not-has-[button]:hidden">
+                                    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-0.5">
                                         <CommitStarButton
                                             commit={commit}
                                             className="px-2 py-0.5"
@@ -425,6 +426,9 @@ export function CommitCard({
                                         <CommitQuoteButton
                                             commit={commit}
                                             keyShortcut="q"
+                                        />
+                                        <CommitReactionControls
+                                            commit={commit}
                                         />
                                         {translation.button}
                                     </div>
@@ -447,6 +451,9 @@ export function CommitCard({
                                             <CommitQuoteButton
                                                 commit={commit}
                                                 keyShortcut="q"
+                                            />
+                                            <CommitReactionControls
+                                                commit={commit}
                                             />
                                             {translation.button}
                                             {threadActions}

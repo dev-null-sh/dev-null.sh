@@ -88,9 +88,9 @@ export default function ReactionDemo({
                         ))}
                         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                             Check Public to show your reaction on dev-null.
-                            Check repositories to save copies there. With Public
-                            unchecked, your reaction does not affect dev-null’s
-                            stars, ranking or notifications.
+                            Check repositories to save copies there. Reacjis are
+                            separate from stars and do not affect star counts,
+                            ranking or star notifications.
                         </p>
                     </section>
                     <section

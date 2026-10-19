@@ -18,7 +18,7 @@ it('may star a commit', function (): void {
         ->postJson(route('commit-star.store', $commit));
 
     $response->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 2, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => true, 'users' => [$user->only(['id', 'name', 'username'])]]]]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 2, 'star_flavor' => null, 'star_flavors' => []]);
 
     expect($user->hasStarred($commit))->toBeTrue();
 });
@@ -30,7 +30,7 @@ it('starring is idempotent', function (): void {
     $this->actingAs($user)->postJson(route('commit-star.store', $commit))->assertOk();
     $this->actingAs($user)->postJson(route('commit-star.store', $commit))
         ->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => true, 'users' => [$user->only(['id', 'name', 'username'])]]]]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []]);
 
     expect($user->starredCommits()->count())->toBeOne();
 });
@@ -42,19 +42,19 @@ it('may star a commit with a flavor', function (): void {
     $this->actingAs($user)
         ->postJson(route('commit-star.store', $commit), ['flavor' => 'fire'])
         ->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => 'fire', 'star_flavors' => ['fire'], 'reactions' => [['emoji' => '🔥', 'count' => 1, 'reacted' => true, 'users' => [$user->only(['id', 'name', 'username'])]]]]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => 'fire', 'star_flavors' => ['fire']]);
 
     expect($commit->stars()->newPivotQuery()->pluck('flavor')->all())->toBe([StarFlavor::Fire->value]);
 });
 
-it('adds another emoji while keeping one engagement per person', function (): void {
+it('changes the flavor of a star instead of adding another', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->create();
 
     $this->actingAs($user)->postJson(route('commit-star.store', $commit), ['flavor' => 'fire'])->assertOk();
     $this->actingAs($user)->postJson(route('commit-star.store', $commit), ['flavor' => 'ship'])
         ->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => 'ship', 'star_flavors' => ['ship'], 'reactions' => [['emoji' => '🔥', 'count' => 1, 'reacted' => true, 'users' => [$user->only(['id', 'name', 'username'])]], ['emoji' => '🚀', 'count' => 1, 'reacted' => true, 'users' => [$user->only(['id', 'name', 'username'])]]]]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => 'ship', 'star_flavors' => ['ship']]);
 
     expect($commit->stars()->newPivotQuery()->pluck('flavor')->all())->toBe([StarFlavor::Ship->value]);
 });
@@ -82,7 +82,7 @@ it('shows the two flavors given most, leaving out plain stars', function (): voi
     $this->actingAs($user)
         ->postJson(route('commit-star.store', $commit))
         ->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 10, 'star_flavor' => null, 'star_flavors' => ['fire', 'ship'], 'reactions' => [['emoji' => '⭐', 'count' => 1, 'reacted' => true, 'users' => [$user->only(['id', 'name', 'username'])]]]]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 10, 'star_flavor' => null, 'star_flavors' => ['fire', 'ship']]);
 });
 
 it('may not star their own commit', function (CommitStatus $status): void {
@@ -131,7 +131,7 @@ it('may unstar a commit', function (): void {
         ->deleteJson(route('commit-star.destroy', $commit));
 
     $response->assertOk()
-        ->assertExactJson(['starred' => false, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => [], 'reactions' => []]);
+        ->assertExactJson(['starred' => false, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []]);
 
     expect($user->hasStarred($commit))->toBeFalse();
 });

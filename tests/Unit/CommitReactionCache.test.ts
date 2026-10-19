@@ -54,3 +54,18 @@ void test('duplicate controls share one background request while cached reads st
     await cache.refresh('me', 'post');
     assert.equal(calls, 1);
 });
+
+void test('optimistic additions appear before the response and roll back on failure', () => {
+    const cache = createReactionCache(memory(), async () => old);
+    const finish = cache.begin('me', 'post', old, { emoji: '🚀', destinations: { public: false, repositories: ['private-repo'] } });
+    assert.deepEqual(cache.read('me', 'post')?.reactions.map((r) => r.emoji), ['🚀', '🔥']);
+    finish();
+    assert.deepEqual(cache.read('me', 'post'), old);
+});
+void test('optimistic deletion is immediate and a failed deletion restores it', () => {
+    const cache = createReactionCache(memory(), async () => old);
+    const finish = cache.begin('me', 'post', old, { emoji: '🔥' });
+    assert.deepEqual(cache.read('me', 'post')?.reactions, []);
+    finish();
+    assert.deepEqual(cache.read('me', 'post'), old);
+});

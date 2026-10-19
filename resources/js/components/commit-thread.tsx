@@ -23,6 +23,7 @@ import {
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
+import { CommitReactionControls } from '@/components/commit-reaction-controls';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
@@ -466,7 +467,7 @@ export function ThreadActions({
     return (
         <>
             <div className="mt-1 -ml-2 flex flex-wrap items-center gap-0.5 text-[13px]">
-                <div className="flex flex-wrap items-center gap-0.5 max-md:contents">
+                <div className="flex min-w-0 flex-1 flex-wrap items-start gap-0.5">
                     {actions}
 
                     {!isDeleted(commit) && (
@@ -1091,6 +1092,7 @@ function CommitReply({
                                         commit={reply}
                                         className="px-2 py-0.5"
                                     />
+                                    <CommitReactionControls commit={reply} />
                                     {translation.button}
                                 </>
                             }
