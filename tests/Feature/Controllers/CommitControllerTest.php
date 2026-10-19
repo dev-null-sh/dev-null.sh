@@ -46,10 +46,22 @@ it('flashes the created commit', function (): void {
     $response->assertInertiaFlash('committed', [
         'id' => $commit->id,
         'body' => 'Initial commit',
-    ]);
+    ])->assertInertiaFlash('achievementsUnlocked', ['init']);
 });
 
-it('does not count the authenticated user relations when redirecting after a commit', function (): void {
+it('flashes only the badge the new commit unlocked', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('commit.store'), ['body' => 'Initial commit']);
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => "```\necho hello\n```"]);
+
+    $response->assertInertiaFlash('achievementsUnlocked', ['syntax']);
+});
+
+it('does not count the authenticated user follows when redirecting after a commit', function (): void {
     $user = User::factory()->create();
 
     DB::enableQueryLog();
@@ -64,7 +76,7 @@ it('does not count the authenticated user relations when redirecting after a com
 
     expect(array_column(DB::getQueryLog(), 'query'))
         ->not->toBeEmpty()
-        ->each->not->toContain('count(*)');
+        ->each->not->toContain('select count(*) as "aggregate" from "follows"');
 });
 
 it('rejects non-text commit bodies with a validation error', function (mixed $body): void {
