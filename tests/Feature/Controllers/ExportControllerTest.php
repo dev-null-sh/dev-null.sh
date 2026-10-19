@@ -15,7 +15,9 @@ use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Services\CommitTranslations;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -378,16 +380,27 @@ it('exports the devices approved for the app, oldest first', function (): void {
 });
 
 it('exports all records across chunk boundaries without omissions or duplicates', function (): void {
+    config(['cache.default' => 'database']);
     $user = User::factory()->create();
     $commits = Commit::factory()->for($user)->count(501)->create();
     $following = User::factory()->count(501)->create();
     $user->following()->attach($following->modelKeys());
+    $translated = $commits->sortBy('id')->last();
+    $cached = ['source_language' => 'de', 'translations' => ['en' => 'Good morning'], 'expires_at' => now()->addDay()->getTimestamp()];
+    Cache::put(resolve(CommitTranslations::class)->key($translated), $cached, 60);
 
     $response = $this->actingAs($user)->get(route('export'));
+    DB::enableQueryLog();
+    DB::flushQueryLog();
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+    $cacheReads = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'from "cache"'));
+    DB::disableQueryLog();
 
     expect(collect($data['commits'])->pluck('id')->sort()->values()->all())->toBe($commits->pluck('id')->sort()->values()->all())
-        ->and(collect($data['following'])->pluck('username')->sort()->values()->all())->toBe($following->pluck('username')->sort()->values()->all());
+        ->and(collect($data['following'])->pluck('username')->sort()->values()->all())->toBe($following->pluck('username')->sort()->values()->all())
+        ->and(collect($data['commits'])->keyBy('id')[$translated->id]['cached_translations'])->toBe($cached)
+        ->and($data['commits'][0]['cached_translations'])->toBeNull()
+        ->and($cacheReads)->toHaveCount(2);
 });
 
 it('exports who the user mutes and blocks, but never who mutes or blocks them', function (): void {

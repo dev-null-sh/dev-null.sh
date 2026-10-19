@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\CommitStatus;
+use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 use Locale;
 use ResourceBundle;
+use Throwable;
 
 final readonly class CommitTranslations
 {
@@ -73,7 +75,11 @@ final readonly class CommitTranslations
         $cached = Cache::memo()->get($this->key($commit));
 
         if ($cached === null) {
-            dispatch(new DetectCommitLanguage($commit->id))->afterCommit();
+            try {
+                dispatch(new DetectCommitLanguage($commit->id))->afterCommit();
+            } catch (Throwable $exception) {
+                report(new CommitProcessingFailed('Language detection dispatch', $commit->id, $exception));
+            }
         }
 
         $language ??= $this->language();

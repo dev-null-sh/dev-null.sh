@@ -248,7 +248,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits/preview', [CommitPreviewController::class, 'store'])
         ->name('commit-preview.store');
     Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,translations:')
         ->name('commit-translation.store');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');

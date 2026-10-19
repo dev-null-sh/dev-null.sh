@@ -38,9 +38,10 @@ final readonly class DeleteUser
             $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user)];
 
             $translationKeys = Commit::query()->withTrashed()
-                ->where('user_id', $user->id)
-                ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id'))
-                ->get(['id', 'body'])
+                ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
+                    ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')))
+                ->select(['id', 'body'])
+                ->lazyById(500)
                 ->map(resolve(CommitTranslations::class)->key(...))->unique()->all();
 
             $user->commits()->withTrashed()->topLevel()->forceDelete();

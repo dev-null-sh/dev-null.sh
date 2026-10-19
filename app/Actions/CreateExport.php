@@ -20,6 +20,7 @@ use Carbon\CarbonImmutable;
 use Generator;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\LazyCollection;
 use stdClass;
@@ -94,20 +95,26 @@ final readonly class CreateExport
             ->with('images:id,commit_id')
             ->lazyById(500);
 
-        foreach ($commits as $commit) {
-            yield [
-                'id' => $commit->id,
-                'parent_id' => $commit->parent_id,
-                'quoted_commit_id' => $commit->quoted_commit_id,
-                'body' => $commit->body,
-                'cached_translations' => resolve(CommitTranslations::class)->cached($commit),
-                'status' => $commit->status->value,
-                'pasteis_count' => $commit->pasteis_count,
-                'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
-                'created_at' => $commit->created_at->toIso8601String(),
-                'updated_at' => $commit->updated_at->toIso8601String(),
-                'deleted_at' => $commit->deleted_at?->toIso8601String(),
-            ];
+        $translations = resolve(CommitTranslations::class);
+
+        foreach ($commits->chunk(500) as $batch) {
+            $cached = Cache::many($batch->map($translations->key(...))->all());
+
+            foreach ($batch as $commit) {
+                yield [
+                    'id' => $commit->id,
+                    'parent_id' => $commit->parent_id,
+                    'quoted_commit_id' => $commit->quoted_commit_id,
+                    'body' => $commit->body,
+                    'cached_translations' => $cached[$translations->key($commit)],
+                    'status' => $commit->status->value,
+                    'pasteis_count' => $commit->pasteis_count,
+                    'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
+                    'created_at' => $commit->created_at->toIso8601String(),
+                    'updated_at' => $commit->updated_at->toIso8601String(),
+                    'deleted_at' => $commit->deleted_at?->toIso8601String(),
+                ];
+            }
         }
     }
 

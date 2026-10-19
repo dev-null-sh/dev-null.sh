@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\CreateCommitTranslation;
+use App\Exceptions\CommitProcessingFailed;
 use App\Http\Requests\CreateCommitTranslationRequest;
 use App\Models\Commit;
 use App\Services\CommitTranslations;
@@ -17,8 +18,11 @@ final readonly class CommitTranslationController
     {
         try {
             $action->handle($commit, $request->string('language')->value());
-        } catch (Throwable) {
-            return response()->json(['message' => 'Could not translate this commit. Try again.'], 503);
+        } catch (Throwable $throwable) {
+            report($throwable instanceof CommitProcessingFailed ? $throwable : new CommitProcessingFailed('Translation', $commit->id, $throwable));
+
+            return response()->json(['message' => 'Could not translate this commit. Try again.'], 503)
+                ->header('Cache-Control', 'no-store, private');
         }
 
         return response()->json(['translation' => $translations->display($commit, $request->string('language')->value())])

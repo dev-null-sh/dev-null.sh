@@ -125,6 +125,8 @@ Public commits and replies offer **Translate** when their detected language diff
 
 DeepSeek through OpenCode translates only the post text. The result replaces its displayed text, with **Translated from [language]** and **Show original** to switch back; the original post is never changed. Cached translations are included on subsequent page loads, including for guests. Exact duplicate text shares translations across authors using a SHA-256 content key, with separate text for each target language. The cache expires seven days after its creation, without extending on reads or additional target languages. The database cache is physically pruned hourly; Redis expires entries itself. Deleting a post or account evicts its shared translations, which surviving duplicates can generate again. No private messages are translated.
 
+Background language detection uses the separate `translations` queue on the configured queue connection and needs a worker listening to that queue. It makes up to three attempts, waiting one minute and then ten minutes between failures. A detection dispatch failure does not prevent reading the original post. Requested translations still run in the HTTP request; failures leave the original unchanged and can be retried with Translate.
+
 Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController.php), [agent](app/Ai/Agents/CommitTranslator.php), [cache](app/Services/CommitTranslations.php), [controls](resources/js/components/commit-translation.tsx).
 
 ### Code, emoji, and mentions
@@ -371,6 +373,8 @@ Sources: [account deletion confirmation](resources/js/components/delete-user.tsx
 Commits and replies undergo automated moderation and may be pending, approved, or rejected. Pending and rejected content is not publicly visible; its author can still see its status. Approval makes content eligible for public lists and releases reply, quote, and mention notifications. Rejection can notify the author with a reason. Moderation applies to browser, scheduled, and terminal submissions alike.
 
 Administrators have a moderation queue for reviewing and approving or rejecting commits, including bulk decisions, plus a reports queue for user-reported content. Moderators can dismiss reports or reject reported commits. These are restricted tools, not controls every account receives.
+
+Automated moderation makes up to three attempts with one-minute and ten-minute retry delays and a three-minute timeout per attempt. Provider failures never approve unreviewed posts: exhausted jobs leave them pending for administrator review or an explicit failed-job retry. Moderation and translation failures report the commit identifier, exception type, and error code without retaining the provider's response in the exception.
 
 Sources: [moderation access](app/Http/Requests/ShowModerationRequest.php), [moderation controller](app/Http/Controllers/ModerationController.php), [status transitions](app/Actions/UpdateCommitStatuses.php), [reports controller](app/Http/Controllers/ReportedCommitController.php).
 

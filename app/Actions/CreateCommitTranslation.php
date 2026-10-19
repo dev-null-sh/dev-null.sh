@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Ai\Agents\CommitTranslator;
 use App\Enums\CommitStatus;
+use App\Exceptions\CommitProcessingFailed;
 use App\Models\Commit;
 use App\Services\CommitTranslations;
 use Illuminate\Support\Facades\Cache;
@@ -25,7 +26,7 @@ final readonly class CreateCommitTranslation
     {
         $key = $this->translations->key($commit);
 
-        Cache::lock($key.':lock', 45)->block(35, function () use ($commit, $language, $key): void {
+        Cache::lock($key.':lock', 90)->block(35, function () use ($commit, $language, $key): void {
             $cached = $this->translations->cached($commit);
 
             if ($cached !== null && ($language === null || isset($cached['translations'][$language]) || in_array($cached['source_language'], [$language, 'und'], true))) {
@@ -43,8 +44,8 @@ final readonly class CreateCommitTranslation
                     || ! is_string($body) || ($language !== null && $source !== 'und' && (blank($body) || mb_strlen($body) > 16000))) {
                     throw new RuntimeException('Invalid translation response.');
                 }
-            } catch (Throwable) {
-                throw new RuntimeException('Translation failed for commit '.$commit->id.'.');
+            } catch (Throwable $throwable) {
+                throw new CommitProcessingFailed('Translation', $commit->id, $throwable);
             }
 
             DB::transaction(function () use ($commit, $language, $key, $cached, $source, $body): void {

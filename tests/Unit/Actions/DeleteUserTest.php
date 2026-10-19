@@ -17,6 +17,7 @@ use App\Models\PollVote;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -219,12 +220,24 @@ it('erases cached translations of the user and replies in their deleted threads'
     ]);
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create(['body' => 'Guten morgen']);
+    Commit::factory()->for($user)->count(500)->create(['body' => 'Other posts']);
     $reply = Commit::factory()->for($commit, 'parent')->create(['body' => 'Goedenavond', 'root_id' => $commit->id]);
+    $unrelated = Commit::factory()->create(['body' => 'Unrelated post']);
     resolve(CreateCommitTranslation::class)->handle($commit, 'en');
     resolve(CreateCommitTranslation::class)->handle($reply, 'en');
 
+    $unrelatedKey = resolve(CommitTranslations::class)->key($unrelated);
+    Cache::put($unrelatedKey, ['source_language' => 'en', 'translations' => [], 'expires_at' => now()->addDay()->getTimestamp()], 60);
+
+    DB::enableQueryLog();
+    DB::flushQueryLog();
     resolve(DeleteUser::class)->handle($user);
+    $bodyReads = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'select "id", "body" from "commits"'));
+    DB::disableQueryLog();
 
     expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull()
-        ->and(resolve(CommitTranslations::class)->cached($reply))->toBeNull();
+        ->and(resolve(CommitTranslations::class)->cached($reply))->toBeNull()
+        ->and(Cache::has($unrelatedKey))->toBeTrue()
+        ->and($bodyReads)->toHaveCount(2);
+    $this->assertModelMissing($user);
 });
