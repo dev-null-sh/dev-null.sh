@@ -46,10 +46,22 @@ it('flashes the created commit', function (): void {
     $response->assertInertiaFlash('committed', [
         'id' => $commit->id,
         'body' => 'Initial commit',
-    ]);
+    ])->assertInertiaFlash('achievementsUnlocked', ['init']);
 });
 
-it('does not count the authenticated user relations when redirecting after a commit', function (): void {
+it('flashes only the badge the new commit unlocked', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('commit.store'), ['body' => 'Initial commit']);
+
+    $response = $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => "```\necho hello\n```"]);
+
+    $response->assertInertiaFlash('achievementsUnlocked', ['syntax']);
+});
+
+it('does not count the authenticated user follows when redirecting after a commit', function (): void {
     $user = User::factory()->create();
 
     DB::enableQueryLog();
@@ -64,7 +76,7 @@ it('does not count the authenticated user relations when redirecting after a com
 
     expect(array_column(DB::getQueryLog(), 'query'))
         ->not->toBeEmpty()
-        ->each->not->toContain('count(*)');
+        ->each->not->toContain('select count(*) as "aggregate" from "follows"');
 });
 
 it('rejects non-text commit bodies with a validation error', function (mixed $body): void {
@@ -99,20 +111,22 @@ it('requires a body', function (): void {
     expect(Commit::query()->count())->toBe(0);
 });
 
-it('requires the body to be at least 3 characters', function (): void {
+it('may commit a single character', function (string $body): void {
     $user = User::factory()->create();
 
-    $response = $this->actingAs($user)
-        ->fromRoute('log.show', Log::Following)
+    $this->actingAs($user)
         ->post(route('commit.store'), [
-            'body' => '  ab  ',
-        ]);
+            'body' => "  {$body}  ",
+        ])
+        ->assertSessionHasNoErrors();
 
-    $response->assertRedirectToRoute('log.show', Log::Following)
-        ->assertSessionHasErrors('body');
-
-    expect(Commit::query()->count())->toBe(0);
-});
+    expect($user->commits()->sole()->body)->toBe($body);
+})->with([
+    'letter' => 'k',
+    'emoji' => '🚀',
+    'emoji with a modifier' => '👍🏽',
+    'joined emoji' => '👨‍👩‍👧',
+]);
 
 it('requires the body to be at most 4,000 characters', function (): void {
     $user = User::factory()->create();
@@ -1221,21 +1235,6 @@ it('may commit images without a body', function (array $body): void {
     'missing' => [[]],
     'blank' => [['body' => '   ']],
 ]);
-
-it('may commit images with a body shorter than 3 characters', function (): void {
-    Storage::fake();
-
-    $user = User::factory()->create();
-
-    $this->actingAs($user)
-        ->post(route('commit.store'), [
-            'body' => 'ok',
-            'images' => [UploadedFile::fake()->image('screenshot.png', 40, 30)],
-        ])
-        ->assertSessionHasNoErrors();
-
-    expect($user->commits()->sole()->body)->toBe('ok');
-});
 
 it('may quote a commit with only images', function (): void {
     Storage::fake();

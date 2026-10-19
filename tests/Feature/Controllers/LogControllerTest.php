@@ -123,6 +123,32 @@ it('paginates the log', function (Log $log): void {
             ->whereNot('commits.next_cursor', null));
 })->with(Log::cases());
 
+it('draws the trending log anew on each visit', function (): void {
+    config(['trending.temperature' => 0.5]);
+    $user = User::factory()->create();
+    Commit::factory()->count(10)->create(['created_at' => now()]);
+
+    $draw = fn (): array => array_column($this->actingAs($user)->get('/log/trending')->inertiaProps('commits.data'), 'id');
+
+    expect($draw())->not->toBe($draw());
+});
+
+it('keeps the draw of the trending log while it scrolls', function (): void {
+    config(['trending.temperature' => 0.5]);
+    $user = User::factory()->create();
+    $commits = Commit::factory()->count(25)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $first = $this->actingAs($user)->get('/log/trending');
+    $second = $this->actingAs($user)->get(route('log.show', [Log::Trending, 'cursor' => $first->inertiaProps('commits.next_cursor')]));
+
+    $ids = array_column([...$first->inertiaProps('commits.data'), ...$second->inertiaProps('commits.data')], 'id');
+
+    expect($ids)->toEqualCanonicalizing($commits->modelKeys())
+        ->and($second->inertiaProps('commits.next_cursor'))->toBeNull();
+});
+
 it('does not count the authenticated user relations when reloading only commits', function (): void {
     $user = User::factory()->has(Commit::factory())->create();
 
@@ -475,7 +501,7 @@ it('includes the images and link previews of quoted commits', function (Log $log
 })->with(Log::cases());
 
 it('loads the quoted commits of a log without a query per commit', function (Log $log): void {
-    $user = User::factory()->create(['log' => $log]);
+    $user = User::factory()->create(['log' => $log, 'last_seen_at' => today()]);
 
     $queries = function () use ($user, $log): int {
         DB::flushQueryLog();
@@ -498,6 +524,7 @@ it('loads the quoted commits of a log without a query per commit', function (Log
 it('defers suggested users to follow', function (): void {
     $user = User::factory()->create();
     $suggested = User::factory()->has(Commit::factory())->create();
+    $suggested->following()->attach($user);
 
     $response = $this->actingAs($user)
         ->get('/log/trending');
@@ -510,6 +537,8 @@ it('defers suggested users to follow', function (): void {
                 ->has('suggestedUsers', 1)
                 ->where('suggestedUsers.0.id', $suggested->id)
                 ->where('suggestedUsers.0.followed_by_following_count', 0)
+                ->where('suggestedUsers.0.follows_you', true)
+                ->where('suggestedUsers.0.bio', $suggested->bio)
                 ->missing('suggestedUsers.0.email')));
 
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');

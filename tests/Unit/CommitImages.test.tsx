@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
     CommitImages,
+    gridImageObjectFit,
     replaceFailedImage,
 } from '../../resources/js/components/commit-images';
 import { scrambleHash } from '../../resources/js/hooks/use-scrambled-hash';
@@ -56,6 +57,53 @@ void test('keeps the uploaded image until it fails to load', () => {
         renderToStaticMarkup(<CommitImages commit={commit} />).includes(
             'src="/images/missing.webp"',
         ),
+    );
+});
+
+void test('fits a single feed image instead of cropping it to fill the width', () => {
+    const markup = renderToStaticMarkup(<CommitImages commit={commit} />);
+
+    assert.match(markup, /class="[^"]*\bobject-contain\b/);
+    assert.doesNotMatch(markup, /class="[^"]*\bobject-cover\b/);
+});
+
+void test('covers landscape grid images and contains tall ones', () => {
+    assert.equal(gridImageObjectFit({ width: 80, height: 800 }), 'object-contain');
+    assert.equal(gridImageObjectFit({ width: 1200, height: 800 }), 'object-cover');
+    assert.equal(gridImageObjectFit({ width: 100, height: 100 }), 'object-cover');
+    assert.equal(gridImageObjectFit({}), 'object-cover');
+
+    const markup = renderToStaticMarkup(
+        <CommitImages
+            commit={{
+                ...commit,
+                images: [
+                    {
+                        id: 'portrait',
+                        url: '/images/portrait.webp',
+                        width: 80,
+                        height: 800,
+                        description: null,
+                    },
+                    {
+                        id: 'landscape',
+                        url: '/images/landscape.webp',
+                        width: 1200,
+                        height: 800,
+                        description: null,
+                    },
+                ],
+            }}
+        />,
+    );
+
+    assert.match(
+        markup,
+        /src="\/images\/portrait\.webp"[^>]*class="[^"]*\bobject-contain\b/,
+    );
+    assert.match(
+        markup,
+        /src="\/images\/landscape\.webp"[^>]*class="[^"]*\bobject-cover\b/,
     );
 });
 

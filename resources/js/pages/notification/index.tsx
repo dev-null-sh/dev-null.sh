@@ -27,6 +27,7 @@ import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGr
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
+import { replaceFailedImage } from '@/components/commit-images';
 import {
     onFollowHttpException,
     useIsFollowing,
@@ -783,6 +784,13 @@ function NotificationContent({
     const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
     const isOwnCommit = notification.type === 'starred' || moderation;
+    const starredImages =
+        notification.type === 'starred'
+            ? (notification.commit.images ?? [])
+            : [];
+    const isImageOnly =
+        starredImages.length > 0 &&
+        notification.commit?.body_segments.length === 0;
     const isActorsCommit =
         notification.type === 'replied' ||
         notification.type === 'quoted' ||
@@ -827,13 +835,15 @@ function NotificationContent({
         followed: 'followed you',
         replied: 'replied to your commit',
         quoted: 'quoted your commit',
-        starred: 'starred your commit',
+        starred: isImageOnly
+            ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
+            : 'starred your commit',
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
     }[notification.type];
     const excerpt =
-        notification.type === 'followed' ? null : isOwnCommit ? (
+        notification.type === 'followed' || isImageOnly ? null : isOwnCommit ? (
             <OwnCommitExcerpt segments={notification.commit.body_segments} />
         ) : (
             <CommitBodyExcerpt
@@ -902,6 +912,16 @@ function NotificationContent({
         );
     }
 
+    const rowLink = (
+        <Link
+            href={href}
+            data-notification-link
+            className="after:absolute after:inset-0 after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
+        >
+            {action}
+        </Link>
+    );
+
     return (
         <div className="flex">
             <GraphRail
@@ -934,33 +954,32 @@ function NotificationContent({
             />
             <div className="min-w-0 flex-1 border-b py-3 pr-4">
                 <div className="flex items-start gap-3">
-                    <Link
-                        href={href}
-                        data-notification-link
-                        className="min-w-0 flex-1 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
-                    >
+                    <div className="relative isolate min-w-0 flex-1">
                         {isActorsCommit ? (
                             <>
                                 <div className="flex items-baseline gap-1.5 text-[15px]">
                                     {isNew && (
                                         <span className="sr-only">New. </span>
                                     )}
-                                    <span
-                                        className="truncate font-semibold"
+                                    <Link
+                                        href={show(actor)}
+                                        className="relative z-10 truncate font-semibold hover:underline"
                                         title={actor.name}
                                     >
                                         {actor.name}
-                                    </span>
-                                    <span
-                                        className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
+                                    </Link>
+                                    <Link
+                                        href={show(actor)}
+                                        tabIndex={-1}
+                                        className="relative z-10 shrink-4 truncate font-mono text-[13px] text-muted-foreground"
                                         title={`@${actor.username}`}
                                     >
                                         @{actor.username}
-                                    </span>
+                                    </Link>
                                     {time}
                                 </div>
                                 <p className="text-sm text-muted-foreground first-letter:uppercase">
-                                    {action}
+                                    {rowLink}
                                 </p>
                             </>
                         ) : (
@@ -979,7 +998,7 @@ function NotificationContent({
                                         </span>
                                     ) : (
                                         <span
-                                            className="flex -space-x-2"
+                                            className="isolate flex -space-x-2"
                                             aria-hidden
                                         >
                                             {actors.map((stacked, position) => (
@@ -1005,42 +1024,61 @@ function NotificationContent({
                                     )}
                                     {time}
                                 </div>
-                                <p className="mt-1 text-[15px] wrap-anywhere">
-                                    {isNew && (
-                                        <span className="sr-only">New. </span>
+                                <div className="mt-1 flex items-center gap-3">
+                                    <p className="min-w-0 flex-1 text-[15px] wrap-anywhere">
+                                        {isNew && (
+                                            <span className="sr-only">
+                                                New.{' '}
+                                            </span>
+                                        )}
+                                        {!moderation && (
+                                            <>
+                                                <Link
+                                                    href={show(actor)}
+                                                    className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
+                                                    title={actor.name}
+                                                >
+                                                    {actor.name}
+                                                </Link>{' '}
+                                                {otherActors > 0 ? (
+                                                    `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
+                                                ) : (
+                                                    <>
+                                                        <Link
+                                                            href={show(actor)}
+                                                            tabIndex={-1}
+                                                            className="relative z-10 inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
+                                                            title={`@${actor.username}`}
+                                                        >
+                                                            @{actor.username}
+                                                        </Link>{' '}
+                                                    </>
+                                                )}
+                                            </>
+                                        )}
+                                        {rowLink}
+                                        {moderation && '.'}
+                                    </p>
+                                    {starredImages[0] && (
+                                        <img
+                                            src={starredImages[0].url}
+                                            alt=""
+                                            loading="lazy"
+                                            onError={(event) =>
+                                                replaceFailedImage(
+                                                    event.currentTarget,
+                                                )
+                                            }
+                                            className="size-10 shrink-0 rounded-md border bg-muted object-cover"
+                                        />
                                     )}
-                                    {moderation ? (
-                                        `${action}.`
-                                    ) : (
-                                        <>
-                                            <span
-                                                className="inline-block max-w-full truncate align-bottom font-semibold"
-                                                title={actor.name}
-                                            >
-                                                {actor.name}
-                                            </span>{' '}
-                                            {otherActors > 0 ? (
-                                                `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
-                                            ) : (
-                                                <>
-                                                    <span
-                                                        className="inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
-                                                        title={`@${actor.username}`}
-                                                    >
-                                                        @{actor.username}
-                                                    </span>{' '}
-                                                </>
-                                            )}
-                                            {action}
-                                        </>
-                                    )}
-                                </p>
+                                </div>
                             </>
                         )}
                         {excerpt}
                         {quote}
                         {reason}
-                    </Link>
+                    </div>
                     {notification.type === 'followed' && actorsCount === 1 && (
                         <span className="flex h-10 items-center">
                             <FollowBackButton actor={actor} />

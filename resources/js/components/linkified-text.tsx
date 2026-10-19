@@ -6,6 +6,7 @@ import AppWordmark from '@/components/app-wordmark';
 import { GitHubIcon } from '@/components/github-icon';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse } from '@/lib/code';
+import { mentionPattern } from '@/lib/mentions';
 import { shortenUrl } from '@/lib/urls';
 import { shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
@@ -36,10 +37,6 @@ const urlPattern = new RegExp(
         String.raw`(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?`,
     'gu',
 );
-// A GitHub username after an "@" that doesn't follow a letter, digit, "_", ".", "/", "@" or "-", and doesn't run
-// into a path or a domain, so emails, "@inertiajs/react" and "@vue.js" are not mentions.
-const mentionPattern =
-    /(?<![\p{L}\p{N}_./@-])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})(?![A-Za-z0-9_@/-]|\.[A-Za-z0-9])/gu;
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
     /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;

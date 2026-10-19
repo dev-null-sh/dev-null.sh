@@ -8,6 +8,7 @@ const image = new File(['restored'], 'draft.png', { type: 'image/png' });
 let state: unknown[] = [];
 let cursor = 0;
 const draft = {
+    key: 'stash:viewer:commit',
     body: 'A restored draft https://example.com',
     images: [] as File[],
     descriptions: [] as string[],
@@ -29,6 +30,7 @@ const http = {
 vi.doMock('react', () => ({
     ...React,
     useEffect: () => {},
+    useLayoutEffect: (effect: () => void | (() => void)) => effect(),
     useMemo: (factory: () => unknown) => factory(),
     useId: () => `preview-${cursor++}`,
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
@@ -519,21 +521,46 @@ test('typing a command and a space turns the draft into an issue, and backspace 
 });
 
 test('picking a suggestion with Enter starts an empty issue, and the shortcut opens it instead of committing', () => {
-    draft.body = '/';
-    focus(render());
-    keyDown(render(), 'ArrowDown');
-    const enter = keyDown(render(), 'Enter');
-    assert.equal(enter.preventDefault.mock.calls.length, 1);
-    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
-
-    draft.body = 'Search loses its filters';
-    keyDown(render(), 'Enter', { metaKey: true });
-    assert.equal(http.submit.mock.calls.length, 1);
-    const payload = http.transform.mock.calls[0][0] as () => unknown;
-    assert.deepEqual(payload(), {
-        command: '/bug',
-        body: 'Search loses its filters',
+    vi.stubGlobal('navigator', {
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140.0.0.0',
+        language: 'en-US',
     });
+    vi.stubGlobal('window', {
+        innerWidth: 1440,
+        innerHeight: 900,
+        devicePixelRatio: 2,
+        matchMedia: () => ({ matches: true }),
+        location: { pathname: '/log' },
+    });
+
+    try {
+        draft.body = '/';
+        focus(render());
+        keyDown(render(), 'ArrowDown');
+        const enter = keyDown(render(), 'Enter');
+        assert.equal(enter.preventDefault.mock.calls.length, 1);
+        assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
+
+        draft.body = 'Search loses its filters';
+        keyDown(render(), 'Enter', { metaKey: true });
+        assert.equal(http.submit.mock.calls.length, 1);
+        const payload = http.transform.mock.calls[0][0] as () => unknown;
+        assert.deepEqual(payload(), {
+            command: '/bug',
+            body: 'Search loses its filters',
+            environment: {
+                browser: 'Chrome 140.0.0.0',
+                os: 'macOS',
+                viewport: '1440x900',
+                pixel_ratio: '2',
+                language: 'en-US',
+                color_scheme: 'dark',
+                page: '/log',
+            },
+        });
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });
 
 test('a draft that mentions a bug suggests /bug, keeps the text when used, and can be dismissed', () => {
@@ -628,4 +655,50 @@ test('turning scheduling off clears the chosen time and commits now', () => {
 
     (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
     assert.equal(find('id', 'body-scheduled-at')!.props.value, '');
+});
+
+test('picker clears its selection before a pending read finishes so the same file can be retried', async () => {
+    const reads: Array<() => void> = [];
+    const selections: File[][] = [];
+    const picker = ImagePickerButton({
+        count: 0,
+        onPick: (files) => {
+            selections.push(files);
+            return new Promise<void>((resolve) => reads.push(resolve));
+        },
+    });
+    const inputElement = elements(picker).find(
+        (element) => element.type === 'input',
+    )!;
+    const onChange = inputElement.props.onChange as (event: {
+        currentTarget: { value: string; files: File[] };
+    }) => Promise<void>;
+    let selected = [image];
+    let value = 'draft.png';
+    const input = {
+        get files() {
+            return selected;
+        },
+        get value() {
+            return value;
+        },
+        set value(next: string) {
+            value = next;
+            if (next === '') selected = [];
+        },
+    };
+
+    const first = onChange({ currentTarget: input });
+    assert.equal(input.value, '');
+    assert.deepEqual(selections, [[image]]);
+
+    // Discarding a draft releases the picker before the first provider settles.
+    selected = [image];
+    value = 'draft.png';
+    const retry = onChange({ currentTarget: input });
+    assert.equal(input.value, '');
+    assert.deepEqual(selections, [[image], [image]]);
+
+    reads.forEach((resolve) => resolve());
+    await Promise.all([first, retry]);
 });
