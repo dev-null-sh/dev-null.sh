@@ -254,7 +254,7 @@ export function useThread(
     );
     const [shouldLoadReplies] = useState(
         (loadsReplies && count > 0) ||
-        (initial !== undefined && changedThreadIds.has(commit.id)),
+            (initial !== undefined && changedThreadIds.has(commit.id)),
     );
     const [isOpen, setIsOpen] = useState(
         initial !== undefined || shouldLoadReplies,
@@ -285,8 +285,8 @@ export function useThread(
             replies === null || (isPreview && replies.length <= repliesPerPage)
                 ? repliesPerPage
                 : nextCursor === null
-                    ? Infinity
-                    : replies.length + extra;
+                  ? Infinity
+                  : replies.length + extra;
 
         setIsLoading(true);
 
@@ -482,8 +482,8 @@ export function ThreadActions({
                                     auth.user === null
                                         ? signIn
                                         : thread.isReplying
-                                            ? thread.cancelReply
-                                            : thread.startReply
+                                          ? thread.cancelReply
+                                          : thread.startReply
                                 }
                                 aria-expanded={thread.isReplying}
                                 aria-keyshortcuts={
@@ -694,8 +694,8 @@ export function ThreadReplies({
         depth === 0
             ? threadLayouts.root
             : isFlattened
-                ? threadLayouts.flattened
-                : threadLayouts.nested;
+              ? threadLayouts.flattened
+              : threadLayouts.nested;
 
     return (
         <div
@@ -727,8 +727,8 @@ export function ThreadReplies({
                                             index < replies.length - 1
                                                 ? laneOf(replies[index + 1])
                                                 : thread.hasMore
-                                                    ? laneOf(reply)
-                                                    : null
+                                                  ? laneOf(reply)
+                                                  : null
                                         }
                                     />
                                 )
@@ -748,7 +748,7 @@ export function ThreadReplies({
                                     style={laneStrokeStyle(
                                         laneOf(
                                             thread.replies[
-                                            thread.replies.length - 1
+                                                thread.replies.length - 1
                                             ],
                                         ),
                                     )}
