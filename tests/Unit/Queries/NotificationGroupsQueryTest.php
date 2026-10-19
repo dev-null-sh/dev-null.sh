@@ -55,7 +55,7 @@ it('groups stars per commit, newest stargazer first', function (): void {
         ->and($group->actors->pluck('id')->all())->toBe([$stargazers[4]->id, $stargazers[3]->id, $stargazers[2]->id]);
 });
 
-it('groups replies per replied commit, counting each replier once', function (): void {
+it('never groups replies, even to the same commit', function (): void {
     $commit = Commit::factory()->create();
     $bob = User::factory()->create();
     $carol = User::factory()->create();
@@ -63,16 +63,38 @@ it('groups replies per replied commit, counting each replier once', function ():
     replyAt($bob, $commit, 3);
     replyAt($carol, $commit, 2);
     $latest = replyAt($bob, $commit, 1);
-    Notification::query()->where('commit_id', $latest->id)->update(['read_at' => now()]);
+
+    $groups = resolve(NotificationGroupsQuery::class)->paginate($commit->user)->items();
+
+    expect($groups)->toHaveCount(3)
+        ->and($groups[0]->type)->toBe(NotificationType::Replied)
+        ->and($groups[0]->commit_id)->toBe($latest->id)
+        ->and($groups[0]->subject_id)->toBe($commit->id)
+        ->and(array_map(fn (Notification $group): int => $group->event_count, $groups))->toBe([1, 1, 1])
+        ->and(array_map(fn (Notification $group): string => $group->actor_id, $groups))->toBe([$bob->id, $carol->id, $bob->id]);
+});
+
+it('groups mentions per thread, counting each mentioner once', function (): void {
+    $commit = Commit::factory()->create();
+    $bob = User::factory()->create();
+    $carol = User::factory()->create();
+    $mention = fn (User $mentioner, int $minutesAgo): Notification => Notification::factory()
+        ->for($commit->user, 'recipient')->for($mentioner, 'actor')
+        ->for(Commit::factory()->for($mentioner)->for($commit, 'parent'), 'commit')
+        ->create(['type' => NotificationType::Mentioned, 'created_at' => now()->subMinutes($minutesAgo)]);
+
+    $mention($bob, 3);
+    $mention($carol, 2);
+    $latest = $mention($bob, 1);
+    $latest->forceFill(['read_at' => now()])->save();
 
     $groups = resolve(NotificationGroupsQuery::class)->paginate($commit->user);
 
     $group = $groups->items()[0];
 
     expect($groups->items())->toHaveCount(1)
-        ->and($group->type)->toBe(NotificationType::Replied)
-        ->and($group->commit_id)->toBe($latest->id)
-        ->and($group->subject_id)->toBe($commit->id)
+        ->and($group->type)->toBe(NotificationType::Mentioned)
+        ->and($group->id)->toBe($latest->id)
         ->and($group->event_count)->toBe(3)
         ->and($group->unread_count)->toBe(2)
         ->and($group->actors_count)->toBe(2)
@@ -257,7 +279,7 @@ it('counts no unread groups without unread notifications', function (): void {
     expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(0);
 });
 
-it('groups replies under the top of their thread when a recorded thread root is missing or a reply', function (): void {
+it('groups mentions under the top of their thread when a recorded thread root is missing or a reply', function (): void {
     $user = User::factory()->create();
     $root = Commit::factory()->for($user)->create();
     $reply = Commit::factory()->for($root, 'parent')->create();
@@ -266,8 +288,8 @@ it('groups replies under the top of their thread when a recorded thread root is 
     $nested->forceFill(['root_id' => $reply->id])->save();
 
     $this->travelTo(now()->subMinutes(3), fn () => Notification::factory()->for($user, 'recipient')->for($root, 'commit')->create(['type' => NotificationType::Mentioned]));
-    $this->travelTo(now()->subMinutes(2), fn () => Notification::factory()->for($user, 'recipient')->for($reply, 'commit')->create(['type' => NotificationType::Replied]));
-    Notification::factory()->for($user, 'recipient')->for($nested, 'commit')->create(['type' => NotificationType::Replied]);
+    $this->travelTo(now()->subMinutes(2), fn () => Notification::factory()->for($user, 'recipient')->for($reply, 'commit')->create(['type' => NotificationType::Mentioned]));
+    Notification::factory()->for($user, 'recipient')->for($nested, 'commit')->create(['type' => NotificationType::Mentioned]);
 
     $groups = resolve(NotificationGroupsQuery::class)->paginate($user)->items();
 

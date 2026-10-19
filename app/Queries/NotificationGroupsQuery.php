@@ -148,6 +148,7 @@ final readonly class NotificationGroupsQuery
             default => 'unixepoch(created_at) - unixepoch(previous_match_at)',
         };
 
+        // Replies are never grouped, so each one shows in full; only mentions in the same thread share a group.
         // Deleted ancestors supply grouping identity only; content comes from relevant notifications. A commit's
         // recorded root is always one of its ancestors, so the walk up the thread only continues past it when the
         // recorded root is itself a reply. Follows never group across days, as a busy account gets followed so often
@@ -158,7 +159,7 @@ final readonly class NotificationGroupsQuery
                 SELECT visible.id AS notification_id, roots.id, roots.parent_id
                 FROM visible JOIN commits ON commits.id = visible.commit_id
                 JOIN commits AS roots ON roots.id = COALESCE(commits.root_id, commits.id)
-                WHERE visible.type IN ('replied', 'mentioned')
+                WHERE visible.type = 'mentioned'
             ),
             ancestry AS (
                 SELECT threads.notification_id, parent.id, parent.parent_id
