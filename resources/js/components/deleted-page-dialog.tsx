@@ -12,29 +12,29 @@ function deletedPageCopy(page: DeletedPage) {
         case 'commit':
             return {
                 command: `fatal: bad object ${shortHash(page.id)}`,
-                headline: 'This commit was deleted.',
+                headline: 'This commit is no longer available.',
                 description:
-                    "It was deleted while you were reading it, so you can't reply to it, star it or share it anymore.",
+                    "It was deleted or hidden while you were reading it, so you can't reply to it, star it or share it anymore.",
             };
         case 'photo':
             return {
                 command: `fatal: bad object ${shortHash(page.id)}`,
-                headline: 'This photo was deleted.',
+                headline: 'This photo is no longer available.',
                 description:
-                    'Its commit was deleted while you were looking at it.',
+                    'Its commit was deleted or hidden while you were looking at it.',
             };
         case 'page':
             return {
                 command: `fatal: path '${page.path}' does not exist in 'HEAD'`,
-                headline: 'This page was deleted.',
+                headline: 'This page is no longer available.',
                 description:
-                    'Whatever was here was deleted while you were looking at it.',
+                    'Whatever was here was deleted or hidden while you were looking at it.',
             };
     }
 }
 
 /**
- * Covers a page whose commit was deleted while it was open. It can't be dismissed, so nothing on the page can be acted
+ * Covers a page whose commit went away while it was open. It can't be dismissed, so nothing on the page can be acted
  * on anymore: the only ways out lead elsewhere.
  */
 export function DeletedPageDialog({ page }: { page: DeletedPage }) {

@@ -83,7 +83,7 @@ export function useMarkCommitDeleted(): (commitId: string) => void {
             commitId !== pageCommitId &&
             !deletedResources.hasCommit(commitId)
         ) {
-            toast.error('This commit was deleted.');
+            toast.error('This commit is no longer available.');
         }
 
         deletedResources.markCommit(commitId);
@@ -91,7 +91,8 @@ export function useMarkCommitDeleted(): (commitId: string) => void {
 }
 
 /**
- * Actions on a commit 404 once it was deleted.
+ * Actions on a commit 404 once it was deleted, or once it is no longer visible, as when it was rejected or its author
+ * blocked the viewer: the two can't be told apart.
  */
 export function useCommitNotFound(): (
     commitId: string,

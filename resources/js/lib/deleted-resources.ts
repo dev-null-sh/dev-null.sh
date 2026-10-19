@@ -1,6 +1,6 @@
 /**
- * What was deleted while someone was still looking at it: those commits and pages stay on screen as they were last
- * seen, with every action off, instead of turning into a 404 before they reload.
+ * What was deleted, or hidden from the viewer, while they were still looking at it: those commits and pages stay on
+ * screen as they were last seen, with every action off, instead of turning into a 404 before they reload.
  */
 export function createDeletedResources() {
     const commits = new Set<string>();

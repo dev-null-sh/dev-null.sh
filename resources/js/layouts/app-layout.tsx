@@ -71,7 +71,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             data-nav={isLayoutOpen ? 'expanded' : 'collapsed'}
             className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center"
         >
-            {component !== 'notification/index' && (
+            {component !== 'notification/index' && deletedPage === null && (
                 <NotificationCountPolling onNotFound={markPageDeleted} />
             )}
             <div
@@ -142,8 +142,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
 }
 
 /**
- * The counts reload with the page's own URL, so they are also what first finds out that the page's commit was deleted:
- * the page then stays as it was, instead of turning into a 404.
+ * The counts reload with the page's own URL, so they are also what first finds out that the page's commit is gone: the
+ * page then stays as it was, instead of turning into a 404, and the polling stops until another page is visited.
  */
 function NotificationCountPolling({ onNotFound }: { onNotFound: () => void }) {
     usePoll(

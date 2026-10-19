@@ -1,13 +1,14 @@
 import { Head, InfiniteScroll, router } from '@inertiajs/react';
 import { Check, X } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { store as reject } from '@/actions/App/Http/Controllers/CommitRejectionController';
 import { destroy } from '@/actions/App/Http/Controllers/CommitReportController';
 import { CommitCard } from '@/components/commit-card';
 import { EmptyFeed } from '@/components/commit-feed';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
-import { useCommitNotFound } from '@/hooks/use-deleted-resources';
+import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import AppLayout from '@/layouts/app-layout';
 import { formatFullDateTime } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
@@ -28,18 +29,35 @@ export default function Reports({
     reasons: Record<string, string>;
 }) {
     const [busy, setBusy] = useState(false);
-    const commitNotFound = useCommitNotFound();
+    const markCommitDeleted = useMarkCommitDeleted();
     const resolve = (
-        report: Report,
         route: ReturnType<typeof destroy> | ReturnType<typeof reject>,
+        onNotFound: () => void,
     ) =>
         router.visit(route, {
             preserveScroll: true,
             reset: ['reports'],
             onStart: () => setBusy(true),
             onFinish: () => setBusy(false),
-            onHttpException: (response) =>
-                !commitNotFound(report.commit.id, response),
+            onHttpException: (response) => {
+                if (response.status !== 404) {
+                    return;
+                }
+
+                onNotFound();
+
+                return false;
+            },
+        });
+
+    /**
+     * A dismissal is about the report, which leaves the queue once its commit is gone or no longer published, while the
+     * commit itself may still be live.
+     */
+    const dismiss = (report: Report) =>
+        resolve(destroy(report.id), () => {
+            toast('This report is no longer in the queue.');
+            router.reload({ only: ['reports'], reset: ['reports'] });
         });
 
     return (
@@ -106,12 +124,7 @@ export default function Reports({
                                             variant="outline"
                                             size="sm"
                                             disabled={busy}
-                                            onClick={() =>
-                                                resolve(
-                                                    report,
-                                                    destroy(report.id),
-                                                )
-                                            }
+                                            onClick={() => dismiss(report)}
                                         >
                                             <Check />
                                             Dismiss report
@@ -122,8 +135,11 @@ export default function Reports({
                                             disabled={busy}
                                             onClick={() =>
                                                 resolve(
-                                                    report,
                                                     reject(report.commit),
+                                                    () =>
+                                                        markCommitDeleted(
+                                                            report.commit.id,
+                                                        ),
                                                 )
                                             }
                                         >
