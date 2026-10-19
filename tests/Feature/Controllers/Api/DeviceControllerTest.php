@@ -33,6 +33,7 @@ it('approves the key that redeems the code as a device, and answers like me', fu
         ->assertJsonPath('data.id', $this->user->id)
         ->assertJsonPath('data.username', 'octocat')
         ->assertJsonPath('data.lane', $this->user->lane())
+        ->assertJsonPath('data.automatic_lane', $this->user->automaticLane())
         ->assertJsonPath('data.commits_count', 0)
         ->assertJsonPath('unread_notifications_count', 0);
 

@@ -46,9 +46,47 @@ it('returns the signed-in user with their unread notifications', function (): vo
                 'followers_count' => 3,
                 'following_count' => 2,
                 'lane' => $user->lane(),
+                'preferred_lane' => null,
+                'automatic_lane' => $user->automaticLane(),
+                'sponsors_url' => null,
+                'github_synced_at' => null,
             ],
             'unread_notifications_count' => 1,
         ]);
+});
+
+it('returns what the web shows only the user on their profile settings', function (): void {
+    $user = User::factory()->create([
+        'id' => '3a788e93-4cf7-4819-9377-94be2f329563',
+        'username' => 'octocat',
+        'preferred_lane' => 1,
+        'has_sponsors_listing' => true,
+        'github_synced_at' => '2026-10-01 09:30:00',
+    ]);
+    $keyPair = apiKeyPairFor($user);
+
+    $response = signedApiRequest($keyPair, 'GET', route('api-current-user.show'));
+
+    $response->assertOk()
+        ->assertJsonPath('data.lane', 1)
+        ->assertJsonPath('data.preferred_lane', 1)
+        ->assertJsonPath('data.automatic_lane', 4)
+        ->assertJsonPath('data.sponsors_url', 'https://github.com/sponsors/octocat')
+        ->assertJsonPath('data.github_synced_at', '2026-10-01T09:30:00Z');
+});
+
+it('keeps those to the signed-in user, even on their own profile', function (): void {
+    $user = User::factory()->create(['preferred_lane' => 1]);
+    $keyPair = apiKeyPairFor($user);
+
+    $response = signedApiRequest($keyPair, 'GET', route('api-user.show', $user));
+
+    $response->assertOk()
+        ->assertJsonPath('data.lane', 1)
+        ->assertJsonMissingPath('data.preferred_lane')
+        ->assertJsonMissingPath('data.automatic_lane')
+        ->assertJsonMissingPath('data.sponsors_url')
+        ->assertJsonMissingPath('data.github_synced_at');
 });
 
 it('counts unread notifications in groups, like the web', function (): void {

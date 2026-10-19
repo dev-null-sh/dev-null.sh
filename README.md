@@ -87,6 +87,8 @@ A signed profile also says `is_muting` and has the web's `achievements`, with th
 
 `GET /api/v1/notifications` groups notifications like the web and takes the web's `?type=` filter: `all` (the default), `none`, or a comma-separated list of `replies`, `quotes`, `stars`, `mentions`, `follows` and `moderation`. The response echoes it as `filters.type`. Listing them marks every notification as read, whatever the filter, and `read_at` says when, so the groups read at or after it are the new ones. `GET /api/v1/notifications/{id}/group` lists the notifications of one group, with the same filter, the way the web expands it.
 
+`GET /api/v1/me` also has what only the user sees in the web's profile settings: `preferred_lane` (a lane, a custom `#rrggbb` color, or `null` for Automatic), the `automatic_lane` Automatic picks for them, their `sponsors_url` (or `null`), and `github_synced_at`, when their profile was last synced from GitHub (`null` if it only was when they signed in). `PUT /api/v1/me/github` syncs it from GitHub again, like Sync from GitHub on the web, and shares its limit of one sync a minute. `PUT /api/v1/me/lane` saves their color, with a `lane` from `0` to `5`, or `null` for Automatic, or a custom `color` as lowercase `#rrggbb` with a `null` lane, as the web's color picker does. Both answer like `GET /api/v1/me`.
+
 `DELETE /api/v1/me` deletes the signed-in user's account the way Delete account does on the web, with their commits and every device they approved. It answers `204`, and from then on the key gets `device_not_approved`.
 
 Each request sends three headers:
@@ -126,7 +128,8 @@ An error is JSON with a `message` to show the user. The errors the app has to te
 | `401` | `device_not_approved` | Nobody approved the key as a device, or it was revoked. |
 | `403` | `user_blocked` | The user blocked the profile they asked for. Neither of them sees the other's commits. |
 | `403` | `user_unavailable` | The profile isn't available to the user, because it blocked them. |
-| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, 30 follows and unfollows a minute, 60 stars and unstars a minute, 60 saves and unsaves a minute, or 60 failed signatures a minute from one IP. `Retry-After` says when to try again. |
+| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, 30 follows and unfollows a minute, 60 stars and unstars a minute, 60 saves and unsaves a minute, one profile sync a minute, or 60 failed signatures a minute from one IP. `Retry-After` says when to try again. |
+| `503` | `github_sync_failed` | `PUT /api/v1/me/github` only: GitHub couldn't be reached, or didn't answer as expected. Nothing changed. |
 
 Other errors have no `code`, like a `422` for a commit that fails validation or a `404` for one that doesn't exist. Unsigned requests to the public endpoints get the same errors as before, without codes.
 
