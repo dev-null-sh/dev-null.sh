@@ -21,6 +21,7 @@ final class ShowLogRequest extends FormRequest
     {
         return [
             'since' => ['nullable', 'uuid'],
+            'since_at' => ['nullable', 'date'],
         ];
     }
 

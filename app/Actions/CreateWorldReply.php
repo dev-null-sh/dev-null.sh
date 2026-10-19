@@ -60,6 +60,7 @@ final readonly class CreateWorldReply
                 'parent_id' => $commit->id,
                 'root_id' => $commit->threadRootId(),
                 'status' => CommitStatus::Approved,
+                'approved_at' => now(),
             ]);
 
             $this->createReplyNotifications->handle($reply);

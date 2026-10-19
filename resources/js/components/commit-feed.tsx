@@ -111,7 +111,9 @@ export function CommitFeed({
                                       ? 'saved'
                                       : isRanked
                                         ? 'ranked'
-                                        : 'latest',
+                                        : profileUserId !== null
+                                          ? 'created'
+                                          : 'latest',
                               )
                             : updateQuotedCommits(rows, restored),
                     );

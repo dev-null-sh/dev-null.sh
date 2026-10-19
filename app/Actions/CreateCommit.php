@@ -54,13 +54,15 @@ final readonly class CreateCommit
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
+            $approved = $user->isAdmin() || ($hasGoodReputation && ! $user->hasRecentReports());
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
                 'mentions' => $this->mentionedUsers->get($body),
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
-                'status' => $user->isAdmin() || ($hasGoodReputation && ! $user->hasRecentReports()) ? CommitStatus::Approved : CommitStatus::Pending,
+                'status' => $approved ? CommitStatus::Approved : CommitStatus::Pending,
+                'approved_at' => $approved ? $createdAt : null,
                 'link_preview_id' => $linkPreview?->id,
                 'quoted_commit_id' => $quotedCommit?->id,
                 'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),
