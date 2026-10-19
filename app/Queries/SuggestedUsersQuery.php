@@ -44,7 +44,7 @@ final readonly class SuggestedUsersQuery
             )
             ->select(['users.*', 'network.followed_by_following_count'])
             ->addSelect(['followers_count' => $this->followersCount($following)])
-            ->whereIn('users.id', $this->committers($user))
+            ->whereExists(Commit::query()->visibleTo($user)->topLevel()->whereColumn('commits.user_id', 'users.id')->select('commits.id')->offset(0))
             ->orderByDesc('followed_by_following_count')
             ->orderByDesc('followers_count')
             ->latest('users.id')
