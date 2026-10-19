@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Enums\CommitStatus;
 use App\Enums\RepliesPerPage;
+use App\Enums\StarFlavor;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\CommitTranslations;
@@ -240,25 +241,41 @@ final class CommitBuilder extends Builder
 
     /**
      * Guests see how many stars a commit has, without having starred any. Stars are counted on the pivot table alone:
-     * the relation would otherwise join the users table for every star.
+     * the relation would otherwise join the users table for every star. Next to the count go the two flavors given
+     * most, leaving out the plain star the button already shows.
      */
     public function withStarsFor(?User $viewer): self
     {
         $stars = $this->getModel()->stars();
+        $commitColumn = $stars->getQualifiedForeignPivotKeyName();
 
         return $this
             ->addSelect([
                 'stars_count' => $stars->newPivotStatement()
                     ->selectRaw('count(*)')
-                    ->whereColumn($stars->getQualifiedForeignPivotKeyName(), $this->qualifyColumn('id')),
+                    ->whereColumn($commitColumn, $this->qualifyColumn('id')),
                 'starred' => $this->whetherViewerHasRow(
                     $stars->newPivotStatement(),
-                    $stars->getQualifiedForeignPivotKeyName(),
+                    $commitColumn,
                     $stars->getQualifiedRelatedPivotKeyName(),
                     $viewer,
                 ),
+                'star_flavor' => $stars->newPivotStatement()
+                    ->select('flavor')
+                    ->whereColumn($commitColumn, $this->qualifyColumn('id'))
+                    ->where($stars->getQualifiedRelatedPivotKeyName(), $viewer?->id),
+                'star_flavors' => $this->getQuery()->newQuery()
+                    ->fromSub($stars->newPivotStatement()
+                        ->selectRaw('flavor, count(*) as given')
+                        ->whereColumn($commitColumn, $this->qualifyColumn('id'))
+                        ->where('flavor', '!=', StarFlavor::Star->value)
+                        ->groupBy('flavor')
+                        ->orderByDesc('given')
+                        ->orderBy('flavor')
+                        ->limit(2), 'flavors')
+                    ->selectRaw("coalesce(json_agg(flavor order by given desc, flavor), '[]')"),
             ])
-            ->withCasts(['starred' => 'bool']);
+            ->withCasts(['starred' => 'bool', 'star_flavor' => StarFlavor::class, 'star_flavors' => 'array']);
     }
 
     /**

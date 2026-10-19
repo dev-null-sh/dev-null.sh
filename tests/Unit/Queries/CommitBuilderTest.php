@@ -28,7 +28,7 @@ it('loads commits with every column but the embedding, which stays stored', func
     $columns = array_values(array_diff(Schema::getColumnListing('commits'), ['embedding']));
 
     expect(array_keys(Commit::query()->findOrFail($commit->id)->getAttributes()))->toBe($columns)
-        ->and(array_keys(Commit::query()->withStarsFor(null)->findOrFail($commit->id)->getAttributes()))->toBe([...$columns, 'stars_count', 'starred'])
+        ->and(array_keys(Commit::query()->withStarsFor(null)->findOrFail($commit->id)->getAttributes()))->toBe([...$columns, 'stars_count', 'starred', 'star_flavor', 'star_flavors'])
         ->and(Commit::query()->whereKey($commit->id)->value('embedding'))->toBe(embeddingVector(0));
 });
 

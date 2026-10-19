@@ -1,3 +1,4 @@
+import type { StarFlavor } from '@/lib/star-flavors';
 import type { User } from '@/types/auth';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
@@ -81,6 +82,8 @@ export type Commit = {
     stars_count: number;
     pasteis_count: number;
     starred: boolean;
+    star_flavor?: StarFlavor | null;
+    star_flavors?: StarFlavor[];
     user: User;
     replies_count?: number;
     reply_preview?: CursorPaginated<ThreadCommit>;

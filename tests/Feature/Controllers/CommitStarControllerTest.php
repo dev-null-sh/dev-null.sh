@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Enums\Log;
+use App\Enums\StarFlavor;
 use App\Models\Commit;
 use App\Models\User;
 
@@ -17,7 +18,7 @@ it('may star a commit', function (): void {
         ->postJson(route('commit-star.store', $commit));
 
     $response->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 2]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 2, 'star_flavor' => null, 'star_flavors' => []]);
 
     expect($user->hasStarred($commit))->toBeTrue();
 });
@@ -29,9 +30,59 @@ it('starring is idempotent', function (): void {
     $this->actingAs($user)->postJson(route('commit-star.store', $commit))->assertOk();
     $this->actingAs($user)->postJson(route('commit-star.store', $commit))
         ->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 1]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []]);
 
     expect($user->starredCommits()->count())->toBeOne();
+});
+
+it('may star a commit with a flavor', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('commit-star.store', $commit), ['flavor' => 'fire'])
+        ->assertOk()
+        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => 'fire', 'star_flavors' => ['fire']]);
+
+    expect($commit->stars()->newPivotQuery()->pluck('flavor')->all())->toBe([StarFlavor::Fire->value]);
+});
+
+it('changes the flavor of a star instead of adding another', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    $this->actingAs($user)->postJson(route('commit-star.store', $commit), ['flavor' => 'fire'])->assertOk();
+    $this->actingAs($user)->postJson(route('commit-star.store', $commit), ['flavor' => 'ship'])
+        ->assertOk()
+        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => 'ship', 'star_flavors' => ['ship']]);
+
+    expect($commit->stars()->newPivotQuery()->pluck('flavor')->all())->toBe([StarFlavor::Ship->value]);
+});
+
+it('may not star a commit with an unknown flavor', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->postJson(route('commit-star.store', $commit), ['flavor' => 'thumbs-up'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('flavor');
+
+    expect($user->hasStarred($commit))->toBeFalse();
+});
+
+it('shows the two flavors given most, leaving out plain stars', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    foreach (['fire', 'fire', 'fire', 'ship', 'ship', 'eyes', 'star', 'star', null] as $flavor) {
+        User::factory()->create()->starredCommits()->attach($commit, ['flavor' => $flavor]);
+    }
+
+    $this->actingAs($user)
+        ->postJson(route('commit-star.store', $commit))
+        ->assertOk()
+        ->assertExactJson(['starred' => true, 'stars_count' => 10, 'star_flavor' => null, 'star_flavors' => ['fire', 'ship']]);
 });
 
 it('may not star their own commit', function (CommitStatus $status): void {
@@ -80,7 +131,7 @@ it('may unstar a commit', function (): void {
         ->deleteJson(route('commit-star.destroy', $commit));
 
     $response->assertOk()
-        ->assertExactJson(['starred' => false, 'stars_count' => 1]);
+        ->assertExactJson(['starred' => false, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []]);
 
     expect($user->hasStarred($commit))->toBeFalse();
 });

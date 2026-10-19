@@ -152,6 +152,8 @@ it('shares the JSON star budget across commits and replies without consuming oth
         $this->json($method, $uri)->assertOk()->assertExactJson([
             'starred' => $starred,
             'stars_count' => $starred ? 1 : 0,
+            'star_flavor' => null,
+            'star_flavors' => [],
         ]);
     }
 
@@ -170,5 +172,5 @@ it('shares the JSON star budget across commits and replies without consuming oth
     $this->actingAs(User::factory()->create())
         ->postJson(route('commit-star.store', $reply))
         ->assertOk()
-        ->assertExactJson(['starred' => true, 'stars_count' => 1]);
+        ->assertExactJson(['starred' => true, 'stars_count' => 1, 'star_flavor' => null, 'star_flavors' => []]);
 });

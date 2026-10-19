@@ -11,6 +11,8 @@ import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
 import { formatCount } from '@/lib/numbers';
+import type { StarFlavor } from '@/lib/star-flavors';
+import { flavorEmoji, starFlavors } from '@/lib/star-flavors';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -45,9 +47,19 @@ export function CommitStarButton({
         commitStateKey('stars_count', commit.id),
         commit.stars_count,
     );
+    const [flavor, setFlavor] = useState(commit.star_flavor ?? null);
+    const [flavors, setFlavors] = useState(commit.star_flavors ?? []);
+    const [isPicking, setIsPicking] = useState(false);
+    const hold = useRef<number>(undefined);
+    const wasHeld = useRef(false);
     const request = useHttp<
-        Record<string, never>,
-        { starred: boolean; stars_count: number }
+        { flavor?: StarFlavor },
+        {
+            starred: boolean;
+            stars_count: number;
+            star_flavor: StarFlavor | null;
+            star_flavors: StarFlavor[];
+        }
     >({});
     const [isAnimating, setIsAnimating] = useState(false);
     const [localMutations] = useState(createCommitStarMutations);
@@ -88,7 +100,12 @@ export function CommitStarButton({
 
     if (isOwn) {
         return (
-            <StarCount ref={setElement} count={count} className={className} />
+            <StarCount
+                ref={setElement}
+                count={count}
+                flavors={flavors}
+                className={className}
+            />
         );
     }
 
@@ -96,7 +113,20 @@ export function CommitStarButton({
         return null;
     }
 
-    const toggle = async () => {
+    /**
+     * Holding the button, a pointer resting on it or a finger pressing it, opens the flavor picker.
+     */
+    const startHold = (held: boolean) => {
+        window.clearTimeout(hold.current);
+        hold.current = window.setTimeout(() => {
+            wasHeld.current = held;
+            setIsPicking(true);
+        }, 450);
+    };
+
+    const star = async (next: boolean, picked?: StarFlavor) => {
+        setIsPicking(false);
+
         if (auth.user === null) {
             signIn();
 
@@ -113,13 +143,17 @@ export function CommitStarButton({
             return;
         }
 
-        const next = !starred;
+        const previous = { starred, flavor };
+        const change = next === starred ? 0 : next ? 1 : -1;
 
         setStarred(next);
-        setCount((current) => Math.max(0, current + (next ? 1 : -1)));
+        setFlavor(next ? (picked ?? null) : null);
+        setCount((current) => Math.max(0, current + change));
         if (next) {
             setIsAnimating(true);
         }
+
+        request.transform(() => (picked ? { flavor: picked } : {}));
 
         try {
             const response = await request.submit(
@@ -137,44 +171,147 @@ export function CommitStarButton({
 
             setStarred(response.starred);
             setCount(response.stars_count);
+            setFlavor(response.star_flavor);
+            setFlavors(response.star_flavors);
             router.flushAll();
         } catch {
-            setStarred(!next);
-            setCount((current) => Math.max(0, current + (next ? -1 : 1)));
+            setStarred(previous.starred);
+            setFlavor(previous.flavor);
+            setCount((current) => Math.max(0, current - change));
         } finally {
             finishMutation();
         }
     };
 
     return (
-        <ActionTooltip label={starred ? 'Unstar' : 'Star'}>
+        <span
+            className="relative inline-flex"
+            onPointerLeave={() => {
+                window.clearTimeout(hold.current);
+                setIsPicking(false);
+            }}
+        >
+            {isPicking && (
+                <span
+                    role="menu"
+                    aria-label="Star flavors"
+                    className="absolute bottom-full left-0 z-20 flex pb-1"
+                    data-test="star-flavor-picker"
+                >
+                    <span className="flex gap-0.5 rounded-full border bg-popover p-1 shadow-md">
+                        {starFlavors.map((option) => (
+                            <ActionTooltip
+                                key={option.flavor}
+                                label={option.meaning}
+                            >
+                                <button
+                                    type="button"
+                                    role="menuitem"
+                                    aria-label={option.meaning}
+                                    onClick={() =>
+                                        void star(true, option.flavor)
+                                    }
+                                    className={cn(
+                                        'rounded-full px-1.5 py-0.5 text-lg leading-none transition-transform hover:scale-125 hover:bg-accent',
+                                        starred &&
+                                            (flavor ?? 'star') ===
+                                                option.flavor &&
+                                            'bg-primary-soft',
+                                    )}
+                                    data-test={`star-flavor-${option.flavor}`}
+                                >
+                                    {option.emoji}
+                                </button>
+                            </ActionTooltip>
+                        ))}
+                    </span>
+                </span>
+            )}
             <button
                 ref={setElement}
                 aria-disabled={request.processing}
                 type="button"
-                onClick={toggle}
+                onClick={() => {
+                    window.clearTimeout(hold.current);
+
+                    if (wasHeld.current) {
+                        wasHeld.current = false;
+
+                        return;
+                    }
+
+                    void star(!starred);
+                }}
+                onPointerEnter={(event) =>
+                    event.pointerType === 'mouse' && startHold(false)
+                }
+                onPointerDown={(event) =>
+                    event.pointerType !== 'mouse' && startHold(true)
+                }
+                onPointerUp={(event) =>
+                    event.pointerType !== 'mouse' &&
+                    window.clearTimeout(hold.current)
+                }
+                onContextMenu={(event) => event.preventDefault()}
                 aria-pressed={starred}
                 aria-label={starLabel(starred, count)}
                 className={cn(
-                    'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                    'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors select-none [-webkit-touch-callout:none] hover:bg-accent hover:text-foreground',
                     starred && 'text-primary hover:text-primary',
                     className,
                 )}
                 data-test="star-commit-button"
             >
-                <Star
-                    onAnimationEnd={() => setIsAnimating(false)}
-                    className={cn(
-                        'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
-                        starred && 'fill-current',
-                        isAnimating && 'motion-safe:animate-star-pop',
+                {starred && flavor && flavor !== 'star' ? (
+                    <span
+                        onAnimationEnd={() => setIsAnimating(false)}
+                        className={cn(
+                            'text-sm leading-none',
+                            isAnimating && 'motion-safe:animate-star-pop',
+                        )}
+                        data-test="star-flavor"
+                    >
+                        {flavorEmoji(flavor)}
+                    </span>
+                ) : (
+                    <Star
+                        onAnimationEnd={() => setIsAnimating(false)}
+                        className={cn(
+                            'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
+                            starred && 'fill-current',
+                            isAnimating && 'motion-safe:animate-star-pop',
+                        )}
+                    />
+                )}
+                <TopFlavors
+                    flavors={flavors.filter(
+                        (given) => !(starred && given === flavor),
                     )}
                 />
                 <span data-test="star-count" className="min-w-[1ch] text-left">
                     {count > 0 ? formatCount(count) : ''}
                 </span>
             </button>
-        </ActionTooltip>
+        </span>
+    );
+}
+
+/**
+ * The two flavors given most, next to the count.
+ */
+function TopFlavors({ flavors }: { flavors: StarFlavor[] }) {
+    if (flavors.length === 0) {
+        return null;
+    }
+
+    return (
+        <span
+            aria-hidden
+            className="text-xs leading-none"
+            data-test="star-flavors"
+        >
+            {flavors.map(flavorEmoji).join('')}
+        </span>
     );
 }
 
@@ -184,10 +321,12 @@ export function CommitStarButton({
 function StarCount({
     ref,
     count,
+    flavors,
     className,
 }: {
     ref?: Ref<HTMLSpanElement>;
     count: number;
+    flavors: StarFlavor[];
     className?: string;
 }) {
     const label =
@@ -209,6 +348,7 @@ function StarCount({
                 data-test="star-count-readonly"
             >
                 <Star aria-hidden className="size-4" />
+                <TopFlavors flavors={flavors} />
                 <span data-test="star-count" className="min-w-[1ch] text-left">
                     {count > 0 ? formatCount(count) : ''}
                 </span>

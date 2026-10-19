@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Enums\StarFlavor;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class CreateCommitStarRequest extends FormRequest
 {
@@ -30,10 +32,17 @@ final class CreateCommitStarRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
-        return [];
+        return [
+            'flavor' => ['nullable', Rule::enum(StarFlavor::class)],
+        ];
+    }
+
+    public function flavor(): ?StarFlavor
+    {
+        return $this->enum('flavor', StarFlavor::class);
     }
 }
