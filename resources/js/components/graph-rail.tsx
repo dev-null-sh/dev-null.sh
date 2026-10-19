@@ -1,12 +1,14 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
-import { cn } from '@/lib/utils';
+import { cn, laneStrokeStyle } from '@/lib/utils';
 import type { User } from '@/types';
 
 type Props = {
     lane: string;
     previousLane?: string;
+    /** When set, the outbound rail fades into this lane toward the next commit. */
+    nextLane?: string;
     variant?: 'commit' | 'staged' | 'root';
     isFilled?: boolean;
     isFresh?: boolean;
@@ -28,6 +30,7 @@ const dimmedNode = 'group-data-dimmed/rail-node:opacity-60';
 export function GraphRail({
     lane,
     previousLane,
+    nextLane,
     variant = 'commit',
     isFilled = true,
     isFresh = false,
@@ -74,7 +77,8 @@ export function GraphRail({
                             'bottom-5 h-auto': nodePosition === 'bottom',
                         },
                     )}
-                    style={{ background: previousLane }}
+                    style={{ background: lane }}
+                    data-test="rail-previous"
                 />
             )}
 
@@ -84,7 +88,7 @@ export function GraphRail({
                 ) : (
                     <span
                         className={cn(
-                            'absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane)',
+                            'absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2',
                             dimmable,
                             {
                                 'opacity-60': isDimmed,
@@ -93,6 +97,10 @@ export function GraphRail({
                                 'top-[23px]': nodePosition === 'author',
                             },
                         )}
+                        style={laneStrokeStyle(lane, nextLane ?? lane, {
+                            dashed: false,
+                        })}
+                        data-test="rail-tail"
                     />
                 ))}
 

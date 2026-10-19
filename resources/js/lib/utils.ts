@@ -110,15 +110,24 @@ export function laneTint(color: string, percent: number): string {
 /** Hold the start lane this far, then fade into the next over the remainder. */
 export const laneStrokeHold = 0.5;
 
+type LaneStrokeOptions = {
+    axis?: 'vertical' | 'horizontal';
+    /** Reply paths are dashed; thread rails stay solid. */
+    dashed?: boolean;
+};
+
 /**
- * Dashed reply connectors. Same colour stays solid; different colours hold the
- * start lane, then fade into the next over the final stretch toward the child.
+ * Lane connectors. Same colour stays one fill; different colours hold the start
+ * lane, then fade into the next over the final stretch toward the child.
  */
 export function laneStrokeStyle(
     from: string,
     to: string = from,
-    axis: 'vertical' | 'horizontal' = 'vertical',
+    options: LaneStrokeOptions | 'vertical' | 'horizontal' = {},
 ): CSSProperties {
+    const resolved = typeof options === 'string' ? { axis: options } : options;
+    const axis = resolved.axis ?? 'vertical';
+    const dashed = resolved.dashed ?? true;
     const isVertical = axis === 'vertical';
     const hold = `${laneStrokeHold * 100}%`;
     const dash = isVertical
@@ -131,10 +140,14 @@ export function laneStrokeStyle(
                 ? undefined
                 : `linear-gradient(${isVertical ? 'to bottom' : 'to right'}, ${from} 0%, ${from} ${hold}, ${to} 100%)`,
         backgroundColor: from === to ? from : undefined,
-        WebkitMaskImage: dash,
-        maskImage: dash,
-        WebkitMaskRepeat: 'repeat',
-        maskRepeat: 'repeat',
+        ...(dashed
+            ? {
+                  WebkitMaskImage: dash,
+                  maskImage: dash,
+                  WebkitMaskRepeat: 'repeat',
+                  maskRepeat: 'repeat',
+              }
+            : {}),
     };
 }
 

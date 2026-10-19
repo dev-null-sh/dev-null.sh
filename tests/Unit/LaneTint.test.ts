@@ -46,3 +46,15 @@ void test('fades horizontal reply elbows the same way', () => {
         'linear-gradient(to right, var(--lane-1) 0%, var(--lane-1) 50%, var(--lane-5) 100%)',
     );
 });
+
+void test('keeps thread rails solid while fading between lanes', () => {
+    const stroke = laneStrokeStyle(laneColor(3), laneColor(5), {
+        dashed: false,
+    });
+
+    assert.equal(
+        stroke.backgroundImage,
+        'linear-gradient(to bottom, var(--lane-3) 0%, var(--lane-3) 50%, var(--lane-5) 100%)',
+    );
+    assert.equal(stroke.maskImage, undefined);
+});
