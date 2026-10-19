@@ -162,9 +162,7 @@ export default function Show({
                     firstSeenId={firstSeenId}
                     isRanked={isRanked}
                     end="That's the root commit. There's nothing before it."
-                    interlude={(lane, isDimmed) => (
-                        <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
-                    )}
+                    interlude={() => <WhoToFollowInLog />}
                     empty={
                         log === 'following' ? (
                             <EmptyFeed command="fatal: your log does not have any commits yet">

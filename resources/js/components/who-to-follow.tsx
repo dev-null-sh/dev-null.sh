@@ -2,7 +2,6 @@ import { Deferred, Link, router, usePage } from '@inertiajs/react';
 import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { FollowButton, useHasBlockWith } from '@/components/follow-button';
-import { RailSegment } from '@/components/graph-rail';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -324,13 +323,7 @@ export function WhoToFollow() {
 /**
  * The aside is hidden below the xl breakpoint, so smaller screens get the same suggestions inside the log.
  */
-export function WhoToFollowInLog({
-    lane,
-    isDimmed = false,
-}: {
-    lane: string;
-    isDimmed?: boolean;
-}) {
+export function WhoToFollowInLog() {
     const { isVisible, isHidden, hide, undo, suggestedUsers } =
         useHideWhoToFollow();
 
@@ -340,7 +333,7 @@ export function WhoToFollowInLog({
 
     return (
         <section aria-labelledby="log-who-to-follow" className="flex xl:hidden">
-            <RailSegment lane={lane} isDimmed={isDimmed} />
+            <div aria-hidden className="w-8 shrink-0 sm:w-9" />
             <div className="min-w-0 flex-1 border-b py-4 pr-4">
                 <div
                     className={cn(

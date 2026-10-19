@@ -20,6 +20,7 @@ import { SearchDialog } from '@/components/search-dialog';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
 import { useFixedPage } from '@/hooks/use-fixed-page';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useNavOpen } from '@/hooks/use-nav-open';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
 import { cn } from '@/lib/utils';
@@ -28,8 +29,9 @@ import type { AppLayoutProps } from '@/types';
 export default function AppLayout({ children }: AppLayoutProps) {
     const {
         component,
-        props: { auth, sidebarOpen },
+        props: { auth },
     } = usePage();
+    const { isLayoutOpen } = useNavOpen();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [isComposing, setIsComposing] = useState(false);
@@ -63,15 +65,19 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
     return (
         <div
-            data-nav={sidebarOpen ? 'expanded' : 'collapsed'}
+            data-nav={isLayoutOpen ? 'expanded' : 'collapsed'}
             className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center"
         >
             {component !== 'notification/index' && <NotificationCountPolling />}
-            <div className="sticky top-0 hidden h-svh w-20 shrink-0 md:block lg:w-(--sidebar-width)">
+            <div
+                data-nav-rail
+                className="sticky top-0 hidden h-svh w-20 shrink-0 md:block lg:w-(--sidebar-width)"
+            >
                 <AppNav onSearch={openSearch} onCompose={compose} />
             </div>
 
             <main
+                data-main
                 className={cn(
                     'min-w-0 flex-1 bg-card pb-40 md:max-w-[620px] md:border-x md:pb-0 lg:max-w-[calc(876px-var(--sidebar-width))]',
                     {
@@ -80,8 +86,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     },
                 )}
             >
-                <MobileHeader onSearch={openSearch} />
-                <CommitStarPolling>{children}</CommitStarPolling>
+                <div data-nav-content>
+                    <MobileHeader onSearch={openSearch} />
+                    <CommitStarPolling>{children}</CommitStarPolling>
+                </div>
             </main>
 
             {!isMessages && (
