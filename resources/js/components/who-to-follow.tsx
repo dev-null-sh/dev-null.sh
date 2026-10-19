@@ -1,6 +1,6 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
 import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { FollowLabel, useFollowHover } from '@/components/follow-button';
 import { RailSegment } from '@/components/graph-rail';
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPreview } from '@/components/user-preview';
 import { useWhoToFollow } from '@/hooks/use-who-to-follow';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
@@ -97,33 +98,42 @@ export function SuggestedUserRow({
     buttonClassName?: string;
 }) {
     const reason = reasonFor(user);
+    const avatarRef = useRef<HTMLSpanElement>(null);
 
     return (
         <li className={cn('flex items-center gap-3', className)}>
-            <Link
-                href={show(user)}
-                className="group flex min-w-0 flex-1 items-center gap-3"
+            <UserPreview
+                user={user}
+                anchor={avatarRef}
+                className="flex min-w-0 flex-1"
             >
-                <UserAvatar user={user} className="size-9" />
-                <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold group-hover:underline">
-                        {user.name}
+                <Link
+                    href={show(user)}
+                    className="group flex min-w-0 flex-1 items-center gap-3"
+                >
+                    <span ref={avatarRef} className="inline-flex shrink-0">
+                        <UserAvatar user={user} className="size-9" />
                     </span>
-                    <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
-                        <span
-                            aria-hidden
-                            className="size-1.5 shrink-0 rounded-full"
-                            style={{ background: laneColor(user.lane) }}
-                        />
-                        <span className="truncate">@{user.username}</span>
-                    </span>
-                    {reason && (
-                        <span className="line-clamp-2 block text-xs text-muted-foreground">
-                            {reason}
+                    <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold group-hover:underline">
+                            {user.name}
                         </span>
-                    )}
-                </span>
-            </Link>
+                        <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                            <span
+                                aria-hidden
+                                className="size-1.5 shrink-0 rounded-full"
+                                style={{ background: laneColor(user.lane) }}
+                            />
+                            <span className="truncate">@{user.username}</span>
+                        </span>
+                        {reason && (
+                            <span className="line-clamp-2 block text-xs text-muted-foreground">
+                                {reason}
+                            </span>
+                        )}
+                    </span>
+                </Link>
+            </UserPreview>
             <FollowButton user={user} className={buttonClassName} />
         </li>
     );
