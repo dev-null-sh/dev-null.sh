@@ -373,8 +373,8 @@ export default function Index({
                                 aria-label="Loading more notifications"
                                 className="animate-in opacity-0 delay-300 fill-mode-forwards fade-in"
                             >
-                                <NotificationSkeleton hasPrevious />
-                                <NotificationSkeleton hasPrevious />
+                                <NotificationSkeleton />
+                                <NotificationSkeleton />
                             </div>
                         }
                     >
@@ -397,7 +397,6 @@ export default function Index({
                                                 notification.created_at,
                                                 now,
                                             )}
-                                            hasPrevious={previous !== undefined}
                                         />
                                     )}
                                     <NotificationGroupItem
@@ -412,7 +411,6 @@ export default function Index({
                                         type={filters.type}
                                         readAt={readAt}
                                         isNew={isNew}
-                                        hasPrevious={previous !== undefined}
                                     />
                                 </Fragment>
                             );
@@ -422,7 +420,6 @@ export default function Index({
                         <div className="flex">
                             <GraphRail
                                 lane={rail}
-                                previousLane={rail}
                                 variant="root"
                                 hasTail={false}
                             />
@@ -438,16 +435,10 @@ export default function Index({
     );
 }
 
-function DayMarker({
-    label,
-    hasPrevious,
-}: {
-    label: string;
-    hasPrevious: boolean;
-}) {
+function DayMarker({ label }: { label: string }) {
     return (
         <div className="flex">
-            <RailSegment lane={hasPrevious ? rail : undefined} />
+            <RailSegment />
             <div className="flex flex-1 items-center border-b py-2 pr-4">
                 <h2 className="font-mono text-xs text-muted-foreground">
                     {label}
@@ -464,7 +455,7 @@ function LastVisitMarker() {
             aria-label="Notifications above are new since your last visit"
             className="flex"
         >
-            <RailSegment lane={rail} />
+            <RailSegment />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <span className="font-mono text-xs text-muted-foreground">
                     HEAD@{'{last visit}'}
@@ -475,12 +466,12 @@ function LastVisitMarker() {
     );
 }
 
-function NotificationSkeleton({ hasPrevious }: { hasPrevious: boolean }) {
+function NotificationSkeleton() {
     return (
         <div aria-hidden className="flex">
             <GraphRail
                 lane={rail}
-                previousLane={hasPrevious ? rail : undefined}
+                endsWithDot
                 node={
                     <span className="size-9 rounded-full border-4 border-card bg-muted motion-safe:animate-pulse" />
                 }
@@ -513,13 +504,11 @@ function NotificationGroupItem({
     type,
     readAt,
     isNew,
-    hasPrevious,
 }: {
     notification: NotificationGroup;
     type: Filters['type'];
     readAt: string;
     isNew: boolean;
-    hasPrevious: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [items, setItems] = useState<Notification[]>([]);
@@ -564,7 +553,6 @@ function NotificationGroupItem({
             <NotificationContent
                 notification={notification}
                 isNew={isNew}
-                hasPrevious={hasPrevious}
                 summary
             >
                 {grouped && (
@@ -759,13 +747,11 @@ function NotificationContent({
     notification,
     summary = false,
     isNew = false,
-    hasPrevious = false,
     children,
 }: {
     notification: Notification | NotificationGroup;
     summary?: boolean;
     isNew?: boolean;
-    hasPrevious?: boolean;
     children?: ReactNode;
 }) {
     const now = useNow();
@@ -926,7 +912,7 @@ function NotificationContent({
         <div className="flex">
             <GraphRail
                 lane={rail}
-                previousLane={hasPrevious ? rail : undefined}
+                endsWithDot
                 nodePosition={isActorsCommit ? 'author' : 'top'}
                 node={
                     isActorsCommit ? (
