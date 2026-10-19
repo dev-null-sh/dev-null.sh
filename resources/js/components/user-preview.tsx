@@ -11,11 +11,15 @@ import {
     useFollowHover,
     useIsFollowing,
 } from '@/components/follow-button';
+import {
+    LiveAvatarMarker,
+    LiveStreamCard,
+} from '@/components/live-stream-card';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { toastWhenThrottled } from '@/lib/throttle';
-import { laneColor } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
 import { show as userPreview } from '@/routes/user-preview';
@@ -376,11 +380,15 @@ function UserPreviewContent({
     return (
         <div style={{ '--lane': lane } as CSSProperties}>
             <div className="flex items-start justify-between gap-3">
-                <Link href={show(user)} className="rounded-full">
+                <Link href={show(user)} className="relative rounded-full">
                     <UserAvatar
                         user={user}
-                        className="size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover"
+                        className={cn(
+                            'size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover',
+                            { 'ring-red-600': user.live },
+                        )}
                     />
+                    {user.live && <LiveAvatarMarker className="ring-popover" />}
                 </Link>
 
                 {!isCurrentUser &&
@@ -505,6 +513,12 @@ function UserPreviewContent({
                     <span className="my-0.5 h-4 w-48 rounded bg-muted-foreground/15 motion-safe:animate-pulse" />
                 )}
             </div>
+
+            {user.live && !data?.isUnavailable && (
+                <div className="mt-4 border-t pt-4">
+                    <LiveStreamCard user={user} stream={user.live} />
+                </div>
+            )}
         </div>
     );
 }

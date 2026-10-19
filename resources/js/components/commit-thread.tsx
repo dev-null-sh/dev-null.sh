@@ -923,8 +923,11 @@ function CommitReply({
 
     return (
         <article
-            className="relative pt-2.5 pl-(--indent)"
+            className={cn('relative pt-2.5 pl-(--indent)', {
+                'cursor-pointer': !wasDeleted,
+            })}
             data-reply
+            data-permalink={wasDeleted ? undefined : permalink.url}
             data-test="reply"
         >
             {links}

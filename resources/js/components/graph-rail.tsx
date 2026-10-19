@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
 import { cn } from '@/lib/utils';
 import type { User } from '@/types';
@@ -165,20 +166,25 @@ export function RailAvatar({
     user,
     isStaged = false,
 }: {
-    user: Pick<User, 'name' | 'avatar_url'>;
+    user: Pick<User, 'name' | 'avatar_url' | 'live'>;
     isStaged?: boolean;
 }) {
+    const isLive = Boolean(user.live);
+
     return (
-        <span className="flex rounded-full bg-card">
+        <span className="relative flex rounded-full bg-card">
             <span
                 className={cn(
                     'flex rounded-full border-2 border-(--lane) p-0.5 transition-[border-color,opacity] duration-200',
                     dimmedNode,
-                    { 'border-dashed': isStaged },
+                    { 'border-dashed': isStaged, 'border-red-600': isLive },
                 )}
             >
                 <UserAvatar user={user} className="size-10" />
             </span>
+            {isLive && (
+                <LiveAvatarMarker className="px-1 text-[9px] leading-3.5" />
+            )}
         </span>
     );
 }
