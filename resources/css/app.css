@@ -351,6 +351,14 @@ html body[data-scroll-locked] {
     }
 }
 
+@media (max-width: 767px) {
+    :root[data-fixed-page],
+    :root[data-fixed-page] body {
+        overflow: hidden;
+        overscroll-behavior: none;
+    }
+}
+
 @media (prefers-reduced-motion: no-preference) {
     :root[data-tab-slide]::view-transition-old(*.tab-content),
     :root[data-tab-slide]::view-transition-new(*.tab-content) {

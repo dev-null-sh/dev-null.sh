@@ -42,9 +42,9 @@ export default function Show({
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
-    const composerRef = useRef<HTMLDivElement>(null);
+    const [composer, setComposer] = useState<HTMLDivElement | null>(null);
     useLaneSwipe(feedRef, log);
-    useComposerVisibility(composerRef, tabsHeight);
+    useComposerVisibility(composer, tabsHeight);
 
     useEffect(() => {
         const tabs = tabsRef.current;
@@ -132,7 +132,7 @@ export default function Show({
             </div>
 
             {user !== null && (
-                <div ref={composerRef}>
+                <div ref={setComposer}>
                     <CommitComposer key={commitDialogClosedCount} />
                 </div>
             )}

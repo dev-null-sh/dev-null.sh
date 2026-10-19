@@ -18,6 +18,7 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { SearchDialog } from '@/components/search-dialog';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
+import { useFixedPage } from '@/hooks/use-fixed-page';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
@@ -58,6 +59,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         compose,
     );
     useTabSlide();
+    useFixedPage(isMessages);
 
     return (
         <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">

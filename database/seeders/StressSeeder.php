@@ -222,7 +222,7 @@ final class StressSeeder extends Seeder
 
         DB::statement(<<<'SQL'
             insert into users (id, github_id, username, name, created_at, updated_at, onboarded_at, log)
-            values (pg_temp.uuid7(localtimestamp - interval '730 days'), 'local', 'local_dev', 'Local Developer',
+            values (pg_temp.uuid7(localtimestamp - interval '730 days'), 'local', 'local-dev', 'Local Developer',
                 localtimestamp - interval '730 days', localtimestamp, localtimestamp - interval '730 days', 'following')
             on conflict (github_id) do nothing
             SQL);

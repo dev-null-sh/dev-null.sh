@@ -482,12 +482,14 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         }
 
         const root = document.documentElement;
-        const observer = new ResizeObserver(() =>
-            root.style.setProperty(
-                '--mobile-nav-height',
-                `${element.getBoundingClientRect().height}px`,
-            ),
-        );
+        // Hidden while the keyboard is open, it keeps its height, so toasts above it do not drop onto it on the way back.
+        const observer = new ResizeObserver(() => {
+            const { height } = element.getBoundingClientRect();
+
+            if (height > 0) {
+                root.style.setProperty('--mobile-nav-height', `${height}px`);
+            }
+        });
 
         observer.observe(element, { box: 'border-box' });
 
@@ -501,7 +503,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         <nav
             ref={nav}
             aria-label="Main"
-            className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden"
+            className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden [:root[data-keyboard-open]_&]:hidden"
         >
             {children}
             {items.map((item) => (
