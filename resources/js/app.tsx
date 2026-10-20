@@ -10,6 +10,7 @@ import { trackAnalyticsEvents } from '@/lib/analytics';
 import { trackCommitPhotoPage } from '@/lib/commit-photo';
 import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
+import { trackFocusedCommitScroll } from '@/lib/focused-commit-scroll';
 import { trackFollowRequests } from '@/lib/follow-requests';
 import { registerServiceWorker } from '@/lib/service-worker';
 import { trackVisualViewport } from '@/lib/visual-viewport';
@@ -19,6 +20,7 @@ const appName = import.meta.env.VITE_APP_NAME || '/dev/null';
 
 trackCurrentPage();
 trackCommitPhotoPage();
+trackFocusedCommitScroll();
 trackVisualViewport();
 trackAnalyticsEvents();
 
