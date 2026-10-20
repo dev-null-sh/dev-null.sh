@@ -15,7 +15,7 @@ export function backgroundPollOptions(
                 const result = options.onHttpException?.(response);
 
                 // Deployment gateways may answer before Laravel can return an Inertia page.
-                return [502, 503, 504].includes(response.status)
+                return [502, 503, 504, 520].includes(response.status)
                     ? false
                     : result;
             },

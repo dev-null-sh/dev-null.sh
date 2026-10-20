@@ -19,6 +19,17 @@ for (const status of [502, 503, 504]) {
     });
 }
 
+void test('keeps a Cloudflare 520 HTML response out of the background error dialog', () => {
+    const options = backgroundPollOptions({ only: ['newCommitsCount'] })();
+    const cloudflareResponse: HttpExceptionResponse = {
+        status: 520,
+        headers: { 'content-type': 'text/html; charset=UTF-8' },
+        data: '<!DOCTYPE html><html><body>Web server is returning an unknown error</body></html>',
+    };
+
+    assert.equal(options.onHttpException?.(cloudflareResponse), false);
+});
+
 void test('keeps connection failures out of the background error handler', () => {
     const options = backgroundPollOptions({})();
 
