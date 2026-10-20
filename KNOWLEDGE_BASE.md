@@ -195,7 +195,9 @@ Commit and reply text supports inline code in backticks and fenced code blocks w
 
 Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions are limited to the org's members. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
-Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
+Typing **#** followed by digits opens suggestions for GitHub issues and pull requests on `nunomaduro/dev-null.sh`. Choosing one inserts its GitHub URL so the usual link rendering can show `owner/repo#123`. When exactly one result matches the number typed, the composer inserts that link on its own. Prefix digits can offer several numbers (for example `#72` may list 72 and 720); use ↑/↓ and Enter or Tab to pick one, or Esc to dismiss.
+
+Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [issue reference suggestions](app/Http/Controllers/IssueReferenceSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
 ### Draft previews and secret warnings
 

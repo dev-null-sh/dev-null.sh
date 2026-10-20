@@ -1,19 +1,25 @@
 import type { ComponentProps, KeyboardEvent, Ref, SyntheticEvent } from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import IssueReferenceSuggestionController from '@/actions/App/Http/Controllers/IssueReferenceSuggestionController';
 import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionSuggestionController';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { typedProse } from '@/lib/code';
 import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
+import type { IssueReference } from '@/lib/issue-references';
+import {
+    issueReferenceAt,
+    shouldAutoLinkIssueReference,
+} from '@/lib/issue-references';
 import { suggestionPosition } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
 import type { User } from '@/types';
 
 type Trigger = {
-    kind: 'mention' | 'emoji';
+    kind: 'mention' | 'emoji' | 'issue';
     start: number;
     query: string;
 };
@@ -23,13 +29,20 @@ type Suggestions = {
     users: User[];
 };
 
+type IssueSuggestions = {
+    key: string;
+    references: IssueReference[];
+};
+
 type Position = ReturnType<typeof suggestionPosition>;
 
 const debounce = 120;
 const cache = new Map<string, User[]>();
+const issueCache = new Map<string, IssueReference[]>();
 
 export function clearMentionSuggestionsCache(): void {
     cache.clear();
+    issueCache.clear();
 }
 
 // The "@handle" being typed right before the caret. Keep the rules in sync with app/Services/Mentions.php.
@@ -86,6 +99,16 @@ function triggerAt(
             kind: 'mention',
             start: caret - mention[1].length - 1,
             query: mention[1],
+        };
+    }
+
+    const issue = issueReferenceAt(before, before.length);
+
+    if (issue) {
+        return {
+            kind: 'issue',
+            start: issue.start,
+            query: issue.query,
         };
     }
 
@@ -187,6 +210,35 @@ async function fetchSuggestions(
     return data.users;
 }
 
+async function fetchIssueReferences(
+    query: string,
+    signal: AbortSignal,
+): Promise<IssueReference[]> {
+    const response = await fetch(
+        IssueReferenceSuggestionController.index({
+            query: { q: query },
+        }).url,
+        {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            signal,
+        },
+    );
+
+    if (!response.ok) {
+        toastWhenThrottled(response);
+
+        throw new Error('Unable to load issue references');
+    }
+
+    const data = (await response.json()) as { references: IssueReference[] };
+    issueCache.set(query, data.references);
+
+    return data.references;
+}
+
 /**
  * Where the query matches the text, preferring the start of a word, so ":art" marks "arts" in "martial_arts".
  */
@@ -223,8 +275,9 @@ function Highlighted({ text, query }: { text: string; query: string }) {
 
 /**
  * A textarea that suggests developers to mention as soon as "@" is typed, right under the "@", unless it doesn't
- * suggest mentions, suggests emoji for the ":shortcode" being typed, and turns emoji shortcodes into emoji as they
- * are typed. Within an org, it only suggests the org's members.
+ * suggest mentions, suggests emoji for the ":shortcode" being typed, turns "#123" into a link to a matching GitHub
+ * issue or pull request on this repository, and turns emoji shortcodes into emoji as they are typed. Within an org,
+ * it only suggests the org's members.
  */
 export function MentionTextarea({
     ref,
@@ -251,13 +304,18 @@ export function MentionTextarea({
     const id = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const listRef = useRef<HTMLUListElement>(null);
+    const autoLinkedIssue = useRef<string | null>(null);
     const [trigger, setTrigger] = useState<Trigger | null>(null);
     const [position, setPosition] = useState<Position | null>(null);
     const [results, setResults] = useState<Suggestions | null>(null);
+    const [issueResults, setIssueResults] = useState<IssueSuggestions | null>(
+        null,
+    );
     const [activeIndex, setActiveIndex] = useState(0);
 
     const query =
         trigger?.kind === 'mention' ? trigger.query.toLowerCase() : null;
+    const issueQuery = trigger?.kind === 'issue' ? trigger.query : null;
     const key =
         query === null
             ? null
@@ -320,6 +378,28 @@ export function MentionTextarea({
     }, [key, query, org, reply, quote]);
 
     useEffect(() => {
+        if (issueQuery === null || issueCache.has(issueQuery)) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(
+            () =>
+                fetchIssueReferences(issueQuery, controller.signal)
+                    .then((references) =>
+                        setIssueResults({ key: issueQuery, references }),
+                    )
+                    .catch(() => undefined),
+            debounce,
+        );
+
+        return () => {
+            clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [issueQuery]);
+
+    useEffect(() => {
         if (!trigger) {
             return;
         }
@@ -359,17 +439,38 @@ export function MentionTextarea({
     const current = key !== null && cached ? { key, users: cached } : results;
     const suggestions =
         key !== null && current?.key === key ? current.users : [];
+    const cachedIssues =
+        issueQuery === null ? undefined : issueCache.get(issueQuery);
+    const currentIssues =
+        issueQuery !== null && cachedIssues
+            ? { key: issueQuery, references: cachedIssues }
+            : issueResults;
+    const issueReferences =
+        issueQuery !== null && currentIssues?.key === issueQuery
+            ? currentIssues.references
+            : [];
     const emojiQuery =
         trigger?.kind === 'emoji' ? trigger.query.toLowerCase() : '';
     const emojis = emojiQuery === '' ? [] : searchEmoji(emojiQuery);
+    const autoLinkReference =
+        issueQuery === null
+            ? null
+            : shouldAutoLinkIssueReference(issueQuery, issueReferences);
     const optionCount =
-        trigger?.kind === 'emoji' ? emojis.length : suggestions.length;
+        trigger?.kind === 'emoji'
+            ? emojis.length
+            : trigger?.kind === 'issue'
+              ? issueReferences.length
+              : suggestions.length;
     const isOpen =
         trigger !== null &&
         position !== null &&
+        autoLinkReference === null &&
         (trigger.kind === 'emoji'
             ? emojis.length > 0
-            : suggestions.length > 0 || query !== '');
+            : trigger.kind === 'issue'
+              ? issueReferences.length > 0 || issueQuery !== null
+              : suggestions.length > 0 || query !== '');
 
     const insert = (text: string, separator: string) => {
         const textarea = textareaRef.current;
@@ -411,6 +512,27 @@ export function MentionTextarea({
 
     const selectEmoji = (emoji: EmojiSuggestion) => insert(emoji.emoji, '');
 
+    const selectIssue = (reference: IssueReference) =>
+        insert(reference.url, ' ');
+
+    useEffect(() => {
+        if (trigger?.kind !== 'issue' || issueQuery === null) {
+            autoLinkedIssue.current = null;
+
+            return;
+        }
+
+        if (
+            autoLinkReference === null ||
+            autoLinkedIssue.current === issueQuery
+        ) {
+            return;
+        }
+
+        autoLinkedIssue.current = issueQuery;
+        insert(autoLinkReference.url, ' ');
+    }, [trigger?.kind, issueQuery, autoLinkReference]);
+
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (isOpen && !event.nativeEvent.isComposing) {
             const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
@@ -438,6 +560,8 @@ export function MentionTextarea({
 
                 if (trigger?.kind === 'emoji') {
                     selectEmoji(emojis[activeIndex]);
+                } else if (trigger?.kind === 'issue') {
+                    selectIssue(issueReferences[activeIndex]);
                 } else {
                     select(suggestions[activeIndex]);
                 }
@@ -461,12 +585,22 @@ export function MentionTextarea({
         ? undefined
         : trigger?.kind === 'emoji'
           ? emojis[activeIndex] && `${id}-emoji-${emojis[activeIndex].name}`
-          : suggestions[activeIndex] &&
-            `${id}-mention-${suggestions[activeIndex].id}`;
+          : trigger?.kind === 'issue'
+            ? issueReferences[activeIndex] &&
+              `${id}-issue-${issueReferences[activeIndex].number}`
+            : suggestions[activeIndex] &&
+              `${id}-mention-${suggestions[activeIndex].id}`;
 
-    const isSearching = current?.key !== key;
+    const isSearching =
+        trigger?.kind === 'issue'
+            ? currentIssues?.key !== issueQuery
+            : current?.key !== key;
     const listId =
-        trigger?.kind === 'emoji' ? `${id}-emojis` : `${id}-mentions`;
+        trigger?.kind === 'emoji'
+            ? `${id}-emojis`
+            : trigger?.kind === 'issue'
+              ? `${id}-issues`
+              : `${id}-mentions`;
 
     return (
         <>
@@ -563,6 +697,66 @@ export function MentionTextarea({
                                                 query={emojiQuery}
                                             />
                                             :
+                                        </span>
+                                        <kbd
+                                            aria-hidden
+                                            className={cn(
+                                                'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
+                                                {
+                                                    'opacity-100':
+                                                        index === activeIndex,
+                                                },
+                                            )}
+                                        >
+                                            ↵
+                                        </kbd>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : trigger?.kind === 'issue' &&
+                          issueReferences.length > 0 ? (
+                            <ul
+                                ref={listRef}
+                                id={listId}
+                                role="listbox"
+                                aria-label="Link an issue or pull request"
+                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
+                            >
+                                {issueReferences.map((reference, index) => (
+                                    <li
+                                        key={reference.number}
+                                        id={`${id}-issue-${reference.number}`}
+                                        role="option"
+                                        aria-selected={index === activeIndex}
+                                        onMouseMove={() =>
+                                            setActiveIndex(index)
+                                        }
+                                        onClick={() => selectIssue(reference)}
+                                        className={cn(
+                                            'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2',
+                                            {
+                                                'bg-accent':
+                                                    index === activeIndex,
+                                            },
+                                        )}
+                                        data-test="issue-reference-suggestion"
+                                    >
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-semibold">
+                                                {reference.title}
+                                            </span>
+                                            <span className="font-mono text-xs text-muted-foreground">
+                                                {reference.kind === 'pull'
+                                                    ? 'Pull request'
+                                                    : 'Issue'}{' '}
+                                                #
+                                                <Highlighted
+                                                    text={String(
+                                                        reference.number,
+                                                    )}
+                                                    query={issueQuery ?? ''}
+                                                />
+                                            </span>
                                         </span>
                                         <kbd
                                             aria-hidden
@@ -676,8 +870,9 @@ export function MentionTextarea({
                                     </span>
                                 ) : (
                                     <span className="font-mono text-[13px]">
-                                        fatal: no developers match '
-                                        {trigger?.query}'
+                                        {trigger?.kind === 'issue'
+                                            ? `fatal: no issues match '#${trigger.query}'`
+                                            : `fatal: no developers match '${trigger?.query}'`}
                                     </span>
                                 )}
                             </div>
