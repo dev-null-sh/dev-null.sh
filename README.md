@@ -44,6 +44,14 @@ A link card for a video, song or pen becomes a player that loads when clicked. T
 | `apple_music` | albums, playlists and songs |
 | `codepen` | pens |
 | `asciinema` | recordings |
+| `giphy` | `giphy.com/gifs/{id-or-slug-id}` and `giphy.com/embed/{id}` |
+| `gif` | Public HTTPS links whose path ends in `.gif` (case-insensitive) |
+
+GIFs load from their external host, with **Play** and **Stop** controls. Only the canonical Giphy media host autoplays while visible; other hosts require **Play** before the browser requests the image. Reduced-motion users press **Play** to start them. There is no GIF search, provider API key, upload, conversion, or hosted copy. Giphy share links use its public media URLs; direct GIF links are verified by the existing protected link unfurler before playback. It requests the first 32 bytes, caps the response body retained for verification at 32 bytes even if the host ignores the range, and stores only the final URL. Network chunks and response headers can exceed that body cap. Redirect cycles and missing locations stop immediately; the redirect chain shares a five-second HTTP budget, including time spent resolving addresses, although the synchronous DNS lookup itself cannot be interrupted by that budget. External hosts can change their content or redirect later browser requests; this verification does not impose a browser download-size limit. Previously fetched direct GIF links need refetching to gain this metadata; this change does not backfill them.
+
+GIF embeds use the existing embed JSON fields with `kind: "gif"`; their `src` is an image URL, not an iframe URL. Clients that do not support this kind can keep showing the source link.
+
+Run `composer test:mutations` to check selected GIF security mutations across the PHP unfurler and browser playback policy. The suite first verifies unchanged-source controls, then requires each weakened protection to cause assertion failures. It runs automatically in the tests workflow; it is a focused regression gate, not an exhaustive mutation score.
 
 | Variable | Default | |
 |---|---|---|
