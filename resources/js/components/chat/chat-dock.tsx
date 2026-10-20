@@ -131,8 +131,16 @@ function DockedChat({ user }: { user: User }) {
             <span className="flex min-w-0 items-center gap-2">
                 <span className="text-[15px] font-bold">Remotes</span>
                 {unread > 0 && (
-                    <span className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums">
-                        {unread} ahead
+                    <span
+                        title={`${unread} unread messages`}
+                        className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums"
+                    >
+                        <span aria-hidden>
+                            {unread > 99 ? '99+' : unread} ahead
+                        </span>
+                        <span className="sr-only">
+                            {unread} unread messages
+                        </span>
                     </span>
                 )}
             </span>
@@ -217,8 +225,16 @@ function DockedChat({ user }: { user: User }) {
                                       )}
                             </span>
                             {unread > 0 && (
-                                <span className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums">
-                                    {unread}
+                                <span
+                                    title={`${unread} unread messages`}
+                                    className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums"
+                                >
+                                    <span aria-hidden>
+                                        {unread > 99 ? '99+' : unread}
+                                    </span>
+                                    <span className="sr-only">
+                                        {unread} unread messages
+                                    </span>
                                 </span>
                             )}
                             {tools}

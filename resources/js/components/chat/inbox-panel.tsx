@@ -220,9 +220,18 @@ export function InboxPanel({
                         <span className={cn(isCompact ? 'py-2.5' : 'py-3')}>
                             {label}
                             {name === 'fetched' && (requests ?? 0) > 0 && (
-                                <span className="ml-1.5 inline-flex min-w-5 justify-center rounded-sm bg-primary px-1.5 font-mono text-[11px] leading-5 text-primary-foreground tabular-nums">
-                                    {requests}
-                                    <span className="sr-only"> waiting</span>
+                                <span
+                                    title={`${requests} waiting`}
+                                    className="ml-1.5 inline-flex min-w-5 justify-center rounded-sm bg-primary px-1.5 font-mono text-[11px] leading-5 text-primary-foreground tabular-nums"
+                                >
+                                    <span aria-hidden>
+                                        {(requests ?? 0) > 99
+                                            ? '99+'
+                                            : requests}
+                                    </span>
+                                    <span className="sr-only">
+                                        {requests} waiting
+                                    </span>
                                 </span>
                             )}
                         </span>
