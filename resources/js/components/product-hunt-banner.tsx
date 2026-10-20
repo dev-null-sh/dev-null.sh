@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 const PRODUCT_HUNT_URL = 'https://www.producthunt.com/products/dev-null';
 
@@ -17,6 +17,8 @@ const LANES = [0, 1, 2, 3, 4, 5].map((lane) => `var(--lane-${lane})`);
  */
 export function ProductHuntBanner() {
     const [now, setNow] = useState(() => Date.now());
+    const ref = useRef<HTMLAnchorElement>(null);
+    const isLive = now >= LAUNCH_STARTS_AT && now < LAUNCH_ENDS_AT;
 
     useEffect(() => {
         const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -24,12 +26,46 @@ export function ProductHuntBanner() {
         return () => clearInterval(interval);
     }, []);
 
-    if (now < LAUNCH_STARTS_AT || now >= LAUNCH_ENDS_AT) {
+    /**
+     * The strip sits above the layout, so the sidebar gives up as much of it as is still on screen: all of it at the
+     * top of the page, none once it has scrolled away, keeping the sidebar's bottom at the bottom of the viewport.
+     */
+    useLayoutEffect(() => {
+        const banner = ref.current;
+
+        if (banner === null) {
+            return;
+        }
+
+        const root = document.documentElement;
+        let visibleHeight = -1;
+        const update = () => {
+            const next = Math.max(0, banner.getBoundingClientRect().bottom);
+
+            if (next !== visibleHeight) {
+                visibleHeight = next;
+                root.style.setProperty('--launch-banner-height', `${next}px`);
+            }
+        };
+
+        update();
+        window.addEventListener('scroll', update, { passive: true });
+        window.addEventListener('resize', update);
+
+        return () => {
+            window.removeEventListener('scroll', update);
+            window.removeEventListener('resize', update);
+            root.style.removeProperty('--launch-banner-height');
+        };
+    }, [isLive]);
+
+    if (!isLive) {
         return null;
     }
 
     return (
         <a
+            ref={ref}
             href={PRODUCT_HUNT_URL}
             target="_blank"
             rel="noopener noreferrer"

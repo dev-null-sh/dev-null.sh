@@ -25,11 +25,6 @@
     }
 }
 
-/* The launch strip sits above the layout, so the sidebar has less room until it disappears. */
-:root:has([data-test='product-hunt-banner']) {
-    --launch-banner-height: 42px;
-}
-
 @media (min-width: 64rem) {
     [data-nav] {
         --sidebar-width: 256px;
