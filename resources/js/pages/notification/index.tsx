@@ -609,7 +609,7 @@ function NotificationGroupItem({
                     </button>
                 )}
                 {open && (
-                    <div id={id} className="relative mt-2">
+                    <div id={id} className="relative isolate mt-2">
                         <span
                             aria-hidden
                             className="absolute top-0 bottom-2 left-3.5 border-l border-rail"
