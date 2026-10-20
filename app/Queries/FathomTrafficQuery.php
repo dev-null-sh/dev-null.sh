@@ -88,18 +88,6 @@ final readonly class FathomTrafficQuery
     }
 
     /**
-     * The visits that started on a page whose path matches the pattern, a regular expression that Fathom runs, or null
-     * when Fathom isn't set up or didn't answer. Cached for five minutes, like the report.
-     */
-    public function entries(CarbonImmutable $from, CarbonImmutable $to, string $pattern): ?int
-    {
-        return $this->count('entries:'.hash('xxh128', $pattern).":{$from->toDateString()}:{$to->toDateString()}", fn (): int => $this->aggregate($from, $to, [
-            'aggregates' => 'visits',
-            'filters' => json_encode([['property' => 'entry_page', 'operator' => 'matching', 'value' => $pattern]], JSON_THROW_ON_ERROR),
-        ])->fluent('0')->integer('visits'));
-    }
-
-    /**
      * Once Fathom fails to answer, the rest of the request stops asking it, so a slow Fathom is only waited on once.
      *
      * @param  Closure(): int  $count

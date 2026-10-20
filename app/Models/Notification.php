@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\NotificationType;
+use App\Enums\UnixRank;
 use App\Queries\NotificationBuilder;
 use Carbon\CarbonInterface;
 use Database\Factories\NotificationFactory;
@@ -25,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string|null $subject_id
  * @property-read string $key
  * @property-read string|null $reason
+ * @property-read int|null $level
  * @property-read CarbonInterface|null $read_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -68,12 +70,25 @@ final class Notification extends Model
             'subject_id' => 'string',
             'key' => 'string',
             'reason' => 'string',
+            'level' => 'integer',
             'read_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'actors_count' => 'integer',
             'unread_count' => 'integer',
         ];
+    }
+
+    /**
+     * A level-up also names the rank it reached, so the inbox can say it the way the profile does.
+     *
+     * @return array<mixed>
+     */
+    public function toArray(): array
+    {
+        $rank = $this->type === NotificationType::LeveledUp && $this->level !== null ? UnixRank::forLevel($this->level) : null;
+
+        return [...parent::toArray(), 'rank' => $rank?->value, 'rank_description' => $rank?->description()];
     }
 
     /**

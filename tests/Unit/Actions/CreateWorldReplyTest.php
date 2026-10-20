@@ -62,14 +62,14 @@ it('stays quiet for anything else', function (): void {
         ->and(User::query()->where('username', 'world')->exists())->toBeFalse();
 });
 
-it('does not answer itself', function (): void {
-    $world = User::factory()->create(['github_id' => '0', 'username' => 'world']);
+it('does not answer itself', function (string $username): void {
+    $world = User::factory()->create(['github_id' => '0', 'username' => $username]);
     $commit = Commit::factory()->for($world)->create(['body' => 'hello world']);
 
     resolve(CreateWorldReply::class)->handle($commit);
 
     expect($commit->replies()->count())->toBe(0);
-});
+})->with(['world', 'devnull-world']);
 
 it('stays quiet when the author is gone', function (): void {
     $commit = Commit::factory()->create(['body' => 'hello world', 'user_id' => null]);
@@ -102,4 +102,20 @@ it('stays quiet once a real account named world has taken the name back', functi
     $action->handle($commit);
 
     expect($commit->replies()->count())->toBe(0);
+});
+
+it('keeps answering from its reserved handle without speaking as the real world', function (): void {
+    $world = User::factory()->create(['github_id' => '0', 'username' => 'devnull-world']);
+    $owner = User::factory()->create(['username' => 'world', 'name' => 'Real World']);
+    $commit = Commit::factory()->for($owner)->create(['body' => 'hello world']);
+
+    $action = resolve(CreateWorldReply::class);
+    $action->handle($commit);
+    $action->handle($commit);
+
+    $reply = $commit->replies()->sole();
+    expect($reply->user_id)->toBe($world->id)
+        ->and($reply->body)->toBe('Hello, Real World.')
+        ->and($owner->commits()->count())->toBe(1)
+        ->and($owner->notifications()->sole()->commit_id)->toBe($reply->id);
 });

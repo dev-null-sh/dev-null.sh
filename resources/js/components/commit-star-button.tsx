@@ -1,10 +1,11 @@
 import { router, useHttp, usePage } from '@inertiajs/react';
 import { Star } from 'lucide-react';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { Ref } from 'react';
 import CommitStarController from '@/actions/App/Http/Controllers/CommitStarController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
+import { CommitStargazersDialog } from '@/components/commit-stargazers-dialog';
+import { StarredRemovalContext } from '@/components/starred-removal-context';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
@@ -36,7 +37,6 @@ export function CommitStarButton({
 }) {
     const { auth } = usePage().props;
     const commitNotFound = useCommitNotFound();
-    const isOwn = commit.user_id === auth.user?.id;
     const [starred, setStarred] = useSharedState(
         commitStateKey('starred', commit.id),
         commit.starred,
@@ -52,9 +52,10 @@ export function CommitStarButton({
     const [isAnimating, setIsAnimating] = useState(false);
     const [localMutations] = useState(createCommitStarMutations);
     const polling = useContext(CommitStarPollingContext);
+    const onRemoved = useContext(StarredRemovalContext);
     const mutations = polling?.mutations ?? localMutations;
-    const canPoll =
-        (isOwn || commit.status === 'approved') && auth.user !== null;
+    const isOwn = commit.user_id === auth.user?.id;
+    const canPoll = auth.user !== null;
     const element = useRef<HTMLElement>(null);
     const setElement = useCallback((node: HTMLElement | null) => {
         element.current = node;
@@ -84,17 +85,7 @@ export function CommitStarButton({
                     );
                 }),
         });
-    }, [polling, mutations, canPoll, commit.id, isOwn]);
-
-    if (isOwn) {
-        return (
-            <StarCount ref={setElement} count={count} className={className} />
-        );
-    }
-
-    if (commit.status !== 'approved') {
-        return null;
-    }
+    }, [polling, mutations, canPoll, commit.id]);
 
     const toggle = async () => {
         if (auth.user === null) {
@@ -138,6 +129,7 @@ export function CommitStarButton({
             setStarred(response.starred);
             setCount(response.stars_count);
             router.flushAll();
+            if (!response.starred) onRemoved?.(commit.id);
         } catch {
             setStarred(!next);
             setCount((current) => Math.max(0, current + (next ? -1 : 1)));
@@ -147,72 +139,52 @@ export function CommitStarButton({
     };
 
     return (
-        <ActionTooltip label={starred ? 'Unstar' : 'Star'}>
-            <button
-                ref={setElement}
-                aria-disabled={request.processing}
-                type="button"
-                onClick={toggle}
-                aria-pressed={starred}
-                aria-label={starLabel(starred, count)}
-                className={cn(
-                    'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                    starred && 'text-primary hover:text-primary',
-                    className,
-                )}
-                data-test="star-commit-button"
-            >
-                <Star
-                    onAnimationEnd={() => setIsAnimating(false)}
+        <>
+            <ActionTooltip label={starred ? 'Unstar' : 'Star'}>
+                <button
+                    ref={setElement}
+                    aria-disabled={request.processing}
+                    type="button"
+                    onClick={toggle}
+                    aria-pressed={starred}
+                    aria-label={starLabel(starred, count)}
                     className={cn(
-                        'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
-                        starred && 'fill-current',
-                        isAnimating && 'motion-safe:animate-star-pop',
+                        'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        starred && 'text-primary hover:text-primary',
+                        count === 0 && 'mr-[calc(0.25rem+1ch)]',
+                        className,
                     )}
-                />
-                <span data-test="star-count" className="min-w-[1ch] text-left">
-                    {count > 0 ? formatCount(count) : ''}
-                </span>
-            </button>
-        </ActionTooltip>
-    );
-}
-
-/**
- * Authors can't star their own commits, so they only see how many stars others gave.
- */
-function StarCount({
-    ref,
-    count,
-    className,
-}: {
-    ref?: Ref<HTMLSpanElement>;
-    count: number;
-    className?: string;
-}) {
-    const label =
-        count === 0
-            ? 'No stars yet'
-            : `${count} ${count === 1 ? 'star' : 'stars'}`;
-
-    return (
-        <ActionTooltip label={label}>
-            <span
-                ref={ref}
-                role="img"
-                aria-label={label}
-                className={cn(
-                    'inline-flex cursor-default items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground',
-                    count === 0 && 'text-muted-foreground/50',
-                    className,
-                )}
-                data-test="star-count-readonly"
-            >
-                <Star aria-hidden className="size-4" />
-                <span data-test="star-count" className="min-w-[1ch] text-left">
-                    {count > 0 ? formatCount(count) : ''}
-                </span>
-            </span>
-        </ActionTooltip>
+                    data-test="star-commit-button"
+                >
+                    <Star
+                        onAnimationEnd={() => setIsAnimating(false)}
+                        className={cn(
+                            'size-4 transition-transform group-hover/star:scale-110 active:scale-95',
+                            starred && 'fill-current',
+                            isAnimating && 'motion-safe:animate-star-pop',
+                        )}
+                    />
+                    {count > 0 && (
+                        <span
+                            data-test="star-count"
+                            className="min-w-[1ch] text-left tabular-nums"
+                        >
+                            {formatCount(count)}
+                        </span>
+                    )}
+                </button>
+            </ActionTooltip>
+            {isOwn && count > 0 && (
+                <CommitStargazersDialog commit={commit} count={count}>
+                    <button
+                        type="button"
+                        aria-label="Show who starred"
+                        className="rounded-md px-1 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                        Who
+                    </button>
+                </CommitStargazersDialog>
+            )}
+        </>
     );
 }

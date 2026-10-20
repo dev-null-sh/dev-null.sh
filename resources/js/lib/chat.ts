@@ -1,3 +1,5 @@
+import { router } from '@inertiajs/react';
+import BannedController from '@/actions/App/Http/Controllers/BannedController';
 import ConversationArchiveController from '@/actions/App/Http/Controllers/ConversationArchiveController';
 import ConversationDropController from '@/actions/App/Http/Controllers/ConversationDropController';
 import ConversationMergeController from '@/actions/App/Http/Controllers/ConversationMergeController';
@@ -14,6 +16,7 @@ import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController'
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
+import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
 import type {
@@ -289,12 +292,20 @@ async function request<T>(
     });
 
     if (!response.ok) {
-        throw new ChatRequestError(
-            response.status,
-            (await response.json().catch(() => ({}))) as {
-                message?: string;
-            },
-        );
+        const body = (await response.json().catch(() => ({}))) as {
+            message?: string;
+            banned?: boolean;
+        };
+        const timeout = timeoutFrom(response.status, body);
+
+        // A timeout or a ban stops every remote the same way, so the user is told wherever they tried...
+        if (timeout) {
+            showTimeout(timeout);
+        } else if (response.status === 403 && body.banned === true) {
+            router.visit(BannedController.show());
+        }
+
+        throw new ChatRequestError(response.status, body);
     }
 
     return (response.status === 204 ? null : await response.json()) as T;

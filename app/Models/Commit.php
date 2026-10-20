@@ -48,7 +48,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
  * @property-read int|null $repliers_count
- * @property-read bool $is_saved
  * @property-read string|null $continuation_id
  * @property-read LinkPreview|null $linkPreview
  * @property-read Poll|null $poll
@@ -97,6 +96,11 @@ final class Commit extends Model
     ];
 
     /**
+     * @var array{body_segments: list<array<string, string|null>>, preview_segments: list<array<string, string|null>>|null}|null
+     */
+    private ?array $segments = null;
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array
@@ -137,7 +141,11 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return [...parent::toArray(), ...resolve(CommitBodies::class)->segments($this->body), 'is_checking' => $this->isBeingChecked()];
+        if ($this->segments === null || $this->isDirty('body')) {
+            $this->segments = resolve(CommitBodies::class)->segments($this->body);
+        }
+
+        return [...parent::toArray(), ...$this->segments, 'is_checking' => $this->isBeingChecked()];
     }
 
     /**
@@ -154,6 +162,11 @@ final class Commit extends Model
     public function stars(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'stars')->withTimestamps();
+    }
+
+    public function isAddressedTo(User $user): bool
+    {
+        return in_array($user->id, $this->mentions ?? [], true) || $this->parent?->user_id === $user->id;
     }
 
     /**
@@ -208,14 +221,6 @@ final class Commit extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
-    }
-
-    /**
-     * @return HasMany<Bookmark, $this>
-     */
-    public function bookmarks(): HasMany
-    {
-        return $this->hasMany(Bookmark::class);
     }
 
     /**
