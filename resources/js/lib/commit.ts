@@ -8,6 +8,7 @@ export const minBodyLength = 1;
 export const maxBodyLength = 4000;
 // Keep in sync with App\Rules\CommitBodyLength.
 export const maxRawBodyLength = 40000;
+export const editableMinutes = 15;
 export const previewLength = 280;
 export const previewLines = 8;
 

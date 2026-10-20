@@ -30,11 +30,13 @@ it('shows an approved commit to anyone', function (): void {
     $response->assertOk()
         ->assertExactJson(['data' => [
             'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
+            'version' => $commit->version(),
             'short_hash' => 'e3f4a5b',
             'body' => 'Shipped the public API',
             'parent_id' => null,
             'html_url' => route('commit.show', [$user, $commit]),
             'created_at' => now()->toIso8601ZuluString(),
+            'edited_at' => null,
             'stars_count' => 0,
             'replies_count' => 0,
             'link_preview' => null,
@@ -234,11 +236,13 @@ it('shows a signed request the commit as its page shows it to its user', functio
         ->assertExactJson([
             'data' => [
                 'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
+                'version' => $commit->version(),
                 'short_hash' => 'e3f4a5b',
                 'body' => 'Ask @nunomaduro about `@Override`',
                 'parent_id' => $root->id,
                 'html_url' => route('commit.show', [$user, $commit]),
                 'created_at' => now()->toIso8601ZuluString(),
+                'edited_at' => null,
                 'stars_count' => 1,
                 'replies_count' => 1,
                 'link_preview' => null,
@@ -263,11 +267,13 @@ it('shows a signed request the commit as its page shows it to its user', functio
             ],
             'ancestors' => [[
                 'id' => $root->id,
+                'version' => $root->version(),
                 'short_hash' => mb_substr(str_replace('-', '', $root->id), -7),
                 'body' => 'Who broke prod?',
                 'parent_id' => null,
                 'html_url' => route('commit.show', [$root->user, $root]),
                 'created_at' => now()->subMinute()->toIso8601ZuluString(),
+                'edited_at' => null,
                 'stars_count' => 0,
                 'link_preview' => null,
                 'images' => [],

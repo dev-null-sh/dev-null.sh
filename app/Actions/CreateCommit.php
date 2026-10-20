@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
+use App\Exceptions\CommitSourceChanged;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
@@ -19,6 +20,7 @@ use App\Queries\TomQuery;
 use App\Services\EmojiShortcodes;
 use App\Services\TheAlgorithm;
 use App\Services\Urls;
+use Illuminate\Foundation\Bus\PendingDispatch;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
@@ -46,7 +48,7 @@ final readonly class CreateCommit
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?string $sourceVersion = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -54,7 +56,24 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $sourceVersion): Commit {
+            $sources = Commit::query()->whereKey(array_filter([$parent?->id, $quotedCommit?->id]))->orderBy('id')->lockForUpdate()->get();
+            $expected = $parent ?? $quotedCommit;
+            $current = $sources->first();
+
+            if ($expected instanceof Commit && (! $current instanceof Commit
+                || ! $current->isVisibleTo($user)
+                || $current->version() !== $expected->version()
+                || ($sourceVersion ?? $current->id) !== $current->version())) {
+                throw new CommitSourceChanged;
+            }
+
+            foreach ($sources as $source) {
+                if ($source->amendment_locked_at === null) {
+                    $source->update(['amendment_locked_at' => now()]);
+                }
+            }
+
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
@@ -103,7 +122,7 @@ final readonly class CreateCommit
             }
 
             if ($commit->status === CommitStatus::Approved) {
-                dispatch(new CheckUserLevel($user))->afterCommit();
+                DB::afterCommit(fn (): PendingDispatch => dispatch(new CheckUserLevel($user)));
             }
 
             if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation && filled(config('services.openai.key'))) {

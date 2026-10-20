@@ -35,9 +35,9 @@ final readonly class CreateWorldReply
         }
 
         DB::transaction(function () use ($commit): void {
-            $commit->refresh();
+            $commit = Commit::query()->lockForUpdate()->findOrFail($commit->id);
 
-            if ($commit->status !== CommitStatus::Approved) {
+            if ($commit->status !== CommitStatus::Approved || ! $this->helloWorld->matches($commit->body)) {
                 return;
             }
 
@@ -56,6 +56,8 @@ final readonly class CreateWorldReply
             if ($commit->replies()->whereBelongsTo($world)->exists()) {
                 return;
             }
+
+            $commit->update(['amendment_locked_at' => $commit->amendment_locked_at ?? now()]);
 
             $reply = $world->commits()->create([
                 'body' => "Hello, {$author->name}.",

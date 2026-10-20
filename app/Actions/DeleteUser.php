@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\CommitRevision;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\ScheduledCommit;
@@ -53,7 +54,8 @@ final readonly class DeleteUser
             }
 
             $user->commits()->delete();
-            $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+            CommitRevision::query()->whereIn('commit_id', $user->commits()->withTrashed()->select('id'))->delete();
+            $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null, 'edited_at' => null, 'amendment_locked_at' => null, 'revision_id' => null]);
 
             $user->delete();
 

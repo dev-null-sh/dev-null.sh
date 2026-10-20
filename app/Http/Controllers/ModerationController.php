@@ -15,6 +15,7 @@ use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -30,6 +31,7 @@ final readonly class ModerationController
                     'parent.user',
                     'linkPreview',
                     'images',
+                    'revisions',
                     'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['user', 'linkPreview', 'images'])->withPollFor($user),
                 ])
                 ->withStarsFor($user)
@@ -50,7 +52,15 @@ final readonly class ModerationController
         /** @var array<int, string> $commitIds */
         $commitIds = $request->validated('commits');
 
-        $action->handle($commitIds, CommitStatus::Approved, onlyPending: true);
+        DB::transaction(function () use ($request, $commitIds, $action): void {
+            $commits = Commit::query()->whereIn('id', $commitIds)->orderBy('id')->lockForUpdate()->get();
+
+            foreach ($commits as $commit) {
+                $request->ensureReviewed($commit);
+            }
+
+            $action->handle($commitIds, CommitStatus::Approved, onlyPending: true);
+        });
 
         return back();
     }
@@ -60,6 +70,6 @@ final readonly class ModerationController
      */
     private function withAiDecision(Commit $commit): Commit
     {
-        return $commit->makeVisible(['ai_decision', 'ai_categories']);
+        return $commit->makeVisible(['ai_decision', 'ai_categories', 'revisions']);
     }
 }

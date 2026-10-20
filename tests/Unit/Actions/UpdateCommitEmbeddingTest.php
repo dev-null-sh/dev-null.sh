@@ -35,3 +35,16 @@ it('throws, leaving the commit unembedded, when openai returns no embedding', fu
 
     expect(Commit::query()->whereKey($commit->id)->value('embedding'))->toBeNull();
 });
+
+it('does not save an embedding for text amended while the request was in flight', function (): void {
+    $commit = Commit::factory()->create(['body' => 'Original']);
+    Http::fake(['api.openai.com/v1/embeddings' => function () use ($commit) {
+        Commit::query()->whereKey($commit->id)->update(['body' => 'Amended']);
+
+        return Http::response(embeddingsResponse([embeddingVector(3)]));
+    }]);
+
+    resolve(UpdateCommitEmbedding::class)->handle($commit);
+
+    expect($commit->refresh())->body->toBe('Amended')->embedding->toBeNull();
+});

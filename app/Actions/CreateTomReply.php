@@ -65,11 +65,11 @@ final readonly class CreateTomReply
             $current = Commit::query()->lockForUpdate()->find($commit->id);
 
             if (! $current instanceof Commit || $current->status !== CommitStatus::Approved
-                || $current->body !== $commit->body || ! $this->replyable($current, $tom)) {
+                || $current->version() !== $commit->version() || $current->body !== $commit->body || ! $this->replyable($current, $tom)) {
                 return;
             }
 
-            $this->createCommit->handle($tom, Str::limit($body, Commit::MAX_BODY_LENGTH - 3), parent: $current, linkPreview: false);
+            $this->createCommit->handle($tom, Str::limit($body, Commit::MAX_BODY_LENGTH - 3), parent: $current, linkPreview: false, sourceVersion: $commit->version());
         });
     }
 

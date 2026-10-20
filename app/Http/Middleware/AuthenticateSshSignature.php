@@ -48,6 +48,7 @@ final readonly class AuthenticateSshSignature
         $request->merge([
             'body' => $commit['body'],
             'reply_to' => $commit['reply_to'],
+            'source_version' => $commit['source_version'],
         ]);
 
         return $next($request);

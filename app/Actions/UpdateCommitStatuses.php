@@ -14,6 +14,7 @@ use App\Models\Poll;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\TomQuery;
+use Illuminate\Foundation\Bus\PendingDispatch;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -96,7 +97,7 @@ final readonly class UpdateCommitStatuses
                 }
 
                 User::query()->whereKey($commits->pluck('user_id')->filter()->unique()->values()->all())->get()
-                    ->each(fn (User $author) => dispatch(new CheckUserLevel($author))->afterCommit());
+                    ->each(fn (User $author) => DB::afterCommit(fn (): PendingDispatch => dispatch(new CheckUserLevel($author))));
             }
         });
     }

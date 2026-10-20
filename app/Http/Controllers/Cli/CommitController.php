@@ -15,7 +15,7 @@ final readonly class CommitController
 {
     public function store(CreateCliCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): Response
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), images: $request->images());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), images: $request->images(), sourceVersion: $request->filled('source_version') ? $request->string('source_version')->value() : null);
 
         $url = route('commit.show', [$user, $commit]);
 

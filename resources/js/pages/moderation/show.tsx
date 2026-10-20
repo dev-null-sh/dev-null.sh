@@ -1,6 +1,7 @@
 import { Head, router } from '@inertiajs/react';
 import { Bot, Check, X } from 'lucide-react';
 import { useId, useState } from 'react';
+import { toast } from 'sonner';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
@@ -189,10 +190,10 @@ export default function Show({
         setIsModerating(true);
 
         router.visit(route(commit), {
-            data:
-                route === CommitRejectionController.store
-                    ? { reason: reason ?? '' }
-                    : {},
+            data: {
+                reason: reason ?? '',
+                expected_version: commit.version ?? commit.id,
+            },
             preserveScroll: true,
             only: ['commits', 'hasUnmoderatedCommits'],
             reset: ['commits'],
@@ -210,11 +211,22 @@ export default function Show({
                 }),
             onFinish: () => setIsModerating(false),
             onHttpException: (response) => !commitNotFound(commit.id, response),
-            onError: (errors) =>
-                onError?.(
+            onError: (errors) => {
+                if (errors.body) {
+                    router.reload({
+                        only: ['commits', 'hasUnmoderatedCommits'],
+                        reset: ['commits'],
+                    });
+                    toast.error(errors.body, { duration: Infinity });
+
+                    return;
+                }
+                const message =
                     errors.reason ??
-                        'Could not moderate this commit. Try again.',
-                ),
+                    'Could not moderate this commit. Try again.';
+                if (onError) onError(message);
+                else toast.error(message);
+            },
         });
     };
 
@@ -247,13 +259,37 @@ export default function Show({
 
     const approveSelected = () =>
         router.visit(ModerationController.update(), {
-            data: { commits: selectedIds },
+            data: {
+                commits: selectedIds,
+                versions: Object.fromEntries(
+                    commits.data
+                        .filter((commit) => selected.has(commit.id))
+                        .map((commit) => [
+                            commit.id,
+                            commit.version ?? commit.id,
+                        ]),
+                ),
+            },
             preserveScroll: true,
             only: ['commits', 'hasUnmoderatedCommits'],
             reset: ['commits'],
             onStart: () => setApproving(true),
             onSuccess: () => setSelected(new Set()),
             onFinish: () => setApproving(false),
+            onError: (errors) => {
+                if (errors.versions) {
+                    router.reload({
+                        only: ['commits', 'hasUnmoderatedCommits'],
+                        reset: ['commits'],
+                    });
+                    toast.error(errors.versions, { duration: Infinity });
+
+                    return;
+                }
+                toast.error(
+                    errors.commits ?? 'Could not approve the selected commits.',
+                );
+            },
         });
 
     return (
@@ -323,6 +359,34 @@ export default function Show({
                 isFolded={false}
                 actions={(commit) => (
                     <>
+                        {commit.revisions && commit.revisions.length > 0 && (
+                            <details
+                                open
+                                className="mt-3 text-sm"
+                                data-test="moderation-amendment-history"
+                            >
+                                <summary className="cursor-pointer font-medium">
+                                    Review amendment history
+                                </summary>
+                                {[...commit.revisions]
+                                    .reverse()
+                                    .map((revision, index) => (
+                                        <div
+                                            key={index}
+                                            className="mt-2 rounded border p-3"
+                                        >
+                                            <p className="text-xs text-muted-foreground">
+                                                {index === 0
+                                                    ? 'Original commit'
+                                                    : 'Previous amendment'}
+                                            </p>
+                                            <p className="mt-1 break-words whitespace-pre-wrap">
+                                                {revision.body}
+                                            </p>
+                                        </div>
+                                    ))}
+                            </details>
+                        )}
                         <AiDecision commit={commit} />
                         <ModerationActions
                             isSelected={selected.has(commit.id)}

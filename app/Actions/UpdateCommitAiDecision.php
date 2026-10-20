@@ -7,7 +7,9 @@ namespace App\Actions;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\CommitRevision;
 use App\Services\OpenAI;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 final readonly class UpdateCommitAiDecision
@@ -35,11 +37,14 @@ final readonly class UpdateCommitAiDecision
             fn (CommitImage $image): string => 'data:image/webp;base64,'.base64_encode((string) Storage::get($image->path)),
         )->all());
 
-        $scores = $this->openAI->moderate($commit->body, $images);
-
+        $body = $commit->body;
+        $scores = $this->openAI->moderate($body, $images);
         $categories = array_keys($scores);
+        $previousBodies = array_values($commit->revisions()->reorder()->oldest()->oldest('id')->get()
+            ->map(fn (CommitRevision $previous): string => $previous->body)->all());
 
-        if ($commit->body !== '' && $this->openAI->isHarmful($commit->body)) {
+        if (($body !== '' || $previousBodies !== []) && ($previousBodies === []
+            ? $this->openAI->isHarmful($body) : $this->openAI->isHarmful($body, $previousBodies))) {
             $categories[] = 'harmful-text';
         }
 
@@ -47,17 +52,25 @@ final readonly class UpdateCommitAiDecision
             $categories[] = 'minor-in-image';
         }
 
-        $commit->update([
-            'ai_decision' => $categories === [] ? CommitStatus::Approved : CommitStatus::Rejected,
-            'ai_categories' => $categories,
-        ]);
+        DB::transaction(function () use ($commit, $categories, $scores): void {
+            $current = Commit::query()->whereKey($commit->id)->lockForUpdate()->first();
 
-        if ($scores !== [] && max($scores) >= self::AUTO_REJECT_THRESHOLD) {
-            $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Rejected, onlyPending: true);
-        }
+            if (! $current instanceof Commit || $current->version() !== $commit->version() || $current->body !== $commit->body) {
+                return;
+            }
 
-        if ($categories === [] && $commit->user !== null) {
-            $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Approved, onlyPending: true);
-        }
+            $current->update([
+                'ai_decision' => $categories === [] ? CommitStatus::Approved : CommitStatus::Rejected,
+                'ai_categories' => $categories,
+            ]);
+
+            $status = $scores !== [] && max($scores) >= self::AUTO_REJECT_THRESHOLD
+                ? CommitStatus::Rejected
+                : ($categories === [] && $current->user !== null ? CommitStatus::Approved : null);
+
+            if ($status !== null) {
+                $this->updateCommitStatuses->handle([$current->id], $status, onlyPending: true);
+            }
+        });
     }
 }

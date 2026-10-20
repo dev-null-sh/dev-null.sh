@@ -63,6 +63,11 @@ export function QuotedCommit({
                 >
                     {formatRelativeTime(commit.created_at, now)}
                 </time>
+                {commit.edited_at && (
+                    <span className="text-xs text-muted-foreground">
+                        amended
+                    </span>
+                )}
                 <CommitStatusBadge commit={commit} size="small" isStatic />
             </span>
             <CommitBodyExcerpt

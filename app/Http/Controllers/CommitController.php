@@ -6,11 +6,13 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
+use App\Actions\UpdateCommit;
 use App\Dto\ThreadContinuation;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
 use App\Http\Requests\ShowCommitRequest;
+use App\Http\Requests\UpdateCommitRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
@@ -22,7 +24,9 @@ use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -66,7 +70,7 @@ final readonly class CommitController
     {
         $before = $achievements->unlockedBadgeNames($user);
 
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll());
+        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), sourceVersion: $request->has('source_version') ? $request->string('source_version')->value() : null);
 
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 
@@ -83,6 +87,30 @@ final readonly class CommitController
             Inertia::flash('toast', [
                 'type' => 'info',
                 'message' => 'Your commit is pending review. Everyone will see it once it is approved.',
+            ]);
+        }
+
+        return back();
+    }
+
+    public function update(UpdateCommitRequest $request, Commit $commit, UpdateCommit $action): RedirectResponse
+    {
+        $commit = DB::transaction(function () use ($request, $commit, $action): Commit {
+            $commit = Commit::query()->lockForUpdate()->findOrFail($commit->id);
+            $request->ensureEditable($commit);
+
+            return $action->handle($commit, $request->string('body')->value());
+        });
+
+        $commit->setAttribute('translation', null);
+        Inertia::flash('amended', Arr::only($commit->load('linkPreview')->toArray(), [
+            'id', 'body', 'body_segments', 'preview_segments', 'mentions', 'status', 'is_checking', 'link_preview', 'edited_at', 'translation', 'version',
+        ]));
+
+        if ($commit->status === CommitStatus::Pending) {
+            Inertia::flash('toast', [
+                'type' => 'info',
+                'message' => 'Your amendment is pending review. Everyone will see it once it is approved.',
             ]);
         }
 

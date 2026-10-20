@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\NotificationType;
 use App\Models\CommitImage;
+use App\Models\CommitRevision;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
@@ -101,8 +102,8 @@ final readonly class CreateExport
     {
         $commits = $user->commits()
             ->withTrashed()
-            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
-            ->with('images:id,commit_id')
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'edited_at', 'amendment_locked_at', 'deleted_at'])
+            ->with(['images:id,commit_id', 'revisions:id,commit_id,body,mentions,created_at'])
             ->lazyById(500);
 
         $translations = resolve(CommitTranslations::class);
@@ -120,8 +121,15 @@ final readonly class CreateExport
                     'status' => $commit->status->value,
                     'pasteis_count' => $commit->pasteis_count,
                     'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
+                    'revisions' => $commit->revisions->map(fn (CommitRevision $revision): array => [
+                        'body' => $revision->body,
+                        'mentions' => $revision->mentions,
+                        'created_at' => $revision->created_at->toIso8601String(),
+                    ])->all(),
                     'created_at' => $commit->created_at->toIso8601String(),
                     'updated_at' => $commit->updated_at->toIso8601String(),
+                    'edited_at' => $commit->edited_at?->toIso8601String(),
+                    'amendment_locked_at' => $commit->amendment_locked_at?->toIso8601String(),
                     'deleted_at' => $commit->deleted_at?->toIso8601String(),
                 ];
             }

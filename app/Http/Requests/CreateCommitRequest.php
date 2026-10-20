@@ -87,6 +87,7 @@ final class CreateCommitRequest extends FormRequest
         return [
             'body' => self::bodyRules($this->hasFile('images')),
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
+            'source_version' => ['sometimes', 'required', 'uuid'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...self::attachmentRules(),
         ];

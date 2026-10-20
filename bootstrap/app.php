@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\ApiErrorCode;
 use App\Enums\Log;
 use App\Exceptions\ApiException;
+use App\Exceptions\CommitSourceChanged;
 use App\Http\Middleware\AuthenticateSignedRequest;
 use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\HandleAppearance;
@@ -60,6 +61,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->map(CommitSourceChanged::class, fn (CommitSourceChanged $exception): ValidationException => ValidationException::withMessages([
+            'body' => 'The source commit has changed or is no longer available. Reload it before replying or quoting. Your changes were not saved.',
+        ]));
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request): bool => $request->is('api/*') || $request->expectsJson(),
         );

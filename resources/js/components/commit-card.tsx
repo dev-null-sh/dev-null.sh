@@ -1,10 +1,15 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight, Trash2 } from 'lucide-react';
+import { CornerDownRight, Pencil, Trash2 } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import {
+    CommitAmendedLabel,
+    CommitAmendForm,
+    isEditable,
+} from '@/components/commit-edit';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
@@ -61,7 +66,7 @@ import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 export function CommitCard({
-    commit,
+    commit: shownCommit,
     previousLane,
     isDimmed = false,
     isPreviousDimmed = false,
@@ -110,6 +115,15 @@ export function CommitCard({
         component,
     } = usePage();
     const now = useNow();
+    const [amended, setAmended] = useState<{
+        base: string;
+        changes: Partial<Commit>;
+    } | null>(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const commit =
+        amended && amended.base === (shownCommit.version ?? shownCommit.id)
+            ? { ...shownCommit, ...amended.changes }
+            : shownCommit;
     const { bodyRef, ...translation } = useCommitTranslation(commit);
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const deleteButtonRef = useRef<HTMLButtonElement>(null);
@@ -128,6 +142,7 @@ export function CommitCard({
     const hasVisibleReplies = thread.isOpen && !!thread.replies?.length;
     const isOwn = commit.user_id === auth.user?.id;
     const isDeletable = isOwn && canDelete;
+    const canEdit = isDeletable && isEditable(commit, now);
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
 
@@ -341,6 +356,18 @@ export function CommitCard({
                                     </Link>
                                 </TimestampTooltip>
 
+                                {commit.edited_at && (
+                                    <>
+                                        <span
+                                            aria-hidden
+                                            className="text-muted-foreground"
+                                        >
+                                            ·
+                                        </span>
+                                        <CommitAmendedLabel commit={commit} />
+                                    </>
+                                )}
+
                                 <ThreadPositionBadge
                                     threadPosition={threadPosition}
                                 />
@@ -366,6 +393,27 @@ export function CommitCard({
                                     >
                                         {hash}
                                     </Link>
+
+                                    {canEdit && !isEditing && (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setIsEditing(true)
+                                                    }
+                                                    aria-label="Amend commit"
+                                                    className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:right-6 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:commit-hover:opacity-100 sm:commit-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                                                    data-test="edit-commit-button"
+                                                >
+                                                    <Pencil className="size-4" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                Amend commit
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    )}
 
                                     {isDeletable && (
                                         <Tooltip>
@@ -411,23 +459,42 @@ export function CommitCard({
                                     replying to @{commit.parent.user.username}
                                 </Link>
                             )}
-                            <div ref={bodyRef} style={translation.bodyStyle}>
-                                <FoldedCommitBody
-                                    segments={translation.segments}
-                                    mentions={commit.mentions}
-                                    previewSegments={
-                                        isFolded && !isFocused
-                                            ? translation.previewSegments
-                                            : null
-                                    }
-                                    className={cn(
-                                        'mt-0.5',
-                                        isFocused
-                                            ? 'text-[17px]'
-                                            : 'text-[15px]',
-                                    )}
+                            {isEditing ? (
+                                <CommitAmendForm
+                                    commit={commit}
+                                    onAmended={(changes) => {
+                                        setAmended({
+                                            base:
+                                                shownCommit.version ??
+                                                shownCommit.id,
+                                            changes,
+                                        });
+                                        setIsEditing(false);
+                                    }}
+                                    onCancel={() => setIsEditing(false)}
                                 />
-                            </div>
+                            ) : (
+                                <div
+                                    ref={bodyRef}
+                                    style={translation.bodyStyle}
+                                >
+                                    <FoldedCommitBody
+                                        segments={translation.segments}
+                                        mentions={commit.mentions}
+                                        previewSegments={
+                                            isFolded && !isFocused
+                                                ? translation.previewSegments
+                                                : null
+                                        }
+                                        className={cn(
+                                            'mt-0.5',
+                                            isFocused
+                                                ? 'text-[17px]'
+                                                : 'text-[15px]',
+                                        )}
+                                    />
+                                </div>
+                            )}
                             {translation.notice}
                             {showImages && <CommitImages commit={commit} />}
                             {commit.poll && (

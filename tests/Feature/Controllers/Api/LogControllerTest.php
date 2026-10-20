@@ -46,11 +46,13 @@ it('lists the latest commits of everyone, newest first', function (): void {
 
     expect(collect($response->json('data.1'))->except('reply_preview')->all())->toBe([
         'id' => $older->id,
+        'version' => $older->version(),
         'short_hash' => mb_substr(str_replace('-', '', $older->id), -7),
         'body' => 'It was DNS.',
         'parent_id' => null,
         'html_url' => route('commit.show', [$author, $older]),
         'created_at' => now()->subMinute()->toIso8601ZuluString(),
+        'edited_at' => null,
         'stars_count' => 0,
         'replies_count' => 2,
         'link_preview' => null,

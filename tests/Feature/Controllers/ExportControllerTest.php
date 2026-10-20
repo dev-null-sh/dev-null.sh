@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
+use App\Actions\UpdateCommit;
 use App\Ai\Agents\CommitTranslator;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
@@ -204,8 +205,11 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         'status' => 'approved',
         'pasteis_count' => 3,
         'images' => [],
+        'revisions' => [],
         'created_at' => $approved->created_at->toIso8601String(),
         'updated_at' => $approved->updated_at->toIso8601String(),
+        'edited_at' => null,
+        'amendment_locked_at' => null,
         'deleted_at' => null,
     ])
         ->and($commits[$pending->id]['status'])->toBe('pending')
@@ -230,6 +234,26 @@ it('exports commit image urls in order', function (): void {
         route('commit-image.show', $first),
         route('commit-image.show', $second),
     ])->and($response->streamedContent())->not->toContain($first->path);
+});
+
+it('exports what an edited commit said before, newest first', function (): void {
+    config(['app.admins' => ['taylorotwell']]);
+    $this->travelTo(now()->startOfSecond());
+
+    $user = User::factory()->create(['username' => 'taylorotwell']);
+    $commit = Commit::factory()->for($user)->create(['body' => 'Shiped it']);
+    $this->travel(1)->minutes();
+    resolve(UpdateCommit::class)->handle($commit, 'Shipped it');
+    $this->travel(1)->minutes();
+    resolve(UpdateCommit::class)->handle($commit, 'Shipped it!');
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['commits'][0]['revisions'])->toBe([
+        ['body' => 'Shipped it', 'mentions' => [], 'created_at' => now()->subMinute()->toIso8601String()],
+        ['body' => 'Shiped it', 'mentions' => [], 'created_at' => $commit->created_at->toIso8601String()],
+    ])->and($data['commits'][0]['edited_at'])->toBe(now()->toIso8601String());
 });
 
 it('exports starred commit ids, including deleted commits, but not other users stars', function (): void {

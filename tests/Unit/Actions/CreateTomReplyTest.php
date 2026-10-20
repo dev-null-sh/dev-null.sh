@@ -16,12 +16,13 @@ use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     config(['ai.providers.openai.key' => 'test', 'ai.providers.opencode.key' => 'test']);
 });
 
-it('creates one reply through the normal moderation pipeline and never replaces a deleted reply', function (): void {
+it('creates one reply through the normal moderation pipeline and never replaces a deleted reply', function (bool $amended): void {
     config(['services.openai.key' => 'test']);
     Queue::fake([ModerateCommit::class, EmbedCommit::class, ReplyAsTom::class]);
     Tom::fake(['A developer community, with rusty friends. :-D'])->preventStrayPrompts();
@@ -29,6 +30,9 @@ it('creates one reply through the normal moderation pipeline and never replaces 
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create();
     $commit = Commit::factory()->for($root, 'parent')->create(['body' => '@tom what is this place?', 'mentions' => ['tom' => $tom->id]]);
+    if ($amended) {
+        $commit->update(['revision_id' => Str::uuid7()->toString(), 'edited_at' => now()]);
+    }
 
     resolve(CreateTomReply::class)->handle($commit->id);
     resolve(CreateTomReply::class)->handle($commit->id);
@@ -47,7 +51,7 @@ it('creates one reply through the normal moderation pipeline and never replaces 
     $reply->delete();
     resolve(CreateTomReply::class)->handle($commit->id);
     expect($commit->replies()->withTrashed()->count())->toBe(1);
-});
+})->with([false, true]);
 
 it('queues a mention only after approval and ignores code mentions', function (): void {
     Queue::fake([ReplyAsTom::class]);
@@ -212,6 +216,7 @@ it('discards a generated answer if its parent changes while the model is running
             'deleted' => $commit->delete(),
             'rejected' => $commit->update(['status' => CommitStatus::Rejected]),
             'blocked' => $commit->user->blocking()->attach($tom),
+            'amended' => $commit->update(['revision_id' => Str::uuid7()->toString(), 'edited_at' => now()]),
         };
 
         return 'A reply that must not be posted.';
@@ -221,7 +226,7 @@ it('discards a generated answer if its parent changes while the model is running
 
     expect($commit->replies()->count())->toBe(0);
     Tom::assertPrompted('@tom hello');
-})->with(['deleted', 'rejected', 'blocked']);
+})->with(['deleted', 'rejected', 'blocked', 'amended']);
 
 it('retries failed or blank responses without retaining provider content', function (?string $response): void {
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);

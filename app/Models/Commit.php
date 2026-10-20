@@ -36,8 +36,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CommitStatus|null $ai_decision
  * @property-read list<string>|null $ai_categories
  * @property-read list<float>|null $embedding
+ * @property-read CarbonInterface|null $amendment_locked_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
+ * @property-read CarbonInterface|null $edited_at
  * @property-read CarbonInterface|null $deleted_at
  * @property-read int $stars_count
  * @property-read int $pasteis_count
@@ -54,11 +56,15 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
+ * @property-read Collection<int, CommitRevision> $revisions
+ * @property-read string|null $revision_id
  */
 #[Hidden([
     'ai_decision',
     'ai_categories',
     'embedding',
+    'revision_id',
+    'revisions',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -70,6 +76,14 @@ final class Commit extends Model
     use SoftDeletes;
 
     public const int RESTORABLE_SECONDS = 30;
+
+    /**
+     * Long enough to fix a typo or a broken link, short enough that a commit people already replied to and starred
+     * keeps meaning what it said.
+     */
+    public const int EDITABLE_MINUTES = 15;
+
+    public const int MAX_EDITS = 5;
 
     /**
      * Moderation retries a failed check twice, the last time ten minutes later, so a pending commit older than this has
@@ -122,6 +136,9 @@ final class Commit extends Model
             'embedding' => AsVector::class,
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
+            'edited_at' => 'datetime',
+            'amendment_locked_at' => 'datetime',
+            'revision_id' => 'string',
             'deleted_at' => 'datetime',
         ];
     }
@@ -145,7 +162,12 @@ final class Commit extends Model
             $this->segments = resolve(CommitBodies::class)->segments($this->body);
         }
 
-        return [...parent::toArray(), ...$this->segments, 'is_checking' => $this->isBeingChecked()];
+        return [...parent::toArray(), ...$this->segments, 'is_checking' => $this->isBeingChecked(), 'version' => $this->version()];
+    }
+
+    public function version(): string
+    {
+        return $this->revision_id ?? $this->id;
     }
 
     /**
@@ -191,12 +213,27 @@ final class Commit extends Model
         return $this->status === CommitStatus::Pending
             && $this->ai_decision === null
             && filled(config('services.openai.key'))
-            && $this->created_at->greaterThan(now()->subMinutes(self::CHECKING_MINUTES));
+            && ($this->edited_at ?? $this->created_at)->greaterThan(now()->subMinutes(self::CHECKING_MINUTES));
     }
 
     public function isRestorable(): bool
     {
         return $this->user_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
+    }
+
+    /**
+     * Only the text of a commit can be edited, and only shortly after committing it. Polls are left alone, so a question
+     * people already voted on keeps meaning the same.
+     */
+    public function isEditable(): bool
+    {
+        return $this->user_id !== null
+            && ! $this->trashed()
+            && now()->lessThan($this->created_at->copy()->addMinutes(self::EDITABLE_MINUTES))
+            && $this->amendment_locked_at === null
+            && ! $this->replies()->withTrashed()->exists()
+            && ! $this->quotes()->withTrashed()->exists()
+            && ! $this->poll()->exists();
     }
 
     /**
@@ -261,6 +298,14 @@ final class Commit extends Model
     public function images(): HasMany
     {
         return $this->hasMany(CommitImage::class)->orderBy('position');
+    }
+
+    /**
+     * @return HasMany<CommitRevision, $this>
+     */
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(CommitRevision::class)->latest()->orderByDesc('id');
     }
 
     /**

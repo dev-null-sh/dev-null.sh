@@ -65,6 +65,7 @@ export type CommitTranslation = {
 
 export type Commit = {
     id: string;
+    version?: string;
     user_id: string;
     parent_id: string | null;
     hot_score: number;
@@ -77,6 +78,9 @@ export type Commit = {
     is_checking?: boolean;
     created_at: string;
     updated_at: string;
+    edited_at?: string | null;
+    amendment_locked_at?: string | null;
+    revisions?: { body: string; created_at: string }[];
     deleted_at?: null;
     stars_count: number;
     pasteis_count: number;
@@ -107,6 +111,7 @@ export type QuotedCommit = Pick<
     | 'status'
     | 'is_checking'
     | 'created_at'
+    | 'edited_at'
     | 'deleted_at'
     | 'user'
     | 'replies_count'

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateCommit;
 use App\Enums\CommitStatus;
 use App\Enums\ModerationReason;
 use App\Http\Middleware\AuthenticateSshSignature;
@@ -63,6 +64,32 @@ beforeEach(function (): void {
     SshKey::factory()->for($this->user)->withPublicKey($this->keyPair->publicKey)->create();
 
     fakeGitHubSshKeys($this->user, [$this->keyPair->publicKey]);
+});
+
+it('requires the signed current revision when replying to an amended commit', function (): void {
+    Queue::fake();
+    $author = User::factory()->create();
+    config(['app.admins' => [$author->username]]);
+    $parent = Commit::factory()->for($author)->create(['body' => 'Original']);
+    resolve(UpdateCommit::class)->handle($parent, 'Corrected');
+    $parent->refresh();
+
+    postSignedCommit(signedCommit($this->keyPair, 'Reply', replyTo: $parent->id))->assertUnprocessable();
+    postSignedCommit(signedCommit($this->keyPair, 'Reply', replyTo: $parent->id.'@'.$parent->id))->assertUnprocessable();
+    postSignedCommit(signedCommit($this->keyPair, 'Reply', replyTo: $parent->id.'@'.$parent->version()))->assertCreated();
+
+    expect($parent->replies()->count())->toBe(1);
+});
+
+it('does not allow an unsigned parameter to supply a terminal revision token', function (): void {
+    Queue::fake();
+    $parent = Commit::factory()->create(['revision_id' => fake()->uuid()]);
+    $signed = signedCommit($this->keyPair, 'Reply', replyTo: $parent->id);
+    $this->call('POST', route('cli-commit.store'), parameters: ['source_version' => $parent->version()], server: [
+        'CONTENT_TYPE' => 'text/plain; charset=utf-8',
+        'HTTP_X_SSH_SIGNATURE' => $signed['signature'],
+    ], content: $signed['payload'])->assertUnprocessable();
+    expect($parent->replies()->count())->toBe(0);
 });
 
 it('creates a commit signed with an ssh key', function (): void {

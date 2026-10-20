@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
@@ -46,4 +47,38 @@ it('may not approve a commit as a non admin', function (): void {
     $response->assertForbidden();
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Pending);
+});
+
+it('requires the reviewed amendment text for individual approval', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    $commit = Commit::factory()->pending()->create(['body' => 'Amended', 'edited_at' => now(), 'revision_id' => Str::uuid7()->toString()]);
+
+    $this->actingAs($admin)->post(route('commit-approval.store', $commit), ['expected_version' => $commit->id])
+        ->assertSessionHasErrors('body');
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Pending);
+
+    $this->post(route('commit-approval.store', $commit), ['expected_version' => $commit->version()])
+        ->assertSessionHasNoErrors();
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
+});
+
+it('bulk approves amendments normally but never from stale review snapshots', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    $commit = Commit::factory()->pending()->create(['body' => 'Amended', 'edited_at' => now(), 'revision_id' => Str::uuid7()->toString()]);
+
+    $this->actingAs($admin)->put(route('moderation.update'), [
+        'commits' => [$commit->id],
+        'versions' => [$commit->id => $commit->id],
+    ])->assertSessionHasErrors('versions');
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Pending);
+
+    $this->put(route('moderation.update'), [
+        'commits' => [$commit->id],
+        'versions' => [$commit->id => $commit->version()],
+    ])->assertSessionHasNoErrors();
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
 });

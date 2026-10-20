@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateCommitRestoration;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteCommitContent;
+use App\Actions\UpdateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
@@ -125,4 +126,36 @@ it('does nothing for a commit that is gone', function (): void {
     resolve(DeleteCommitContent::class)->handle($commit);
 
     expect(CommitImage::query()->count())->toBe(0);
+});
+
+it('keeps amendment history during undo and erases it when content is erased', function (): void {
+    $commit = Commit::factory()->create(['body' => 'Original']);
+    resolve(UpdateCommit::class)->handle($commit, 'Amended');
+    $commit->refresh();
+    $revision = $commit->revisions()->sole();
+    resolve(DeleteCommit::class)->handle($commit);
+    $this->travel(29)->seconds();
+    resolve(DeleteCommitContent::class)->handle($commit);
+    $this->assertModelExists($revision);
+
+    $this->travel(1)->seconds();
+    resolve(DeleteCommitContent::class)->handle($commit);
+
+    $this->assertModelMissing($revision);
+    expect($commit->refresh())->body->toBe('')->revision_id->toBeNull()->edited_at->toBeNull();
+});
+
+it('preserves amendments when deletion is undone before erasure', function (): void {
+    $commit = Commit::factory()->create(['body' => 'Original']);
+    resolve(UpdateCommit::class)->handle($commit, 'Amended');
+    $commit->refresh();
+    $version = $commit->version();
+    resolve(DeleteCommit::class)->handle($commit);
+    resolve(CreateCommitRestoration::class)->handle($commit);
+    $this->travel(30)->seconds();
+
+    resolve(DeleteCommitContent::class)->handle($commit);
+
+    expect($commit->refresh()->body)->toBe('Amended')->and($commit->version())->toBe($version)
+        ->and($commit->revisions()->sole()->body)->toBe('Original');
 });

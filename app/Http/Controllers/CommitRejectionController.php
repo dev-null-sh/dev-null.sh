@@ -9,6 +9,7 @@ use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitRejectionRequest;
 use App\Models\Commit;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 
 final readonly class CommitRejectionController
 {
@@ -17,7 +18,11 @@ final readonly class CommitRejectionController
         /** @var string|null $reason */
         $reason = $request->validated('reason');
 
-        $action->handle($commit, CommitStatus::Rejected, $reason);
+        DB::transaction(function () use ($request, $commit, $action, $reason): void {
+            $commit = Commit::query()->lockForUpdate()->findOrFail($commit->id);
+            $request->ensureReviewed($commit);
+            $action->handle($commit, CommitStatus::Rejected, $reason);
+        });
 
         return back();
     }

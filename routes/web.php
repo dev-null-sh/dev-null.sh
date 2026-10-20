@@ -24,6 +24,7 @@ use App\Http\Controllers\CommitRejectionController;
 use App\Http\Controllers\CommitReplyController;
 use App\Http\Controllers\CommitReportController;
 use App\Http\Controllers\CommitRestorationController;
+use App\Http\Controllers\CommitRevisionController;
 use App\Http\Controllers\CommitSearchController;
 use App\Http\Controllers\CommitSitemapController;
 use App\Http\Controllers\CommitStarController;
@@ -211,6 +212,8 @@ Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
 Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->withTrashed()
     ->name('commit-reply.index');
+Route::get('commits/{commit}/revisions', [CommitRevisionController::class, 'index'])
+    ->name('commit-revision.index');
 Route::get('commits/{commit}/continuation', [CommitContinuationController::class, 'index'])
     ->name('commit-continuation.index');
 
@@ -262,6 +265,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
         ->middleware('throttle:10,1,translations:')
         ->name('commit-translation.store');
+    Route::patch('commits/{commit}', [CommitController::class, 'update'])
+        ->middleware([PreventPostingInTimeout::class, ThrottleCommits::class])
+        ->name('commit.update');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::post('commits/{commit}/restoration', [CommitRestorationController::class, 'store'])

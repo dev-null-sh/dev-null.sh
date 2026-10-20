@@ -41,6 +41,7 @@ final class CreateApiCommitRequest extends FormRequest
             'body' => CreateCommitRequest::bodyRules(),
             'parent_id' => ['bail', 'nullable', 'uuid', new VisibleCommit($user)],
             'quoted_commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
+            'source_version' => ['sometimes', 'required', 'uuid'],
         ];
     }
 

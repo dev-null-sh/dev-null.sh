@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateCommit;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Exceptions\CommitProcessingFailed;
@@ -19,9 +20,66 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+
+it('compares every previous version and applies the normal automatic moderation rules', function (bool $misleading): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->pending()->create(['body' => 'Proposed text', 'edited_at' => now()]);
+    $commit->revisions()->create(['body' => 'Who has tested the new MacBook?', 'created_at' => now()->subMinutes(2)]);
+    $commit->revisions()->create(['body' => 'Who has tested the new MacBook Pro?', 'created_at' => now()->subMinute()]);
+    Http::fake([
+        'api.openai.com/v1/moderations' => moderationResponse(),
+        'api.openai.com/v1/responses' => reviewResponses(['harmful' => reviewResponse('harmful', $misleading)]),
+    ]);
+
+    app()->call([new ModerateCommit($commit), 'handle']);
+
+    expect($commit->refresh()->status)->toBe($misleading ? CommitStatus::Pending : CommitStatus::Approved)
+        ->and($commit->ai_decision)->toBe($misleading ? CommitStatus::Rejected : CommitStatus::Approved)
+        ->and($commit->ai_categories)->toBe($misleading ? ['harmful-text'] : []);
+
+    Http::assertSent(function (Request $request): bool {
+        if (($request['text']['format']['name'] ?? null) !== 'harmful') {
+            return false;
+        }
+
+        return json_decode($request['input'][1]['content'][0]['text'], true, flags: JSON_THROW_ON_ERROR) === [
+            'previous_versions' => ['Who has tested the new MacBook?', 'Who has tested the new MacBook Pro?'],
+            'proposed_text' => 'Proposed text',
+        ];
+    });
+})->with([false, true]);
 
 beforeEach(function (): void {
     config(['services.openai.key' => 'sk-test']);
+});
+
+it('does not let an older queued job review a newer amendment', function (): void {
+    Queue::fake();
+    $commit = Commit::factory()->pending()->create(['body' => 'Original']);
+    $job = new ModerateCommit($commit);
+    resolve(UpdateCommit::class)->handle($commit, 'Corrected');
+
+    app()->call($job->handle(...));
+
+    Http::assertNothingSent();
+    expect($commit->refresh()->status)->toBe(CommitStatus::Pending)->and($commit->ai_decision)->toBeNull();
+});
+
+it('discards a review if its revision changed even when its text matches', function (): void {
+    $commit = Commit::factory()->pending()->create(['body' => 'Original']);
+    Http::fake([
+        'api.openai.com/v1/moderations' => function () use ($commit) {
+            Commit::query()->whereKey($commit->id)->update(['revision_id' => Str::uuid7()->toString()]);
+
+            return Http::response(moderationResponse());
+        },
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Pending)->and($commit->ai_decision)->toBeNull();
 });
 
 /**
@@ -98,6 +156,40 @@ it('stores that the ai would approve a commit it does not flag', function (): vo
         && $request['input'][1]['content'] === [['type' => 'input_text', 'text' => 'Shipped a new feature']]);
 
     Http::assertSentCount(2);
+});
+
+it('does not approve text amended while its previous body was being reviewed', function (): void {
+    $commit = Commit::factory()->pending()->create(['body' => 'Original']);
+    Http::fake([
+        'api.openai.com/v1/moderations' => function () use ($commit) {
+            Commit::query()->whereKey($commit->id)->update(['body' => 'Amended']);
+
+            return Http::response(moderationResponse());
+        },
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())->body->toBe('Amended')
+        ->status->toBe(CommitStatus::Pending)
+        ->ai_decision->toBeNull();
+});
+
+it('does not save a review when the commit was deleted in flight', function (): void {
+    $commit = Commit::factory()->pending()->create(['body' => 'Original']);
+    Http::fake([
+        'api.openai.com/v1/moderations' => function () use ($commit) {
+            Commit::query()->whereKey($commit->id)->delete();
+
+            return Http::response(moderationResponse());
+        },
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())->ai_decision->toBeNull()->deleted_at->not->toBeNull();
 });
 
 it('auto-approves clean commits without requiring approved history', function (CommitStatus $previousStatus, bool $sameAuthor, bool $deleted, bool $anonymous, CommitStatus $expected): void {

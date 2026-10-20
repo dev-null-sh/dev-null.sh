@@ -15,6 +15,7 @@ use Illuminate\Queue\Attributes\Backoff;
 use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Queue\Attributes\Timeout;
 use Illuminate\Queue\Attributes\Tries;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 #[Backoff([60, 600])]
@@ -25,9 +26,11 @@ final class ModerateCommit implements ShouldQueue
 {
     use Queueable;
 
+    public readonly string $version;
+
     public function __construct(public readonly Commit $commit)
     {
-        //
+        $this->version = $commit->version();
     }
 
     /**
@@ -36,18 +39,28 @@ final class ModerateCommit implements ShouldQueue
      */
     public function handle(UpdateCommitAiDecision $action, UpdateCommitStatuses $updateCommitStatuses): void
     {
-        if ($this->commit->status !== CommitStatus::Pending || $this->commit->trashed()) {
+        $commit = $this->commit->fresh();
+        if (! $commit instanceof Commit || $commit->trashed() || $commit->version() !== ($this->version ?? $this->commit->id)) {
             return;
         }
 
-        if ($this->commit->user?->hasGoodReputation()) {
-            $updateCommitStatuses->handle([$this->commit->id], CommitStatus::Approved, onlyPending: true);
+        if ($commit->status !== CommitStatus::Pending) {
+            return;
+        }
+
+        if ($commit->user?->hasGoodReputation()) {
+            DB::transaction(function () use ($updateCommitStatuses): void {
+                $current = Commit::query()->lockForUpdate()->find($this->commit->id);
+                if ($current instanceof Commit && $current->version() === ($this->version ?? $this->commit->id)) {
+                    $updateCommitStatuses->handle([$current->id], CommitStatus::Approved, onlyPending: true);
+                }
+            });
 
             return;
         }
 
         try {
-            $action->handle($this->commit);
+            $action->handle($commit);
         } catch (Throwable $throwable) {
             throw new CommitProcessingFailed('Moderation', $this->commit->id, $throwable);
         }

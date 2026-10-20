@@ -51,11 +51,13 @@ final class CommitResource extends JsonResource
 
         $commit = [
             'id' => $this->id,
+            'version' => $this->version(),
             'short_hash' => mb_substr(str_replace('-', '', $this->id), -7),
             'body' => $this->body,
             'parent_id' => $isSigned ? $this->parent_id : $this->parent?->id,
             'html_url' => route('commit.show', [$this->user, $this->resource]),
             'created_at' => $this->created_at->toIso8601ZuluString(),
+            'edited_at' => $this->edited_at?->toIso8601ZuluString(),
             'stars_count' => $this->whenCounted('stars'),
             'replies_count' => $this->whenCounted('replies'),
             'link_preview' => $this->whenLoaded('linkPreview'),

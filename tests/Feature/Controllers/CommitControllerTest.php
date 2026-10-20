@@ -12,6 +12,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\Notification;
+use App\Models\Poll;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
@@ -1469,4 +1470,111 @@ it('includes the images of a commit, its ancestors and its replies', function ()
             ->has('ancestors.0.images', 1)
             ->has('replies.data.0.images', 1)
             ->missing('commit.images.0.path'));
+});
+
+it('may edit own commit shortly after committing it', function (): void {
+    config(['app.admins' => ['taylorotwell']]);
+    $user = User::factory()->create(['username' => 'taylorotwell']);
+    $commit = Commit::factory()->for($user)->create(['body' => 'Shiped it']);
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->patch(route('commit.update', $commit), ['expected_version' => $commit->version(), 'body' => "Shipped it\n\n\n\nfor real"])
+        ->assertRedirectToRoute('log.show', Log::Following)
+        ->assertInertiaFlash('amended.body', "Shipped it\n\nfor real")
+        ->assertInertiaFlash('amended.body_segments.0.text', "Shipped it\n\nfor real")
+        ->assertInertiaFlash('amended.translation', null);
+
+    expect($commit->refresh())
+        ->body->toBe("Shipped it\n\nfor real")
+        ->edited_at->not->toBeNull();
+});
+
+it('tells authors their edit is pending review', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->patch(route('commit.update', $commit), ['expected_version' => $commit->version(), 'body' => 'Edited'])
+        ->assertInertiaFlash('toast.type', 'info');
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Pending);
+});
+
+it('may not edit commits of other users', function (): void {
+    $commit = Commit::factory()->create(['body' => 'Mine']);
+
+    $this->actingAs(User::factory()->create())
+        ->patch(route('commit.update', $commit), ['body' => 'Yours now'])
+        ->assertForbidden();
+
+    expect($commit->refresh()->body)->toBe('Mine');
+});
+
+it('requires authentication to edit a commit', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->patch(route('commit.update', $commit), ['body' => 'Edited'])
+        ->assertRedirectToRoute('home');
+});
+
+it('requires a body to edit a commit without images', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->actingAs($commit->user)
+        ->patch(route('commit.update', $commit), ['body' => ''])
+        ->assertSessionHasErrors('body');
+});
+
+it('may edit the text out of a commit with images', function (): void {
+    config(['app.admins' => ['taylorotwell']]);
+    $commit = Commit::factory()->for(User::factory()->create(['username' => 'taylorotwell']))->create();
+    CommitImage::factory()->for($commit)->create();
+
+    $this->actingAs($commit->user)
+        ->patch(route('commit.update', $commit), ['expected_version' => $commit->version(), 'body' => ''])
+        ->assertSessionHasNoErrors();
+
+    expect($commit->refresh()->body)->toBe('');
+});
+
+it('may not edit a commit that can no longer be edited', function (Closure $state): void {
+    $this->travelTo(now()->startOfSecond());
+    $commit = $state(Commit::factory()->create(['body' => 'Original']));
+
+    $this->actingAs($commit->user)
+        ->patch(route('commit.update', $commit), ['body' => 'Edited'])
+        ->assertSessionHasErrors('body');
+
+    expect($commit->refresh()->body)->toBe('Original');
+})->with([
+    'after the window' => [function (Commit $commit): Commit {
+        test()->travel(Commit::EDITABLE_MINUTES)->minutes();
+
+        return $commit;
+    }],
+    'a poll' => [function (Commit $commit): Commit {
+        Poll::factory()->for($commit)->create();
+
+        return $commit;
+    }],
+]);
+
+it('may edit a commit only so many times', function (): void {
+    config(['app.admins' => ['taylorotwell']]);
+    $commit = Commit::factory()->for(User::factory()->create(['username' => 'taylorotwell']))->create();
+
+    foreach (range(1, Commit::MAX_EDITS) as $edit) {
+        $this->actingAs($commit->user)
+            ->patch(route('commit.update', $commit), ['expected_version' => $commit->version(), 'body' => "Edit {$edit}"])
+            ->assertSessionHasNoErrors();
+        $commit->refresh()->forceFill(['status' => CommitStatus::Approved])->save();
+    }
+
+    $this->actingAs($commit->user)
+        ->patch(route('commit.update', $commit), ['expected_version' => $commit->version(), 'body' => 'One too many'])
+        ->assertSessionHasErrors('body');
+
+    expect($commit->refresh()->body)->toBe('Edit '.Commit::MAX_EDITS);
 });

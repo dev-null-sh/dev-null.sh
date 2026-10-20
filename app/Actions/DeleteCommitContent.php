@@ -30,10 +30,11 @@ final readonly class DeleteCommitContent
 
             $commit->images()->delete();
             $commit->poll()->delete();
+            $commit->revisions()->delete();
 
             LinkPreview::query()->where('url', 'like', "%/commits/{$commit->id}%")->delete();
 
-            $commit->update(['body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+            $commit->update(['body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null, 'revision_id' => null, 'edited_at' => null, 'amendment_locked_at' => null]);
 
             return $imagePaths;
         });

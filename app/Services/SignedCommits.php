@@ -30,7 +30,7 @@ final readonly class SignedCommits
 
     /**
      * @param  (Closure(): list<string>)|null  $imageHashes
-     * @return array{user: User, reply_to: string|null, body: string}
+     * @return array{user: User, reply_to: string|null, body: string, source_version: string|null}
      */
     public function verify(string $payload, string $signature, ?Closure $imageHashes = null): array
     {
@@ -72,10 +72,17 @@ final readonly class SignedCommits
             );
         }
 
+        $sourceVersion = null;
+        if (preg_match('/^(.*)@([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i', $replyTo, $matches) === 1) {
+            $replyTo = $matches[1];
+            $sourceVersion = mb_strtolower($matches[2]);
+        }
+
         return [
             'user' => $user,
             'reply_to' => $replyTo === '' ? null : $replyTo,
             'body' => mb_trim($body),
+            'source_version' => $sourceVersion,
         ];
     }
 }
