@@ -168,6 +168,40 @@ export function ChangelogDialog({
     onLoadOlder: (onLoaded: (added: ChangelogPullRequest[]) => void) => void;
     timeZone: string;
 }) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 overflow-hidden bg-popover p-0 sm:max-w-2xl">
+                <ChangelogContent
+                    changelog={changelog}
+                    hasFailed={hasFailed}
+                    isLoadingOlder={isLoadingOlder}
+                    hasOlderFailed={hasOlderFailed}
+                    onLoadOlder={onLoadOlder}
+                    timeZone={timeZone}
+                    isDialog
+                />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+export function ChangelogContent({
+    changelog,
+    hasFailed,
+    isLoadingOlder,
+    hasOlderFailed,
+    onLoadOlder,
+    timeZone,
+    isDialog = false,
+}: {
+    changelog: Changelog | null;
+    hasFailed: boolean;
+    isLoadingOlder: boolean;
+    hasOlderFailed: boolean;
+    onLoadOlder: (onLoaded: (added: ChangelogPullRequest[]) => void) => void;
+    timeZone: string;
+    isDialog?: boolean;
+}) {
     const [revealedDays, setRevealedDays] = useState<Set<string>>(new Set());
     const scroller = useRef<HTMLDivElement>(null);
     const pullRequests = changelog?.pullRequests ?? [];
@@ -176,97 +210,103 @@ export function ChangelogDialog({
     ).size;
     const days = changelogDays(pullRequests, timeZone);
 
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 overflow-hidden bg-popover p-0 sm:max-w-2xl">
-                <div className="border-b px-5 py-4 pr-12">
-                    <DialogTitle className="text-base">Changelog</DialogTitle>
-                    <DialogDescription className="mt-1">
-                        Every pull request merged into{' '}
-                        <span className="font-mono">production</span>.
-                    </DialogDescription>
-                </div>
-                <div
-                    ref={scroller}
-                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 [overflow-anchor:none]"
-                >
-                    {hasFailed ? (
-                        <p className="py-10 text-center text-sm text-muted-foreground">
-                            GitHub couldn't be reached. Try again in a minute.
-                        </p>
-                    ) : changelog === null ? (
-                        <DaysSkeleton />
-                    ) : pullRequests.length === 0 ? (
-                        <p className="py-10 text-center text-sm text-muted-foreground">
-                            Nothing has been merged yet.
-                        </p>
-                    ) : (
-                        <>
-                            {days.map((day) => (
-                                <DaySection
-                                    key={day.date}
-                                    day={day}
-                                    timeZone={timeZone}
-                                    isRevealed={revealedDays.has(day.date)}
-                                />
-                            ))}
-                            {changelog.olderBefore !== null && (
-                                <div className="flex justify-center border-t py-5">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={isLoadingOlder}
-                                        className="h-8 min-w-40 text-xs"
-                                        onClick={() =>
-                                            onLoadOlder((added) => {
-                                                const addedDays = changelogDays(
-                                                    added,
-                                                    timeZone,
-                                                ).map((day) => day.date);
+    const Description = isDialog ? DialogDescription : 'p';
 
-                                                setRevealedDays(
-                                                    new Set(addedDays),
-                                                );
-                                                scroller.current
-                                                    ?.querySelector<HTMLAnchorElement>(
-                                                        `[data-day="${addedDays[0]}"] a[href*="/pull/"]`,
-                                                    )
-                                                    ?.focus({
-                                                        preventScroll: true,
-                                                    });
-                                            })
-                                        }
-                                    >
-                                        {isLoadingOlder
-                                            ? 'Loading…'
-                                            : hasOlderFailed
-                                              ? "Couldn't load, try again"
-                                              : 'Show older days'}
-                                    </Button>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-                <div className="flex items-center justify-between gap-4 border-t px-5 py-2.5 text-xs text-muted-foreground">
-                    <span className="tabular-nums">
-                        {changelog !== null &&
-                            `${pullRequests.length} merges · ${contributors} contributors`}
-                    </span>
-                    {changelog !== null && (
-                        <a
-                            href={changelog.commitsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-sm text-sm transition-colors hover:text-foreground"
-                        >
-                            All commits on GitHub
-                            <ExternalLink aria-hidden className="size-3.5" />
-                        </a>
-                    )}
-                </div>
-            </DialogContent>
-        </Dialog>
+    return (
+        <>
+            <div className="border-b px-5 py-4 pr-12">
+                {isDialog ? (
+                    <DialogTitle className="text-base">Changelog</DialogTitle>
+                ) : (
+                    <h1 className="text-base font-semibold">Changelog</h1>
+                )}
+                <Description className="mt-1 text-sm text-muted-foreground">
+                    Every pull request merged into{' '}
+                    <span className="font-mono">production</span>.
+                </Description>
+            </div>
+            <div
+                ref={scroller}
+                className={cn(
+                    'px-5 [overflow-anchor:none]',
+                    isDialog &&
+                        'min-h-0 flex-1 overflow-y-auto overscroll-contain',
+                )}
+            >
+                {hasFailed ? (
+                    <p className="py-10 text-center text-sm text-muted-foreground">
+                        GitHub couldn't be reached. Try again in a minute.
+                    </p>
+                ) : changelog === null ? (
+                    <DaysSkeleton />
+                ) : pullRequests.length === 0 ? (
+                    <p className="py-10 text-center text-sm text-muted-foreground">
+                        Nothing has been merged yet.
+                    </p>
+                ) : (
+                    <>
+                        {days.map((day) => (
+                            <DaySection
+                                key={day.date}
+                                day={day}
+                                timeZone={timeZone}
+                                isRevealed={revealedDays.has(day.date)}
+                            />
+                        ))}
+                        {changelog.olderBefore !== null && (
+                            <div className="flex justify-center border-t py-5">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={isLoadingOlder}
+                                    className="h-8 min-w-40 text-xs"
+                                    onClick={() =>
+                                        onLoadOlder((added) => {
+                                            const addedDays = changelogDays(
+                                                added,
+                                                timeZone,
+                                            ).map((day) => day.date);
+
+                                            setRevealedDays(new Set(addedDays));
+                                            scroller.current
+                                                ?.querySelector<HTMLAnchorElement>(
+                                                    `[data-day="${addedDays[0]}"] a[href*="/pull/"]`,
+                                                )
+                                                ?.focus({
+                                                    preventScroll: true,
+                                                });
+                                        })
+                                    }
+                                >
+                                    {isLoadingOlder
+                                        ? 'Loading…'
+                                        : hasOlderFailed
+                                          ? "Couldn't load, try again"
+                                          : 'Show older days'}
+                                </Button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+            <div className="flex items-center justify-between gap-4 border-t px-5 py-2.5 text-xs text-muted-foreground">
+                <span className="tabular-nums">
+                    {changelog !== null &&
+                        `${pullRequests.length} merges · ${contributors} contributors`}
+                </span>
+                {changelog !== null && (
+                    <a
+                        href={changelog.commitsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-sm text-sm transition-colors hover:text-foreground"
+                    >
+                        All commits on GitHub
+                        <ExternalLink aria-hidden className="size-3.5" />
+                    </a>
+                )}
+            </div>
+        </>
     );
 }
