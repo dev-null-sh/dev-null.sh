@@ -2,20 +2,26 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\ApiException;
 use App\Http\Controllers\Api\BookmarkController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitReplyController;
+use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CommitStarController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
+use App\Http\Controllers\Api\UserFollowersController;
+use App\Http\Controllers\Api\UserFollowingController;
 use App\Http\Controllers\Api\UserLaneController;
+use App\Http\Controllers\Api\UserMuteController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Cli\CommitController;
@@ -23,6 +29,7 @@ use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
 use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\ThrottleCommits;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('cli')->group(function (): void {
@@ -41,6 +48,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user.show');
         Route::get('users/{user:username}/commits', [UserCommitController::class, 'index'])
             ->name('api-user-commit.index');
+        Route::get('users/{user:username}/followers', [UserFollowersController::class, 'index'])
+            ->name('api-user-followers.index');
+        Route::get('users/{user:username}/following', [UserFollowingController::class, 'index'])
+            ->name('api-user-following.index');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
     });
@@ -81,6 +92,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->withTrashed()
             ->name('api-commit-reply.index');
 
+        // Commit Report: a commit that doesn't exist or was deleted gets the same answer as one the user may not see...
+        Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
+            ->middleware('throttle:commit-reports')
+            ->missing(fn (): JsonResponse => ApiException::commitUnavailable()->render())
+            ->name('api-commit-report.store');
+
         // Commit Pastel...
         Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
             ->middleware('throttle:60,1')
@@ -110,6 +127,16 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('users/{user:username}/follow', [UserFollowController::class, 'destroy'])
             ->middleware('throttle:follows')
             ->name('api-user-follow.destroy');
+
+        // User Mute...
+        Route::get('me/muted', [UserMuteController::class, 'index'])->name('api-user-mute.index');
+        Route::post('users/{user:username}/mute', [UserMuteController::class, 'store'])->name('api-user-mute.store');
+        Route::delete('users/{user:username}/mute', [UserMuteController::class, 'destroy'])->name('api-user-mute.destroy');
+
+        // User Block...
+        Route::get('me/blocked', [UserBlockController::class, 'index'])->name('api-user-block.index');
+        Route::post('users/{user:username}/block', [UserBlockController::class, 'store'])->name('api-user-block.store');
+        Route::delete('users/{user:username}/block', [UserBlockController::class, 'destroy'])->name('api-user-block.destroy');
 
         // Notifications...
         Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');

@@ -46,6 +46,7 @@ export function CommitImageViewer() {
 
     return (
         <ImageViewer
+            key={photo?.commit.id}
             images={photo?.commit.images ?? []}
             index={photo?.index ?? null}
             onView={(index) => photo && showCommitPhoto(photo, index)}
@@ -112,6 +113,7 @@ export function CommitImageViewer() {
                             isFocused
                             showImages={false}
                             loadsReplies
+                            endsWithDot
                         />
                     </aside>
                 )

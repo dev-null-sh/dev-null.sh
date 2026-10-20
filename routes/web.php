@@ -72,6 +72,7 @@ use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
+use App\Http\Controllers\ProductMetricsController;
 use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
@@ -90,6 +91,7 @@ use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\UserLaneController;
+use App\Http\Controllers\UserLiveController;
 use App\Http\Controllers\UserMuteController;
 use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPasteisModeController;
@@ -100,6 +102,7 @@ use App\Http\Controllers\UserRemotesController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
 use App\Http\Controllers\UserTimezoneController;
+use App\Http\Controllers\UserTranslationLanguageController;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
@@ -390,6 +393,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('operations/features', [FeatureController::class, 'index'])->name('feature.index');
     Route::get('operations/activity', [SiteActivityController::class, 'show'])->name('site-activity.show');
     Route::get('operations/traffic', [TrafficController::class, 'show'])->name('traffic.show');
+    Route::get('operations/metrics', [ProductMetricsController::class, 'show'])->name('product-metrics.show');
     Route::post('operations/failed-jobs/{failedJob}/retry', [FailedJobRetryController::class, 'store'])
         ->whereUuid('failedJob')
         ->name('failed-job-retry.store');
@@ -419,9 +423,15 @@ Route::middleware('auth')->group(function (): void {
     // User Timezone...
     Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
 
+    Route::put('settings/translation-language', [UserTranslationLanguageController::class, 'update'])->name('user-translation-language.update');
+
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
 
     Route::put('settings/remotes', [UserRemotesController::class, 'update'])->name('user-remotes.update');
+
+    // User Live...
+    Route::put('settings/live', [UserLiveController::class, 'update'])->name('user-live.update');
+    Route::delete('settings/live', [UserLiveController::class, 'destroy'])->name('user-live.destroy');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');

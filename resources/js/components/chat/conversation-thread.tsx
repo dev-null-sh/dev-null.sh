@@ -1100,6 +1100,7 @@ function useMessageDraft(user: User, target: ChatTarget) {
         stash.images,
         stash.descriptions,
         stash.updateImages,
+        stash.key,
     );
     const linkCard = useLinkCard(stash.body);
     const secrets = useSecretWarning(stash.body);
@@ -1168,7 +1169,11 @@ function Composer({
     const submit = (event?: FormEvent) => {
         event?.preventDefault();
 
-        if ((trimmed === '' && !hasImages) || !secrets.beforeSubmit()) {
+        if (
+            attachments.isReading() ||
+            (trimmed === '' && !hasImages) ||
+            !secrets.beforeSubmit()
+        ) {
             return;
         }
 
@@ -1342,7 +1347,8 @@ function Composer({
                     </label>
                     <ImagePickerButton
                         count={attachments.images.length}
-                        onPick={attachments.attach}
+                        reading={attachments.reading}
+                        onPick={attachments.pick}
                         className={cn(
                             '-mx-1 shrink-0',
                             isCompact ? 'size-9' : 'size-10',
@@ -1383,7 +1389,10 @@ function Composer({
                     />
                     <Button
                         type="submit"
-                        disabled={trimmed === '' && !hasImages}
+                        disabled={
+                            attachments.reading ||
+                            (trimmed === '' && !hasImages)
+                        }
                         // Pushing keeps the keyboard open, so the next message can follow right away.
                         onPointerDown={(event) => event.preventDefault()}
                         className={cn(

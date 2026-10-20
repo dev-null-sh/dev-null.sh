@@ -8,13 +8,14 @@ use App\Ai\Agents\Tom;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\TomQuery;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
 
 final readonly class CreateTomReply
 {
-    public function __construct(private CreateCommit $createCommit)
+    public function __construct(private CreateCommit $createCommit, private TomQuery $tomQuery)
     {
         //
     }
@@ -22,10 +23,14 @@ final readonly class CreateTomReply
     public function handle(string $commitId): void
     {
         $commit = Commit::query()->visibleTo(null)->with('user')->find($commitId);
-        $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->where('username', CreateTomFriendship::USERNAME)->first();
 
-        if (! $commit instanceof Commit || ! $tom instanceof User || ! $this->replyable($commit, $tom)
-            || $commit->user?->is($tom) || ($commit->mentions[CreateTomFriendship::USERNAME] ?? null) !== $tom->id) {
+        if (! $commit instanceof Commit) {
+            return;
+        }
+
+        $tom = $this->tomQuery->get();
+
+        if (! $tom instanceof User || ! $commit->isAddressedTo($tom) || ! $this->replyable($commit, $tom) || $commit->user?->is($tom)) {
             return;
         }
 

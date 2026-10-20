@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Actions\CreateTomFriendship;
+use App\Actions\CreateWorldReply;
+use App\Dto\LiveStream;
+use App\Enums\LivePlatform;
 use App\Enums\Log;
 use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
@@ -41,12 +44,17 @@ use Illuminate\Support\Facades\DB;
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read string|null $translation_language
  * @property-read string|null $timezone
+ * @property-read LivePlatform|null $live_platform
+ * @property-read string|null $live_url
+ * @property-read CarbonInterface|null $live_ends_at
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
  * @property-read string|null $remember_token
  * @property-read CarbonInterface|null $github_synced_at
+ * @property-read CarbonInterface|null $last_seen_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -69,6 +77,7 @@ use Illuminate\Support\Facades\DB;
     'github_id',
     'email',
     'remember_token',
+    'translation_language',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
@@ -83,6 +92,10 @@ use Illuminate\Support\Facades\DB;
     'log',
     'onboarded_at',
     'github_follows_imported_at',
+    'live_platform',
+    'live_url',
+    'live_ends_at',
+    'last_seen_at',
 ])]
 final class User extends Authenticatable
 {
@@ -94,10 +107,21 @@ final class User extends Authenticatable
     public const int DAILY_PASTEIS = 10;
 
     /**
+     * The longest a stream can be shown as live, in hours.
+     */
+    public const int MAX_LIVE_HOURS = 12;
+
+    /**
+     * The accounts that never sign in, which product metrics leave out: Tom and @world.
+     */
+    public const array BOT_GITHUB_IDS = [CreateTomFriendship::GITHUB_ID, CreateWorldReply::GITHUB_ID];
+
+    /**
      * @var array<string, mixed>
      */
     protected $attributes = [
         'log' => Log::Following->value,
+        'translation_language' => null,
         'pasteis_mode' => false,
         'remotes_enabled' => true,
         'remotes_from' => RemotesFrom::Following->value,
@@ -105,7 +129,19 @@ final class User extends Authenticatable
         'pasteis_received' => 0,
         'pasteis_given_today' => 0,
         'pasteis_given_on' => null,
+        'live_platform' => null,
+        'live_url' => null,
+        'live_ends_at' => null,
+        'last_seen_at' => null,
     ];
+
+    /**
+     * The bots as a Postgres array, for raw queries that leave them out with `github_id <> all(?::text[])`.
+     */
+    public static function botGitHubIdsArray(): string
+    {
+        return '{'.implode(',', self::BOT_GITHUB_IDS).'}';
+    }
 
     /**
      * @return array<string, string>
@@ -135,11 +171,16 @@ final class User extends Authenticatable
             'pasteis_given_on' => 'date',
             'pinned_commit_id' => 'string',
             'timezone' => 'string',
+            'translation_language' => 'encrypted',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
             'remember_token' => 'string',
+            'live_platform' => LivePlatform::class,
+            'live_url' => 'string',
+            'live_ends_at' => 'datetime',
             'github_synced_at' => 'datetime',
+            'last_seen_at' => 'date',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -449,7 +490,18 @@ final class User extends Authenticatable
             ...parent::toArray(),
             'lane' => $this->lane(),
             'has_github_account' => $this->hasGitHubAccount(),
+            'live' => $this->liveStream()?->toArray(),
         ];
+    }
+
+    /**
+     * The stream the user is on until it runs out, which also hides a stream the scheduler has not cleared yet.
+     */
+    public function liveStream(): ?LiveStream
+    {
+        return $this->live_ends_at?->isFuture() === true
+            ? $this->live_platform?->driver()->stream((string) $this->live_url)
+            : null;
     }
 
     /**

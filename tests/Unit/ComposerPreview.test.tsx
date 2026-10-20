@@ -105,7 +105,7 @@ void test('does not publish an incomplete draft from preview', () => {
     } as unknown as KeyboardEvent<HTMLDivElement>);
 });
 
-function renderComposer(body: string): string {
+function renderComposer(body: string, isInDialog = false): string {
     const windowDescriptor = Object.getOwnPropertyDescriptor(
         globalThis,
         'window',
@@ -116,6 +116,7 @@ function renderComposer(body: string): string {
         Object.defineProperty(globalThis, 'window', {
             configurable: true,
             value: {
+                location: new URL('http://localhost/'),
                 localStorage: {
                     getItem: (key: string) => draft.get(key) ?? null,
                 },
@@ -124,7 +125,7 @@ function renderComposer(body: string): string {
 
         return (
             <TooltipProvider>
-                <CommitComposer />
+                <CommitComposer isInDialog={isInDialog} />
             </TooltipProvider>
         );
     }
@@ -144,6 +145,7 @@ function renderComposer(body: string): string {
                                 user: {
                                     id: 'preview-user',
                                     name: 'Preview User',
+                                    username: 'previewuser',
                                     lane: 0,
                                 },
                                 log: {},
@@ -180,6 +182,20 @@ for (const count of [1, 2, 3, 3850]) {
         assert.ok(markup.includes('Preview'));
     });
 }
+
+void test('links the composer avatar to the author profile', () => {
+    const markup = renderComposer('');
+    const avatar = markup.match(/<a[^>]*href="\/@previewuser"[^>]*>/)?.[0];
+
+    assert.ok(avatar);
+    assert.ok(avatar.includes('aria-label="View your profile"'));
+});
+
+void test('keeps the composer avatar unlinked inside the dialog', () => {
+    const markup = renderComposer('', true);
+
+    assert.ok(!markup.includes('href="/@previewuser"'));
+});
 
 void test('previews the chosen link card instead of the first link in the body', () => {
     const preview = previewFor({
@@ -241,6 +257,7 @@ void test('keeps the sensitive text warning beside preview', () => {
     );
     assert.equal((markup.match(/data-test="preview-toggle"/g) ?? []).length, 1);
     assert.ok(markup.includes('Remove detected secrets'));
+    assert.ok(markup.includes('data-test="secret-warning-minimize"'));
     assert.ok(!markup.includes('Publish possible secrets?'));
 });
 

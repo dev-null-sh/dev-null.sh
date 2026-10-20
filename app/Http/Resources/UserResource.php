@@ -10,7 +10,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * A user's public profile, with their counts when they were loaded. A signed request also gets the lane, the color
- * the web draws them in.
+ * the web draws them in, and in a list of people, whether its user follows each one and whether each one follows them.
  *
  * @mixin User
  */
@@ -39,6 +39,7 @@ final class UserResource extends JsonResource
             'following_count' => $this->whenCounted('following'),
             'lane' => $this->when($request->user() instanceof User, fn (): int|string => $this->lane()),
             'is_followed' => $this->whenHas('is_followed'),
+            'follows_you' => $this->whenHas('follows_you'),
         ];
     }
 }

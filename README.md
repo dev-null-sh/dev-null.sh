@@ -90,6 +90,8 @@ Read-only, no authentication, JSON, versioned under `/api/v1`. Only approved com
 |---|---|
 | `GET /api/v1/users/{username}` | A public profile with commit, follower, and following counts |
 | `GET /api/v1/users/{username}/commits` | The user's top-level commits, newest first, 20 per page (`?replies=1` for their replies instead) |
+| `GET /api/v1/users/{username}/followers` | The people following the user, newest follow first, 30 per page |
+| `GET /api/v1/users/{username}/following` | The people the user follows, newest follow first, 30 per page |
 | `GET /api/v1/commits/{id}` | One commit with its author, public parent id, star and reply counts, link preview (with its `embed` player, if any), and images (`id`, `url`, `width`, `height`) |
 
 Lists are cursor-paginated: follow `links.next` (or pass `meta.next_cursor` as `?cursor=`) until it is `null`.
@@ -102,15 +104,21 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ## Signed requests
 
-The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, saved commits, committing, deleting, following, starring, saving and pastéis only take signed requests. Signed requests are limited to 120 a minute per user.
+The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, saved commits, committing, deleting, following, starring, saving, muting, blocking, reporting and pastéis only take signed requests. Signed requests are limited to 120 a minute per user.
 
 Commits in a signed response carry what the web's cards show: `preview_segments`, the excerpt a list shows of a long commit (or `null`), the `poll` with the user's view of its votes and each option's `percentage`, the `quoted_commit` (a tombstone once deleted, or `null` when the user may not see it, while `quoted_commit_id` still says a commit was quoted), and in lists the `reply_preview` the web shows under each commit. Its `next_cursor` continues with `GET /api/v1/commits/{id}/replies?newest=1&cursor=…`, as on the web.
 
-A signed profile also says `is_muting` and has the web's `achievements`, with the Unix rank.
+A signed profile also says `is_muting` and has the web's `achievements`, with the Unix rank. In a signed list of followers or following, each person says `is_followed`, whether the user follows them, and `follows_you`.
+
+`POST` and `DELETE /api/v1/users/{username}/mute` mute and unmute someone, and `POST` and `DELETE /api/v1/users/{username}/block` block and unblock them, as the web does: nobody can mute or block themselves, muting is silent, and blocking ends the follows both ways, which unblocking doesn't bring back. Each answers with the user and the new `is_muting` or `is_blocking`. `GET /api/v1/me/muted` and `GET /api/v1/me/blocked` list the people the user mutes and blocks, last first, as Settings → Safety does, 20 a page.
 
 `GET /api/v1/log/{log}` serves the web's three logs, `following`, `latest` and `trending`, with the same queries and 20 commits a page. Trending is ranked, so it says `is_ranked`. With `?since={id}`, every log counts the `new_commits_count` newer than that commit, which is always 0 on Trending, since the web offers none there. An empty Following log comes with a few `suggestions`.
 
 `GET /api/v1/notifications` groups notifications like the web and takes the web's `?type=` filter: `all` (the default), `none`, or a comma-separated list of `replies`, `quotes`, `stars`, `mentions`, `follows` and `moderation`. The response echoes it as `filters.type`. Listing them marks every notification as read, whatever the filter, and `read_at` says when, so the groups read at or after it are the new ones. `GET /api/v1/notifications/{id}/group` lists the notifications of one group, with the same filter, the way the web expands it.
+
+`POST /api/v1/commits` takes a `body`, and either a `parent_id` to reply to a commit or a `quoted_commit_id` to quote one, but not both. Returns a `201` on successful commit creation.
+
+`POST /api/v1/commits/{id}/reports` reports a commit to the moderators, privately, as the web's Report button does. It takes a `reason`, one of `spam`, `harassment`, `unsafe` or `other`, and optional `details` of up to 500 characters, and answers `204`. Reporting doesn't hide the commit. Only someone else's published commit can be reported: the user's own is a `403` with `own_commit`, and one that is pending, rejected, deleted, missing or across a block is a `404` with `commit_unavailable`. Reporting a commit again also answers `204` and keeps the first report. Each user can send 5 reports a minute.
 
 `GET /api/v1/me` also has what only the user sees in the web's profile settings: `preferred_lane` (a lane, a custom `#rrggbb` color, or `null` for Automatic), the `automatic_lane` Automatic picks for them, their `sponsors_url` (or `null`), and `github_synced_at`, when their profile was last synced from GitHub (`null` if it only was when they signed in). `PUT /api/v1/me/github` syncs it from GitHub again, like Sync from GitHub on the web, and shares its limit of one sync a minute. `PUT /api/v1/me/lane` saves their color, with a `lane` from `0` to `5`, or `null` for Automatic, or a custom `color` as lowercase `#rrggbb` with a `null` lane, as the web's color picker does. Both answer like `GET /api/v1/me`.
 
@@ -151,13 +159,15 @@ An error is JSON with a `message` to show the user. The errors the app has to te
 | `400` | `invalid_grant` | `POST /api/v1/devices` only: the code is wrong, expired or used, was handed out for another key, or the verifier doesn't match. |
 | `401` | `invalid_signature` | The signature is missing, malformed or wrong, has expired, or was used already. |
 | `401` | `device_not_approved` | Nobody approved the key as a device, or it was revoked. |
-| `403` | `user_blocked` | The user blocked the profile they asked for. Neither of them sees the other's commits. |
+| `403` | `user_blocked` | The user blocked the profile they asked for. Neither of them sees the other's commits. The error comes with the `user` they blocked, as the web shows them. |
 | `403` | `user_unavailable` | The profile isn't available to the user, because it blocked them. |
+| `403` | `own_commit` | The user tried to report their own commit. |
+| `404` | `commit_unavailable` | The commit to report doesn't exist, was deleted, isn't published, or is across a block. |
 | `422` | `pasteis_exhausted` | `POST /api/v1/commits/{id}/pasteis` only: the user gave all 10 of today's pastéis. They come back at 00:00 UTC. |
-| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, 30 follows and unfollows a minute, 60 stars and unstars a minute, 60 saves and unsaves a minute, 60 pastéis a minute, one profile sync a minute, or 60 failed signatures a minute from one IP. `Retry-After` says when to try again. |
+| `429` | `rate_limited` | Over 120 signed requests a minute for the user, 10 commits a minute, 30 follows and unfollows a minute, 60 stars and unstars a minute, 60 saves and unsaves a minute, 5 reports a minute, 60 pastéis a minute, one profile sync a minute, or 60 failed signatures a minute from one IP. `Retry-After` says when to try again. |
 | `503` | `github_sync_failed` | `PUT /api/v1/me/github` only: GitHub couldn't be reached, or didn't answer as expected. Nothing changed. |
 
-Other errors have no `code`, like a `422` for a commit that fails validation or a `404` for one that doesn't exist. Unsigned requests to the public endpoints get the same errors as before, without codes.
+Other errors have no `code`, like a `422` for a commit that fails validation or a `404` for a commit that doesn't exist, except when reporting it. Unsigned requests to the public endpoints get the same errors as before, without codes.
 
 ### Signing in
 
