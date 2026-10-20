@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Enums\OrgEvent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageImage;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 
 it('adds people with or without the history', function (bool $sharesHistory, int $visible): void {
     $mark = User::factory()->create();
@@ -68,6 +70,24 @@ it('hands the org to the longest-standing member when the last maintainer leaves
     $this->actingAs($nuno)->deleteJson(route('org-member.destroy', [$org, $nuno]))->assertNoContent();
 
     expect(Conversation::query()->find($org))->toBeNull();
+});
+
+it('erases the images of an org nobody is left in', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    $image = MessageImage::factory()->for(Message::factory()->for($nuno)->create(['conversation_id' => $org]))->create();
+    $elsewhere = MessageImage::factory()->create();
+    Storage::disk()->put($image->path, 'image');
+    Storage::disk()->put($elsewhere->path, 'image');
+
+    $this->actingAs($nuno)->deleteJson(route('org-member.destroy', [$org, $nuno]))->assertNoContent();
+    $this->actingAs($mark)->deleteJson(route('org-member.destroy', [$org, $mark]))->assertNoContent();
+
+    expect(Conversation::query()->find($org))->toBeNull()
+        ->and(Storage::disk()->allFiles('message-images'))->toBe([$elsewhere->path]);
 });
 
 it('promotes and demotes, keeping at least one maintainer', function (): void {

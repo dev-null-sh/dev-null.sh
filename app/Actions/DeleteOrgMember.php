@@ -8,8 +8,10 @@ use App\Enums\OrgEvent;
 use App\Enums\OrgRole;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
+use App\Models\MessageImage;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteOrgMember
 {
@@ -20,19 +22,26 @@ final readonly class DeleteOrgMember
 
     /**
      * Removes a member, or lets them leave. They lose access to the org. When the last maintainer goes, the
-     * longest-standing member takes over, and an org nobody is left in is deleted.
+     * longest-standing member takes over, and an org nobody is left in is deleted. The database cascades its messages
+     * and their image rows, but the image files are erased here.
      */
     public function handle(User $actor, Conversation $org, User $member): void
     {
-        DB::transaction(function () use ($actor, $org, $member): void {
+        $imagePaths = DB::transaction(function () use ($actor, $org, $member): array {
             ConversationParticipant::query()->where('conversation_id', $org->id)->where('user_id', $member->id)->delete();
 
             $remaining = $org->participants()->with('user')->oldest('id')->get();
 
             if ($remaining->isEmpty()) {
+                $imagePaths = MessageImage::query()
+                    ->whereIn('message_id', $org->messages()->select('id'))
+                    ->get(['path'])
+                    ->map(fn (MessageImage $image): string => $image->path)
+                    ->all();
+
                 $org->delete();
 
-                return;
+                return $imagePaths;
             }
 
             $actor->is($member)
@@ -45,6 +54,10 @@ final readonly class DeleteOrgMember
 
                 $this->createConversationEvent->handle($heir->user, $org, OrgEvent::Inherited);
             }
+
+            return [];
         });
+
+        Storage::disk()->delete($imagePaths);
     }
 }
