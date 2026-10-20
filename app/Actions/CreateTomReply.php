@@ -12,6 +12,7 @@ use App\Queries\TomQuery;
 use App\Services\TomToolDecision;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Laravel\Ai\Contracts\Tool;
 use RuntimeException;
 
 final readonly class CreateTomReply
@@ -41,7 +42,13 @@ final readonly class CreateTomReply
 
         $history = new Tom($commit)->messages();
         $tools = $this->toolDecision->decide($commit->body, $history);
-        $body = mb_trim(new Tom($commit, $tools)->prompt($commit->body)->text);
+        $response = new Tom($commit, $tools)->prompt($commit->body);
+
+        if ($tools->contains(fn (Tool $tool): bool => $response->toolResults->doesntContain('name', class_basename($tool)))) {
+            throw new RuntimeException('Tom did not execute a selected tool.');
+        }
+
+        $body = mb_trim($response->text);
 
         if ($body === '') {
             throw new RuntimeException('Tom returned an empty reply.');

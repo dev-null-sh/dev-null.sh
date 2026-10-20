@@ -167,6 +167,34 @@ it('uses public thread context for the decision and falls back to chat when no t
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.github.com') || str_contains($request->url(), '/embeddings'));
 });
 
+it('does not publish progress text when the provider ignores a selected tool', function (): void {
+    config(['ai.providers.openai.key' => 'test-openai', 'ai.providers.opencode.key' => 'test-opencode']);
+    Queue::fake([EmbedCommit::class, ModerateCommit::class, ReplyAsTom::class]);
+    resolve(Features::class)->update(Feature::Translations, false);
+    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $root = Commit::factory()->create(['body' => 'What are pastels here?']);
+    $answer = Commit::factory()->for($root, 'parent')->for($tom)->create(['body' => 'Pastels are pale colors.']);
+    $question = Commit::factory()->for($answer, 'parent')->create(['body' => 'I MEANT PASTEIS, TOM']);
+    Http::fake([
+        'api.openai.com/v1/decisions' => Http::response(['answers' => [
+            ['name' => 'SearchKnowledgeBase', 'type' => 'predicate', 'probability' => 1],
+        ]]),
+        'opencode.ai/zen/v1/chat/completions' => Http::response([
+            'choices' => [['finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'Let me check. Searching now.']]],
+        ]),
+    ]);
+
+    expect(fn () => resolve(CreateTomReply::class)->handle($question->id))
+        ->toThrow(RuntimeException::class, 'Tom did not execute a selected tool.');
+
+    expect($question->replies()->count())->toBe(0);
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'
+        && str_contains($request['input'], $root->body)
+        && str_contains($request['input'], $question->body));
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://opencode.ai/zen/v1/chat/completions'
+        && ($request['tool_choice']['function']['name'] ?? null) === 'SearchKnowledgeBase');
+});
+
 it('selects only known affirmative predicates at or above the probability threshold', function (): void {
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => [
         ['name' => 'CommunityStats', 'type' => 'predicate', 'probability' => 0.5],
