@@ -1,5 +1,6 @@
+import { Link } from '@inertiajs/react';
 import { ArrowUpRight } from 'lucide-react';
-import type { Ref } from 'react';
+import type { ReactNode, Ref } from 'react';
 import type { ChangelogAuthor, ChangelogPullRequest } from '@/lib/changelog';
 import { authorLane } from '@/lib/changelog';
 import {
@@ -8,6 +9,7 @@ import {
     formatRelativeTime,
     laneColor,
 } from '@/lib/utils';
+import { show } from '@/routes/user';
 
 export function changelogLaneColor(author: ChangelogAuthor): string {
     return laneColor(authorLane(author));
@@ -41,6 +43,43 @@ export function ChangelogAvatar({
             loading="lazy"
             className={cn('shrink-0 rounded-full bg-muted', className)}
         />
+    );
+}
+
+/**
+ * An author's /dev/null profile, or their GitHub profile when they aren't on /dev/null.
+ */
+export function ChangelogAuthorLink({
+    author,
+    className,
+    children,
+}: {
+    author: ChangelogAuthor;
+    className?: string;
+    children: ReactNode;
+}) {
+    if (author.username !== null) {
+        return (
+            <Link
+                href={show({ username: author.username })}
+                aria-label={`@${author.login} on /dev/null`}
+                className={className}
+            >
+                {children}
+            </Link>
+        );
+    }
+
+    return (
+        <a
+            href={`https://github.com/${author.login}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`@${author.login} on GitHub (opens in a new tab)`}
+            className={className}
+        >
+            {children}
+        </a>
     );
 }
 
@@ -163,17 +202,22 @@ export function ChangelogLane({
                             </div>
                             {!isCompact && (
                                 <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
-                                    <ChangelogAvatar
-                                        login={pullRequest.author.login}
-                                        avatar={pullRequest.author.avatar}
-                                        size={16}
-                                    />
-                                    <span
-                                        title={`@${pullRequest.author.login}`}
-                                        className="max-w-36 truncate"
+                                    <ChangelogAuthorLink
+                                        author={pullRequest.author}
+                                        className="flex min-w-0 items-center gap-1.5 rounded-sm transition-colors hover:text-foreground"
                                     >
-                                        @{pullRequest.author.login}
-                                    </span>
+                                        <ChangelogAvatar
+                                            login={pullRequest.author.login}
+                                            avatar={pullRequest.author.avatar}
+                                            size={16}
+                                        />
+                                        <span
+                                            title={`@${pullRequest.author.login}`}
+                                            className="max-w-36 truncate"
+                                        >
+                                            @{pullRequest.author.login}
+                                        </span>
+                                    </ChangelogAuthorLink>
                                     <span aria-hidden>·</span>
                                     <time
                                         dateTime={pullRequest.merged_at}

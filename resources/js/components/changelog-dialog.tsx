@@ -1,7 +1,9 @@
+import { router } from '@inertiajs/react';
 import { ExternalLink } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
+    ChangelogAuthorLink,
     ChangelogAvatar,
     ChangelogLane,
     changelogLaneColor,
@@ -72,11 +74,16 @@ function DaySection({
                                 boxShadow: `0 0 0 1.5px ${changelogLaneColor(author)}`,
                             }}
                         >
-                            <ChangelogAvatar
-                                login={author.login}
-                                avatar={author.avatar}
-                                size={20}
-                            />
+                            <ChangelogAuthorLink
+                                author={author}
+                                className="flex rounded-full"
+                            >
+                                <ChangelogAvatar
+                                    login={author.login}
+                                    avatar={author.avatar}
+                                    size={20}
+                                />
+                            </ChangelogAuthorLink>
                         </li>
                     ))}
                 </ul>
@@ -168,6 +175,15 @@ export function ChangelogDialog({
     onLoadOlder: (onLoaded: (added: ChangelogPullRequest[]) => void) => void;
     timeZone: string;
 }) {
+    // An author's profile opens behind the dialog, so it closes to show it.
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        return router.on('start', () => onOpenChange(false));
+    }, [open, onOpenChange]);
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 overflow-hidden bg-popover p-0 sm:max-w-2xl">
