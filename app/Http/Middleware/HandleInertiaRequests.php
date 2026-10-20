@@ -101,7 +101,7 @@ final class HandleInertiaRequests extends Middleware
                     $user,
                     round: max(0, (int) $request->cookie('who_to_follow_round')),
                     spares: 3,
-                ))->once(),
+                ))->once()->merge()->matchOn('id'),
             ] : [],
         ];
     }

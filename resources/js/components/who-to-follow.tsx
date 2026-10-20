@@ -22,7 +22,8 @@ import {
 } from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
-import { useWhoToFollow } from '@/hooks/use-who-to-follow';
+import { useSharedState } from '@/hooks/use-shared-state';
+import { currentRound, useWhoToFollow } from '@/hooks/use-who-to-follow';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { edit } from '@/routes/appearance';
@@ -106,7 +107,8 @@ function DismissButton({
  * The aside is too narrow to share a line with the button, so there the bio and reason go below on their own lines.
  *
  * With onDismiss, the row gets small follow and dismiss icons instead of the full follow button. onDismiss returns
- * whether someone takes the row's place; otherwise the row collapses before onDismissed removes it.
+ * whether someone takes the row's place; otherwise the row folds away. A failed dismissal opens it back up. These rows
+ * keep room for both lines below the name, so someone without a bio taking a slot doesn't move the rows under it.
  */
 export function SuggestedUserRow({
     user,
@@ -114,14 +116,12 @@ export function SuggestedUserRow({
     className,
     buttonClassName,
     onDismiss,
-    onDismissed,
 }: {
     user: SuggestedUser;
     isStacked?: boolean;
     className?: string;
     buttonClassName?: string;
-    onDismiss?: () => boolean;
-    onDismissed?: () => void;
+    onDismiss?: (onFailed: () => void) => boolean;
 }) {
     const reason = reasonFor(user);
     const bio = user.bio?.trim() || null;
@@ -157,10 +157,6 @@ export function SuggestedUserRow({
                     event.propertyName === 'grid-template-rows'
                 ) {
                     setIsGone(true);
-
-                    if (isDismissed) {
-                        onDismissed?.();
-                    }
                 }
             }}
         >
@@ -197,7 +193,15 @@ export function SuggestedUserRow({
                                         @{user.username}
                                     </span>
                                 </span>
-                                {!isStacked && details}
+                                {!isStacked && (
+                                    <span
+                                        className={cn('block', {
+                                            'min-h-8': onDismiss,
+                                        })}
+                                    >
+                                        {details}
+                                    </span>
+                                )}
                             </span>
                         </Link>
                     </UserPreview>
@@ -213,7 +217,8 @@ export function SuggestedUserRow({
                             <DismissButton
                                 user={user}
                                 onDismiss={() =>
-                                    onDismiss() || setIsDismissed(true)
+                                    onDismiss(() => setIsDismissed(false)) ||
+                                    setIsDismissed(true)
                                 }
                             />
                         </div>
@@ -354,7 +359,7 @@ function useHideWhoToFollow() {
     const { showsWhoToFollow, suggestedUsers } = usePage().props;
     const { rememberShowsWhoToFollow } = useWhoToFollow();
     const [isHidden, setIsHidden] = useState(false);
-    const { isEmptied, dismiss, remove } = useDismissSuggestion();
+    const { hasDismissed, isEmptied, dismiss } = useDismissSuggestion();
 
     const toggle = (hides: boolean) => {
         rememberShowsWhoToFollow(!hides);
@@ -363,66 +368,211 @@ function useHideWhoToFollow() {
 
     return {
         isVisible:
-            showsWhoToFollow && (suggestedUsers?.length !== 0 || isEmptied),
+            showsWhoToFollow && (suggestedUsers?.length !== 0 || hasDismissed),
         isHidden,
         isEmptied,
         hide: () => toggle(true),
         undo: () => toggle(false),
         suggestedUsers: suggestedUsers?.slice(0, shownSuggestionsCount),
         dismiss,
-        remove,
     };
 }
 
+type TopUp = 'idle' | 'running' | 'queued';
+
+const dismissedIds = new Set<SuggestedUser['id']>();
+
 /**
  * The server sends a few spare suggestions after the shown ones, so a dismissed person's slot is taken by the next
- * spare right away while everyone else stays put. Once nobody is left, the block says so until the next page load,
- * which leaves it out like any other time there's nobody to suggest.
+ * spare right away while everyone else stays put. Once every dismissal is through, the spares are topped up from the
+ * server, which only adds people after the ones already here. A dismissal that fails puts the person back in their
+ * slot, unless a refresh has moved on to other people since.
+ *
+ * A top-up can be answered before someone else's dismissal is saved, so everyone dismissed since the page loaded is
+ * taken out again when it lands, and the next top-up follows. Visiting another page cancels a top-up, so it is sent
+ * again once that page is shown.
+ *
+ * The aside and the log share this state, so both say nobody is left once a top-up finds nobody else, until the next
+ * page load leaves the block out like any other time there's nobody to suggest.
  */
 function useDismissSuggestion() {
     const { suggestedUsers = [] } = usePage().props;
-    const [isEmptied, setIsEmptied] = useState(false);
+    const [dismissingCount, setDismissingCount] = useSharedState<number>(
+        'who-to-follow-dismissing',
+        0,
+    );
+    const [topUp, setTopUp] = useSharedState<TopUp>(
+        'who-to-follow-top-up',
+        'idle',
+    );
+    const [hasDismissed, setHasDismissed] = useSharedState<boolean>(
+        'who-to-follow-dismissed',
+        false,
+    );
 
-    const remove = (user: SuggestedUser): void => {
+    const remove = (user: Pick<SuggestedUser, 'id'>): void => {
         router.replaceProp('suggestedUsers', (current: SuggestedUser[]) => {
-            const [spare, ...spares] = current.slice(shownSuggestionsCount);
-            const remaining = [
-                ...current
-                    .slice(0, shownSuggestionsCount)
-                    .flatMap((shown) =>
-                        shown.id !== user.id ? [shown] : spare ? [spare] : [],
-                    ),
-                ...spares,
-            ];
+            const slot = current.findIndex(
+                (suggested) => suggested.id === user.id,
+            );
 
-            if (remaining.length === 0) {
-                setIsEmptied(true);
+            if (slot === -1) {
+                return current;
             }
+
+            const remaining = [...current];
+            const spare =
+                slot < shownSuggestionsCount
+                    ? remaining.splice(shownSuggestionsCount, 1)
+                    : [];
+            remaining.splice(slot, 1, ...spare);
 
             return remaining;
         });
     };
 
-    const dismiss = (user: SuggestedUser): boolean => {
+    /**
+     * Whoever holds the slot now came from the spares, unless they were already shown, so they go back to the front.
+     */
+    const restore = (
+        user: SuggestedUser,
+        slot: number,
+        shownIds: SuggestedUser['id'][],
+    ): void => {
+        router.replaceProp('suggestedUsers', (current: SuggestedUser[]) => {
+            if (current.some((suggested) => suggested.id === user.id)) {
+                return current;
+            }
+
+            const restored = [...current];
+            const holder = restored.at(slot);
+
+            if (holder && !shownIds.includes(holder.id)) {
+                restored.splice(slot, 1, user);
+                restored.splice(shownSuggestionsCount, 0, holder);
+            } else {
+                restored.splice(slot, 0, user);
+            }
+
+            return restored;
+        });
+    };
+
+    const sendTopUp = (): void => {
+        let isApplied = false;
+
+        setTopUp('running');
+        router.reload({
+            only: ['suggestedUsers'],
+            async: true,
+            onBeforeUpdate: () => {
+                isApplied = true;
+            },
+            onSuccess: () => dismissedIds.forEach((id) => remove({ id })),
+            onFinish: () => {
+                if (!isApplied) {
+                    const stop = router.on('navigate', () => {
+                        stop();
+                        sendTopUp();
+                    });
+
+                    return;
+                }
+
+                // The shared setter runs its update at once, so what it saw can be read right after.
+                let wasQueued = false;
+                setTopUp((current) => {
+                    wasQueued = current === 'queued';
+
+                    return 'idle';
+                });
+
+                if (wasQueued) {
+                    sendTopUp();
+                }
+            },
+        });
+    };
+
+    const settle = (): void => {
+        let left = 0;
+        setDismissingCount((count) => (left = count - 1));
+
+        if (left > 0) {
+            return;
+        }
+
+        let isRunning = false;
+        setTopUp((current) => {
+            isRunning = current !== 'idle';
+
+            return isRunning ? 'queued' : current;
+        });
+
+        if (!isRunning) {
+            sendTopUp();
+        }
+    };
+
+    const dismiss = (user: SuggestedUser, onFailed: () => void): boolean => {
+        const shownIds = suggestedUsers
+            .slice(0, shownSuggestionsCount)
+            .map((suggested) => suggested.id);
+        const slot = shownIds.indexOf(user.id);
+        const round = currentRound();
+        const hasSpare = suggestedUsers.length > shownSuggestionsCount;
+        let isSaved = false;
+
+        dismissedIds.add(user.id);
+        setHasDismissed(true);
+        setDismissingCount((count) => count + 1);
         router.visit(SuggestionDismissalController.store(user), {
             only: ['auth'],
             preserveState: true,
             preserveScroll: true,
             async: true,
             onHttpException: (response) => !toastWhenThrottled(response),
-            onSuccess: () => router.flushAll(),
-        });
+            onSuccess: () => {
+                isSaved = true;
+                router.flushAll();
+            },
+            onFinish: () => {
+                if (!isSaved) {
+                    dismissedIds.delete(user.id);
+                    onFailed();
 
-        const hasSpare = suggestedUsers.length > shownSuggestionsCount;
+                    if (currentRound() === round) {
+                        restore(user, slot, shownIds);
+                    }
+                }
+
+                settle();
+            },
+        });
 
         if (hasSpare) {
             remove(user);
+        } else {
+            // Taken out after the row has folded away, even if the block it was dismissed from is no longer shown.
+            window.setTimeout(() => {
+                if (dismissedIds.has(user.id)) {
+                    remove(user);
+                }
+            }, 300);
         }
 
         return hasSpare;
     };
 
-    return { isEmptied, dismiss, remove };
+    return {
+        hasDismissed,
+        isEmptied:
+            hasDismissed &&
+            dismissingCount === 0 &&
+            topUp === 'idle' &&
+            suggestedUsers.length === 0,
+        dismiss,
+    };
 }
 
 function WhoToFollowEmptied() {
@@ -479,7 +629,6 @@ export function WhoToFollow() {
         undo,
         suggestedUsers,
         dismiss,
-        remove,
     } = useHideWhoToFollow();
 
     if (!isVisible) {
@@ -517,8 +666,9 @@ export function WhoToFollow() {
                                 key={user.id}
                                 user={user}
                                 isStacked
-                                onDismiss={() => dismiss(user)}
-                                onDismissed={() => remove(user)}
+                                onDismiss={(onFailed) =>
+                                    dismiss(user, onFailed)
+                                }
                             />
                         ))}
                     </Deferred>
@@ -540,7 +690,6 @@ export function WhoToFollowInLog() {
         undo,
         suggestedUsers,
         dismiss,
-        remove,
     } = useHideWhoToFollow();
 
     if (!isVisible) {
@@ -587,8 +736,9 @@ export function WhoToFollowInLog() {
                                     key={user.id}
                                     user={user}
                                     className="p-3"
-                                    onDismiss={() => dismiss(user)}
-                                    onDismissed={() => remove(user)}
+                                    onDismiss={(onFailed) =>
+                                        dismiss(user, onFailed)
+                                    }
                                 />
                             ))}
                         </Deferred>

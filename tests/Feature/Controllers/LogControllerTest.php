@@ -564,7 +564,9 @@ it('defers suggested users to follow', function (): void {
                 ->where('suggestedUsers.0.bio', $suggested->bio)
                 ->missing('suggestedUsers.0.email')));
 
-    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers')
+        ->and($response->viewData('page')['mergeProps'] ?? [])->toContain('suggestedUsers')
+        ->and($response->viewData('page')['matchPropsOn'] ?? [])->toContain('suggestedUsers.id');
 });
 
 it('keeps the suggested users the client already loaded when navigating', function (): void {
