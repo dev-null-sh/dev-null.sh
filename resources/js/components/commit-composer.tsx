@@ -580,6 +580,7 @@ export function CommitComposer({
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(body);
+    const isPosting = useRef(false);
 
     const hasImages = attachments.images.length > 0;
     const isCommittable =
@@ -638,10 +639,17 @@ export function CommitComposer({
                 ? ScheduledCommitController.store.form()
                 : CommitController.store.form())}
             onBefore={() =>
+                !isPosting.current &&
                 !attachments.isReading() &&
                 issue.command === null &&
                 secrets.beforeSubmit()
             }
+            onStart={() => {
+                isPosting.current = true;
+            }}
+            onFinish={() => {
+                isPosting.current = false;
+            }}
             transform={(data) => ({
                 ...data,
                 ...(hasImages && {
