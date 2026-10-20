@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Exceptions\ApiException;
-use App\Http\Controllers\Api\BookmarkController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitReplyController;
@@ -14,6 +13,7 @@ use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\SavedCommitController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
@@ -104,13 +104,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-commit-pastel.store');
 
         // Private saved commits...
-        Route::get('saved', [BookmarkController::class, 'index'])->name('api-bookmark.index');
-        Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])
-            ->middleware('throttle:bookmarks')
-            ->name('api-bookmark.store');
-        Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])
-            ->middleware('throttle:bookmarks')
-            ->name('api-bookmark.destroy');
+        Route::get('saved', SavedCommitController::class)->name('api-saved.index');
 
         // Commit Star...
         Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])

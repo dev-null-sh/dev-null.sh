@@ -46,7 +46,7 @@ export function CommitFeed({
     const page = usePage();
     const { dimsLanes } = page.props;
     const isModeration = page.component === 'moderation/show';
-    const isSaved = page.component === 'bookmark/index';
+    const isSaved = page.component === 'saved/index';
     const profileUserId =
         page.component === 'user/show'
             ? (page.props.user as { id: string }).id
@@ -142,7 +142,7 @@ export function CommitFeed({
                 if (restored) {
                     const belongsInFeed =
                         (isSaved
-                            ? restored.is_saved === true
+                            ? restored.starred === true
                             : isProfileReplies
                               ? restored.parent_id !== null
                               : restored.parent_id === null) &&

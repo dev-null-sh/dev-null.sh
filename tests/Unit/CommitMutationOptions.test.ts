@@ -77,15 +77,23 @@ void test('restores a ranked row by score without reordering already loaded rows
     assert.deepEqual(restoreFeedCommit(updated, restored, 'ranked'), updated);
 });
 
-void test('restores a latest row by creation time and a saved row by bookmark order', () => {
+void test('restores a latest row by creation time and a saved row by star time', () => {
     const rows = [
-        { id: 'newest', created_at: '2026-10-16', saved_order: 4 },
-        { id: 'oldest', created_at: '2026-10-14', saved_order: 2 },
+        {
+            id: 'newest',
+            created_at: '2026-10-16',
+            saved_order: '2026-10-16 10:00:00',
+        },
+        {
+            id: 'oldest',
+            created_at: '2026-10-14',
+            saved_order: '2026-10-14 10:00:00',
+        },
     ] as Commit[];
     const restored = {
         id: 'restored',
         created_at: '2026-10-15',
-        saved_order: 5,
+        saved_order: '2026-10-17 10:00:00',
     } as Commit;
     assert.deepEqual(
         restoreFeedCommit(rows, restored, 'latest').map((row) => row.id),

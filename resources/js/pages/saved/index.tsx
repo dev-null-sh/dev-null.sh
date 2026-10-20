@@ -2,8 +2,8 @@ import { Head, Link, router } from '@inertiajs/react';
 import { LockKeyhole } from 'lucide-react';
 import { useRef } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
-import { BookmarkRemovalContext } from '@/components/bookmark-button';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { SavedRemovalContext } from '@/components/saved-removal-context';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import AppLayout from '@/layouts/app-layout';
 import type { Commit, CursorPaginated } from '@/types';
@@ -60,17 +60,16 @@ export default function Index({
             </header>
 
             <p className="border-b px-4 py-3 text-sm text-muted-foreground sm:px-6">
-                Commits you want to come back to. Most recently saved first.
+                Commits you starred, newest first.
             </p>
 
-            <BookmarkRemovalContext value={remove}>
+            <SavedRemovalContext value={remove}>
                 <CommitFeed
                     commits={commits}
                     end="You've reached the end of your saved commits."
                     empty={
                         <EmptyFeed command="fatal: no saved commits yet">
-                            Save a commit to find it here. Your saved commits
-                            are private.
+                            Star a commit to find it here.
                             <Link
                                 href={LogController.show('trending')}
                                 className="mt-3 block text-primary hover:underline"
@@ -80,7 +79,7 @@ export default function Index({
                         </EmptyFeed>
                     }
                 />
-            </BookmarkRemovalContext>
+            </SavedRemovalContext>
         </>
     );
 }

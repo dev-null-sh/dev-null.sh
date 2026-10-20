@@ -2,7 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     Activity,
     Bell,
-    Bookmark,
+    Star,
     GitCommitVertical,
     History,
     MessagesSquare,
@@ -16,12 +16,12 @@ import {
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
-import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
+import SavedCommitController from '@/actions/App/Http/Controllers/SavedCommitController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
@@ -104,8 +104,8 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
         },
         {
             title: 'Saved',
-            href: hrefFor(() => BookmarkController.index()),
-            icon: Bookmark,
+            href: hrefFor(() => SavedCommitController()),
+            icon: Star,
             prefetch: false,
         },
         ...(auth.isAdmin

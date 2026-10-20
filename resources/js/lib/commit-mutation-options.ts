@@ -43,7 +43,10 @@ export function restoreFeedCommit(
     );
     const compare = (a: Commit, b: Commit) => {
         if (order === 'saved') {
-            return (b.saved_order ?? 0) - (a.saved_order ?? 0);
+            return (
+                (b.saved_order ?? '').localeCompare(a.saved_order ?? '') ||
+                b.id.localeCompare(a.id)
+            );
         }
         if (order === 'ranked') {
             return b.hot_score - a.hot_score || b.id.localeCompare(a.id);
