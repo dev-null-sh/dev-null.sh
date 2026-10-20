@@ -99,6 +99,30 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null]);
 });
 
+it('erases what deleted accounts wrote from the tombstones they already left', function (): void {
+    $mentioned = User::factory()->create();
+    $orphan = Commit::factory()->for(LinkPreview::factory())->create([
+        'user_id' => null,
+        'mentions' => [$mentioned->username => $mentioned->id],
+        'embedding' => embeddingVector(0),
+        'deleted_at' => now(),
+    ]);
+    $deleted = Commit::factory()->create(['deleted_at' => now()]);
+    $live = Commit::factory()->create();
+
+    $migration = require database_path('migrations/2026_10_20_092957_erase_the_body_of_orphaned_commits.php');
+    $migration->up();
+
+    $tombstone = Commit::withTrashed()->whereKey($orphan->id);
+
+    expect($tombstone->value('body'))->toBe('')
+        ->and($tombstone->value('mentions'))->toBeNull()
+        ->and($tombstone->value('embedding'))->toBeNull()
+        ->and($tombstone->value('link_preview_id'))->toBeNull()
+        ->and(Commit::withTrashed()->whereKey($deleted->id)->value('body'))->toBe($deleted->body)
+        ->and(Commit::withTrashed()->whereKey($live->id)->value('body'))->toBe($live->body);
+});
+
 it('erases the replies of a deleted user that only have their own replies under them', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->create();
