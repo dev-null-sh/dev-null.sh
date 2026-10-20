@@ -31,12 +31,12 @@ final readonly class ProductFunnelQuery
 
     /**
      * The funnel of the people who signed up in the range, bots left out, as defined in PRODUCT_METRICS.md: visitors
-     * not signed in, signups, activation, retention and referral, each with its rate and its change in percentage
+     * not signed in, signups, activation and retention, each with its rate and its change in percentage
      * points. Changes compare the last 7 days with the 7 before when the range is all time, or the range with as many
      * days before it otherwise, and are null until both periods are after the launch. Rates are fractions, null when
      * nothing counts.
      *
-     * @return array{visitors: int|null, signups: int, activated: int, activation_eligible: int, retained: int, retention_eligible: int, retention_horizon: int|null, retention_full_on: string|null, referral: array{members: int, team: int}|null, rates: array{conversion: float|null, activation: float|null, retention: float|null, referral: float|null}, changes: array{conversion: float|null, activation: float|null, retention: float|null, referral: float|null}}
+     * @return array{visitors: int|null, signups: int, activated: int, activation_eligible: int, retained: int, retention_eligible: int, retention_horizon: int|null, retention_full_on: string|null, rates: array{conversion: float|null, activation: float|null, retention: float|null}, changes: array{conversion: float|null, activation: float|null, retention: float|null}}
      */
     public function get(CarbonImmutable $from, CarbonImmutable $to, bool $isAllTime): array
     {
@@ -53,13 +53,11 @@ final readonly class ProductFunnelQuery
 
         $visitors = $this->traffic->eventVisitors($from, $to, self::GUEST_VISIT_EVENT);
         $activation = $this->activation($from, $to);
-        $referral = $this->referral($from, $to);
 
         $rates = [
             'conversion' => $this->conversion($from, $to, $visitors),
             'activation' => $this->rate($activation['activated'], $activation['eligible']),
             'retention' => $this->rate($retention['retained'], $retention['eligible']),
-            'referral' => $this->referralRate($referral),
         ];
 
         [$currentFrom, $currentTo, $previousFrom, $previousTo] = $isAllTime
@@ -79,7 +77,6 @@ final readonly class ProductFunnelQuery
                 'conversion' => $this->conversion($from, $to, $this->traffic->eventVisitors($from, $to, self::GUEST_VISIT_EVENT)),
                 'activation' => $this->rate($activation['activated'], $activation['eligible']),
                 'retention' => $retention === null ? null : $this->rate($retention['retained'], $retention['eligible']),
-                'referral' => $this->referralRate($this->referral($from, $to)),
             ];
         };
 
@@ -87,7 +84,7 @@ final readonly class ProductFunnelQuery
             ? [$isAllTime ? $ratesBetween($currentFrom, $currentTo) : $rates, $ratesBetween($previousFrom, $previousTo)]
             : null;
 
-        /** @param 'conversion'|'activation'|'retention'|'referral' $rate */
+        /** @param 'conversion'|'activation'|'retention' $rate */
         $change = fn (string $rate): ?float => $periods === null || $periods[0][$rate] === null || $periods[1][$rate] === null
             ? null
             : $periods[0][$rate] - $periods[1][$rate];
@@ -105,13 +102,11 @@ final readonly class ProductFunnelQuery
             'retention_eligible' => $retention['eligible'],
             'retention_horizon' => $horizon,
             'retention_full_on' => $horizon === 14 ? null : $this->retentionFullOn($from, $to, $trackedSince),
-            'referral' => $referral,
             'rates' => $rates,
             'changes' => [
                 'conversion' => $change('conversion'),
                 'activation' => $change('activation'),
                 'retention' => $change('retention'),
-                'referral' => $change('referral'),
             ],
         ];
     }
@@ -230,37 +225,6 @@ final readonly class ProductFunnelQuery
             ->min('created_at');
 
         return is_string($first) ? CarbonImmutable::parse($first)->startOfDay()->addDays(15)->toDateString() : null;
-    }
-
-    /**
-     * Visits from outside that started on a profile or a commit, split between the team's, the admins, and everyone
-     * else's, or null when Fathom has no answer, or when there are no admins to tell the team apart.
-     *
-     * @return array{members: int, team: int}|null
-     */
-    private function referral(CarbonImmutable $from, CarbonImmutable $to): ?array
-    {
-        /** @var list<string> $admins */
-        $admins = config('app.admins');
-
-        if ($admins === []) {
-            return null;
-        }
-
-        $team = implode('|', array_map(fn (string $username): string => preg_quote($username, '/'), $admins));
-
-        $content = $this->traffic->entries($from, $to, '^/@[^/]+(/commits/[^/]+)?/?$');
-        $teamContent = $this->traffic->entries($from, $to, "(?i)^/@({$team})(/commits/[^/]+)?/?$");
-
-        return $content === null || $teamContent === null ? null : ['members' => $content - $teamContent, 'team' => $teamContent];
-    }
-
-    /**
-     * @param  array{members: int, team: int}|null  $referral
-     */
-    private function referralRate(?array $referral): ?float
-    {
-        return $referral === null ? null : $this->rate($referral['members'], $referral['members'] + $referral['team']);
     }
 
     private function rate(int $count, ?int $total): ?float
