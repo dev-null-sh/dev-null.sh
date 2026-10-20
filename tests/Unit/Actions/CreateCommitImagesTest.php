@@ -83,6 +83,166 @@ it('applies the exif orientation of photos and drops their metadata', function (
     'turned anticlockwise' => [8, 100, 300, 'blue'],
 ]);
 
+/**
+ * A minimal display RGB profile: a valid 128-byte header over recognisable filler, so tests can tell
+ * whether the stored file carries these exact bytes.
+ */
+function imageColorProfile(int $bytes = 132): string
+{
+    $profile = str_repeat("\x00", $bytes);
+    $profile = substr_replace($profile, pack('N', $bytes), 0, 4);
+    $profile = substr_replace($profile, 'mntrRGB XYZ ', 12, 12);
+    $profile = substr_replace($profile, 'acsp', 36, 4);
+
+    return substr_replace($profile, 'devnull-test-profile', 100, 20);
+}
+
+function jpegWithColorProfile(string $profile): UploadedFile
+{
+    $source = imagecreatetruecolor(120, 80);
+    imagefilledrectangle($source, 0, 0, 119, 79, (int) imagecolorallocate($source, 255, 0, 0));
+
+    ob_start();
+    imagejpeg($source, null, 100);
+    $contents = (string) ob_get_clean();
+
+    $chunks = mb_str_split($profile, 65_000, '8bit');
+    $segments = '';
+
+    foreach ($chunks as $index => $chunk) {
+        $segment = "ICC_PROFILE\0".chr($index + 1).chr(count($chunks)).$chunk;
+        $segments .= "\xFF\xE2".pack('n', mb_strlen($segment, '8bit') + 2).$segment;
+    }
+
+    return UploadedFile::fake()->createWithContent('photo.jpg', substr_replace($contents, $segments, 2, 0));
+}
+
+function pngWithColorProfile(string $contents, bool $alpha = false): UploadedFile
+{
+    $source = imagecreatetruecolor(120, 80);
+    imagealphablending($source, false);
+    imagesavealpha($source, true);
+    $color = $alpha ? imagecolorallocatealpha($source, 255, 0, 0, 64) : imagecolorallocate($source, 255, 0, 0);
+    imagefilledrectangle($source, 0, 0, 119, 79, (int) $color);
+
+    ob_start();
+    imagepng($source);
+    $png = (string) ob_get_clean();
+
+    $data = "profile\0\0".$contents;
+    $chunk = pack('N', mb_strlen($data, '8bit')).'iCCP'.$data.pack('N', crc32('iCCP'.$data));
+
+    return UploadedFile::fake()->createWithContent('screenshot.png', substr_replace($png, $chunk, 33, 0));
+}
+
+function webpWithColorProfile(string $profile): UploadedFile
+{
+    $source = imagecreatetruecolor(120, 80);
+    imagefilledrectangle($source, 0, 0, 119, 79, (int) imagecolorallocate($source, 255, 0, 0));
+
+    ob_start();
+    imagewebp($source, null, 100);
+    $webp = (string) ob_get_clean();
+
+    $chunk = fn (string $type, string $data): string => $type.pack('V', mb_strlen($data, '8bit')).$data.(mb_strlen($data, '8bit') % 2 === 1 ? "\x00" : '');
+    $vp8x = "\x20\0\0\0".mb_substr(pack('V', 119), 0, 3, '8bit').mb_substr(pack('V', 79), 0, 3, '8bit');
+    $payload = 'WEBP'.$chunk('VP8X', $vp8x).$chunk('ICCP', $profile).mb_substr($webp, 12, null, '8bit');
+
+    return UploadedFile::fake()->createWithContent('image.webp', 'RIFF'.pack('V', mb_strlen($payload, '8bit')).$payload);
+}
+
+/**
+ * The color profile carried by the stored WebP, if any.
+ */
+function storedColorProfile(Commit $commit): ?string
+{
+    $stored = (string) Storage::disk()->get($commit->images()->sole()->path);
+    $offset = 12;
+
+    while ($offset + 8 <= mb_strlen($stored, '8bit')) {
+        $size = unpack('V', mb_substr($stored, $offset + 4, 4, '8bit'))[1];
+
+        if (mb_substr($stored, $offset, 4, '8bit') === 'ICCP') {
+            return mb_substr($stored, $offset + 8, $size, '8bit');
+        }
+
+        $offset += 8 + $size + $size % 2;
+    }
+
+    return null;
+}
+
+it('keeps the color profile of uploads so their colors are read as authored', function (callable $file): void {
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitImages::class)->handle($commit, [$file()]);
+
+    $image = $commit->images()->sole();
+    $stored = (string) Storage::disk()->get($image->path);
+
+    expect(storedColorProfile($commit))->toBe(imageColorProfile())
+        ->and($image->only(['width', 'height']))->toBe(['width' => 120, 'height' => 80])
+        ->and(getimagesizefromstring($stored)['mime'] ?? null)->toBe('image/webp')
+        ->and(imagecreatefromstring($stored))->not->toBeFalse();
+})->with([
+    'a jpeg profile' => [fn (): UploadedFile => jpegWithColorProfile(imageColorProfile())],
+    'a png profile' => [fn (): UploadedFile => pngWithColorProfile((string) gzcompress(imageColorProfile()))],
+    'the profile of a transparent png' => [fn (): UploadedFile => pngWithColorProfile((string) gzcompress(imageColorProfile()), alpha: true)],
+    'a webp profile' => [fn (): UploadedFile => webpWithColorProfile(imageColorProfile())],
+]);
+
+it('keeps a color profile too large for one jpeg segment', function (): void {
+    $profile = imageColorProfile(70_000);
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitImages::class)->handle($commit, [jpegWithColorProfile($profile)]);
+
+    expect(storedColorProfile($commit))->toBe($profile);
+});
+
+it('keeps a color profile of an odd length', function (): void {
+    $profile = imageColorProfile(129);
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitImages::class)->handle($commit, [jpegWithColorProfile($profile)]);
+
+    expect(storedColorProfile($commit))->toBe($profile);
+});
+
+it('drops a color profile that is not a plausible display profile', function (callable $mutate): void {
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitImages::class)->handle($commit, [jpegWithColorProfile($mutate(imageColorProfile()))]);
+
+    $stored = (string) Storage::disk()->get($commit->images()->sole()->path);
+
+    expect(storedColorProfile($commit))->toBeNull()
+        ->and($stored)->not->toContain('devnull-test-profile');
+})->with([
+    'a bad signature' => [fn (string $profile): string => substr_replace($profile, 'xxxx', 36, 4)],
+    'a declared size that does not match' => [fn (string $profile): string => substr_replace($profile, pack('N', 999), 0, 4)],
+    'a print profile' => [fn (string $profile): string => substr_replace($profile, 'prtr', 12, 4)],
+    'a non-rgb profile' => [fn (string $profile): string => substr_replace($profile, 'CMYK', 16, 4)],
+    'a truncated profile' => [fn (string $profile): string => mb_substr($profile, 0, 64, '8bit')],
+    'an oversized profile' => [fn (): string => imageColorProfile(1_048_577)],
+]);
+
+it('drops a png color profile that does not inflate', function (): void {
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitImages::class)->handle($commit, [pngWithColorProfile('not zlib at all')]);
+
+    expect(storedColorProfile($commit))->toBeNull();
+});
+
+it('leaves images without a color profile untagged', function (string $name): void {
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitImages::class)->handle($commit, [UploadedFile::fake()->image($name, 120, 80)]);
+
+    expect(storedColorProfile($commit))->toBeNull();
+})->with(['photo.jpg', 'screenshot.png', 'image.webp']);
+
 it('refuses images that cannot be decoded', function (): void {
     $contents = (string) UploadedFile::fake()->image('broken.png', 10, 10)->getContent();
 
