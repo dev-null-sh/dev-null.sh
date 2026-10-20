@@ -43,6 +43,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read string|null $translation_language
  * @property-read string|null $timezone
  * @property-read LivePlatform|null $live_platform
  * @property-read string|null $live_url
@@ -74,6 +75,7 @@ use Illuminate\Support\Facades\DB;
 #[Hidden([
     'github_id',
     'remember_token',
+    'translation_language',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
@@ -117,6 +119,7 @@ final class User extends Authenticatable
      */
     protected $attributes = [
         'log' => Log::Following->value,
+        'translation_language' => null,
         'pasteis_mode' => false,
         'remotes_enabled' => true,
         'remotes_from' => RemotesFrom::Following->value,
@@ -165,6 +168,7 @@ final class User extends Authenticatable
             'pasteis_given_on' => 'date',
             'pinned_commit_id' => 'string',
             'timezone' => 'string',
+            'translation_language' => 'encrypted',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',

@@ -279,7 +279,7 @@ export function AppNav({
     const iconsOnly = !(useMediaQuery('(min-width: 64rem)') && isLayoutOpen);
 
     return (
-        <header className="flex h-svh w-full scrollbar-none flex-col items-stretch overflow-x-hidden overflow-y-auto px-3.5 py-6 whitespace-nowrap">
+        <header className="flex h-full w-full flex-col items-stretch overflow-hidden px-3.5 py-6 whitespace-nowrap">
             <LogoMenu>
                 <Link
                     href={
@@ -288,7 +288,7 @@ export function AppNav({
                             : LogController.show(auth.log)
                     }
                     viewTransition
-                    className="mb-8 grid grid-rows-[36px_20px] gap-y-1 rounded-md px-3"
+                    className="mb-8 grid shrink-0 grid-rows-[36px_20px] gap-y-1 rounded-md px-3"
                     aria-label={
                         auth.log === null
                             ? '/dev/null, go to the home page'
@@ -303,7 +303,10 @@ export function AppNav({
                 </Link>
             </LogoMenu>
 
-            <nav aria-label="Main" className="flex flex-col gap-1">
+            <nav
+                aria-label="Main"
+                className="flex min-h-0 flex-1 scrollbar-none flex-col gap-1 overflow-y-auto [&>*]:shrink-0"
+            >
                 {items.map((item) => (
                     <NavLink
                         key={item.title}
@@ -409,11 +412,11 @@ export function AppNav({
             </nav>
 
             {auth.user === null ? (
-                <SignInButton className="mt-auto size-[52px] rounded-lg nav-wide:w-auto" />
+                <SignInButton className="mt-auto size-[52px] shrink-0 rounded-lg nav-wide:w-auto" />
             ) : (
                 <DropdownMenu>
                     <DropdownMenuTrigger
-                        className="mt-auto flex items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-accent data-[state=open]:bg-accent"
+                        className="mt-auto flex shrink-0 items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-accent data-[state=open]:bg-accent"
                         data-test="user-menu-button"
                     >
                         <UserAvatar user={auth.user} className="size-9" />

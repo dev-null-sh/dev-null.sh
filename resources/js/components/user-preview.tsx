@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import { BioText } from '@/components/bio-text';
 import {
     FollowLabel,
     onFollowHttpException,
@@ -468,7 +469,7 @@ function UserPreviewContent({
 
             {user.bio && !data?.isUnavailable && (
                 <p className="mt-2 line-clamp-3 text-sm text-pretty">
-                    {user.bio}
+                    <BioText bio={user.bio} />
                 </p>
             )}
 

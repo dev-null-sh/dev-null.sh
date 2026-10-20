@@ -702,3 +702,16 @@ test('picker clears its selection before a pending read finishes so the same fil
     reads.forEach((resolve) => resolve());
     await Promise.all([first, retry]);
 });
+
+test('ignores further submits while a commit is being posted', () => {
+    draft.body = 'A commit that is posted once';
+    draft.images = [];
+    draft.descriptions = [];
+    const { form } = render();
+
+    assert.equal(form.props.onBefore(), true);
+    form.props.onStart();
+    assert.equal(form.props.onBefore(), false);
+    form.props.onFinish();
+    assert.equal(form.props.onBefore(), true);
+});

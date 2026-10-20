@@ -9,6 +9,10 @@ export default defineConfig({
     },
     test: {
         include: [
+            'tests/Unit/CommitPhoto.test.tsx',
+            'tests/Unit/CommitSize.test.tsx',
+            'tests/Unit/ThreadHistory.test.tsx',
+            'tests/Unit/ThreadMutationHistory.test.tsx',
             'tests/Unit/ActivityCells.test.tsx',
             'tests/Unit/AuthorHover.test.tsx',
             'tests/Unit/FollowState.test.tsx',
@@ -25,6 +29,9 @@ export default defineConfig({
             'tests/Unit/TabSlide.test.tsx',
             'tests/Unit/ReportResolution.test.tsx',
             'tests/Unit/LinkifiedText.test.tsx',
+            'tests/Unit/StagedRail.test.tsx',
+            'tests/Unit/ComposerPreview.test.tsx',
+            'tests/Unit/UseNow.test.tsx',
         ],
     },
 });

@@ -1,11 +1,12 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
+import ChangelogController from '@/actions/App/Http/Controllers/ChangelogController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
-import { ChangelogPopover } from '@/components/changelog-popover';
+import { BioText } from '@/components/bio-text';
 import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -157,7 +158,7 @@ export function AppAside({
                     </dl>
                     {user.bio && (
                         <p className="mt-3 text-sm text-pretty text-muted-foreground">
-                            {user.bio}
+                            <BioText bio={user.bio} />
                         </p>
                     )}
                 </section>
@@ -186,7 +187,12 @@ export function AppAside({
                         Privacy
                     </Link>
                 </nav>
-                <ChangelogPopover />
+                <Link
+                    href={ChangelogController.index()}
+                    className="transition-colors hover:text-foreground"
+                >
+                    Changelog
+                </Link>
             </div>
 
             <button

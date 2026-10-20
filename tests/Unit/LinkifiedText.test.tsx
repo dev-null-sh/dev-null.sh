@@ -114,6 +114,23 @@ test('shortens the displayed preview link while retaining the full URL', () => {
     );
 });
 
+for (const [text, trailing] of [
+    // A feed excerpt ends with an ellipsis right after its last word.
+    ['7\nhttps://example.com/launch…', '…'],
+    ['He said “https://example.com/launch”.', '”.'],
+    ['‘https://example.com/launch’', '’'],
+]) {
+    test(`leaves an ellipsis or a curly quote out of the link: ${text}`, () => {
+        const markup = renderToStaticMarkup(
+            <LinkifiedText text={text} mentions={null} />,
+        );
+
+        assert.deepEqual(typedLinks(text), ['https://example.com/launch']);
+        assert.ok(markup.includes('href="https://example.com/launch"'));
+        assert.ok(markup.endsWith(`</a>${trailing}`));
+    });
+}
+
 test('keeps every distinct card URL in order without joining prose across code', () => {
     assert.deepEqual(
         typedLinks(

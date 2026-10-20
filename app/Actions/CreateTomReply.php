@@ -8,13 +8,14 @@ use App\Ai\Agents\Tom;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\TomQuery;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
 
 final readonly class CreateTomReply
 {
-    public function __construct(private CreateCommit $createCommit)
+    public function __construct(private CreateCommit $createCommit, private TomQuery $tomQuery)
     {
         //
     }
@@ -22,13 +23,14 @@ final readonly class CreateTomReply
     public function handle(string $commitId): void
     {
         $commit = Commit::query()->visibleTo(null)->with('user')->find($commitId);
-        $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->where('username', CreateTomFriendship::USERNAME)->first();
 
-        if (! $commit instanceof Commit || ! $tom instanceof User) {
+        if (! $commit instanceof Commit) {
             return;
         }
 
-        if (! $this->replyable($commit, $tom) || $commit->user?->is($tom) || ! $this->isAddressedToTom($commit, $tom)) {
+        $tom = $this->tomQuery->get();
+
+        if (! $tom instanceof User || ! $commit->isAddressedTo($tom) || ! $this->replyable($commit, $tom) || $commit->user?->is($tom)) {
             return;
         }
 
@@ -48,12 +50,6 @@ final readonly class CreateTomReply
 
             $this->createCommit->handle($tom, Str::limit($body, Commit::MAX_BODY_LENGTH - 3), parent: $current, linkPreview: false);
         });
-    }
-
-    private function isAddressedToTom(Commit $commit, User $tom): bool
-    {
-        return ($commit->mentions[CreateTomFriendship::USERNAME] ?? null) === $tom->id
-            || $commit->parent?->user_id === $tom->id;
     }
 
     /**

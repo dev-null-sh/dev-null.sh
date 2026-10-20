@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Commit;
 use App\Models\User;
 
 it('suggests the people the user follows without a term, most recently followed first', function (): void {
@@ -135,4 +136,200 @@ it('requires authentication', function (): void {
     $response = $this->getJson('/search/mentions?q=nuno');
 
     $response->assertUnauthorized();
+});
+
+it('ranks the direct recipient, root author, and nested contributors before ordinary matches', function (string $term): void {
+    $viewer = User::factory()->create();
+    $rootAuthor = User::factory()->create(['username' => 'zroot', 'name' => 'Match Root']);
+    $recipient = User::factory()->create(['username' => 'zrecipient', 'name' => 'Match Recipient']);
+    $contributor = User::factory()->create(['username' => 'zcontributor', 'name' => 'Match Contributor']);
+    $outsider = User::factory()->create(['username' => 'match', 'name' => 'Outsider']);
+    $viewer->following()->attach($outsider);
+    $root = Commit::factory()->for($rootAuthor)->create();
+    $reply = Commit::factory()->for($recipient)->create(['parent_id' => $root->id]);
+    Commit::factory()->for($contributor)->create(['parent_id' => $reply->id]);
+    Commit::factory()->for($contributor)->create(['parent_id' => $root->id]);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['q' => $term, 'reply' => $reply->id]))
+        ->assertOk()
+        ->assertJsonPath('users.*.id', [$recipient->id, $rootAuthor->id, $contributor->id, $outsider->id]);
+})->with(['', 'match']);
+
+it('ranks a root recipient once before contributors', function (): void {
+    $viewer = User::factory()->create();
+    $author = User::factory()->create(['username' => 'zroot']);
+    $contributor = User::factory()->create(['username' => 'acontributor']);
+    $root = Commit::factory()->for($author)->create();
+    Commit::factory()->for($contributor)->create(['parent_id' => $root->id]);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['reply' => $root->id]))
+        ->assertOk()
+        ->assertJsonPath('users.*.id', [$author->id, $contributor->id]);
+});
+
+it('uses ordinary matching when none of the thread participants match', function (): void {
+    $viewer = User::factory()->create(['username' => 'viewer', 'name' => 'Viewer']);
+    $root = Commit::factory()->for(User::factory()->create(['username' => 'abc', 'name' => 'ABC']))->create();
+    $match = User::factory()->create(['username' => 'ijk', 'name' => 'IJK']);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['q' => 'i', 'reply' => $root->id]))
+        ->assertOk()
+        ->assertJsonPath('users.*.id', [$match->id]);
+});
+
+it('prioritizes only the quoted author without looking up their thread contributors', function (string $term): void {
+    $viewer = User::factory()->create();
+    $author = User::factory()->create(['username' => 'zauthor', 'name' => 'Match Author']);
+    $contributor = User::factory()->create(['username' => 'acontributor', 'name' => 'Match Contributor']);
+    $followed = User::factory()->create(['username' => 'match', 'name' => 'Followed']);
+    $viewer->following()->attach($followed);
+    $root = Commit::factory()->for($author)->create();
+    Commit::factory()->for($contributor)->create(['parent_id' => $root->id]);
+
+    $response = $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['q' => $term, 'quote' => $root->id]))
+        ->assertOk();
+
+    $response->assertJsonPath('users.*.id', $term === ''
+        ? [$author->id, $followed->id]
+        : [$author->id, $followed->id, $contributor->id]);
+})->with(['', 'match']);
+
+it('does not promote authors of hidden replies or replies in other threads', function (): void {
+    $viewer = User::factory()->create();
+    $root = Commit::factory()->for($viewer)->create();
+    $hidden = User::factory()->count(4)->create();
+    Commit::factory()->for($hidden[0])->pending()->create(['parent_id' => $root->id]);
+    Commit::factory()->for($hidden[1])->rejected()->create(['parent_id' => $root->id]);
+    Commit::factory()->for($hidden[2])->create(['parent_id' => $root->id, 'deleted_at' => now()]);
+    Commit::factory()->for($hidden[3])->create(['parent_id' => Commit::factory()->create()->id]);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['reply' => $root->id]))
+        ->assertOk()
+        ->assertJsonCount(0, 'users');
+});
+
+it('keeps self, muted, and blocked participants out of contextual suggestions', function (string $context): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $blocked = User::factory()->create();
+    $blocker = User::factory()->create();
+    $root = Commit::factory()->for($viewer)->create();
+    foreach ([$muted, $blocked, $blocker] as $participant) {
+        Commit::factory()->for($participant)->create(['parent_id' => $root->id]);
+    }
+
+    $viewer->muting()->attach($muted);
+    $viewer->blocking()->attach($blocked);
+    $blocker->blocking()->attach($viewer);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', [$context => $root->id]))
+        ->assertOk()
+        ->assertJsonCount(0, 'users');
+})->with(['reply', 'quote']);
+
+it('does not prioritize the author of an unavailable root over visible contributors', function (): void {
+    $viewer = User::factory()->create();
+    $root = Commit::factory()->create(['deleted_at' => now()]);
+    $reply = Commit::factory()->create(['parent_id' => $root->id]);
+    $contributor = User::factory()->create();
+    Commit::factory()->for($contributor)->create(['parent_id' => $reply->id]);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['reply' => $reply->id]))
+        ->assertOk()
+        ->assertJsonPath('users.*.id', [$reply->user_id, $contributor->id]);
+});
+
+it('rejects inaccessible commit context with the generic unavailable message', function (string $context): void {
+    $viewer = User::factory()->create();
+    $hidden = Commit::factory()->pending()->create();
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', [$context => $hidden->id]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([$context => 'That commit is no longer available to reply to.']);
+})->with(['reply', 'quote']);
+
+it('rejects malformed commit context', function (string $context): void {
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('mention-suggestion.index', [$context => 'not-a-uuid']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors($context);
+})->with(['reply', 'quote']);
+
+it('rejects mixing reply and quote contexts', function (): void {
+    $root = Commit::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('mention-suggestion.index', ['reply' => $root->id, 'quote' => $root->id]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reply');
+});
+
+it('rejects mixing an org and commit context', function (string $context): void {
+    $viewer = User::factory()->create();
+    $org = createOrg($viewer, followersOf($viewer, 1));
+    $root = Commit::factory()->create();
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['org' => $org, $context => $root->id]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('org');
+})->with(['reply', 'quote']);
+
+it('keeps ordinary bare-at suggestions in recently followed order after the recipient', function (): void {
+    $viewer = User::factory()->create();
+    $root = Commit::factory()->create();
+    $older = User::factory()->create(['username' => 'aaa']);
+    $newer = User::factory()->create(['username' => 'zzz']);
+    $viewer->following()->attach($older, ['created_at' => now()->subMinute()]);
+    $viewer->following()->attach($newer, ['created_at' => now()]);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['reply' => $root->id]))
+        ->assertOk()
+        ->assertJsonPath('users.*.id', [$root->user_id, $newer->id, $older->id]);
+});
+
+it('applies thread priority before limiting the matching suggestions', function (): void {
+    $viewer = User::factory()->create();
+    $author = User::factory()->create(['username' => 'zdev', 'name' => 'Author']);
+    $root = Commit::factory()->for($author)->create();
+    User::factory()->count(8)->sequence(fn ($sequence): array => ['username' => "adev{$sequence->index}"])->create();
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['q' => 'dev', 'reply' => $root->id]))
+        ->assertOk()
+        ->assertJsonCount(6, 'users')
+        ->assertJsonPath('users.0.id', $author->id);
+});
+
+it('prioritizes the quoted reply author rather than the root author', function (): void {
+    $viewer = User::factory()->create();
+    $root = Commit::factory()->create();
+    $reply = Commit::factory()->create(['parent_id' => $root->id]);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['quote' => $reply->id]))
+        ->assertOk()
+        ->assertJsonPath('users.*.id', [$reply->user_id]);
+});
+
+it('uses the quote thread rather than the quoted thread when replying to a quote', function (): void {
+    $viewer = User::factory()->create();
+    $original = Commit::factory()->create();
+    Commit::factory()->create(['parent_id' => $original->id]);
+    $quote = Commit::factory()->create(['quoted_commit_id' => $original->id]);
+    $reply = Commit::factory()->create(['parent_id' => $quote->id]);
+
+    $this->actingAs($viewer)
+        ->getJson(route('mention-suggestion.index', ['reply' => $quote->id]))
+        ->assertOk()
+        ->assertJsonPath('users.*.id', [$quote->user_id, $reply->user_id]);
 });

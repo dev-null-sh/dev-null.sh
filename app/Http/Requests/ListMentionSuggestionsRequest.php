@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Enums\OrgRole;
+use App\Models\Commit;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Rules\VisibleCommit;
 use Illuminate\Auth\Access\Response;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class ListMentionSuggestionsRequest extends FormRequest
@@ -26,14 +29,29 @@ final class ListMentionSuggestionsRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, ValidationRule|string>>
      */
     public function rules(): array
     {
+        $user = $this->user();
+        assert($user instanceof User);
+
         return [
             'q' => ['nullable', 'string', 'max:100'],
-            'org' => ['nullable', 'uuid'],
+            'org' => ['nullable', 'uuid', 'prohibits:reply,quote'],
+            'reply' => ['bail', 'nullable', 'uuid', 'prohibits:quote', new VisibleCommit($user)],
+            'quote' => ['bail', 'nullable', 'uuid', new VisibleCommit($user)],
         ];
+    }
+
+    public function reply(): ?Commit
+    {
+        return $this->filled('reply') ? Commit::query()->find($this->string('reply')->value()) : null;
+    }
+
+    public function quote(): ?Commit
+    {
+        return $this->filled('quote') ? Commit::query()->find($this->string('quote')->value()) : null;
     }
 
     public function org(): ?Conversation

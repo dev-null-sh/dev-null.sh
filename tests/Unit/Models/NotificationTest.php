@@ -20,6 +20,9 @@ test('to array', function (): void {
             'updated_at',
             'reason',
             'subject_id',
+            'level',
+            'rank',
+            'rank_description',
         ]);
 });
 

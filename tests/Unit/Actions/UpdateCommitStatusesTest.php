@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateTomFriendship;
 use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
+use App\Jobs\CheckUserLevel;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\User;
@@ -34,7 +35,7 @@ it('queues direct replies to Tom in bulk without per-reply queries', function ()
     $queryCounts = collect([2, 6])->map(function (int $count) use ($tom): int {
         $parents = Commit::factory()->for($tom)->count($count)->create(['body' => 'A developer community.']);
         $replies = $parents->map(fn (Commit $parent): Commit => Commit::factory()->pending()->for($parent, 'parent')->create(['body' => 'Thanks for explaining!']));
-        Queue::fake([ReplyAsTom::class]);
+        Queue::fake([ReplyAsTom::class, CheckUserLevel::class]);
         DB::flushQueryLog();
         DB::enableQueryLog();
 

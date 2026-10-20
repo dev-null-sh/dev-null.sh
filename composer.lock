@@ -12196,12 +12196,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/Roave/SecurityAdvisories.git",
-                "reference": "1805b1da31c2d052eebd2516fdeeb6467c3671ea"
+                "reference": "0f55fdd9f5b320c8f353190683bedb6380511db4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/1805b1da31c2d052eebd2516fdeeb6467c3671ea",
-                "reference": "1805b1da31c2d052eebd2516fdeeb6467c3671ea",
+                "url": "https://api.github.com/repos/Roave/SecurityAdvisories/zipball/0f55fdd9f5b320c8f353190683bedb6380511db4",
+                "reference": "0f55fdd9f5b320c8f353190683bedb6380511db4",
                 "shasum": ""
             },
             "conflict": {
@@ -12492,7 +12492,7 @@
                 "feehi/feehicms": "<=2.1.1",
                 "fenom/fenom": "<=2.12.1",
                 "filament/actions": ">=3.2,<3.2.123|>=4,<=4.11.3|>=5,<=5.6.3",
-                "filament/filament": ">=3,<=3.3.51|>=4,<4.13.2|>=5,<5.8.2",
+                "filament/filament": ">=3,<=3.3.51|>=4,<=4.13.2|>=5,<=5.8.2",
                 "filament/forms": ">=3,<=3.3.52",
                 "filament/infolists": ">=3,<3.2.115|>=4,<=4.11.4|>=5,<=5.6.4",
                 "filament/tables": ">=3,<=3.3.50|>=4,<=4.11.4|>=5,<=5.6.4",
@@ -13347,7 +13347,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-10-19T12:15:12+00:00"
+            "time": "2026-10-19T23:20:11+00:00"
         },
         {
             "name": "sebastian/cli-parser",
