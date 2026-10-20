@@ -26,8 +26,7 @@ vi.doMock('react', () => ({
               : initial,
         (value: unknown) => stateChanges.push(value),
     ],
-    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) =>
-        read(),
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));
 vi.doMock('react-dom', async () => ({
     ...(await vi.importActual('react-dom')),
@@ -35,6 +34,10 @@ vi.doMock('react-dom', async () => ({
 }));
 
 const { GraphRail } = await import('../../resources/js/components/graph-rail');
+const { UserAvatar } =
+    await import('../../resources/js/components/user-avatar');
+const { ActorAvatar } =
+    await import('../../resources/js/pages/notification/index');
 const { UserPreview } =
     await import('../../resources/js/components/user-preview');
 const { SuggestedUserRow } =
@@ -210,3 +213,32 @@ test('suggested user row wraps the author in a user preview anchored to their av
     assert.ok(preview.props.anchor);
 });
 
+const actor = {
+    id: 'actor',
+    name: 'Actor',
+    username: 'actor',
+    avatar_url: null,
+    lane: 1,
+} as User;
+
+type ActorPreview = ReactElement<{
+    user: User;
+    anchor: React.RefObject<HTMLSpanElement | null>;
+    children: ReactElement<{
+        ref: React.RefObject<HTMLSpanElement | null>;
+        children: ReactElement<{ user: User }>;
+    }>;
+}>;
+
+test('notification actor avatar previews the actor around the avatar it anchors', () => {
+    const anchor = { current: null };
+    const preview = ActorAvatar({ user: actor, anchor }) as ActorPreview;
+    const avatar = preview.props.children;
+
+    assert.equal(preview.type, UserPreview);
+    assert.equal(preview.props.user, actor);
+    assert.equal(preview.props.anchor, anchor);
+    assert.equal(avatar.props.ref, anchor);
+    assert.equal(avatar.props.children.type, UserAvatar);
+    assert.equal(avatar.props.children.props.user, actor);
+});

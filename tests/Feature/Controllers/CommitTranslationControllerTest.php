@@ -465,3 +465,52 @@ it('physically prunes expired database translations without deleting fresh or un
         ->and(Cache::get('commit-translations:v1:fresh'))->toBe('fresh')
         ->and(Cache::get('unrelated'))->toBe('keep');
 });
+
+it('uses the saved target language instead of the browser language', function (): void {
+    $reader = User::factory()->create(['translation_language' => 'ja']);
+    $commit = Commit::factory()->create(['body' => 'Good morning']);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), [
+        'source_language' => 'en',
+        'translations' => ['ja' => 'おはようございます'],
+        'expires_at' => now()->addWeek()->getTimestamp(),
+    ], 604800);
+
+    $this->actingAs($reader)->withHeader('Accept-Language', 'en-US,en;q=0.9')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.language', 'ja')
+        ->where('commit.translation.available', true)
+        ->where('commit.translation.translated.body_segments.0.text', 'おはようございます'));
+});
+
+it('follows the browser language when the preference is unset', function (): void {
+    $reader = User::factory()->create(['translation_language' => null]);
+    $commit = Commit::factory()->create(['body' => 'Good morning']);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), [
+        'source_language' => 'en',
+        'translations' => [],
+        'expires_at' => now()->addWeek()->getTimestamp(),
+    ], 604800);
+
+    $this->actingAs($reader)->withHeader('Accept-Language', 'ja-JP,ja;q=0.9')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.language', 'ja')
+        ->where('commit.translation.available', true));
+});
+
+it('uses the saved preference to hide translation for matching source languages', function (): void {
+    $reader = User::factory()->create(['translation_language' => 'ja']);
+    $commit = Commit::factory()->create(['body' => 'おはようございます']);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), [
+        'source_language' => 'ja',
+        'translations' => [],
+        'expires_at' => now()->addWeek()->getTimestamp(),
+    ], 604800);
+
+    $this->actingAs($reader)->withHeader('Accept-Language', 'en-US')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.language', 'ja')
+        ->where('commit.translation.available', false));
+});

@@ -54,11 +54,13 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'has_sponsors_listing' => true,
         'preferred_lane' => 3,
         'timezone' => 'Europe/Budapest',
+        'translation_language' => 'ja',
         'lane_color' => '#1a2b3c',
         'pasteis_mode' => true,
         'pasteis_received' => 17,
         'pasteis_given_today' => 6,
         'pasteis_given_on' => '2026-10-15',
+        'last_seen_at' => now()->toDateString(),
         'remember_token' => 'never-export-this-token',
     ]);
     $original = $user->fresh()->getAttributes();
@@ -91,6 +93,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'has_sponsors_listing' => true,
             'preferred_lane' => 3,
             'timezone' => 'Europe/Budapest',
+            'translation_language' => 'ja',
             'lane_color' => '#1a2b3c',
             'pasteis_mode' => true,
             'pasteis_received' => 17,
@@ -103,6 +106,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'live_platform' => null,
             'live_url' => null,
             'live_ends_at' => null,
+            'last_seen_at' => now()->toDateString(),
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
@@ -302,18 +306,20 @@ it('exports received notifications without revealing moderators', function (): v
         'commit_id' => $commit->id,
         'reason' => 'Looks like spam.',
     ]);
+    Notification::factory()->for($user, 'recipient')->leveledUp(3)->create();
     Notification::factory()->for($friend, 'recipient')->for($moderator, 'actor')->create();
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
     $notifications = collect($data['notifications'])->keyBy('type');
 
-    expect($notifications)->toHaveCount(2)
+    expect($notifications)->toHaveCount(3)
         ->and($notifications['followed'])->toBe([
             'type' => 'followed',
             'actor' => 'friendly-dev',
             'commit_id' => null,
             'reason' => null,
+            'level' => null,
             'read_at' => now()->toIso8601String(),
             'created_at' => now()->toIso8601String(),
         ])
@@ -322,6 +328,16 @@ it('exports received notifications without revealing moderators', function (): v
             'actor' => null,
             'commit_id' => $commit->id,
             'reason' => 'Looks like spam.',
+            'level' => null,
+            'read_at' => null,
+            'created_at' => now()->toIso8601String(),
+        ])
+        ->and($notifications['leveled_up'])->toBe([
+            'type' => 'leveled_up',
+            'actor' => null,
+            'commit_id' => null,
+            'reason' => null,
+            'level' => 3,
             'read_at' => null,
             'created_at' => now()->toIso8601String(),
         ])

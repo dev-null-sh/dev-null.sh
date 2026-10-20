@@ -12,13 +12,15 @@ export const issueCommands: IssueCommand[] = [
         kind: 'feature',
         name: '/feature',
         description: 'Request a feature',
-        placeholder: 'What would you like /dev/null to do?',
+        placeholder:
+            '# Feature title\n\n## Problem\nWhat is missing?\n\n## Proposal\nHow should it work?',
     },
     {
         kind: 'bug',
         name: '/bug',
         description: 'Report a bug',
-        placeholder: 'What broke, and how can we reproduce it?',
+        placeholder:
+            '# Bug title\n\n## Steps\n1. How to reproduce it\n\n## Expected vs. actual\nWhat should happen, and what happens instead?',
     },
 ];
 

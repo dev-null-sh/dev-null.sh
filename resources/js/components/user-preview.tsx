@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import { BioText } from '@/components/bio-text';
 import {
     FollowLabel,
     onFollowHttpException,
@@ -18,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
@@ -342,6 +344,12 @@ function UserPreviewContent({
      * The button flips right away, but like every other follow control the shared state only changes once the server confirms, so there is nothing to roll back.
      */
     const toggleFollow = () => {
+        if (auth.user === null) {
+            signIn();
+
+            return;
+        }
+
         if (!data || data.isUnavailable || pendingFollows !== null) {
             return;
         }
@@ -461,7 +469,7 @@ function UserPreviewContent({
 
             {user.bio && !data?.isUnavailable && (
                 <p className="mt-2 line-clamp-3 text-sm text-pretty">
-                    {user.bio}
+                    <BioText bio={user.bio} />
                 </p>
             )}
 

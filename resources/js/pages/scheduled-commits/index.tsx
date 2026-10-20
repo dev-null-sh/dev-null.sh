@@ -7,6 +7,7 @@ import { FoldedCommitBody } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
+import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
 import { dateLocale } from '@/lib/utils';
 import type { BodySegment } from '@/types';
@@ -34,7 +35,7 @@ export default function Index({
 }) {
     const now = useNow();
     const [canceling, setCanceling] = useState<string | null>(null);
-    usePoll(30_000, { only: ['scheduledCommits'] });
+    usePoll(30_000, backgroundPollOptions({ only: ['scheduledCommits'] }));
 
     const labels = {
         pending: 'Submitted for review',

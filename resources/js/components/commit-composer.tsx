@@ -60,6 +60,11 @@ import {
 import { show } from '@/routes/user';
 import type { User } from '@/types';
 
+// The ring moves quickly while a post starts and slows toward the limit, yet only closes at the limit.
+function bodyProgress(count: number): number {
+    return Math.log1p(count) / Math.log1p(maxBodyLength);
+}
+
 function focusBody(id: string): void {
     requestAnimationFrame(() => document.getElementById(id)?.focus());
 }
@@ -126,6 +131,7 @@ function CommitComposerBody({
         setIsScheduling,
     } = schedule;
     const hasImages = attachments.images.length > 0;
+    const progress = bodyProgress(characterCount(body));
     const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
     const error = errors.body ?? errors.link_preview_url;
     const scheduleError =
@@ -176,14 +182,14 @@ function CommitComposerBody({
                 hasTail={!isInDialog}
                 node={
                     isInDialog ? (
-                        <RailAvatar user={user} isStaged={!isFilled} />
+                        <RailAvatar user={user} progress={progress} />
                     ) : (
                         <Link
                             href={show(user)}
                             aria-label="View your profile"
                             className="flex rounded-full"
                         >
-                            <RailAvatar user={user} isStaged={!isFilled} />
+                            <RailAvatar user={user} progress={progress} />
                         </Link>
                     )
                 }
@@ -219,6 +225,14 @@ function CommitComposerBody({
                                 isInDialog,
                         })}
                     >
+                        {issue.command && (
+                            <div
+                                aria-hidden="true"
+                                className="invisible col-start-1 row-start-1 max-h-[60dvh] overflow-hidden py-1.5 text-[17px] leading-relaxed whitespace-pre-wrap"
+                            >
+                                {issue.command.placeholder}
+                            </div>
+                        )}
                         <MentionTextarea
                             ref={textareaRef}
                             id={id}
@@ -566,6 +580,7 @@ export function CommitComposer({
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(body);
+    const isPosting = useRef(false);
 
     const hasImages = attachments.images.length > 0;
     const isCommittable =
@@ -624,10 +639,17 @@ export function CommitComposer({
                 ? ScheduledCommitController.store.form()
                 : CommitController.store.form())}
             onBefore={() =>
+                !isPosting.current &&
                 !attachments.isReading() &&
                 issue.command === null &&
                 secrets.beforeSubmit()
             }
+            onStart={() => {
+                isPosting.current = true;
+            }}
+            onFinish={() => {
+                isPosting.current = false;
+            }}
             transform={(data) => ({
                 ...data,
                 ...(hasImages && {

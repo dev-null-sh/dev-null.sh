@@ -6,10 +6,11 @@ import AppWordmark from '@/components/app-wordmark';
 import { GitHubIcon } from '@/components/github-icon';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse } from '@/lib/code';
+import { mentionPattern } from '@/lib/mentions';
 import { shortenUrl } from '@/lib/urls';
 import { shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
-import type { Commit } from '@/types';
+import type { BodySegment, Commit } from '@/types';
 
 // Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
 
@@ -36,10 +37,6 @@ const urlPattern = new RegExp(
         String.raw`(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?`,
     'gu',
 );
-// A GitHub username after an "@" that doesn't follow a letter, digit, "_", ".", "/", "@" or "-", and doesn't run
-// into a path or a domain, so emails, "@inertiajs/react" and "@vue.js" are not mentions.
-const mentionPattern =
-    /(?<![\p{L}\p{N}_./@-])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})(?![A-Za-z0-9_@/-]|\.[A-Za-z0-9])/gu;
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
     /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -73,7 +70,8 @@ function withoutTrailingPunctuation(candidate: string): string {
 
     do {
         previous = url;
-        url = url.replace(/[.,;:!?'"]+$/u, '');
+        // The ellipsis ends a feed excerpt, and smart punctuation closes quotes with ” and ’.
+        url = url.replace(/[.,;:!?'"…”’]+$/u, '');
 
         for (const [open, close] of brackets) {
             if (url.endsWith(close) && count(url, open) < count(url, close)) {
@@ -112,6 +110,17 @@ export function typedLinks(text: string): string[] {
     }
 
     return [...links];
+}
+
+/**
+ * Whether the prose outside code mentions someone, by the same rules that link a mention.
+ */
+export function hasMention(segments: BodySegment[]): boolean {
+    return segments.some(
+        (segment) =>
+            segment.type === 'text' &&
+            segment.text.search(mentionPattern) !== -1,
+    );
 }
 
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.
