@@ -54,6 +54,11 @@ final readonly class LogController
 
                 return $seen instanceof Commit ? $latest->count($log, $user, $seen) : 0;
             }),
+            'newCommitAuthors' => Inertia::optional(function () use ($request, $user, $log, $latest): array {
+                $seen = $request->since();
+
+                return $seen instanceof Commit ? $latest->authors($log, $user, $seen) : ['users' => [], 'total' => 0];
+            }),
             'suggestions' => fn (): Collection => $user instanceof User && $log === Log::Following && ! $user->following()->exists()
                 ? $suggested->get($user)
                 : new Collection(),
