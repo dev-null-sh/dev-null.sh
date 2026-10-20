@@ -1,9 +1,9 @@
 import { AudioLines, Code2, Play } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { GifEmbed } from '@/components/gif-embed';
 import { cn } from '@/lib/utils';
 import type { Embed, LinkPreview } from '@/types';
-import { GifEmbed } from './gif-embed';
 
 const icons = { video: Play, audio: AudioLines, code: Code2 };
 
