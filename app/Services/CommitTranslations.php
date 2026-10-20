@@ -50,7 +50,7 @@ final readonly class CommitTranslations
 
     public function language(): string
     {
-        $language = Locale::getPrimaryLanguage(request()->getPreferredLanguage() ?? 'en');
+        $language = Locale::getPrimaryLanguage(request()->user()->translation_language ?? request()->getPreferredLanguage() ?? 'en');
 
         return in_array($language, $this->languages(), true) ? $language : 'en';
     }

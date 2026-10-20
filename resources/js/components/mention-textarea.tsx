@@ -1,21 +1,31 @@
+import { usePage } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent, Ref, SyntheticEvent } from 'react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { index as issueSuggestions } from '@/actions/App/Http/Controllers/IssueSuggestionController';
 import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionSuggestionController';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { typedProse } from '@/lib/code';
 import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
+import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
 import { suggestionPosition } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
 import type { User } from '@/types';
 
 type Trigger = {
-    kind: 'mention' | 'emoji';
+    kind: 'mention' | 'emoji' | 'issue';
     start: number;
     query: string;
+    complete?: boolean;
+};
+
+type IssueSuggestion = {
+    number: number;
+    title: string;
+    url: string;
 };
 
 type Suggestions = {
@@ -70,6 +80,7 @@ const mirroredProperties = [
 function triggerAt(
     textarea: HTMLTextAreaElement,
     suggestsMentions: boolean,
+    suggestsIssues: boolean,
 ): Trigger | null {
     if (textarea.selectionStart !== textarea.selectionEnd) {
         return null;
@@ -93,9 +104,19 @@ function triggerAt(
         emojiBeforeCaretPattern,
     );
 
-    return emoji
-        ? { kind: 'emoji', start: caret - emoji[1].length, query: emoji[2] }
+    if (emoji) {
+        return {
+            kind: 'emoji',
+            start: caret - emoji[1].length,
+            query: emoji[2],
+        };
+    }
+
+    const issue = suggestsIssues
+        ? issueReferenceBeforeCaret(textarea.value, caret)
         : null;
+
+    return issue ? { kind: 'issue', ...issue } : null;
 }
 
 /**
@@ -152,10 +173,14 @@ function positionFor(textarea: HTMLTextAreaElement, index: number): Position {
 async function fetchSuggestions(
     query: string,
     org: string | undefined,
+    reply: string | undefined,
+    quote: string | undefined,
     signal: AbortSignal,
 ): Promise<User[]> {
     const response = await fetch(
-        MentionSuggestionController.index({ query: { q: query, org } }).url,
+        MentionSuggestionController.index({
+            query: { q: query, org, reply, quote },
+        }).url,
         {
             headers: {
                 Accept: 'application/json',
@@ -172,7 +197,13 @@ async function fetchSuggestions(
     }
 
     const data = (await response.json()) as { users: User[] };
-    cache.set(`${org ?? ''}:${query.toLowerCase()}`, data.users);
+    // Replies need fresh participants when someone joins the thread.
+    if (!reply) {
+        cache.set(
+            `${org ?? ''}:${reply ?? ''}:${quote ?? ''}:${query.toLowerCase()}`,
+            data.users,
+        );
+    }
 
     return data.users;
 }
@@ -225,26 +256,43 @@ export function MentionTextarea({
     onBlur,
     maxLength,
     suggestsMentions = true,
+    suggestsIssues = suggestsMentions,
     org,
+    reply,
+    quote,
     ...props
 }: Omit<ComponentProps<'textarea'>, 'value' | 'onChange'> & {
     ref?: Ref<HTMLTextAreaElement>;
     value: string;
     onValueChange: (value: string) => void;
     suggestsMentions?: boolean;
+    suggestsIssues?: boolean;
     org?: string;
+    reply?: string;
+    quote?: string;
 }) {
+    const { repository } = usePage().props;
     const id = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const listRef = useRef<HTMLUListElement>(null);
+    const dismissedIssue = useRef<string | null>(null);
     const [trigger, setTrigger] = useState<Trigger | null>(null);
     const [position, setPosition] = useState<Position | null>(null);
     const [results, setResults] = useState<Suggestions | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
+    const [issueResult, setIssueResult] = useState<IssueSuggestion | null>(
+        null,
+    );
+    const issueQuery = trigger?.kind === 'issue' ? trigger.query : null;
+    const issue =
+        issueQuery === String(issueResult?.number) ? issueResult : null;
 
     const query =
         trigger?.kind === 'mention' ? trigger.query.toLowerCase() : null;
-    const key = query === null ? null : `${org ?? ''}:${query}`;
+    const key =
+        query === null
+            ? null
+            : `${org ?? ''}:${reply ?? ''}:${quote ?? ''}:${query}`;
 
     const setRefs = (element: HTMLTextAreaElement | null) => {
         textareaRef.current = element;
@@ -262,7 +310,18 @@ export function MentionTextarea({
     };
 
     const track = (textarea: HTMLTextAreaElement) => {
-        const next = triggerAt(textarea, suggestsMentions);
+        const next = triggerAt(textarea, suggestsMentions, suggestsIssues);
+
+        if (
+            next?.kind === 'issue' &&
+            dismissedIssue.current === `${next.start}:${next.query}`
+        ) {
+            close();
+
+            return;
+        }
+
+        dismissedIssue.current = null;
 
         if (!next) {
             close();
@@ -290,7 +349,7 @@ export function MentionTextarea({
         const controller = new AbortController();
         const timeout = setTimeout(
             () =>
-                fetchSuggestions(query, org, controller.signal)
+                fetchSuggestions(query, org, reply, quote, controller.signal)
                     .then((users) => setResults({ key, users }))
                     .catch(() => undefined),
             query === '' ? 0 : debounce,
@@ -300,7 +359,40 @@ export function MentionTextarea({
             clearTimeout(timeout);
             controller.abort();
         };
-    }, [key, query, org]);
+    }, [key, query, org, reply, quote]);
+
+    useEffect(() => {
+        if (issueQuery === null) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => {
+            void fetch(issueSuggestions.url({ query: { q: issueQuery } }), {
+                headers: { Accept: 'application/json' },
+                signal: controller.signal,
+            })
+                .then(async (response) => {
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const data = (await response.json()) as {
+                        issue: IssueSuggestion | null;
+                    };
+
+                    if (!controller.signal.aborted) {
+                        setIssueResult(data.issue);
+                    }
+                })
+                .catch(() => undefined);
+        }, debounce);
+
+        return () => {
+            clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [issueQuery]);
 
     useEffect(() => {
         if (!trigger) {
@@ -346,13 +438,21 @@ export function MentionTextarea({
         trigger?.kind === 'emoji' ? trigger.query.toLowerCase() : '';
     const emojis = emojiQuery === '' ? [] : searchEmoji(emojiQuery);
     const optionCount =
-        trigger?.kind === 'emoji' ? emojis.length : suggestions.length;
+        trigger?.kind === 'issue'
+            ? issue
+                ? 1
+                : 0
+            : trigger?.kind === 'emoji'
+              ? emojis.length
+              : suggestions.length;
     const isOpen =
         trigger !== null &&
         position !== null &&
-        (trigger.kind === 'emoji'
-            ? emojis.length > 0
-            : suggestions.length > 0 || query !== '');
+        (trigger.kind === 'issue'
+            ? issue !== null && !trigger.complete
+            : trigger.kind === 'emoji'
+              ? emojis.length > 0
+              : suggestions.length > 0 || query !== '');
 
     const insert = (text: string, separator: string) => {
         const textarea = textareaRef.current;
@@ -362,6 +462,16 @@ export function MentionTextarea({
         }
 
         const caret = trigger.start + 1 + trigger.query.length;
+
+        if (
+            trigger.kind === 'issue' &&
+            value.slice(trigger.start, caret) !== `#${trigger.query}`
+        ) {
+            close();
+
+            return;
+        }
+
         const after = value.slice(caret);
         const spacing = /^\s/u.test(after) ? '' : separator;
         let next = `${value.slice(0, trigger.start)}${text}${spacing}${after}`;
@@ -376,7 +486,10 @@ export function MentionTextarea({
             return;
         }
 
-        const nextCaret = trigger.start + text.length + separator.length;
+        const nextCaret =
+            trigger.kind === 'issue'
+                ? textarea.selectionStart + next.length - value.length
+                : trigger.start + text.length + separator.length;
 
         onValueChange(next);
         close();
@@ -393,6 +506,18 @@ export function MentionTextarea({
     const select = (user: User) => insert(`@${user.username}`, ' ');
 
     const selectEmoji = (emoji: EmojiSuggestion) => insert(emoji.emoji, '');
+
+    const autoLinkIssue = useEffectEvent(() => {
+        if (trigger?.kind === 'issue' && trigger.complete && issue) {
+            insert(issue.url, '');
+        }
+    });
+
+    useEffect(() => {
+        const frame = requestAnimationFrame(autoLinkIssue);
+
+        return () => cancelAnimationFrame(frame);
+    }, [trigger, issue]);
 
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (isOpen && !event.nativeEvent.isComposing) {
@@ -419,7 +544,9 @@ export function MentionTextarea({
             ) {
                 event.preventDefault();
 
-                if (trigger?.kind === 'emoji') {
+                if (trigger?.kind === 'issue' && issue) {
+                    insert(issue.url, ' ');
+                } else if (trigger?.kind === 'emoji') {
                     selectEmoji(emojis[activeIndex]);
                 } else {
                     select(suggestions[activeIndex]);
@@ -431,6 +558,11 @@ export function MentionTextarea({
             if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();
+
+                if (trigger?.kind === 'issue') {
+                    dismissedIssue.current = `${trigger.start}:${trigger.query}`;
+                }
+
                 close();
 
                 return;
@@ -442,14 +574,20 @@ export function MentionTextarea({
 
     const activeId = !isOpen
         ? undefined
-        : trigger?.kind === 'emoji'
-          ? emojis[activeIndex] && `${id}-emoji-${emojis[activeIndex].name}`
-          : suggestions[activeIndex] &&
-            `${id}-mention-${suggestions[activeIndex].id}`;
+        : trigger?.kind === 'issue'
+          ? `${id}-issue-${issue?.number}`
+          : trigger?.kind === 'emoji'
+            ? emojis[activeIndex] && `${id}-emoji-${emojis[activeIndex].name}`
+            : suggestions[activeIndex] &&
+              `${id}-mention-${suggestions[activeIndex].id}`;
 
     const isSearching = current?.key !== key;
     const listId =
-        trigger?.kind === 'emoji' ? `${id}-emojis` : `${id}-mentions`;
+        trigger?.kind === 'issue'
+            ? `${id}-issues`
+            : trigger?.kind === 'emoji'
+              ? `${id}-emojis`
+              : `${id}-mentions`;
 
     return (
         <>
@@ -470,6 +608,12 @@ export function MentionTextarea({
                             : limitCharacters(text, maxLength);
 
                     onValueChange(limited);
+
+                    if ((event.nativeEvent as InputEvent).isComposing) {
+                        close();
+
+                        return;
+                    }
 
                     if (limited === target.value) {
                         track(target);
@@ -506,7 +650,36 @@ export function MentionTextarea({
                         data-mention-suggestions
                         data-test="mention-suggestions"
                     >
-                        {trigger?.kind === 'emoji' ? (
+                        {trigger?.kind === 'issue' && issue ? (
+                            <ul
+                                ref={listRef}
+                                id={listId}
+                                role="listbox"
+                                aria-label="Link an issue or pull request"
+                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
+                            >
+                                <li
+                                    id={`${id}-issue-${issue.number}`}
+                                    role="option"
+                                    aria-selected
+                                    onClick={() => insert(issue.url, ' ')}
+                                    className="cursor-pointer rounded-lg bg-accent px-2.5 py-2"
+                                >
+                                    <span
+                                        className="block truncate text-sm font-semibold"
+                                        title={issue.title}
+                                    >
+                                        {issue.title}
+                                    </span>
+                                    <span
+                                        className="block truncate font-mono text-xs text-muted-foreground"
+                                        title={`${repository}#${issue.number}`}
+                                    >
+                                        {repository}#{issue.number}
+                                    </span>
+                                </li>
+                            </ul>
+                        ) : trigger?.kind === 'emoji' ? (
                             <ul
                                 ref={listRef}
                                 id={listId}
@@ -570,14 +743,19 @@ export function MentionTextarea({
                                 aria-label="Mention a developer"
                                 className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
                             >
-                                {current?.key === `${org ?? ''}:` && (
-                                    <li
-                                        role="presentation"
-                                        className="px-2.5 pt-1 pb-1.5 text-xs text-muted-foreground"
-                                    >
-                                        {org ? 'Members' : 'People you follow'}
-                                    </li>
-                                )}
+                                {query === '' &&
+                                    !reply &&
+                                    !quote &&
+                                    current?.key === key && (
+                                        <li
+                                            role="presentation"
+                                            className="px-2.5 pt-1 pb-1.5 text-xs text-muted-foreground"
+                                        >
+                                            {org
+                                                ? 'Members'
+                                                : 'People you follow'}
+                                        </li>
+                                    )}
                                 {suggestions.map((user, index) => (
                                     <li
                                         key={user.id}

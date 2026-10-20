@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Jobs\CheckUserLevel;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,18 @@ final readonly class CreateCommitStar
             $this->createStarNotification->handle($user, $commit);
 
             $this->updateCommitHotScores->handle([$commit->id]);
+
+            if ($commit->user_id !== $user->id) {
+                $author = $commit->user()->first();
+
+                DB::afterCommit(function () use ($user, $author): void {
+                    dispatch(new CheckUserLevel($user));
+
+                    if ($author instanceof User) {
+                        dispatch(new CheckUserLevel($author));
+                    }
+                });
+            }
         });
     }
 }
