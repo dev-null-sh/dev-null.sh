@@ -143,8 +143,10 @@ final readonly class ChangelogQuery
 
         $users = User::query()
             ->whereIn('github_id', array_unique(array_map(fn (array $pullRequest): string => (string) $pullRequest['user']['id'], $merged)))
-            ->get()
-            ->keyBy('github_id');
+            ->get();
+
+        $lanes = $users->mapWithKeys(fn (User $user): array => [$user->github_id => $user->lane()]);
+        $usernames = $users->mapWithKeys(fn (User $user): array => [$user->github_id => $user->username]);
 
         return [
             'pullRequests' => array_map(fn (array $pullRequest): array => [
@@ -157,8 +159,8 @@ final readonly class ChangelogQuery
                 'author' => [
                     'login' => $pullRequest['user']['login'],
                     'avatar' => $pullRequest['user']['avatar_url'],
-                    'username' => $users->get((string) $pullRequest['user']['id'])?->username,
-                    'lane' => $users->get((string) $pullRequest['user']['id'])?->lane(),
+                    'username' => $usernames->get((string) $pullRequest['user']['id']),
+                    'lane' => $lanes->get((string) $pullRequest['user']['id']),
                 ],
             ], $merged),
             'olderBefore' => $olderBefore?->utc()->toIso8601String(),
