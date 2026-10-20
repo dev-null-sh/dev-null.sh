@@ -293,9 +293,9 @@ Sources: [saved page](resources/js/pages/bookmark/index.tsx), [bookmark controll
 
 ### Pinning a commit
 
-Pin one of your own top-level commits to feature it at the top of your profile's Commits tab. Pinning another replaces the previous pin; unpin to return to the normal list. Replies cannot be pinned, and pinning does not override a commit's visibility or moderation state.
+Pin one of your own top-level commits to feature it at the top of your profile's Commits tab. Only one commit can be pinned: pinning another while one is pinned first asks you to confirm replacing it, and cancelling keeps the current pin. Unpin to return to the normal list. Replies cannot be pinned, and pinning does not override a commit's visibility or moderation state.
 
-Sources: [pin authorization](app/Http/Requests/UpdateCommitPinRequest.php), [pin action](app/Actions/UpdateCommitPin.php), [profile page](resources/js/pages/user/show.tsx).
+Sources: [pin authorization](app/Http/Requests/UpdateCommitPinRequest.php), [pin action](app/Actions/UpdateCommitPin.php), [pin controls](resources/js/components/pin-commit-button.tsx), [profile page](resources/js/pages/user/show.tsx).
 
 ### Pastéis mode and awards
 

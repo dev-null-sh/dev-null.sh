@@ -27,7 +27,7 @@ import {
     LiveStreamTrigger,
 } from '@/components/live-stream-card';
 import { PageTabs } from '@/components/page-tabs';
-import { PinCommitButton } from '@/components/pin-commit-button';
+import { usePinCommit } from '@/components/pin-commit-button';
 import { ProfileActionsMenu } from '@/components/profile-actions-menu';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
@@ -86,6 +86,8 @@ export default function Show({
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
+    const pin = usePinCommit(pinnedCommit);
+    const canPin = isCurrentUser && tab === 'commits';
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
@@ -445,16 +447,8 @@ export default function Show({
                     key={`${user.id}:${tab}`}
                     commits={commits}
                     pinnedCommit={tab === 'commits' ? pinnedCommit : null}
-                    threadActions={
-                        isCurrentUser && tab === 'commits'
-                            ? (commit) => (
-                                  <PinCommitButton
-                                      commit={commit}
-                                      isPinned={commit.id === pinnedCommit?.id}
-                                  />
-                              )
-                            : undefined
-                    }
+                    actions={canPin ? pin.confirmation : undefined}
+                    threadActions={canPin ? pin.button : undefined}
                     highlightedPeriod={highlightedPeriod}
                     end={
                         tab === 'replies'
