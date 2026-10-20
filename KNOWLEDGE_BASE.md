@@ -113,7 +113,7 @@ Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live
 
 ### Achievement badges and XP
 
-Profiles display **13 achievement badges**. Locked badges show progress toward their requirements; unlocked badges are highlighted. Open the achievements dialog from a profile's badge or rank to see the full list.
+Profiles have **13 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
 
 | Badge | When it unlocks |
 | --- | --- |
