@@ -388,7 +388,7 @@ function UserPreviewContent({
         <div style={{ '--lane': lane } as CSSProperties}>
             {/* The LIVE label hangs below the avatar, so the header keeps the usual gap under it. */}
             <div
-                className={cn('flex items-center gap-3', {
+                className={cn('flex items-center justify-between gap-3', {
                     'pbe-1.5': user.live,
                 })}
             >
@@ -405,22 +405,6 @@ function UserPreviewContent({
                     />
                     {user.live && <LiveAvatarMarker className="ring-popover" />}
                 </Link>
-
-                <div className="min-w-0 flex-1">
-                    <Link
-                        href={show(user)}
-                        className="line-clamp-2 leading-snug font-semibold wrap-break-word [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
-                    >
-                        {user.name}
-                    </Link>
-                    <p className="flex items-center gap-1.5 font-mono text-[13px] text-muted-foreground">
-                        <span
-                            aria-hidden
-                            className="size-2 shrink-0 rounded-full bg-(--lane)"
-                        />
-                        <span className="truncate">@{user.username}</span>
-                    </p>
-                </div>
 
                 {!isCurrentUser &&
                     (data ? (
@@ -466,20 +450,33 @@ function UserPreviewContent({
                     ))}
             </div>
 
-            {(data?.followsYou || data?.isMuting) && (
-                <p className="mbs-3 flex gap-1.5 text-xs">
-                    {data.followsYou && (
-                        <span className="rounded bg-muted px-1.5 py-0.5">
+            <div className="mbs-3 min-w-0">
+                <div className="flex items-center gap-2">
+                    <Link
+                        href={show(user)}
+                        className="line-clamp-2 min-w-0 leading-snug font-semibold wrap-break-word [@media(hover:hover)_and_(pointer:fine)]:hover:underline"
+                    >
+                        {user.name}
+                    </Link>
+                    {data?.followsYou && (
+                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs">
                             Follows you
                         </span>
                     )}
-                    {data.isMuting && (
-                        <span className="rounded bg-muted px-1.5 py-0.5">
+                    {data?.isMuting && (
+                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs">
                             Muted
                         </span>
                     )}
+                </div>
+                <p className="flex items-center gap-1.5 font-mono text-[13px] text-muted-foreground">
+                    <span
+                        aria-hidden
+                        className="size-2 shrink-0 rounded-full bg-(--lane)"
+                    />
+                    <span className="truncate">@{user.username}</span>
                 </p>
-            )}
+            </div>
 
             {user.bio && !data?.isUnavailable && (
                 <p className="mbs-3 line-clamp-3 text-sm text-pretty">

@@ -9,6 +9,7 @@ type Props = Record<string, unknown> & { children?: ReactNode };
 
 let showPreview = false;
 type VisitOptions = {
+    async?: boolean;
     onHttpException?: (response: { status: number }) => boolean | void;
     onSuccess?: () => void;
     onError?: () => void;
