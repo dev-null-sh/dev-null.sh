@@ -268,6 +268,12 @@ The scheduler dispatches the `App\Jobs\EmbedKnowledgeBase` job every hour, so ch
 
 Scheduled imports currently cover `KNOWLEDGE_BASE.md` only. If the knowledge base is split into more files, schedule the job for each source.
 
+### Contributor badges
+
+The scheduler runs `php artisan contributors:sync` hourly to award the contributor achievement to matching GitHub accounts. It scans all pages of repository issues (including closed issues and pull requests), default-branch commits, issue comments, and inline review comments, using `GITHUB_REPOSITORY` and the existing GitHub OAuth app credentials. Run the command after deployment to backfill existing accounts. Keep the Laravel scheduler running for new accounts and contributions to be recognized.
+
+Successful in-app bug reports and feature requests award the badge immediately. Earned contributor status is retained if activity is later deleted or GitHub is unavailable; it adds no XP. Approval-only reviews and commits without a linked GitHub author are not included.
+
 ## License
 
 Licensed under MIT, as declared in `composer.json`. Based on [Nuno Maduro's Laravel starter kit](https://github.com/nunomaduro/laravel-starter-kit-inertia-react).

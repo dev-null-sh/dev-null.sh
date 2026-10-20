@@ -178,6 +178,10 @@ final readonly class UserAchievementsQuery
                 'progress' => $hasSshKey ? 1 : 0,
                 'target' => Achievement::AuthorizedKeys->target(),
             ],
+            Achievement::Contributor->value => [
+                'progress' => $user->is_contributor ? 1 : 0,
+                'target' => Achievement::Contributor->target(),
+            ],
             Achievement::SweetTooth->value => [
                 'progress' => min($user->pasteis_received, Achievement::SweetTooth->target()),
                 'target' => Achievement::SweetTooth->target(),

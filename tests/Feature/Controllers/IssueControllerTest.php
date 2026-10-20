@@ -67,6 +67,7 @@ it('opens the issue as the app, crediting the reporter, with the label of the co
         && $request['body'] === $body."\n\n---\n\nReported by @taylor via [/dev/null](".route('user.show', $user).').'
         && $request['labels'] === [$label]);
     $this->assertDatabaseCount('commits', 0);
+    expect($user->refresh()->is_contributor)->toBeTrue();
 })->with([
     'feature' => ['/feature', 'enhancement'],
     'bug' => ['/bug', 'bug'],
@@ -177,9 +178,12 @@ it('keeps the draft when GitHub rejects the issue or does not respond', function
         'api.github.com/repos/nunomaduro/dev-null.sh/issues' => $response,
     ]);
 
-    $this->actingAs(User::factory()->create())->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])
         ->assertStatus(502)
         ->assertJsonPath('message', fn (string $text): bool => str_contains($text, $message));
+    expect($user->refresh()->is_contributor)->toBeFalse();
 })->with([
     'rejected' => [fn () => Http::response(['message' => 'Validation Failed'], 422), 'did not create the issue'],
     'unavailable' => [fn () => throw new ConnectionException('timeout'), 'did not respond'],

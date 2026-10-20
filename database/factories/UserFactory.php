@@ -33,6 +33,7 @@ final class UserFactory extends Factory
             'location' => fake()->city(),
             'website' => fake()->url(),
             'company' => fake()->company(),
+            'is_contributor' => false,
             'has_sponsors_listing' => false,
             'preferred_lane' => null,
             'timezone' => null,
