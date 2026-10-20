@@ -4,21 +4,41 @@ import type { Commit } from '../../resources/js/types';
 
 const listeners = new Map<string, (event: unknown) => void>();
 let props: Record<string, unknown> = {};
+const historyListeners = new Map<string, EventListener>();
+const browserWindow = {
+    location: new URL('http://localhost'),
+    history: { back: vi.fn() },
+    addEventListener: (name: string, callback: EventListener) =>
+        historyListeners.set(name, callback),
+    removeEventListener: (name: string) => historyListeners.delete(name),
+};
+let lastVisit: { preserveState?: boolean; preserveScroll?: boolean };
 
 function navigate(url: string, nextProps: Record<string, unknown>) {
     props = nextProps;
-    vi.stubGlobal('window', {
-        location: new URL(url, 'http://localhost'),
-        history: { back: vi.fn() },
-    });
+    browserWindow.location = new URL(url, 'http://localhost');
     listeners.get('navigate')?.({ detail: { page: { url, props } } });
 }
 
-function clientVisit(options: {
-    url: string;
-    props: (current: Record<string, unknown>) => Record<string, unknown>;
-}) {
-    navigate(options.url, options.props(props));
+function clientVisit(
+    options: {
+        url: string;
+        props: (current: Record<string, unknown>) => Record<string, unknown>;
+        preserveState?: boolean;
+        preserveScroll?: boolean;
+        onSuccess?: () => void;
+    },
+    pushes = true,
+) {
+    lastVisit = options;
+    props = options.props(props);
+    browserWindow.location = new URL(options.url, 'http://localhost');
+    if (pushes) {
+        listeners.get('navigate')?.({
+            detail: { page: { url: options.url, props } },
+        });
+    }
+    options.onSuccess?.();
 }
 
 vi.doMock('@inertiajs/react', () => ({
@@ -27,13 +47,19 @@ vi.doMock('@inertiajs/react', () => ({
             listeners.set(name, callback);
             return () => listeners.delete(name);
         },
-        push: clientVisit,
-        replace: clientVisit,
+        push: (options: Parameters<typeof clientVisit>[0]) =>
+            clientVisit(options),
+        replace: (options: Parameters<typeof clientVisit>[0]) =>
+            clientVisit(options, false),
     },
 }));
 
-const { openCommitPhoto, showCommitPhoto, trackCommitPhotoPage } =
-    await import('../../resources/js/lib/commit-photo');
+const {
+    closeCommitPhoto,
+    openCommitPhoto,
+    showCommitPhoto,
+    trackCommitPhotoPage,
+} = await import('../../resources/js/lib/commit-photo');
 
 const commit = {
     id: 'image-post',
@@ -42,6 +68,8 @@ const commit = {
 let stop: VoidFunction;
 
 beforeEach(() => {
+    vi.stubGlobal('window', browserWindow);
+    browserWindow.history.back.mockClear();
     stop = trackCommitPhotoPage();
     navigate('/log/latest?since=first', {});
 });
@@ -142,3 +170,84 @@ for (const overrides of [
         assert.equal(visit.preserveUrl, false);
     });
 }
+
+function historyVisit(url: string) {
+    browserWindow.location = new URL(url, 'http://localhost');
+    const event = new Event('popstate');
+    const intercepted = vi.spyOn(event, 'stopImmediatePropagation');
+    historyListeners.get('popstate')?.(event);
+    return intercepted;
+}
+
+test('closes a photo through history while retaining the live background page and scroll', () => {
+    openCommitPhoto(commit, 0);
+    props.livePollResult = 42;
+    closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
+    assert.equal(browserWindow.history.back.mock.calls.length, 1);
+
+    const intercepted = historyVisit('/log/latest?since=first');
+
+    assert.equal(intercepted.mock.calls.length, 1);
+    assert.equal(props.photo, undefined);
+    assert.equal(props.livePollResult, 42);
+    assert.equal(lastVisit.preserveState, true);
+    assert.equal(lastVisit.preserveScroll, true);
+    assert.equal(backgroundVisit().url.pathname, '/log/latest');
+});
+
+test('preserves the background on browser Back and Forward, including a changed slide', () => {
+    openCommitPhoto(commit, 0);
+    showCommitPhoto(props.photo as Parameters<typeof showCommitPhoto>[0], 1);
+    const photoUrl = window.location.href;
+
+    historyVisit('/log/latest?since=first');
+    assert.equal(props.photo, undefined);
+    historyVisit(photoUrl);
+
+    assert.deepEqual(props.photo, {
+        commit,
+        index: 1,
+        backgroundUrl: 'http://localhost/log/latest?since=first',
+    });
+    assert.equal(lastVisit.preserveState, true);
+    assert.equal(lastVisit.preserveScroll, true);
+    assert.equal(backgroundVisit().url.pathname, '/log/latest');
+});
+
+test('leaves history to other pages and an old photo session to Inertia', () => {
+    openCommitPhoto(commit, 0);
+    assert.equal(historyVisit('/@another').mock.calls.length, 0);
+    navigate('/@another', {});
+
+    assert.equal(historyVisit('/log/latest?since=first').mock.calls.length, 0);
+});
+
+test('closes a directly loaded photo on its commit without going back', () => {
+    navigate('/@author/commits/image-post/photos/1', {
+        photo: { commit, index: 0 },
+    });
+    closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
+
+    assert.equal(browserWindow.history.back.mock.calls.length, 0);
+    assert.equal(window.location.pathname, '/@author/commits/image-post');
+    assert.equal(props.photo, undefined);
+    assert.equal(lastVisit.preserveState, true);
+});
+
+test('releases photo history when a full visit starts, even to the same background URL', () => {
+    openCommitPhoto(commit, 0);
+    backgroundVisit({
+        async: false,
+        url: new URL('http://localhost/log/latest?since=first'),
+    });
+
+    assert.equal(historyVisit('/log/latest?since=first').mock.calls.length, 0);
+});
+
+test('removes the history listener when photo tracking stops', () => {
+    openCommitPhoto(commit, 0);
+    stop();
+
+    assert.equal(historyListeners.has('popstate'), false);
+    assert.equal(historyVisit('/log/latest?since=first').mock.calls.length, 0);
+});

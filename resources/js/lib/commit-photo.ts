@@ -9,16 +9,43 @@ export type CommitPhoto = {
     backgroundUrl?: string;
 };
 
-let isOpenedInApp = false;
+const photoPages = new Map<string, CommitPhoto | undefined>();
 
 export function trackCommitPhotoPage(): VoidFunction {
     let backgroundUrl: string | undefined;
 
+    const onPopState = (event: PopStateEvent) => {
+        const url = window.location.href;
+        if (!photoPages.has(url)) {
+            return;
+        }
+
+        // Inertia's history restoration remounts the page, losing replies and measured offscreen card heights.
+        event.stopImmediatePropagation();
+        const photo = photoPages.get(url);
+        router.replace({
+            url,
+            props: (props) => ({ ...props, photo }),
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                backgroundUrl = photo?.backgroundUrl;
+            },
+        });
+    };
+    window.addEventListener('popstate', onPopState, true);
+
     const stopNavigation = router.on('navigate', ({ detail: { page } }) => {
+        if (!photoPages.has(window.location.href)) {
+            photoPages.clear();
+        }
         backgroundUrl = (page.props.photo as CommitPhoto | undefined)
             ?.backgroundUrl;
     });
     const stopReload = router.on('before', ({ detail: { visit } }) => {
+        if (!visit.async) {
+            photoPages.clear();
+        }
         if (
             !backgroundUrl ||
             visit.method !== 'get' ||
@@ -42,6 +69,8 @@ export function trackCommitPhotoPage(): VoidFunction {
     });
 
     return () => {
+        window.removeEventListener('popstate', onPopState, true);
+        photoPages.clear();
         stopNavigation();
         stopReload();
     };
@@ -55,27 +84,39 @@ export const commitPhotoUrl = (commit: Commit, index: number): string =>
     }).url;
 
 export function openCommitPhoto(commit: Commit, index: number): void {
-    isOpenedInApp = true;
     const backgroundUrl = window.location.href;
 
     router.push({
         url: commitPhotoUrl(commit, index),
-        props: (props) => ({
-            ...props,
-            photo: {
+        props: (props) => {
+            const photo = {
                 commit,
                 index,
                 backgroundUrl:
                     (props.photo as CommitPhoto | undefined)?.backgroundUrl ??
                     backgroundUrl,
-            },
-        }),
+            };
+            photoPages.set(photo.backgroundUrl, undefined);
+            photoPages.set(
+                new URL(commitPhotoUrl(commit, index), backgroundUrl).href,
+                photo,
+            );
+
+            return { ...props, photo };
+        },
         preserveScroll: true,
         preserveState: true,
     });
 }
 
 export function showCommitPhoto(photo: CommitPhoto, index: number): void {
+    if (photo.backgroundUrl) {
+        photoPages.set(
+            new URL(commitPhotoUrl(photo.commit, index), photo.backgroundUrl)
+                .href,
+            { ...photo, index },
+        );
+    }
     router.replace({
         url: commitPhotoUrl(photo.commit, index),
         props: (props) => ({ ...props, photo: { ...photo, index } }),
@@ -85,8 +126,7 @@ export function showCommitPhoto(photo: CommitPhoto, index: number): void {
 }
 
 export function closeCommitPhoto(photo: CommitPhoto): void {
-    if (isOpenedInApp) {
-        isOpenedInApp = false;
+    if (photo.backgroundUrl) {
         window.history.back();
 
         return;
