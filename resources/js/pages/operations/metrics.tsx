@@ -298,12 +298,13 @@ type DailyBar = {
 
 /**
  * One slot per day of the range, so charts of the same range line up, with a bar on the days that have one, as tall as
- * its value against the tallest, which a line at the top names. A partial day, still counting, is lighter. Tooltips of
- * the bars near an edge align with it, so they stay on screen.
+ * its value against the tallest, and a line at the average of the range, to tell the days above it from the days below.
+ * A partial day, still counting, is lighter. Tooltips of the bars near an edge align with it, so they stay on screen.
  */
 function DailyBars({
     range,
     bars,
+    average,
     caption,
     column,
     empty,
@@ -311,6 +312,7 @@ function DailyBars({
 }: {
     range: TrafficRange;
     bars: DailyBar[];
+    average: number | null;
     caption: string;
     column: string;
     empty: string;
@@ -324,7 +326,11 @@ function DailyBars({
         );
     }
 
-    const top = Math.max(Number.MIN_VALUE, ...bars.map((bar) => bar.value));
+    const top = Math.max(
+        Number.MIN_VALUE,
+        average ?? 0,
+        ...bars.map((bar) => bar.value),
+    );
     const label = (date: string) => formatZonedDate(date, 'UTC');
     const byDate = new Map(bars.map((bar) => [bar.date, bar]));
     const dates: string[] = [];
@@ -340,11 +346,16 @@ function DailyBars({
     return (
         <figure className="pt-5">
             <div className="relative flex h-48 items-end gap-1 border-b border-rail sm:gap-2">
-                <div className="pointer-events-none absolute inset-x-0 top-0 border-t border-dashed border-rail">
-                    <span className="absolute bottom-full left-0 mb-0.5 font-mono text-xs text-muted-foreground tabular-nums">
-                        {format(top)}
-                    </span>
-                </div>
+                {average !== null && (
+                    <div
+                        className="pointer-events-none absolute inset-x-0 z-[1] border-t border-dashed border-foreground/50"
+                        style={{ bottom: `${(average / top) * 100}%` }}
+                    >
+                        <span className="absolute bottom-full left-0 mb-0.5 rounded-sm bg-background/90 px-1 font-mono text-xs text-muted-foreground tabular-nums">
+                            avg {format(average)}
+                        </span>
+                    </div>
+                )}
                 {dates.map((date, index) => {
                     const bar = byDate.get(date);
 
@@ -395,23 +406,25 @@ function DailyBars({
                 <span>{label(range.from)}</span>
                 <span>{label(range.to)}</span>
             </div>
-            <table className="sr-only">
-                <caption>{caption}</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Day</th>
-                        <th scope="col">{column}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {bars.map((bar) => (
-                        <tr key={bar.date}>
-                            <th scope="row">{bar.date}</th>
-                            <td>{bar.label}</td>
+            <div className="sr-only">
+                <table>
+                    <caption>{caption}</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Day</th>
+                            <th scope="col">{column}</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {bars.map((bar) => (
+                            <tr key={bar.date}>
+                                <th scope="row">{bar.date}</th>
+                                <td>{bar.label}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </figure>
     );
 }
@@ -419,13 +432,16 @@ function DailyBars({
 function ActivationByDay({
     range,
     days,
+    average,
 }: {
     range: TrafficRange;
     days: ActivationDay[];
+    average: number | null;
 }) {
     return (
         <DailyBars
             range={range}
+            average={average}
             bars={days.map((day) => {
                 const rate = day.activated / day.eligible;
 
@@ -452,10 +468,19 @@ function ActiveUserCounts({
     counts: ActivityBucket[];
 }) {
     const today = utcDate();
+    const complete = counts.filter((day) => day.date !== today);
 
     return (
         <DailyBars
             range={range}
+            average={
+                complete.length === 0
+                    ? null
+                    : Math.round(
+                          complete.reduce((sum, day) => sum + day.count, 0) /
+                              complete.length,
+                      )
+            }
             bars={counts.map((day) => ({
                 date: day.date,
                 value: day.count,
@@ -524,6 +549,7 @@ export default function Show({
                         <ActivationByDay
                             range={range}
                             days={funnel.activation_by_day}
+                            average={funnel.rates.activation}
                         />
                     )}
                 </Deferred>

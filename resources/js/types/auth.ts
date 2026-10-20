@@ -48,6 +48,7 @@ export type Profile = User & {
 export type Auth = {
     user: Profile | null;
     isAdmin: boolean;
+    mustReadCommitRules: boolean;
     log: Log | null;
     unreadNotificationsCount: number;
     unreadMessagesCount: number;
