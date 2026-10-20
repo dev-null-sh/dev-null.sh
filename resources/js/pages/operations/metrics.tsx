@@ -191,16 +191,12 @@ function Definition({
 }
 
 function retentionDefinition(funnel: Funnel): string {
-    if (funnel.retention_horizon === null) {
-        return 'Came back at least once, 14 days or more after signing up. Not measurable yet: no signup has reached its first day since tracking started.';
-    }
+    const definition =
+        'Came back at least once from the day after signing up, day 1, while /dev/null is days old; day 14 later.';
 
-    const day =
-        funnel.retention_horizon === 14
-            ? 'day 14'
-            : `day ${funnel.retention_horizon} for now, day 14 from ${funnel.retention_full_on}`;
-
-    return `Came back at least once from ${day} after signing up. Retention rate = retained ÷ the ${formatCount(funnel.retention_eligible)} sign-ups old enough to tell.`;
+    return funnel.retention_eligible === 0
+        ? `${definition} Not measurable yet: no signup has got through its day 1 since tracking started.`
+        : `${definition} Retention rate = retained ÷ the ${formatCount(funnel.retention_eligible)} sign-ups old enough to tell.`;
 }
 
 function FunnelValue({ funnel }: { funnel: Funnel }) {

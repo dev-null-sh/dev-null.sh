@@ -59,13 +59,12 @@ The funnel follows the people who **signed up in the selected range** (all time 
 
 ### Retention
 
-- **Retained**: seen again **from day 14 after signing up, or later** ("unbounded" retention), as told by `last_seen_at`.
-- **Retention rate** = retained ÷ signups whose day 14 is over. A signup whose day 14 is today isn't counted yet: they may still come back today.
-- Until signups get through day 14, the page falls back to **day 7**, then **day 1**, and says from which day day 14 is available. Each number keeps a precise meaning, and the page switches by itself.
+- **Retained**: seen again **from day 1 after signing up, or later** ("unbounded" retention), as told by `last_seen_at`. Day 1 is temporary, while /dev/null is days old and changes day by day; the goal is day 14.
+- **Retention rate** = retained ÷ signups whose day 1 is over. A signup whose day 1 is today isn't counted yet: they may still come back today.
 - Only signups whose day N falls on or after the day tracking started count: someone who came back before tracking started left no trace.
 - Why `last_seen_at` and not one row per person per day: it is one date per person, overwritten, with no history, which is the least data that answers "is this person still coming back after 14 days?".
 - Caveats:
-  - Unbounded retention is always higher than the bounded "active on day N" retention that public benchmarks use. Someone who comes back once on day 60 counts as retained at day 14. **Do not compare it with the a16z numbers below.**
+  - Unbounded retention is always higher than the bounded "active on day N" retention that public benchmarks use. Someone who comes back once on day 60 counts as retained at day 1. **Do not compare it with the a16z numbers below.**
   - A cohort's retention keeps rising a little as late visitors come back, so older cohorts look slightly better than recent ones.
   - Deleted accounts disappear from their cohort instead of counting as gone.
 
@@ -133,6 +132,7 @@ Taken on 2026-10-19, when /dev/null was a few days old, had about 6,000 people a
 - Retention matters more than growth: active users level off at daily signups × average active lifetime, and the loops that bring people in run on the people who stay.
 - Activation counts value received within 12 hours, as a reader or as an author; posting alone is not activation.
 - Retention is unbounded, from `last_seen_at`, headline day 14, with a fallback to day 7 and day 1 meanwhile.
+- On 2026-10-20, retention was set to day 1 alone, without the fallback: /dev/null was days old and changed day by day, so the next day is what mattered. Moving to day 14 means bringing back the fallback to day 7 and day 1, from the history of `ProductFunnelQuery`.
 - No per-person referrer or source: Fathom covers acquisition, anonymously.
 - Signups are counted from the database; the conversion rate is counted entirely by Fathom, so ad blockers cancel out, and only over visitors not signed in.
 - Daily active users come from `last_seen_at`, not from Fathom, which ad blockers hide and which can't see the mobile app.

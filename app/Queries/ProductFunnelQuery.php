@@ -8,14 +8,13 @@ use App\Enums\CommitStatus;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Fluent;
 
 final readonly class ProductFunnelQuery
 {
     /**
-     * Retention is measured at the furthest of these days that the signups already got through, 14 when it can be.
+     * Retention is measured from this day after signing up: day 1 while /dev/null is days old, day 14 later.
      */
-    private const array RETENTION_HORIZONS = [14, 7, 1];
+    private const int RETENTION_DAY = 1;
 
     /**
      * The Fathom events the browser sends for a visit by someone not signed in, and for a signup.
@@ -36,7 +35,7 @@ final readonly class ProductFunnelQuery
      * time, or the range with as many days before it otherwise, and are null until both periods are after the launch.
      * Rates are fractions, null when nothing counts.
      *
-     * @return array{visitors: int|null, signups: int, activated: int, activation_eligible: int, activation_by_day: list<array{date: string, activated: int, eligible: int, complete: bool}>, retained: int, retention_eligible: int, retention_horizon: int|null, retention_full_on: string|null, rates: array{conversion: float|null, activation: float|null, retention: float|null}, changes: array{conversion: float|null, activation: float|null, retention: float|null}}
+     * @return array{visitors: int|null, signups: int, activated: int, activation_eligible: int, activation_by_day: list<array{date: string, activated: int, eligible: int, complete: bool}>, retained: int, retention_eligible: int, rates: array{conversion: float|null, activation: float|null, retention: float|null}, changes: array{conversion: float|null, activation: float|null, retention: float|null}}
      */
     public function get(CarbonImmutable $from, CarbonImmutable $to, bool $isAllTime): array
     {
@@ -47,9 +46,7 @@ final readonly class ProductFunnelQuery
         $launchedOn = User::query()->whereNotIn('github_id', User::BOT_GITHUB_IDS)->min('created_at');
         $launchedOn = is_string($launchedOn) ? CarbonImmutable::parse($launchedOn)->startOfDay() : $today;
 
-        $retentions = $this->retention($from, $to, $trackedSince);
-        $horizon = collect(self::RETENTION_HORIZONS)->first(fn (int $days): bool => $retentions[$days]['eligible'] > 0);
-        $retention = $horizon === null ? ['retained' => 0, 'eligible' => 0] : $retentions[$horizon];
+        $retention = $this->retention($from, $to, $trackedSince);
 
         $visitors = $this->traffic->eventVisitors($from, $to, self::GUEST_VISIT_EVENT);
         $activationByDay = $this->activationByDay($from, $to);
@@ -66,18 +63,18 @@ final readonly class ProductFunnelQuery
             : [$from, $to, $from->subDays((int) $from->diffInDays($to) + 1), $from->subDay()];
 
         // All time, retention compares the signups whose day N is in each period, a range compares its own signups...
-        $ratesBetween = function (CarbonImmutable $from, CarbonImmutable $to) use ($isAllTime, $horizon, $trackedSince): array {
+        $ratesBetween = function (CarbonImmutable $from, CarbonImmutable $to) use ($isAllTime, $trackedSince): array {
             $activation = $this->activationTotal($this->activationByDay($from, $to));
-            $retention = $horizon === null ? null : $this->retention(
-                $isAllTime ? $from->subDays($horizon) : $from,
-                $isAllTime ? $to->subDays($horizon) : $to,
+            $retention = $this->retention(
+                $isAllTime ? $from->subDays(self::RETENTION_DAY) : $from,
+                $isAllTime ? $to->subDays(self::RETENTION_DAY) : $to,
                 $trackedSince,
-            )[$horizon];
+            );
 
             return [
                 'conversion' => $this->conversion($from, $to, $this->traffic->eventVisitors($from, $to, self::GUEST_VISIT_EVENT)),
                 'activation' => $this->rate($activation['activated'], $activation['eligible']),
-                'retention' => $retention === null ? null : $this->rate($retention['retained'], $retention['eligible']),
+                'retention' => $this->rate($retention['retained'], $retention['eligible']),
             ];
         };
 
@@ -105,8 +102,6 @@ final readonly class ProductFunnelQuery
             ], $activationByDay),
             'retained' => $retention['retained'],
             'retention_eligible' => $retention['eligible'],
-            'retention_horizon' => $horizon,
-            'retention_full_on' => $horizon === 14 ? null : $this->retentionFullOn($from, $to, $trackedSince),
             'rates' => $rates,
             'changes' => [
                 'conversion' => $change('conversion'),
@@ -197,25 +192,25 @@ final readonly class ProductFunnelQuery
     }
 
     /**
-     * Retained, at each horizon: seen again on that day after signing up, or later. Only the signups whose day is over
-     * are eligible, so nobody counts as gone on the very day they may still come back, and only once that day falls on
-     * or after the day last_seen_at started being tracked, since a visit before that left no trace.
+     * Retained: seen again on the retention day after signing up, or later. Only the signups whose day is over are
+     * eligible, so nobody counts as gone on the very day they may still come back, and only once that day falls on or
+     * after the day last_seen_at started being tracked, since a visit before that left no trace.
      *
-     * @return array<int, array{retained: int, eligible: int}>
+     * @return array{retained: int, eligible: int}
      */
     private function retention(CarbonImmutable $from, CarbonImmutable $to, ?CarbonImmutable $trackedSince): array
     {
         if (! $trackedSince instanceof CarbonImmutable) {
-            return collect(self::RETENTION_HORIZONS)->mapWithKeys(fn (int $days): array => [$days => ['retained' => 0, 'eligible' => 0]])->all();
+            return ['retained' => 0, 'eligible' => 0];
         }
 
-        $counts = collect(self::RETENTION_HORIZONS)->map(fn (int $days): string => <<<SQL
-            count(*) filter (where created_at::date + {$days} between bounds.tracked_since and bounds.until) as eligible_{$days},
-            count(*) filter (where created_at::date + {$days} between bounds.tracked_since and bounds.until and last_seen_at >= created_at::date + {$days}) as retained_{$days}
-            SQL)->implode(",\n");
+        $day = self::RETENTION_DAY;
 
-        $row = new Fluent((array) DB::selectOne(<<<SQL
-            select {$counts}
+        /** @var object{retained: int, eligible: int} $row */
+        $row = DB::selectOne(<<<SQL
+            select
+                count(*) filter (where created_at::date + {$day} between bounds.tracked_since and bounds.until) as eligible,
+                count(*) filter (where created_at::date + {$day} between bounds.tracked_since and bounds.until and last_seen_at >= created_at::date + {$day}) as retained
             from users, (select ?::date as tracked_since, ?::date as until) as bounds
             where github_id <> all(?::text[]) and created_at >= ? and created_at < ?
             SQL, [
@@ -224,31 +219,9 @@ final readonly class ProductFunnelQuery
             User::botGitHubIdsArray(),
             $from->startOfDay(),
             $to->addDay()->startOfDay(),
-        ]));
+        ]);
 
-        return collect(self::RETENTION_HORIZONS)->mapWithKeys(fn (int $days): array => [$days => [
-            'retained' => $row->integer("retained_{$days}"),
-            'eligible' => $row->integer("eligible_{$days}"),
-        ]])->all();
-    }
-
-    /**
-     * The day retention from day 14 becomes measurable for the range: the day after the first signup whose day 14 falls
-     * after tracking started is over. Null when no signup of the range ever will.
-     */
-    private function retentionFullOn(CarbonImmutable $from, CarbonImmutable $to, ?CarbonImmutable $trackedSince): ?string
-    {
-        if (! $trackedSince instanceof CarbonImmutable) {
-            return null;
-        }
-
-        $first = User::query()
-            ->whereNotIn('github_id', User::BOT_GITHUB_IDS)
-            ->where('created_at', '>=', $from->max($trackedSince->subDays(14))->startOfDay())
-            ->where('created_at', '<', $to->addDay()->startOfDay())
-            ->min('created_at');
-
-        return is_string($first) ? CarbonImmutable::parse($first)->startOfDay()->addDays(15)->toDateString() : null;
+        return ['retained' => (int) $row->retained, 'eligible' => (int) $row->eligible];
     }
 
     private function rate(int $count, ?int $total): ?float
