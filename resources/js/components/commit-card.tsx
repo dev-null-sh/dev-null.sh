@@ -64,6 +64,7 @@ export function CommitCard({
     commit,
     previousLane,
     nextLane,
+    previousDashed = false,
     isDimmed = false,
     isPreviousDimmed = false,
     isHighlighted = false,
@@ -87,6 +88,7 @@ export function CommitCard({
     commit: Commit;
     previousLane?: string;
     nextLane?: string;
+    previousDashed?: boolean;
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
     isHighlighted?: boolean;
@@ -207,6 +209,7 @@ export function CommitCard({
                     lane={laneColor(commit.user.lane)}
                     previousLane={previousLane}
                     nextLane={nextLane}
+                    previousDashed={previousDashed}
                     endsWithDot={endsWithDot}
                     nodePosition={railNodePosition}
                     hasTail={hasRailTail && railNodePosition !== 'bottom'}

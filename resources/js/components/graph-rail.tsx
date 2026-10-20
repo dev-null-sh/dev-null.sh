@@ -10,6 +10,8 @@ type Props = {
     previousLane?: string;
     /** When set, the outbound rail fades into this lane toward the next commit. */
     nextLane?: string;
+    /** Keep the inbound segment dashed, e.g. when continuing the composer staged rail. */
+    previousDashed?: boolean;
     variant?: 'commit' | 'staged' | 'root';
     isFilled?: boolean;
     isFresh?: boolean;
@@ -34,6 +36,7 @@ export function GraphRail({
     lane,
     previousLane,
     nextLane,
+    previousDashed = false,
     variant = 'commit',
     isFilled = true,
     isFresh = false,
@@ -85,7 +88,13 @@ export function GraphRail({
                             'bottom-5 h-auto': nodePosition === 'bottom',
                         },
                     )}
-                    style={{ background: inboundLane }}
+                    style={
+                        previousDashed
+                            ? laneStrokeStyle(inboundLane, inboundLane, {
+                                  dash: stagedDash,
+                              })
+                            : { background: inboundLane }
+                    }
                     data-test="rail-previous"
                 />
             )}
