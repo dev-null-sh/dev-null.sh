@@ -105,11 +105,11 @@ Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](re
 
 ### Going live
 
-Share a stream you are running from the **…** menu on your own profile: **Go live** takes a link to a single YouTube video (a `/live/` link, a watch link, an embed, or one with a start time all work) and how long to show it, from **1 to 12 hours** (two by default). YouTube is the only supported platform. While you are live, your avatar gets a red ring and a **Live** marker on your profile, in logs, and in hover cards. Hovering it (or tapping it on a touch screen) shows the stream's live thumbnail with a **Watch** button; the stream itself plays on YouTube in a new tab, never embedded. On your profile, the avatar links straight to the stream.
+Share a stream you are running from the **…** menu on your own profile: **Go live** takes a link to a YouTube or Twitch stream (on YouTube: a `/live/` link, a watch link, an embed, or one with a start time all work; on Twitch: your channel link) and how long to show it, from **1 to 12 hours** (two by default). YouTube and Twitch are supported. While you are live, your avatar gets a red ring and a **Live** marker on your profile, in logs, and in hover cards. Hovering it (or tapping it on a touch screen) shows the stream's live thumbnail with a **Watch** button; the stream itself plays on the provider in a new tab, never embedded. On your profile, the avatar links straight to the stream.
 
 **End stream** in the same menu stops it at once; otherwise it stops showing when the chosen time runs out, and the scheduler clears it within five minutes. Only the platform, the link, and the end time are stored, and they are included in your export.
 
-Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live avatar and card](resources/js/components/live-stream-card.tsx), [validation](app/Http/Requests/UpdateUserLiveRequest.php), [YouTube links](app/Services/LivePlatforms/YouTube.php), [ending streams](app/Jobs/EndLiveStreams.php).
+Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live avatar and card](resources/js/components/live-stream-card.tsx), [validation](app/Http/Requests/UpdateUserLiveRequest.php), [YouTube links](app/Services/LivePlatforms/YouTube.php), [Twitch links](app/Services/LivePlatforms/Twitch.php), [ending streams](app/Jobs/EndLiveStreams.php).
 
 ### Achievement badges and XP
 

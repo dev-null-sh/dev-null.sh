@@ -125,7 +125,7 @@ export default function Show({
                                 href={user.live.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                aria-label={`Watch ${user.name} live on YouTube`}
+                                aria-label={`Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
                                 className="relative flex rounded-full"
                                 data-test="profile-live-avatar"
                             >
