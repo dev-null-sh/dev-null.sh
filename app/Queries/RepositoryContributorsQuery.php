@@ -26,7 +26,7 @@ final readonly class RepositoryContributorsQuery
     {
         $repository = config()->string('services.github.repository');
 
-        return Cache::remember("repository-contributors:{$repository}", 3600, function () use ($repository): Collection {
+        $result = Cache::remember("repository-contributors:{$repository}", 3600, function () use ($repository): array {
             $contributors = collect();
             try {
                 for ($page = 1; ; $page++) {
@@ -42,10 +42,12 @@ final readonly class RepositoryContributorsQuery
                     }
                 }
             } catch (HttpClientException) {
-                return collect();
+                return [];
             }
 
-            return $contributors->sortByDesc('commits')->values();
+            return $contributors->sortByDesc('commits')->values()->all();
         });
+
+        return collect($result);
     }
 }
