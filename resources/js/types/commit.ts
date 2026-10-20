@@ -68,6 +68,7 @@ export type Commit = {
     user_id: string;
     parent_id: string | null;
     hot_score: number;
+    section: string | null;
     body: string;
     mentions: Record<string, string> | null;
     body_segments: BodySegment[];

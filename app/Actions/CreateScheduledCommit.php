@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\NewPoll;
+use App\Enums\Section;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Services\Urls;
@@ -26,7 +27,7 @@ final readonly class CreateScheduledCommit
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null, bool|string $linkPreview = true): ScheduledCommit
+    public function handle(User $user, string $body, CarbonImmutable $scheduledAt, array $images = [], array $imageDescriptions = [], ?NewPoll $poll = null, bool|string $linkPreview = true, ?Section $section = null): ScheduledCommit
     {
         $body = mb_trim($body);
 
@@ -40,6 +41,7 @@ final readonly class CreateScheduledCommit
                 false => null,
                 default => $linkPreview,
             },
+            'section' => $section,
             'scheduled_at' => $scheduledAt->utc(),
         ]));
     }

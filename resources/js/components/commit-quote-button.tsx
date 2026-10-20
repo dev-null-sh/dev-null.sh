@@ -48,7 +48,10 @@ export function CommitQuoteButton({
     const [isOpen, setIsOpen] = useState(false);
     const hasStash = useHasStash(auth.user?.id ?? null, `quote-${commit.id}`);
 
-    if (commit.status !== 'approved' && commit.user_id !== auth.user?.id) {
+    if (
+        commit.section !== null ||
+        (commit.status !== 'approved' && commit.user_id !== auth.user?.id)
+    ) {
         return null;
     }
 

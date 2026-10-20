@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
+use App\Enums\Section;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
@@ -65,6 +66,7 @@ final class HandleInertiaRequests extends Middleware
                     'day' => today()->toDateString(),
                 ] : null,
             ],
+            'sections' => array_map(fn (Section $section): array => ['value' => $section->value, 'title' => $section->title()], Section::cases()),
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,

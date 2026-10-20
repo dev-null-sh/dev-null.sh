@@ -46,6 +46,7 @@ final readonly class TrendingLogQuery implements LogQuery
         return Commit::query()
             ->joinSub($draw, 'draw', 'draw.drawn_id', '=', 'commits.id')
             ->visibleTo($user)
+            ->withoutSections()
             ->withoutMutedAuthorsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)

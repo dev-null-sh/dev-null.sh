@@ -11,6 +11,7 @@ import type { Commit } from '../../resources/js/types';
 const commit = {
     id: 'quote-target',
     user_id: 'author',
+    section: null,
     status: 'approved',
 } as Commit;
 
@@ -44,3 +45,29 @@ for (const user of [null, { id: 'viewer' }]) {
         assert.doesNotMatch(result.body, /data-test="quote-composer"/);
     });
 }
+
+void test('offers no quote control on a commit posted to a section', async () => {
+    const result = await createInertiaApp<{
+        auth: { user: { id: string } | null };
+    }>({
+        page: {
+            component: 'quote',
+            props: { auth: { user: { id: 'viewer' } }, errors: {} },
+            url: '/@author/quote-target',
+            version: null,
+            clearHistory: false,
+            encryptHistory: false,
+            rescuedProps: [],
+            rememberedState: {},
+            flash: {},
+        },
+        resolve: () => () => (
+            <CommitQuoteButton commit={{ ...commit, section: 'hiring' }} />
+        ),
+        render: renderToString,
+        setup: ({ App, props }) => <App {...props} />,
+    });
+
+    assert.ok(result);
+    assert.doesNotMatch(result.body, /data-test="quote-button"/);
+});

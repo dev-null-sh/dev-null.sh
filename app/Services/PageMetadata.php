@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\CommitStatus;
+use App\Enums\Section;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
@@ -87,14 +88,14 @@ final readonly class PageMetadata
      *
      * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
      */
-    public function page(string $title, string $description, string $url): array
+    public function page(string $title, string $description, string $url, bool $indexable = true): array
     {
         return [
             'type' => 'website',
             'title' => $title,
             'description' => $description,
             'url' => $url,
-            'robots' => self::INDEXABLE,
+            'robots' => $indexable ? self::INDEXABLE : self::NOT_INDEXABLE,
             'images' => [[
                 'url' => url('/og.png'),
                 'width' => OpenGraphCanvas::WIDTH,
@@ -113,6 +114,22 @@ final readonly class PageMetadata
                 'isPartOf' => ['@id' => route('home').'#website'],
             ],
         ];
+    }
+
+    /**
+     * The link preview of a section, which is also what a link to a commit in it shows: those commits are for readers
+     * inside the app, so no preview carries their text, and no search engine indexes them.
+     *
+     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
+     */
+    public function section(Section $section): array
+    {
+        return $this->page(
+            "{$section->title()} on /dev/null",
+            $section->description(),
+            route('section.show', $section),
+            indexable: false,
+        );
     }
 
     /**

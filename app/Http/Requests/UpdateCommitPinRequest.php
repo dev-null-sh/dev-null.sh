@@ -18,7 +18,7 @@ final class UpdateCommitPinRequest extends FormRequest
         $commit = $this->route('commit');
         assert($commit instanceof Commit);
 
-        return $commit->user_id === $user->id && $commit->parent_id === null;
+        return $commit->user_id === $user->id && $commit->parent_id === null && $commit->section === null;
     }
 
     /**

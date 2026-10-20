@@ -18,7 +18,7 @@ final class ShowApiCommitRequest extends FormRequest
         $commit = $this->route('commit');
         assert($commit instanceof Commit);
 
-        return $commit->isVisibleTo($this->user()) ? Response::allow() : Response::denyAsNotFound();
+        return $commit->isVisibleTo($this->user()) && ! $commit->isInSection() ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**

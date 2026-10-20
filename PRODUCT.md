@@ -33,6 +33,7 @@ What exists, one line each (details in the knowledge base):
 
 - **Commits:** text with code, images, link cards and embedded players, or a poll; replies, quotes, threads, scheduling, translation.
 - **Logs:** Following, Latest, and Trending.
+- **Sections:** instead of the logs, a top-level commit can be posted to a section, chosen once when composing or scheduling it. **Hiring** (`/hiring`) is the first: developers hiring developers, readable by guests. Section commits are in no log, profile tab or count, feed, graph, public API, or link preview, and cannot be moved afterwards.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
 - **Remotes:** private one-to-one and group messages (orgs).
@@ -58,7 +59,7 @@ Deliberately excluded: sign-up or identity outside GitHub, editing commits, and 
 - Voice: dry, terminal-literate humor. Understated wit; copy may wink at Unix and `/dev/null`, but stays clear and never obscures what an action does.
 - Lore is part of the product: Tom (everyone's first friend, after MySpace Tom), pastéis (a tribute to the pastéis de nata brought to the livestream), @world, the Unix-named achievements. Extend it with restraint, never at the expense of clarity. The stories behind it are in the knowledge base.
 - Current tagline in use: "A social network for developers."
-- Vocabulary: a post is a **commit** and a timeline is a **log**, in the UI and in code (`Commit` model, `LogController`, `/log/{log}`). The git metaphor stops at those two nouns, except inside Remotes, which carries its own small vocabulary: a conversation is a **remote**, sending is a **push**, a read receipt is **pulled**, a request is **fetched** until **merged** or **dropped**, archiving is **stash** and **pop**, a group is an **org** of **maintainers** and **contributors**, and **HEAD** marks where you left off. No branches, forks, diffs, or PRs. **Star** is the engagement verb, not a git ref.
+- Vocabulary: a post is a **commit** and a timeline is a **log**, in the UI and in code (`Commit` model, `LogController`, `/log/{log}`). The git metaphor stops at those two nouns, except inside Remotes, which carries its own small vocabulary: a conversation is a **remote**, sending is a **push**, a read receipt is **pulled**, a request is **fetched** until **merged** or **dropped**, archiving is **stash** and **pop**, a group is an **org** of **maintainers** and **contributors**, and **HEAD** marks where you left off. No branches, forks, diffs, or PRs. **Star** is the engagement verb, not a git ref. A **section** (Hiring) is the one other noun, for a place a commit is posted to instead of the logs; it is not a git term.
 
 ## Evidence on Hand
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Enums\CommitStatus;
+use App\Enums\Section;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\TheAlgorithm;
@@ -48,6 +49,13 @@ final class CommitFactory extends Factory
     {
         return $this->state(fn (array $attributes): array => [
             'status' => CommitStatus::Pending,
+        ]);
+    }
+
+    public function inSection(Section $section): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'section' => $section,
         ]);
     }
 

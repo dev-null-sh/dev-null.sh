@@ -16,7 +16,7 @@ final class ShowCommitOpenGraphImageRequest extends FormRequest
         $commit = $this->route('commit');
         assert($commit instanceof Commit);
 
-        return $commit->status === CommitStatus::Approved ? Response::allow() : Response::denyAsNotFound();
+        return $commit->status === CommitStatus::Approved && ! $commit->isInSection() ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**

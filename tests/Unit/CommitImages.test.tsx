@@ -15,6 +15,7 @@ const commit: Commit = {
     user_id: 'user-1',
     parent_id: null,
     hot_score: 41484.833333,
+    section: null,
     quoted_commit_id: null,
     body: 'Photo from the build',
     mentions: {},

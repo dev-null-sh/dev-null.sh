@@ -33,7 +33,7 @@ final readonly class UpdateScheduledCommitSubmittedAt
             $scheduled = ScheduledCommit::query()->with('user')->findOrFail($id);
             assert(is_string($scheduled->body));
             $poll = $scheduled->poll === null ? null : new NewPoll($scheduled->poll['options'], PollDuration::from($scheduled->poll['duration']));
-            $commit = $this->createCommit->handle($scheduled->user, $scheduled->body, linkPreview: $scheduled->link_preview_url ?? false, poll: $poll);
+            $commit = $this->createCommit->handle($scheduled->user, $scheduled->body, linkPreview: $scheduled->link_preview_url ?? false, poll: $poll, section: $scheduled->section);
             $commit->images()->createMany($scheduled->images ?? []);
 
             $scheduled->forceFill(['commit_id' => $commit->id, 'body' => null, 'poll' => null, 'images' => null, 'link_preview_url' => null])->save();

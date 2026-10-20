@@ -25,13 +25,13 @@ final readonly class UserActivityQuery
 
         return [
             'scale' => $scale,
-            'buckets' => $this->buckets->get($user->commits()->visibleTo($viewer)->toBase(), $scale, $scale->start($now), $now),
+            'buckets' => $this->buckets->get($user->commits()->visibleTo($viewer)->withoutSections()->toBase(), $scale, $scale->start($now), $now),
         ];
     }
 
     private function scale(User $user, ?User $viewer, CarbonImmutable $now): ActivityScale
     {
-        $firstCommitAt = $user->commits()->visibleTo($viewer)->min('created_at');
+        $firstCommitAt = $user->commits()->visibleTo($viewer)->withoutSections()->min('created_at');
 
         return ActivityScale::since(
             is_string($firstCommitAt) ? CarbonImmutable::parse($firstCommitAt) : $user->created_at,

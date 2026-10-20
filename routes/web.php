@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Enums\Section;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\BrandController;
@@ -69,6 +70,7 @@ use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\SectionController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
@@ -125,6 +127,11 @@ Route::middleware('guest')->group(function (): void {
 // Log, where guests read Trending and Latest...
 Route::get('log/everyone', fn () => to_route('log.show', Log::Trending, 301));
 Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
+
+// Sections, such as Hiring, where the commits posted to one are listed, at the top level of the site and read by guests too...
+Route::get('{section}', [SectionController::class, 'show'])
+    ->whereIn('section', Section::values())
+    ->name('section.show');
 
 // Terms and privacy, readable by everyone...
 Route::get('terms', [TermsController::class, 'show'])->name('terms.show');

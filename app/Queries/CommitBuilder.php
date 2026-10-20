@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Enums\CommitStatus;
 use App\Enums\RepliesPerPage;
+use App\Enums\Section;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\CommitTranslations;
@@ -27,7 +28,7 @@ final class CommitBuilder extends Builder
      */
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
-        'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count',
+        'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count', 'section',
     ];
 
     /**
@@ -203,6 +204,31 @@ final class CommitBuilder extends Builder
     public function approved(): self
     {
         return $this->where('status', CommitStatus::Approved);
+    }
+
+    /**
+     * Commits posted to a section are only ever listed on its page, so every other list of commits leaves them out through
+     * this scope.
+     */
+    public function withoutSections(): self
+    {
+        return $this->whereNull($this->qualifyColumn('section'));
+    }
+
+    public function inSection(Section $section): self
+    {
+        return $this->where($this->qualifyColumn('section'), $section);
+    }
+
+    /**
+     * Where replies are shown on their own, such as the public API, the replies under a commit in a section are left out too,
+     * since each one carries that commit as its parent.
+     */
+    public function withoutSectionThreads(): self
+    {
+        return $this->withoutSections()->where(fn (self $query): self => $query
+            ->whereNull($this->qualifyColumn('root_id'))
+            ->orWhereNotIn($this->qualifyColumn('root_id'), Commit::query()->withTrashed()->whereNotNull('section')->select('id')));
     }
 
     /**

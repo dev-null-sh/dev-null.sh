@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
+use App\Enums\Section;
 use App\Models\User;
 use App\Rules\ScheduledCommitLimit;
 use App\Services\Urls;
@@ -36,6 +37,7 @@ final class CreateScheduledCommitRequest extends FormRequest
             'body' => $this->hasFile('images') ? CreateCommitRequest::BODY_WITH_IMAGES_RULES : CreateCommitRequest::BODY_RULES,
             'scheduled_at' => ['required', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
             'parent_id' => ['prohibited'],
+            'section' => ['nullable', Rule::enum(Section::class)],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...CreateCommitRequest::attachmentRules(),
         ];
@@ -71,6 +73,11 @@ final class CreateScheduledCommitRequest extends FormRequest
         }
 
         return $this->filled('link_preview_url') ? $this->string('link_preview_url')->value() : false;
+    }
+
+    public function section(): ?Section
+    {
+        return $this->enum('section', Section::class);
     }
 
     public function poll(): ?NewPoll

@@ -22,6 +22,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
+import SectionController from '@/actions/App/Http/Controllers/SectionController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
@@ -48,6 +49,7 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
+import { sectionIcon } from '@/lib/sections';
 import { browserTimeZone, cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
@@ -58,10 +60,10 @@ const navLabelClassName =
     'max-w-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] nav-wide:max-w-40 nav-wide:opacity-100 motion-reduce:transition-none';
 
 /**
- * Guests see the same items, each taking them to sign in.
+ * Guests see the same items, each taking them to sign in, except the sections, which they read like the log.
  */
 function useNavItems(): (NavItem & { isActive: boolean })[] {
-    const { auth, hasUnmoderatedCommits } = usePage().props;
+    const { auth, hasUnmoderatedCommits, sections } = usePage().props;
     const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
     const { user, log } = auth;
     const unreadMessages = useUnreadMessages();
@@ -78,6 +80,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             icon: GitCommitVertical,
             prefetch: false,
         },
+        ...sections.map((section) => ({
+            title: section.title,
+            href: SectionController.show(section.value),
+            icon: sectionIcon(section.value),
+            prefetch: false,
+        })),
         {
             title: 'Notifications',
             href: hrefFor(() => NotificationController.index()),
@@ -519,7 +527,7 @@ export function MobileCommitButton({
  * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
  */
 export function MobileNav({ children }: { children?: ReactNode }) {
-    const { auth } = usePage().props;
+    const { auth, sections } = usePage().props;
     const timeZone = auth.user?.timezone ?? browserTimeZone();
     const {
         changelog,
@@ -531,8 +539,11 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     } = useChangelog(timeZone);
     const [isChangelogOpen, setIsChangelogOpen] = useState(false);
     const allItems = useNavItems();
-    const menuItems = allItems.filter((item) =>
-        ['Profile', 'Settings', 'Operations'].includes(item.title),
+    // The bar has no room for a cell per section, so they sit in the menu.
+    const menuItems = allItems.filter(
+        (item) =>
+            ['Profile', 'Settings', 'Operations'].includes(item.title) ||
+            sections.some((section) => section.title === item.title),
     );
     const items = allItems.filter(
         (item) =>

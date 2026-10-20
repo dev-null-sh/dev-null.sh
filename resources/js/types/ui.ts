@@ -13,6 +13,7 @@ export type FlashToast = {
 export type CommittedFlash = {
     id: string;
     body: string;
+    section?: string;
 };
 
 export type DeletedFlash = DeletedCommit & {

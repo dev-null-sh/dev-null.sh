@@ -96,11 +96,11 @@ final readonly class SitemapQuery
      */
     private function users(): Builder
     {
-        return User::query()->whereHas('commits', fn (CommitBuilder $query): CommitBuilder => $query->approved());
+        return User::query()->whereHas('commits', fn (CommitBuilder $query): CommitBuilder => $query->approved()->withoutSections());
     }
 
     private function commits(): CommitBuilder
     {
-        return Commit::query()->approved();
+        return Commit::query()->approved()->withoutSectionThreads();
     }
 }

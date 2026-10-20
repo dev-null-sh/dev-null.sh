@@ -36,6 +36,7 @@ import {
     SchedulePicker,
 } from '@/components/schedule-picker';
 import { SecretWarning } from '@/components/secret-warning';
+import { SectionPicker } from '@/components/section-picker';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
@@ -58,7 +59,7 @@ import {
     laneColor,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { User } from '@/types';
+import type { Section, User } from '@/types';
 
 // The ring moves quickly while a post starts and slows toward the limit, yet only closes at the limit.
 function bodyProgress(count: number): number {
@@ -84,6 +85,20 @@ function useCommitSchedule() {
     };
 }
 
+/**
+ * Posting from a section's page posts to it, unless the author picks another place.
+ */
+function useCommitSection() {
+    const page = usePage();
+    const current =
+        page.component === 'section/show'
+            ? (page.props.section as Section).value
+            : null;
+    const [section, setSection] = useState<string | null>(current);
+
+    return { section, setSection, reset: () => setSection(current) };
+}
+
 function CommitComposerBody({
     id,
     isInDialog,
@@ -92,6 +107,7 @@ function CommitComposerBody({
     attachments,
     linkCard,
     schedule,
+    section,
     poll,
     setPoll,
     secrets,
@@ -109,6 +125,7 @@ function CommitComposerBody({
     attachments: ReturnType<typeof useImageAttachments>;
     linkCard: UseLinkCardReturn;
     schedule: ReturnType<typeof useCommitSchedule>;
+    section: ReturnType<typeof useCommitSection>;
     poll: PollDraft | null;
     setPoll: (poll: PollDraft | null) => void;
     secrets: ReturnType<typeof useSecretWarning>;
@@ -472,6 +489,11 @@ function CommitComposerBody({
                                             <Clock3 className="size-5" />
                                         </Button>
                                     </ActionTooltip>
+                                    <SectionPicker
+                                        section={section.section}
+                                        onChange={section.setSection}
+                                        disabled={processing}
+                                    />
                                     <LinkCardPicker
                                         linkCard={linkCard}
                                         disabled={processing}
@@ -560,6 +582,7 @@ export function CommitComposer({
     onCommitted?: () => void;
 }) {
     const schedule = useCommitSchedule();
+    const section = useCommitSection();
     const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
         schedule;
     const { user } = useUser();
@@ -656,6 +679,7 @@ export function CommitComposer({
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,
                 }),
+                ...(section.section !== null && { section: section.section }),
                 ...(isScheduling && {
                     scheduled_at: new Date(scheduledAt)
                         .toISOString()
@@ -671,6 +695,7 @@ export function CommitComposer({
                 drop();
                 setScheduledAt('');
                 setIsScheduling(false);
+                section.reset();
                 attachments.clear();
                 setPoll(null);
 
@@ -693,6 +718,7 @@ export function CommitComposer({
                         attachments={attachments}
                         linkCard={linkCard}
                         schedule={schedule}
+                        section={section}
                         poll={poll}
                         setPoll={setPoll}
                         secrets={secrets}

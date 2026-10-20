@@ -45,7 +45,7 @@ export function useFlashToast(): void {
                         className="line-clamp-3 font-mono text-[13px] wrap-anywhere"
                         title={committed.body}
                     >
-                        [log {shortHash(committed.id)}]{' '}
+                        [{committed.section ?? 'log'} {shortHash(committed.id)}]{' '}
                         {emojify(committed.body)}
                     </span>,
                 );

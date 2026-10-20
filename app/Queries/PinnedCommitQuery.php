@@ -21,6 +21,7 @@ final readonly class PinnedCommitQuery
         return Commit::query()
             ->whereBelongsTo($user)
             ->visibleTo($viewer)
+            ->withoutSections()
             ->topLevel()
             ->withVisibleReplyCount($viewer)
             ->withReplyPreviews($viewer)

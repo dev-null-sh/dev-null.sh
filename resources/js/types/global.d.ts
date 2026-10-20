@@ -1,5 +1,6 @@
 import type { Auth, SuggestedUser } from '@/types/auth';
 import type { Commit } from '@/types/commit';
+import type { SectionOption } from '@/types/section';
 import type { CommittedFlash, DeletedFlash, FlashToast } from '@/types/ui';
 
 declare module '@inertiajs/core' {
@@ -17,6 +18,7 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             auth: Auth;
+            sections: SectionOption[];
             hasUnmoderatedCommits: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;

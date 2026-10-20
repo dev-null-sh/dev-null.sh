@@ -20,12 +20,13 @@ final readonly class UserCommitsQuery
         return Commit::query()
             ->whereBelongsTo($user)
             ->visibleTo($viewer)
+            ->withoutSections()
             ->when(
                 $replies,
                 fn (CommitBuilder $query): CommitBuilder => $query
                     ->whereNotNull('parent_id')
                     ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
-                        ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
+                        ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer)->withoutSections())
                         ->with('user')]),
                 fn (CommitBuilder $query): CommitBuilder => $query->topLevel()
                     ->when($user->pinned_commit_id, fn (CommitBuilder $query, string $id): CommitBuilder => $query->whereKeyNot($id)),

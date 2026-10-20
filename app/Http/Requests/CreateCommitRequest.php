@@ -7,6 +7,7 @@ namespace App\Http\Requests;
 use App\Actions\CreateCommitImages;
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
+use App\Enums\Section;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
@@ -82,7 +83,8 @@ final class CreateCommitRequest extends FormRequest
 
         return [
             'body' => $this->hasFile('images') ? self::BODY_WITH_IMAGES_RULES : self::BODY_RULES,
-            'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
+            'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.', allowsSections: false)],
+            'section' => ['nullable', Rule::enum(Section::class), 'prohibits:parent_id,quoted_commit_id'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...self::attachmentRules(),
         ];
@@ -96,6 +98,14 @@ final class CreateCommitRequest extends FormRequest
         return [
             'image_descriptions.*' => 'image description',
         ];
+    }
+
+    /**
+     * The section the commit is posted to, which is only ever chosen when composing it.
+     */
+    public function section(): ?Section
+    {
+        return $this->enum('section', Section::class);
     }
 
     public function poll(): ?NewPoll

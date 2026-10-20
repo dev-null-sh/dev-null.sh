@@ -74,6 +74,7 @@ test('quotes submit restored images and clear the complete draft only on success
         id: 'quoted',
         user_id: 'author',
         user: { username: 'author' },
+        section: null,
         status: 'approved',
     } as Commit;
     const button = CommitQuoteButton({ commit })!;

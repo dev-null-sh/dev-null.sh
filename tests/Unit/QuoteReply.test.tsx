@@ -14,6 +14,7 @@ const original = {
     id: 'original',
     user_id: 'author',
     parent_id: null,
+    section: null,
     quoted_commit_id: null,
     created_at: new Date().toISOString(),
     status: 'approved',

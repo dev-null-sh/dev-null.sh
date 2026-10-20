@@ -20,6 +20,7 @@ final readonly class UserStreakQuery
         /** @var list<string> $days */
         $days = $user->commits()
             ->visibleTo($viewer)
+            ->withoutSections()
             ->selectRaw('date(created_at) as day')
             ->distinct()
             ->orderBy('day')

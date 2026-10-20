@@ -32,6 +32,7 @@ final readonly class UserCommitController
 
         return CommitResource::collection($user->commits()
             ->approved()
+            ->withoutSectionThreads()
             ->when(
                 $request->replies(),
                 fn (CommitBuilder $query): CommitBuilder => $query->whereNotNull('parent_id'),

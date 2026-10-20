@@ -66,7 +66,7 @@ final readonly class UserAchievementsQuery
      */
     public function get(User $user, ?User $viewer, ?array $streaks = null): array
     {
-        $visibleCommitsQuery = $user->commits()->visibleTo($viewer);
+        $visibleCommitsQuery = $user->commits()->visibleTo($viewer)->withoutSections();
 
         // Replies must be to other developers (excluding self-replies), deleted parents included
         /** @var object{total_commits: int|string, has_syntax: int|string|null, replies: int|string} $commitStats */

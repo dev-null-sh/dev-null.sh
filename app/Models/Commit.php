@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\CommitStatus;
+use App\Enums\Section;
 use App\Queries\CommitBuilder;
 use App\Services\CommitBodies;
 use Carbon\CarbonInterface;
@@ -28,6 +29,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $parent_id
  * @property-read string|null $root_id
  * @property-read float $hot_score
+ * @property-read Section|null $section
  * @property-read string $body
  * @property-read array<string, string>|null $mentions
  * @property-read CommitStatus $status
@@ -107,6 +109,7 @@ final class Commit extends Model
             'parent_id' => 'string',
             'root_id' => 'string',
             'hot_score' => 'float',
+            'section' => Section::class,
             'pasteis_count' => 'integer',
             'body' => 'string',
             'mentions' => 'array',
@@ -205,6 +208,26 @@ final class Commit extends Model
     public function threadRootId(): string
     {
         return $this->root_id ?? $this->id;
+    }
+
+    /**
+     * The section the commit is posted to, or the one the thread it replies in belongs to.
+     */
+    public function threadSection(): ?Section
+    {
+        if ($this->section instanceof Section || $this->root_id === null) {
+            return $this->section;
+        }
+
+        return self::query()->withTrashed()->whereKey($this->root_id)->first(['section'])?->section;
+    }
+
+    /**
+     * Commits in a section are only ever listed on its page, and so are the replies under them.
+     */
+    public function isInSection(): bool
+    {
+        return $this->threadSection() instanceof Section;
     }
 
     /**
