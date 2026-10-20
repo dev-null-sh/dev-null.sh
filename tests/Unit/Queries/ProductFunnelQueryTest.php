@@ -124,51 +124,34 @@ it('waits twelve hours before counting a signup towards activation', function ()
         ->rates->activation->toBe(0.0);
 });
 
-it('measures retention from day 14 once signups got through it after tracking started', function (): void {
-    ($this->trackSince)('2026-10-01');
+it('measures retention from day 1 once signups got through it after tracking started', function (): void {
+    ($this->trackSince)('2026-10-15');
 
-    User::factory()->create(['created_at' => '2026-10-01 10:00:00', 'last_seen_at' => '2026-10-15']);
-    User::factory()->create(['created_at' => '2026-10-01 10:00:00', 'last_seen_at' => '2026-10-14']);
-    User::factory()->create(['created_at' => '2026-10-04 10:00:00', 'last_seen_at' => '2026-10-19']);
-    User::factory()->create(['created_at' => '2026-10-05 10:00:00', 'last_seen_at' => '2026-10-19']);
+    User::factory()->create(['created_at' => '2026-10-16 10:00:00', 'last_seen_at' => '2026-10-17']);
+    User::factory()->create(['created_at' => '2026-10-16 10:00:00', 'last_seen_at' => '2026-10-16']);
+    User::factory()->create(['created_at' => '2026-10-14 10:00:00', 'last_seen_at' => '2026-10-19']);
+    User::factory()->create(['created_at' => '2026-10-13 10:00:00', 'last_seen_at' => '2026-10-19']);
+    User::factory()->create(['created_at' => '2026-10-18 10:00:00', 'last_seen_at' => '2026-10-19']);
 
     expect(($this->funnel)())
-        ->retention_horizon->toBe(14)
-        ->retention_full_on->toBeNull()
         ->retained->toBe(2)
         ->retention_eligible->toBe(3)
         ->rates->retention->toBe(2 / 3);
 });
 
-it('falls back to day 7, then day 1, until signups reach day 14 after tracking started', function (string $trackedSince, string $signedUpAt, int $horizon, string $fullOn): void {
-    ($this->trackSince)($trackedSince);
-
-    User::factory()->create(['created_at' => $signedUpAt, 'last_seen_at' => '2026-10-19']);
-
-    expect(($this->funnel)('2026-10-10', '2026-10-19'))
-        ->retention_horizon->toBe($horizon)
-        ->retention_full_on->toBe($fullOn)
-        ->retained->toBe(1)
-        ->retention_eligible->toBe(1);
-})->with([
-    'day 7' => ['2026-10-12', '2026-10-10 10:00:00', 7, '2026-10-25'],
-    'day 1' => ['2026-10-18', '2026-10-17 10:00:00', 1, '2026-11-01'],
-]);
-
 it('has no retention before tracking started, or before signups got through their first day', function (): void {
     User::factory()->create(['created_at' => '2026-10-10 10:00:00', 'last_seen_at' => '2026-10-19']);
 
     expect(($this->funnel)())
-        ->retention_horizon->toBeNull()
-        ->retention_full_on->toBeNull()
+        ->retention_eligible->toBe(0)
         ->rates->retention->toBeNull();
 
     ($this->trackSince)('2026-10-19');
     User::query()->update(['created_at' => '2026-10-18 08:00:00']);
 
     expect(($this->funnel)())
-        ->retention_horizon->toBeNull()
-        ->retention_full_on->toBe('2026-11-02');
+        ->retention_eligible->toBe(0)
+        ->rates->retention->toBeNull();
 });
 
 it('counts visitors and conversion from Fathom events', function (): void {
@@ -213,20 +196,18 @@ it('compares the last seven days with the seven before when the range is all tim
     expect(($this->funnel)('2026-09-01', '2026-10-19', isAllTime: true)['changes'])->toBe([
         'conversion' => null,
         'activation' => 0.5,
-        'retention' => null,
+        'retention' => -0.5,
     ]);
 });
 
-it('compares a range with as many days before it, at the same retention horizon', function (): void {
+it('compares a range with as many days before it', function (): void {
     ($this->trackSince)('2026-09-01');
 
     User::factory()->create(['created_at' => '2026-09-20 10:00:00', 'last_seen_at' => '2026-10-19']);
     User::factory()->create(['created_at' => '2026-09-20 10:00:00']);
     User::factory()->create(['created_at' => '2026-09-27 10:00:00', 'last_seen_at' => '2026-10-19']);
 
-    expect(($this->funnel)('2026-09-27', '2026-10-03'))
-        ->retention_horizon->toBe(14)
-        ->changes->retention->toBe(0.5);
+    expect(($this->funnel)('2026-09-27', '2026-10-03')['changes']['retention'])->toBe(0.5);
 });
 
 it('has no changes until the period before started after the launch', function (): void {
