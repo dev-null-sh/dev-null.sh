@@ -20,6 +20,9 @@ export function NotificationFilters({
     onChange: (types: string[]) => void;
 }) {
     const isMobile = useIsMobile();
+    const hasEnabledAdditionalFilters = options
+        .slice(3)
+        .some((option) => enabled.includes(option.type));
     const toggle = (type: string) =>
         onChange(
             enabled.includes(type)
@@ -64,7 +67,12 @@ export function NotificationFilters({
                         <button
                             type="button"
                             aria-label="More notification filters"
-                            className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                            className={cn(
+                                'rounded-md border px-3 py-1.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                                hasEnabledAdditionalFilters
+                                    ? 'border-primary/30 bg-primary-soft text-primary hover:bg-primary/15'
+                                    : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
+                            )}
                         >
                             <Ellipsis className="size-4" aria-hidden />
                         </button>
