@@ -28,6 +28,17 @@ it('does not notify authors about their own stars', function (): void {
     expect($commit->user->notifications()->exists())->toBeFalse();
 });
 
+it('does not notify an author who muted the stargazer', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    $commit->user->muting()->attach($user);
+
+    resolve(CreateStarNotification::class)->handle($user, $commit);
+
+    expect($commit->user->notifications()->exists())->toBeFalse();
+});
+
 it('is idempotent', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->create();
