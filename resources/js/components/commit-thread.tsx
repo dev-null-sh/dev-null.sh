@@ -665,10 +665,16 @@ function ReplyLinks({
     lane: string;
     nextLane: string | null;
 }) {
+    const { fadesLanes } = usePage().props;
+    const fadeTo = fadesLanes ? nextLane : lane;
+
     return (
         <span aria-hidden>
             {previousLane === null ? (
-                <ThreadElbow from={parentLane} to={lane} />
+                <ThreadElbow
+                    from={parentLane}
+                    to={fadesLanes ? lane : parentLane}
+                />
             ) : (
                 <span
                     className={cn(replyLink, 'top-0 h-1.5')}
@@ -679,7 +685,7 @@ function ReplyLinks({
             {nextLane !== null && (
                 <ReplyTail
                     from={lane}
-                    to={nextLane}
+                    to={fadeTo ?? lane}
                     className="top-[38px] bottom-0 sm:top-[42px]"
                 />
             )}

@@ -21,6 +21,7 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
             dimsLanes: boolean;
+            fadesLanes: boolean;
             repliesPerPage: number;
             suggestedUsers?: SuggestedUser[];
             [key: string]: unknown;

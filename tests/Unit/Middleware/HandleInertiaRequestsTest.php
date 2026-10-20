@@ -261,6 +261,31 @@ it('does not dim lanes when disabled', function (): void {
     expect($shared['dimsLanes'])->toBeFalse();
 });
 
+it('does not fade lanes unless enabled', function (string $cookie): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+
+    if ($cookie !== '') {
+        $request->cookies->set('lane_fades', $cookie);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['fadesLanes'])->toBeFalse();
+})->with(['', 'false']);
+
+it('fades lanes when enabled', function (): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->cookies->set('lane_fades', 'true');
+
+    $shared = $middleware->share($request);
+
+    expect($shared['fadesLanes'])->toBeTrue();
+});
+
 it('shows 3 replies at a time unless the user picked one of the other counts', function (string $cookie, int $count): void {
     $middleware = new HandleInertiaRequests();
 

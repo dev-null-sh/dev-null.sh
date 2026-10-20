@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import type { CSSProperties, ReactNode } from 'react';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
@@ -45,6 +46,10 @@ export function GraphRail({
     nodePosition = 'top',
     onHoverChange,
 }: Props) {
+    const { fadesLanes } = usePage().props;
+    const fadeTo = fadesLanes ? nextLane : undefined;
+    const inboundLane = fadesLanes ? lane : (previousLane ?? lane);
+
     return (
         <div
             aria-hidden
@@ -80,7 +85,7 @@ export function GraphRail({
                             'bottom-5 h-auto': nodePosition === 'bottom',
                         },
                     )}
-                    style={{ background: lane }}
+                    style={{ background: inboundLane }}
                     data-test="rail-previous"
                 />
             )}
@@ -91,7 +96,7 @@ export function GraphRail({
                         className="absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2"
                         style={laneStrokeStyle(
                             'var(--rail)',
-                            nextLane ?? 'var(--rail)',
+                            fadeTo ?? 'var(--rail)',
                             { hold: 0.75, dash: stagedDash, anchor: 'end' },
                         )}
                         data-test="rail-staged-tail"
@@ -110,7 +115,7 @@ export function GraphRail({
                                 'top-[22px]': nodePosition === 'author',
                             },
                         )}
-                        style={laneStrokeStyle(lane, nextLane ?? lane, {
+                        style={laneStrokeStyle(lane, fadeTo ?? lane, {
                             dashed: false,
                         })}
                         data-test="rail-tail"

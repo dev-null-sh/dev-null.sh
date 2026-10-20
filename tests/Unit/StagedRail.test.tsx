@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { createInertiaApp } from '@inertiajs/react';
+import { renderToStaticMarkup, renderToString } from 'react-dom/server';
+import type { ReactElement } from 'react';
 import { test } from 'vite-plus/test';
 import {
     GraphRail,
@@ -9,9 +11,40 @@ import {
 const stagedTail = (markup: string): string | undefined =>
     markup.match(/<span[^>]*data-test="rail-staged-tail"[^>]*>/)?.[0];
 
-test('fades the staged rail from the draft grey into the next lane', () => {
+async function renderRail(
+    rail: ReactElement,
+    fadesLanes = true,
+): Promise<string> {
+    const result = await createInertiaApp({
+        page: {
+            component: 'test',
+            props: {
+                auth: { user: null },
+                errors: {},
+                dimsLanes: true,
+                fadesLanes,
+            },
+            url: '/',
+            version: null,
+            clearHistory: false,
+            encryptHistory: false,
+            rescuedProps: [],
+            rememberedState: {},
+            flash: {},
+        },
+        resolve: () => () => rail,
+        render: renderToString,
+        setup: ({ App, props }) => <App {...props} />,
+    });
+
+    assert.ok(result);
+
+    return result.body;
+}
+
+test('fades the staged rail from the draft grey into the next lane', async () => {
     const tail = stagedTail(
-        renderToStaticMarkup(
+        await renderRail(
             <GraphRail
                 lane="var(--lane-1)"
                 nextLane="var(--lane-4)"
@@ -31,11 +64,26 @@ test('fades the staged rail from the draft grey into the next lane', () => {
     );
 });
 
-test('keeps the staged rail grey when nothing follows it', () => {
+test('keeps the staged rail grey when lane fades are off', async () => {
     const tail = stagedTail(
-        renderToStaticMarkup(
-            <GraphRail lane="var(--lane-1)" variant="staged" />,
+        await renderRail(
+            <GraphRail
+                lane="var(--lane-1)"
+                nextLane="var(--lane-4)"
+                variant="staged"
+            />,
+            false,
         ),
+    );
+
+    assert.ok(tail);
+    assert.match(tail, /background-color:var\(--rail\)/);
+    assert.doesNotMatch(tail, /(?<!repeating-)linear-gradient/);
+});
+
+test('keeps the staged rail grey when nothing follows it', async () => {
+    const tail = stagedTail(
+        await renderRail(<GraphRail lane="var(--lane-1)" variant="staged" />),
     );
 
     assert.ok(tail);

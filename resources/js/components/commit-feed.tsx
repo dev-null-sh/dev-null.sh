@@ -44,7 +44,7 @@ export function CommitFeed({
 }) {
     const now = useNow();
     const page = usePage();
-    const { dimsLanes } = page.props;
+    const { dimsLanes, fadesLanes } = page.props;
     const isModeration = page.component === 'moderation/show';
     const isSaved = page.component === 'bookmark/index';
     const profileUserId =
@@ -263,7 +263,10 @@ export function CommitFeed({
                             localDayKey(previous.created_at) !==
                                 localDayKey(commit.created_at));
                     const stagedLane =
-                        isBelowComposer && index === 0 && !pinnedCommit
+                        fadesLanes &&
+                        isBelowComposer &&
+                        index === 0 &&
+                        !pinnedCommit
                             ? laneColor(commit.user.lane)
                             : undefined;
 
