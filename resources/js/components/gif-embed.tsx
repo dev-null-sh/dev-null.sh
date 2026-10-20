@@ -2,7 +2,7 @@ import { Play, Square } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useGifPlayback } from '@/hooks/use-gif-playback';
-import { canAutoplayGif } from '@/lib/gifs';
+import { canLoadGifPoster } from '@/lib/gifs';
 import { hostname } from '@/lib/urls';
 import { cn } from '@/lib/utils';
 import type { Embed, LinkPreview } from '@/types';
@@ -68,7 +68,7 @@ function GifMedia({ preview, embed, playback }: GifMediaProps) {
 
     if (
         embed?.poster &&
-        canAutoplayGif(embed.poster) &&
+        canLoadGifPoster(embed.poster) &&
         !posterFailed &&
         !playback.hasFailed
     ) {
@@ -95,11 +95,7 @@ function GifStatus({ preview, embed, playback }: GifMediaProps) {
             role={playback.hasFailed ? 'status' : undefined}
         >
             {playback.hasFailed && 'GIF could not load'}
-            {!playback.hasFailed &&
-                embed &&
-                (canAutoplayGif(embed.src)
-                    ? 'GIF'
-                    : 'External GIF — press Play to load')}
+            {!playback.hasFailed && embed && 'GIF'}
             {!playback.hasFailed &&
                 !embed &&
                 preview.is_pending &&

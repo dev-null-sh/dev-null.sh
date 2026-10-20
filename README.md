@@ -47,7 +47,7 @@ A link card for a video, song or pen becomes a player that loads when clicked. T
 | `giphy` | `giphy.com/gifs/{id-or-slug-id}` and `giphy.com/embed/{id}` |
 | `gif` | Public HTTPS `.gif` links |
 
-GIFs load from their external host with Play and Stop controls. Giphy autoplays while visible; other hosts and reduced-motion users press Play to start playback.
+GIFs load from their external host with Play and Stop controls. Verified GIFs autoplay while visible; reduced-motion users press Play to start playback.
 
 | Variable | Default | |
 |---|---|---|

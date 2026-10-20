@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { canAutoplayGif, isGifPlaying, isGifUrl } from '../../resources/js/lib/gifs.ts';
+import { canLoadGifPoster, isGifPlaying, isGifUrl } from '../../resources/js/lib/gifs.ts';
 
 const validGifUrls = [
     'https://example.com/animation.gif',
@@ -13,6 +13,7 @@ const validGifUrls = [
 for (const url of validGifUrls) {
     void test(`recognizes a direct HTTPS GIF link: ${url}`, () => {
         assert.equal(isGifUrl(url), true);
+        assert.equal(isGifPlaying({ ...playback, source: url }), true);
     });
 }
 
@@ -33,6 +34,7 @@ const invalidGifUrls = [
 for (const url of invalidGifUrls) {
     void test(`does not treat an unsupported link as a GIF: ${url}`, () => {
         assert.equal(isGifUrl(url), false);
+        assert.equal(isGifPlaying({ ...playback, source: url }), false);
     });
 }
 
@@ -81,8 +83,8 @@ void test('static cards and failed GIFs never animate, even after Play', () => {
     );
 });
 
-void test('only canonical Giphy media can autoplay', () => {
-    assert.equal(canAutoplayGif('https://media.giphy.com/media/cat/giphy.gif'), true);
+void test('only canonical Giphy media can supply a static poster', () => {
+    assert.equal(canLoadGifPoster('https://media.giphy.com/media/cat/giphy.gif'), true);
     for (const source of [
         'https://example.com/cat.gif',
         'https://media.giphy.com.attacker.example/cat.gif',
@@ -94,13 +96,16 @@ void test('only canonical Giphy media can autoplay', () => {
         'https://media.giphy.com:8443/media/cat/giphy.gif',
         'not a URL',
     ]) {
-        assert.equal(canAutoplayGif(source), false);
+        assert.equal(canLoadGifPoster(source), false);
     }
 });
 
-void test('arbitrary GIF hosts require Play and Stop still takes precedence', () => {
+void test('external GIFs autoplay while visible and respect playback preferences', () => {
     const external = { ...playback, source: 'https://example.com/cat.gif' };
-    assert.equal(isGifPlaying(external), false);
+    assert.equal(isGifPlaying(external), true);
+    assert.equal(isGifPlaying({ ...external, isVisible: false }), false);
+    assert.equal(isGifPlaying({ ...external, reducedMotion: true }), false);
+    assert.equal(isGifPlaying({ ...external, reducedMotion: true, playback: 'play' }), true);
     assert.equal(isGifPlaying({ ...external, playback: 'play' }), true);
     assert.equal(isGifPlaying({ ...external, playback: 'stop' }), false);
     assert.equal(isGifPlaying({ ...external, playback: 'play', isVisible: false }), false);

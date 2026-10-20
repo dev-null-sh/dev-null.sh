@@ -1,4 +1,4 @@
-const GIF_AUTOPLAY_HOSTS = new Set(['media.giphy.com']);
+const GIF_POSTER_HOSTS = new Set(['media.giphy.com']);
 
 function parseHttpsUrl(value: string): URL | null {
     try {
@@ -25,10 +25,10 @@ export function isGifUrl(value: string): boolean {
     );
 }
 
-export function canAutoplayGif(value: string): boolean {
+export function canLoadGifPoster(value: string): boolean {
     const url = parseHttpsUrl(value);
 
-    return url !== null && GIF_AUTOPLAY_HOSTS.has(url.hostname);
+    return url !== null && GIF_POSTER_HOSTS.has(url.hostname);
 }
 
 export const GIF_PLAYBACK_MODE = {
@@ -68,5 +68,5 @@ export function isGifPlaying({
         return true;
     }
 
-    return !reducedMotion && canAutoplayGif(source);
+    return !reducedMotion && isGifUrl(source);
 }
