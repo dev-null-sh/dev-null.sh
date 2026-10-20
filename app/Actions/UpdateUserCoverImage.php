@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 final readonly class UpdateUserCoverImage
 {
-    public const int WIDTH = 1500;
+    public const int WIDTH = 1750;
 
     public const int HEIGHT = 500;
 
@@ -25,7 +25,7 @@ final readonly class UpdateUserCoverImage
     private const int QUALITY = 70;
 
     /**
-     * The upload is cropped to a 3:1 banner at the offsets the author dragged it to and re-encoded as WebP with GD, so
+     * The upload is cropped to a 3.5:1 banner, the shape profiles show it in, at the offsets the author dragged it to and re-encoded as WebP with GD, so
      * metadata such as GPS location is dropped. Covers skip the moderation queue whenever the author's commits would.
      */
     public function handle(User $user, UploadedFile $file, float $offsetX = 0.5, float $offsetY = 0.5): void

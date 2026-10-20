@@ -14,7 +14,7 @@ beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 });
 
-it('crops the cover to a 3:1 webp banner', function (): void {
+it('crops the cover to a 3.5:1 webp banner', function (): void {
     $user = User::factory()->create();
 
     resolve(UpdateUserCoverImage::class)->handle($user, UploadedFile::fake()->image('cover.jpg', 2000, 2000));
@@ -23,7 +23,7 @@ it('crops the cover to a 3:1 webp banner', function (): void {
     $size = getimagesizefromstring((string) Storage::disk()->get($path));
 
     expect($path)->toStartWith('cover-images/')->toEndWith('.webp')
-        ->and($size)->toMatchArray([0 => 1500, 1 => 500, 'mime' => 'image/webp']);
+        ->and($size)->toMatchArray([0 => 1750, 1 => 500, 'mime' => 'image/webp']);
 });
 
 it('crops at the offset the author dragged the cover to', function (int $width, int $height, bool $vertical, float $offsetX, float $offsetY, string $color): void {

@@ -19,12 +19,8 @@ import { ActivityGraph } from '@/components/activity-graph';
 import { ActivityStreaks } from '@/components/activity-streaks';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { CoverImage, CoverPill, coverAspect } from '@/components/cover-image';
 import { EditProfileMenu } from '@/components/edit-profile-menu';
-import {
-    CoverImage,
-    CoverPill,
-    profileCoverAspect,
-} from '@/components/cover-image';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import {
@@ -138,7 +134,7 @@ export default function Show({
             <CoverImage
                 lane={user.lane}
                 src={coverImageUrl}
-                className={profileCoverAspect}
+                className={coverAspect}
                 data-test="profile-cover"
             >
                 {coverImagePending && (
