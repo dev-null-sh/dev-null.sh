@@ -1,6 +1,6 @@
 import { router, usePage } from '@inertiajs/react';
 import { Check, Lock, Palette, Terminal } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import ShadowController from '@/actions/App/Http/Controllers/ShadowController';
 import ShadowSkinController from '@/actions/App/Http/Controllers/ShadowSkinController';
@@ -87,6 +87,11 @@ export function ShadowCompanion({
     const [isSaving, setIsSaving] = useState(false);
     const [unlockingSkin, setUnlockingSkin] = useState<ShadowSkin | null>(null);
 
+    useEffect(() => {
+        setName(shadow.name);
+        setGlyph(shadow.glyph);
+    }, [shadow.name, shadow.glyph]);
+
     const currentSkinConfig =
         SHADOW_SKINS.find((s) => s.id === shadow.skin) ?? SHADOW_SKINS[0];
 
@@ -105,59 +110,69 @@ export function ShadowCompanion({
 
     const handleEquipSkin = (skinId: ShadowSkin) => {
         setIsSaving(true);
-        router.visit(ShadowController.update(), {
-            data: { skin: skinId },
-            preserveScroll: true,
-            onFinish: () => setIsSaving(false),
-            onSuccess: () => {
-                toast.success('Shadow skin equipped.');
-                router.flushAll();
+        router.patch(
+            ShadowController.update().url,
+            { skin: skinId },
+            {
+                preserveScroll: true,
+                onFinish: () => setIsSaving(false),
+                onSuccess: () => {
+                    toast.success('Shadow skin equipped.');
+                    router.flushAll();
+                },
+                onError: () => toast.error('Could not equip skin.'),
             },
-            onError: () => toast.error('Could not equip skin.'),
-        });
+        );
     };
 
     const handleUnlockSkin = (skinId: ShadowSkin) => {
         setUnlockingSkin(skinId);
-        router.visit(ShadowSkinController.store(skinId), {
-            preserveScroll: true,
-            onFinish: () => setUnlockingSkin(null),
-            onSuccess: () => {
-                toast.success('New skin unlocked with Bytes!');
-                router.flushAll();
+        router.post(
+            ShadowSkinController.store(skinId).url,
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setUnlockingSkin(null),
+                onSuccess: () => {
+                    toast.success('New skin unlocked with Bytes!');
+                    router.flushAll();
+                },
+                onError: (errors) => {
+                    const message =
+                        errors.skin ||
+                        Object.values(errors)[0] ||
+                        'Insufficient Bytes to unlock this skin.';
+                    toast.error(message);
+                },
             },
-            onError: (errors) => {
-                const message =
-                    errors.skin ||
-                    Object.values(errors)[0] ||
-                    'Insufficient Bytes to unlock this skin.';
-                toast.error(message);
-            },
-        });
+        );
     };
 
     const handleSaveCosmetics = () => {
         setIsSaving(true);
-        router.visit(ShadowController.update(), {
-            data: {
+        router.patch(
+            ShadowController.update().url,
+            {
                 name: name.trim(),
                 glyph: glyph.trim(),
             },
-            preserveScroll: true,
-            onFinish: () => setIsSaving(false),
-            onSuccess: () => {
-                toast.success('Shadow companion updated.');
-                setIsCustomizeOpen(false);
-                router.flushAll();
+            {
+                preserveScroll: true,
+                onFinish: () => setIsSaving(false),
+                onSuccess: () => {
+                    toast.success('Shadow companion updated.');
+                    setIsCustomizeOpen(false);
+                    router.flushAll();
+                },
+                onError: (errors) => {
+                    const message =
+                        errors.name ||
+                        errors.glyph ||
+                        'Could not update Shadow companion.';
+                    toast.error(message);
+                },
             },
-            onError: (errors) => {
-                const message =
-                    errors.name ||
-                    errors.glyph ||
-                    'Could not update Shadow companion.';
-                toast.error(message);
-            },
-        });
+        );
     };
 
     return (
@@ -214,6 +229,7 @@ export function ShadowCompanion({
                         type="button"
                         variant="outline"
                         size="sm"
+                        data-test="customize-shadow-button"
                         onClick={() => setIsCustomizeOpen(true)}
                         className="gap-1.5 font-mono text-xs"
                     >

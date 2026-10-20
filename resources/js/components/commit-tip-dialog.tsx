@@ -104,30 +104,33 @@ export function CommitTipDialog({
         }
 
         setIsSubmitting(true);
-        router.visit(CommitTipController.store(commit), {
-            data: {
+        router.post(
+            CommitTipController.store(commit).url,
+            {
                 gift: selectedGift,
                 message: message.trim() || undefined,
             },
-            preserveScroll: true,
-            onFinish: () => setIsSubmitting(false),
-            onSuccess: () => {
-                toast.success(
-                    `Sent ${gift.icon} ${gift.label} (${gift.cost} Bytes) to @${commit.user.username}!`,
-                );
-                onOpenChange(false);
-                setMessage('');
-                router.flushAll();
+            {
+                preserveScroll: true,
+                onFinish: () => setIsSubmitting(false),
+                onSuccess: () => {
+                    toast.success(
+                        `Sent ${gift.icon} ${gift.label} (${gift.cost} Bytes) to @${commit.user.username}!`,
+                    );
+                    onOpenChange(false);
+                    setMessage('');
+                    router.flushAll();
+                },
+                onError: (errors) => {
+                    const errorMessage =
+                        errors.gift ||
+                        errors.message ||
+                        Object.values(errors)[0] ||
+                        'Could not send tip.';
+                    toast.error(errorMessage);
+                },
             },
-            onError: (errors) => {
-                const errorMessage =
-                    errors.gift ||
-                    errors.message ||
-                    Object.values(errors)[0] ||
-                    'Could not send tip.';
-                toast.error(errorMessage);
-            },
-        });
+        );
     };
 
     return (

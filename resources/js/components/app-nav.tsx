@@ -424,8 +424,16 @@ export function AppNav({
                             <span className="block truncate text-sm font-medium">
                                 {auth.user.name}
                             </span>
-                            <span className="block truncate font-mono text-xs text-muted-foreground">
-                                @{auth.user.username}
+                            <span className="flex items-center gap-1.5 truncate font-mono text-xs text-muted-foreground">
+                                <span>@{auth.user.username}</span>
+                                {auth.wallet && (
+                                    <>
+                                        <span aria-hidden>·</span>
+                                        <span className="font-semibold text-emerald-500">
+                                            {auth.wallet.balance} B
+                                        </span>
+                                    </>
+                                )}
                             </span>
                         </span>
                     </DropdownMenuTrigger>

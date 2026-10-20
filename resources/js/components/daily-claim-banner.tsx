@@ -20,19 +20,23 @@ export function DailyClaimBanner() {
         }
 
         setIsClaiming(true);
-        router.visit(DailyClaimController.store(), {
-            preserveScroll: true,
-            onFinish: () => setIsClaiming(false),
-            onSuccess: () => {
-                toast.success(
-                    `Claimed today's Byte allocation! Your developer streak is active.`,
-                );
-                router.flushAll();
+        router.post(
+            DailyClaimController.store().url,
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setIsClaiming(false),
+                onSuccess: () => {
+                    toast.success(
+                        `Claimed today's Byte allocation! Your developer streak is active.`,
+                    );
+                    router.flushAll();
+                },
+                onError: () => {
+                    toast.error('Could not claim daily Bytes. Please try again.');
+                },
             },
-            onError: () => {
-                toast.error('Could not claim daily Bytes. Please try again.');
-            },
-        });
+        );
     };
 
     return (

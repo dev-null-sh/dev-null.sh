@@ -27,7 +27,7 @@ export function AppAside({
     onShowShortcuts: () => void;
     onSearch: () => void;
 }) {
-    const { user } = usePage().props.auth;
+    const { user, wallet } = usePage().props.auth;
     const keys = useKeyLabels();
     const [commitsCount] = useSharedState(
         commitStateKey('commits_count', user?.id ?? ''),
@@ -161,6 +161,17 @@ export function AppAside({
                         <p className="mt-3 text-sm text-pretty text-muted-foreground">
                             <BioText bio={user.bio} />
                         </p>
+                    )}
+                    {wallet && (
+                        <div className="mt-3 flex items-center justify-between rounded-lg border border-border/80 bg-muted/40 px-3 py-2 font-mono text-xs">
+                            <span className="flex items-center gap-1.5 text-muted-foreground">
+                                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Bytes Wallet
+                            </span>
+                            <span className="font-semibold text-emerald-500">
+                                {formatCount(wallet.balance)} Bytes
+                            </span>
+                        </div>
                     )}
                 </section>
             )}
