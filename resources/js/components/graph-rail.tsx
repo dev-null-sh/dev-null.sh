@@ -7,6 +7,8 @@ import type { User } from '@/types';
 type Props = {
     lane: string;
     previousLane?: string;
+    /** When set, the outbound rail fades into this lane toward the next commit. */
+    nextLane?: string;
     variant?: 'commit' | 'staged' | 'root';
     isFilled?: boolean;
     isFresh?: boolean;
@@ -30,6 +32,7 @@ const dimmedNode = 'group-data-dimmed/rail-node:opacity-60';
 export function GraphRail({
     lane,
     previousLane,
+    nextLane,
     variant = 'commit',
     isFilled = true,
     isFresh = false,
@@ -77,7 +80,7 @@ export function GraphRail({
                             'bottom-5 h-auto': nodePosition === 'bottom',
                         },
                     )}
-                    style={{ background: previousLane }}
+                    style={{ background: lane }}
                     data-test="rail-previous"
                 />
             )}
@@ -86,17 +89,18 @@ export function GraphRail({
                 (variant === 'staged' ? (
                     <span
                         className="absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2"
-                        style={laneStrokeStyle('var(--rail)', {
-                            dash: stagedDash,
-                            anchor: 'end',
-                        })}
+                        style={laneStrokeStyle(
+                            'var(--rail)',
+                            nextLane ?? 'var(--rail)',
+                            { hold: 0.75, dash: stagedDash, anchor: 'end' },
+                        )}
                         data-test="rail-staged-tail"
                     />
                 ) : (
                     <span
                         className={cn(
                             // Start 1px early so this meets the previous segment without a seam.
-                            'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane)',
+                            'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2',
                             dimmable,
                             {
                                 'opacity-60': isDimmed,
@@ -106,6 +110,9 @@ export function GraphRail({
                                 'top-[22px]': nodePosition === 'author',
                             },
                         )}
+                        style={laneStrokeStyle(lane, nextLane ?? lane, {
+                            dashed: false,
+                        })}
                         data-test="rail-tail"
                     />
                 ))}
@@ -279,7 +286,7 @@ export function RailSegment({
                     )}
                     style={
                         isDashed
-                            ? laneStrokeStyle(lane, { dash: stagedDash })
+                            ? laneStrokeStyle(lane, lane, { dash: stagedDash })
                             : { background: lane }
                     }
                 />

@@ -63,6 +63,7 @@ import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 export function CommitCard({
     commit,
     previousLane,
+    nextLane,
     isDimmed = false,
     isPreviousDimmed = false,
     isHighlighted = false,
@@ -85,6 +86,7 @@ export function CommitCard({
 }: {
     commit: Commit;
     previousLane?: string;
+    nextLane?: string;
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
     isHighlighted?: boolean;
@@ -204,6 +206,7 @@ export function CommitCard({
                 <GraphRail
                     lane={laneColor(commit.user.lane)}
                     previousLane={previousLane}
+                    nextLane={nextLane}
                     endsWithDot={endsWithDot}
                     nodePosition={railNodePosition}
                     hasTail={hasRailTail && railNodePosition !== 'bottom'}
