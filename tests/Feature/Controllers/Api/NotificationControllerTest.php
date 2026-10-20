@@ -48,6 +48,9 @@ it('lists the notifications of the user, newest first', function (): void {
             'type' => 'replied',
             'subject_id' => $reply->parent_id,
             'reason' => null,
+            'level' => null,
+            'rank' => null,
+            'rank_description' => null,
             'read_at' => now()->toIso8601ZuluString(),
             'created_at' => now()->toIso8601ZuluString(),
             'actor' => [...$user($replied->actor), 'is_followed' => false],
@@ -97,6 +100,19 @@ it('lists the notifications of the user, newest first', function (): void {
         ->assertJsonMissingPath('data.0.key')
         ->assertJsonPath('read_at', now()->toIso8601ZuluString())
         ->assertJsonPath('meta.next_cursor', null);
+});
+
+it('says which level and rank a level-up reached, like the web', function (): void {
+    Notification::factory()->for($this->user, 'recipient')->leveledUp(5)->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
+        ->assertOk()
+        ->assertJsonPath('data.0.type', 'leveled_up')
+        ->assertJsonPath('data.0.level', 5)
+        ->assertJsonPath('data.0.rank', 'wheel')
+        ->assertJsonPath('data.0.rank_description', 'Member of the trusted wheel administrative group')
+        ->assertJsonPath('data.0.actor.id', $this->user->id)
+        ->assertJsonPath('data.0.commit', null);
 });
 
 it('hides notifications that no longer hold', function (): void {
