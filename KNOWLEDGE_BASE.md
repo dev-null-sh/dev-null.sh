@@ -139,7 +139,7 @@ Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and 
 
 ### Following developers and suggestions
 
-Follow or unfollow from a developer's profile or a follow control elsewhere in the app. Following puts their commits in your Following log. You cannot follow yourself or follow across a block. GitHub follows are imported once: connections to developers already on /dev/null are added in both directions, with up to 1,000 GitHub connections checked each way. This is not continuous synchronization, so unfollowing someone on /dev/null sticks.
+Follow or unfollow from a developer's profile or a follow control elsewhere in the app. Following puts their commits in your Following log. Following or unfollowing from a log updates the controls, counts, and live-following sidebar without navigating away: Latest and Trending keep their loaded commits and ranking, while Following updates its commits and empty-state suggestions. You cannot follow yourself or follow across a block. GitHub follows are imported once: connections to developers already on /dev/null are added in both directions, with up to 1,000 GitHub connections checked each way. This is not continuous synchronization, so unfollowing someone on /dev/null sticks.
 
 **Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Someone who already follows you gets **Follow back**. Show or hide these suggestions in Settings → Appearance. You can also follow back from the notifications list.
 
