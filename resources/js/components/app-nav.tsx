@@ -279,7 +279,7 @@ export function AppNav({
     const iconsOnly = !(useMediaQuery('(min-width: 64rem)') && isLayoutOpen);
 
     return (
-        <header className="flex h-svh w-full scrollbar-none flex-col items-stretch overflow-x-hidden overflow-y-auto px-3.5 py-6 whitespace-nowrap">
+        <header className="flex h-full w-full scrollbar-none flex-col items-stretch overflow-x-hidden overflow-y-auto px-3.5 py-6 whitespace-nowrap">
             <LogoMenu>
                 <Link
                     href={
