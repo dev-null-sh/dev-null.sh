@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useGifPlayback } from '@/hooks/use-gif-playback';
 import { canAutoplayGif } from '@/lib/gifs';
 import { hostname } from '@/lib/urls';
+import { cn } from '@/lib/utils';
 import type { Embed, LinkPreview } from '@/types';
 
 type GifEmbedProps = {
@@ -36,7 +37,7 @@ export function GifEmbed({
             data-test="gif-embed"
             data-provider={embed?.provider ?? 'GIF'}
         >
-            <div className="relative mx-auto aspect-square w-full max-w-80 overflow-hidden bg-muted">
+            <div className="group/gif relative mx-auto aspect-square w-full max-w-80 overflow-hidden bg-muted">
                 <GifMedia preview={preview} embed={embed} playback={playback} />
                 <GifPlaybackButton
                     embed={embed}
@@ -131,14 +132,18 @@ function GifPlaybackButton({
         <Button
             type="button"
             variant="secondary"
-            size="sm"
+            size="icon"
             onClick={playback.onToggle}
             aria-label={`${label} GIF`}
-            className="absolute right-3 bottom-3 min-w-20 cursor-pointer bg-black/75 text-white hover:bg-black/85"
+            title={`${label} GIF`}
+            className={cn(
+                'absolute right-2 bottom-2 size-7 cursor-pointer bg-black/60 text-white transition-opacity hover:bg-black/80',
+                playback.isPlaying &&
+                    'opacity-0 group-hover/gif:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100',
+            )}
             data-test="gif-playback"
         >
-            <Icon className="size-4 fill-current" />
-            {label}
+            <Icon className="size-3 fill-current" />
         </Button>
     );
 }
