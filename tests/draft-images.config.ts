@@ -17,6 +17,8 @@ export default defineConfig({
             'tests/Unit/AuthorHover.test.tsx',
             'tests/Unit/FollowState.test.tsx',
             'tests/Unit/GuestFollow.test.tsx',
+            'tests/Unit/CommitStarButton.test.tsx',
+            'tests/Unit/CommitAuthorFollow.test.tsx',
             'tests/Unit/DraftStash.test.tsx',
             'tests/Unit/DraftImageReads.test.tsx',
             'tests/Unit/ImageAttachments.test.tsx',
