@@ -1,6 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { catchUpAfterRestore, pageReadAt } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 
 type Tab = {
@@ -15,8 +16,7 @@ type Tab = {
     prefetch?: boolean;
     component?: InertiaLinkProps['component'];
     pageProps?: InertiaLinkProps['pageProps'];
-    onHttpException?: InertiaLinkProps['onHttpException'];
-    onNetworkError?: InertiaLinkProps['onNetworkError'];
+    onLoadError?: () => false | void;
 };
 
 export function PageTabs({
@@ -37,6 +37,9 @@ export function PageTabs({
     tabs: Tab[];
 }) {
     const [pending, setPending] = useState<string | null>(null);
+    // An instant visit fills its page in place, without the navigation that tells when what it shows was read: from a
+    // prefetch it catches up like any prefetched page, and from its own request it was read once that started.
+    const instantRead = useRef<'prefetched' | number | null>(null);
     const active = pending ?? tabs.find((tab) => tab.isActive)?.title;
     const finish = (title: string) => {
         setPending((current) => (current === title ? null : current));
@@ -59,8 +62,8 @@ export function PageTabs({
                     onClick={tab.onClick}
                     component={tab.component}
                     pageProps={tab.pageProps}
-                    onHttpException={tab.onHttpException}
-                    onNetworkError={tab.onNetworkError}
+                    onHttpException={tab.onLoadError}
+                    onNetworkError={tab.onLoadError}
                     prefetch={
                         tab.isActive || tab.prefetch === false
                             ? false
@@ -74,17 +77,48 @@ export function PageTabs({
                     headers={headers}
                     onBefore={() => {
                         setPending(tab.title);
+                        const prefetching = router.getPrefetching(tab.href, {
+                            only,
+                            headers,
+                            preserveScroll,
+                        });
+                        instantRead.current =
+                            tab.component !== undefined &&
+                            (prefetching ??
+                                router.getCached(tab.href, {
+                                    only,
+                                    headers,
+                                    preserveScroll,
+                                })) !== null
+                                ? 'prefetched'
+                                : null;
                         // Failed in-flight prefetches do not fire the consuming visit's onFinish.
-                        void router
-                            .getPrefetching(tab.href, {
-                                only,
-                                headers,
-                                preserveScroll,
-                            })
-                            ?.response.catch(() => finish(tab.title));
+                        void prefetching?.response.catch(() => {
+                            finish(tab.title);
+                            tab.onLoadError?.();
+                        });
                     }}
-                    onStart={() => setPending(tab.title)}
+                    onStart={() => {
+                        setPending(tab.title);
+
+                        if (
+                            tab.component !== undefined &&
+                            instantRead.current === null
+                        ) {
+                            instantRead.current = Date.now();
+                        }
+                    }}
                     onFinish={() => finish(tab.title)}
+                    onSuccess={() => {
+                        const read = instantRead.current;
+                        instantRead.current = null;
+
+                        if (read === 'prefetched') {
+                            catchUpAfterRestore();
+                        } else if (read !== null) {
+                            pageReadAt(read);
+                        }
+                    }}
                     aria-current={tab.isActive ? 'page' : undefined}
                     className={cn(
                         'relative flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',

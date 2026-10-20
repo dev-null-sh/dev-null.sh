@@ -106,9 +106,12 @@ export default function Show(props: Props) {
         return () => observer.disconnect();
     }, []);
 
-    const failed = (target: Log) => {
+    const failed = (target: Log): false | void => {
         if (window.location.pathname === LogController.show.url(target)) {
+            router.flush(LogController.show(target));
             router.replaceProp('logLoadFailed', true);
+
+            return false;
         }
     };
 
@@ -127,22 +130,37 @@ export default function Show(props: Props) {
                             title: titles[target],
                             href: LogController.show(target),
                             isActive: props.log === target,
-                            // The current Following or Latest scrolls back to the top, while Trending refreshes its ranking.
+                            // The current Following or Latest scrolls back to the top, as does a log still loading, while a
+                            // loaded Trending reads its ranking again, never from a prefetch.
                             onClick:
-                                props.log === target && target !== 'trending'
-                                    ? scrollLogToTop
-                                    : undefined,
+                                props.log !== target
+                                    ? undefined
+                                    : target === 'trending' &&
+                                        props.commits !== undefined
+                                      ? () =>
+                                            router.flush(
+                                                LogController.show(target),
+                                            )
+                                      : scrollLogToTop,
                             prefetch: target !== 'following' || user !== null,
+                            // Another log opens at once, while the current one keeps its feed until it is read again.
                             component:
-                                target !== 'following' || user !== null
+                                props.log !== target &&
+                                (target !== 'following' || user !== null)
                                     ? 'log/show'
                                     : undefined,
                             pageProps: (_current, shared) => ({
                                 ...shared,
+                                // Let Inertia preserve once props together with their registry.
+                                auth: { ...auth, log: undefined },
+                                suggestedUsers: undefined,
                                 log: target,
                             }),
-                            onHttpException: () => failed(target),
-                            onNetworkError: () => failed(target),
+                            // A refresh that fails shows the error, as the current log has no retry to show instead.
+                            onLoadError:
+                                props.log !== target
+                                    ? () => failed(target)
+                                    : undefined,
                         }),
                     )}
                 />
@@ -178,9 +196,14 @@ export default function Show(props: Props) {
                                 <span className="sr-only">
                                     Loading {titles[props.log]}…
                                 </span>
-                                {Array.from({ length: 8 }, (_, index) => (
-                                    <CommitSkeleton key={index} />
-                                ))}
+                                <div
+                                    aria-hidden
+                                    className="animate-in delay-300 duration-0 fill-mode-both fade-in"
+                                >
+                                    {Array.from({ length: 8 }, (_, index) => (
+                                        <CommitSkeleton key={index} />
+                                    ))}
+                                </div>
                             </>
                         )}
                     </div>
