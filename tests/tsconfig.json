@@ -1,7 +1,9 @@
 {
     "extends": "../tsconfig.json",
     "compilerOptions": {
-        "types": ["node"],
+        "types": [
+            "node"
+        ],
         "allowImportingTsExtensions": true
     },
     "include": [
@@ -14,6 +16,7 @@
         "Unit/ImageAttachments.test.tsx",
         "Unit/StagedRail.test.tsx",
         "Unit/UseNow.test.tsx",
+        "Unit/GifEmbed.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]
