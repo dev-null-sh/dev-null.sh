@@ -10,13 +10,20 @@ import {
     useState,
 } from 'react';
 import { flushSync } from 'react-dom';
-import { entranceDelay, graphEdges, isOnScreen, sameNodes } from '@/lib/graph';
+import {
+    entranceDelay,
+    graphEdges,
+    isOnScreen,
+    nodeIdentity,
+    sameNodes,
+    scopedNodeId,
+} from '@/lib/graph';
 import type { GraphEdge, GraphNode } from '@/lib/graph';
 import { cn } from '@/lib/utils';
 
 export type GraphNodeSpec = Pick<
     GraphNode,
-    'id' | 'lane' | 'after' | 'parent' | 'dashed'
+    'id' | 'lane' | 'after' | 'parent' | 'dashed' | 'dimmed'
 > & {
     /** How far the node's ring reaches beyond its box, like a box-shadow ring. */
     ring?: number;
@@ -25,6 +32,8 @@ export type GraphNodeSpec = Pick<
 type Registry = {
     register: (element: HTMLElement, spec: GraphNodeSpec) => void;
     unregister: (id: string) => void;
+    /** Dims a node's lines or brings them back, without measuring anything again. */
+    dim: (id: string, isDimmed: boolean) => void;
 };
 
 const GraphContext = createContext<Registry | null>(null);
@@ -51,20 +60,33 @@ export function useGraphOverlay(): boolean {
 
 /**
  * Registers the element it is given as a node of the surrounding graph canvas, which measures it and draws its lines.
+ *
+ * Only a change to where the node sits in the graph registers it again: hovering dims lanes on every card, which would
+ * otherwise have each one leave the canvas and be measured again.
  */
 export function useGraphNode(
     spec: GraphNodeSpec | null,
 ): (element: HTMLElement | null) => void {
     const registry = useContext(GraphContext);
-    const key = spec === null ? null : JSON.stringify(spec);
+    const identity = spec === null ? null : nodeIdentity(spec);
+    const id = spec?.id;
+    const isDimmed = spec?.dimmed ?? false;
+
+    useLayoutEffect(() => {
+        if (registry === null || id === undefined) {
+            return;
+        }
+
+        registry.dim(id, isDimmed);
+    }, [registry, id, isDimmed]);
 
     return useCallback(
         (element: HTMLElement | null) => {
-            if (registry === null || key === null) {
+            if (registry === null || identity === null) {
                 return;
             }
 
-            const registered = JSON.parse(key) as GraphNodeSpec;
+            const registered = JSON.parse(identity) as GraphNodeSpec;
 
             if (element === null) {
                 registry.unregister(registered.id);
@@ -74,8 +96,58 @@ export function useGraphNode(
 
             registry.register(element, registered);
         },
-        [registry, key],
+        [registry, identity],
     );
+}
+
+const GraphDimmedContext = createContext(false);
+
+/**
+ * Dims the lines of the nodes inside it, like the replies of a commit whose lane is dimmed.
+ */
+export function GraphDimmed({
+    isDimmed,
+    children,
+}: {
+    isDimmed: boolean;
+    children: ReactNode;
+}) {
+    return (
+        <GraphDimmedContext.Provider value={isDimmed}>
+            {children}
+        </GraphDimmedContext.Provider>
+    );
+}
+
+export function useGraphDimmed(): boolean {
+    return useContext(GraphDimmedContext);
+}
+
+const GraphScopeContext = createContext<string | null>(null);
+
+/**
+ * Gives the nodes inside it ids of their own, like the replies a card lists: the same commit can also show as a card,
+ * or under another card, in the same canvas.
+ */
+export function GraphScope({
+    scope,
+    children,
+}: {
+    scope: string;
+    children: ReactNode;
+}) {
+    return (
+        <GraphScopeContext.Provider value={scope}>
+            {children}
+        </GraphScopeContext.Provider>
+    );
+}
+
+/** The node id of a commit within the surrounding scope. */
+export function useGraphNodeId(): (id: string) => string {
+    const scope = useContext(GraphScopeContext);
+
+    return useCallback((id: string) => scopedNodeId(scope, id), [scope]);
 }
 
 /**
@@ -165,6 +237,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     const entries = useRef(
         new Map<string, { element: HTMLElement; spec: GraphNodeSpec }>(),
     );
+    const dims = useRef(new Map<string, boolean>());
     const observer = useRef<ResizeObserver | null>(null);
     const frame = useRef(0);
     const [nodes, setNodes] = useState<GraphNode[]>([]);
@@ -190,6 +263,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                     after: spec.after,
                     parent: spec.parent,
                     dashed: spec.dashed,
+                    dimmed: dims.current.get(spec.id) ?? false,
                     x: snap(rect.left - box.left + rect.width / 2),
                     y: snap(rect.top - box.top + rect.height / 2),
                     // The layout width, as a node scaling in would otherwise keep the radius it had mid-animation.
@@ -235,6 +309,22 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                 }
 
                 measure();
+            },
+            dim: (nodeId, isDimmed) => {
+                if ((dims.current.get(nodeId) ?? false) === isDimmed) {
+                    return;
+                }
+
+                dims.current.set(nodeId, isDimmed);
+                setNodes((current) =>
+                    current.some((node) => node.id === nodeId)
+                        ? current.map((node) =>
+                              node.id === nodeId
+                                  ? { ...node, dimmed: isDimmed }
+                                  : node,
+                          )
+                        : current,
+                );
             },
         }),
         [measure],
@@ -392,6 +482,8 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                                 ? edge.fromLane
                                                 : `url(#${id}-${index}-fade)`,
                                     }}
+                                    opacity={edge.dimmed ? 0.6 : 1}
+                                    className="transition-opacity duration-200"
                                     strokeWidth={strokeWidth}
                                     strokeDasharray={
                                         edge.dashed ? dash : undefined

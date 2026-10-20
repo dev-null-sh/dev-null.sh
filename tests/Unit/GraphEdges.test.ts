@@ -4,7 +4,9 @@ import {
     entranceDelay,
     graphEdges,
     isOnScreen,
+    nodeIdentity,
     sameNodes,
+    scopedNodeId,
 } from '../../resources/js/lib/graph.ts';
 import type { GraphNode } from '../../resources/js/lib/graph.ts';
 
@@ -85,6 +87,22 @@ void test('tightens the corner when the reply sits closer than the corner radius
     assert.equal(edge.d, 'M 32 40 V 152 Q 32 160 40 160 H 40');
 });
 
+void test('dims a line when either of its nodes is dimmed', () => {
+    const edges = graphEdges([
+        node({ id: 'a', y: 40, dimmed: true }),
+        node({ id: 'b', y: 200, after: 'a' }),
+        node({ id: 'c', y: 400, after: 'b' }),
+    ]);
+
+    assert.deepEqual(
+        edges.map((edge) => [edge.id, edge.dimmed]),
+        [
+            ['a->b', true],
+            ['b->c', false],
+        ],
+    );
+});
+
 void test('tells a measure that moved nothing from one that moved a node', () => {
     const measured = [node({ id: 'a', y: 40 }), node({ id: 'b', y: 200 })];
 
@@ -157,6 +175,37 @@ void test('tells whether a line shows in the viewport, from where its canvas sit
     assert.equal(isOnScreen(line, 0, 800), false, 'below the viewport');
     assert.equal(isOnScreen(line, -1300, 800), false, 'above the viewport');
     assert.equal(isOnScreen(line, -200, 800), true, 'touching the bottom edge');
+});
+
+void test('keeps a node the same while only its dimming changes, and tells it apart when it moves in the graph', () => {
+    const spec = { id: 'a', lane: 'var(--lane-1)', after: 'b', ring: 2 };
+
+    assert.equal(
+        nodeIdentity({ ...spec, dimmed: true }),
+        nodeIdentity({ ...spec, dimmed: false }),
+    );
+    assert.equal(nodeIdentity({ ...spec, dimmed: true }), nodeIdentity(spec));
+    assert.notEqual(nodeIdentity({ ...spec, after: 'c' }), nodeIdentity(spec));
+    assert.notEqual(nodeIdentity({ ...spec, parent: 'p' }), nodeIdentity(spec));
+    assert.notEqual(nodeIdentity({ ...spec, ring: 0 }), nodeIdentity(spec));
+    assert.notEqual(
+        nodeIdentity({ ...spec, lane: 'var(--lane-2)' }),
+        nodeIdentity(spec),
+    );
+    assert.notEqual(
+        nodeIdentity({ ...spec, dashed: true }),
+        nodeIdentity(spec),
+    );
+});
+
+void test('tells apart the same commit shown in two places, like a quote listed under the commit it quotes', () => {
+    assert.equal(scopedNodeId(null, 'reply'), 'reply');
+    assert.equal(scopedNodeId('card', 'reply'), 'card/reply');
+    assert.notEqual(scopedNodeId('card', 'reply'), scopedNodeId(null, 'reply'));
+    assert.notEqual(
+        scopedNodeId('card', 'reply'),
+        scopedNodeId('other-card', 'reply'),
+    );
 });
 
 void test('leaves out links to nodes that are not measured', () => {

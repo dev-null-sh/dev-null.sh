@@ -7,7 +7,13 @@ import {
     Trash2,
 } from 'lucide-react';
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import {
+    useCallback,
+    useEffect,
+    useEffectEvent,
+    useRef,
+    useState,
+} from 'react';
 import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
@@ -33,7 +39,12 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
-import { useGraphNode, useGraphOverlay } from '@/components/graph-canvas';
+import {
+    useGraphDimmed,
+    useGraphNode,
+    useGraphNodeId,
+    useGraphOverlay,
+} from '@/components/graph-canvas';
 import { RailDot, railDotRing } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -730,10 +741,13 @@ export function ThreadReplies({
     graphParent?: string;
 }) {
     const isOverlaid = useGraphOverlay();
+    const nodeId = useGraphNodeId();
 
     if (!thread.isOpen) {
         return null;
     }
+
+    const branchFrom = graphParent ?? nodeId(thread.commit.id);
 
     const isFlattened = depth >= maxIndentDepth;
     const layout =
@@ -766,11 +780,12 @@ export function ThreadReplies({
                                           after:
                                               index === 0
                                                   ? undefined
-                                                  : replies[index - 1].id,
+                                                  : nodeId(
+                                                        replies[index - 1].id,
+                                                    ),
                                           parent:
                                               index === 0
-                                                  ? (graphParent ??
-                                                    thread.commit.id)
+                                                  ? branchFrom
                                                   : undefined,
                                       }
                             }
@@ -820,12 +835,15 @@ export function ThreadReplies({
                                     isFlattened
                                         ? {}
                                         : thread.replies.length > 0
-                                          ? { after: thread.replies.at(-1)?.id }
-                                          : {
-                                                parent:
-                                                    graphParent ??
-                                                    thread.commit.id,
+                                          ? {
+                                                after: nodeId(
+                                                    thread.replies[
+                                                        thread.replies.length -
+                                                            1
+                                                    ].id,
+                                                ),
                                             }
+                                          : { parent: branchFrom }
                                 }
                             />
                         </div>
@@ -877,9 +895,10 @@ function MoreRepliesButton({
     graph: ReplyGraph;
 }) {
     const dotRef = useGraphNode({
-        id: `${thread.commit.id}:more`,
+        id: useGraphNodeId()(`${thread.commit.id}:more`),
         lane: 'var(--muted-foreground)',
         dashed: true,
+        dimmed: useGraphDimmed(),
         ring: railDotRing,
         ...graph,
     });
@@ -959,9 +978,10 @@ function ReplyItem({
 }) {
     const thread = useThread(reply);
     const nodeRef = useGraphNode({
-        id: reply.id,
+        id: useGraphNodeId()(reply.id),
         lane: laneOf(reply),
         dashed: true,
+        dimmed: useGraphDimmed(),
         ring: isDeleted(reply) ? 0 : replyRing,
         ...graph,
     });
@@ -1044,6 +1064,14 @@ function CommitReply({
     const updateCommitsCount = useCommitsCountUpdate();
 
     const avatarRef = useRef<HTMLAnchorElement>(null);
+    // A stable ref, so the node stays registered across renders, like hover dimming its lane.
+    const avatarNodeRef = useCallback(
+        (element: HTMLAnchorElement | null) => {
+            avatarRef.current = element;
+            nodeRef(element);
+        },
+        [nodeRef],
+    );
 
     const isOwn = reply.user_id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
@@ -1100,10 +1128,7 @@ function CommitReply({
                 <div className="relative shrink-0">
                     <UserPreview user={reply.user} anchor={avatarRef}>
                         <Link
-                            ref={(element: HTMLAnchorElement | null) => {
-                                avatarRef.current = element;
-                                nodeRef(element);
-                            }}
+                            ref={avatarNodeRef}
                             href={show(reply.user)}
                             className="block rounded-full"
                         >

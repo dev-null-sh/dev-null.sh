@@ -1,7 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
@@ -19,7 +19,11 @@ import {
     useThread,
 } from '@/components/commit-thread';
 import { useCommitTranslation } from '@/components/commit-translation';
-import { useGraphNode } from '@/components/graph-canvas';
+import {
+    GraphDimmed,
+    GraphScope,
+    useGraphNode,
+} from '@/components/graph-canvas';
 import {
     GraphRail,
     RailAvatar,
@@ -121,8 +125,17 @@ export function CommitCard({
         id: commit.id,
         lane: laneColor(commit.user.lane),
         after: graphAfter,
+        dimmed: isDimmed,
         ring: isGroupedWithPrevious ? railDotRing : 0,
     });
+    // A stable ref, so the node stays registered across renders, like hover dimming its lane.
+    const nodeLinkRef = useCallback(
+        (element: HTMLAnchorElement | null) => {
+            nodeRef.current = element;
+            graphNodeRef(element);
+        },
+        [graphNodeRef],
+    );
     const deleteButtonRef = useRef<HTMLButtonElement>(null);
     const thread = useThread(
         commit,
@@ -278,12 +291,7 @@ export function CommitCard({
                                 className="flex"
                             >
                                 <Link
-                                    ref={(
-                                        element: HTMLAnchorElement | null,
-                                    ) => {
-                                        nodeRef.current = element;
-                                        graphNodeRef(element);
-                                    }}
+                                    ref={nodeLinkRef}
                                     href={show(commit.user)}
                                     tabIndex={-1}
                                     className={cn(
@@ -612,13 +620,19 @@ export function CommitCard({
                                     { 'opacity-70': isDimmed },
                                 )}
                             >
-                                <ThreadReplies
-                                    thread={thread}
-                                    depth={0}
-                                    graphParent={
-                                        endsOnDot ? graphEndId : commit.id
-                                    }
-                                />
+                                <GraphDimmed isDimmed={isDimmed}>
+                                    <GraphScope scope={commit.id}>
+                                        <ThreadReplies
+                                            thread={thread}
+                                            depth={0}
+                                            graphParent={
+                                                endsOnDot
+                                                    ? graphEndId
+                                                    : commit.id
+                                            }
+                                        />
+                                    </GraphScope>
+                                </GraphDimmed>
                             </div>
                         </div>
                     </>

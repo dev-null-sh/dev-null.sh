@@ -157,6 +157,7 @@ export function GraphRail({
                                   id: graph.endId,
                                   lane,
                                   after: graph.id,
+                                  dimmed: isDimmed,
                                   ring: railDotRing,
                               }
                             : null
@@ -182,6 +183,7 @@ export function GraphRail({
                               id: graph.id,
                               lane,
                               after: graph.after,
+                              dimmed: isDimmed,
                               ring: graph.ring,
                           }
                         : null
@@ -319,22 +321,25 @@ export function RailSegment({
             aria-hidden
             className={cn('relative w-16 shrink-0 sm:w-18', className)}
         >
-            {lane && (
-                <WithoutGraph>
+            {lane &&
+                (isDashed ? (
+                    // The dashed rail carries the composer's on, which no graph canvas draws.
                     <span
-                        className={cn(
-                            'absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2',
-                            dimmable,
-                            { 'opacity-60': isDimmed },
-                        )}
-                        style={
-                            isDashed
-                                ? laneStrokeStyle(lane, { dash: stagedDash })
-                                : { background: lane }
-                        }
+                        className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2"
+                        style={laneStrokeStyle(lane, { dash: stagedDash })}
                     />
-                </WithoutGraph>
-            )}
+                ) : (
+                    <WithoutGraph>
+                        <span
+                            className={cn(
+                                'absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2',
+                                dimmable,
+                                { 'opacity-60': isDimmed },
+                            )}
+                            style={{ background: lane }}
+                        />
+                    </WithoutGraph>
+                ))}
         </div>
     );
 }

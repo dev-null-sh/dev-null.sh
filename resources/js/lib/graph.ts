@@ -13,6 +13,7 @@ export type GraphNode = Point & {
     after?: string;
     parent?: string;
     dashed?: boolean;
+    dimmed?: boolean;
 };
 
 export type GraphEdge = {
@@ -25,6 +26,7 @@ export type GraphEdge = {
     fromLane: string;
     toLane: string;
     dashed: boolean;
+    dimmed: boolean;
 };
 
 const cornerRadius = 12;
@@ -94,6 +96,38 @@ export function isOnScreen(
     return bottom >= 0 && top <= viewportHeight;
 }
 
+/**
+ * What places a node in the graph, so it has to be registered and measured again when it changes. Dimming only
+ * changes how its lines look.
+ */
+export function nodeIdentity(spec: {
+    id: string;
+    lane: string;
+    after?: string;
+    parent?: string;
+    dashed?: boolean;
+    ring?: number;
+    dimmed?: boolean;
+}): string {
+    // Kept as given, since a missing `dashed` lets a line take its other node's.
+    return JSON.stringify({
+        id: spec.id,
+        lane: spec.lane,
+        after: spec.after,
+        parent: spec.parent,
+        dashed: spec.dashed,
+        ring: spec.ring,
+    });
+}
+
+/**
+ * A node's id within the card that shows it. A commit can show twice in one canvas, like a quote listed under the
+ * commit it quotes and as a card of its own, and each place needs a node of its own.
+ */
+export function scopedNodeId(scope: string | null, id: string): string {
+    return scope === null ? id : `${scope}/${id}`;
+}
+
 export function sameNodes(a: GraphNode[], b: GraphNode[]): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -112,6 +146,7 @@ function trunk(from: GraphNode, to: GraphNode): GraphEdge {
         fromLane: from.lane,
         toLane: to.lane,
         dashed: to.dashed ?? from.dashed ?? false,
+        dimmed: isDimmed(from, to),
     };
 }
 
@@ -142,5 +177,10 @@ function branch(from: GraphNode, to: GraphNode, continues: boolean): GraphEdge {
         fromLane: from.lane,
         toLane: to.lane,
         dashed: true,
+        dimmed: isDimmed(from, to),
     };
+}
+
+function isDimmed(from: GraphNode, to: GraphNode): boolean {
+    return Boolean(from.dimmed || to.dimmed);
 }
