@@ -68,6 +68,58 @@ export function LiveStreamCard({
 }
 
 /**
+ * The stream folded into one row, for a card that is about the person rather than the stream: a small thumbnail
+ * beside where it plays, the whole row linking out to it.
+ */
+export function LiveStreamRow({
+    user,
+    stream,
+}: {
+    user: Pick<User, 'name'>;
+    stream: LiveStream;
+}) {
+    return (
+        <a
+            href={stream.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="-mx-2 flex items-center gap-3 rounded-lg p-2 outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring active:scale-[0.98] motion-safe:transition-[background-color,scale] motion-safe:duration-160 motion-safe:ease-out [@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent"
+            data-test="live-stream-row"
+        >
+            <span className="relative block aspect-video w-28 shrink-0 overflow-clip rounded-md bg-muted">
+                <img
+                    src={stream.thumbnail_url}
+                    alt=""
+                    loading="lazy"
+                    className="size-full object-cover"
+                />
+                <LiveBadge className="absolute inset-s-1.5 inset-bs-1.5" />
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block font-mono text-[11px] text-red-600 dark:text-red-400">
+                    streaming · youtube.com
+                </span>
+                {/* A long name gives way, never "is live". */}
+                <span
+                    className="mbs-0.5 flex text-sm font-medium whitespace-pre"
+                    title={`${user.name} is live`}
+                >
+                    <span className="truncate">{user.name}</span>
+                    <span className="shrink-0"> is live</span>
+                </span>
+                <span className="mbs-0.5 flex items-baseline gap-1 text-[13px] text-primary">
+                    Watch now
+                    <ArrowUpRight
+                        aria-hidden
+                        className="h-[1.2cap] w-auto shrink-0"
+                    />
+                </span>
+            </span>
+        </a>
+    );
+}
+
+/**
  * The avatar's ring turns red and a LIVE label sits on its edge, sized to the avatar it marks.
  */
 export function LiveAvatarMarker({ className }: { className?: string }) {

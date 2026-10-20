@@ -9,6 +9,7 @@ type Props = Record<string, unknown> & { children?: ReactNode };
 
 let showPreview = false;
 type VisitOptions = {
+    async?: boolean;
     onHttpException?: (response: { status: number }) => boolean | void;
     onSuccess?: () => void;
     onError?: () => void;
@@ -32,8 +33,7 @@ vi.doMock('react', () => ({
               : initial,
         () => {},
     ],
-    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) =>
-        read(),
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));
 vi.doMock('react-dom', async () => ({
     ...(await vi.importActual('react-dom')),
@@ -319,8 +319,10 @@ test('unfollowing through a cached preview keeps its follower count', () => {
     followFromProfile(user);
     const changes: { user: Profile }[] = [];
 
-    (previewFollowButton(user, false, (data) => changes.push(data)).props
-        .onClick as () => void)();
+    (
+        previewFollowButton(user, false, (data) => changes.push(data)).props
+            .onClick as () => void
+    )();
     visits.at(-1)?.onSuccess?.();
 
     assert.equal(changes.at(-1)?.user.followers_count, 0);
@@ -394,4 +396,18 @@ test('a second click on a follow still on its way sends nothing', () => {
     const finished = suggestionFollowLink(user);
     assert.equal(finished.disabled, false);
     assert.equal((finished.onBefore as () => boolean)(), true);
+});
+
+test('following several people from their previews sends every follow without cancelling the others', () => {
+    const first = suggestion('lucia');
+    const second = suggestion('marco');
+
+    (previewFollowButton(first).props.onClick as () => void)();
+    const firstFollow = visits.at(-1);
+    (previewFollowButton(second).props.onClick as () => void)();
+    const secondFollow = visits.at(-1);
+
+    assert.equal(firstFollow?.async, true);
+    assert.equal(secondFollow?.async, true);
+    assert.notEqual(firstFollow, secondFollow);
 });
