@@ -1,13 +1,14 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
+import ChangelogController from '@/actions/App/Http/Controllers/ChangelogController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { BioText } from '@/components/bio-text';
-import { ChangelogPopover } from '@/components/changelog-popover';
 import { GitHubIcon } from '@/components/github-icon';
+import { LiveFollowing } from '@/components/live-following';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
@@ -164,6 +165,7 @@ export function AppAside({
                 </section>
             )}
 
+            <LiveFollowing />
             <WhoToFollow />
 
             <div className="-mt-4 flex gap-4 border-t pt-4 text-sm text-muted-foreground">
@@ -187,7 +189,12 @@ export function AppAside({
                         Privacy
                     </Link>
                 </nav>
-                <ChangelogPopover />
+                <Link
+                    href={ChangelogController.index()}
+                    className="transition-colors hover:text-foreground"
+                >
+                    Changelog
+                </Link>
             </div>
 
             <button

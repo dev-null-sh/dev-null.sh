@@ -1,4 +1,4 @@
-import { Form } from '@inertiajs/react';
+import { Form, usePage } from '@inertiajs/react';
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,11 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import { clearRecentSearches } from '@/hooks/use-recent-searches';
 
 export default function DeleteUser() {
+    const user = usePage().props.auth.user;
+
     return (
         <section className="px-4 py-6 sm:px-6">
             <Heading
@@ -40,7 +43,10 @@ export default function DeleteUser() {
                         in with GitHub again later, but you'll start from zero.
                     </DialogDescription>
 
-                    <Form {...UserController.destroy.form()}>
+                    <Form
+                        {...UserController.destroy.form()}
+                        onSuccess={() => user && clearRecentSearches(user.id)}
+                    >
                         {({ processing }) => (
                             <DialogFooter className="gap-2">
                                 <DialogClose asChild>

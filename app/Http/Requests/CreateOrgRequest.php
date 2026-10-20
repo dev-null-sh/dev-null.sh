@@ -52,7 +52,7 @@ final class CreateOrgRequest extends FormRequest
 
             foreach ($this->members() as $index => $member) {
                 if ($reasons[$member->id] !== null) {
-                    $validator->errors()->add("members.{$index}", "@{$member->username} {$reasons[$member->id]}.");
+                    $validator->errors()->add("members.{$index}", "{$member->mention()} {$reasons[$member->id]}.");
                 }
             }
         }];

@@ -35,7 +35,7 @@ final class CreateCliCommitRequest extends FormRequest
         $attachmentRules = CreateCommitRequest::attachmentRules();
 
         return [
-            'body' => CreateCommitRequest::BODY_RULES,
+            'body' => CreateCommitRequest::bodyRules(),
             'reply_to' => ['nullable', 'string', new CommitReference($user)],
             'images' => $attachmentRules['images'],
             'images.*' => $attachmentRules['images.*'],

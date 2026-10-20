@@ -38,7 +38,7 @@ final class CreateApiCommitRequest extends FormRequest
         assert($user instanceof User);
 
         return [
-            'body' => CreateCommitRequest::BODY_RULES,
+            'body' => CreateCommitRequest::bodyRules(),
             'parent_id' => ['bail', 'nullable', 'uuid', new VisibleCommit($user)],
             'quoted_commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
         ];

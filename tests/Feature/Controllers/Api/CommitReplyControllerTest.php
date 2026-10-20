@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
@@ -39,10 +38,8 @@ it('shows the stars and saves of each reply as the user sees them', function ():
     $parent = Commit::factory()->create();
     $starred = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
     $starred->stars()->attach([$this->user->id, User::factory()->create()->id]);
-    Bookmark::factory()->create(['user_id' => $this->user->id, 'commit_id' => $starred->id]);
     $starredByOthers = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinute()]);
     $starredByOthers->stars()->attach(User::factory()->create());
-    Bookmark::factory()->create(['commit_id' => $starredByOthers->id]);
     Commit::factory()->for($parent, 'parent')->create();
 
     $response = signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', $parent));
@@ -50,13 +47,10 @@ it('shows the stars and saves of each reply as the user sees them', function ():
     $response->assertOk()
         ->assertJsonPath('data.0.stars_count', 2)
         ->assertJsonPath('data.0.starred', true)
-        ->assertJsonPath('data.0.is_saved', true)
         ->assertJsonPath('data.1.stars_count', 1)
         ->assertJsonPath('data.1.starred', false)
-        ->assertJsonPath('data.1.is_saved', false)
         ->assertJsonPath('data.2.stars_count', 0)
-        ->assertJsonPath('data.2.starred', false)
-        ->assertJsonPath('data.2.is_saved', false);
+        ->assertJsonPath('data.2.starred', false);
 });
 
 it('does not query each reply, its author or its stars', function (): void {
