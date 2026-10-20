@@ -181,7 +181,7 @@ async function fetchReplies(
 }
 
 async function fetchRepliesAfter(
-    commit: ThreadCommit,
+    commit: Pick<ThreadCommit, 'id'>,
     replies: ThreadCommit[],
     cursor: string | null,
     minimum: number,
@@ -206,7 +206,7 @@ async function fetchRepliesAfter(
 }
 
 async function fetchRepliesUntil(
-    commit: ThreadCommit,
+    commit: Pick<ThreadCommit, 'id'>,
     minimum: number,
     perPage: number,
     newest: boolean,
@@ -253,10 +253,16 @@ export function useThread(
     );
     const [shouldLoadReplies] = useState(
         (remembered?.isOpen === true && remembered.replies === null) ||
-            (remembered === undefined &&
-                ((loadsReplies && count > 0) ||
-                    (initial !== undefined &&
-                        changedThreadIds.has(commit.id)))),
+            (remembered === undefined && loadsReplies && count > 0) ||
+            ((initial !== undefined || remembered?.replies != null) &&
+                changedThreadIds.has(commit.id)),
+    );
+    const [initialReplyLimit] = useState(
+        remembered?.replies?.length
+            ? remembered.nextCursor === null
+                ? Infinity
+                : remembered.replies.length
+            : repliesPerPage,
     );
     const [{ replies, nextCursor, isOpen }, setThread] = useRemember(
         {
@@ -338,7 +344,13 @@ export function useThread(
 
         let isCurrent = true;
 
-        fetchReplies({ id: commitId }, null, isPreview, repliesPerPage, except)
+        fetchRepliesUntil(
+            { id: commitId },
+            initialReplyLimit,
+            repliesPerPage,
+            isPreview,
+            except,
+        )
             .then((page) => {
                 if (isCurrent) {
                     setThread((current) => ({
@@ -353,7 +365,15 @@ export function useThread(
         return () => {
             isCurrent = false;
         };
-    }, [commitId, shouldLoadReplies, isPreview, except, repliesPerPage]);
+    }, [
+        commitId,
+        shouldLoadReplies,
+        isPreview,
+        except,
+        repliesPerPage,
+        initialReplyLimit,
+        setThread,
+    ]);
 
     const onExceptChanged = useEffectEvent(() => {
         if (replies !== null && !shouldLoadReplies) {

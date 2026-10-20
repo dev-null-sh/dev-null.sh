@@ -12,6 +12,7 @@ export default defineConfig({
             'tests/Unit/CommitPhoto.test.tsx',
             'tests/Unit/CommitSize.test.tsx',
             'tests/Unit/ThreadHistory.test.tsx',
+            'tests/Unit/ThreadMutationHistory.test.tsx',
             'tests/Unit/ActivityCells.test.tsx',
             'tests/Unit/AuthorHover.test.tsx',
             'tests/Unit/FollowState.test.tsx',
