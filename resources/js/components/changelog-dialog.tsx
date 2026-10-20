@@ -1,6 +1,5 @@
-import { router } from '@inertiajs/react';
 import { ExternalLink } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
     ChangelogAuthorLink,
@@ -30,10 +29,12 @@ function DaySection({
     day,
     timeZone,
     isRevealed,
+    onNavigate,
 }: {
     day: ChangelogDay;
     timeZone: string;
     isRevealed: boolean;
+    onNavigate?: () => void;
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const firstRevealedLink = useRef<HTMLAnchorElement>(null);
@@ -76,6 +77,7 @@ function DaySection({
                         >
                             <ChangelogAuthorLink
                                 author={author}
+                                onClick={onNavigate}
                                 className="flex rounded-full"
                             >
                                 <ChangelogAvatar
@@ -93,6 +95,7 @@ function DaySection({
                     pullRequests={shown}
                     continues={hidden.length > 0}
                     timeZone={timeZone}
+                    onNavigate={onNavigate}
                 />
                 {hidden.length > 0 &&
                     (isExpanded ? (
@@ -103,6 +106,7 @@ function DaySection({
                                     previousAuthor={shown.at(-1)?.author}
                                     firstLinkRef={firstRevealedLink}
                                     timeZone={timeZone}
+                                    onNavigate={onNavigate}
                                 />
                             </div>
                         </div>
@@ -175,15 +179,6 @@ export function ChangelogDialog({
     onLoadOlder: (onLoaded: (added: ChangelogPullRequest[]) => void) => void;
     timeZone: string;
 }) {
-    // An author's profile opens behind the dialog, so it closes to show it.
-    useEffect(() => {
-        if (!open) {
-            return;
-        }
-
-        return router.on('start', () => onOpenChange(false));
-    }, [open, onOpenChange]);
-
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 overflow-hidden bg-popover p-0 sm:max-w-2xl">
@@ -195,6 +190,7 @@ export function ChangelogDialog({
                     onLoadOlder={onLoadOlder}
                     timeZone={timeZone}
                     isDialog
+                    onNavigate={() => onOpenChange(false)}
                 />
             </DialogContent>
         </Dialog>
@@ -209,6 +205,7 @@ export function ChangelogContent({
     onLoadOlder,
     timeZone,
     isDialog = false,
+    onNavigate,
 }: {
     changelog: Changelog | null;
     hasFailed: boolean;
@@ -217,6 +214,7 @@ export function ChangelogContent({
     onLoadOlder: (onLoaded: (added: ChangelogPullRequest[]) => void) => void;
     timeZone: string;
     isDialog?: boolean;
+    onNavigate?: () => void;
 }) {
     const [revealedDays, setRevealedDays] = useState<Set<string>>(new Set());
     const scroller = useRef<HTMLDivElement>(null);
@@ -267,6 +265,7 @@ export function ChangelogContent({
                                 day={day}
                                 timeZone={timeZone}
                                 isRevealed={revealedDays.has(day.date)}
+                                onNavigate={onNavigate}
                             />
                         ))}
                         {changelog.olderBefore !== null && (

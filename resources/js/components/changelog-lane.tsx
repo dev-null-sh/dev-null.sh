@@ -52,15 +52,18 @@ export function ChangelogAvatar({
 export function ChangelogAuthorLink({
     author,
     className,
+    onClick,
     children,
 }: {
     author: ChangelogAuthor;
     className?: string;
+    onClick?: () => void;
     children: ReactNode;
 }) {
     return (
         <Link
             href={show({ username: author.login })}
+            onClick={onClick}
             aria-label={`@${author.login} on /dev/null`}
             className={cn(className, 'transition-colors hover:text-foreground')}
         >
@@ -110,6 +113,7 @@ export function ChangelogLane({
     continues = false,
     firstLinkRef,
     timeZone,
+    onNavigate,
 }: {
     pullRequests: ChangelogPullRequest[];
     isCompact?: boolean;
@@ -117,6 +121,7 @@ export function ChangelogLane({
     continues?: boolean;
     firstLinkRef?: Ref<HTMLAnchorElement>;
     timeZone?: string;
+    onNavigate?: () => void;
 }) {
     return (
         <ol>
@@ -190,6 +195,7 @@ export function ChangelogLane({
                                 <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
                                     <ChangelogAuthorLink
                                         author={pullRequest.author}
+                                        onClick={onNavigate}
                                         className="flex min-w-0 items-center gap-1.5 rounded-sm"
                                     >
                                         <ChangelogAvatar
