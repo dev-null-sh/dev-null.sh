@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import { ArrowUpRight } from 'lucide-react';
 import type { ReactNode, Ref } from 'react';
+import { UserPreview } from '@/components/user-preview';
 import type { ChangelogAuthor, ChangelogPullRequest } from '@/lib/changelog';
 import { authorLane } from '@/lib/changelog';
 import {
@@ -47,7 +48,7 @@ export function ChangelogAvatar({
 }
 
 /**
- * An author's /dev/null profile, found by their GitHub login.
+ * An author's /dev/null profile, found by their GitHub login, with their profile card on hover.
  */
 export function ChangelogAuthorLink({
     author,
@@ -61,14 +62,19 @@ export function ChangelogAuthorLink({
     children: ReactNode;
 }) {
     return (
-        <Link
-            href={show({ username: author.login })}
-            onClick={onClick}
-            aria-label={`@${author.login} on /dev/null`}
-            className={cn(className, 'transition-colors hover:text-foreground')}
-        >
-            {children}
-        </Link>
+        <UserPreview user={{ username: author.login }} className="flex min-w-0">
+            <Link
+                href={show({ username: author.login })}
+                onClick={onClick}
+                aria-label={`@${author.login} on /dev/null`}
+                className={cn(
+                    className,
+                    'transition-colors hover:text-foreground',
+                )}
+            >
+                {children}
+            </Link>
+        </UserPreview>
     );
 }
 
