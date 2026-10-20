@@ -182,10 +182,7 @@ export default function Show({
             </div>
 
             {user !== null && (
-                <div
-                    ref={setComposer}
-                    className="rounded-lg transition-colors focus-within:bg-primary-soft/60 motion-reduce:transition-none"
-                >
+                <div ref={setComposer}>
                     <CommitComposer key={commitDialogClosedCount} />
                 </div>
             )}
