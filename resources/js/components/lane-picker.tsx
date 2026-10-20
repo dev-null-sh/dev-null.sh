@@ -89,7 +89,9 @@ export function LaneOptions({
                 .trim();
         }
 
-        colorInput.showPicker();
+        // iOS Safari exposes showPicker() but does not open color pickers.
+        // https://bugs.webkit.org/show_bug.cgi?id=261703
+        colorInput.click();
     };
 
     const chooseCustomColor = (color: string) => {
