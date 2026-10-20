@@ -1,4 +1,5 @@
 import { mapTypedProse } from '@/lib/code';
+import { emojify } from '@/lib/emoji';
 import { characterCount } from '@/lib/utils';
 
 // Keep in sync with App\Models\Commit.
@@ -15,6 +16,13 @@ function normalizeBody(body: string): string {
     return mapTypedProse(body.replace(/\r\n/g, '\n'), (prose) =>
         prose.replace(/(?:[ \t]*\n){3,}/g, '\n\n'),
     ).trim();
+}
+
+/**
+ * Whether a draft is the body a commit was saved with, once normalized and with its shortcodes turned into emoji.
+ */
+export function isSavedAs(draft: string, saved: string): boolean {
+    return emojify(normalizeBody(draft)) === saved;
 }
 
 export function isFoldedInLists(body: string): boolean {

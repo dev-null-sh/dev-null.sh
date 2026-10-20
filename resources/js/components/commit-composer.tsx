@@ -49,7 +49,7 @@ import {
     useStash,
 } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
-import { maxBodyLength, minBodyLength } from '@/lib/commit';
+import { isSavedAs, maxBodyLength, minBodyLength } from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import {
     characterCount,
@@ -610,6 +610,16 @@ export function CommitComposer({
     });
 
     useEffect(() => discardSeriesStash(user.id), [user.id]);
+
+    const { committed } = usePage().flash;
+
+    // A deploy reloads the page before onSuccess can drop the draft, so the reloaded page names the commit it became.
+    useEffect(() => {
+        if (committed !== undefined && isSavedAs(body, committed.body)) {
+            drop();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (

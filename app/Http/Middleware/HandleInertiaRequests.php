@@ -13,10 +13,12 @@ use App\Queries\ConversationsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Middleware;
+use Symfony\Component\HttpFoundation\Response;
 
 final class HandleInertiaRequests extends Middleware
 {
@@ -33,6 +35,24 @@ final class HandleInertiaRequests extends Middleware
     public function version(Request $request): ?string
     {
         return parent::version($request);
+    }
+
+    /**
+     * A deploy sends a page built for the previous version back for a full reload. That page already took the flashed
+     * data off the session, so it is flashed again for the reload: the composer learns its commit went through.
+     */
+    public function onVersionChange(Request $request, Response $response): Response
+    {
+        /** @var array{flash?: array<string, mixed>} $page */
+        $page = $response instanceof JsonResponse ? $response->getData(true) : [];
+
+        $response = parent::onVersionChange($request, $response);
+
+        if (($page['flash'] ?? []) !== []) {
+            Inertia::flash($page['flash']);
+        }
+
+        return $response;
     }
 
     /**

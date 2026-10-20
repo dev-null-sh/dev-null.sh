@@ -49,6 +49,24 @@ it('flashes the created commit', function (): void {
     ])->assertInertiaFlash('achievementsUnlocked', ['init']);
 });
 
+it('keeps the created commit flashed through the reload a deploy forces on the redirect', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Initial commit']);
+
+    $this->get(route('log.show', Log::Following), ['X-Inertia' => 'true', 'X-Inertia-Version' => 'before-the-deploy'])
+        ->assertConflict();
+
+    $page = $this->get(route('log.show', Log::Following))->assertOk()->viewData('page');
+
+    expect($page['flash']['committed'] ?? null)->toBe([
+        'id' => $user->commits()->sole()->id,
+        'body' => 'Initial commit',
+    ]);
+});
+
 it('flashes only the badge the new commit unlocked', function (): void {
     $user = User::factory()->create();
 
