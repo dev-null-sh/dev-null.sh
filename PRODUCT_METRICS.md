@@ -8,7 +8,7 @@ Status: **implemented** metrics are on the Metrics tab. **Not yet** metrics are 
 
 ## Principles
 
-- **Store as little as possible.** Most metrics are computed from data the app already has (users, commits, stars, bookmarks, follows) and from Fathom, which is anonymous. Only three things were added for metrics: the last day each person was seen, one anonymous count of active people per day, and two anonymous Fathom events for the conversion rate.
+- **Store as little as possible.** Most metrics are computed from data the app already has (users, commits, stars, follows) and from Fathom, which is anonymous. Only three things were added for metrics: the last day each person was seen, one anonymous count of active people per day, and two anonymous Fathom events for the conversion rate.
 - **No personal attribution.** Nobody's referrer, landing page or campaign is stored. Where people come from is read from Fathom, in aggregate.
 - **Bots are left out** everywhere: Tom and @world (`User::BOT_GITHUB_IDS`).
 - **Read trends, not thresholds, at first.** With a few days of history, metrics say little on their own. a16z notes that they only become predictive with a few thousand active users and several cohorts past day 30.
@@ -47,9 +47,10 @@ The funnel follows the people who **signed up in the selected range** (all time 
 ### Activation
 
 - **Activated**: within **12 hours** of signing up, the person got something from the network, as a reader or as an author:
-  - **Reader**: starred or saved commits written by **3 or more different people** (not themselves, not bots).
+  - **Reader**: starred  written by **3 or more different people** (not themselves, not bots).
   - **Author**: posted (a commit or a reply), and someone else (not a bot) replied to it, quoted it or starred it, all within the 12 hours.
 - **Activation rate** = activated ÷ signups at least 12 hours old.
+- **Activation by signup day**: a chart of the activation rate of each day's signups, to see whether a change to the product moves it. It is computed from existing data, so it goes back to the launch. A day's bar stays lighter until its last signups are 12 hours old, and a dashed line marks the activation rate of the whole range. It is not an A/B test: a launch or a viral post also changes who signs up, so read a trend over several days, not one bar.
 - Why these choices:
   - Activation means *receiving* value. Posting is giving value; for an author, the value is the reaction. Someone who posts into the void is the most likely to leave, so posting alone does not count.
   - A star is cheap: counting distinct authors instead of stars means the feed showed several interesting people, not one friend.
@@ -58,13 +59,12 @@ The funnel follows the people who **signed up in the selected range** (all time 
 
 ### Retention
 
-- **Retained**: seen again **from day 14 after signing up, or later** ("unbounded" retention), as told by `last_seen_at`.
-- **Retention rate** = retained ÷ signups whose day 14 is over. A signup whose day 14 is today isn't counted yet: they may still come back today.
-- Until signups get through day 14, the page falls back to **day 7**, then **day 1**, and says from which day day 14 is available. Each number keeps a precise meaning, and the page switches by itself.
+- **Retained**: seen again **from day 1 after signing up, or later** ("unbounded" retention), as told by `last_seen_at`. Day 1 is temporary, while /dev/null is days old and changes day by day; the goal is day 14.
+- **Retention rate** = retained ÷ signups whose day 1 is over. A signup whose day 1 is today isn't counted yet: they may still come back today.
 - Only signups whose day N falls on or after the day tracking started count: someone who came back before tracking started left no trace.
 - Why `last_seen_at` and not one row per person per day: it is one date per person, overwritten, with no history, which is the least data that answers "is this person still coming back after 14 days?".
 - Caveats:
-  - Unbounded retention is always higher than the bounded "active on day N" retention that public benchmarks use. Someone who comes back once on day 60 counts as retained at day 14. **Do not compare it with the a16z numbers below.**
+  - Unbounded retention is always higher than the bounded "active on day N" retention that public benchmarks use. Someone who comes back once on day 60 counts as retained at day 1. **Do not compare it with the a16z numbers below.**
   - A cohort's retention keeps rising a little as late visitors come back, so older cohorts look slightly better than recent ones.
   - Deleted accounts disappear from their cohort instead of counting as gone.
 
@@ -86,7 +86,7 @@ The funnel follows the people who **signed up in the selected range** (all time 
 | First posts answered | The same, for commits that were their author's first post of any kind. |
 | Follows, first 24h | Median number of people a newcomer followed themselves in their first 24 hours. Follows imported from GitHub are left out: they are created in the transaction that records the import, so follows made in the 10 seconds before either side's import are taken for imported ones. |
 | Followed back | Share of those follows that were followed back since. |
-| Daily active users | A chart of the people seen each day of the range, from `active_user_counts`. Today's bar is still counting. |
+| Daily active users | A chart of the people seen each day of the range, from `active_user_counts`. Today's bar is still counting; a dashed line marks the average of the other days. |
 
 ## Benchmarks
 
@@ -132,6 +132,7 @@ Taken on 2026-10-19, when /dev/null was a few days old, had about 6,000 people a
 - Retention matters more than growth: active users level off at daily signups × average active lifetime, and the loops that bring people in run on the people who stay.
 - Activation counts value received within 12 hours, as a reader or as an author; posting alone is not activation.
 - Retention is unbounded, from `last_seen_at`, headline day 14, with a fallback to day 7 and day 1 meanwhile.
+- On 2026-10-20, retention was set to day 1 alone, without the fallback: /dev/null was days old and changed day by day, so the next day is what mattered. Moving to day 14 means bringing back the fallback to day 7 and day 1, from the history of `ProductFunnelQuery`.
 - No per-person referrer or source: Fathom covers acquisition, anonymously.
 - Signups are counted from the database; the conversion rate is counted entirely by Fathom, so ad blockers cancel out, and only over visitors not signed in.
 - Daily active users come from `last_seen_at`, not from Fathom, which ad blockers hide and which can't see the mobile app.

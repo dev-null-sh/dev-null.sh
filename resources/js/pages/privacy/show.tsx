@@ -57,6 +57,16 @@ export default function Show() {
                                 it is deleted when they turn the org off.
                             </>,
                             <>
+                                <strong>
+                                    From the commit script, when you run it:
+                                </strong>{' '}
+                                the public SSH keys in your SSH agent and{' '}
+                                <code>~/.ssh</code>, without their comments, to
+                                find the one on your GitHub account. They are
+                                only compared in memory against the fingerprints
+                                we store, and are never stored or logged.
+                            </>,
+                            <>
                                 <strong>What you post and do:</strong> commits,
                                 replies, quotes, images, polls, votes, stars,
                                 follows, mutes, blocks, reports, settings, and
@@ -182,6 +192,13 @@ export default function Show() {
                         keeping threads intact, preventing abuse, complying with
                         the law, and defending legal claims. Deleted content may
                         remain in backups and logs for a period.
+                    </p>
+                    <p>
+                        If a moderator put you in timeout or banned you, we keep
+                        a record of it after you delete your account: your
+                        GitHub account id, the reason, and when it happened. It
+                        stops a banned GitHub account from signing up again, and
+                        keeps a timeout from ending early by signing up again.
                     </p>
                 </DocumentSection>
 

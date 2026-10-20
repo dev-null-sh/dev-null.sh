@@ -23,6 +23,7 @@ import {
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
+import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
@@ -39,6 +40,7 @@ import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
+import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import {
@@ -61,7 +63,12 @@ import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
-import { maxBodyLength, minBodyLength } from '@/lib/commit';
+import {
+    bodyCharacterCount,
+    maxBodyLength,
+    maxRawBodyLength,
+    minBodyLength,
+} from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
 import {
@@ -1235,6 +1242,7 @@ function ReplyComposer({
             images: File[];
             image_descriptions: string[];
             link_preview_url?: string;
+            commit_rules_accepted?: boolean;
         },
         CreatedReply
     >({
@@ -1244,8 +1252,10 @@ function ReplyComposer({
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
+    const commitRules = useCommitRules();
     const isReplyable =
-        images.length > 0 || characterCount(body.trim()) >= minBodyLength;
+        (images.length > 0 || characterCount(body.trim()) >= minBodyLength) &&
+        bodyCharacterCount(body) <= maxBodyLength;
     const preview = useComposerPreview({
         body,
         textareaRef,
@@ -1291,6 +1301,7 @@ function ReplyComposer({
         if (
             request.processing ||
             attachments.isReading() ||
+            !commitRules.beforeSubmit() ||
             !secrets.beforeSubmit()
         ) {
             return;
@@ -1300,6 +1311,7 @@ function ReplyComposer({
             body,
             images,
             image_descriptions: descriptions,
+            commit_rules_accepted: commitRules.hasAccepted(),
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
@@ -1318,7 +1330,11 @@ function ReplyComposer({
                     onReplied(reply.parent);
                 },
                 onHttpException: (response) => {
-                    if (!commitNotFound(parent.id, response)) {
+                    const timeout = timeoutFrom(response.status, response.data);
+
+                    if (timeout) {
+                        showTimeout(timeout);
+                    } else if (!commitNotFound(parent.id, response)) {
                         toast.error(replyFailureMessage(response));
                     }
                 },
@@ -1357,7 +1373,7 @@ function ReplyComposer({
                     onKeyDown={onKeyDown}
                     onPaste={attachments.onPaste}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
-                    maxLength={maxBodyLength}
+                    maxLength={maxRawBodyLength}
                     placeholder={`Reply to @${parent.user.username}`}
                     className={cn(
                         'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
@@ -1386,6 +1402,7 @@ function ReplyComposer({
                     onRemove={attachments.remove}
                 />
             )}
+            <CommitRulesDialog rules={commitRules} textarea={textareaRef} />
             <SecretWarning
                 body={body}
                 findings={secrets.findings}

@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Slot } from '@radix-ui/react-slot';
-import type { CSSProperties, ReactElement } from 'react';
+import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import AppLogo from '@/components/app-logo';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,8 @@ export function useHomeAction(): ErrorAction {
 
 /**
  * The page-sized error on the viewer's own lane: the logo leads home, then the git-flavoured line and what happened.
+ * Children take the place of the button, for pages that offer something else to do. Without an action, the logo
+ * leads nowhere, for pages the user can't leave.
  */
 export function ErrorMessage({
     command,
@@ -31,13 +33,15 @@ export function ErrorMessage({
     action,
     logoClassName,
     className,
+    children,
 }: {
     command: string;
     headline: ReactElement;
     description: ReactElement;
-    action: ErrorAction;
+    action?: ErrorAction;
     logoClassName?: string;
     className?: string;
+    children?: ReactNode;
 }) {
     const { auth } = usePage().props;
     const lane = auth.user ? laneColor(auth.user.lane) : 'var(--rail)';
@@ -53,13 +57,17 @@ export function ErrorMessage({
                     <span className="absolute top-3.5 left-1/2 size-3.5 -translate-1/2 rounded-full border-[3px] border-background bg-(--lane) shadow-[0_0_0_2px_var(--lane)]" />
                 </div>
                 <div className="min-w-0 flex-1 pb-14 sm:pb-16">
-                    <Link
-                        href={action.href}
-                        aria-label={`/dev/null, ${action.label.toLowerCase()}`}
-                        className="inline-flex"
-                    >
+                    {action ? (
+                        <Link
+                            href={action.href}
+                            aria-label={`/dev/null, ${action.label.toLowerCase()}`}
+                            className="inline-flex"
+                        >
+                            <AppLogo className={logoClassName} />
+                        </Link>
+                    ) : (
                         <AppLogo className={logoClassName} />
-                    </Link>
+                    )}
                 </div>
             </li>
 
@@ -77,9 +85,12 @@ export function ErrorMessage({
                     <Slot className="mt-3 max-w-[42ch] text-lg text-pretty text-muted-foreground">
                         {description}
                     </Slot>
-                    <Button size="lg" className="mt-8" asChild>
-                        <Link href={action.href}>{action.label}</Link>
-                    </Button>
+                    {children ??
+                        (action && (
+                            <Button size="lg" className="mt-8" asChild>
+                                <Link href={action.href}>{action.label}</Link>
+                            </Button>
+                        ))}
                 </div>
             </li>
         </ol>

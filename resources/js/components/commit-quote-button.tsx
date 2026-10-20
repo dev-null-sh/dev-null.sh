@@ -11,6 +11,7 @@ import {
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { QuotedCommit } from '@/components/quoted-commit';
@@ -30,7 +31,12 @@ import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
-import { maxBodyLength, minBodyLength } from '@/lib/commit';
+import {
+    bodyCharacterCount,
+    maxBodyLength,
+    maxRawBodyLength,
+    minBodyLength,
+} from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn, isRejectedSubmission } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -127,10 +133,12 @@ function QuoteComposer({
     );
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
+    const commitRules = useCommitRules();
     const keys = useKeyLabels();
 
     const isQuotable =
-        images.length > 0 || characterCount(body.trim()) >= minBodyLength;
+        (images.length > 0 || characterCount(body.trim()) >= minBodyLength) &&
+        bodyCharacterCount(body) <= maxBodyLength;
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (
@@ -177,17 +185,18 @@ function QuoteComposer({
                 {...CommitController.store.form()}
                 errorBag="quote"
                 onBefore={() =>
-                    !attachments.isReading() && secrets.beforeSubmit()
+                    !attachments.isReading() &&
+                    commitRules.beforeSubmit() &&
+                    secrets.beforeSubmit()
                 }
-                transform={(data) =>
-                    images.length > 0
-                        ? {
-                              ...data,
-                              images,
-                              image_descriptions: descriptions,
-                          }
-                        : data
-                }
+                transform={(data) => ({
+                    ...data,
+                    commit_rules_accepted: commitRules.hasAccepted(),
+                    ...(images.length > 0 && {
+                        images,
+                        image_descriptions: descriptions,
+                    }),
+                })}
                 options={{ preserveScroll: true }}
                 onError={(errors) => {
                     if (errors.quoted_commit_id) {
@@ -234,7 +243,7 @@ function QuoteComposer({
                                 onFocus={
                                     isRestored ? moveCaretToEnd : undefined
                                 }
-                                maxLength={maxBodyLength}
+                                maxLength={maxRawBodyLength}
                                 placeholder="Add your take"
                                 autoComplete="off"
                                 aria-invalid={
@@ -250,6 +259,10 @@ function QuoteComposer({
                                 message={errors.body ?? errors.quoted_commit_id}
                             />
 
+                            <CommitRulesDialog
+                                rules={commitRules}
+                                textarea={textareaRef}
+                            />
                             <SecretWarning
                                 body={body}
                                 findings={secrets.findings}

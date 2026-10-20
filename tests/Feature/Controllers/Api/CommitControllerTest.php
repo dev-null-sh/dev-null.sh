@@ -5,7 +5,6 @@ declare(strict_types=1);
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Jobs\ModerateCommit;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
@@ -212,7 +211,6 @@ it('shows a signed request the commit as its page shows it to its user', functio
     Commit::factory()->for($commit, 'parent')->create();
     Commit::factory()->for($commit, 'parent')->pending()->create();
     $commit->stars()->attach($user);
-    Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $commit->id]);
 
     $response = signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit));
 
@@ -257,7 +255,6 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => true,
-                'is_saved' => true,
                 'pasteis_count' => 4,
                 'deleted_at' => null,
                 'quoted_commit_id' => null,
@@ -281,7 +278,6 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => false,
-                'is_saved' => false,
                 'pasteis_count' => 0,
                 'deleted_at' => null,
                 'quoted_commit_id' => null,
@@ -512,7 +508,6 @@ it('creates a commit from a signed request, pending review', function (): void {
         ->assertJsonPath('data.replies_count', 0)
         ->assertJsonPath('data.stars_count', 0)
         ->assertJsonPath('data.starred', false)
-        ->assertJsonPath('data.is_saved', false)
         ->assertJsonPath('data.images', [])
         ->assertJsonPath('data.quoted_commit_id', null)
         ->assertJsonPath('data.quoted_commit', null)
