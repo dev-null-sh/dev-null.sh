@@ -25,6 +25,7 @@ export default defineConfig({
             'tests/Unit/TabSlide.test.tsx',
             'tests/Unit/ReportResolution.test.tsx',
             'tests/Unit/LinkifiedText.test.tsx',
+            'tests/Unit/StagedRail.test.tsx',
         ],
     },
 });

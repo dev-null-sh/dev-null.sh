@@ -6,6 +6,7 @@ import UserFollowController from '@/actions/App/Http/Controllers/UserFollowContr
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { ContributorBadge } from '@/components/contributor-badge';
+import { BioText } from '@/components/bio-text';
 import {
     FollowLabel,
     onFollowHttpException,
@@ -470,7 +471,7 @@ function UserPreviewContent({
 
             {user.bio && !data?.isUnavailable && (
                 <p className="mt-2 line-clamp-3 text-sm text-pretty">
-                    {user.bio}
+                    <BioText bio={user.bio} />
                 </p>
             )}
 

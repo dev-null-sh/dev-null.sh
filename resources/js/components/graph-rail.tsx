@@ -7,8 +7,6 @@ import type { User } from '@/types';
 type Props = {
     lane: string;
     previousLane?: string;
-    /** When set, the outbound rail fades into this lane toward the next commit. */
-    nextLane?: string;
     variant?: 'commit' | 'staged' | 'root';
     isFilled?: boolean;
     isFresh?: boolean;
@@ -24,13 +22,14 @@ type Props = {
 
 const dimmable = 'transition-opacity duration-200';
 
+const stagedDash = 4;
+
 // Nodes fade inside an opaque backdrop so the lane line behind them stays hidden.
 const dimmedNode = 'group-data-dimmed/rail-node:opacity-60';
 
 export function GraphRail({
     lane,
     previousLane,
-    nextLane,
     variant = 'commit',
     isFilled = true,
     isFresh = false,
@@ -78,19 +77,26 @@ export function GraphRail({
                             'bottom-5 h-auto': nodePosition === 'bottom',
                         },
                     )}
-                    style={{ background: lane }}
+                    style={{ background: previousLane }}
                     data-test="rail-previous"
                 />
             )}
 
             {hasTail &&
                 (variant === 'staged' ? (
-                    <span className="absolute top-8 bottom-0 left-1/2 -translate-x-1/2 border-l-2 border-dashed border-rail" />
+                    <span
+                        className="absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2"
+                        style={laneStrokeStyle('var(--rail)', {
+                            dash: stagedDash,
+                            anchor: 'end',
+                        })}
+                        data-test="rail-staged-tail"
+                    />
                 ) : (
                     <span
                         className={cn(
                             // Start 1px early so this meets the previous segment without a seam.
-                            'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2',
+                            'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane)',
                             dimmable,
                             {
                                 'opacity-60': isDimmed,
@@ -100,9 +106,6 @@ export function GraphRail({
                                 'top-[22px]': nodePosition === 'author',
                             },
                         )}
-                        style={laneStrokeStyle(lane, nextLane ?? lane, {
-                            dashed: false,
-                        })}
                         data-test="rail-tail"
                     />
                 ))}
@@ -240,12 +243,19 @@ export function RailAvatar({
 export function RailSegment({
     lane,
     isDimmed = false,
+    isDashed = false,
+    className,
 }: {
     lane?: string;
     isDimmed?: boolean;
+    isDashed?: boolean;
+    className?: string;
 }) {
     return (
-        <div aria-hidden className="relative w-16 shrink-0 sm:w-18">
+        <div
+            aria-hidden
+            className={cn('relative w-16 shrink-0 sm:w-18', className)}
+        >
             {lane && (
                 <span
                     className={cn(
@@ -253,7 +263,11 @@ export function RailSegment({
                         dimmable,
                         { 'opacity-60': isDimmed },
                     )}
-                    style={{ background: lane }}
+                    style={
+                        isDashed
+                            ? laneStrokeStyle(lane, { dash: stagedDash })
+                            : { background: lane }
+                    }
                 />
             )}
         </div>

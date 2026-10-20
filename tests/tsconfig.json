@@ -11,6 +11,7 @@
         "Unit/SearchDialogComposition.test.tsx",
         "Unit/DraftImageReads.test.tsx",
         "Unit/ImageAttachments.test.tsx",
+        "Unit/StagedRail.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]
