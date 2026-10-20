@@ -104,7 +104,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-commit-pastel.store');
 
         // Private starred commits...
-        Route::get('starred', StarredCommitController::class)->name('api-starred.index');
+        Route::get('starred', [StarredCommitController::class, 'index'])->name('api-starred.index');
 
         // Commit Star...
         Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])

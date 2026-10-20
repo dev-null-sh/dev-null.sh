@@ -13,7 +13,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final readonly class StarredCommitController
 {
-    public function __invoke(#[CurrentUser] User $user, StarredCommitsQuery $starred, ReplyPreviewsQuery $replyPreviews): AnonymousResourceCollection
+    public function index(#[CurrentUser] User $user, StarredCommitsQuery $starred, ReplyPreviewsQuery $replyPreviews): AnonymousResourceCollection
     {
         $commits = $starred->builder($user)->cursorPaginate(20);
         $replyPreviews->load($commits->items(), $user);

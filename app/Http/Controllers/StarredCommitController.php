@@ -12,7 +12,7 @@ use Inertia\Response;
 
 final readonly class StarredCommitController
 {
-    public function __invoke(#[CurrentUser] User $user, StarredCommitsQuery $starred): Response
+    public function index(#[CurrentUser] User $user, StarredCommitsQuery $starred): Response
     {
         return Inertia::render('starred/index', [
             'commits' => Inertia::scroll(fn () => $starred->builder($user)->cursorPaginate(20)),

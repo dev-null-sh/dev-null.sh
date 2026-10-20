@@ -233,7 +233,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
 
     // Private starred commits...
-    Route::get('starred', StarredCommitController::class)->name('starred.index');
+    Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');

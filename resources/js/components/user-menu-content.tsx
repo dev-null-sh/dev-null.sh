@@ -56,7 +56,7 @@ export function UserMenuContent({ user }: Props) {
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full cursor-pointer"
-                        href={StarredCommitController()}
+                        href={StarredCommitController.index()}
                         onClick={cleanup}
                     >
                         <Star className="mr-2" />

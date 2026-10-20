@@ -104,7 +104,7 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
         },
         {
             title: 'Starred',
-            href: hrefFor(() => StarredCommitController()),
+            href: hrefFor(() => StarredCommitController.index()),
             icon: Star,
             prefetch: false,
         },
