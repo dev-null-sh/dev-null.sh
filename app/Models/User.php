@@ -46,6 +46,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read string|null $pinned_commit_id
  * @property-read string|null $translation_language
  * @property-read string|null $timezone
+ * @property-read bool $show_local_time
  * @property-read LivePlatform|null $live_platform
  * @property-read string|null $live_url
  * @property-read CarbonInterface|null $live_ends_at
@@ -122,6 +123,7 @@ final class User extends Authenticatable
     protected $attributes = [
         'log' => Log::Following->value,
         'translation_language' => null,
+        'show_local_time' => false,
         'pasteis_mode' => false,
         'remotes_enabled' => true,
         'remotes_from' => RemotesFrom::Following->value,
@@ -171,6 +173,7 @@ final class User extends Authenticatable
             'pasteis_given_on' => 'date',
             'pinned_commit_id' => 'string',
             'timezone' => 'string',
+            'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
             'log' => Log::class,
             'onboarded_at' => 'datetime',

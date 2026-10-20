@@ -50,6 +50,7 @@ final readonly class CreateExport
                 'has_sponsors_listing' => $user->has_sponsors_listing,
                 'preferred_lane' => $user->preferred_lane,
                 'timezone' => $user->timezone,
+                'show_local_time' => $user->show_local_time,
                 'translation_language' => $user->translation_language,
                 'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,

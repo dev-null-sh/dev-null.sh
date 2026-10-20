@@ -26,6 +26,7 @@ import {
     LiveAvatarMarker,
     LiveStreamTrigger,
 } from '@/components/live-stream-card';
+import { LocalTime } from '@/components/local-time';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileActionsMenu } from '@/components/profile-actions-menu';
@@ -265,6 +266,9 @@ export default function Show({
                             <MapPin className="size-4" />
                             {user.location}
                         </li>
+                    )}
+                    {user.show_local_time && user.timezone && (
+                        <LocalTime timeZone={user.timezone} />
                     )}
                     {user.website && (
                         <li className="flex min-w-0 items-center gap-1.5">
