@@ -62,8 +62,10 @@ export function trackFollowRequests(initialPage: Page): VoidFunction {
                 page.component === request.component &&
                 page.props.log === request.log
             ) {
-                const commits = page.props.commits as CursorPaginated<Commit>;
-                const through = commits.data.at(-1)?.id;
+                const commits = page.props.commits as
+                    | CursorPaginated<Commit>
+                    | undefined;
+                const through = commits?.data.at(-1)?.id;
                 delete headers['X-Log-Through'];
 
                 if (through) {

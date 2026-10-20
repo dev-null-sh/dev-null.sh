@@ -421,6 +421,30 @@ it('shares the language the reader reads translations in, live on their own chan
     expect($this->get('/settings/appearance', [...$headers, 'Accept-Language' => 'pt-BR'])->json('props.auth.translationLanguage'))->toBe('de');
 });
 
+it("keeps the remembered log across pages, and reads it again once another of the user's pages remembers one", function (): void {
+    $user = User::factory()->create(['log' => Log::Latest]);
+    $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request())];
+
+    $page = $this->actingAs($user)->get('/settings/appearance', $headers)->json();
+
+    expect($page['props']['auth']['log'])->toBe('latest')
+        ->and($page['onceProps']['auth.log:'.$user->id]['prop'])->toBe('auth.log')
+        ->and($page['liveProps']['auth.log']['listeners'])->toBe([[
+            'channel' => ['name' => 'users.'.$user->id, 'type' => 'private'],
+            'events' => ['account'],
+        ]]);
+
+    $loaded = [...$headers, 'X-Inertia-Except-Once-Props' => 'auth.log:'.$user->id];
+    resolve(UpdateUserLog::class)->handle($user, Log::Trending);
+
+    expect($this->get('/settings/appearance', $loaded)->json('props.auth'))->not->toHaveKey('log')
+        ->and($this->get('/settings/appearance', [
+            ...$loaded,
+            'X-Inertia-Partial-Component' => 'appearance/update',
+            'X-Inertia-Partial-Data' => 'auth.log',
+        ])->json('props.auth.log'))->toBe('trending');
+});
+
 it("tells the recipient's profile a pastel arrived, without its total, which each reader reads again as they may", function (): void {
     $sender = User::factory()->create(['pasteis_mode' => true]);
     $recipient = User::factory()->create();
