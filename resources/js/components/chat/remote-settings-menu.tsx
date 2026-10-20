@@ -50,7 +50,7 @@ export function RemoteSettingsMenu() {
                 <TooltipTrigger asChild>
                     <DropdownMenuTrigger
                         aria-label="Remote settings"
-                        className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+                        className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
                         data-test="remote-settings"
                     >
                         <Settings2 className="size-[18px]" />

@@ -213,7 +213,7 @@ export function SearchDialog({
             <DialogPortal>
                 <DialogOverlay />
                 <DialogPrimitive.Content
-                    className="fixed top-[12vh] left-1/2 z-50 w-full max-w-[calc(100%-2rem)] -translate-x-1/2 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[0_24px_48px_-16px_rgb(0_0_0/0.4)] duration-200 motion-safe:data-[state=closed]:animate-out motion-safe:data-[state=closed]:fade-out-0 motion-safe:data-[state=closed]:zoom-out-95 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in-0 motion-safe:data-[state=open]:zoom-in-95 sm:max-w-xl"
+                    className="fixed top-[12vh] left-1/2 z-50 w-full max-w-[calc(100%-2rem)] -translate-x-1/2 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_24px_48px_-16px_rgb(0_0_0/0.4)] duration-200 motion-safe:data-[state=closed]:animate-out motion-safe:data-[state=closed]:fade-out-0 motion-safe:data-[state=closed]:zoom-out-95 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in-0 motion-safe:data-[state=open]:zoom-in-95 sm:max-w-xl"
                     data-test="search"
                 >
                     <DialogPrimitive.Title className="sr-only">
@@ -256,7 +256,7 @@ export function SearchDialog({
                                 isLoading ? 'opacity-100' : 'opacity-0',
                             )}
                         />
-                        <kbd className="hidden rounded border border-b-2 bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground sm:block">
+                        <kbd className="hidden rounded-sm border border-b-2 bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground sm:block">
                             esc
                         </kbd>
                     </div>
@@ -300,7 +300,7 @@ export function SearchDialog({
                                                 <button
                                                     type="button"
                                                     aria-label="Clear recent searches"
-                                                    className="rounded px-1.5 py-1 font-sans text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
+                                                    className="rounded-sm px-1.5 py-1 font-sans text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
                                                     onClick={() => {
                                                         if (userId !== null)
                                                             clearRecentSearches(

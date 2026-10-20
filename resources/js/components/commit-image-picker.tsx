@@ -204,7 +204,7 @@ export function ImagePickerPreviews({
                                     onRemove(index);
                                 }}
                                 aria-label={`Remove image ${index + 1}`}
-                                className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5 text-foreground backdrop-blur transition hover:bg-background"
+                                className="absolute top-1 right-1 rounded-sm bg-background/80 p-0.5 text-foreground backdrop-blur transition hover:bg-background"
                             >
                                 <X className="size-3.5" />
                             </button>

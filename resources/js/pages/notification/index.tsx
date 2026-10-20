@@ -299,7 +299,7 @@ export default function Index({
                                         )
                                     }
                                     className={cn(
-                                        'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                                        'rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                                         isActive
                                             ? 'border-primary/30 bg-primary-soft text-primary hover:bg-primary/15'
                                             : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
@@ -318,7 +318,7 @@ export default function Index({
                                 setArrivals(0);
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
-                            className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                            className="pointer-events-auto flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                         >
                             <ArrowUp aria-hidden className="size-4" />
                             <span className="tabular-nums">
@@ -1134,7 +1134,7 @@ export function NotificationContent({
                                 <div className="flex h-10 items-center gap-2">
                                     {level ? (
                                         <span
-                                            className="rounded-full border px-2 py-0.5 font-mono text-xs font-medium"
+                                            className="rounded-md border px-2 py-0.5 font-mono text-xs font-medium"
                                             style={{
                                                 borderColor: `${laneColor(actor.lane)}40`,
                                                 backgroundColor: `${laneColor(actor.lane)}15`,
@@ -1147,7 +1147,7 @@ export function NotificationContent({
                                     ) : moderation ? (
                                         <span
                                             className={cn(
-                                                'rounded-full px-2 py-0.5 font-mono text-xs',
+                                                'rounded-sm px-2 py-0.5 font-mono text-xs',
                                                 notification.type === 'rejected'
                                                     ? 'bg-destructive/10 text-destructive'
                                                     : 'bg-muted text-muted-foreground',
