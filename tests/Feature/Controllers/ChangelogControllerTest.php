@@ -82,6 +82,6 @@ it('says the changelog is unavailable when GitHub cannot be reached', function (
 it('opens the changelog as a page', function (): void {
     $this->get('/changelog')
         ->assertOk()
-        ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+        ->assertInertia(fn (Inertia\Testing\AssertableInertia $page) => $page
             ->component('changelog/show'));
 });
