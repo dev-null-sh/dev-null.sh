@@ -1,8 +1,11 @@
+import type { InertiaLinkProps } from '@inertiajs/react';
 import { router, usePage } from '@inertiajs/react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { home } from '@/routes';
 
-export function useGoBack(): () => void {
+export function useGoBack(
+    fallback?: NonNullable<InertiaLinkProps['href']>,
+): () => void {
     const { auth } = usePage().props;
 
     return () => {
@@ -12,6 +15,9 @@ export function useGoBack(): () => void {
             return;
         }
 
-        router.visit(auth.log === null ? home() : LogController.show(auth.log));
+        router.visit(
+            fallback ??
+                (auth.log === null ? home() : LogController.show(auth.log)),
+        );
     };
 }

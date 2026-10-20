@@ -8,6 +8,7 @@ import { FollowButton } from '@/components/follow-button';
 import { PageTabs } from '@/components/page-tabs';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { useGoBack } from '@/hooks/use-go-back';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -40,6 +41,7 @@ export default function Connections({
 }) {
     const { auth } = usePage().props;
     const title = type === 'following' ? 'Following' : 'Followers';
+    const goBack = useGoBack(show(user));
 
     return (
         <>
@@ -47,13 +49,14 @@ export default function Connections({
 
             <div className="sticky top-0 z-10 bg-card">
                 <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
-                    <Link
-                        href={show(user)}
+                    <button
+                        type="button"
+                        onClick={goBack}
                         aria-label={`Back to @${user.username}`}
                         className="text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft className="size-4" />
-                    </Link>
+                    </button>
                     <h1 className="min-w-0 truncate font-semibold">
                         {user.name}
                     </h1>
