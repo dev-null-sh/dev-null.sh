@@ -72,8 +72,10 @@ final readonly class RepositoryContributorsQuery
     {
         $usernames = [];
 
+        $repository = config()->string('services.github.repository');
+
         for ($page = 1; $page <= self::MaxPages; $page++) {
-            $contributors = $this->github->request()->get('repos/'.ChangelogQuery::Repository.'/contributors', [
+            $contributors = $this->github->request()->get('repos/'.$repository.'/contributors', [
                 'per_page' => 100,
                 'page' => $page,
             ])->throw()->collect();
