@@ -10,6 +10,7 @@ import LanePicker from '@/components/lane-picker';
 import { PasteisModeSetting } from '@/components/pasteis-mode-setting';
 import { RemotesSetting } from '@/components/remotes-setting';
 import TimezonePicker from '@/components/timezone-picker';
+import TranslationLanguageSetting from '@/components/translation-language-setting';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { useNow } from '@/hooks/use-now';
@@ -21,12 +22,16 @@ import { show } from '@/routes/user';
 import type { Lane } from '@/types';
 
 export default function Edit({
+    translationLanguage,
+    translationLanguages,
     preferredLane,
     automaticLane,
     githubSyncedAt,
     activityGraphUrl,
     profileUrl,
 }: {
+    translationLanguage: string | null;
+    translationLanguages: { code: string; name: string }[];
     preferredLane: Lane | null;
     automaticLane: number;
     githubSyncedAt: string | null;
@@ -108,6 +113,11 @@ export default function Edit({
             />
 
             <TimezonePicker />
+
+            <TranslationLanguageSetting
+                language={translationLanguage}
+                languages={translationLanguages}
+            />
 
             <PasteisModeSetting />
 

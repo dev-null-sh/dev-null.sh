@@ -175,7 +175,7 @@ Livestream history: the team settled on calling posts **commits** and their list
 
 ### Translating commits
 
-Public commits and replies offer **Translate** when their detected language differs from the browser's preferred language. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.
+Public commits and replies offer **Translate** when their detected language differs from the reader's translation language. Choose a translation language in **Settings → Profile**, independently of the device language, or leave **Browser language (automatic)** selected to follow the browser. This private preference is saved to the account, included in the data export, and erased with the account. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.
 
 Moderators can also translate pending commits in the moderation queue, using the same **Translate** and **Show original** controls without approving the post. Pending translations remain unavailable to other readers, including the author.
 
