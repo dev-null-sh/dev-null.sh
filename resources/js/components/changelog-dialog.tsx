@@ -81,7 +81,6 @@ function DaySection({
                                 className="flex rounded-full"
                             >
                                 <ChangelogAvatar
-                                    login={author.login}
                                     avatar={author.avatar}
                                     size={20}
                                 />

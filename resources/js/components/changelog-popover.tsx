@@ -67,9 +67,9 @@ function Summary({
                             }}
                         >
                             <ChangelogAvatar
-                                login={author.login}
                                 avatar={author.avatar}
                                 size={18}
+                                title={`@${author.login}`}
                             />
                         </li>
                     ))}

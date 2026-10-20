@@ -24,21 +24,21 @@ function avatarUrl(avatar: string, size: number): string {
 }
 
 export function ChangelogAvatar({
-    login,
     avatar,
     size,
+    title,
     className,
 }: {
-    login: string;
     avatar: string;
     size: number;
+    title?: string;
     className?: string;
 }) {
     return (
         <img
             src={avatarUrl(avatar, size)}
             alt=""
-            title={`@${login}`}
+            title={title}
             width={size}
             height={size}
             loading="lazy"
@@ -205,14 +205,10 @@ export function ChangelogLane({
                                         className="flex min-w-0 items-center gap-1.5 rounded-sm"
                                     >
                                         <ChangelogAvatar
-                                            login={pullRequest.author.login}
                                             avatar={pullRequest.author.avatar}
                                             size={16}
                                         />
-                                        <span
-                                            title={`@${pullRequest.author.login}`}
-                                            className="max-w-36 truncate"
-                                        >
+                                        <span className="max-w-36 truncate">
                                             @{pullRequest.author.login}
                                         </span>
                                     </ChangelogAuthorLink>
