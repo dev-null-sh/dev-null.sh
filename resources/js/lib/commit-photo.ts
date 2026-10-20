@@ -113,7 +113,9 @@ export function trackCommitPhotoPage(): VoidFunction {
 
     const stopNavigation = router.on('navigate', ({ detail: { page } }) => {
         const sessionId = window.history.state?.commitPhotoHistory?.sessionId;
-        photoSessionId = documentPhotoSessions.has(sessionId) ? sessionId : undefined;
+        photoSessionId = documentPhotoSessions.has(sessionId)
+            ? sessionId
+            : undefined;
         component = page.component;
         version = page.version;
         backgroundUrl = (page.props.photo as CommitPhoto | undefined)
