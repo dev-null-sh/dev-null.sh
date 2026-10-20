@@ -85,7 +85,7 @@ export type Commit = {
     replies_count?: number;
     reply_preview?: CursorPaginated<ThreadCommit>;
     continuation_id?: string | null;
-    saved_order?: string | null;
+    starred_order?: string | null;
     is_pinned?: boolean;
     parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
     link_preview?: LinkPreview | null;

@@ -66,7 +66,7 @@ use App\Http\Controllers\ProductMetricsController;
 use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
-use App\Http\Controllers\SavedCommitController;
+use App\Http\Controllers\StarredCommitController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
@@ -232,8 +232,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
 
-    // Private saved commits...
-    Route::get('saved', SavedCommitController::class)->name('saved.index');
+    // Private starred commits...
+    Route::get('starred', StarredCommitController::class)->name('starred.index');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');

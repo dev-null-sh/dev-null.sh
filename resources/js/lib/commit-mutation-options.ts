@@ -36,15 +36,15 @@ export function updateQuotedCommits(
 export function restoreFeedCommit(
     rows: Commit[],
     restored: Commit,
-    order: 'latest' | 'ranked' | 'saved',
+    order: 'latest' | 'ranked' | 'starred',
 ): Commit[] {
     const updated = updateQuotedCommits(rows, restored).filter(
         (commit) => commit.id !== restored.id,
     );
     const compare = (a: Commit, b: Commit) => {
-        if (order === 'saved') {
+        if (order === 'starred') {
             return (
-                (b.saved_order ?? '').localeCompare(a.saved_order ?? '') ||
+                (b.starred_order ?? '').localeCompare(a.starred_order ?? '') ||
                 b.id.localeCompare(a.id)
             );
         }

@@ -3,7 +3,7 @@ import { LockKeyhole } from 'lucide-react';
 import { useRef } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
-import { SavedRemovalContext } from '@/components/saved-removal-context';
+import { StarredRemovalContext } from '@/components/starred-removal-context';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import AppLayout from '@/layouts/app-layout';
 import type { Commit, CursorPaginated } from '@/types';
@@ -47,11 +47,11 @@ export default function Index({
 
     return (
         <>
-            <Head title="Saved" />
+            <Head title="Starred" />
 
             <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b bg-card px-4 sm:px-6">
                 <h1 ref={headingRef} tabIndex={-1} className="font-semibold">
-                    Saved
+                    Starred
                 </h1>
                 <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <LockKeyhole aria-hidden className="size-3.5" />
@@ -63,12 +63,12 @@ export default function Index({
                 Commits you starred, newest first.
             </p>
 
-            <SavedRemovalContext value={remove}>
+            <StarredRemovalContext value={remove}>
                 <CommitFeed
                     commits={commits}
-                    end="You've reached the end of your saved commits."
+                    end="You've reached the end of your starred commits."
                     empty={
-                        <EmptyFeed command="fatal: no saved commits yet">
+                        <EmptyFeed command="fatal: no starred commits yet">
                             Star a commit to find it here.
                             <Link
                                 href={LogController.show('trending')}
@@ -79,7 +79,7 @@ export default function Index({
                         </EmptyFeed>
                     }
                 />
-            </SavedRemovalContext>
+            </StarredRemovalContext>
         </>
     );
 }

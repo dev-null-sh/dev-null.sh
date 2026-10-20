@@ -10,6 +10,6 @@ it('lists the signed users starred commits', function (): void {
     $commit = Commit::factory()->create();
     $user->starredCommits()->attach($commit);
 
-    signedApiRequest(apiKeyPairFor($user), 'GET', route('api-saved.index'))
+    signedApiRequest(apiKeyPairFor($user), 'GET', route('api-starred.index'))
         ->assertOk()->assertJsonPath('data.0.id', $commit->id);
 });

@@ -12,7 +12,7 @@ import {
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
-import SavedCommitController from '@/actions/App/Http/Controllers/SavedCommitController';
+import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import { GitHubIcon } from '@/components/github-icon';
 import {
@@ -56,11 +56,11 @@ export function UserMenuContent({ user }: Props) {
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full cursor-pointer"
-                        href={SavedCommitController()}
+                        href={StarredCommitController()}
                         onClick={cleanup}
                     >
                         <Star className="mr-2" />
-                        Saved
+                        Starred
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

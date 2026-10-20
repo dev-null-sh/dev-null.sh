@@ -8,7 +8,7 @@ use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-final readonly class SavedCommitsQuery
+final readonly class StarredCommitsQuery
 {
     public function builder(User $user): CommitBuilder
     {
@@ -16,7 +16,7 @@ final readonly class SavedCommitsQuery
             ->join('stars', 'stars.commit_id', '=', 'commits.id')
             ->where('stars.user_id', $user->id)
             ->select('commits.*')
-            ->addSelect('stars.created_at as saved_order')
+            ->addSelect('stars.created_at as starred_order')
             ->visibleTo($user)
             ->withVisibleReplyCount($user)
             ->withReplyPreviews($user)
@@ -26,6 +26,6 @@ final readonly class SavedCommitsQuery
                     $parent->getQuery()->withTrashed()->visibleTo($user)->with('user');
                 },
             ])
-            ->orderByDesc('saved_order')->orderByDesc('commits.id');
+            ->orderByDesc('starred_order')->orderByDesc('commits.id');
     }
 }

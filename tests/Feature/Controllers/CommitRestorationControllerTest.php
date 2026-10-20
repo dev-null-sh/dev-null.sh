@@ -32,7 +32,7 @@ it('restores only the deletion state within thirty seconds', function (CommitSta
         ->assertInertiaFlash('restored.id', $commit->id)
         ->assertInertiaFlash('restored.stars_count', 1)
         ->assertInertiaFlash('restored.starred', true)
-        ->assertInertiaFlash('restored.saved_order', $commit->stars()->newPivotQuery()->where('user_id', $commit->user_id)->value('created_at'));
+        ->assertInertiaFlash('restored.starred_order', $commit->stars()->newPivotQuery()->where('user_id', $commit->user_id)->value('created_at'));
 
     expect($commit->refresh()->only(array_keys($original)))->toEqual($original);
     $this->assertNotSoftDeleted($commit);

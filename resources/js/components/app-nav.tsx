@@ -21,7 +21,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
-import SavedCommitController from '@/actions/App/Http/Controllers/SavedCommitController';
+import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
@@ -103,8 +103,8 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             icon: UserRound,
         },
         {
-            title: 'Saved',
-            href: hrefFor(() => SavedCommitController()),
+            title: 'Starred',
+            href: hrefFor(() => StarredCommitController()),
             icon: Star,
             prefetch: false,
         },
@@ -539,7 +539,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     );
     const items = allItems.filter(
         (item) =>
-            item.title !== 'Saved' &&
+            item.title !== 'Starred' &&
             !menuItems.some((menuItem) => menuItem.title === item.title),
     );
     const nav = useRef<HTMLElement>(null);

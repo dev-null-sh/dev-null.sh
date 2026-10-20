@@ -13,7 +13,7 @@ use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
-use App\Http\Controllers\Api\SavedCommitController;
+use App\Http\Controllers\Api\StarredCommitController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
@@ -103,8 +103,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware('throttle:60,1')
             ->name('api-commit-pastel.store');
 
-        // Private saved commits...
-        Route::get('saved', SavedCommitController::class)->name('api-saved.index');
+        // Private starred commits...
+        Route::get('starred', StarredCommitController::class)->name('api-starred.index');
 
         // Commit Star...
         Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])

@@ -267,7 +267,7 @@ it('shows the poll of a quoted commit in moderation and after undoing a deletion
         ->assertInertiaFlash('restored.quoted_commit.poll.options.0.label', 'Tabs');
 });
 
-it('shows polls on profiles and saved commits', function (): void {
+it('shows polls on profiles and starred commits', function (): void {
     $user = User::factory()->create();
     $author = User::factory()->create();
     $pinned = Poll::factory()->for(Commit::factory()->for($author))->withOptions('Tabs', 'Spaces')->create();
@@ -281,7 +281,7 @@ it('shows polls on profiles and saved commits', function (): void {
             ->where('pinnedCommit.poll.options.0.label', 'Tabs')
             ->where('commits.data.0.poll.options.0.label', 'Vim'));
 
-    $this->get(route('saved.index'))
+    $this->get(route('starred.index'))
         ->assertInertia(fn ($page) => $page->where('commits.data.0.poll.options.0.label', 'Vim'));
 });
 

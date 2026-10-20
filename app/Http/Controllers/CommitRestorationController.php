@@ -19,7 +19,7 @@ final readonly class CommitRestorationController
     {
         $commit = $action->handle($commit);
 
-        $restored = Commit::query()->withVisibleReplyCount($user)->withReplyPreviews($user)->withStarsFor($user)->addSelect(['saved_order' => $user->starredCommits()->newPivotStatement()->select('created_at')->whereColumn('commit_id', 'commits.id')->where('user_id', $user->id)->limit(1)])->with([
+        $restored = Commit::query()->withVisibleReplyCount($user)->withReplyPreviews($user)->withStarsFor($user)->addSelect(['starred_order' => $user->starredCommits()->newPivotStatement()->select('created_at')->whereColumn('commit_id', 'commits.id')->where('user_id', $user->id)->limit(1)])->with([
             'user',
             'linkPreview',
             'images',

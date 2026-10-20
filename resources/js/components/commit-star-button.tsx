@@ -5,7 +5,7 @@ import CommitStarController from '@/actions/App/Http/Controllers/CommitStarContr
 import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
 import { CommitStargazersDialog } from '@/components/commit-stargazers-dialog';
-import { SavedRemovalContext } from '@/components/saved-removal-context';
+import { StarredRemovalContext } from '@/components/starred-removal-context';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
@@ -52,7 +52,7 @@ export function CommitStarButton({
     const [isAnimating, setIsAnimating] = useState(false);
     const [localMutations] = useState(createCommitStarMutations);
     const polling = useContext(CommitStarPollingContext);
-    const onRemoved = useContext(SavedRemovalContext);
+    const onRemoved = useContext(StarredRemovalContext);
     const mutations = polling?.mutations ?? localMutations;
     const isOwn = commit.user_id === auth.user?.id;
     const canPoll = auth.user !== null;
