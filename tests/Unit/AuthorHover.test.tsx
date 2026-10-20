@@ -33,6 +33,10 @@ vi.doMock('react-dom', async () => ({
     ...(await vi.importActual('react-dom')),
     createPortal: (children: ReactNode) => children,
 }));
+vi.doMock('@inertiajs/react', async () => ({
+    ...(await vi.importActual('@inertiajs/react')),
+    usePage: () => ({ props: { fadesLanes: false } }),
+}));
 
 const { GraphRail } = await import('../../resources/js/components/graph-rail');
 const { UserPreview } =
