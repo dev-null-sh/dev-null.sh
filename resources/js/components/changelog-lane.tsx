@@ -62,7 +62,11 @@ export function ChangelogAuthorLink({
     children: ReactNode;
 }) {
     if (author.username === null) {
-        return <span className={className}>{children}</span>;
+        return (
+            <span title={`@${author.login}`} className={className}>
+                {children}
+            </span>
+        );
     }
 
     return (
@@ -73,7 +77,11 @@ export function ChangelogAuthorLink({
             <Link
                 href={show({ username: author.username })}
                 onClick={onClick}
-                aria-label={`@${author.username} on /dev/null`}
+                aria-label={
+                    author.login === author.username
+                        ? `@${author.login} on /dev/null`
+                        : `@${author.login}, @${author.username} on /dev/null`
+                }
                 className={cn(
                     className,
                     'transition-colors hover:text-foreground',
