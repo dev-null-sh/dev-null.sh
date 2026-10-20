@@ -47,7 +47,7 @@ export function ChangelogAvatar({
 }
 
 /**
- * An author's /dev/null profile, or just the author when they aren't on /dev/null.
+ * An author's /dev/null profile, found by their GitHub login.
  */
 export function ChangelogAuthorLink({
     author,
@@ -58,14 +58,10 @@ export function ChangelogAuthorLink({
     className?: string;
     children: ReactNode;
 }) {
-    if (author.username === null) {
-        return <span className={className}>{children}</span>;
-    }
-
     return (
         <Link
-            href={show({ username: author.username })}
-            aria-label={`@${author.username} on /dev/null`}
+            href={show({ username: author.login })}
+            aria-label={`@${author.login} on /dev/null`}
             className={cn(className, 'transition-colors hover:text-foreground')}
         >
             {children}
