@@ -6,6 +6,8 @@ namespace App\Actions;
 
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\CodeSpans;
+use App\Services\HighlightedCode;
 use App\Services\OpenGraphCanvas;
 use App\Services\Urls;
 use Illuminate\Support\Facades\Cache;
@@ -32,7 +34,26 @@ final readonly class CreateCommitOpenGraphImage
      */
     private const array BODY_SIZES = [[56, 72], [48, 64], [40, 56], [34, 48], [32, 44]];
 
-    public function __construct(private Urls $urls)
+    private const int CODE_AVATAR_SIZE = 56;
+
+    private const int CODE_GAP = 16;
+
+    private const int CODE_MARGIN = 28;
+
+    private const int PROSE_SIZE = 26;
+
+    private const int PROSE_LINE_HEIGHT = 34;
+
+    private const int PROSE_LINES = 1;
+
+    /**
+     * Shorter code is drawn larger, as long as it fits.
+     *
+     * @var list<array{int, int}>
+     */
+    private const array CODE_SIZES = [[28, 40], [24, 34], [22, 31], [20, 28]];
+
+    public function __construct(private Urls $urls, private CodeSpans $codeSpans, private HighlightedCode $highlightedCode)
     {
         //
     }
@@ -54,34 +75,153 @@ final readonly class CreateCommitOpenGraphImage
         $lane = $canvas->lane($user);
         $replyingTo = $commit->parent?->user?->handle;
 
-        $headerHeight = self::AVATAR_SIZE + ($replyingTo === null ? 0 : self::REPLYING_TO_HEIGHT) + self::BODY_GAP;
-        [$size, $lineHeight, $body] = $this->fit($canvas, $this->urls->withShortenedUrls($commit->body), OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);
+        $code = $this->code($commit->body);
 
-        $top = max(self::MIN_TOP, intdiv(OpenGraphCanvas::FOOTER_RULE_Y - $headerHeight - count($body) * $lineHeight, 2));
-
-        $canvas->rail($top + intdiv(self::AVATAR_SIZE, 2), $lane);
-        $canvas->avatar($user, OpenGraphCanvas::CONTENT_X + 10, $top, self::AVATAR_SIZE, $lane);
-
-        $textX = OpenGraphCanvas::CONTENT_X + 10 + self::AVATAR_SIZE + 10 + 28;
-        $textWidth = OpenGraphCanvas::CONTENT_RIGHT - $textX;
-
-        $canvas->text($canvas->truncate($canvas->name($user), 'Geist-SemiBold', 36, $textWidth), 'Geist-SemiBold', 36, $textX, $top + 36, OpenGraphCanvas::INK);
-        $canvas->handle($user, 26, $textX, $top + 70, $textWidth, $lane);
-
-        if ($replyingTo !== null) {
-            $canvas->text($canvas->truncate("↳ replying to @{$replyingTo}", 'GeistMono-Regular', 26, self::BODY_WIDTH), 'GeistMono-Regular', 26, OpenGraphCanvas::CONTENT_X, $top + self::AVATAR_SIZE + 38, OpenGraphCanvas::INK_MUTED);
-        }
-
-        $bodyTop = $top + $headerHeight;
-
-        foreach ($body as $index => $line) {
-            $canvas->text($line, 'Geist-Regular', $size, OpenGraphCanvas::CONTENT_X, $bodyTop + $index * $lineHeight + intdiv($lineHeight + $size, 2) - intdiv($size, 5), OpenGraphCanvas::INK);
+        if ($code !== null) {
+            $this->drawCode($canvas, $user, $lane, $replyingTo, ...$code);
+        } else {
+            $this->drawBody($canvas, $user, $lane, $replyingTo, $commit->body);
         }
 
         $canvas->footer();
         $this->meta($canvas, $commit);
 
         return $canvas->png();
+    }
+
+    private function drawBody(OpenGraphCanvas $canvas, User $user, int $lane, ?string $replyingTo, string $body): void
+    {
+        $headerHeight = self::AVATAR_SIZE + ($replyingTo === null ? 0 : self::REPLYING_TO_HEIGHT) + self::BODY_GAP;
+        [$size, $lineHeight, $lines] = $this->fit($canvas, $this->urls->withShortenedUrls($body), OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);
+
+        $top = max(self::MIN_TOP, intdiv(OpenGraphCanvas::FOOTER_RULE_Y - $headerHeight - count($lines) * $lineHeight, 2));
+
+        $this->header($canvas, $user, $lane, $replyingTo, $top, self::AVATAR_SIZE);
+        $this->lines($canvas, $lines, $size, $lineHeight, $top + $headerHeight);
+    }
+
+    /**
+     * The code block in an editor window, under a smaller header and the first line of the prose before it.
+     *
+     * @param  non-empty-list<list<array{text: string, classes: list<string>}>>  $lines
+     */
+    private function drawCode(OpenGraphCanvas $canvas, User $user, int $lane, ?string $replyingTo, string $prose, ?string $language, array $lines): void
+    {
+        $headerHeight = self::CODE_AVATAR_SIZE + ($replyingTo === null ? 0 : self::REPLYING_TO_HEIGHT) + self::CODE_GAP;
+
+        $prose = $prose === '' ? [] : $canvas->clamp($canvas->wrap($this->urls->withShortenedUrls($prose), 'Geist-Regular', self::PROSE_SIZE, self::BODY_WIDTH), self::PROSE_LINES, 'Geist-Regular', self::PROSE_SIZE, self::BODY_WIDTH);
+        $proseHeight = $prose === [] ? 0 : count($prose) * self::PROSE_LINE_HEIGHT + self::CODE_GAP;
+
+        $chrome = OpenGraphCanvas::WINDOW_TITLE_HEIGHT + OpenGraphCanvas::WINDOW_PADDING;
+        [$size, $lineHeight, $lines] = $this->fitCode($canvas, $lines, OpenGraphCanvas::FOOTER_RULE_Y - 2 * self::CODE_MARGIN - $headerHeight - $proseHeight - $chrome);
+        $windowHeight = $chrome + count($lines) * $lineHeight;
+
+        $top = max(self::CODE_MARGIN, intdiv(OpenGraphCanvas::FOOTER_RULE_Y - $headerHeight - $proseHeight - $windowHeight, 2));
+
+        $this->header($canvas, $user, $lane, $replyingTo, $top, self::CODE_AVATAR_SIZE);
+        $this->lines($canvas, $prose, self::PROSE_SIZE, self::PROSE_LINE_HEIGHT, $top + $headerHeight);
+
+        $windowTop = $top + $headerHeight + $proseHeight;
+
+        $canvas->window(OpenGraphCanvas::CONTENT_X, $windowTop, self::BODY_WIDTH, $windowHeight, $language);
+        $canvas->code($lines, $size, $lineHeight, OpenGraphCanvas::CONTENT_X + OpenGraphCanvas::WINDOW_PADDING, $windowTop + OpenGraphCanvas::WINDOW_TITLE_HEIGHT, self::BODY_WIDTH - 2 * OpenGraphCanvas::WINDOW_PADDING);
+    }
+
+    /**
+     * The avatar on the rail, with the name and handle beside it sized to the avatar.
+     *
+     * @param  positive-int  $avatarSize
+     */
+    private function header(OpenGraphCanvas $canvas, User $user, int $lane, ?string $replyingTo, int $top, int $avatarSize): void
+    {
+        $nameSize = (int) round($avatarSize * 0.45);
+        $handleSize = (int) round($avatarSize * 0.325);
+
+        $canvas->rail($top + intdiv($avatarSize, 2), $lane);
+        $canvas->avatar($user, OpenGraphCanvas::CONTENT_X + 10, $top, $avatarSize, $lane);
+
+        $textX = OpenGraphCanvas::CONTENT_X + 10 + $avatarSize + 10 + 28;
+        $textWidth = OpenGraphCanvas::CONTENT_RIGHT - $textX;
+
+        $canvas->text($canvas->truncate($canvas->name($user), 'Geist-SemiBold', $nameSize, $textWidth), 'Geist-SemiBold', $nameSize, $textX, $top + $nameSize, OpenGraphCanvas::INK);
+        $canvas->handle($user, $handleSize, $textX, $top + (int) round($avatarSize * 0.875), $textWidth, $lane);
+
+        if ($replyingTo !== null) {
+            $canvas->text($canvas->truncate("↳ replying to @{$replyingTo}", 'GeistMono-Regular', 26, self::BODY_WIDTH), 'GeistMono-Regular', 26, OpenGraphCanvas::CONTENT_X, $top + $avatarSize + 38, OpenGraphCanvas::INK_MUTED);
+        }
+    }
+
+    /**
+     * @param  list<string>  $lines
+     */
+    private function lines(OpenGraphCanvas $canvas, array $lines, int $size, int $lineHeight, int $top): void
+    {
+        foreach ($lines as $index => $line) {
+            $canvas->text($line, 'Geist-Regular', $size, OpenGraphCanvas::CONTENT_X, $top + $index * $lineHeight + intdiv($lineHeight + $size, 2) - intdiv($size, 5), OpenGraphCanvas::INK);
+        }
+    }
+
+    /**
+     * The prose before the first code block, and that block's language and lines, or null when the body has no block
+     * or the first one is empty. Blank lines around the code are dropped, since the window has its own padding.
+     *
+     * @return array{string, string|null, non-empty-list<list<array{text: string, classes: list<string>}>>}|null
+     */
+    private function code(string $body): ?array
+    {
+        $parts = $this->codeSpans->split($body);
+
+        foreach ($parts as $index => $part) {
+            if ($index % 2 === 0 || ! str_starts_with($part, '```')) {
+                continue;
+            }
+
+            [$block] = $this->codeSpans->highlight($part);
+            assert($block['type'] === 'block');
+
+            $lines = $this->highlightedCode->lines($block['html']);
+
+            while ($lines !== [] && $lines[0] === []) {
+                array_shift($lines);
+            }
+
+            while ($lines !== [] && array_last($lines) === []) {
+                array_pop($lines);
+            }
+
+            if ($lines === []) {
+                return null;
+            }
+
+            return [mb_trim(implode('', array_slice($parts, 0, $index))), $block['language'], $lines];
+        }
+
+        return null;
+    }
+
+    /**
+     * Shorter code is drawn larger, as long as every line fits, then as long as their number does, cutting the
+     * longest. Code too long for the smallest size is cut after a muted ellipsis line.
+     *
+     * @param  non-empty-list<list<array{text: string, classes: list<string>}>>  $lines
+     * @return array{int, int, list<list<array{text: string, classes: list<string>}>>}
+     */
+    private function fitCode(OpenGraphCanvas $canvas, array $lines, int $height): array
+    {
+        $longest = collect($lines)->max(fn (array $runs): int => mb_strlen(collect($runs)->implode('text')));
+        $width = self::BODY_WIDTH - 2 * OpenGraphCanvas::WINDOW_PADDING;
+
+        foreach ([true, false] as $isWidthFitted) {
+            foreach (self::CODE_SIZES as [$size, $lineHeight]) {
+                if (count($lines) * $lineHeight <= $height && (! $isWidthFitted || $longest <= $canvas->columns($size, $width))) {
+                    return [$size, $lineHeight, $lines];
+                }
+            }
+        }
+
+        $count = max(1, intdiv($height, $lineHeight));
+
+        return [$size, $lineHeight, [...array_slice($lines, 0, $count - 1), [['text' => '…', 'classes' => ['hl-comment']]]]];
     }
 
     /**
