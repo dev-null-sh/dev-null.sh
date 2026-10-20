@@ -12,6 +12,7 @@ const browserWindow = {
         historyListeners.set(name, callback),
     removeEventListener: (name: string) => historyListeners.delete(name),
 };
+const cancelRequests = vi.fn();
 let lastVisit: { preserveState?: boolean; preserveScroll?: boolean };
 
 function navigate(url: string, nextProps: Record<string, unknown>) {
@@ -43,6 +44,7 @@ function clientVisit(
 
 vi.doMock('@inertiajs/react', () => ({
     router: {
+        cancelAll: cancelRequests,
         on: (name: string, callback: (event: unknown) => void) => {
             listeners.set(name, callback);
             return () => listeners.delete(name);
@@ -70,6 +72,7 @@ let stop: VoidFunction;
 beforeEach(() => {
     vi.stubGlobal('window', browserWindow);
     browserWindow.history.back.mockClear();
+    cancelRequests.mockClear();
     stop = trackCommitPhotoPage();
     navigate('/log/latest?since=first', {});
 });
@@ -80,6 +83,7 @@ afterEach(() => {
 
 function backgroundVisit(overrides = {}) {
     const visit = {
+        id: 'poll-visit',
         url: new URL(window.location.href),
         method: 'get',
         async: true,
@@ -234,14 +238,102 @@ test('closes a directly loaded photo on its commit without going back', () => {
     assert.equal(lastVisit.preserveState, true);
 });
 
-test('releases photo history when a full visit starts, even to the same background URL', () => {
+test('restores a directly loaded photo after closing a reply photo', () => {
+    const original = { commit, index: 1 };
+    navigate('/@author/commits/image-post/photos/2', { photo: original });
+    const reply = { ...commit, id: 'reply-image' };
+    openCommitPhoto(reply, 0);
+    closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
+
+    assert.equal(
+        historyVisit('/@author/commits/image-post/photos/2').mock.calls.length,
+        1,
+    );
+    assert.deepEqual(props.photo, original);
+    assert.equal(
+        backgroundVisit().url.pathname,
+        '/@author/commits/image-post/photos/2',
+    );
+    closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
+    assert.equal(window.location.pathname, '/@author/commits/image-post');
+    assert.equal(browserWindow.history.back.mock.calls.length, 1);
+});
+
+for (const outcome of [
+    'pending',
+    'cancelled',
+    'httpException',
+    'networkError',
+]) {
+    test(`retains photo history after a ${outcome} full visit`, () => {
+        openCommitPhoto(commit, 0);
+        props.livePollResult = 42;
+        const visit = backgroundVisit({ async: false, id: 'full-visit' });
+        listeners.get('start')?.({ detail: { visit } });
+        if (outcome !== 'pending') {
+            if (outcome !== 'cancelled') {
+                listeners.get(outcome)?.({ detail: {} });
+            }
+            listeners.get('finish')?.({ detail: { visit } });
+        }
+
+        assert.equal(
+            historyVisit('/log/latest?since=first').mock.calls.length,
+            1,
+        );
+        assert.equal(props.photo, undefined);
+        assert.equal(props.livePollResult, 42);
+        assert.equal(lastVisit.preserveState, true);
+        assert.deepEqual(cancelRequests.mock.calls, [[{ prefetch: false }]]);
+    });
+}
+
+for (const outcome of ['success', 'error']) {
+    test(`releases photo history after a full visit commits with ${outcome}, even at the same URL`, () => {
+        openCommitPhoto(commit, 0);
+        const visit = backgroundVisit({ async: false, id: 'full-visit' });
+        listeners.get('start')?.({ detail: { visit } });
+        navigate('/log/latest?since=first', {});
+        listeners.get(outcome)?.({
+            detail: { page: { props }, visitId: visit.id },
+        });
+
+        assert.equal(
+            historyVisit('/log/latest?since=first').mock.calls.length,
+            0,
+        );
+    });
+}
+
+for (const outcome of ['success', 'error']) {
+    test(`uses the committed photo page for polling after a full replacement with ${outcome}`, () => {
+        openCommitPhoto(commit, 0);
+        const photoUrl = window.location.href;
+        const visit = backgroundVisit({ async: false, id: 'full-visit' });
+        listeners.get('start')?.({ detail: { visit } });
+        props = { photo: { commit, index: 0 } };
+        listeners.get(outcome)?.({
+            detail: { page: { props }, visitId: visit.id },
+        });
+
+        assert.equal(backgroundVisit().url.href, photoUrl);
+        assert.equal(backgroundVisit().preserveUrl, false);
+        assert.equal(
+            historyVisit('/log/latest?since=first').mock.calls.length,
+            0,
+        );
+    });
+}
+
+test('keeps photo history when a background poll commits during a full visit', () => {
     openCommitPhoto(commit, 0);
-    backgroundVisit({
-        async: false,
-        url: new URL('http://localhost/log/latest?since=first'),
+    const visit = backgroundVisit({ async: false, id: 'full-visit' });
+    listeners.get('start')?.({ detail: { visit } });
+    listeners.get('success')?.({
+        detail: { page: { props }, visitId: 'poll' },
     });
 
-    assert.equal(historyVisit('/log/latest?since=first').mock.calls.length, 0);
+    assert.equal(historyVisit('/log/latest?since=first').mock.calls.length, 1);
 });
 
 test('removes the history listener when photo tracking stops', () => {

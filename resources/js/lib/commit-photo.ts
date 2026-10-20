@@ -13,6 +13,7 @@ const photoPages = new Map<string, CommitPhoto | undefined>();
 
 export function trackCommitPhotoPage(): VoidFunction {
     let backgroundUrl: string | undefined;
+    let fullVisitId: string | undefined;
 
     const onPopState = (event: PopStateEvent) => {
         const url = window.location.href;
@@ -22,6 +23,7 @@ export function trackCommitPhotoPage(): VoidFunction {
 
         // Inertia's history restoration remounts the page, losing replies and measured offscreen card heights.
         event.stopImmediatePropagation();
+        router.cancelAll({ prefetch: false });
         const photo = photoPages.get(url);
         router.replace({
             url,
@@ -42,10 +44,29 @@ export function trackCommitPhotoPage(): VoidFunction {
         backgroundUrl = (page.props.photo as CommitPhoto | undefined)
             ?.backgroundUrl;
     });
-    const stopReload = router.on('before', ({ detail: { visit } }) => {
+    const stopStart = router.on('start', ({ detail: { visit } }) => {
         if (!visit.async) {
-            photoPages.clear();
+            fullVisitId = visit.id;
         }
+    });
+    const stopSuccess = router.on(
+        'success',
+        ({ detail: { page, visitId } }) => {
+            if (visitId && visitId === fullVisitId) {
+                photoPages.clear();
+                backgroundUrl = (page?.props.photo as CommitPhoto | undefined)
+                    ?.backgroundUrl;
+            }
+        },
+    );
+    const stopError = router.on('error', ({ detail: { page, visitId } }) => {
+        if (visitId && visitId === fullVisitId) {
+            photoPages.clear();
+            backgroundUrl = (page?.props.photo as CommitPhoto | undefined)
+                ?.backgroundUrl;
+        }
+    });
+    const stopReload = router.on('before', ({ detail: { visit } }) => {
         if (
             !backgroundUrl ||
             visit.method !== 'get' ||
@@ -72,6 +93,9 @@ export function trackCommitPhotoPage(): VoidFunction {
         window.removeEventListener('popstate', onPopState, true);
         photoPages.clear();
         stopNavigation();
+        stopStart();
+        stopSuccess();
+        stopError();
         stopReload();
     };
 }
@@ -96,7 +120,12 @@ export function openCommitPhoto(commit: Commit, index: number): void {
                     (props.photo as CommitPhoto | undefined)?.backgroundUrl ??
                     backgroundUrl,
             };
-            photoPages.set(photo.backgroundUrl, undefined);
+            if (!photoPages.has(photo.backgroundUrl)) {
+                photoPages.set(
+                    photo.backgroundUrl,
+                    props.photo as CommitPhoto | undefined,
+                );
+            }
             photoPages.set(
                 new URL(commitPhotoUrl(commit, index), backgroundUrl).href,
                 photo,
