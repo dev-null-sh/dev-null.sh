@@ -251,11 +251,18 @@ export function useThread(
         commitStateKey('replies_count', commit.id),
         commit.replies_count ?? 0,
     );
+    const restoresDocument =
+        remembered !== undefined &&
+        (
+            performance.getEntriesByType('navigation')[0] as
+                | PerformanceNavigationTiming
+                | undefined
+        )?.type === 'back_forward';
     const [shouldLoadReplies] = useState(
         (remembered?.isOpen === true && remembered.replies === null) ||
             (remembered === undefined && loadsReplies && count > 0) ||
             ((initial !== undefined || remembered?.replies != null) &&
-                changedThreadIds.has(commit.id)),
+                (changedThreadIds.has(commit.id) || restoresDocument)),
     );
     const [initialReplyLimit] = useState(
         remembered?.replies?.length
