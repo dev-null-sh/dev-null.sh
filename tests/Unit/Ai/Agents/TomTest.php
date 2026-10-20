@@ -19,6 +19,7 @@ use App\Services\Features;
 use App\Services\TomToolDecision;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Laravel\Ai\Embeddings;
 use Laravel\Ai\Messages\Message;
@@ -167,33 +168,59 @@ it('uses public thread context for the decision and falls back to chat when no t
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.github.com') || str_contains($request->url(), '/embeddings'));
 });
 
-it('does not publish progress text when the provider ignores a selected tool', function (): void {
+it('retries skipped tools at most twice then publishes the reply with a warning', function (int $skippedAttempts): void {
     config(['ai.providers.openai.key' => 'test-openai', 'ai.providers.opencode.key' => 'test-opencode']);
+    Log::spy();
     Queue::fake([EmbedCommit::class, ModerateCommit::class, ReplyAsTom::class]);
     resolve(Features::class)->update(Feature::Translations, false);
+    Embeddings::fake([[embeddingVector(0)]]);
+    KnowledgeBaseSection::factory()->create(['headings' => ['Pastéis'], 'content' => 'Pastéis are pastry awards.', 'embedding' => embeddingVector(0)]);
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create(['body' => 'What are pastels here?']);
     $answer = Commit::factory()->for($root, 'parent')->for($tom)->create(['body' => 'Pastels are pale colors.']);
     $question = Commit::factory()->for($answer, 'parent')->create(['body' => 'I MEANT PASTEIS, TOM']);
+    $responses = Http::sequence();
+    foreach (range(1, $skippedAttempts) as $attempt) {
+        $responses->push([
+            'choices' => [['finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'Let me check. Searching now.']]],
+        ]);
+    }
+
+    if ($skippedAttempts < 3) {
+        $responses->push(['choices' => [['finish_reason' => 'tool_calls', 'message' => [
+            'role' => 'assistant', 'content' => null, 'tool_calls' => [
+                ['id' => 'call-pasteis', 'type' => 'function', 'function' => ['name' => 'SearchKnowledgeBase', 'arguments' => '{"query":"pasteis awards"}']],
+            ],
+        ]]]])->push(['choices' => [['finish_reason' => 'stop', 'message' => [
+            'role' => 'assistant', 'content' => 'Pastéis are pastry awards.',
+        ]]]]);
+    }
+
     Http::fake([
         'api.openai.com/v1/decisions' => Http::response(['answers' => [
             ['name' => 'SearchKnowledgeBase', 'type' => 'predicate', 'probability' => 1],
         ]]),
-        'opencode.ai/zen/v1/chat/completions' => Http::response([
-            'choices' => [['finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'Let me check. Searching now.']]],
-        ]),
+        'opencode.ai/zen/v1/chat/completions' => $responses,
     ]);
 
-    expect(fn () => resolve(CreateTomReply::class)->handle($question->id))
-        ->toThrow(RuntimeException::class, 'Tom did not execute a selected tool.');
+    resolve(CreateTomReply::class)->handle($question->id);
 
-    expect($question->replies()->count())->toBe(0);
+    expect($question->replies()->sole()->body)->toBe($skippedAttempts === 3 ? 'Let me check. Searching now.' : 'Pastéis are pastry awards.');
+    if ($skippedAttempts === 3) {
+        Log::shouldHaveReceived('warning')->once()->with('Tom skipped a selected tool after retries.', ['commit_id' => $question->id]);
+    } else {
+        Log::shouldNotHaveReceived('warning');
+    }
+
+    expect(Http::recorded(fn (Request $request): bool => $request->url() === 'https://opencode.ai/zen/v1/chat/completions'))
+        ->toHaveCount($skippedAttempts === 3 ? 3 : $skippedAttempts + 2);
+    expect(Http::recorded(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'))->toHaveCount(1);
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'
         && str_contains($request['input'], $root->body)
         && str_contains($request['input'], $question->body));
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://opencode.ai/zen/v1/chat/completions'
         && ($request['tool_choice']['function']['name'] ?? null) === 'SearchKnowledgeBase');
-});
+})->with([1, 2, 3]);
 
 it('selects only known affirmative predicates at or above the probability threshold', function (): void {
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => [

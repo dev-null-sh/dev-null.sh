@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Queries\TomQuery;
 use App\Services\TomToolDecision;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Ai\Contracts\Tool;
 use RuntimeException;
@@ -42,10 +43,16 @@ final readonly class CreateTomReply
 
         $history = new Tom($commit)->messages();
         $tools = $this->toolDecision->decide($commit->body, $history);
-        $response = new Tom($commit, $tools)->prompt($commit->body);
+        $attempt = 0;
 
-        if ($tools->contains(fn (Tool $tool): bool => $response->toolResults->doesntContain('name', class_basename($tool)))) {
-            throw new RuntimeException('Tom did not execute a selected tool.');
+        do {
+            $response = new Tom($commit, $tools)->prompt($commit->body);
+            $missingTools = $tools->contains(fn (Tool $tool): bool => $response->toolResults->doesntContain('name', class_basename($tool)));
+            $attempt++;
+        } while ($missingTools && $attempt < 3);
+
+        if ($missingTools) {
+            Log::warning('Tom skipped a selected tool after retries.', ['commit_id' => $commit->id]);
         }
 
         $body = mb_trim($response->text);
