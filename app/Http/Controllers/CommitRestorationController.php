@@ -9,7 +9,6 @@ use App\Http\Requests\CreateCommitRestorationRequest;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -20,9 +19,7 @@ final readonly class CommitRestorationController
     {
         $commit = $action->handle($commit);
 
-        $restored = Commit::query()->withVisibleReplyCount($user)->withReplyPreviews($user)->withStarsFor($user)->withSavedState($user)->withMax([
-            'bookmarks as saved_order' => fn (Builder $query): Builder => $query->where('user_id', $user->id),
-        ], 'id')->with([
+        $restored = Commit::query()->withVisibleReplyCount($user)->withReplyPreviews($user)->withStarsFor($user)->addSelect(['starred_order' => $user->starredCommits()->newPivotStatement()->select('created_at')->whereColumn('commit_id', 'commits.id')->where('user_id', $user->id)->limit(1)])->with([
             'user',
             'linkPreview',
             'images',

@@ -1,10 +1,11 @@
-import { Head, router } from '@inertiajs/react';
-import { ArrowRight, Search, Sparkles, X } from 'lucide-react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { ArrowRight, History, Search, Sparkles, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { CommitCard } from '@/components/commit-card';
 import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
+import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits, suggestedQueries } from '@/lib/commit-search';
 import { laneColor } from '@/lib/utils';
@@ -15,6 +16,8 @@ const skeletonDelay = 300;
 type Results = { term: string; commits: Commit[] };
 
 export default function Index({ query }: { query: string }) {
+    const userId = usePage().props.auth.user?.id ?? null;
+    const recentSearches = useRecentSearches(userId);
     const [draft, setDraft] = useState(query);
     const inputRef = useRef<HTMLInputElement>(null);
     const { results, isWaiting } = useCommitSearch(query);
@@ -23,7 +26,12 @@ export default function Index({ query }: { query: string }) {
         router.get(
             SearchController.index({ query: term === '' ? {} : { q: term } }),
             {},
-            { preserveState: true, preserveScroll: true, replace: true },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                onSuccess: () => rememberSearch(userId, term),
+            },
         );
     };
 
@@ -79,14 +87,13 @@ export default function Index({ query }: { query: string }) {
                 </form>
             </header>
 
-            {query === '' ? (
-                <Suggestions onPick={pick} />
-            ) : (
-                <>
-                    <SearchResults results={results} isWaiting={isWaiting} />
-                    <Suggestions onPick={pick} exclude={query} />
-                </>
+            {query !== '' && (
+                <SearchResults results={results} isWaiting={isWaiting} />
             )}
+            {recentSearches.length > 0 && (
+                <Suggestions onPick={pick} recent={recentSearches} />
+            )}
+            <Suggestions onPick={pick} exclude={query} />
         </>
     );
 }
@@ -206,23 +213,31 @@ function ResultsSkeleton({ isVisible }: { isVisible: boolean }) {
 function Suggestions({
     onPick,
     exclude,
+    recent,
 }: {
     onPick: (term: string) => void;
     exclude?: string;
+    recent?: string[];
 }) {
-    const visible = suggestedQueries.filter((term) => term !== exclude);
+    const visible =
+        recent ?? suggestedQueries.filter((term) => term !== exclude);
+    const headingId = recent ? 'recent-searches' : 'search-suggestions';
 
     return (
-        <section
-            aria-labelledby="search-suggestions"
-            className="px-4 py-6 sm:px-6"
-        >
+        <section aria-labelledby={headingId} className="px-4 py-6 sm:px-6">
             <h2
-                id="search-suggestions"
+                id={headingId}
                 className="mb-3 flex items-center gap-2 font-semibold"
             >
-                <Sparkles aria-hidden className="size-4 text-primary" />
-                Try searching for…
+                {recent ? (
+                    <History
+                        aria-hidden
+                        className="size-4 text-muted-foreground"
+                    />
+                ) : (
+                    <Sparkles aria-hidden className="size-4 text-primary" />
+                )}
+                {recent ? 'Recent searches' : 'Try searching for…'}
             </h2>
             <ul className="space-y-2">
                 {visible.map((term) => (

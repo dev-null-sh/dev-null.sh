@@ -372,12 +372,17 @@ final class User extends Authenticatable
         return [$this->name, $this->username, $this->avatar_url, $this->lane()];
     }
 
+    public function mention(): string
+    {
+        return '@'.$this->username;
+    }
+
     /**
      * How link previews title the user, without repeating a name that is just the username.
      */
     public function nameWithHandle(): string
     {
-        return $this->name === $this->username ? "@{$this->username}" : "{$this->name} (@{$this->username})";
+        return $this->name === $this->username ? $this->mention() : $this->name.' ('.$this->mention().')';
     }
 
     public function isFollowing(self $user): bool

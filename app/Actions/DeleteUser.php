@@ -27,7 +27,7 @@ final readonly class DeleteUser
 
     /**
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
-     * other people replied to: those stay behind as tombstones with no author, so the replies under them keep their thread.
+     * other people replied to: those stay behind as tombstones with no author or body, so the replies under them keep their thread.
      * The database cascades the image rows of erased commits and the user's scheduled commits, but the image files are erased here.
      */
     public function handle(User $user): void
@@ -53,7 +53,7 @@ final readonly class DeleteUser
             }
 
             $user->commits()->delete();
-            $user->commits()->withTrashed()->update(['user_id' => null]);
+            $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
 
             $user->delete();
 

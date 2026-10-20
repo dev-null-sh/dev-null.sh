@@ -6,7 +6,7 @@ namespace App\Services;
 
 final readonly class Urls
 {
-    private const int MAX_LENGTH = 2048;
+    public const int MAX_LENGTH = 2048;
 
     private const int MAX_SHORTENED_PATH_LENGTH = 20;
 
@@ -14,7 +14,7 @@ final readonly class Urls
      * Top-level domains that a bare domain like "nativephp.com" may end with. It is an allowlist because most file
      * extensions are also real TLDs. Leave out any that read like code or files (sh, py, rs, md, pl, cc, in, mk, ml,
      * so, tf, ps, am, cl, gd, cr, do, zip, mov, ...) or like a property in code (user.id, user.name, app.run, ...).
-     * Keep the list in sync with resources/js/components/linkified-text.tsx.
+     * Keep the list in sync with resources/js/lib/urls.ts.
      *
      * @var list<string>
      */
@@ -43,10 +43,43 @@ final readonly class Urls
         return $this->all($text)[0] ?? null;
     }
 
+    public function hasOversizedUrl(string $text): bool
+    {
+        preg_match_all($this->pattern, $this->codeSpans->withoutCode($text), $matches);
+
+        return collect($matches[0])->contains(function (string $candidate): bool {
+            $match = $this->withoutTrailingPunctuation($candidate);
+            $url = preg_match('/^https?:\/\//i', $match) === 1 ? $match : 'https://'.$match;
+
+            return mb_strlen($url) > self::MAX_LENGTH;
+        });
+    }
+
+    /**
+     * Counts prose links as at most 23 characters without changing their destinations. Code counts literally.
+     * Keep in sync with resources/js/lib/commit.ts.
+     */
+    public function characterCount(string $text): int
+    {
+        $length = mb_strlen($text);
+        preg_match_all($this->pattern, $this->codeSpans->withoutCode($text), $matches);
+
+        foreach ($matches[0] as $candidate) {
+            $match = $this->withoutTrailingPunctuation($candidate);
+            $url = preg_match('/^https?:\/\//i', $match) === 1 ? $match : 'https://'.$match;
+
+            if (! str_ends_with($url, '://') && mb_strlen($url) <= self::MAX_LENGTH) {
+                $length -= max(0, mb_strlen($match) - 23);
+            }
+        }
+
+        return $length;
+    }
+
     /**
      * Finds every http(s) URL and bare domain in the text, in order and once each, and returns them as URLs. A bare
      * domain gets an https scheme. A URL in code doesn't count. Keep the rules in sync with
-     * resources/js/components/linkified-text.tsx.
+     * resources/js/lib/urls.ts.
      *
      * @return list<string>
      */
@@ -119,12 +152,13 @@ final readonly class Urls
      * handles or the middle of a URL). Its TLD must be all lowercase or all uppercase (so not "bug.It"), and must end
      * the word without a "(" or another label after it (so neither "nativephp.community", "array.at(-1)" nor
      * "socket.io.js"). There is no case-insensitive flag, so that the TLD's case can be checked.
+     * Schemes cannot follow Unicode letters, numbers, marks or connector punctuation, as in resources/js/lib/urls.ts.
      */
     private function pattern(): string
     {
         $topLevelDomains = implode('|', [...self::TOP_LEVEL_DOMAINS, ...array_map(mb_strtoupper(...), self::TOP_LEVEL_DOMAINS)]);
 
-        return '/\b[Hh][Tt][Tt][Pp][Ss]?:\/\/[^\s<>]+'
+        return '/(?<![\p{L}\p{N}\p{M}\p{Pc}])[Hh][Tt][Tt][Pp][Ss]?:\/\/[^\s<>]+'
             .'|(?<![\p{L}\p{N}_.\/@-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+(?:'.$topLevelDomains.')'
             .'(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?/u';
     }
@@ -132,7 +166,7 @@ final readonly class Urls
     /**
      * Strips punctuation that ends a sentence rather than the URL, keeping closing brackets that pair with one inside it.
      * That includes the ellipsis that ends an excerpt and the closing quotes smart punctuation types (” and ’). Keep the
-     * characters in sync with resources/js/components/linkified-text.tsx.
+     * characters in sync with resources/js/lib/urls.ts.
      */
     private function withoutTrailingPunctuation(string $url): string
     {

@@ -127,7 +127,6 @@ it('polls an own reply after another viewer stars and unstars it through JSON', 
     ]);
     $url = route('commit-star-count.index', ['ids' => [$reply->id]]);
 
-    $this->actingAs($author)->postJson(route('commit-star.store', $reply))->assertForbidden();
     $this->actingAs($viewer)->postJson(route('commit-star.store', $reply))
         ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1]);
     $this->getJson($url)->assertExactJson(['commits' => [

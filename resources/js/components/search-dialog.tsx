@@ -1,6 +1,6 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { ArrowRight, Search, Sparkles } from 'lucide-react';
+import { ArrowRight, History, Search, Sparkles } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -10,6 +10,7 @@ import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
+import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import { searchCandidates } from '@/lib/chat';
 import {
     searchCommits,
@@ -41,7 +42,8 @@ type Option =
     | { kind: 'developer'; id: string; user: User; reason?: string | null }
     | { kind: 'commit'; id: string; commit: Commit }
     | { kind: 'all'; id: string }
-    | { kind: 'suggestion'; id: string; term: string };
+    | { kind: 'suggestion'; id: string; term: string }
+    | { kind: 'recent'; id: string; term: string };
 
 const suggestionOptions: Option[] = suggestedQueries.map((term, index) => ({
     kind: 'suggestion',
@@ -64,6 +66,8 @@ export function SearchDialog({
     onPickDeveloper?: (user: User) => void;
     excludeId?: string;
 }) {
+    const userId = usePage().props.auth.user?.id ?? null;
+    const recentSearches = useRecentSearches(userId);
     const keys = useKeyLabels();
     const [query, setQuery] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
@@ -111,8 +115,21 @@ export function SearchDialog({
         hasSearched &&
         !isLoading &&
         results.length === 0;
+    const recentOptions: Option[] = recentSearches.map((recent, index) => ({
+        kind: 'recent',
+        id: `recent-${index}`,
+        term: recent,
+    }));
     const options =
-        isPicking || !(isEmpty || foundNothing) ? results : suggestionOptions;
+        isPicking || !(isEmpty || foundNothing)
+            ? results
+            : [...recentOptions, ...suggestionOptions];
+
+    useEffect(() => {
+        if (open && !isPicking && hasSearched && !isLoading && !isThrottled) {
+            rememberSearch(userId, term);
+        }
+    }, [open, isPicking, hasSearched, isLoading, isThrottled, userId, term]);
 
     const type = (value: string) => {
         setQuery(value);
@@ -122,10 +139,11 @@ export function SearchDialog({
     const close = () => {
         onOpenChange(false);
         setQuery('');
+        setActiveIndex(0);
     };
 
     const openOption = (option: Option) => {
-        if (option.kind === 'suggestion') {
+        if (option.kind === 'suggestion' || option.kind === 'recent') {
             type(option.term);
 
             return;
@@ -166,6 +184,21 @@ export function SearchDialog({
     };
 
     const activeOption = options[activeIndex];
+    const activeOptionId = activeOption
+        ? `search-${activeOption.id}`
+        : undefined;
+
+    useEffect(() => {
+        if (open && activeOptionId) {
+            const option = document.getElementById(activeOptionId);
+
+            if (activeIndex === 0) {
+                option?.parentElement?.scrollTo({ top: 0 });
+            } else {
+                option?.scrollIntoView({ block: 'nearest' });
+            }
+        }
+    }, [open, activeOptionId, activeIndex]);
 
     return (
         <DialogPrimitive.Root
@@ -203,11 +236,7 @@ export function SearchDialog({
                             role="combobox"
                             aria-expanded={options.length > 0}
                             aria-controls="search-results"
-                            aria-activedescendant={
-                                activeOption
-                                    ? `search-${activeOption.id}`
-                                    : undefined
-                            }
+                            aria-activedescendant={activeOptionId}
                             aria-autocomplete="list"
                             autoComplete="off"
                             spellCheck={false}
@@ -440,6 +469,12 @@ const headings: Record<Option['kind'], ReactNode> = {
     developer: 'Developers',
     commit: 'Most relevant commits',
     all: null,
+    recent: (
+        <span className="flex items-center gap-1.5">
+            <History aria-hidden className="size-3.5" />
+            Recent searches
+        </span>
+    ),
     suggestion: (
         <span className="flex items-center gap-1.5">
             <Sparkles aria-hidden className="size-3.5 text-primary" />
@@ -459,7 +494,7 @@ function headingBefore(options: Option[], index: number): ReactNode {
 }
 
 function hrefFor(
-    option: Exclude<Option, { kind: 'suggestion' }>,
+    option: Exclude<Option, { kind: 'suggestion' | 'recent' }>,
     term: string,
 ) {
     if (option.kind === 'developer') {
@@ -530,6 +565,7 @@ function ResultOption({
                 aria-selected={isActive}
             >
                 {option.kind === 'suggestion' ||
+                option.kind === 'recent' ||
                 (option.kind === 'developer' && onPickDeveloper) ? (
                     <button
                         type="button"
@@ -541,7 +577,8 @@ function ResultOption({
                         onClick={() =>
                             option.kind === 'developer'
                                 ? onPickDeveloper?.(option.user)
-                                : option.kind === 'suggestion' &&
+                                : (option.kind === 'suggestion' ||
+                                      option.kind === 'recent') &&
                                   onPick(option.term)
                         }
                         className={className}
@@ -573,7 +610,7 @@ function OptionContent({ option }: { option: Option }): ReactNode {
         return <CommitResult commit={option.commit} />;
     }
 
-    if (option.kind === 'suggestion') {
+    if (option.kind === 'suggestion' || option.kind === 'recent') {
         return (
             <span className="flex min-w-0 flex-1 items-center justify-between gap-3 text-sm">
                 <span className="truncate" title={option.term}>

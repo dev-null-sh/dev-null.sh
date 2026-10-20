@@ -30,7 +30,7 @@ it('shows the product metrics of all time to admins', function (): void {
             ->missing('funnel')
             ->loadDeferredProps(fn ($reload) => $reload
                 ->where('funnel.signups', 2)
-                ->where('funnel.retention_horizon', 1)
+                ->where('funnel.retention_eligible', 2)
                 ->where('funnel.visitors', null)));
 });
 
