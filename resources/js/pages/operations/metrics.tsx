@@ -17,6 +17,7 @@ import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
 import { cn, formatZonedDate } from '@/lib/utils';
 import type {
+    ActivationDay,
     ActiveUsers,
     ActivityBucket,
     CommitResponses,
@@ -292,70 +293,144 @@ function FunnelSkeleton() {
     );
 }
 
-function ActiveUserCounts({ counts }: { counts: ActivityBucket[] }) {
-    if (counts.length === 0) {
+type DailyBar = {
+    date: string;
+    value: number;
+    isPartial: boolean;
+    label: string;
+};
+
+/**
+ * One bar per day, as tall as its value against the tallest, which a line at the top names. A partial day, still
+ * counting, is lighter. Tooltips of the bars near an edge align with it, so they stay on screen.
+ */
+function DailyBars({
+    bars,
+    caption,
+    column,
+    empty,
+    format,
+}: {
+    bars: DailyBar[];
+    caption: string;
+    column: string;
+    empty: string;
+    format: (value: number) => string;
+}) {
+    if (bars.length === 0) {
         return (
             <p className="rounded-lg border px-4 py-2.5 font-mono text-[13px] text-muted-foreground">
-                nothing yet: days are counted from the day tracking started
+                {empty}
             </p>
         );
     }
 
-    const top = Math.max(1, ...counts.map((day) => day.count));
-    const today = utcDate();
+    const top = Math.max(Number.MIN_VALUE, ...bars.map((bar) => bar.value));
     const label = (date: string) => formatZonedDate(date, 'UTC');
 
     return (
-        <figure>
-            <div className="flex h-48 items-end gap-1 border-b border-rail sm:gap-2">
-                {counts.map((day) => (
+        <figure className="pt-5">
+            <div className="relative flex h-48 items-end gap-1 border-b border-rail sm:gap-2">
+                <div className="pointer-events-none absolute inset-x-0 top-0 border-t border-dashed border-rail">
+                    <span className="absolute bottom-full left-0 mb-0.5 font-mono text-xs text-muted-foreground tabular-nums">
+                        {format(top)}
+                    </span>
+                </div>
+                {bars.map((bar, index) => (
                     <div
-                        key={day.date}
+                        key={bar.date}
                         className="group relative flex h-full flex-1 items-end"
                     >
                         <div
                             className={cn(
                                 'w-full rounded-t',
-                                day.date === today
-                                    ? 'bg-primary/40'
-                                    : 'bg-primary',
+                                bar.isPartial ? 'bg-primary/40' : 'bg-primary',
                             )}
-                            style={{ height: `${(day.count / top) * 100}%` }}
+                            style={{ height: `${(bar.value / top) * 100}%` }}
                         />
-                        <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block">
+                        <div
+                            className={cn(
+                                'pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
+                                index < bars.length / 3
+                                    ? 'left-0'
+                                    : index >= (bars.length * 2) / 3
+                                      ? 'right-0'
+                                      : 'left-1/2 -translate-x-1/2',
+                            )}
+                        >
                             <p className="text-muted-foreground">
-                                {label(day.date)}
-                                {day.date === today && ', so far'}
+                                {label(bar.date)}
+                                {bar.isPartial && ', so far'}
                             </p>
                             <p className="font-medium tabular-nums">
-                                {formatCount(day.count)} active
+                                {bar.label}
                             </p>
                         </div>
                     </div>
                 ))}
             </div>
             <div className="mt-1.5 flex justify-between font-mono text-xs text-muted-foreground">
-                <span>{label(counts[0].date)}</span>
-                <span>{label(counts[counts.length - 1].date)}</span>
+                <span>{label(bars[0].date)}</span>
+                <span>{label(bars[bars.length - 1].date)}</span>
             </div>
             <table className="sr-only">
-                <caption>Daily active users</caption>
+                <caption>{caption}</caption>
                 <thead>
                     <tr>
                         <th scope="col">Day</th>
-                        <th scope="col">Active users</th>
+                        <th scope="col">{column}</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {counts.map((day) => (
-                        <tr key={day.date}>
-                            <th scope="row">{day.date}</th>
-                            <td>{day.count}</td>
+                    {bars.map((bar) => (
+                        <tr key={bar.date}>
+                            <th scope="row">{bar.date}</th>
+                            <td>{bar.label}</td>
                         </tr>
                     ))}
                 </tbody>
             </table>
         </figure>
+    );
+}
+
+function ActivationByDay({ days }: { days: ActivationDay[] }) {
+    return (
+        <DailyBars
+            bars={days.map((day) => {
+                const rate = day.activated / day.eligible;
+
+                return {
+                    date: day.date,
+                    value: rate,
+                    isPartial: !day.complete,
+                    label: `${percent(rate)} of ${formatCount(day.eligible)} sign-ups`,
+                };
+            })}
+            caption="Activation rate by signup day"
+            column="Activation rate"
+            format={percent}
+            empty="nothing yet: a signup day shows once its first sign-ups are 12 hours old"
+        />
+    );
+}
+
+function ActiveUserCounts({ counts }: { counts: ActivityBucket[] }) {
+    const today = utcDate();
+
+    return (
+        <DailyBars
+            bars={counts.map((day) => ({
+                date: day.date,
+                value: day.count,
+                isPartial: day.date === today,
+                label: `${formatCount(day.count)} active`,
+            }))}
+            caption="Daily active users"
+            column="Active users"
+            format={formatCount}
+            empty="nothing yet: days are counted from the day tracking started"
+        />
     );
 }
 
@@ -397,6 +472,17 @@ export default function Show({
             >
                 <Deferred data="funnel" fallback={<FunnelSkeleton />}>
                     {funnel && <FunnelValue funnel={funnel} />}
+                </Deferred>
+            </Section>
+
+            <Section title="Activation by signup day" meta="by day, utc">
+                <Deferred
+                    data="funnel"
+                    fallback={<Skeleton className="h-48 w-full rounded-lg" />}
+                >
+                    {funnel && (
+                        <ActivationByDay days={funnel.activation_by_day} />
+                    )}
                 </Deferred>
             </Section>
 

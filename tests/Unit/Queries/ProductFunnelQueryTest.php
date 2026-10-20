@@ -50,6 +50,23 @@ it('activates readers who starred or saved commits by three other people within 
         ->rates->activation->toBe(1.0);
 });
 
+it('tells activation for each signup day, the days whose last signups are still within their 12 hours as incomplete', function (): void {
+    $other = User::factory()->create(['created_at' => '2026-09-01 00:00:00']);
+    $author = User::factory()->create(['created_at' => '2026-10-17 08:00:00']);
+    User::factory()->create(['created_at' => '2026-10-17 09:00:00']);
+    User::factory()->create(['created_at' => '2026-10-18 23:00:00']);
+    User::factory()->create(['created_at' => '2026-10-19 00:00:00']);
+    User::factory()->create(['created_at' => '2026-10-19 00:00:01']);
+
+    ($this->star)($other, Commit::factory()->for($author)->create(['created_at' => '2026-10-17 09:00:00']), '2026-10-17 10:00:00');
+
+    expect(($this->funnel)()['activation_by_day'])->toBe([
+        ['date' => '2026-10-17', 'activated' => 1, 'eligible' => 2, 'complete' => true],
+        ['date' => '2026-10-18', 'activated' => 0, 'eligible' => 1, 'complete' => true],
+        ['date' => '2026-10-19', 'activated' => 0, 'eligible' => 1, 'complete' => false],
+    ]);
+});
+
 it('does not activate readers who found fewer than three people in time', function (): void {
     $reader = User::factory()->create(['created_at' => '2026-10-10 08:00:00']);
     $author = User::factory()->create(['created_at' => '2026-09-01 00:00:00']);

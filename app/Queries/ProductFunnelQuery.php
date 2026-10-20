@@ -32,11 +32,11 @@ final readonly class ProductFunnelQuery
     /**
      * The funnel of the people who signed up in the range, bots left out, as defined in PRODUCT_METRICS.md: visitors
      * not signed in, signups, activation and retention, each with its rate and its change in percentage
-     * points. Changes compare the last 7 days with the 7 before when the range is all time, or the range with as many
-     * days before it otherwise, and are null until both periods are after the launch. Rates are fractions, null when
-     * nothing counts.
+     * points, and activation for each signup day. Changes compare the last 7 days with the 7 before when the range is all
+     * time, or the range with as many days before it otherwise, and are null until both periods are after the launch.
+     * Rates are fractions, null when nothing counts.
      *
-     * @return array{visitors: int|null, signups: int, activated: int, activation_eligible: int, retained: int, retention_eligible: int, retention_horizon: int|null, retention_full_on: string|null, rates: array{conversion: float|null, activation: float|null, retention: float|null}, changes: array{conversion: float|null, activation: float|null, retention: float|null}}
+     * @return array{visitors: int|null, signups: int, activated: int, activation_eligible: int, activation_by_day: list<array{date: string, activated: int, eligible: int, complete: bool}>, retained: int, retention_eligible: int, retention_horizon: int|null, retention_full_on: string|null, rates: array{conversion: float|null, activation: float|null, retention: float|null}, changes: array{conversion: float|null, activation: float|null, retention: float|null}}
      */
     public function get(CarbonImmutable $from, CarbonImmutable $to, bool $isAllTime): array
     {
@@ -52,7 +52,8 @@ final readonly class ProductFunnelQuery
         $retention = $horizon === null ? ['retained' => 0, 'eligible' => 0] : $retentions[$horizon];
 
         $visitors = $this->traffic->eventVisitors($from, $to, self::GUEST_VISIT_EVENT);
-        $activation = $this->activation($from, $to);
+        $activationByDay = $this->activationByDay($from, $to);
+        $activation = $this->activationTotal($activationByDay);
 
         $rates = [
             'conversion' => $this->conversion($from, $to, $visitors),
@@ -66,7 +67,7 @@ final readonly class ProductFunnelQuery
 
         // All time, retention compares the signups whose day N is in each period, a range compares its own signups...
         $ratesBetween = function (CarbonImmutable $from, CarbonImmutable $to) use ($isAllTime, $horizon, $trackedSince): array {
-            $activation = $this->activation($from, $to);
+            $activation = $this->activationTotal($this->activationByDay($from, $to));
             $retention = $horizon === null ? null : $this->retention(
                 $isAllTime ? $from->subDays($horizon) : $from,
                 $isAllTime ? $to->subDays($horizon) : $to,
@@ -98,6 +99,10 @@ final readonly class ProductFunnelQuery
                 ->count(),
             'activated' => $activation['activated'],
             'activation_eligible' => $activation['eligible'],
+            'activation_by_day' => array_map(fn (array $day): array => [
+                ...$day,
+                'complete' => CarbonImmutable::parse($day['date'])->addDay()->addHours(12)->lessThanOrEqualTo(now()),
+            ], $activationByDay),
             'retained' => $retention['retained'],
             'retention_eligible' => $retention['eligible'],
             'retention_horizon' => $horizon,
@@ -123,24 +128,25 @@ final readonly class ProductFunnelQuery
     }
 
     /**
-     * Activated: within 12 hours of signing up, someone starred or saved commits by 3 or more other people, or posted
-     * and got a reply, a quote or a star from someone else. Only the signups at least 12 hours old are eligible.
+     * Activated, for each signup day that has eligible signups, oldest first: within 12 hours of signing up, someone
+     * starred or saved commits by 3 or more other people, or posted and got a reply, a quote or a star from someone
+     * else. Only the signups at least 12 hours old are eligible.
      *
-     * @return array{activated: int, eligible: int}
+     * @return list<array{date: string, activated: int, eligible: int}>
      */
-    private function activation(CarbonImmutable $from, CarbonImmutable $to): array
+    private function activationByDay(CarbonImmutable $from, CarbonImmutable $to): array
     {
         $approved = CommitStatus::Approved->value;
 
-        /** @var object{activated: int, eligible: int} $row */
-        $row = DB::selectOne(<<<SQL
+        /** @var list<object{date: string, activated: int, eligible: int}> $rows */
+        $rows = DB::select(<<<SQL
             with humans as not materialized (
                 select id, created_at from users where github_id <> all(?::text[])
             ), newcomers as (
                 select id, created_at, created_at + interval '12 hours' as until from humans
                 where created_at >= ? and created_at < ? and created_at <= ?
             )
-            select count(*) filter (where (
+            select n.created_at::date as date, count(*) filter (where (
                 select count(distinct c.user_id) from commits c
                 join humans a on a.id = c.user_id
                 where c.user_id <> n.id and c.id in (
@@ -162,6 +168,8 @@ final readonly class ProductFunnelQuery
                 )
             )) as activated, count(*) as eligible
             from newcomers n
+            group by 1
+            order by 1
             SQL, [
             User::botGitHubIdsArray(),
             $from->startOfDay(),
@@ -169,7 +177,23 @@ final readonly class ProductFunnelQuery
             now()->subHours(12),
         ]);
 
-        return ['activated' => (int) $row->activated, 'eligible' => (int) $row->eligible];
+        return array_map(fn (object $row): array => [
+            'date' => $row->date,
+            'activated' => (int) $row->activated,
+            'eligible' => (int) $row->eligible,
+        ], $rows);
+    }
+
+    /**
+     * @param  list<array{date: string, activated: int, eligible: int}>  $days
+     * @return array{activated: int, eligible: int}
+     */
+    private function activationTotal(array $days): array
+    {
+        return [
+            'activated' => array_sum(array_column($days, 'activated')),
+            'eligible' => array_sum(array_column($days, 'eligible')),
+        ];
     }
 
     /**
