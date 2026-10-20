@@ -15,9 +15,9 @@ return [
      * iOS wants its team and bundle ID. Android wants its package name and the SHA-256 fingerprints of the keys it's
      * signed with.
      */
-    'ios_app_ids' => explode(',', (string) env('MOBILE_IOS_APP_IDS', 'J68WFCX458.com.simonhamp.devnull')),
+    'ios_app_ids' => explode(',', (string) env('MOBILE_IOS_APP_IDS', 'J68WFCX458.com.nativephp.devnull')),
 
-    'android_package' => env('MOBILE_ANDROID_PACKAGE', 'com.simonhamp.devnull'),
+    'android_package' => env('MOBILE_ANDROID_PACKAGE', 'com.nativephp.devnull'),
 
     'android_certificate_fingerprints' => array_filter(explode(',', (string) env('MOBILE_ANDROID_CERTIFICATE_FINGERPRINTS'))),
 
