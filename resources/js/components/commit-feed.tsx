@@ -1,17 +1,18 @@
-import { InfiniteScroll, router, usePage } from '@inertiajs/react';
-import { Pin } from 'lucide-react';
-import type { PointerEvent, ReactNode } from 'react';
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { CommitCard } from '@/components/commit-card';
-import { GraphRail, RailSegment } from '@/components/graph-rail';
-import { useNow } from '@/hooks/use-now';
+import { InfiniteScroll, router, usePage } from "@inertiajs/react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { Pin } from "lucide-react";
+import type { PointerEvent, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import { CommitCard } from "@/components/commit-card";
+import { GraphRail, RailSegment } from "@/components/graph-rail";
+import { useNow } from "@/hooks/use-now";
 import {
     restoreFeedCommit,
     updateQuotedCommits,
-} from '@/lib/commit-mutation-options';
-import { isDeliberateHover } from '@/lib/feed-hover';
-import { cn, formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
-import type { Commit, CursorPaginated } from '@/types';
+} from "@/lib/commit-mutation-options";
+import { isDeliberateHover } from "@/lib/feed-hover";
+import { cn, formatDayLabel, laneColor, localDayKey } from "@/lib/utils";
+import type { Commit, CursorPaginated } from "@/types";
 
 const interludeAfter = 5;
 
@@ -45,14 +46,14 @@ export function CommitFeed({
     const now = useNow();
     const page = usePage();
     const { dimsLanes } = page.props;
-    const isModeration = page.component === 'moderation/show';
-    const isStarred = page.component === 'starred/index';
+    const isModeration = page.component === "moderation/show";
+    const isStarred = page.component === "starred/index";
     const profileUserId =
-        page.component === 'user/show'
+        page.component === "user/show"
             ? (page.props.user as { id: string }).id
             : null;
     const isProfileReplies =
-        profileUserId !== null && page.props.tab === 'replies';
+        profileUserId !== null && page.props.tab === "replies";
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
@@ -80,10 +81,10 @@ export function CommitFeed({
             }, 300);
         };
 
-        window.addEventListener('scroll', unhighlight, { passive: true });
+        window.addEventListener("scroll", unhighlight, { passive: true });
 
         return () => {
-            window.removeEventListener('scroll', unhighlight);
+            window.removeEventListener("scroll", unhighlight);
             clearTimeout(settleTimer);
         };
     }, []);
@@ -125,14 +126,14 @@ export function CommitFeed({
 
     useEffect(
         () =>
-            router.on('flash', (event) => {
+            router.on("flash", (event) => {
                 if (isModeration) {
                     return;
                 }
 
                 const { deleted, restored } = event.detail.flash;
                 if (deleted) {
-                    router.replaceProp('commits.data', (rows: Commit[]) =>
+                    router.replaceProp("commits.data", (rows: Commit[]) =>
                         updateQuotedCommits(
                             rows.filter((commit) => commit.id !== deleted.id),
                             deleted,
@@ -150,16 +151,16 @@ export function CommitFeed({
                             (restored.user_id === profileUserId &&
                                 !restored.is_pinned));
 
-                    router.replaceProp('commits.data', (rows: Commit[]) =>
+                    router.replaceProp("commits.data", (rows: Commit[]) =>
                         belongsInFeed
                             ? restoreFeedCommit(
                                   rows,
                                   restored,
                                   isStarred
-                                      ? 'starred'
+                                      ? "starred"
                                       : isRanked
-                                        ? 'ranked'
-                                        : 'latest',
+                                        ? "ranked"
+                                        : "latest",
                               )
                             : updateQuotedCommits(rows, restored),
                     );
@@ -189,6 +190,13 @@ export function CommitFeed({
         (highlightedAuthor !== null
             ? commit.user_id !== highlightedAuthor
             : highlightedCommit !== null && commit.id !== highlightedCommit);
+
+    const virtualizer = useWindowVirtualizer({
+        count: listed.length,
+        estimateSize: () => 192,
+        overscan: 6,
+        initialRect: { width: 0, height: 800 },
+    });
 
     const lastCommit = listed.at(-1) ?? pinnedCommit;
     const interludeIndex = Math.min(interludeAfter, listed.length) - 1;
@@ -255,41 +263,64 @@ export function CommitFeed({
                     </div>
                 }
             >
-                {listed.map((commit, index) => {
-                    const previous = listed[index - 1];
-                    const startsDay =
-                        !isRanked &&
-                        (!previous ||
-                            localDayKey(previous.created_at) !==
-                                localDayKey(commit.created_at));
-                    const stagedLane =
-                        isBelowComposer && index === 0 && !pinnedCommit
-                            ? 'var(--rail)'
-                            : undefined;
+                <div
+                    ref={virtualizer.containerRef}
+                    style={{
+                        height: `${virtualizer.getTotalSize()}px`,
+                        position: "relative",
+                        width: "100%",
+                    }}
+                >
+                    {virtualizer.getVirtualItems().map((virtualItem) => {
+                        const commit = listed[virtualItem.index];
+                        const previous = listed[virtualItem.index - 1];
+                        const startsDay =
+                            !isRanked &&
+                            (!previous ||
+                                localDayKey(previous.created_at) !==
+                                    localDayKey(commit.created_at));
+                        const stagedLane =
+                            isBelowComposer &&
+                            virtualItem.index === 0 &&
+                            !pinnedCommit
+                                ? "var(--rail)"
+                                : undefined;
 
-                    return (
-                        <Fragment key={commit.id}>
-                            {!isRanked && commit.id === firstSeenId && (
-                                <LastVisitMarker stagedLane={stagedLane} />
-                            )}
-                            {startsDay && (
-                                <DayMarker
-                                    label={formatDayLabel(
-                                        commit.created_at,
-                                        now,
-                                    )}
-                                    stagedLane={stagedLane}
-                                />
-                            )}
-                            {card(commit)}
-                            {index === interludeIndex &&
-                                interlude?.(
-                                    laneColor(commit.user.lane),
-                                    isDimmed(commit),
+                        return (
+                            <div
+                                key={commit.id}
+                                data-index={virtualItem.index}
+                                ref={virtualizer.measureElement}
+                                style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    left: 0,
+                                    width: "100%",
+                                    transform: `translateY(${virtualItem.start}px)`,
+                                }}
+                            >
+                                {!isRanked && commit.id === firstSeenId && (
+                                    <LastVisitMarker stagedLane={stagedLane} />
                                 )}
-                        </Fragment>
-                    );
-                })}
+                                {startsDay && (
+                                    <DayMarker
+                                        label={formatDayLabel(
+                                            commit.created_at,
+                                            now,
+                                        )}
+                                        stagedLane={stagedLane}
+                                    />
+                                )}
+                                {card(commit)}
+                                {virtualItem.index === interludeIndex &&
+                                    interlude?.(
+                                        laneColor(commit.user.lane),
+                                        isDimmed(commit),
+                                    )}
+                            </div>
+                        );
+                    })}
+                </div>
             </InfiniteScroll>
 
             {commits.next_cursor === null && lastCommit && (
@@ -322,7 +353,7 @@ function DayMarker({
                 isDashed
                 className={cn(
                     stagedLane &&
-                        '[view-transition-class:staged-rail] [view-transition-name:staged-rail-day]',
+                        "[view-transition-class:staged-rail] [view-transition-name:staged-rail-day]",
                 )}
             />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
@@ -346,12 +377,12 @@ function LastVisitMarker({ stagedLane }: { stagedLane?: string }) {
                 isDashed
                 className={cn(
                     stagedLane &&
-                        '[view-transition-class:staged-rail] [view-transition-name:staged-rail-visit]',
+                        "[view-transition-class:staged-rail] [view-transition-name:staged-rail-visit]",
                 )}
             />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <span className="font-mono text-xs text-muted-foreground">
-                    HEAD@{'{last visit}'}
+                    HEAD@{"{last visit}"}
                 </span>
                 <span className="flex-1 border-t border-dashed" />
             </div>
