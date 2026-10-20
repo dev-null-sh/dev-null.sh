@@ -75,7 +75,7 @@ final class DatabaseSeeder extends Seeder
      */
     private function seedNotifications(User $localDeveloper, Collection $users): void
     {
-        $follower = $localDeveloper->followers()->firstOrFail();
+        $follower = $localDeveloper->followers()->whereKey($users->modelKeys())->firstOrFail();
         [$stargazer, $replier, $mentioner] = $users->except([$follower->id])->random(3)->values()->all();
         $commit = $localDeveloper->commits()->firstOrFail();
 
