@@ -11,6 +11,7 @@ export type CommitPhoto = {
 };
 
 type PhotoHistory = { sessionId: string; entryId: string };
+const documentPhotoSessions = new Set<string>();
 let photoSessionId: string | undefined;
 
 export function trackCommitPhotoPage(): VoidFunction {
@@ -111,7 +112,8 @@ export function trackCommitPhotoPage(): VoidFunction {
     window.addEventListener('popstate', onPopState, true);
 
     const stopNavigation = router.on('navigate', ({ detail: { page } }) => {
-        photoSessionId = window.history.state?.commitPhotoHistory?.sessionId;
+        const sessionId = window.history.state?.commitPhotoHistory?.sessionId;
+        photoSessionId = documentPhotoSessions.has(sessionId) ? sessionId : undefined;
         component = page.component;
         version = page.version;
         backgroundUrl = (page.props.photo as CommitPhoto | undefined)
@@ -181,6 +183,7 @@ export function trackCommitPhotoPage(): VoidFunction {
     return () => {
         window.removeEventListener('popstate', onPopState, true);
         photoSessionId = undefined;
+        documentPhotoSessions.clear();
         if (window.history.replaceState === preservePhotoHistory) {
             window.history.replaceState = replaceState;
         }
@@ -201,6 +204,7 @@ export function openCommitPhoto(commit: Commit, index: number): void {
         entryId: crypto.randomUUID(),
     };
     photoSessionId = entry.sessionId;
+    documentPhotoSessions.add(entry.sessionId);
     router.push({
         url: commitPhotoUrl(commit, index),
         props: (props) => {

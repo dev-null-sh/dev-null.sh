@@ -582,6 +582,22 @@ test('retains a photo entry through framework history replacements for scrolling
     assert.equal((props.photo as { commit: Commit }).commit.id, commit.id);
 });
 
+test('leaves prior-document photo history to Inertia after reloading and closing a photo', async () => {
+    openCommitPhoto(commit, 0);
+    const sourceUrl = 'http://localhost/log/latest?since=first';
+    const source = structuredClone(historyStates.get(sourceUrl));
+    stop();
+    stop = trackCommitPhotoPage();
+    props = { photo: { commit, index: 0 } };
+    listeners.get('navigate')?.({
+        detail: { page: { component: 'commit/show', props } },
+    });
+    closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
+    assert.equal(window.location.pathname, '/@author/commits/image-post');
+
+    assert.equal((await historyVisit(sourceUrl, source)).mock.calls.length, 0);
+});
+
 test('falls back to native history when a photo entry cannot be decrypted', async () => {
     openCommitPhoto(commit, 0);
     const visit = lastVisit;
