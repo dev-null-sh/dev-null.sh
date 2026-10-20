@@ -3,11 +3,9 @@ import { cn, laneColor, laneTint } from '@/lib/utils';
 import type { Lane } from '@/types';
 
 /**
- * Covers are stored at 3:1 and shown on profiles at 3.5:1, which trims a fourteenth off their top and bottom. The settings
- * preview dims exactly those strips, so the two classes change together.
+ * Covers are stored at 1750×500 and shown in that shape everywhere, so what an author drags into place is what shows.
  */
-export const profileCoverAspect = 'aspect-7/2';
-export const profileCoverTrim = 'h-1/14';
+export const coverAspect = 'aspect-7/2';
 
 /**
  * A cover in its frame, over the lane tint every profile without one shows.
@@ -36,7 +34,7 @@ export function CoverImage({
                 <img
                     src={src}
                     alt={alt}
-                    width={1500}
+                    width={1750}
                     height={500}
                     draggable={false}
                     className="pointer-events-none size-full object-cover"

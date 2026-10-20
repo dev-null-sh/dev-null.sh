@@ -447,7 +447,7 @@ function coverCenterColor(User $user): string
     $image = imagecreatefromstring((string) Storage::disk()->get((string) $user->refresh()->cover_image_path));
     assert($image instanceof GdImage);
 
-    ['red' => $red, 'blue' => $blue] = imagecolorsforindex($image, (int) imagecolorat($image, 750, 250));
+    ['red' => $red, 'blue' => $blue] = imagecolorsforindex($image, (int) imagecolorat($image, 875, 250));
 
     return $red > $blue ? 'red' : 'blue';
 }

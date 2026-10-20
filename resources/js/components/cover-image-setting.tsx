@@ -6,11 +6,7 @@ import {
     destroy,
     update,
 } from '@/actions/App/Http/Controllers/UserCoverImageController';
-import {
-    CoverImage,
-    CoverPill,
-    profileCoverTrim,
-} from '@/components/cover-image';
+import { CoverImage, CoverPill, coverAspect } from '@/components/cover-image';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -199,16 +195,12 @@ export function CoverImageSetting({
     };
 
     const src = draft?.src ?? url;
-    const strip = cn(
-        'pointer-events-none absolute inset-x-0 border-dashed border-white/60 bg-black/45',
-        profileCoverTrim,
-    );
 
     return (
         <section className="px-4 py-6 sm:px-6">
             <Heading
                 title="Cover image"
-                description="A banner across the top of your profile. Your profile shows the part between the dashed lines. It waits for a moderator before anyone else sees it unless your commits are approved right away."
+                description="A banner across the top of your profile, shown exactly as it appears here. It waits for a moderator before anyone else sees it unless your commits are approved right away."
             />
 
             <CoverImage
@@ -235,24 +227,13 @@ export function CoverImageSetting({
                 onPointerCancel={() => (drag.current = null)}
                 onKeyDown={draft ? nudge : undefined}
                 className={cn(
-                    'aspect-3/1 rounded-lg border select-none',
+                    coverAspect,
+                    'rounded-lg border select-none',
                     draft &&
                         'cursor-grab touch-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:cursor-grabbing',
                 )}
                 data-test="cover-image-frame"
             >
-                {src && (
-                    <>
-                        <div
-                            aria-hidden
-                            className={cn(strip, 'top-0 border-b')}
-                        />
-                        <div
-                            aria-hidden
-                            className={cn(strip, 'bottom-0 border-t')}
-                        />
-                    </>
-                )}
                 {draft ? (
                     <CoverPill>
                         <Move aria-hidden className="size-3.5" />
@@ -331,7 +312,7 @@ export function CoverImageSetting({
                 )}
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-                JPEG, PNG, or WebP, at least 750×250 and up to 5 MB.
+                JPEG, PNG, or WebP, at least 875×250 and up to 5 MB.
             </p>
             <InputError className="mt-2" message={error} />
         </section>

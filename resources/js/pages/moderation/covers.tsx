@@ -6,11 +6,12 @@ import { show } from '@/actions/App/Http/Controllers/UserController';
 import { store as approve } from '@/actions/App/Http/Controllers/UserCoverImageApprovalController';
 import { store as reject } from '@/actions/App/Http/Controllers/UserCoverImageRejectionController';
 import { EmptyFeed } from '@/components/commit-feed';
-import { CoverImage } from '@/components/cover-image';
+import { CoverImage, coverAspect } from '@/components/cover-image';
 import { ModerationHeader } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
 import type { CursorPaginated, User } from '@/types';
 
 type PendingCover = {
@@ -103,7 +104,7 @@ export default function Covers({
                                 lane={cover.user.lane}
                                 src={cover.url}
                                 alt={`Cover image uploaded by @${cover.user.username}`}
-                                className="aspect-3/1 rounded-md border"
+                                className={cn(coverAspect, 'rounded-md border')}
                             />
                             <div className="flex flex-wrap gap-2">
                                 <Button
