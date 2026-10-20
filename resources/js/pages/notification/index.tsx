@@ -44,6 +44,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
+import { backgroundPollOptions } from '@/lib/background-poll';
 import {
     cn,
     formatDayLabel,
@@ -158,7 +159,7 @@ export default function Index({
     const [arrivals, setArrivals] = useState(0);
     const { start, stop } = usePoll(
         30_000,
-        () => ({
+        backgroundPollOptions(() => ({
             only: ['notifications', 'auth.unreadNotificationsCount'],
             reset: ['notifications'],
             data: {
@@ -179,7 +180,7 @@ export default function Index({
             onFinish: () => {
                 pollRequest.current = null;
             },
-        }),
+        })),
         { mode: 'rest', background: 'pause' },
     );
     const filterVisit = useRef(0);

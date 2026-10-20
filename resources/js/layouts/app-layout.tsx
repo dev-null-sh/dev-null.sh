@@ -26,6 +26,7 @@ import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
+import { backgroundPollOptions } from '@/lib/background-poll';
 import { cn } from '@/lib/utils';
 import type { AppLayoutProps } from '@/types';
 
@@ -155,7 +156,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 function NotificationCountPolling({ onNotFound }: { onNotFound: () => void }) {
     usePoll(
         30_000,
-        {
+        backgroundPollOptions({
             only: ['auth.unreadNotificationsCount', 'auth.unreadMessagesCount'],
             onHttpException: (response) => {
                 if (response.status !== 404) {
@@ -166,7 +167,7 @@ function NotificationCountPolling({ onNotFound }: { onNotFound: () => void }) {
 
                 return false;
             },
-        },
+        }),
         { mode: 'rest', background: 'pause' },
     );
 
