@@ -149,6 +149,8 @@ Sources: [follow import](app/Actions/CreateUserGitHubFollows.php), [appearance s
 
 Logs are the app's timelines. **Following** contains your commits and those of developers you follow, newest first; it requires sign-in. **Latest** contains the newest public commits across the app. **Trending** ranks public commits by a hot score: the distinct other developers who engaged anywhere in the thread (a reply or quote counts three times a star, each person once, the author excluded), weighed against age so engagement must double to keep up with a commit posted three hours later. Pastéis don't affect Trending. Logs list top-level commits, including quotes, rather than every reply, 20 at a time as you scroll, and show your own pending commits to you. Following and Latest check for new commits every 30 seconds and offer an "N new commits" control instead of moving what you are reading, and mark where you left off. On touch screens, swipe sideways to move between logs. An empty Following log suggests three recent commits from people to follow. Muted and blocked people are filtered for signed-in viewers. The last log you opened is remembered.
 
+Browser Back and Forward restore expanded replies and loaded thread continuations. Offscreen commits are measured before scroll restoration so returning to a log or discussion keeps the content in place.
+
 If a background check hits a temporary connection or gateway failure, the page keeps its last received content and tries again on the normal polling schedule.
 
 Sources: [log types](app/Enums/Log.php), [log queries](app/Queries/LogQueries), [log page](resources/js/pages/log/show.tsx), [background polling](resources/js/lib/background-poll.ts).

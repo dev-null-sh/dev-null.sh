@@ -1,4 +1,4 @@
-import { Link, router, useHttp, usePage } from '@inertiajs/react';
+import { Link, router, useRemember, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
     CornerDownRight,
@@ -181,7 +181,7 @@ async function fetchReplies(
 }
 
 async function fetchRepliesAfter(
-    commit: ThreadCommit,
+    commit: Pick<ThreadCommit, 'id'>,
     replies: ThreadCommit[],
     cursor: string | null,
     minimum: number,
@@ -206,7 +206,7 @@ async function fetchRepliesAfter(
 }
 
 async function fetchRepliesUntil(
-    commit: ThreadCommit,
+    commit: Pick<ThreadCommit, 'id'>,
     minimum: number,
     perPage: number,
     newest: boolean,
@@ -241,38 +241,66 @@ export function useThread(
     const isPreview = preview !== undefined;
     const initial = preview ?? initialReplies;
     const { repliesPerPage, continuation } = usePage().props;
-    const [replies, setReplies] = useState<ThreadCommit[] | null>(
-        initial?.data ?? null,
-    );
-    const [nextCursor, setNextCursor] = useState<string | null>(
-        initial?.next_cursor ?? null,
-    );
+    const historyKey = `thread:${commit.id}:${except ?? ''}`;
+    const remembered = router.restore<{
+        replies: ThreadCommit[] | null;
+        nextCursor: string | null;
+        isOpen: boolean;
+    }>(historyKey);
     const [count, setCount] = useSharedState(
         commitStateKey('replies_count', commit.id),
         commit.replies_count ?? 0,
     );
+    const restoresDocument =
+        remembered !== undefined &&
+        (
+            performance.getEntriesByType('navigation')[0] as
+                | PerformanceNavigationTiming
+                | undefined
+        )?.type === 'back_forward';
     const [shouldLoadReplies] = useState(
-        (loadsReplies && count > 0) ||
-            (initial !== undefined && changedThreadIds.has(commit.id)),
+        (remembered?.isOpen === true && remembered.replies === null) ||
+            (remembered === undefined && loadsReplies && count > 0) ||
+            ((initial !== undefined || remembered?.replies != null) &&
+                (changedThreadIds.has(commit.id) || restoresDocument)),
     );
-    const [isOpen, setIsOpen] = useState(
-        initial !== undefined || shouldLoadReplies,
+    const [initialReplyLimit] = useState(
+        remembered?.replies?.length
+            ? remembered.nextCursor === null
+                ? Infinity
+                : remembered.replies.length
+            : repliesPerPage,
     );
-    const [isLoading, setIsLoading] = useState(false);
+    const [{ replies, nextCursor, isOpen }, setThread] = useRemember(
+        {
+            replies: initial?.data ?? null,
+            nextCursor: initial?.next_cursor ?? null,
+            isOpen: initial !== undefined || shouldLoadReplies,
+        },
+        historyKey,
+    );
+    const [isLoading, setIsLoading] = useState(shouldLoadReplies);
+    const replyRequest = useRef(0);
     const [isReplying, setIsReplying] = useState(false);
 
     const [previousPreview, setPreviousPreview] = useState(preview);
     if (preview !== previousPreview) {
         setPreviousPreview(preview);
         if (preview !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
-            setReplies(preview.data);
-            setNextCursor(preview.next_cursor);
+            setThread((current) => ({
+                ...current,
+                replies: preview.data,
+                nextCursor: preview.next_cursor,
+            }));
         }
     }
 
     const applyPage = (loaded: ThreadCommit[], cursor: string | null) => {
-        setReplies(loaded);
-        setNextCursor(cursor);
+        setThread((current) => ({
+            ...current,
+            replies: loaded,
+            nextCursor: cursor,
+        }));
 
         if (cursor === null) {
             setCount(loaded.length);
@@ -287,12 +315,21 @@ export function useThread(
                   ? Infinity
                   : replies.length + extra;
 
+        const request = ++replyRequest.current;
         setIsLoading(true);
 
         fetchRepliesUntil(commit, minimum, repliesPerPage, isPreview, except)
-            .then((page) => applyPage(page.data, page.next_cursor))
+            .then((page) => {
+                if (request === replyRequest.current) {
+                    applyPage(page.data, page.next_cursor);
+                }
+            })
             .catch(() => undefined)
-            .finally(() => setIsLoading(false));
+            .finally(() => {
+                if (request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
     };
 
     const loadUntil = (minimum: number) => {
@@ -300,6 +337,7 @@ export function useThread(
             return;
         }
 
+        const request = ++replyRequest.current;
         setIsLoading(true);
 
         fetchRepliesAfter(
@@ -310,12 +348,21 @@ export function useThread(
             isPreview,
             except,
         )
-            .then((page) => applyPage(page.data, page.next_cursor))
+            .then((page) => {
+                if (request === replyRequest.current) {
+                    applyPage(page.data, page.next_cursor);
+                }
+            })
             .catch(() => undefined)
-            .finally(() => setIsLoading(false));
+            .finally(() => {
+                if (request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
     };
 
     const commitId = commit.id;
+    const onRepliesLoaded = useEffectEvent(applyPage);
 
     useEffect(() => {
         if (!shouldLoadReplies) {
@@ -323,20 +370,39 @@ export function useThread(
         }
 
         let isCurrent = true;
+        const request = ++replyRequest.current;
+        setIsLoading(true);
 
-        fetchReplies({ id: commitId }, null, isPreview, repliesPerPage, except)
+        fetchRepliesUntil(
+            { id: commitId },
+            initialReplyLimit,
+            repliesPerPage,
+            isPreview,
+            except,
+        )
             .then((page) => {
-                if (isCurrent) {
-                    setReplies(page.data);
-                    setNextCursor(page.next_cursor);
+                if (isCurrent && request === replyRequest.current) {
+                    onRepliesLoaded(page.data, page.next_cursor);
                 }
             })
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(() => {
+                if (isCurrent && request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
 
         return () => {
             isCurrent = false;
         };
-    }, [commitId, shouldLoadReplies, isPreview, except, repliesPerPage]);
+    }, [
+        commitId,
+        shouldLoadReplies,
+        isPreview,
+        except,
+        repliesPerPage,
+        initialReplyLimit,
+    ]);
 
     const onExceptChanged = useEffectEvent(() => {
         if (replies !== null && !shouldLoadReplies) {
@@ -398,7 +464,7 @@ export function useThread(
                 reload();
             }
 
-            setIsOpen(!isOpen);
+            setThread((current) => ({ ...current, isOpen: !current.isOpen }));
         },
         loadMore: () => loadUntil((replies?.length ?? 0) + repliesPerPage),
         loadAll: () => loadUntil(Infinity),
@@ -410,7 +476,7 @@ export function useThread(
             setCount(parent.replies_count);
 
             if (parent.continuation_id === continuationId) {
-                setIsOpen(true);
+                setThread((current) => ({ ...current, isOpen: true }));
                 reload();
 
                 return;
