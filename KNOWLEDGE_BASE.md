@@ -193,13 +193,15 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting and a copy control. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
 
+When a commit or reply has a fenced code block, its link preview image shows the first block, highlighted, in a dark editor window named after the block's language, with the first line of any text before it above. Later blocks and the text after the first block are left out of the image, but not the commit. Shorter code is drawn larger. Lines too wide for the window are cut with an ellipsis rather than wrapped, and code too long for it ends in an ellipsis line. Emoji in the code are left out of the image. Inline code and empty blocks keep the ordinary preview image.
+
 Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions are limited to the org's members. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
 Typing **#123** in a composer looks up that exact issue or pull request in the configured upstream repository (`nunomaduro/dev-null.sh` by default). The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
 
 The upstream is configured with `GITHUB_REPOSITORY=owner/repo` through `services.github.repository`. Issue suggestions, issue filing, the changelog, repository insights and history, and public repository links share this setting. Repository-specific caches are scoped to it.
 
-Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
+Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks](resources/js/components/code-block.tsx), [code preview images](app/Actions/CreateCommitOpenGraphImage.php), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
 ### Draft previews and secret warnings
 
