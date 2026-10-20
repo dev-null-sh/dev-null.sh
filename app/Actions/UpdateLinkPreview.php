@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Contracts\Services\DnsResolver;
+use App\Dto\LinkPreviewMetadata;
 use App\Models\LinkPreview;
-use Dom\HTMLDocument;
+use App\Services\LinkPreviewParser;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Http\Client\ConnectionException;
@@ -21,8 +22,6 @@ final readonly class UpdateLinkPreview
     private const int MAX_REDIRECTS = 3;
 
     private const int MAX_BODY_BYTES = 1_048_576;
-
-    private const int MAX_IMAGE_URL_LENGTH = 2048;
 
     /**
      * Non-public ranges that filter_var's private and reserved range flags let through: carrier-grade NAT, IETF protocol
@@ -51,14 +50,7 @@ final readonly class UpdateLinkPreview
         '::ffff:0:0:0/96',
     ];
 
-    private const array NO_METADATA = [
-        'title' => null,
-        'description' => null,
-        'image_url' => null,
-        'site_name' => null,
-    ];
-
-    public function __construct(private DnsResolver $dns)
+    public function __construct(private DnsResolver $dns, private LinkPreviewParser $parser)
     {
         //
     }
@@ -70,15 +62,15 @@ final readonly class UpdateLinkPreview
      */
     public function handle(LinkPreview $linkPreview): void
     {
-        $linkPreview->update([...$this->fetchMetadata($linkPreview->url), 'fetched_at' => now()]);
+        $metadata = $this->fetchMetadata($linkPreview->url);
+
+        $linkPreview->update([...$metadata->toArray(), 'fetched_at' => now()]);
     }
 
     /**
      * Follows up to three redirects by hand, so that every hop goes through the same checks as the original URL.
-     *
-     * @return array{title: string|null, description: string|null, image_url: string|null, site_name: string|null}
      */
-    private function fetchMetadata(string $url): array
+    private function fetchMetadata(string $url): LinkPreviewMetadata
     {
         $page = Url::parse($url);
 
@@ -86,7 +78,7 @@ final readonly class UpdateLinkPreview
             $address = $this->publicAddress($page);
 
             if ($address === null) {
-                return self::NO_METADATA;
+                return new LinkPreviewMetadata;
             }
 
             $response = $this->get($page, $address);
@@ -97,14 +89,14 @@ final readonly class UpdateLinkPreview
 
             if (! $response->redirect()) {
                 return $response->successful() && $this->isHtml($response)
-                    ? $this->parse($this->body($response), $page)
-                    : self::NO_METADATA;
+                    ? $this->parser->parse($this->body($response), $page)
+                    : new LinkPreviewMetadata;
             }
 
             $page = Url::parse($response->header('Location'), $page);
         }
 
-        return self::NO_METADATA;
+        return new LinkPreviewMetadata;
     }
 
     /**
@@ -184,61 +176,4 @@ final readonly class UpdateLinkPreview
         return Utils::copyToString($body, self::MAX_BODY_BYTES);
     }
 
-    /**
-     * @return array{title: string|null, description: string|null, image_url: string|null, site_name: string|null}
-     */
-    private function parse(string $html, Url $page): array
-    {
-        $document = HTMLDocument::createFromString($html, LIBXML_NOERROR);
-        $meta = [];
-
-        foreach ($document->querySelectorAll('meta[content]') as $element) {
-            $key = mb_strtolower(mb_trim($element->getAttribute('property') ?? $element->getAttribute('name') ?? ''));
-            $meta[$key] ??= (string) $element->getAttribute('content');
-        }
-
-        return [
-            'title' => $this->text([$meta['og:title'] ?? '', $meta['twitter:title'] ?? '', $document->title], 300),
-            'description' => $this->text([$meta['og:description'] ?? '', $meta['twitter:description'] ?? '', $meta['description'] ?? ''], 500),
-            'image_url' => $this->imageUrl([$meta['og:image:secure_url'] ?? '', $meta['og:image'] ?? '', $meta['twitter:image'] ?? ''], $page),
-            'site_name' => $this->text([$meta['og:site_name'] ?? ''], 100),
-        ];
-    }
-
-    /**
-     * Returns the first candidate that still has text once entities are decoded and whitespace is collapsed,
-     * truncated to the column's length.
-     *
-     * @param  list<string>  $candidates
-     */
-    private function text(array $candidates, int $limit): ?string
-    {
-        foreach ($candidates as $candidate) {
-            $text = Str::squish(html_entity_decode($candidate, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-
-            if ($text !== '') {
-                return mb_strlen($text) > $limit ? mb_rtrim(mb_substr($text, 0, $limit - 1)).'…' : $text;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Returns the first candidate that, resolved against the page URL, is an https URL.
-     *
-     * @param  list<string>  $candidates
-     */
-    private function imageUrl(array $candidates, Url $page): ?string
-    {
-        foreach ($candidates as $candidate) {
-            $image = mb_trim($candidate) === '' ? null : Url::parse($candidate, $page);
-
-            if ($image?->getScheme() === 'https' && mb_strlen($image->toAsciiString()) <= self::MAX_IMAGE_URL_LENGTH) {
-                return $image->toAsciiString();
-            }
-        }
-
-        return null;
-    }
 }
