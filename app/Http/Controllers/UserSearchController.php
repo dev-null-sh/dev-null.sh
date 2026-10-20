@@ -15,7 +15,7 @@ final readonly class UserSearchController
     public function index(ListUserSearchRequest $request, #[CurrentUser] ?User $user, UserSearchQuery $search): JsonResponse
     {
         return response()->json([
-            'users' => $search->get($request->string('q')->value(), $user),
+            'users' => $search->get($request->string('q')->value(), $user, bio: true),
         ]);
     }
 }
