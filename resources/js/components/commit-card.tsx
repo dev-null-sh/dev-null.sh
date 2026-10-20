@@ -481,6 +481,7 @@ export function CommitCard({
                                     <div className="flex flex-wrap items-center gap-0.5">
                                         <CommitStarButton
                                             commit={commit}
+                                            keyShortcut="s"
                                             className="px-2 py-0.5"
                                         />
                                         <CommitPastelButton
@@ -503,6 +504,7 @@ export function CommitCard({
                                         <>
                                             <CommitStarButton
                                                 commit={commit}
+                                                keyShortcut="s"
                                                 className="px-2 py-0.5"
                                             />
                                             <CommitPastelButton

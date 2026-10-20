@@ -12,6 +12,7 @@ type Shortcut = { keys: string[]; label: string };
 const shortcuts = (keys: KeyLabels): Shortcut[] => [
     { keys: ['j'], label: 'Next commit' },
     { keys: ['k'], label: 'Previous commit' },
+    { keys: ['s'], label: 'Star or unstar the focused commit' },
     { keys: ['y'], label: 'Copy link to the focused commit' },
     { keys: ['↵'], label: 'Open the focused commit' },
     { keys: ['r'], label: 'Reply to commit' },
