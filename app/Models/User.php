@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
@@ -55,6 +56,8 @@ use Illuminate\Support\Facades\DB;
  * @property-read string|null $remember_token
  * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface|null $last_seen_at
+ * @property-read CarbonInterface|null $banned_at
+ * @property-read CarbonInterface|null $commit_rules_accepted_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -69,7 +72,10 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read Collection<int, PollVote> $pollVotes
  * @property-read Collection<int, Device> $devices
+ * @property-read Collection<int, UserTimeout> $timeouts
+ * @property-read Ban|null $ban
  * @property-read int $commits_count
+ * @property-read int $timeouts_count
  * @property-read int $following_count
  * @property-read int $followers_count
  */
@@ -96,6 +102,8 @@ use Illuminate\Support\Facades\DB;
     'live_url',
     'live_ends_at',
     'last_seen_at',
+    'banned_at',
+    'commit_rules_accepted_at',
 ])]
 final class User extends Authenticatable
 {
@@ -133,6 +141,8 @@ final class User extends Authenticatable
         'live_url' => null,
         'live_ends_at' => null,
         'last_seen_at' => null,
+        'banned_at' => null,
+        'commit_rules_accepted_at' => null,
     ];
 
     /**
@@ -181,6 +191,8 @@ final class User extends Authenticatable
             'live_ends_at' => 'datetime',
             'github_synced_at' => 'datetime',
             'last_seen_at' => 'date',
+            'banned_at' => 'datetime',
+            'commit_rules_accepted_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -238,6 +250,43 @@ final class User extends Authenticatable
     public function devices(): HasMany
     {
         return $this->hasMany(Device::class);
+    }
+
+    /**
+     * Timeouts go by GitHub account, like bans, so they outlive the user and still apply if the same account signs up
+     * again.
+     *
+     * @return HasMany<UserTimeout, $this>
+     */
+    public function timeouts(): HasMany
+    {
+        return $this->hasMany(UserTimeout::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * The timeout the user is in right now, the one that ends last if moderators gave more than one.
+     */
+    public function activeTimeout(): ?UserTimeout
+    {
+        return $this->timeouts()->where('ends_at', '>', now())->latest('ends_at')->first();
+    }
+
+    /**
+     * Bans go by GitHub account, so they outlive the user and still apply if the same account signs up again.
+     *
+     * @return HasOne<Ban, $this>
+     */
+    public function ban(): HasOne
+    {
+        return $this->hasOne(Ban::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * Read from the user rather than the ban, since it's checked on every request.
+     */
+    public function isBanned(): bool
+    {
+        return $this->banned_at !== null;
     }
 
     /**

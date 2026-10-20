@@ -3,6 +3,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { ComponentType } from 'react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { TimeoutDialog } from '@/components/timeout-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
@@ -40,6 +41,7 @@ void createInertiaApp({
                 <TooltipProvider delayDuration={150}>
                     <App {...props} />
                     <Toaster />
+                    <TimeoutDialog />
                 </TooltipProvider>
             </StrictMode>,
         );

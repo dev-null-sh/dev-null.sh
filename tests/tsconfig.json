@@ -16,6 +16,7 @@
         "Unit/UseNow.test.tsx",
         "Unit/FollowRequests.test.tsx",
         "Unit/FollowState.test.tsx",
+        "Unit/LinkEmbedHeight.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]

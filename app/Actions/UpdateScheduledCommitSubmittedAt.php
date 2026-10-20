@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\ScheduledCommit;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 final readonly class UpdateScheduledCommitSubmittedAt
@@ -21,9 +22,12 @@ final readonly class UpdateScheduledCommitSubmittedAt
         return DB::transaction(function () use ($id): bool {
             // Claim with a conditional write before reading.
             // Creation and the claim roll back together if either operation fails.
+            // Moderation is checked in the claim too, since a timeout or ban can land after the batch was selected...
             $claimed = ScheduledCommit::query()->whereKey($id)
                 ->whereNull('submitted_at')->whereNull('canceled_at')
                 ->where('scheduled_at', '<=', now())
+                ->whereDoesntHave('user.timeouts', fn (Builder $query): Builder => $query->where('ends_at', '>', now()))
+                ->whereDoesntHave('user.ban')
                 ->update(['submitted_at' => now()]);
 
             if ($claimed === 0) {

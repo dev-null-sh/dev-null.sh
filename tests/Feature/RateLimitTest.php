@@ -40,6 +40,13 @@ dataset('rate limits', [
         120,
         60,
     ],
+    'issue suggestions' => [
+        fn (): array => [
+            ['GET', route('issue-suggestion.index', ['q' => '722'])],
+        ],
+        30,
+        60,
+    ],
     'exports' => [
         fn (): array => [
             ['GET', route('export')],

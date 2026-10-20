@@ -11,7 +11,6 @@ use App\Models\Commit;
 use App\Services\CommitTranslations;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
 use Throwable;
 
@@ -37,7 +36,6 @@ final readonly class CreateCommitTranslation
 
             try {
                 $response = new CommitTranslator($language)->prompt($commit->body);
-                assert($response instanceof StructuredAgentResponse);
 
                 $source = $response['source_language'] ?? null;
                 $body = $response['body'] ?? null;
