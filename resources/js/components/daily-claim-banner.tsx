@@ -33,7 +33,9 @@ export function DailyClaimBanner() {
                     router.flushAll();
                 },
                 onError: () => {
-                    toast.error('Could not claim daily Bytes. Please try again.');
+                    toast.error(
+                        'Could not claim daily Bytes. Please try again.',
+                    );
                 },
             },
         );

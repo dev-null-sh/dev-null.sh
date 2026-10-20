@@ -165,7 +165,7 @@ export function AppAside({
                     {wallet && (
                         <div className="mt-3 flex items-center justify-between rounded-lg border border-border/80 bg-muted/40 px-3 py-2 font-mono text-xs">
                             <span className="flex items-center gap-1.5 text-muted-foreground">
-                                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
                                 Bytes Wallet
                             </span>
                             <span className="font-semibold text-emerald-500">
