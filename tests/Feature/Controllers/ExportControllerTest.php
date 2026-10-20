@@ -110,6 +110,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'remotes_from' => 'following',
             'pull_receipts' => true,
             'pinned_commit_id' => null,
+            'cover_image' => null,
+            'cover_image_approved_at' => null,
             'live_platform' => null,
             'live_url' => null,
             'live_ends_at' => null,
@@ -196,6 +198,16 @@ it('exports the pinned commit id', function (): void {
 
     expect($data['profile']['pinned_commit_id'])->toBe($commit->id);
 });
+
+it('exports the cover image, pending or approved', function (bool $approved): void {
+    $user = User::factory()->create(['cover_image_path' => 'cover-images/cover.webp', 'cover_image_approved_at' => $approved ? now() : null]);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['profile']['cover_image'])->toBe($user->coverImageUrl($user))
+        ->and($data['profile']['cover_image_approved_at'] !== null)->toBe($approved);
+})->with([true, false]);
 
 it('exports all the signed-in users commits including replies, deleted ones, and all moderation statuses', function (): void {
     $user = User::factory()->create();

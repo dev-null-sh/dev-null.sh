@@ -6,7 +6,7 @@ import CommitRejectionController from '@/actions/App/Http/Controllers/CommitReje
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import InputError from '@/components/input-error';
-import { ModerationTabs } from '@/components/moderation-tabs';
+import { ModerationHeader } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -260,16 +260,7 @@ export default function Show({
         <>
             <Head title="Moderation" />
 
-            <div className="sticky top-0 z-10 bg-card">
-                <div className="flex h-14 items-center border-b px-4">
-                    <h1 className="font-semibold">Moderation</h1>
-                    <p className="ml-auto text-sm text-muted-foreground">
-                        Oldest first
-                    </p>
-                </div>
-
-                <ModerationTabs active="pending" />
-
+            <ModerationHeader active="pending">
                 {commits.data.length > 0 && (
                     <div className="flex h-12 items-center gap-3 border-b px-4">
                         <Checkbox
@@ -315,7 +306,7 @@ export default function Show({
                         </Button>
                     </div>
                 )}
-            </div>
+            </ModerationHeader>
 
             <CommitFeed
                 commits={commits}

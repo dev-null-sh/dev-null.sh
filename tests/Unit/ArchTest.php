@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateImageFiles;
+use App\Actions\UpdateUserCoverImage;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\File;
@@ -59,6 +60,7 @@ arch('actions leave authorization and validation to form requests')
     ])
     ->ignoring([
         CreateImageFiles::class,
+        UpdateUserCoverImage::class,
     ]);
 
 test('actions only create, update, or delete', function (): void {

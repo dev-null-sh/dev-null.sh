@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { activityWindows } from '@/components/activity-graph';
 import { EmptyFeed } from '@/components/commit-feed';
-import { ModerationTabs } from '@/components/moderation-tabs';
+import { ModerationHeader } from '@/components/moderation-tabs';
 import { PresetButton } from '@/components/operations/preset-button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserModerationMenu } from '@/components/user-moderation-menu';
@@ -91,12 +91,7 @@ export default function Bulk({
     return (
         <>
             <Head title="Bulk activity" />
-            <div className="sticky top-0 z-10 bg-card">
-                <div className="flex h-14 items-center border-b px-4">
-                    <h1 className="font-semibold">Moderation</h1>
-                </div>
-                <ModerationTabs active="bulk" />
-            </div>
+            <ModerationHeader active="bulk" />
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-3">
                 <p className="flex-1 text-xs text-muted-foreground">

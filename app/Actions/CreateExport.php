@@ -90,6 +90,8 @@ final readonly class CreateExport
                 'remotes_from' => $user->remotes_from->value,
                 'pull_receipts' => $user->pull_receipts,
                 'pinned_commit_id' => $user->pinned_commit_id,
+                'cover_image' => $user->coverImageUrl($user),
+                'cover_image_approved_at' => $user->cover_image_approved_at?->toIso8601String(),
                 'live_platform' => $user->live_platform?->value,
                 'live_url' => $user->live_url,
                 'live_ends_at' => $user->live_ends_at?->toIso8601String(),

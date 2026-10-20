@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Contracts\Services\DnsResolver;
+use App\Dto\CoverCrop;
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\User;
@@ -14,6 +15,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Image;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
@@ -33,6 +35,8 @@ final class AppServiceProvider extends ServiceProvider
         $this->bootRateLimitingDefaults();
 
         $this->bootExceptionHandling();
+
+        Image::transformUsing('gd', CoverCrop::class, CoverCrop::apply(...));
     }
 
     private function bootExceptionHandling(): void
@@ -115,6 +119,9 @@ final class AppServiceProvider extends ServiceProvider
         // Commit actions: rapid j/k with a star on most commits stays well under these...
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('pins', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
+
+        // Every cover upload is decoded and re-encoded, and may wait for a moderator...
+        RateLimiter::for('cover-images', fn (Request $request): Limit => Limit::perMinute(5)->by($this->userId($request)));
 
         // Messages: polling an open conversation every second or so stays well under the first...
         RateLimiter::for('conversations', fn (Request $request): Limit => Limit::perMinute(300)->by($this->userId($request)));

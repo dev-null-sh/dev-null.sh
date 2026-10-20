@@ -33,15 +33,21 @@ final readonly class DeleteUser
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author or body, so the replies under them keep their thread.
      * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
-     * messages, but the files are erased here. Orgs the user was the last one in go too, with everything sent in them,
-     * as they do when the last member leaves.
+     * messages, but the files, and the cover image, are erased here. Orgs the user was the last one in go too, with
+     * everything sent in them, as they do when the last member leaves.
      */
     public function handle(User $user): void
     {
         $imagePaths = DB::transaction(function () use ($user): array {
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
-            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
+            $imagePaths = [
+                ...$this->imagePaths($user),
+                ...$this->scheduledImagePaths($user),
+                ...$this->messageImagePaths($user),
+                ...$this->messageVoicePaths($user),
+                ...array_filter([$user->cover_image_path]),
+            ];
 
             $translationKeys = Commit::query()->withTrashed()
                 ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)

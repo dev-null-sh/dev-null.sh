@@ -18,6 +18,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
@@ -464,4 +465,32 @@ function apiKeyPairFor(User $user): SshKeyPair
     Device::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
 
     return $keyPair;
+}
+
+/**
+ * A source split into two colors, along its height or its width.
+ */
+function twoToneCover(int $width, int $height, bool $vertical): UploadedFile
+{
+    $image = imagecreatetruecolor($width, $height);
+    $red = (int) imagecolorallocate($image, 255, 0, 0);
+    $blue = (int) imagecolorallocate($image, 0, 0, 255);
+
+    imagefilledrectangle($image, 0, 0, $width, $height, $red);
+    imagefilledrectangle($image, $vertical ? 0 : $width / 2, $vertical ? $height / 2 : 0, $width, $height, $blue);
+
+    ob_start();
+    imagepng($image);
+
+    return UploadedFile::fake()->createWithContent('cover.png', (string) ob_get_clean());
+}
+
+function coverCenterColor(User $user): string
+{
+    $image = imagecreatefromstring((string) Storage::disk()->get((string) $user->refresh()->cover_image_path));
+    assert($image instanceof GdImage);
+
+    ['red' => $red, 'blue' => $blue] = imagecolorsforindex($image, (int) imagecolorat($image, 750, 250));
+
+    return $red > $blue ? 'red' : 'blue';
 }

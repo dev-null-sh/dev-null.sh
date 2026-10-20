@@ -52,6 +52,8 @@ final readonly class UserController
 
         return Inertia::render('user/show', [
             'user' => $getCountedUser,
+            'coverImageUrl' => $user->coverImageUrl($currentUser),
+            'coverImagePending' => $currentUser?->id === $user->id && $user->coverImageIsPending(),
             'pasteisReceived' => $currentUser?->pasteis_mode ? $user->pasteis_received : null,
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),

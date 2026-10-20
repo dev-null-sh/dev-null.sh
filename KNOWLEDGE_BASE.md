@@ -11,6 +11,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Public browsing and GitHub sign-in](#public-browsing-and-github-sign-in)
   - [First-time setup](#first-time-setup)
   - [Profiles and GitHub sync](#profiles-and-github-sync)
+  - [Cover images](#cover-images)
   - [Going live](#going-live)
   - [Achievement badges and XP](#achievement-badges-and-xp)
   - [Following developers and suggestions](#following-developers-and-suggestions)
@@ -105,6 +106,14 @@ Change your name, avatar, bio, company, location, or website on GitHub, not on /
 Profiles also show [achievement badges and an XP-based Unix rank](#achievement-badges-and-xp). Click a badge or rank to inspect unlock requirements and progress.
 
 Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [identity sync](app/Actions/UpdateOrCreateUser.php).
+
+### Cover images
+
+Settings → Profile → **Cover image** puts a banner across the top of your profile, behind your avatar. GitHub has no banner, so this is the one part of a profile set on /dev/null; your name, avatar, bio, and username still come from GitHub. Upload one **JPEG, PNG, or WebP** image of at least **750×250** pixels, up to **5 MB** and **6,000 pixels in either dimension**. Before saving, drag the preview (or use the arrow keys, with Shift for bigger steps) to choose which part of the image shows; it starts centered. It is cropped to **3:1** at that position, the same 1,500×500 size as an X header, and re-encoded to WebP, which strips metadata such as location. The profile shows it shorter, at 3.5:1, trimming a fourteenth off the top and bottom; the settings preview dims those strips. Replacing a cover erases the previous file; **Remove** erases it and the profile goes back to a plain band in your lane color, which every profile without a cover shows. Cover changes are limited to five a minute.
+
+Covers follow the same rule as commits: authors whose commits are approved at once (admins, and authors with a good reputation) get their cover approved at once. Anyone else's cover waits in the moderation queue's **Covers** tab, oldest first. While it waits, only you and moderators see it, with a **Waiting for review** notice, and everyone else sees the lane-color band. Moderators approve or reject it; rejecting erases the file, and can also take down an approved cover. Rejection does not send a notification. A cover replaced while a moderator is looking at the old one keeps waiting for review. Covers are not used in hover cards or link previews, and they can only be set on the web.
+
+Sources: [cover settings](resources/js/components/cover-image-setting.tsx), [cover upload](app/Actions/UpdateUserCoverImage.php), [cover serving](app/Http/Requests/ShowUserCoverImageRequest.php), [cover queue](app/Http/Controllers/PendingCoverImageController.php).
 
 ### Going live
 
@@ -529,7 +538,7 @@ Sources: [export settings](resources/js/pages/user-profile/edit.tsx), [export co
 
 ### Deleting your account
 
-Settings → Profile → **Delete account** opens a confirmation for permanent deletion of your /dev/null account; an app can also delete it through the signed API. It does not delete your GitHub account. Your top-level commits and every reply under those threads are erased. Your replies are also removed, except that replies from other people beneath them survive under authorless `[deleted]` placeholders. Your devices, the messages and reactions you sent, and all your uploaded images are erased too; other people's messages in your conversations stay with them. Account deletion is not covered by the 30-second commit undo.
+Settings → Profile → **Delete account** opens a confirmation for permanent deletion of your /dev/null account; an app can also delete it through the signed API. It does not delete your GitHub account. Your top-level commits and every reply under those threads are erased. Your replies are also removed, except that replies from other people beneath them survive under authorless `[deleted]` placeholders. Your devices, the messages and reactions you sent, your cover image, and all your uploaded images are erased too; other people's messages in your conversations stay with them. Account deletion is not covered by the 30-second commit undo.
 
 You can sign in with GitHub again later, but start from a new account rather than restoring the deleted one. Export your data first if you want a copy. Deleting from /dev/null cannot retract copies of public content held elsewhere.
 
@@ -541,7 +550,7 @@ Sources: [account deletion confirmation](resources/js/components/delete-user.tsx
 
 Commits and replies may be pending, approved, or rejected. Some posts are approved automatically; others need a moderator's review. Automated checks can also reject clear violations. Pending and rejected content is not publicly visible; its author can still see its status. On a pending commit, a badge tells the author whether it is still being checked automatically or waiting for a moderator; when the check approves it while the author is looking, the badge shows a check mark. Approval makes content eligible for public lists and releases reply, quote, and mention notifications, but does not notify the author. Rejection notifies the author, with the moderator's reason when one is given. Moderation applies to browser, scheduled, terminal, and app submissions alike.
 
-Moderators are the site administrators. They review pending commits and reported content. Authors can receive a reason when their content is rejected. Moderation is a restricted role, not a control every account receives.
+Moderators are the site administrators. They review pending commits and reported content. Authors can receive a reason when their content is rejected. Moderation is a restricted role, not a control every account receives. Cover images waiting for review have their own queue, described under [cover images](#cover-images).
 
 Ordinary photos of children are not prohibited just because a child appears in them. Images still undergo safety checks, and sexual content involving minors remains prohibited.
 
