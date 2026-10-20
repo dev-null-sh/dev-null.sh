@@ -1,18 +1,18 @@
-import { InfiniteScroll, router, usePage } from "@inertiajs/react";
-import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { Pin } from "lucide-react";
-import type { PointerEvent, ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
-import { CommitCard } from "@/components/commit-card";
-import { GraphRail, RailSegment } from "@/components/graph-rail";
-import { useNow } from "@/hooks/use-now";
+import { InfiniteScroll, router, usePage } from '@inertiajs/react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { Pin } from 'lucide-react';
+import type { PointerEvent, ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { CommitCard } from '@/components/commit-card';
+import { GraphRail, RailSegment } from '@/components/graph-rail';
+import { useNow } from '@/hooks/use-now';
 import {
     restoreFeedCommit,
     updateQuotedCommits,
-} from "@/lib/commit-mutation-options";
-import { isDeliberateHover } from "@/lib/feed-hover";
-import { cn, formatDayLabel, laneColor, localDayKey } from "@/lib/utils";
-import type { Commit, CursorPaginated } from "@/types";
+} from '@/lib/commit-mutation-options';
+import { isDeliberateHover } from '@/lib/feed-hover';
+import { cn, formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
+import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;
 
@@ -81,10 +81,10 @@ export function CommitFeed({
             }, 300);
         };
 
-        window.addEventListener("scroll", unhighlight, { passive: true });
+        window.addEventListener('scroll', unhighlight, { passive: true });
 
         return () => {
-            window.removeEventListener("scroll", unhighlight);
+            window.removeEventListener('scroll', unhighlight);
             clearTimeout(settleTimer);
         };
     }, []);
@@ -126,14 +126,14 @@ export function CommitFeed({
 
     useEffect(
         () =>
-            router.on("flash", (event) => {
+            router.on('flash', (event) => {
                 if (isModeration) {
                     return;
                 }
 
                 const { deleted, restored } = event.detail.flash;
                 if (deleted) {
-                    router.replaceProp("commits.data", (rows: Commit[]) =>
+                    router.replaceProp('commits.data', (rows: Commit[]) =>
                         updateQuotedCommits(
                             rows.filter((commit) => commit.id !== deleted.id),
                             deleted,
@@ -151,16 +151,16 @@ export function CommitFeed({
                             (restored.user_id === profileUserId &&
                                 !restored.is_pinned));
 
-                    router.replaceProp("commits.data", (rows: Commit[]) =>
+                    router.replaceProp('commits.data', (rows: Commit[]) =>
                         belongsInFeed
                             ? restoreFeedCommit(
                                   rows,
                                   restored,
                                   isStarred
-                                      ? "starred"
+                                      ? 'starred'
                                       : isRanked
-                                        ? "ranked"
-                                        : "latest",
+                                        ? 'ranked'
+                                        : 'latest',
                               )
                             : updateQuotedCommits(rows, restored),
                     );
@@ -267,8 +267,8 @@ export function CommitFeed({
                     ref={virtualizer.containerRef}
                     style={{
                         height: `${virtualizer.getTotalSize()}px`,
-                        position: "relative",
-                        width: "100%",
+                        position: 'relative',
+                        width: '100%',
                     }}
                 >
                     {virtualizer.getVirtualItems().map((virtualItem) => {
@@ -283,7 +283,7 @@ export function CommitFeed({
                             isBelowComposer &&
                             virtualItem.index === 0 &&
                             !pinnedCommit
-                                ? "var(--rail)"
+                                ? 'var(--rail)'
                                 : undefined;
 
                         return (
@@ -292,10 +292,10 @@ export function CommitFeed({
                                 data-index={virtualItem.index}
                                 ref={virtualizer.measureElement}
                                 style={{
-                                    position: "absolute",
+                                    position: 'absolute',
                                     top: 0,
                                     left: 0,
-                                    width: "100%",
+                                    width: '100%',
                                     transform: `translateY(${virtualItem.start}px)`,
                                 }}
                             >
@@ -353,7 +353,7 @@ function DayMarker({
                 isDashed
                 className={cn(
                     stagedLane &&
-                        "[view-transition-class:staged-rail] [view-transition-name:staged-rail-day]",
+                        '[view-transition-class:staged-rail] [view-transition-name:staged-rail-day]',
                 )}
             />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
@@ -377,12 +377,12 @@ function LastVisitMarker({ stagedLane }: { stagedLane?: string }) {
                 isDashed
                 className={cn(
                     stagedLane &&
-                        "[view-transition-class:staged-rail] [view-transition-name:staged-rail-visit]",
+                        '[view-transition-class:staged-rail] [view-transition-name:staged-rail-visit]',
                 )}
             />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <span className="font-mono text-xs text-muted-foreground">
-                    HEAD@{"{last visit}"}
+                    HEAD@{'{last visit}'}
                 </span>
                 <span className="flex-1 border-t border-dashed" />
             </div>
