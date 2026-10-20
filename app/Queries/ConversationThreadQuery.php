@@ -89,6 +89,7 @@ final readonly class ConversationThreadQuery
                 ->all(),
             'is_archived' => $mine->archived_at !== null,
             'role' => $mine->role,
+            'pinned_message' => $org->messages()->whereKey($org->pinned_message_id)->where('id', '>', $mine->visible_from_id)->with([...Message::SHOWN_WITH, 'user'])->first(),
             'access' => PushAccess::Open,
         ];
     }

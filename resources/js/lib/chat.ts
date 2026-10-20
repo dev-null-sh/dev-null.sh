@@ -64,6 +64,7 @@ export type PendingMessage = {
 };
 
 export type ThreadState = {
+    pinned_message: Message | null;
     target: ChatTarget;
     messages: Message[];
     has_older: boolean;
@@ -468,6 +469,7 @@ function emptyThread(target: ChatTarget): ThreadState {
         access: 'open',
         pending: [],
         reactions_version: null,
+        pinned_message: null,
         replyingTo: null,
         head: 0,
         headUntil: 0,
@@ -479,6 +481,7 @@ function emptyThread(target: ChatTarget): ThreadState {
 function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
     return 'members' in thread
         ? {
+              pinned_message: thread.pinned_message,
               members: thread.members,
               typing: thread.typing,
               role: thread.role,
@@ -1401,4 +1404,38 @@ export async function removeOrgMember(
         archived: withoutKey(state.archived, key),
         threads,
     });
+}
+
+export async function pinMessage(
+    target: ChatTarget,
+    messageId: number | null,
+): Promise<void> {
+    if (target.kind !== 'org') return;
+    await request(`/remotes/orgs/${target.org.id}/pin`, 'PUT', {
+        message_id: messageId,
+    });
+    await pollThread(target);
+}
+
+/** Loads history until the requested message is available, stopping if history cannot advance. */
+export async function loadMessage(
+    target: ChatTarget,
+    id: number,
+): Promise<boolean> {
+    const key = targetKey(target);
+    while (true) {
+        const thread = state.threads[key];
+        if (!thread) return false;
+        if (thread.messages.some((message) => message.id === id)) return true;
+        const oldest = thread.messages[0]?.id;
+        if (
+            !thread.has_older ||
+            thread.isLoadingOlder ||
+            oldest === undefined ||
+            oldest < id
+        )
+            return false;
+        await loadOlderMessages(target);
+        if (state.threads[key]?.messages[0]?.id === oldest) return false;
+    }
 }

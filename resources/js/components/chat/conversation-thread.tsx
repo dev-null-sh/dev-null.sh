@@ -1,4 +1,4 @@
-import { ArrowDown, X } from 'lucide-react';
+import { ArrowDown, Pin, X } from 'lucide-react';
 import type {
     ClipboardEvent,
     FormEvent,
@@ -51,8 +51,10 @@ import { useLinkCard } from '@/hooks/use-link-card';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import {
+    pinMessage,
     settleRequest,
     loadOlderMessages,
+    loadMessage,
     markThreadRead,
     pingTyping,
     retryMessage,
@@ -225,9 +227,9 @@ export function ConversationThread({
             return;
         }
 
-        bubble.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        bubble.scrollIntoView({ block: 'center', behavior: 'instant' });
         bubble.dataset.flash = '';
-        window.setTimeout(() => delete bubble.dataset.flash, 1200);
+        window.setTimeout(() => delete bubble.dataset.flash, 1800);
     }, []);
 
     const replyTo = useCallback(
@@ -369,6 +371,47 @@ export function ConversationThread({
             {...(isOpen ? draft.attachments.dropzone : {})}
         >
             {header}
+            {thread?.pinned_message && (
+                <div
+                    className="flex shrink-0 items-start gap-2 border-b bg-accent/50 px-4 py-3"
+                    data-test="pinned-message"
+                >
+                    <Pin
+                        aria-hidden
+                        className="mt-0.5 size-4 shrink-0 text-primary"
+                    />
+                    <button
+                        type="button"
+                        aria-label="Go to pinned message"
+                        className="min-w-0 flex-1 rounded text-left transition-opacity hover:opacity-75 focus-visible:outline-2 focus-visible:outline-primary"
+                        onClick={async () => {
+                            const id = thread.pinned_message?.id;
+                            if (id === undefined) return;
+                            if (!(await loadMessage(target, id))) {
+                                toast.error(
+                                    'Could not load the pinned message. Try again.',
+                                );
+                                return;
+                            }
+                            requestAnimationFrame(() =>
+                                requestAnimationFrame(() => jumpTo(id)),
+                            );
+                        }}
+                    >
+                        <p className="text-xs font-medium text-primary">
+                            Pinned message · {thread.pinned_message.user?.name}
+                        </p>
+                        <div className="line-clamp-3 text-sm wrap-anywhere whitespace-pre-wrap">
+                            {thread.pinned_message.body}
+                            {(thread.pinned_message.images?.length ?? 0) >
+                                0 && <span> · Photo</span>}
+                        </div>
+                    </button>
+                    {thread.role === 'maintainer' && (
+                        <PinControl target={current} messageId={null} />
+                    )}
+                </div>
+            )}
 
             <div
                 ref={scroller}
@@ -727,6 +770,7 @@ function BubbleWithMeta({
 }) {
     const [isReacting, setIsReacting] = useState(false);
     const [isTrayOpen, setIsTrayOpen] = useState(false);
+    const pinThread = useThread(target);
     const trayId = useId();
     const reactButton = useRef<HTMLButtonElement>(null);
     const message =
@@ -801,6 +845,20 @@ function BubbleWithMeta({
               },
     );
 
+    const pinAction = target.kind === 'org' &&
+        pinThread?.role === 'maintainer' &&
+        bubble.kind === 'message' && (
+            <PinControl
+                iconOnly
+                target={target}
+                messageId={
+                    pinThread.pinned_message?.id === bubble.message.id
+                        ? null
+                        : bubble.message.id
+                }
+            />
+        );
+
     return (
         <>
             <Repliable isMine={isMine} onReply={replyToThis}>
@@ -832,10 +890,18 @@ function BubbleWithMeta({
                         />
                     )}
                     {images.length > 0 && (
-                        <div className="relative max-w-full">
+                        <div
+                            data-message-id={
+                                message.body === '' && bubble.kind === 'message'
+                                    ? bubble.message.id
+                                    : undefined
+                            }
+                            className="relative max-w-full rounded-lg ring-primary ring-offset-2 ring-offset-background transition-shadow duration-700 data-flash:ring-2 data-flash:duration-150"
+                        >
                             <MessageImages images={images} />
                             {message.body === '' && (
                                 <BubbleActions
+                                    pinAction={pinAction}
                                     isMine={isMine}
                                     onReply={replyToThis}
                                     onReact={toggleTray}
@@ -854,7 +920,7 @@ function BubbleWithMeta({
                                     : undefined
                             }
                             className={cn(
-                                'relative w-fit max-w-full min-w-0 rounded-lg px-3.5 py-2 wrap-anywhere ring-primary ring-offset-2 ring-offset-background transition-[background-color,color,outline-color,box-shadow] duration-200 data-flash:ring-2',
+                                'relative w-fit max-w-full min-w-0 rounded-lg px-3.5 py-2 wrap-anywhere ring-primary ring-offset-2 ring-offset-background transition-[background-color,color,outline-color,box-shadow] duration-700 data-flash:ring-2 data-flash:duration-150',
                                 isCompact && 'px-3 py-1.5',
                                 isMine
                                     ? 'bg-primary text-primary-foreground'
@@ -872,6 +938,7 @@ function BubbleWithMeta({
                                 isMine={isOnPrimary}
                             />
                             <BubbleActions
+                                pinAction={pinAction}
                                 isMine={isMine}
                                 onReply={replyToThis}
                                 onReact={toggleTray}
@@ -1473,5 +1540,47 @@ function ThreadSkeleton({ isCompact }: { isCompact: boolean }) {
             <Skeleton className="h-9 w-40 self-end rounded-lg" />
             <Skeleton className="h-9 w-56 rounded-lg" />
         </div>
+    );
+}
+
+function PinControl({
+    target,
+    messageId,
+    iconOnly = false,
+}: {
+    target: ChatTarget;
+    messageId: number | null;
+    iconOnly?: boolean;
+}) {
+    const [busy, setBusy] = useState(false);
+    return (
+        <button
+            type="button"
+            disabled={busy}
+            aria-label={messageId === null ? 'Unpin message' : 'Pin message'}
+            title={messageId === null ? 'Unpin message' : 'Pin message'}
+            className={cn(
+                'text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50',
+                iconOnly
+                    ? 'grid size-7 place-items-center rounded-full'
+                    : 'flex items-center gap-1 self-start rounded px-1.5 py-1 text-xs',
+                iconOnly && messageId === null && 'text-primary',
+            )}
+            onClick={async () => {
+                setBusy(true);
+                try {
+                    await pinMessage(target, messageId);
+                } catch {
+                    toast.error(
+                        'Could not update the pinned message. Try again.',
+                    );
+                } finally {
+                    setBusy(false);
+                }
+            }}
+        >
+            <Pin aria-hidden className={iconOnly ? 'size-4' : 'size-3'} />
+            {!iconOnly && (messageId === null ? 'Unpin' : 'Pin message')}
+        </button>
     );
 }

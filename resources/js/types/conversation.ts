@@ -104,6 +104,7 @@ export type Thread = {
 };
 
 export type OrgThread = {
+    pinned_message: Message | null;
     messages: Message[];
     has_older: boolean;
     reactions_version: number;

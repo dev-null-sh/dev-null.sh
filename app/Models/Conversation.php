@@ -99,6 +99,7 @@ final class Conversation extends Model
             'pair' => 'string',
             'name' => 'string',
             'last_message_id' => 'integer',
+            'pinned_message_id' => 'integer',
             'reactions_version' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

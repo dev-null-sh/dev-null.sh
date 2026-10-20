@@ -316,6 +316,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware('throttle:messages')->name('org.store');
         Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereUuid('org')->name('org.update');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
+        Route::put('remotes/orgs/{org}/pin', [App\Http\Controllers\OrgPinController::class, 'update'])->whereUuid('org')->name('org-pin.update');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');

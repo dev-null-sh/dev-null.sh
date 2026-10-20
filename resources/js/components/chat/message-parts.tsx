@@ -323,6 +323,7 @@ export function BubbleActions({
     isReacting,
     reactRef,
     trayId,
+    pinAction,
 }: {
     isMine: boolean;
     onReply: (() => void) | null;
@@ -330,8 +331,9 @@ export function BubbleActions({
     isReacting: boolean;
     reactRef: RefObject<HTMLButtonElement | null>;
     trayId: string;
+    pinAction?: ReactNode;
 }) {
-    if (onReply === null && onReact === null) {
+    if (onReply === null && onReact === null && !pinAction) {
         return null;
     }
 
@@ -379,6 +381,7 @@ export function BubbleActions({
                     <SmilePlus aria-hidden className="size-4" />
                 </button>
             )}
+            {pinAction}
         </div>
     );
 }
