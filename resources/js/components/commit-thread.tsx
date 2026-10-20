@@ -537,41 +537,36 @@ export function ThreadActions({
                     {actions}
 
                     {!isDeleted(commit) && (
-                        <ActionTooltip
-                            label="Reply"
-                            shortcut={hasReplyShortcut ? 'r' : undefined}
+                        <button
+                            type="button"
+                            onClick={
+                                auth.user === null
+                                    ? signIn
+                                    : thread.isReplying
+                                      ? thread.cancelReply
+                                      : thread.startReply
+                            }
+                            aria-expanded={thread.isReplying}
+                            aria-keyshortcuts={
+                                hasReplyShortcut ? 'r' : undefined
+                            }
+                            className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                            data-test="reply-button"
                         >
-                            <button
-                                type="button"
-                                onClick={
-                                    auth.user === null
-                                        ? signIn
-                                        : thread.isReplying
-                                          ? thread.cancelReply
-                                          : thread.startReply
-                                }
-                                aria-expanded={thread.isReplying}
-                                aria-keyshortcuts={
-                                    hasReplyShortcut ? 'r' : undefined
-                                }
-                                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                                data-test="reply-button"
-                            >
-                                <MessageSquareReply className="size-4" />
-                                <span className="sr-only sm:not-sr-only">
-                                    Reply
+                            <MessageSquareReply className="size-4" />
+                            <span className="sr-only sm:not-sr-only">
+                                Reply
+                            </span>
+                            {hasStash && !thread.isReplying && (
+                                <span
+                                    title="You have an unsent reply here"
+                                    className="font-mono text-[11px] opacity-70"
+                                    data-test="reply-stash-hint"
+                                >
+                                    {'stash@{0}'}
                                 </span>
-                                {hasStash && !thread.isReplying && (
-                                    <span
-                                        title="You have an unsent reply here"
-                                        className="font-mono text-[11px] opacity-70"
-                                        data-test="reply-stash-hint"
-                                    >
-                                        {'stash@{0}'}
-                                    </span>
-                                )}
-                            </button>
-                        </ActionTooltip>
+                            )}
+                        </button>
                     )}
 
                     {thread.count > 0 && !thread.isPreview && (
