@@ -15,6 +15,7 @@ use App\Models\CommitReport;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
+use App\Queries\UserAchievementsQuery;
 use App\Services\TheAlgorithm;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
@@ -68,10 +69,10 @@ it('skips ai review only when all reputation requirements are met', function (in
     followersOf($user, $followers);
 
     if ($previousStatus instanceof CommitStatus) {
-        $previous = Commit::factory()->for($user)->create(['status' => $previousStatus]);
+        $previous = Commit::factory()->for($user)->count(4)->create(['status' => $previousStatus]);
 
         if ($deleted) {
-            $previous->delete();
+            $previous->each->delete();
         }
     }
 
@@ -97,6 +98,41 @@ it('skips ai review only when all reputation requirements are met', function (in
     'pending history' => [3601, 10, CommitStatus::Pending, false, false],
     'rejected history' => [3601, 10, CommitStatus::Rejected, false, false],
     'deleted approved history' => [3601, 10, CommitStatus::Approved, true, false],
+]);
+
+it('requires at least daemon public xp to skip ai review', function (int $commits, int $starsGiven, int $starsReceived, int $xp, bool $approved): void {
+    config(['services.openai.key' => 'sk-test']);
+    Queue::fake();
+
+    $user = User::factory()->create(['created_at' => now()->subHours(2)]);
+    followersOf($user, 10);
+    $history = Commit::factory()->for($user)->count($commits)->create();
+    $user->starredCommits()->attach(Commit::factory()->count($starsGiven)->create()->modelKeys());
+    foreach (User::factory()->count($starsReceived)->create() as $stargazer) {
+        $stargazer->starredCommits()->attach($history->first());
+    }
+
+    // Private activity must not boost moderation eligibility, even when the queued job rechecks it.
+    Commit::factory()->for($user)->pending()->count(5)->create();
+    Commit::factory()->for($user)->rejected()->count(5)->create();
+    $deleted = Commit::factory()->for($user)->create();
+    $deleted->delete();
+
+    expect(resolve(UserAchievementsQuery::class)->get($user, null)['xp'])->toBe($xp);
+
+    $commit = resolve(CreateCommit::class)->handle($user, 'A new commit');
+
+    expect($commit->status)->toBe($approved ? CommitStatus::Approved : CommitStatus::Pending);
+
+    if ($approved) {
+        Queue::assertNotPushed(ModerateCommit::class);
+    } else {
+        Queue::assertPushed(ModerateCommit::class);
+    }
+})->with([
+    'below daemon' => [3, 2, 0, 49, false],
+    'exactly daemon' => [3, 0, 1, 50, true],
+    'higher rank' => [14, 0, 0, 155, true],
 ]);
 
 it('notifies the parent author about replies of admins', function (): void {
@@ -479,6 +515,7 @@ it('gives recent reports precedence over reputation while keeping the ai exempti
     $reported = Commit::factory()->for($user)->create();
     if ($reputable) {
         followersOf($user, 10);
+        Commit::factory()->for($user)->count(3)->create();
     }
 
     CommitReport::factory()->for($reported)->create(['dismissed_at' => $dismissed ? now() : null]);

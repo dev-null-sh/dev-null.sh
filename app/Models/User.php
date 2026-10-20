@@ -10,6 +10,8 @@ use App\Dto\LiveStream;
 use App\Enums\LivePlatform;
 use App\Enums\Log;
 use App\Enums\RemotesFrom;
+use App\Enums\UnixRank;
+use App\Queries\UserAchievementsQuery;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -207,13 +209,14 @@ final class User extends Authenticatable
     }
 
     /**
-     * Ten followers are enough, so the check stops at the tenth instead of counting every follower.
+     * Requires daemon-level public XP. Stop at the tenth follower instead of counting every follower.
      */
     public function hasGoodReputation(): bool
     {
         return $this->created_at->lt(now()->subHour())
             && $this->commits()->approved()->exists()
-            && $this->followers()->skip(9)->exists();
+            && $this->followers()->skip(9)->exists()
+            && resolve(UserAchievementsQuery::class)->get($this, null)['xp'] >= UnixRank::Daemon->minXp();
     }
 
     /**
