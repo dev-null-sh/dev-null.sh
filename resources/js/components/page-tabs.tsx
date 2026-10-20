@@ -9,8 +9,10 @@ export function PageTabs({
     prefetch = true,
     only,
     reset,
+    compactOnMobile = false,
 }: {
     label: string;
+    compactOnMobile?: boolean;
     preserveScroll?: boolean;
     prefetch?: boolean;
     only?: InertiaLinkProps['only'];
@@ -24,7 +26,7 @@ export function PageTabs({
     const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
 
     return (
-        <nav aria-label={label} className="flex border-b">
+        <nav aria-label={label} className="flex overflow-x-auto border-b">
             {tabs.map((tab) => (
                 <Link
                     key={tab.title}
@@ -41,7 +43,10 @@ export function PageTabs({
                     }
                     aria-current={tab.isActive ? 'page' : undefined}
                     className={cn(
-                        'relative flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        'relative flex min-w-max flex-1 justify-center font-medium whitespace-nowrap text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        compactOnMobile
+                            ? 'px-1.5 text-xs sm:px-4 sm:text-[15px]'
+                            : 'px-4 text-[15px]',
                         { 'text-foreground': tab.isActive },
                     )}
                 >
