@@ -301,16 +301,19 @@ type DailyBar = {
 };
 
 /**
- * One bar per day, as tall as its value against the tallest, which a line at the top names. A partial day, still
- * counting, is lighter. Tooltips of the bars near an edge align with it, so they stay on screen.
+ * One slot per day of the range, so charts of the same range line up, with a bar on the days that have one, as tall as
+ * its value against the tallest, which a line at the top names. A partial day, still counting, is lighter. Tooltips of
+ * the bars near an edge align with it, so they stay on screen.
  */
 function DailyBars({
+    range,
     bars,
     caption,
     column,
     empty,
     format,
 }: {
+    range: TrafficRange;
     bars: DailyBar[];
     caption: string;
     column: string;
@@ -327,6 +330,16 @@ function DailyBars({
 
     const top = Math.max(Number.MIN_VALUE, ...bars.map((bar) => bar.value));
     const label = (date: string) => formatZonedDate(date, 'UTC');
+    const byDate = new Map(bars.map((bar) => [bar.date, bar]));
+    const dates: string[] = [];
+
+    for (
+        let day = Date.parse(range.from);
+        day <= Date.parse(range.to);
+        day += 86_400_000
+    ) {
+        dates.push(new Date(day).toISOString().slice(0, 10));
+    }
 
     return (
         <figure className="pt-5">
@@ -336,42 +349,55 @@ function DailyBars({
                         {format(top)}
                     </span>
                 </div>
-                {bars.map((bar, index) => (
-                    <div
-                        key={bar.date}
-                        className="group relative flex h-full flex-1 items-end"
-                    >
+                {dates.map((date, index) => {
+                    const bar = byDate.get(date);
+
+                    return (
                         <div
-                            className={cn(
-                                'w-full rounded-t',
-                                bar.isPartial ? 'bg-primary/40' : 'bg-primary',
-                            )}
-                            style={{ height: `${(bar.value / top) * 100}%` }}
-                        />
-                        <div
-                            className={cn(
-                                'pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
-                                index < bars.length / 3
-                                    ? 'left-0'
-                                    : index >= (bars.length * 2) / 3
-                                      ? 'right-0'
-                                      : 'left-1/2 -translate-x-1/2',
-                            )}
+                            key={date}
+                            className="group relative flex h-full flex-1 items-end"
                         >
-                            <p className="text-muted-foreground">
-                                {label(bar.date)}
-                                {bar.isPartial && ', so far'}
-                            </p>
-                            <p className="font-medium tabular-nums">
-                                {bar.label}
-                            </p>
+                            {bar && (
+                                <>
+                                    <div
+                                        className={cn(
+                                            'w-full rounded-t',
+                                            bar.isPartial
+                                                ? 'bg-primary/40'
+                                                : 'bg-primary',
+                                        )}
+                                        style={{
+                                            height: `${(bar.value / top) * 100}%`,
+                                        }}
+                                    />
+                                    <div
+                                        className={cn(
+                                            'pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
+                                            index < dates.length / 3
+                                                ? 'left-0'
+                                                : index >=
+                                                    (dates.length * 2) / 3
+                                                  ? 'right-0'
+                                                  : 'left-1/2 -translate-x-1/2',
+                                        )}
+                                    >
+                                        <p className="text-muted-foreground">
+                                            {label(date)}
+                                            {bar.isPartial && ', so far'}
+                                        </p>
+                                        <p className="font-medium tabular-nums">
+                                            {bar.label}
+                                        </p>
+                                    </div>
+                                </>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
             <div className="mt-1.5 flex justify-between font-mono text-xs text-muted-foreground">
-                <span>{label(bars[0].date)}</span>
-                <span>{label(bars[bars.length - 1].date)}</span>
+                <span>{label(range.from)}</span>
+                <span>{label(range.to)}</span>
             </div>
             <table className="sr-only">
                 <caption>{caption}</caption>
@@ -394,9 +420,16 @@ function DailyBars({
     );
 }
 
-function ActivationByDay({ days }: { days: ActivationDay[] }) {
+function ActivationByDay({
+    range,
+    days,
+}: {
+    range: TrafficRange;
+    days: ActivationDay[];
+}) {
     return (
         <DailyBars
+            range={range}
             bars={days.map((day) => {
                 const rate = day.activated / day.eligible;
 
@@ -415,11 +448,18 @@ function ActivationByDay({ days }: { days: ActivationDay[] }) {
     );
 }
 
-function ActiveUserCounts({ counts }: { counts: ActivityBucket[] }) {
+function ActiveUserCounts({
+    range,
+    counts,
+}: {
+    range: TrafficRange;
+    counts: ActivityBucket[];
+}) {
     const today = utcDate();
 
     return (
         <DailyBars
+            range={range}
             bars={counts.map((day) => ({
                 date: day.date,
                 value: day.count,
@@ -475,13 +515,20 @@ export default function Show({
                 </Deferred>
             </Section>
 
+            <Section title="Daily active users" meta="by day, utc">
+                <ActiveUserCounts range={range} counts={activeUserCounts} />
+            </Section>
+
             <Section title="Activation by signup day" meta="by day, utc">
                 <Deferred
                     data="funnel"
                     fallback={<Skeleton className="h-48 w-full rounded-lg" />}
                 >
                     {funnel && (
-                        <ActivationByDay days={funnel.activation_by_day} />
+                        <ActivationByDay
+                            range={range}
+                            days={funnel.activation_by_day}
+                        />
                     )}
                 </Deferred>
             </Section>
@@ -570,10 +617,6 @@ export default function Show({
                         ]}
                     />
                 </div>
-            </Section>
-
-            <Section title="Daily active users" meta="by day, utc">
-                <ActiveUserCounts counts={activeUserCounts} />
             </Section>
         </>
     );
