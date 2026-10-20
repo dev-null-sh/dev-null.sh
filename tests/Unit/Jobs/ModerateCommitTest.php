@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Intervention\Gif\Builder;
+use Intervention\Gif\DisposalMethod;
 
 beforeEach(function (): void {
     config(['services.openai.key' => 'sk-test']);
@@ -264,6 +266,100 @@ it('checks only the images of a commit without a body', function (): void {
 
     Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
         && $request['text']['format']['name'] === 'harmful');
+});
+
+/**
+ * @param  list<array{width: int, height: int, color: int, left?: int, top?: int, disposal?: DisposalMethod}>  $frames
+ */
+function solidGif(int $width, int $height, array $frames): string
+{
+    $builder = Builder::canvas($width, $height);
+
+    foreach ($frames as $frame) {
+        $image = imagecreate($frame['width'], $frame['height']);
+        imagecolorallocate($image, $frame['color'] >> 16, $frame['color'] >> 8 & 0xFF, $frame['color'] & 0xFF);
+
+        ob_start();
+        imagegif($image);
+        $builder->addFrame((string) ob_get_clean(), left: $frame['left'] ?? 0, top: $frame['top'] ?? 0);
+    }
+
+    foreach ($builder->gifDataStream()->frames() as $index => $block) {
+        $block->graphicControlExtension()?->setDisposalMethod($frames[$index]['disposal'] ?? DisposalMethod::NONE);
+    }
+
+    return $builder->encode();
+}
+
+/**
+ * @return list<GdImage>
+ */
+function moderatedImages(): array
+{
+    return array_values(Http::recorded(fn (Request $request): bool => str_ends_with($request->url(), '/moderations'))
+        ->map(function (array $pair): GdImage {
+            $url = $pair[0]['input'][0]['image_url']['url'];
+            expect($url)->toStartWith('data:image/png;base64,');
+
+            $image = imagecreatefromstring(base64_decode(mb_substr((string) $url, 22)));
+            assert($image instanceof GdImage);
+
+            return $image;
+        })
+        ->all());
+}
+
+it('checks the frames of a gif as they are shown, each drawn over the ones before it', function (): void {
+    Storage::fake();
+    Storage::put('commit-images/animation.gif', solidGif(10, 10, [
+        ['width' => 10, 'height' => 10, 'color' => 0xFF0000],
+        ['width' => 2, 'height' => 2, 'color' => 0x0000FF, 'left' => 5, 'top' => 5, 'disposal' => DisposalMethod::BACKGROUND],
+        ['width' => 2, 'height' => 2, 'color' => 0x00FF00, 'disposal' => DisposalMethod::PREVIOUS],
+        ['width' => 1, 'height' => 1, 'color' => 0xFFFFFF, 'left' => 9, 'top' => 9],
+    ]));
+
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->create(['body' => '']);
+    CommitImage::factory()->for($commit)->create(['path' => 'commit-images/animation.gif', 'position' => 0]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh()->ai_decision)->toBe(CommitStatus::Approved)
+        ->and(array_map(fn (GdImage $frame): array => [
+            imagecolorat($frame, 0, 0),
+            imagecolorat($frame, 6, 6),
+            imagecolorat($frame, 9, 9),
+        ], moderatedImages()))->toBe([
+            [0xFF0000, 0xFF0000, 0xFF0000],
+            [0xFF0000, 0x0000FF, 0xFF0000],
+            [0x00FF00, 0x000000, 0xFF0000],
+            [0xFF0000, 0x000000, 0xFFFFFF],
+        ]);
+});
+
+it('checks ten frames of a longer gif, from its first to its last', function (): void {
+    Storage::fake();
+    Storage::put('commit-images/animation.gif', solidGif(4, 4, array_map(
+        fn (int $index): array => ['width' => 4, 'height' => 4, 'color' => $index * 20 << 16],
+        range(0, 11),
+    )));
+
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->create(['body' => '']);
+    CommitImage::factory()->for($commit)->create(['path' => 'commit-images/animation.gif', 'position' => 0]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect(array_map(fn (GdImage $frame): int => imagecolorat($frame, 0, 0) >> 16, moderatedImages()))
+        ->toBe([0, 20, 40, 80, 100, 120, 140, 180, 200, 220]);
 });
 
 it('flags categories scoring above the strict thresholds, even when openai does not flag them', function (): void {

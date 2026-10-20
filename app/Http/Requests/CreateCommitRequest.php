@@ -49,7 +49,7 @@ final class CreateCommitRequest extends FormRequest
      *
      * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum>>
      */
-    public static function attachmentRules(): array
+    public static function attachmentRules(bool $allowsGif = false): array
     {
         return [
             'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],
@@ -60,7 +60,7 @@ final class CreateCommitRequest extends FormRequest
             'images.*' => [
                 'required',
                 'image',
-                File::types(['image/jpeg', 'image/png', 'image/webp'])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
+                File::types(['image/jpeg', 'image/png', 'image/webp', ...($allowsGif ? ['image/gif'] : [])])->max(CreateCommitImages::MAX_UPLOAD_SIZE),
                 Rule::dimensions()
                     ->maxWidth(CreateCommitImages::MAX_SOURCE_DIMENSION)
                     ->maxHeight(CreateCommitImages::MAX_SOURCE_DIMENSION),
@@ -88,7 +88,7 @@ final class CreateCommitRequest extends FormRequest
             'body' => self::bodyRules($this->hasFile('images')),
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
-            ...self::attachmentRules(),
+            ...self::attachmentRules(allowsGif: true),
         ];
     }
 

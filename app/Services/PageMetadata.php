@@ -282,7 +282,7 @@ final readonly class PageMetadata
                 'url' => $image->url(),
                 'width' => $image->width,
                 'height' => $image->height,
-                'type' => 'image/webp',
+                'type' => $image->mimeType(),
                 'alt' => $count === 1
                     ? "Image attached to the commit of {$user->nameWithHandle()}"
                     : 'Image '.($index + 1)." of {$count} attached to the commit of {$user->nameWithHandle()}",

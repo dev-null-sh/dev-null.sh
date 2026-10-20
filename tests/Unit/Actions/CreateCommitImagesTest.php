@@ -137,11 +137,34 @@ it('refuses files that are not images, storing none of the images', function ():
     ]);
 })->throws(ValidationException::class);
 
-it('refuses formats other than jpeg, png and webp', function (string $name): void {
+it('keeps gifs as gifs, dropping anything smuggled after them', function (): void {
+    $file = UploadedFile::fake()->image('animation.gif', 30, 20);
+    file_put_contents($file->getRealPath(), '<?php echo "pwned"; ?>', FILE_APPEND);
+
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitImages::class)->handle($commit, [$file]);
+
+    $image = $commit->images()->sole();
+    $contents = (string) Storage::disk()->get($image->path);
+
+    expect($image->path)->toStartWith('commit-images/')->toEndWith('.gif')
+        ->and($image->only(['width', 'height']))->toBe(['width' => 30, 'height' => 20])
+        ->and(getimagesizefromstring($contents)['mime'] ?? null)->toBe('image/gif')
+        ->and($contents)->not->toContain('<?php');
+});
+
+it('refuses gifs that end before their frames do', function (): void {
+    $file = UploadedFile::fake()->createWithContent('broken.gif', "GIF89a\x0a\x00\x0a\x00\x00\x00\x00");
+
+    resolve(CreateCommitImages::class)->handle(Commit::factory()->create(), [$file]);
+})->throws(ValidationException::class);
+
+it('refuses formats other than jpeg, png, gif and webp', function (string $name): void {
     $file = UploadedFile::fake()->image($name, 10, 10);
 
     resolve(CreateCommitImages::class)->handle(Commit::factory()->create(), [$file]);
-})->throws(ValidationException::class)->with(['image.bmp', 'image.gif']);
+})->throws(ValidationException::class)->with(['image.bmp']);
 
 it('refuses images too large to decode safely', function (): void {
     resolve(CreateCommitImages::class)->handle(Commit::factory()->create(), [UploadedFile::fake()->image('huge.png', 6001, 10)]);

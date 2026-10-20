@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use Illuminate\Http\UploadedFile;
-use Illuminate\Image\Image as ProcessedImage;
 use Illuminate\Image\ImageException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Image;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Intervention\Gif\Decoder as GifDecoder;
+use Intervention\Gif\Exceptions\GifException;
 
 final readonly class CreateCommitImageFiles
 {
@@ -19,10 +20,11 @@ final readonly class CreateCommitImageFiles
 
     private const int QUALITY = 60;
 
-    private const array ALLOWED_TYPES = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP];
+    private const array ALLOWED_TYPES = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF];
 
     /**
      * Every image is decoded, scaled down, and re-encoded as WebP: metadata such as GPS location is dropped, and anything smuggled alongside the pixels is not kept.
+     * A GIF keeps its animation instead: re-encoding every frame takes gigabytes of memory, so its blocks are only parsed and written back, which drops bytes outside them.
      * All of them are encoded before any is stored, so a bad one leaves nothing behind, and a stored one is erased again if the transaction saving it rolls back.
      *
      * @param  list<UploadedFile>  $images
@@ -36,15 +38,15 @@ final readonly class CreateCommitImageFiles
         $files = [];
 
         foreach ($optimized as $position => $image) {
-            $path = $image->storeAs($directory, Str::uuid7()->toString().'.webp');
-            assert(is_string($path));
+            $path = $directory.'/'.Str::uuid7()->toString().'.'.$image['extension'];
+            Storage::disk()->put($path, $image['bytes']);
 
             DB::afterRollBack(fn (): bool => Storage::disk()->delete($path));
 
             $files[] = [
                 'path' => $path,
-                'width' => $image->width(),
-                'height' => $image->height(),
+                'width' => $image['width'],
+                'height' => $image['height'],
                 'description' => $descriptions[$position] ?? null,
                 'position' => $position,
             ];
@@ -55,8 +57,10 @@ final readonly class CreateCommitImageFiles
 
     /**
      * GD is used explicitly since, unlike Imagick, it never writes the source's metadata back out.
+     *
+     * @return array{extension: string, bytes: string, width: int, height: int}
      */
-    private function optimize(UploadedFile $file): ProcessedImage
+    private function optimize(UploadedFile $file): array
     {
         $info = @getimagesize($file->getRealPath());
 
@@ -67,6 +71,14 @@ final readonly class CreateCommitImageFiles
             throw $this->invalid();
         }
 
+        if ($info[2] === IMAGETYPE_GIF) {
+            try {
+                return ['extension' => 'gif', 'bytes' => GifDecoder::decode($file->getRealPath())->encode(), 'width' => $info[0], 'height' => $info[1]];
+            } catch (GifException) {
+                throw $this->invalid();
+            }
+        }
+
         $image = Image::fromUpload($file)
             ->usingGd()
             ->orient()
@@ -74,18 +86,18 @@ final readonly class CreateCommitImageFiles
             ->optimize('webp', self::QUALITY);
 
         try {
-            $image->toBytes();
+            $bytes = $image->toBytes();
         } catch (ImageException) {
             throw $this->invalid();
         }
 
-        return $image;
+        return ['extension' => 'webp', 'bytes' => $bytes, 'width' => $image->width(), 'height' => $image->height()];
     }
 
     private function invalid(): ValidationException
     {
         return ValidationException::withMessages([
-            'images' => 'Images must be JPEG, PNG, or WebP files of at most '.CreateCommitImages::MAX_SOURCE_DIMENSION.' pixels per side.',
+            'images' => 'Images must be JPEG, PNG, GIF, or WebP files of at most '.CreateCommitImages::MAX_SOURCE_DIMENSION.' pixels per side.',
         ]);
     }
 }
