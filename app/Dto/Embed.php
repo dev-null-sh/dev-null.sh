@@ -41,6 +41,11 @@ final readonly class Embed implements Arrayable
         return new self($provider, $kind, self::withQuery($src, $query), null, $height);
     }
 
+    public static function gif(string $provider, string $src, ?string $poster = null): self
+    {
+        return new self($provider, EmbedKind::Gif, $src, '1 / 1', null, $poster);
+    }
+
     /**
      * @return array{provider: string, kind: string, src: string, aspect_ratio: string|null, height: int|null, poster: string|null}
      */
