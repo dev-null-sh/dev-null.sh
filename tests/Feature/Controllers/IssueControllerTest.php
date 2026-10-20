@@ -2,13 +2,21 @@
 
 declare(strict_types=1);
 
+use App\Jobs\AwardContributorBadgeJob;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 
 beforeEach(function (): void {
     $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
@@ -243,3 +251,47 @@ it('does not count rejected drafts or failed attempts towards the limit', functi
 
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertCreated();
 });
+
+it('preserves a created issue and its quota when badge persistence fails', function (bool $queueFails): void {
+    Exceptions::fake();
+    fakeGitHubApp();
+    $user = User::factory()->create();
+
+    if ($queueFails) {
+        Log::spy();
+        Bus::shouldReceive('dispatch')->once()->andThrow(new RuntimeException('Queue unavailable.'));
+    } else {
+        Queue::fake([AwardContributorBadgeJob::class]);
+    }
+
+    Event::listen('eloquent.updating: '.User::class, function (User $updating): void {
+        throw_if($updating->isDirty('is_contributor'), QueryException::class, 'pgsql', 'update users set is_contributor = true where id = ?', [], new PDOException('SQLSTATE[55P03]: canceling statement due to lock timeout'));
+    });
+
+    try {
+        $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'A valid report.'])
+            ->assertCreated()
+            ->assertJsonPath('number', 123);
+    } finally {
+        Event::forget('eloquent.updating: '.User::class);
+    }
+
+    expect(RateLimiter::attempts('issues:'.$user->id))->toBe(1)
+        ->and($user->fresh()->is_contributor)->toBeFalse();
+    Exceptions::assertReported(QueryException::class);
+
+    if ($queueFails) {
+        Exceptions::assertReported(RuntimeException::class);
+        Log::shouldHaveReceived('warning')->once()->with('Contributor badge retry could not be queued.', [
+            'github_id' => $user->github_id,
+            'repository' => 'nunomaduro/dev-null.sh',
+            'issue_number' => 123,
+        ]);
+    } else {
+        Queue::assertPushed(AwardContributorBadgeJob::class, fn (AwardContributorBadgeJob $job): bool => $job->githubId === $user->github_id);
+        Queue::pushed(AwardContributorBadgeJob::class)->sole()->handle();
+        expect($user->fresh()->is_contributor)->toBeTrue();
+    }
+
+    Http::assertSentCount(3);
+})->with(['retry queued' => false, 'retry queue also unavailable' => true]);

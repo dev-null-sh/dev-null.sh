@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Jobs\AwardContributorBadgeJob;
 use App\Models\User;
 use App\Services\GitHubApp;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
@@ -13,6 +16,7 @@ use League\CommonMark\Extension\CommonMark\Node\Block\Heading;
 use League\CommonMark\Node\Node;
 use League\CommonMark\Node\StringContainerHelper;
 use League\CommonMark\Parser\MarkdownParser;
+use Throwable;
 
 final readonly class CreateIssue
 {
@@ -31,8 +35,8 @@ final readonly class CreateIssue
     {
         $type = mb_substr($command, 1);
         $title = mb_trim(Str::before($body, "\n"));
-        $markdown = new Environment();
-        $markdown->addExtension(new CommonMarkCoreExtension());
+        $markdown = new Environment;
+        $markdown->addExtension(new CommonMarkCoreExtension);
 
         $heading = collect([...new MarkdownParser($markdown)->parse($body)->children()])
             ->first(fn (Node $node): bool => $node instanceof Heading && $node->getLevel() === 1);
@@ -56,7 +60,22 @@ final readonly class CreateIssue
             [$type === 'feature' ? 'enhancement' : 'bug'],
         );
 
-        $user->update(['is_contributor' => true]);
+        try {
+            $user->update(['is_contributor' => true]);
+        } catch (Throwable $throwable) {
+            report($throwable);
+
+            rescue(
+                fn (): mixed => Bus::dispatch(new AwardContributorBadgeJob($user->github_id)),
+                function () use ($user, $issue): void {
+                    Log::warning('Contributor badge retry could not be queued.', [
+                        'github_id' => $user->github_id,
+                        'repository' => config()->string('services.github.repository'),
+                        'issue_number' => $issue['number'],
+                    ]);
+                },
+            );
+        }
 
         return $issue;
     }
