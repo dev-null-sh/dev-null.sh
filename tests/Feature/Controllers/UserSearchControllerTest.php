@@ -111,3 +111,16 @@ it('leaves out muted people and people across a block', function (): void {
         ->assertJsonCount(1, 'users')
         ->assertJsonPath('users.0.username', 'taylor');
 });
+
+it('finds users by bio, after name and username matches', function (): void {
+    User::factory()->create(['username' => 'rustacean', 'name' => 'Ferris', 'bio' => 'Writes Laravel by day']);
+    User::factory()->create(['username' => 'laravelfan', 'name' => 'Fan', 'bio' => null]);
+    User::factory()->create(['username' => 'gopher', 'name' => 'Gopher', 'bio' => 'Go only']);
+
+    $this->actingAs(User::factory()->create(['username' => 'viewer', 'name' => 'Viewer', 'bio' => null]))
+        ->getJson('/search/users?q=laravel')
+        ->assertOk()
+        ->assertJsonCount(2, 'users')
+        ->assertJsonPath('users.0.username', 'laravelfan')
+        ->assertJsonPath('users.1.username', 'rustacean');
+});

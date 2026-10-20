@@ -31,7 +31,8 @@ final readonly class UserSearchQuery
         return User::query()
             ->where(fn (Builder $query): Builder => $query
                 ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
-                ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
+                ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+                ->orWhereRaw("LOWER(bio) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
             ->when($viewer, fn (Builder $query, User $viewer): Builder => $query
                 ->whereNotIn('id', $viewer->mutedIds())
                 ->whereNotIn('id', $viewer->idsAcrossBlocks()))
