@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Ai\Agents\Tom;
+use App\Ai\Agents\TomToolDecision;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
@@ -34,7 +35,9 @@ final readonly class CreateTomReply
             return;
         }
 
-        $body = mb_trim(new Tom($commit)->prompt($commit->body)->text);
+        $history = new Tom($commit)->messages();
+        $decision = new TomToolDecision(array_values($history->all()))->prompt($commit->body);
+        $body = mb_trim(new Tom($commit, array_values($decision->toolResults->all()))->prompt($commit->body)->text);
 
         if ($body === '') {
             throw new RuntimeException('Tom returned an empty reply.');

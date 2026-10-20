@@ -5,16 +5,10 @@ declare(strict_types=1);
 namespace App\Ai\Agents;
 
 use App\Actions\CreateTomFriendship;
-use App\Ai\Tools\CommunityStats;
-use App\Ai\Tools\RepositoryInsights;
-use App\Ai\Tools\SearchCommits;
-use App\Ai\Tools\SearchKnowledgeBase;
-use App\Ai\Tools\SearchRepositoryHistory;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use Illuminate\Support\Collection;
-use Laravel\Ai\Attributes\MaxSteps;
 use Laravel\Ai\Attributes\MaxTokens;
 use Laravel\Ai\Attributes\Model;
 use Laravel\Ai\Attributes\Provider;
@@ -22,22 +16,21 @@ use Laravel\Ai\Attributes\Timeout;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasProviderOptions;
-use Laravel\Ai\Contracts\HasTools;
-use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Promptable;
+use Laravel\Ai\Responses\Data\ToolResult;
 
 #[Provider('opencode')]
 #[Model('deepseek-v4.1-flash')]
-#[MaxSteps(3)]
 #[MaxTokens(700)]
 #[Timeout(15)]
-final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
+final class Tom implements Agent, Conversational, HasProviderOptions
 {
     use Promptable;
 
-    public function __construct(private Commit $commit)
+    /** @param list<ToolResult> $evidence */
+    public function __construct(private Commit $commit, private array $evidence = [])
     {
         //
     }
@@ -51,6 +44,10 @@ final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
             'botMention' => User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->first(['username'])?->mention() ?? '@'.CreateTomFriendship::USERNAME,
             'mention' => $this->commit->user?->mention() ?? '@',
             'nearlyFull' => $characters >= 9600 || $messages->count() >= 10,
+            'evidence' => collect($this->evidence)->map(fn (ToolResult $result): array => [
+                'tool' => $result->name,
+                'result' => $result->result,
+            ])->toJson(),
         ])->render());
     }
 
@@ -75,18 +72,6 @@ final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
             })
             ->reverse()
             ->values();
-    }
-
-    /** @return list<Tool> */
-    public function tools(): iterable
-    {
-        return [
-            new SearchCommits,
-            new SearchKnowledgeBase,
-            new RepositoryInsights,
-            new SearchRepositoryHistory,
-            new CommunityStats,
-        ];
     }
 
     /** @return array<string, mixed> */

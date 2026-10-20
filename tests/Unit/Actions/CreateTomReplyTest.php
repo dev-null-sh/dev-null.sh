@@ -7,6 +7,7 @@ use App\Actions\CreateTomFriendship;
 use App\Actions\CreateTomReply;
 use App\Actions\UpdateCommitStatuses;
 use App\Ai\Agents\Tom;
+use App\Ai\Agents\TomToolDecision;
 use App\Enums\CommitStatus;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
@@ -19,6 +20,7 @@ it('creates one reply through the normal moderation pipeline and never replaces 
     config(['services.openai.key' => 'test']);
     Queue::fake([ModerateCommit::class, EmbedCommit::class, ReplyAsTom::class]);
     Tom::fake(['A developer community, with rusty friends. :-D'])->preventStrayPrompts();
+    TomToolDecision::fake(['done'])->preventStrayPrompts();
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create();
     $commit = Commit::factory()->for($root, 'parent')->create(['body' => '@tom what is this place?', 'mentions' => ['tom' => $tom->id]]);
@@ -35,6 +37,7 @@ it('creates one reply through the normal moderation pipeline and never replaces 
     Queue::assertPushed(EmbedCommit::class, fn (EmbedCommit $job): bool => $job->commit->is($reply));
     Queue::assertNotPushed(ReplyAsTom::class);
     Tom::assertPrompted('@tom what is this place?');
+    TomToolDecision::assertPrompted('@tom what is this place?');
 
     $reply->delete();
     resolve(CreateTomReply::class)->handle($commit->id);
@@ -61,6 +64,7 @@ it('answers direct replies without a mention only after approval', function (boo
     config(['ai.providers.opencode.key' => 'test']);
     Queue::fake([ReplyAsTom::class]);
     Tom::fake(['Glad to help.']);
+    TomToolDecision::fake(['done'])->preventStrayPrompts();
     $tom = User::factory()->create(['username' => $username, 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create();
     $answer = Commit::factory()->for($root, 'parent')->for($tom)->create();
@@ -130,6 +134,7 @@ it('keeps a Tom reply reserved beyond its full provider budget and job timeout',
 
 it('does not prompt for ineligible mentions', function (string $case): void {
     Tom::fake()->preventStrayPrompts();
+    TomToolDecision::fake()->preventStrayPrompts();
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
 
@@ -149,10 +154,26 @@ it('does not prompt for ineligible mentions', function (string $case): void {
     resolve(CreateTomReply::class)->handle($commit->id);
 
     Tom::assertNeverPrompted();
+    TomToolDecision::assertNeverPrompted();
     expect($commit->replies()->count())->toBe(0);
 })->with(['pending', 'rejected', 'deleted', 'author gone', 'self', 'unmentioned', 'wrong identity', 'renamed', 'blocked', 'blocker']);
 
+it('does not ask Tom to answer when the tool decision fails', function (): void {
+    TomToolDecision::fake(fn (): string => throw new RuntimeException('sensitive provider response'));
+    Tom::fake()->preventStrayPrompts();
+    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
+
+    expect(fn () => new ReplyAsTom($commit->id)->handle(resolve(CreateTomReply::class)))
+        ->toThrow(RuntimeException::class, 'Tom reply failed for commit '.$commit->id.'.');
+
+    Tom::assertNeverPrompted();
+    TomToolDecision::assertPrompted('@tom hello');
+    expect($commit->replies()->count())->toBe(0);
+});
+
 it('discards a generated answer if its parent changes while the model is running', function (string $change): void {
+    TomToolDecision::fake(['done'])->preventStrayPrompts();
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
     Tom::fake(function () use ($commit, $tom, $change): string {
@@ -172,6 +193,7 @@ it('discards a generated answer if its parent changes while the model is running
 })->with(['deleted', 'rejected', 'blocked']);
 
 it('retries failed or blank responses without retaining provider content', function (?string $response): void {
+    TomToolDecision::fake(['done', 'done'])->preventStrayPrompts();
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
     Tom::fake(fn (): string => $response ?? throw new RuntimeException('sensitive provider response'));
@@ -194,6 +216,7 @@ it('queues and answers mentions of the reserved tom handle after approval', func
     config(['ai.providers.opencode.key' => 'test']);
     Queue::fake([ReplyAsTom::class]);
     Tom::fake(['Still here. :-D'])->preventStrayPrompts();
+    TomToolDecision::fake(['done'])->preventStrayPrompts();
     $tom = User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $owner = User::factory()->create(['username' => 'tom']);
     $user = User::factory()->create();
@@ -216,6 +239,7 @@ it('still answers a captured mention when tom is renamed before approval', funct
     config(['ai.providers.opencode.key' => 'test']);
     Queue::fake([ReplyAsTom::class]);
     Tom::fake(['I remember.'])->preventStrayPrompts();
+    TomToolDecision::fake(['done'])->preventStrayPrompts();
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), '@tom hello');
     $tom->update(['username' => 'devnull-tom']);
