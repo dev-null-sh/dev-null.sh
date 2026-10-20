@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia;
 
 /**
  * @return array<string, mixed>
@@ -82,6 +83,6 @@ it('says the changelog is unavailable when GitHub cannot be reached', function (
 it('opens the changelog as a page', function (): void {
     $this->get('/changelog')
         ->assertOk()
-        ->assertInertia(fn (Inertia\Testing\AssertableInertia $page) => $page
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('changelog/show'));
 });
