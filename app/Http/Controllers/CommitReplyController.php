@@ -13,6 +13,7 @@ use App\Http\Requests\ListCommitRepliesRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitRepliesQuery;
+use App\Queries\CommitThreadQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
 
@@ -23,14 +24,20 @@ final readonly class CommitReplyController
         return response()->json($replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE), $request->exceptedReplyId()));
     }
 
-    public function store(CreateCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action): JsonResponse
+    public function store(CreateCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action, CommitThreadQuery $thread): JsonResponse
     {
         $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview());
+        $parent = $thread->get($commit, $user);
 
         return response()->json([
             'committed' => [
                 'id' => $reply->id,
                 'body' => $reply->body,
+            ],
+            'parent' => [
+                'id' => $parent->id,
+                'replies_count' => $parent->replies_count,
+                'continuation_id' => $parent->continuation_id,
             ],
             ...$reply->status === CommitStatus::Pending ? ['toast' => [
                 'type' => 'info',

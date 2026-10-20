@@ -2,13 +2,12 @@ import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { FollowButton } from '@/components/follow-button';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
-import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
@@ -16,6 +15,7 @@ import { useComposerVisibility } from '@/hooks/use-composer-visibility';
 import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
+import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
@@ -42,9 +42,9 @@ export default function Show({
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
-    const composerRef = useRef<HTMLDivElement>(null);
+    const [composer, setComposer] = useState<HTMLDivElement | null>(null);
     useLaneSwipe(feedRef, log);
-    useComposerVisibility(composerRef, tabsHeight);
+    useComposerVisibility(composer, tabsHeight);
 
     useEffect(() => {
         const tabs = tabsRef.current;
@@ -67,11 +67,11 @@ export default function Show({
 
     const { stop: stopPolling } = usePoll(
         30_000,
-        () => ({
+        backgroundPollOptions(() => ({
             only: ['newCommitsCount'],
             data: { since: newestId },
             preserveUrl: true,
-        }),
+        })),
         { autoStart: newestId !== undefined },
     );
 
@@ -132,7 +132,7 @@ export default function Show({
             </div>
 
             {user !== null && (
-                <div ref={composerRef}>
+                <div ref={setComposer}>
                     <CommitComposer key={commitDialogClosedCount} />
                 </div>
             )}
@@ -162,10 +162,9 @@ export default function Show({
                     commits={commits}
                     firstSeenId={firstSeenId}
                     isRanked={isRanked}
+                    isBelowComposer={user !== null}
                     end="That's the root commit. There's nothing before it."
-                    interlude={(lane, isDimmed) => (
-                        <WhoToFollowInLog lane={lane} isDimmed={isDimmed} />
-                    )}
+                    interlude={() => <WhoToFollowInLog />}
                     empty={
                         log === 'following' ? (
                             <EmptyFeed command="fatal: your log does not have any commits yet">
@@ -237,16 +236,12 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 />
                             </p>
                         </div>
-                        <Button size="sm" asChild>
-                            <Link
-                                href={UserFollowController.store(commit.user)}
-                                as="button"
-                                preserveScroll
-                                aria-label={`Follow @${commit.user.username}`}
-                            >
-                                Follow
-                            </Link>
-                        </Button>
+                        <FollowButton
+                            user={commit.user}
+                            isFollowing={false}
+                            size="sm"
+                            className="min-w-24 shrink-0"
+                        />
                     </li>
                 ))}
             </ul>

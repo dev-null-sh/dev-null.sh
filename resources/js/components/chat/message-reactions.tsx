@@ -1,6 +1,6 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Copy, Search, SmilePlus } from 'lucide-react';
-import type { KeyboardEvent, PointerEvent, ReactNode } from 'react';
+import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -163,89 +163,181 @@ export function ReactionChips({
 }
 
 /**
- * The quick reactions and the picker, floating over the top corner of the message on hover. Clamped to the message's
- * column, so it never pokes out of the thread on short bubbles.
+ * The quick reactions and the picker, in a row that unfolds under the message when its react button is pressed,
+ * nudging what follows down, and folds back once an emoji is picked, Escape is pressed, or anything else is clicked.
+ * It stays in the tree so the fold animates both ways, and is inert while folded.
  */
-export function ReactionBar({
+export function ReactionTray({
+    id,
+    isOpen,
+    onOpenChange,
+    trigger,
     usage,
     reacted,
     isMine,
     onReact,
 }: {
+    id: string;
+    isOpen: boolean;
+    onOpenChange: (isOpen: boolean) => void;
+    trigger: RefObject<HTMLButtonElement | null>;
     usage: ReactionUsage[];
     reacted: Set<string>;
     isMine: boolean;
     onReact: (emoji: string) => void;
 }) {
-    const [isOpen, setIsOpen] = useState(false);
+    const tray = useRef<HTMLDivElement>(null);
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const isPicking = isOpen && isPickerOpen;
     const isPicked = useRef(false);
+
+    const close = () => {
+        onOpenChange(false);
+        trigger.current?.focus({ preventScroll: true });
+    };
+
+    const react = (emoji: string) => {
+        onReact(emoji);
+        close();
+    };
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        void preloadEmojiGroups();
+        tray.current
+            ?.querySelector<HTMLButtonElement>('button')
+            ?.focus({ preventScroll: true });
+    }, [isOpen]);
+
+    // The full picker dismisses itself when something else is clicked; the tray only follows on the next click.
+    useEffect(() => {
+        if (!isOpen || isPicking) {
+            return;
+        }
+
+        const onPointerDown = (event: globalThis.PointerEvent) => {
+            const target = event.target as Node;
+
+            if (
+                tray.current?.contains(target) ||
+                trigger.current?.contains(target)
+            ) {
+                return;
+            }
+
+            onOpenChange(false);
+        };
+
+        document.addEventListener('pointerdown', onPointerDown);
+
+        return () => document.removeEventListener('pointerdown', onPointerDown);
+    }, [isOpen, isPicking, onOpenChange, trigger]);
 
     return (
         <div
-            role="toolbar"
-            aria-label="React"
-            data-open={isOpen ? '' : undefined}
-            onPointerEnter={() => void preloadEmojiGroups()}
+            ref={tray}
+            id={id}
+            inert={!isOpen}
+            data-state={isOpen ? 'open' : 'closed'}
+            onKeyDown={(event) => {
+                if (event.key === 'Escape' && !isPicking) {
+                    event.preventDefault();
+                    close();
+                }
+            }}
             className={cn(
-                'pointer-events-none absolute bottom-[calc(100%-8px)] z-10 flex items-center gap-0.5 rounded-full border bg-popover p-[3px] opacity-0 shadow-[0_8px_24px_-10px_rgb(0_0_0/0.45)] transition-opacity group-hover/message:pointer-events-auto group-hover/message:opacity-100 has-focus-visible:pointer-events-auto has-focus-visible:opacity-100 data-open:pointer-events-auto data-open:opacity-100 pointer-coarse:hidden',
-                isMine
-                    ? 'right-[max(0px,calc(100%-7.5rem))]'
-                    : 'left-[max(0px,calc(100%-7.5rem))]',
+                'grid w-full transition-[grid-template-rows,margin-bottom] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none pointer-coarse:hidden',
+                isOpen ? '-mb-2 grid-rows-[1fr]' : 'grid-rows-[0fr]',
             )}
-            data-test="reaction-bar"
+            data-test="reaction-tray"
         >
-            {quickReactions(usage).map((emoji) => (
-                <button
-                    key={emoji}
-                    type="button"
-                    aria-label={`React with ${shortcodeOf(emoji)}`}
-                    aria-pressed={reacted.has(emoji)}
-                    title={shortcodeOf(emoji)}
-                    onClick={() => onReact(emoji)}
+            {/* The fold clips, so it reaches past the row by the shadow's spread, and the open tray gives that back below. */}
+            <div
+                className={cn('-mx-2 flex min-h-0 overflow-hidden px-2', {
+                    'justify-end': isMine,
+                })}
+            >
+                <div
+                    role="toolbar"
+                    aria-label="React"
                     className={cn(
-                        'grid size-7 place-items-center rounded-full text-base leading-none transition-[background-color,scale] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-90',
-                        { 'bg-primary-soft': reacted.has(emoji) },
+                        'mt-0.5 mb-3.5 flex w-max items-center gap-0.5 rounded-full border bg-popover p-[3px] shadow-[0_6px_16px_-8px_rgb(0_0_0/0.35)] transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none',
+                        isOpen
+                            ? 'translate-y-0 opacity-100'
+                            : '-translate-y-2 opacity-0',
                     )}
-                    data-test="quick-reaction"
                 >
-                    {emoji}
-                </button>
-            ))}
-            <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
-            <Popover open={isOpen} onOpenChange={setIsOpen}>
-                <PopoverTrigger asChild>
-                    <button
-                        type="button"
-                        aria-label="More reactions"
-                        title="More reactions"
-                        className="grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-accent data-[state=open]:text-foreground"
-                        data-test="more-reactions"
-                    >
-                        <SmilePlus aria-hidden className="size-4" />
-                    </button>
-                </PopoverTrigger>
-                <PopoverContent
-                    align={isMine ? 'end' : 'start'}
-                    collisionPadding={8}
-                    className="flex h-[min(25rem,var(--radix-popover-content-available-height))] w-76 flex-col overflow-hidden rounded-xl p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
-                    onCloseAutoFocus={(event) => {
-                        if (isPicked.current) {
-                            event.preventDefault();
-                            isPicked.current = false;
-                        }
-                    }}
-                >
-                    <EmojiPicker
-                        usage={usage}
-                        reacted={reacted}
-                        onPick={(emoji) => {
-                            isPicked.current = true;
-                            setIsOpen(false);
-                            onReact(emoji);
-                        }}
-                    />
-                </PopoverContent>
-            </Popover>
+                    {quickReactions(usage).map((emoji, index) => (
+                        <span
+                            key={emoji}
+                            style={{
+                                transitionDelay: isOpen
+                                    ? `${80 + index * 40}ms`
+                                    : '0ms',
+                            }}
+                            className={cn(
+                                'transition-[opacity,scale] duration-400 ease-spring motion-reduce:transition-none',
+                                isOpen
+                                    ? 'scale-100 opacity-100'
+                                    : 'scale-50 opacity-0',
+                            )}
+                        >
+                            <button
+                                type="button"
+                                aria-label={`React with ${shortcodeOf(emoji)}`}
+                                aria-pressed={reacted.has(emoji)}
+                                title={shortcodeOf(emoji)}
+                                onClick={() => react(emoji)}
+                                className={cn(
+                                    'grid size-8 place-items-center rounded-full text-lg leading-none transition-[background-color,scale] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-90',
+                                    { 'bg-primary-soft': reacted.has(emoji) },
+                                )}
+                                data-test="quick-reaction"
+                            >
+                                {emoji}
+                            </button>
+                        </span>
+                    ))}
+                    <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
+                    <Popover open={isPicking} onOpenChange={setIsPickerOpen}>
+                        <PopoverTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label="More reactions"
+                                title="More reactions"
+                                className="grid size-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-accent data-[state=open]:text-foreground"
+                                data-test="more-reactions"
+                            >
+                                <SmilePlus aria-hidden className="size-4" />
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                            align={isMine ? 'end' : 'start'}
+                            collisionPadding={8}
+                            className="flex h-[min(25rem,var(--radix-popover-content-available-height))] w-76 flex-col overflow-hidden rounded-xl p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
+                            onCloseAutoFocus={(event) => {
+                                if (isPicked.current) {
+                                    event.preventDefault();
+                                    isPicked.current = false;
+                                }
+                            }}
+                        >
+                            <EmojiPicker
+                                usage={usage}
+                                reacted={reacted}
+                                onPick={(emoji) => {
+                                    isPicked.current = true;
+                                    setIsPickerOpen(false);
+                                    react(emoji);
+                                }}
+                            />
+                        </PopoverContent>
+                    </Popover>
+                </div>
+            </div>
         </div>
     );
 }
@@ -375,7 +467,7 @@ export function EmojiPicker({
                 id={`${id}-emoji`}
                 role="listbox"
                 aria-label="Emoji"
-                className="min-h-0 flex-1 [scrollbar-width:thin] overflow-y-auto overscroll-contain px-1.5 pb-1.5"
+                className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain px-1.5 pb-1.5"
             >
                 {isSearching && all.length === 0 && (
                     <p className="px-2 py-8 text-center font-mono text-[13px] text-muted-foreground">
@@ -632,11 +724,31 @@ export function ReactionSheet({
     onReact: (emoji: string) => void;
 }) {
     const [isPicking, setIsPicking] = useState(false);
+    const [isReleased, setIsReleased] = useState(false);
+    const isHeld = isOpen && !isReleased;
     const isArmed = useRef(false);
+
+    // The finger that long pressed is still down when the sheet opens, wherever its controls land under it.
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        const release = () => setIsReleased(true);
+
+        window.addEventListener('pointerup', release, { once: true });
+        window.addEventListener('pointercancel', release, { once: true });
+
+        return () => {
+            window.removeEventListener('pointerup', release);
+            window.removeEventListener('pointercancel', release);
+        };
+    }, [isOpen]);
 
     const close = () => {
         onOpenChange(false);
         setIsPicking(false);
+        setIsReleased(false);
     };
 
     const react = (emoji: string) => {
@@ -660,6 +772,11 @@ export function ReactionSheet({
                     onOpenAutoFocus={(event) => {
                         event.preventDefault();
                         isArmed.current = false;
+
+                        // A long press while typing puts the keyboard away, so the sheet has the screen.
+                        if (document.activeElement instanceof HTMLElement) {
+                            document.activeElement.blur();
+                        }
                     }}
                     // The finger that long pressed lifts over the sheet, which must not count as a tap on it.
                     onPointerDownCapture={() => {
@@ -681,7 +798,10 @@ export function ReactionSheet({
                             close();
                         }
                     }}
-                    className="fixed inset-0 z-50 flex flex-col px-3 pt-[max(1rem,env(safe-area-inset-top))] outline-none"
+                    className={cn(
+                        'fixed inset-x-0 top-[var(--visual-viewport-top,0px)] z-50 flex h-[var(--visual-viewport-height,100dvh)] flex-col px-3 pt-[max(1rem,env(safe-area-inset-top))] outline-none select-none [-webkit-touch-callout:none]',
+                        { '[&_[data-sheet-part]]:pointer-events-none': isHeld },
+                    )}
                     data-test="reaction-sheet"
                 >
                     <DialogPrimitive.Title className="sr-only">
@@ -818,7 +938,7 @@ function PickerSheet({
                     : undefined
             }
             className={cn(
-                '-mx-3 mt-auto flex h-[min(60dvh,28rem)] flex-col rounded-t-2xl border-t bg-popover pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-16px_rgb(0_0_0/0.45)] motion-safe:animate-in motion-safe:slide-in-from-bottom',
+                '-mx-3 mt-auto flex h-[min(calc(var(--visual-viewport-height,100dvh)*0.6),28rem)] flex-col rounded-t-2xl border-t bg-popover pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-16px_rgb(0_0_0/0.45)] motion-safe:animate-in motion-safe:slide-in-from-bottom',
                 { 'transition-transform duration-200': !isDragging },
             )}
             data-test="emoji-sheet"

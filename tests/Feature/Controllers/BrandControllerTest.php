@@ -40,5 +40,13 @@ it('ships every asset the brand page links to', function (): void {
         }
     }
 
+    foreach (['mark', 'redirect', 'log'] as $kind) {
+        foreach (['light', 'dark'] as $theme) {
+            expect(public_path("images/brand/dev-null-wallpaper-{$kind}-{$theme}-desktop.png"))->toBeFile()
+                ->and(public_path("images/brand/dev-null-wallpaper-{$kind}-{$theme}-desktop-preview.png"))->toBeFile()
+                ->and(public_path("images/brand/dev-null-wallpaper-{$kind}-{$theme}-phone.png"))->toBeFile();
+        }
+    }
+
     expect(public_path('images/brand/dev-null-brand.zip'))->toBeFile();
 });

@@ -9,6 +9,7 @@ import {
     memo,
     useCallback,
     useEffect,
+    useId,
     useLayoutEffect,
     useMemo,
     useRef,
@@ -19,15 +20,15 @@ import {
     MessageImages,
     MessageLinkCard,
     MessageText,
+    BubbleActions,
     Repliable,
-    ReplyButton,
     ReplyGhost,
 } from '@/components/chat/message-parts';
 import type { Author } from '@/components/chat/message-parts';
 import {
-    ReactionBar,
     ReactionChips,
     ReactionSheet,
+    ReactionTray,
     useTouchReactions,
 } from '@/components/chat/message-reactions';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
@@ -47,7 +48,6 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useChat, useThread } from '@/hooks/use-chat';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import {
@@ -62,8 +62,11 @@ import {
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
+import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
 import type { ReactionUsage } from '@/lib/reactions';
+import { restoreScrollAnchor, scrollAnchorOf } from '@/lib/scroll-anchor';
+import type { ScrollAnchor } from '@/lib/scroll-anchor';
 import {
     characterCount,
     cn,
@@ -80,6 +83,11 @@ import type {
 } from '@/types';
 
 const maxLength = 2000;
+
+/**
+ * The thread scrolls from its bottom, so its scroll position is 0 at the latest message and negative above it.
+ */
+const isAtLatest = (scroller: HTMLElement): boolean => scroller.scrollTop > -48;
 
 const noMessages: Message[] = [];
 
@@ -143,11 +151,11 @@ export function ConversationThread({
     // Renaming an org updates the thread's target, not the one this was opened with.
     const current = thread?.target ?? target;
     const scroller = useRef<HTMLDivElement>(null);
-    const headLine = useRef<HTMLDivElement>(null);
     const list = useRef<HTMLOListElement>(null);
+    const headLine = useRef<HTMLDivElement>(null);
     const isPinned = useRef(true);
     const hasScrolledIn = useRef(false);
-    const previousHeight = useRef<number | null>(null);
+    const anchor = useRef<ScrollAnchor | null>(null);
     const seenLatest = useRef(0);
     const [unseen, setUnseen] = useState(0);
 
@@ -160,9 +168,9 @@ export function ConversationThread({
         () => itemsOf(messages, pending, head, headUntil, user, isOrg),
         [messages, pending, head, headUntil, user, isOrg],
     );
-    const lastMine = useMemo(
-        () => lastMineOf(messages, pending, user),
-        [messages, pending, user],
+    const statusMessage = useMemo(
+        () => statusMessageOf(messages, pending, user, isOrg),
+        [messages, pending, user, isOrg],
     );
     const pulls = useMemo<Pulls>(
         () => ({
@@ -263,31 +271,20 @@ export function ConversationThread({
             hasScrolledIn.current = true;
             seenLatest.current = latestId;
             headLine.current?.scrollIntoView({ block: 'center' });
-
-            if (headLine.current === null) {
-                element.scrollTop = element.scrollHeight;
-            }
-
-            isPinned.current =
-                element.scrollHeight -
-                    element.scrollTop -
-                    element.clientHeight <
-                48;
-
-            return;
-        }
-
-        if (previousHeight.current !== null) {
-            element.scrollTop += element.scrollHeight - previousHeight.current;
-            previousHeight.current = null;
+            isPinned.current = isAtLatest(element);
+            anchor.current = scrollAnchorOf(element);
 
             return;
         }
 
         if (isPinned.current) {
-            element.scrollTop = element.scrollHeight;
+            element.scrollTop = 0;
             seenLatest.current = latestId;
         } else {
+            if (anchor.current !== null) {
+                restoreScrollAnchor(element, anchor.current);
+            }
+
             setUnseen(
                 messages.filter(
                     (message) =>
@@ -297,11 +294,14 @@ export function ConversationThread({
                 ).length,
             );
         }
-        // Scrolling follows new content only, not every poll that changes nothing.
+        // Scrolling follows new messages only, not every poll that changes nothing. Older messages need nothing: the
+        // scroller is anchored at its bottom, so what loads above the visible rows never moves them.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [contentKey, thread?.isLoaded, messages[0]?.id]);
+    }, [contentKey, thread?.isLoaded]);
 
-    // Rows settle their height after the first paint, so a pinned thread follows them down.
+    // A row below the visible ones can still change height, as reactions or a link card arrive, and the scroller itself
+    // shrinks as the composer grows or the keyboard opens. Anchored at its bottom, either would move what is being read,
+    // so the top visible row is kept where it was.
     useEffect(() => {
         const element = scroller.current;
         const content = list.current;
@@ -311,12 +311,11 @@ export function ConversationThread({
         }
 
         const observer = new ResizeObserver(() => {
-            if (isPinned.current) {
-                element.scrollTop = element.scrollHeight;
+            if (!isPinned.current && anchor.current !== null) {
+                restoreScrollAnchor(element, anchor.current);
             }
         });
 
-        // The scroller shrinks too when the composer grows, as a message wraps or a reply or images are added.
         observer.observe(content);
         observer.observe(element);
 
@@ -330,9 +329,8 @@ export function ConversationThread({
             return;
         }
 
-        isPinned.current =
-            element.scrollHeight - element.scrollTop - element.clientHeight <
-            48;
+        isPinned.current = isAtLatest(element);
+        anchor.current = scrollAnchorOf(element);
 
         if (isPinned.current) {
             seenLatest.current = latestId;
@@ -343,12 +341,13 @@ export function ConversationThread({
             }
         }
 
+        // Older messages load a screen ahead, so scrolling up rarely reaches the top before they arrive.
         if (
-            element.scrollTop < 120 &&
+            element.scrollHeight - element.clientHeight + element.scrollTop <
+                element.clientHeight &&
             thread?.has_older &&
             !thread.isLoadingOlder
         ) {
-            previousHeight.current = element.scrollHeight;
             void loadOlderMessages(target);
         }
     };
@@ -356,7 +355,7 @@ export function ConversationThread({
     const jumpToLatest = () => {
         const element = scroller.current;
 
-        element?.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
+        element?.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     return (
@@ -374,7 +373,7 @@ export function ConversationThread({
             <div
                 ref={scroller}
                 onScroll={onScroll}
-                className="flex min-h-0 flex-1 [scrollbar-width:thin] flex-col overflow-y-auto overscroll-contain"
+                className="flex min-h-0 flex-1 scrollbar-thin flex-col-reverse overflow-y-auto overscroll-contain [overflow-anchor:none]"
                 data-test="conversation-messages"
             >
                 {thread === null || !thread.isLoaded ? (
@@ -385,7 +384,7 @@ export function ConversationThread({
                         aria-live="polite"
                         aria-relevant="additions"
                         className={cn(
-                            'mt-auto flex flex-col pb-1',
+                            'flex flex-col pb-1',
                             isCompact
                                 ? 'px-3 pt-3 text-sm'
                                 : 'px-4 pt-4 text-[15px]',
@@ -411,7 +410,7 @@ export function ConversationThread({
                                 key={item.key}
                                 item={item}
                                 pulls={pulls}
-                                lastMine={lastMine}
+                                statusMessage={statusMessage}
                                 user={user}
                                 target={target}
                                 headLine={headLine}
@@ -581,12 +580,12 @@ function itemsOf(
 }
 
 /**
- * Only re-renders when its own messages, or the read position, change. Rows off screen skip layout and paint.
+ * Only re-renders when its own messages, or the read position, change.
  */
 const ThreadItem = memo(function ThreadItem({
     item,
     pulls,
-    lastMine,
+    statusMessage,
     user,
     target,
     headLine,
@@ -599,7 +598,7 @@ const ThreadItem = memo(function ThreadItem({
 }: {
     item: Item;
     pulls: Pulls;
-    lastMine: string | null;
+    statusMessage: string | null;
     user: User;
     target: ChatTarget;
     headLine: React.RefObject<HTMLDivElement | null>;
@@ -643,13 +642,10 @@ const ThreadItem = memo(function ThreadItem({
 
     return (
         <li
-            className={cn(
-                'flex flex-col gap-0.5 [contain-intrinsic-size:auto_3rem] [content-visibility:auto] focus-within:[content-visibility:visible] hover:[content-visibility:visible] has-data-open:[content-visibility:visible] [&+&]:mt-2.5',
-                {
-                    'items-end': item.isMine,
-                    'items-start': !item.isMine,
-                },
-            )}
+            className={cn('flex flex-col gap-0.5 [&+&]:mt-2.5', {
+                'items-end': item.isMine,
+                'items-start': !item.isMine,
+            })}
         >
             {item.author !== null && (
                 <span
@@ -683,7 +679,7 @@ const ThreadItem = memo(function ThreadItem({
                         bubble={bubble}
                         isMine={item.isMine}
                         isLast={isLast}
-                        isLatestMine={key === lastMine}
+                        showsStatus={key === statusMessage}
                         pulls={pulls}
                         user={user}
                         target={target}
@@ -700,29 +696,11 @@ const ThreadItem = memo(function ThreadItem({
     );
 });
 
-function lastMineOf(
-    messages: Message[],
-    pendingMessages: PendingMessage[],
-    user: User,
-): string | null {
-    const pending = pendingMessages.at(-1);
-
-    if (pending) {
-        return pending.client_id;
-    }
-
-    return (
-        messages.findLast(
-            (message) => message.user_id === user.id && !message.event,
-        )?.client_id ?? null
-    );
-}
-
 function BubbleWithMeta({
     bubble,
     isMine,
     isLast,
-    isLatestMine,
+    showsStatus,
     pulls,
     user,
     target,
@@ -736,7 +714,7 @@ function BubbleWithMeta({
     bubble: Bubble;
     isMine: boolean;
     isLast: boolean;
-    isLatestMine: boolean;
+    showsStatus: boolean;
     pulls: Pulls;
     user: User;
     target: ChatTarget;
@@ -748,6 +726,9 @@ function BubbleWithMeta({
     onReact: ((messageId: number, emoji: string) => void) | null;
 }) {
     const [isReacting, setIsReacting] = useState(false);
+    const [isTrayOpen, setIsTrayOpen] = useState(false);
+    const trayId = useId();
+    const reactButton = useRef<HTMLButtonElement>(null);
     const message =
         bubble.kind === 'message'
             ? bubble.message
@@ -760,14 +741,10 @@ function BubbleWithMeta({
         bubble.kind === 'message'
             ? (bubble.message.images ?? [])
             : bubble.pending.images;
-    const pulledBy =
+    const { pulledBy, total } =
         bubble.kind === 'message' && target.kind === 'org'
-            ? pulls.members
-                  .filter(
-                      (member) => member.read_through_id >= bubble.message.id,
-                  )
-                  .map((member) => member.user)
-            : [];
+            ? pullsOf(pulls.members, bubble.message)
+            : { pulledBy: [], total: 0 };
     const status =
         bubble.kind === 'pending'
             ? bubble.pending.status
@@ -811,6 +788,10 @@ function BubbleWithMeta({
         onReact !== null && bubble.kind === 'message'
             ? (emoji: string) => onReact(bubble.message.id, emoji)
             : null;
+    const toggleTray =
+        reactToThis === null
+            ? null
+            : () => setIsTrayOpen((isTrayOpen) => !isTrayOpen);
     const touch = useTouchReactions(
         reactToThis === null
             ? null
@@ -824,9 +805,16 @@ function BubbleWithMeta({
         <>
             <Repliable isMine={isMine} onReply={replyToThis}>
                 <div
+                    data-scroll-anchor={
+                        bubble.kind === 'message'
+                            ? bubble.message.client_id
+                            : bubble.pending.client_id
+                    }
                     className={cn(
                         'relative flex max-w-[85%] min-w-0 flex-col gap-1',
-                        isCompact ? 'max-w-[88%]' : 'sm:max-w-[78%]',
+                        isCompact
+                            ? 'max-w-[88%] pointer-fine:max-w-[calc(100%-3.5rem)]'
+                            : 'sm:max-w-[78%]',
                         isMine ? 'items-end' : 'items-start',
                         {
                             '[-webkit-touch-callout:none] pointer-coarse:select-none':
@@ -835,14 +823,6 @@ function BubbleWithMeta({
                     )}
                     {...touch}
                 >
-                    {reactToThis !== null && (
-                        <ReactionBar
-                            usage={usage}
-                            reacted={reacted}
-                            isMine={isMine}
-                            onReact={reactToThis}
-                        />
-                    )}
                     {reply !== null && (
                         <ReplyGhost
                             reply={reply}
@@ -854,10 +834,14 @@ function BubbleWithMeta({
                     {images.length > 0 && (
                         <div className="relative max-w-full">
                             <MessageImages images={images} />
-                            {replyToThis !== null && message.body === '' && (
-                                <ReplyButton
+                            {message.body === '' && (
+                                <BubbleActions
                                     isMine={isMine}
                                     onReply={replyToThis}
+                                    onReact={toggleTray}
+                                    isReacting={isTrayOpen}
+                                    reactRef={reactButton}
+                                    trayId={trayId}
                                 />
                             )}
                         </div>
@@ -876,9 +860,9 @@ function BubbleWithMeta({
                                     ? 'bg-primary text-primary-foreground'
                                     : 'bg-muted text-foreground',
                                 {
-                                    'bg-transparent text-foreground outline-[1.5px] -outline-offset-[1.5px] outline-primary outline-dashed':
+                                    'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-primary outline-dashed':
                                         status === 'staged',
-                                    'bg-transparent text-foreground outline-[1.5px] -outline-offset-[1.5px] outline-destructive outline-solid':
+                                    'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-destructive outline-solid':
                                         status === 'rejected',
                                 },
                             )}
@@ -887,16 +871,30 @@ function BubbleWithMeta({
                                 message={message}
                                 isMine={isOnPrimary}
                             />
-                            {replyToThis !== null && (
-                                <ReplyButton
-                                    isMine={isMine}
-                                    onReply={replyToThis}
-                                />
-                            )}
+                            <BubbleActions
+                                isMine={isMine}
+                                onReply={replyToThis}
+                                onReact={toggleTray}
+                                isReacting={isTrayOpen}
+                                reactRef={reactButton}
+                                trayId={trayId}
+                            />
                         </div>
                     )}
                     {bubble.kind === 'message' && (
                         <MessageLinkCard message={bubble.message} />
+                    )}
+                    {reactToThis !== null && (
+                        <ReactionTray
+                            id={trayId}
+                            isOpen={isTrayOpen}
+                            onOpenChange={setIsTrayOpen}
+                            trigger={reactButton}
+                            usage={usage}
+                            reacted={reacted}
+                            isMine={isMine}
+                            onReact={reactToThis}
+                        />
                     )}
                     <ReactionChips
                         reactions={reactions}
@@ -956,7 +954,7 @@ function BubbleWithMeta({
                         retry
                     </button>
                 </MetaLine>
-            ) : isMine && isLatestMine ? (
+            ) : isMine && showsStatus ? (
                 <MetaLine>
                     <MessageStatusGlyph
                         status={status}
@@ -972,10 +970,7 @@ function BubbleWithMeta({
                         {pulledBy.length > 0 && ' by'}
                     </span>
                     {pulledBy.length > 0 && (
-                        <PulledBy
-                            users={pulledBy}
-                            total={pulls.members.length}
-                        />
+                        <PulledBy users={pulledBy} total={total} />
                     )}
                 </MetaLine>
             ) : (
@@ -985,6 +980,12 @@ function BubbleWithMeta({
                         <time dateTime={bubble.message.created_at}>
                             {timeOf(bubble.message.created_at)}
                         </time>
+                        {showsStatus && pulledBy.length > 0 && (
+                            <>
+                                <span>· pulled by</span>
+                                <PulledBy users={pulledBy} total={total} />
+                            </>
+                        )}
                     </MetaLine>
                 )
             )}
@@ -1064,6 +1065,7 @@ function useMessageDraft(user: User, target: ChatTarget) {
         stash.images,
         stash.descriptions,
         stash.updateImages,
+        stash.key,
     );
     const linkCard = useLinkCard(stash.body);
     const secrets = useSecretWarning(stash.body);
@@ -1101,7 +1103,6 @@ function Composer({
     onSend: () => void;
 }) {
     const id = `message-${targetKey(target).replace(':', '-')}`;
-    const isMobile = useIsMobile();
     const placeholder =
         target.kind === 'direct'
             ? `Message @${target.partner.username}`
@@ -1131,7 +1132,11 @@ function Composer({
     const submit = (event?: FormEvent) => {
         event?.preventDefault();
 
-        if ((trimmed === '' && !hasImages) || !secrets.beforeSubmit()) {
+        if (
+            attachments.isReading() ||
+            (trimmed === '' && !hasImages) ||
+            !secrets.beforeSubmit()
+        ) {
             return;
         }
 
@@ -1147,12 +1152,7 @@ function Composer({
         linkCard.reset();
         setReplyingTo(target, null);
         showError(null);
-
-        if (isMobile) {
-            input.current?.blur();
-        } else {
-            input.current?.focus();
-        }
+        input.current?.focus();
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1167,10 +1167,12 @@ function Composer({
             return;
         }
 
+        // On touch screens the keyboard's return key adds a line, and Push sends.
         if (
             event.key === 'Enter' &&
             !event.shiftKey &&
-            !event.nativeEvent.isComposing
+            !event.nativeEvent.isComposing &&
+            !window.matchMedia('(pointer: coarse)').matches
         ) {
             submit(event);
         }
@@ -1308,7 +1310,8 @@ function Composer({
                     </label>
                     <ImagePickerButton
                         count={attachments.images.length}
-                        onPick={attachments.attach}
+                        reading={attachments.reading}
+                        onPick={attachments.pick}
                         className={cn(
                             '-mx-1 shrink-0',
                             isCompact ? 'size-9' : 'size-10',
@@ -1342,14 +1345,19 @@ function Composer({
                         placeholder={placeholder}
                         aria-invalid={shownError !== null || undefined}
                         className={cn(
-                            'field-sizing-content max-h-40 min-h-10 min-w-0 flex-1 resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
+                            'field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 min-w-0 flex-1 resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
                             { 'min-h-9 py-1.5 md:text-sm': isCompact },
                         )}
                         data-test="message-input"
                     />
                     <Button
                         type="submit"
-                        disabled={trimmed === '' && !hasImages}
+                        disabled={
+                            attachments.reading ||
+                            (trimmed === '' && !hasImages)
+                        }
+                        // Pushing keeps the keyboard open, so the next message can follow right away.
+                        onPointerDown={(event) => event.preventDefault()}
                         className={cn(
                             'shrink-0',
                             isCompact ? 'h-9 min-w-16' : 'h-10 min-w-20',

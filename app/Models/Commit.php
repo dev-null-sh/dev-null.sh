@@ -78,7 +78,7 @@ final class Commit extends Model
      */
     public const int CHECKING_MINUTES = 15;
 
-    public const int MIN_BODY_LENGTH = 3;
+    public const int MIN_BODY_LENGTH = 1;
 
     public const int MAX_BODY_LENGTH = 4000;
 
@@ -154,6 +154,11 @@ final class Commit extends Model
     public function stars(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'stars')->withTimestamps();
+    }
+
+    public function isAddressedTo(User $user): bool
+    {
+        return in_array($user->id, $this->mentions ?? [], true) || $this->parent?->user_id === $user->id;
     }
 
     /**

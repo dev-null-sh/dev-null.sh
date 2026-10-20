@@ -123,6 +123,32 @@ it('paginates the log', function (Log $log): void {
             ->whereNot('commits.next_cursor', null));
 })->with(Log::cases());
 
+it('draws the trending log anew on each visit', function (): void {
+    config(['trending.temperature' => 0.5]);
+    $user = User::factory()->create();
+    Commit::factory()->count(10)->create(['created_at' => now()]);
+
+    $draw = fn (): array => array_column($this->actingAs($user)->get('/log/trending')->inertiaProps('commits.data'), 'id');
+
+    expect($draw())->not->toBe($draw());
+});
+
+it('keeps the draw of the trending log while it scrolls', function (): void {
+    config(['trending.temperature' => 0.5]);
+    $user = User::factory()->create();
+    $commits = Commit::factory()->count(25)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $first = $this->actingAs($user)->get('/log/trending');
+    $second = $this->actingAs($user)->get(route('log.show', [Log::Trending, 'cursor' => $first->inertiaProps('commits.next_cursor')]));
+
+    $ids = array_column([...$first->inertiaProps('commits.data'), ...$second->inertiaProps('commits.data')], 'id');
+
+    expect($ids)->toEqualCanonicalizing($commits->modelKeys())
+        ->and($second->inertiaProps('commits.next_cursor'))->toBeNull();
+});
+
 it('does not count the authenticated user relations when reloading only commits', function (): void {
     $user = User::factory()->has(Commit::factory())->create();
 
@@ -475,7 +501,7 @@ it('includes the images and link previews of quoted commits', function (Log $log
 })->with(Log::cases());
 
 it('loads the quoted commits of a log without a query per commit', function (Log $log): void {
-    $user = User::factory()->create(['log' => $log]);
+    $user = User::factory()->create(['log' => $log, 'last_seen_at' => today()]);
 
     $queries = function () use ($user, $log): int {
         DB::flushQueryLog();
@@ -498,6 +524,7 @@ it('loads the quoted commits of a log without a query per commit', function (Log
 it('defers suggested users to follow', function (): void {
     $user = User::factory()->create();
     $suggested = User::factory()->has(Commit::factory())->create();
+    $suggested->following()->attach($user);
 
     $response = $this->actingAs($user)
         ->get('/log/trending');
@@ -510,6 +537,8 @@ it('defers suggested users to follow', function (): void {
                 ->has('suggestedUsers', 1)
                 ->where('suggestedUsers.0.id', $suggested->id)
                 ->where('suggestedUsers.0.followed_by_following_count', 0)
+                ->where('suggestedUsers.0.follows_you', true)
+                ->where('suggestedUsers.0.bio', $suggested->bio)
                 ->missing('suggestedUsers.0.email')));
 
     expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
@@ -597,16 +626,19 @@ it('points feed commits to the rest of their author thread instead of previewing
         ->where('commits.data.0.reply_preview.next_cursor', null));
 });
 
-it('preloads the latest reply per feed commit with a cursor to the older replies', function (): void {
+it('preloads the newest replies per feed commit with a cursor to the older replies', function (): void {
     $viewer = User::factory()->create();
     $parents = Commit::factory()->for($viewer)->count(2)->create();
     foreach ($parents as $parent) {
+        Commit::factory()->for($parent, 'parent')->create(['body' => 'Oldest reply', 'created_at' => now()->subMinutes(3)]);
         Commit::factory()->for($parent, 'parent')->create(['body' => 'Older reply', 'created_at' => now()->subMinutes(2)]);
         Commit::factory()->for($parent, 'quotedCommit')->create(['body' => 'Latest quote', 'created_at' => now()->subMinute()]);
         Commit::factory()->for($parent, 'parent')->pending()->create();
     }
 
-    $response = $this->actingAs($viewer)->get(route('log.show', 'latest'));
+    $response = $this->actingAs($viewer)
+        ->withUnencryptedCookie('replies_per_page', '1')
+        ->get(route('log.show', 'latest'));
     $response->assertOk()->assertInertia(function ($page): void {
         foreach ([0, 1] as $index) {
             $page->has("commits.data.{$index}.reply_preview.data", 1)
@@ -616,8 +648,30 @@ it('preloads the latest reply per feed commit with a cursor to the older replies
     foreach (array_slice($response->inertiaProps('commits.data'), 0, 2) as $commit) {
         $this->getJson(route('commit-reply.index', [
             $commit['id'], 'newest' => 1, 'cursor' => $commit['reply_preview']['next_cursor'],
-        ]))->assertOk()->assertJsonCount(1, 'data')
+        ]))->assertOk()->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.body', 'Older reply')
+            ->assertJsonPath('data.1.body', 'Oldest reply')
             ->assertJsonPath('next_cursor', null);
     }
 });
+
+it('preloads as many of the newest replies as the viewer shows at a time', function (?string $cookie, int $shown): void {
+    $viewer = User::factory()->create();
+    $parent = Commit::factory()->for($viewer)->create();
+    foreach (range(12, 1) as $minutes) {
+        Commit::factory()->for($parent, 'parent')->create(['body' => "Reply {$minutes}", 'created_at' => now()->subMinutes($minutes)]);
+    }
+
+    $request = $cookie === null ? $this : $this->withUnencryptedCookie('replies_per_page', $cookie);
+
+    $request->actingAs($viewer)->get(route('log.show', 'latest'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commits.data.0.reply_preview.data', fn ($replies): bool => collect($replies)->pluck('body')->all() === array_map(
+            fn (int $minutes): string => "Reply {$minutes}",
+            range(1, $shown),
+        ))
+        ->where('commits.data.0.reply_preview.next_cursor', fn (?string $cursor): bool => ($cursor !== null) === ($shown < 12)));
+})->with([
+    'by default' => [null, 3],
+    'when picked' => ['10', 10],
+    'all of them' => ['25', 12],
+]);

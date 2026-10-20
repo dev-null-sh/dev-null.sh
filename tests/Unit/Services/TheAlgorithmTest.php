@@ -5,12 +5,12 @@ declare(strict_types=1);
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\Date;
 
-it('ranks a commit with twice the engagement like one committed six hours later', function (): void {
+it('ranks a commit with twice the engagement like one committed three hours later', function (): void {
     $theAlgorithm = new TheAlgorithm();
     $createdAt = Date::parse('2026-10-16 12:00:00');
 
     expect($theAlgorithm->score($createdAt, 1, 0))
-        ->toEqualWithDelta($theAlgorithm->score($createdAt->addHours(6), 0, 0), 1e-9);
+        ->toEqualWithDelta($theAlgorithm->score($createdAt->addHours(3), 0, 0), 1e-9);
 });
 
 it('counts each developer replying as three developers starring', function (): void {

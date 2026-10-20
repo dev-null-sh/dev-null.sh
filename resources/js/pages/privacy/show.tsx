@@ -68,7 +68,8 @@ export default function Show() {
                             <>
                                 <strong>Technical data:</strong> IP address,
                                 browser and device information, logs, and how
-                                you use the service.
+                                you use the service, such as the last day you
+                                used it.
                             </>,
                             <>
                                 <strong>Cookies and browser storage</strong>{' '}
@@ -121,11 +122,27 @@ export default function Show() {
                     <p>
                         Content, including text, images, and search queries, is
                         processed by automated systems and AI providers,
-                        currently OpenAI, to moderate it before it is published,
-                        and to power search, rankings, and other features. These
-                        systems only decide how content appears in the service,
-                        and don't produce legal or similarly significant effects
-                        on you.
+                        including OpenAI, OpenCode, and DeepSeek, to moderate it
+                        before it is published, and to power search, rankings,
+                        and other features. These systems only decide how
+                        content appears in the service, and don't produce legal
+                        or similarly significant effects on you.
+                    </p>
+                    <p>
+                        Tagging our AI bot in a public commit asks it to reply
+                        publicly. The tagged text, a limited window of public
+                        replies leading to it, and relevant public posts and
+                        knowledge-base excerpts are sent through OpenCode to
+                        DeepSeek. Search terms are processed by OpenAI. Private
+                        messages are not included in Tom's context.
+                    </p>
+                    <p>
+                        Public post text is also sent through OpenCode to
+                        DeepSeek to detect its language and, when requested, to
+                        translate it. Identical text shares cached translations
+                        for up to seven days. Your browser's preferred language
+                        selects which translation to display. Private messages
+                        are not translated.
                     </p>
                 </DocumentSection>
 

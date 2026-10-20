@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -45,6 +46,25 @@ it('shows who is typing', function (): void {
 
     $this->actingAs($mark)->getJson(route('org-message.index', $org))->assertJsonPath('typing', [$nuno->username]);
     $this->actingAs($nuno)->getJson(route('org-message.index', $org))->assertJsonPath('typing', []);
+});
+
+it('checks all org typing indicators in one cache read', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor, $quiet] = followersOf($mark, 3);
+    $org = createOrg($mark, [$nuno, $taylor, $quiet]);
+
+    $this->actingAs($nuno)->putJson(route('org-typing.update', $org))->assertNoContent();
+    $this->actingAs($taylor)->putJson(route('org-typing.update', $org))->assertNoContent();
+
+    $cache = Cache::store();
+    Cache::shouldReceive('many')
+        ->once()
+        ->andReturnUsing(fn (array $keys): array => $cache->many($keys));
+
+    $this->actingAs($mark)
+        ->getJson(route('org-message.index', $org))
+        ->assertOk()
+        ->assertJsonPath('typing', [$nuno->username, $taylor->username]);
 });
 
 it('stashes an org for one member', function (): void {

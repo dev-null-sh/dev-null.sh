@@ -1,7 +1,12 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import { useRef, useState } from 'react';
+import { formatCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Activity, ActivityBucket, ActivityScale } from '@/types';
+
+export type ActivityNoun = [singular: string, plural: string];
+
+const commits: ActivityNoun = ['commit', 'commits'];
 
 const monthNames = [
     'Jan',
@@ -24,7 +29,7 @@ const weekdayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 
 const levelMix = [0, 32, 56, 80, 100];
 
-const windows: Record<ActivityScale, string> = {
+export const activityWindows: Record<ActivityScale, string> = {
     day: 'in the last 24 hours',
     week: 'in the last 7 days',
     month: 'in the last 30 days',
@@ -64,21 +69,42 @@ function formatTime(time: Date): string {
         .join(':');
 }
 
-function describe(bucket: ActivityBucket, scale: ActivityScale): string {
-    const commits =
-        bucket.count === 0
-            ? 'No commits'
-            : `${bucket.count} ${bucket.count === 1 ? 'commit' : 'commits'}`;
+function count(total: number, [singular, plural]: ActivityNoun): string {
+    return `${formatCount(total)} ${total === 1 ? singular : plural}`;
+}
+
+export function activityTotal(activity: Activity): number {
+    return activity.buckets.reduce((sum, bucket) => sum + bucket.count, 0);
+}
+
+export function activitySummary(
+    activity: Activity,
+    noun: ActivityNoun,
+): string {
+    const total = activityTotal(activity);
+
+    return total === 0 && activity.scale !== 'year'
+        ? `No ${noun[1]} yet`
+        : `${count(total, noun)} ${activityWindows[activity.scale]}`;
+}
+
+function describe(
+    bucket: ActivityBucket,
+    scale: ActivityScale,
+    noun: ActivityNoun,
+): string {
+    const counted =
+        bucket.count === 0 ? `No ${noun[1]}` : count(bucket.count, noun);
 
     if (scale !== 'day') {
-        return `${commits} on ${formatDay(bucket.date, scale === 'year')}`;
+        return `${counted} on ${formatDay(bucket.date, scale === 'year')}`;
     }
 
     const start = new Date(bucket.date);
     const end = new Date(start.getTime() + 3_600_000);
     const isToday = start.toDateString() === new Date().toDateString();
 
-    return `${commits} between ${formatTime(start)} and ${formatTime(end)} ${isToday ? 'today' : 'yesterday'}`;
+    return `${counted} between ${formatTime(start)} and ${formatTime(end)} ${isToday ? 'today' : 'yesterday'}`;
 }
 
 function periodOf(bucket: ActivityBucket, scale: ActivityScale): string {
@@ -140,55 +166,13 @@ export function ActivityGraph({
     lane: string;
     onPeriodHover?: (period: string | null) => void;
 }) {
-    const sectionRef = useRef<HTMLElement>(null);
-    const [hovered, setHovered] = useState<HoveredBucket | null>(null);
-    const { scale, buckets } = activity;
-
-    const hoverBucket = (
-        bucket: ActivityBucket,
-        event: MouseEvent<HTMLSpanElement>,
-    ) => {
-        const section = sectionRef.current?.getBoundingClientRect();
-        const cell = event.currentTarget.getBoundingClientRect();
-
-        if (!section) {
-            return;
-        }
-
-        const left = cell.left - section.left + cell.width / 2;
-
-        setHovered({
-            bucket,
-            left,
-            top: cell.top - section.top,
-            align:
-                left < tooltipHalfWidth
-                    ? 'start'
-                    : left > section.width - tooltipHalfWidth
-                      ? 'end'
-                      : 'center',
-        });
-        onPeriodHover?.(bucket.count > 0 ? periodOf(bucket, scale) : null);
-    };
-
-    const clearHover = () => {
-        setHovered(null);
-        onPeriodHover?.(null);
-    };
-
-    const total = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
-    const max = Math.max(1, ...buckets.map((bucket) => bucket.count));
-    const isEmpty = total === 0 && scale !== 'year';
-    const summary = isEmpty
-        ? 'No commits yet'
-        : `${total} ${total === 1 ? 'commit' : 'commits'} ${windows[scale]}`;
+    const total = activityTotal(activity);
+    const isEmpty = total === 0 && activity.scale !== 'year';
 
     return (
         <section
-            ref={sectionRef}
             aria-labelledby="activity-heading"
-            className="relative border-b px-4 py-5 sm:px-6"
-            style={{ '--lane': lane } as CSSProperties}
+            className="border-b px-4 py-5 sm:px-6"
         >
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h2 id="activity-heading" className="text-sm font-semibold">
@@ -200,15 +184,85 @@ export function ActivityGraph({
                     ) : (
                         <>
                             <span className="font-mono text-foreground">
-                                {total}
+                                {formatCount(total)}
                             </span>{' '}
                             {total === 1 ? 'commit' : 'commits'}{' '}
-                            {windows[scale]}
+                            {activityWindows[activity.scale]}
                         </>
                     )}
                 </p>
             </div>
 
+            <ActivityCells
+                activity={activity}
+                color={lane}
+                noun={commits}
+                onPeriodHover={onPeriodHover}
+            />
+        </section>
+    );
+}
+
+/**
+ * The cells, their tooltip and the legend alone, so a page can put them under its own heading. The color is any CSS
+ * color the levels are mixed from: an author's lane on a profile, a neutral ink elsewhere.
+ */
+export function ActivityCells({
+    activity,
+    color,
+    noun,
+    onPeriodHover,
+}: {
+    activity: Activity;
+    color: string;
+    noun: ActivityNoun;
+    onPeriodHover?: (period: string | null) => void;
+}) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [hovered, setHovered] = useState<HoveredBucket | null>(null);
+    const { scale, buckets } = activity;
+
+    const hoverBucket = (
+        bucket: ActivityBucket,
+        event: MouseEvent<HTMLSpanElement>,
+    ) => {
+        const container = containerRef.current?.getBoundingClientRect();
+        const cell = event.currentTarget.getBoundingClientRect();
+
+        if (!container) {
+            return;
+        }
+
+        const left = cell.left - container.left + cell.width / 2;
+
+        setHovered({
+            bucket,
+            left,
+            top: cell.top - container.top,
+            align:
+                left < tooltipHalfWidth
+                    ? 'start'
+                    : left > container.width - tooltipHalfWidth
+                      ? 'end'
+                      : 'center',
+        });
+        onPeriodHover?.(bucket.count > 0 ? periodOf(bucket, scale) : null);
+    };
+
+    const clearHover = () => {
+        setHovered(null);
+        onPeriodHover?.(null);
+    };
+
+    const max = Math.max(1, ...buckets.map((bucket) => bucket.count));
+    const summary = activitySummary(activity, noun);
+
+    return (
+        <div
+            ref={containerRef}
+            className="relative"
+            style={{ '--lane': color } as CSSProperties}
+        >
             {scale === 'year' ? (
                 <YearGrid
                     buckets={buckets}
@@ -243,7 +297,7 @@ export function ActivityGraph({
                     data-tooltip
                     style={{ left: hovered.left, top: hovered.top - 6 }}
                 >
-                    {describe(hovered.bucket, scale)}
+                    {describe(hovered.bucket, scale, noun)}
                 </div>
             )}
 
@@ -261,7 +315,7 @@ export function ActivityGraph({
                 ))}
                 <span className="ml-1">More</span>
             </div>
-        </section>
+        </div>
     );
 }
 
@@ -356,7 +410,7 @@ function YearGrid({
             <div
                 role="img"
                 aria-label={summary}
-                className="grid min-w-[34rem] grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5"
+                className="grid min-w-136 grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1.5"
             >
                 <span aria-hidden />
                 <div

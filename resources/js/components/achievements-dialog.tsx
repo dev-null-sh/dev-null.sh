@@ -1,5 +1,7 @@
 import {
+    BotOff,
     Box,
+    Cookie,
     FileCode,
     Flame,
     GitMerge,
@@ -20,7 +22,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { dropConfetti } from '@/lib/confetti';
+import { cn, laneTint } from '@/lib/utils';
 import type { Achievements, Profile, User } from '@/types';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -35,6 +38,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     sparkles: Sparkles,
     'git-merge': GitMerge,
     key: Key,
+    cookie: Cookie,
+    'bot-off': BotOff,
 };
 
 export function AchievementsDialog({
@@ -71,8 +76,8 @@ export function AchievementsDialog({
                         <span
                             className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-medium text-foreground"
                             style={{
-                                borderColor: `${lane}40`,
-                                backgroundColor: `${lane}15`,
+                                borderColor: laneTint(lane, 25),
+                                backgroundColor: laneTint(lane, 8),
                             }}
                         >
                             Lv. {achievements.level} · {achievements.rank}
@@ -143,17 +148,15 @@ export function AchievementsDialog({
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {achievements.badges.map((badge) => {
                             const Icon = iconMap[badge.icon] ?? Terminal;
+                            const className = cn(
+                                'flex flex-col justify-between rounded-lg border p-3 text-left font-mono text-xs transition-colors',
+                                badge.unlocked
+                                    ? 'border-border bg-card shadow-xs hover:border-(--lane)'
+                                    : 'border-dashed border-border/80 bg-muted/20 text-muted-foreground',
+                            );
 
-                            return (
-                                <div
-                                    key={badge.id}
-                                    className={cn(
-                                        'flex flex-col justify-between rounded-lg border p-3 font-mono text-xs transition-colors',
-                                        badge.unlocked
-                                            ? 'border-border bg-card shadow-xs'
-                                            : 'border-dashed border-border/80 bg-muted/20 text-muted-foreground',
-                                    )}
-                                >
+                            const body = (
+                                <>
                                     <div>
                                         <div className="flex items-center justify-between gap-1.5">
                                             <div className="flex items-center gap-2">
@@ -199,7 +202,26 @@ export function AchievementsDialog({
                                             />
                                         </div>
                                     )}
-                                </div>
+                                </>
+                            );
+
+                            if (!badge.unlocked) {
+                                return (
+                                    <div key={badge.id} className={className}>
+                                        {body}
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <button
+                                    key={badge.id}
+                                    type="button"
+                                    className={className}
+                                    onClick={dropConfetti}
+                                >
+                                    {body}
+                                </button>
                             );
                         })}
                     </div>
@@ -210,19 +232,16 @@ export function AchievementsDialog({
                     <div className="space-y-2">
                         {achievements.ranks.map((rank) => {
                             const isCurrent = rank.level === achievements.level;
-
-                            return (
-                                <div
-                                    key={rank.rank}
-                                    className={cn(
-                                        'flex items-center justify-between gap-3 rounded-lg border p-3 font-mono text-xs transition-colors',
-                                        isCurrent
-                                            ? 'border-(--lane) bg-card ring-1 ring-(--lane)'
-                                            : rank.achieved
-                                              ? 'border-border bg-card'
-                                              : 'border-dashed border-border/60 bg-muted/20',
-                                    )}
-                                >
+                            const className = cn(
+                                'flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left font-mono text-xs transition-colors',
+                                isCurrent
+                                    ? 'border-(--lane) bg-card ring-1 ring-(--lane)'
+                                    : rank.achieved
+                                      ? 'border-border bg-card hover:border-(--lane)'
+                                      : 'border-dashed border-border/60 bg-muted/20',
+                            );
+                            const body = (
+                                <>
                                     <div className="flex items-center gap-2.5">
                                         <span
                                             className={cn(
@@ -269,7 +288,26 @@ export function AchievementsDialog({
                                             )}
                                         </div>
                                     </div>
-                                </div>
+                                </>
+                            );
+
+                            if (!rank.achieved) {
+                                return (
+                                    <div key={rank.rank} className={className}>
+                                        {body}
+                                    </div>
+                                );
+                            }
+
+                            return (
+                                <button
+                                    key={rank.rank}
+                                    type="button"
+                                    className={className}
+                                    onClick={dropConfetti}
+                                >
+                                    {body}
+                                </button>
                             );
                         })}
                     </div>
@@ -278,7 +316,7 @@ export function AchievementsDialog({
                 {/* Dry Unix XP Formula Footnote */}
                 <p className="border-t pt-2 text-center font-mono text-[11px] text-muted-foreground">
                     XP: 10/commit · 15/day streak · 5/star received · 5/reply ·
-                    2/star given
+                    2/star given · −100/luddite (minimum 0 XP)
                 </p>
             </DialogContent>
         </Dialog>

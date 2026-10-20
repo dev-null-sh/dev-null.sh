@@ -1,23 +1,22 @@
-import { Link, router, usePage } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import {
     Activity,
     Bell,
     Bookmark,
-    ExternalLink,
     GitCommitVertical,
     History,
-    Menu,
     MessagesSquare,
+    PanelLeftClose,
+    PanelLeftOpen,
     Search,
     Settings2,
     ShieldCheck,
     SquarePen,
     UserRound,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
-import BrandController from '@/actions/App/Http/Controllers/BrandController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
@@ -27,6 +26,8 @@ import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
 import { GitHubIcon } from '@/components/github-icon';
+import { LogoMenu } from '@/components/logo-menu';
+import { MobileMenuIcon } from '@/components/mobile-menu-icon';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -34,17 +35,27 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useChangelog } from '@/hooks/use-changelog';
 import { useUnreadMessages } from '@/hooks/use-chat';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { useMediaQuery } from '@/hooks/use-media-query';
+import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
 import { browserTimeZone, cn, toUrl } from '@/lib/utils';
 import { home, login } from '@/routes';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
 import type { Log, NavItem, Profile } from '@/types';
+
+const navLabelClassName =
+    'max-w-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] nav-wide:max-w-40 nav-wide:opacity-100 motion-reduce:transition-none';
 
 /**
  * Guests see the same items, each taking them to sign in.
@@ -130,7 +141,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                   ? isCurrentOrParentUrl('/log')
                   : item.title === 'Remotes'
                     ? isCurrentOrParentUrl('/remotes')
-                    : isCurrentUrl(item.href)),
+                    : item.title === 'Operations'
+                      ? isCurrentOrParentUrl('/operations')
+                      : isCurrentUrl(item.href)),
     }));
 }
 
@@ -140,37 +153,68 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
 function NavLink({
     item,
     className,
+    iconsOnly = false,
     children,
 }: {
     item: NavItem & { isActive: boolean };
     className: string;
+    iconsOnly?: boolean;
     children: ReactNode;
 }) {
     const { auth } = usePage().props;
+    const title = iconsOnly ? undefined : item.description;
 
     if (auth.user === null) {
         return (
-            <a
-                href={toUrl(item.href)}
-                title={item.description}
-                className={className}
-            >
-                {children}
-            </a>
+            <NavTooltip label={iconsOnly ? item.title : null}>
+                <a href={toUrl(item.href)} title={title} className={className}>
+                    {children}
+                </a>
+            </NavTooltip>
         );
     }
 
     return (
-        <Link
-            href={item.href}
-            prefetch={item.prefetch ?? true}
-            viewTransition
-            aria-current={item.isActive ? 'page' : undefined}
-            title={item.description}
-            className={className}
+        <NavTooltip label={iconsOnly ? item.title : null}>
+            <Link
+                href={item.href}
+                prefetch={item.prefetch ?? true}
+                viewTransition
+                aria-current={item.isActive ? 'page' : undefined}
+                title={title}
+                className={className}
+            >
+                {children}
+            </Link>
+        </NavTooltip>
+    );
+}
+
+/**
+ * The tooltip stays in the tree whether or not it can show, so toggling the navigation keeps each link and its label
+ * fades instead of being replaced.
+ */
+function NavTooltip({
+    label,
+    children,
+}: {
+    label: string | null;
+    children: ReactElement;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+
+    if (label === null && isOpen) {
+        setIsOpen(false);
+    }
+
+    return (
+        <Tooltip
+            open={label !== null && isOpen}
+            onOpenChange={(open) => setIsOpen(label !== null && open)}
         >
-            {children}
-        </Link>
+            <TooltipTrigger asChild>{children}</TooltipTrigger>
+            <TooltipContent side="right">{label}</TooltipContent>
+        </Tooltip>
     );
 }
 
@@ -179,9 +223,7 @@ function SignInButton({ className }: { className?: string }) {
         <Button asChild className={className}>
             <a href={login().url} data-test="nav-login-button">
                 <GitHubIcon className="size-4" />
-                <span className="sr-only lg:not-sr-only">
-                    Sign in with GitHub
-                </span>
+                <span className={navLabelClassName}>Sign in with GitHub</span>
             </a>
         </Button>
     );
@@ -230,40 +272,45 @@ export function AppNav({
     onCompose: () => void;
 }) {
     const { auth } = usePage().props;
+    const { isNavOpen: sidebarOpen, isLayoutOpen, setNavOpen } = useNavOpen();
     const items = useNavItems();
     const keys = useKeyLabels();
 
+    const iconsOnly = !(useMediaQuery('(min-width: 64rem)') && isLayoutOpen);
+
     return (
-        <header className="sticky top-0 hidden h-svh w-20 shrink-0 [scrollbar-width:none] flex-col items-center overflow-y-auto py-6 md:flex lg:w-64 lg:items-stretch lg:px-4">
-            <Link
-                href={auth.log === null ? home() : LogController.show(auth.log)}
-                viewTransition
-                className="mb-8 rounded-md px-3 lg:px-3"
-                onContextMenu={(event) => {
-                    // Right-clicking the logo goes to the brand assets, like most brand sites...
-                    event.preventDefault();
-                    router.visit(BrandController.show());
-                }}
-                aria-label={
-                    auth.log === null
-                        ? '/dev/null, go to the home page'
-                        : '/dev/null, go to your log'
-                }
-            >
-                <AppLogoIcon className="size-7 fill-current lg:hidden" />
-                <AppLogo className="hidden text-[1.75rem] font-bold tracking-[-0.03em] lg:inline-flex" />
-                <span className="mt-1 hidden text-sm text-muted-foreground lg:block">
-                    a social network for devs
-                </span>
-            </Link>
+        <header className="flex h-svh w-full scrollbar-none flex-col items-stretch overflow-x-hidden overflow-y-auto px-3.5 py-6 whitespace-nowrap">
+            <LogoMenu>
+                <Link
+                    href={
+                        auth.log === null
+                            ? home()
+                            : LogController.show(auth.log)
+                    }
+                    viewTransition
+                    className="mb-8 grid grid-rows-[36px_20px] gap-y-1 rounded-md px-3"
+                    aria-label={
+                        auth.log === null
+                            ? '/dev/null, go to the home page'
+                            : '/dev/null, go to your log'
+                    }
+                >
+                    <AppLogoIcon className="col-start-1 row-start-1 size-7 self-center fill-current opacity-100 transition-opacity duration-300 motion-reduce:transition-none nav-wide:opacity-0" />
+                    <AppLogo className="col-start-1 row-start-1 w-max max-w-0 overflow-hidden text-[1.75rem] font-bold tracking-[-0.03em] opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none nav-wide:max-w-52 nav-wide:opacity-100" />
+                    <span className="col-start-1 row-start-2 max-w-0 overflow-hidden text-sm leading-5 text-muted-foreground opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none nav-wide:max-w-52 nav-wide:opacity-100">
+                        a social network for devs
+                    </span>
+                </Link>
+            </LogoMenu>
 
             <nav aria-label="Main" className="flex flex-col gap-1">
                 {items.map((item) => (
                     <NavLink
                         key={item.title}
                         item={item}
+                        iconsOnly={iconsOnly}
                         className={cn(
-                            'relative isolate block rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                            'relative isolate block h-11 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                             {
                                 'text-primary hover:bg-transparent hover:text-primary':
                                     item.isActive,
@@ -284,64 +331,85 @@ export function AppNav({
                         >
                             <NavIcon
                                 item={item}
-                                indicatorClassName="lg:hidden"
+                                indicatorClassName="nav-wide:hidden"
                             />
-                            <span className="sr-only lg:not-sr-only">
+                            <span className={navLabelClassName}>
                                 {item.title}
                             </span>
                             {item.hasIndicator && (
                                 <span
-                                    className="ml-auto hidden size-2 rounded-full bg-primary lg:inline-block"
+                                    className="ml-auto hidden size-2 rounded-full bg-primary nav-wide:inline-block"
                                     data-test="notification-indicator"
                                 />
                             )}
                         </span>
                     </NavLink>
                 ))}
-                <button
-                    type="button"
-                    onClick={onSearch}
-                    className="flex items-center gap-3 rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground xl:hidden"
+                <NavTooltip label={iconsOnly ? 'Search' : null}>
+                    <button
+                        type="button"
+                        onClick={onSearch}
+                        className="flex h-11 items-center gap-3 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground xl:hidden"
+                    >
+                        <Search className="size-6 shrink-0" />
+                        <span className={navLabelClassName}>Search</span>
+                        <kbd className="ml-auto hidden rounded border border-b-2 bg-muted px-1.5 font-mono text-xs nav-wide:block">
+                            {keys.combo(keys.mod, 'K')}
+                        </kbd>
+                    </button>
+                </NavTooltip>
+                <NavTooltip label={iconsOnly ? 'Write a commit (C)' : null}>
+                    <button
+                        type="button"
+                        onClick={onCompose}
+                        aria-label="Write a commit"
+                        aria-keyshortcuts="c"
+                        title={iconsOnly ? undefined : 'Write a commit (C)'}
+                        className="flex h-11 items-center gap-3 rounded-lg bg-primary py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                        data-test="nav-commit-button"
+                    >
+                        <SquarePen className="size-5 shrink-0" />
+                        <span className={navLabelClassName}>Commit</span>
+                    </button>
+                </NavTooltip>
+                <NavTooltip
+                    label={
+                        iconsOnly ? (sidebarOpen ? 'Collapse' : 'Expand') : null
+                    }
                 >
-                    <Search className="size-5" />
-                    <span className="sr-only lg:not-sr-only">Search</span>
-                    <kbd className="ml-auto hidden rounded border border-b-2 bg-muted px-1.5 font-mono text-xs lg:block">
-                        {keys.combo(keys.mod, 'K')}
-                    </kbd>
-                </button>
-                <a
-                    href="https://github.com/nunomaduro/dev-null.sh"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Source code (opens in a new tab)"
-                    title="Source code"
-                    className="flex items-center gap-3 rounded-lg p-3 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                    data-test="source-code-link"
-                >
-                    <GitHubIcon className="size-5" />
-                    <span className="sr-only lg:not-sr-only">Source code</span>
-                    <ExternalLink
-                        aria-hidden
-                        className="ml-auto hidden size-4 lg:block"
-                    />
-                </a>
+                    <button
+                        type="button"
+                        onClick={() => setNavOpen(!sidebarOpen)}
+                        aria-label={
+                            sidebarOpen
+                                ? 'Collapse navigation'
+                                : 'Expand navigation'
+                        }
+                        aria-expanded={sidebarOpen}
+                        title={
+                            iconsOnly
+                                ? undefined
+                                : sidebarOpen
+                                  ? 'Collapse navigation'
+                                  : 'Expand navigation'
+                        }
+                        className="hidden h-11 items-center gap-3 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:flex"
+                        data-test="nav-collapse-button"
+                    >
+                        {sidebarOpen ? (
+                            <PanelLeftClose className="size-5 shrink-0" />
+                        ) : (
+                            <PanelLeftOpen className="size-5 shrink-0" />
+                        )}
+                        <span className={navLabelClassName}>
+                            {sidebarOpen ? 'Collapse' : 'Expand'}
+                        </span>
+                    </button>
+                </NavTooltip>
             </nav>
 
-            <Button
-                type="button"
-                onClick={onCompose}
-                aria-label="Write a commit"
-                aria-keyshortcuts="c"
-                title="Write a commit (C)"
-                className="mt-4 h-[52px] w-[52px] shrink-0 rounded-lg text-[15px] lg:w-auto"
-                data-test="nav-commit-button"
-            >
-                <SquarePen className="size-5" />
-                <span className="sr-only lg:not-sr-only">Commit</span>
-            </Button>
-
             {auth.user === null ? (
-                <SignInButton className="mt-auto h-[52px] w-[52px] rounded-lg lg:w-auto" />
+                <SignInButton className="mt-auto size-[52px] rounded-lg nav-wide:w-auto" />
             ) : (
                 <DropdownMenu>
                     <DropdownMenuTrigger
@@ -349,7 +417,7 @@ export function AppNav({
                         data-test="user-menu-button"
                     >
                         <UserAvatar user={auth.user} className="size-9" />
-                        <span className="hidden min-w-0 flex-1 lg:block">
+                        <span className="max-w-0 min-w-0 flex-1 overflow-hidden opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none nav-wide:max-w-40 nav-wide:opacity-100">
                             <span className="block truncate text-sm font-medium">
                                 {auth.user.name}
                             </span>
@@ -481,12 +549,14 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         }
 
         const root = document.documentElement;
-        const observer = new ResizeObserver(() =>
-            root.style.setProperty(
-                '--mobile-nav-height',
-                `${element.getBoundingClientRect().height}px`,
-            ),
-        );
+        // Hidden while the keyboard is open, it keeps its height, so toasts above it do not drop onto it on the way back.
+        const observer = new ResizeObserver(() => {
+            const { height } = element.getBoundingClientRect();
+
+            if (height > 0) {
+                root.style.setProperty('--mobile-nav-height', `${height}px`);
+            }
+        });
 
         observer.observe(element, { box: 'border-box' });
 
@@ -500,7 +570,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
         <nav
             ref={nav}
             aria-label="Main"
-            className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden"
+            className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden [:root[data-keyboard-open]_&]:hidden"
         >
             {children}
             {items.map((item) => (
@@ -553,7 +623,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                             },
                         )}
                     >
-                        <Menu className="size-5" />
+                        <MobileMenuIcon className="size-5" />
                     </span>
                     <span>Menu</span>
                 </DropdownMenuTrigger>

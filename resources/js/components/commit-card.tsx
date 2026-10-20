@@ -1,6 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, Trash2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
@@ -18,6 +18,7 @@ import {
     ThreadReplies,
     useThread,
 } from '@/components/commit-thread';
+import { useCommitTranslation } from '@/components/commit-translation';
 import {
     GraphRail,
     RailAvatar,
@@ -25,6 +26,7 @@ import {
     RailSegment,
 } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
+import { LiveStreamTrigger } from '@/components/live-stream-card';
 import { QuotedCommit } from '@/components/quoted-commit';
 import {
     ThreadPositionBadge,
@@ -38,9 +40,15 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { UserPreview } from '@/components/user-preview';
+import {
+    useCommitNotFound,
+    useIsCommitDeleted,
+} from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
+import { clickedCommit } from '@/lib/commit-click';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import { openInNewTabOnMiddleClick } from '@/lib/new-tab';
+import { measureCommitSize } from '@/lib/commit-size';
 import {
     cn,
     formatFullDateTime,
@@ -83,7 +91,7 @@ export function CommitCard({
     isHighlighted?: boolean;
     isGroupedWithPrevious?: boolean;
     onAuthorHover?: (isHovering: boolean) => void;
-    onHover?: (isHovering: boolean) => void;
+    onHover?: (isHovering: boolean, event: PointerEvent<HTMLElement>) => void;
     actions?: ReactNode;
     isFocused?: boolean;
     canDelete?: boolean;
@@ -103,6 +111,7 @@ export function CommitCard({
         component,
     } = usePage();
     const now = useNow();
+    const { bodyRef, ...translation } = useCommitTranslation(commit);
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const deleteButtonRef = useRef<HTMLButtonElement>(null);
     const thread = useThread(
@@ -111,6 +120,8 @@ export function CommitCard({
         loadsReplies,
         exceptReplyId,
     );
+    const wasDeleted = useIsCommitDeleted(commit.id);
+    const commitNotFound = useCommitNotFound();
     const [deletion, setDeletion] = useState<
         'idle' | 'confirming' | 'deleting'
     >('idle');
@@ -120,6 +131,20 @@ export function CommitCard({
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
+
+    const openClickedCommit = (event: MouseEvent<HTMLElement>) => {
+        const click = clickedCommit(
+            event,
+            window.getSelection()?.toString() ?? '',
+            window.location.pathname,
+        );
+
+        if (click?.newTab) {
+            window.open(click.url, '_blank', 'noopener');
+        } else if (click) {
+            router.visit(click.url);
+        }
+    };
 
     const cancelDeletion = () => {
         setDeletion('idle');
@@ -138,6 +163,13 @@ export function CommitCard({
                 router.visit(CommitController.destroy(commit), {
                     ...commitMutationOptions(component),
                     onError: () => setDeletion('idle'),
+                    onHttpException: (response) => {
+                        if (commitNotFound(commit.id, response)) {
+                            setDeletion('idle');
+
+                            return false;
+                        }
+                    },
                 }),
             prefersReducedMotion ? 0 : 700,
         );
@@ -145,23 +177,31 @@ export function CommitCard({
 
     return (
         <article
+            ref={measureCommitSize}
             className={cn(
-                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none focus-visible:bg-accent',
-                { 'bg-primary-soft/60': isHighlighted },
+                'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none hover:bg-accent/50 focus-visible:bg-accent',
+                {
+                    'bg-primary-soft/60': isHighlighted,
+                    'cursor-pointer': !isFocused && !wasDeleted,
+                },
                 deletion === 'deleting'
                     ? 'grid-rows-[0fr] opacity-0 delay-400'
                     : 'grid-rows-[1fr]',
             )}
             tabIndex={-1}
             data-commit={commit.id}
-            data-permalink={permalink.url}
+            data-permalink={wasDeleted ? undefined : permalink.url}
             data-test="commit"
-            onPointerEnter={
+            onClick={openClickedCommit}
+            onAuxClick={openClickedCommit}
+            onPointerMove={
                 onHover &&
-                ((event) => event.pointerType === 'mouse' && onHover(true))
+                ((event) =>
+                    event.pointerType === 'mouse' && onHover(true, event))
             }
             onPointerLeave={onHover && (() => onHover(false))}
             {...openInNewTabOnMiddleClick}
+            onPointerLeave={onHover && ((event) => onHover(false, event))}
         >
             <div className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]">
                 <GraphRail
@@ -183,22 +223,31 @@ export function CommitCard({
                             anchor={nodeRef}
                             className="flex"
                         >
-                            <Link
-                                ref={nodeRef}
-                                href={show(commit.user)}
-                                tabIndex={-1}
-                                className={cn('group/node flex rounded-full', {
-                                    '-translate-y-[9px]':
-                                        isGroupedWithPrevious &&
-                                        railNodePosition === 'top',
-                                })}
+                            <LiveStreamTrigger
+                                user={commit.user}
+                                hoverCard={false}
+                                className="flex"
                             >
-                                {isGroupedWithPrevious ? (
-                                    <RailDot className="group-hover/node:scale-125" />
-                                ) : (
-                                    <RailAvatar user={commit.user} />
-                                )}
-                            </Link>
+                                <Link
+                                    ref={nodeRef}
+                                    href={show(commit.user)}
+                                    tabIndex={-1}
+                                    className={cn(
+                                        'group/node flex rounded-full',
+                                        {
+                                            'translate-y-[-9px]':
+                                                isGroupedWithPrevious &&
+                                                railNodePosition === 'top',
+                                        },
+                                    )}
+                                >
+                                    {isGroupedWithPrevious ? (
+                                        <RailDot className="group-hover/node:scale-125" />
+                                    ) : (
+                                        <RailAvatar user={commit.user} />
+                                    )}
+                                </Link>
+                            </LiveStreamTrigger>
                         </UserPreview>
                     }
                 />
@@ -210,8 +259,10 @@ export function CommitCard({
                     )}
                 >
                     <div
+                        inert={wasDeleted}
                         className={cn('flex transition-opacity duration-200', {
-                            'opacity-50': isDimmed,
+                            'opacity-70': isDimmed,
+                            'opacity-50': wasDeleted,
                         })}
                     >
                         <div className="min-w-0 flex-1">
@@ -231,7 +282,7 @@ export function CommitCard({
                                     <Link
                                         href={show(commit.user)}
                                         tabIndex={-1}
-                                        className="shrink-[4] truncate font-mono text-[13px] text-muted-foreground"
+                                        className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
                                     >
                                         @{commit.user.username}
                                     </Link>
@@ -266,7 +317,10 @@ export function CommitCard({
 
                                 <CommitStatusBadge commit={commit} />
 
-                                <span className="relative ml-auto flex shrink-0 items-center self-center">
+                                <span
+                                    data-commit-hash
+                                    className="relative ml-auto flex shrink-0 items-center self-center"
+                                >
                                     <Link
                                         href={permalink}
                                         tabIndex={-1}
@@ -294,7 +348,7 @@ export function CommitCard({
                                                             'confirming',
                                                         )
                                                     }
-                                                    aria-label="Delete commit"
+                                                    aria-label="Revert commit"
                                                     className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:commit-hover:opacity-100 sm:commit-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
                                                     data-test="delete-commit-button"
                                                 >
@@ -302,7 +356,7 @@ export function CommitCard({
                                                 </button>
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                                Delete commit
+                                                Revert commit
                                             </TooltipContent>
                                         </Tooltip>
                                     )}
@@ -327,19 +381,24 @@ export function CommitCard({
                                     replying to @{commit.parent.user.username}
                                 </Link>
                             )}
-                            <FoldedCommitBody
-                                segments={commit.body_segments}
-                                mentions={commit.mentions}
-                                previewSegments={
-                                    isFolded && !isFocused
-                                        ? commit.preview_segments
-                                        : null
-                                }
-                                className={cn(
-                                    'mt-0.5',
-                                    isFocused ? 'text-[17px]' : 'text-[15px]',
-                                )}
-                            />
+                            <div ref={bodyRef} style={translation.bodyStyle}>
+                                <FoldedCommitBody
+                                    segments={translation.segments}
+                                    mentions={commit.mentions}
+                                    previewSegments={
+                                        isFolded && !isFocused
+                                            ? translation.previewSegments
+                                            : null
+                                    }
+                                    className={cn(
+                                        'mt-0.5',
+                                        isFocused
+                                            ? 'text-[17px]'
+                                            : 'text-[15px]',
+                                    )}
+                                />
+                            </div>
+                            {translation.notice}
                             {showImages && <CommitImages commit={commit} />}
                             {commit.poll && (
                                 <CommitPoll
@@ -385,11 +444,11 @@ export function CommitCard({
                                 </p>
                             )}
 
-                            {!isFocused && <ShowThreadLink commit={commit} />}
+                            {!isFocused && <ShowThreadLink thread={thread} />}
 
                             {commit.replies_count === undefined ? (
-                                <div className="mt-1 -ml-2 flex items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">
-                                    <div className="flex items-center gap-0.5">
+                                <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">
+                                    <div className="flex flex-wrap items-center gap-0.5">
                                         <CommitStarButton
                                             commit={commit}
                                             className="px-2 py-0.5"
@@ -402,6 +461,7 @@ export function CommitCard({
                                             commit={commit}
                                             keyShortcut="q"
                                         />
+                                        {translation.button}
                                     </div>
                                     <CommitSecondaryActions commit={commit} />
                                 </div>
@@ -423,6 +483,7 @@ export function CommitCard({
                                                 commit={commit}
                                                 keyShortcut="q"
                                             />
+                                            {translation.button}
                                             {threadActions}
                                         </>
                                     }
@@ -494,7 +555,7 @@ export function CommitCard({
                             <div
                                 className={cn(
                                     'transition-opacity duration-200',
-                                    { 'opacity-50': isDimmed },
+                                    { 'opacity-70': isDimmed },
                                 )}
                             >
                                 <ThreadReplies thread={thread} depth={0} />

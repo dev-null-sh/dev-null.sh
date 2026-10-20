@@ -14,13 +14,19 @@ import {
 } from '@/components/commit-composer-dialog';
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
+import { DeletedPageDialog } from '@/components/deleted-page-dialog';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
+import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
+import { usePageDeletion } from '@/hooks/use-deleted-resources';
+import { useFixedPage } from '@/hooks/use-fixed-page';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useNavOpen } from '@/hooks/use-nav-open';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
+import { backgroundPollOptions } from '@/lib/background-poll';
 import { cn } from '@/lib/utils';
 import type { AppLayoutProps } from '@/types';
 
@@ -29,6 +35,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         component,
         props: { auth },
     } = usePage();
+    const { isLayoutOpen } = useNavOpen();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [isComposing, setIsComposing] = useState(false);
@@ -38,6 +45,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const isMessages = component.startsWith('conversation/');
     const hasComposer = component === 'log/show' && !isGuest;
     const isComposerInView = useIsComposerInView();
+    const { deletedPage, markPageDeleted } = usePageDeletion();
     const compose = useCallback(() => {
         if (isGuest) {
             signIn();
@@ -58,66 +66,108 @@ export default function AppLayout({ children }: AppLayoutProps) {
         compose,
     );
     useTabSlide();
+    useFixedPage(isMessages);
 
     return (
-        <div className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center">
-            {component !== 'notification/index' && <NotificationCountPolling />}
-            <AppNav onSearch={openSearch} onCompose={compose} />
-
-            <main
-                className={cn(
-                    'min-w-0 flex-1 bg-card pb-40 md:max-w-[620px] md:border-x md:pb-0',
-                    { 'pb-20 md:max-w-[940px]': isMessages },
-                )}
+        <>
+            {!isMessages && <ProductHuntBanner />}
+            <div
+                data-nav={isLayoutOpen ? 'expanded' : 'collapsed'}
+                className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center"
             >
-                <MobileHeader onSearch={openSearch} />
-                <CommitStarPolling>{children}</CommitStarPolling>
-            </main>
+                {component !== 'notification/index' && deletedPage === null && (
+                    <NotificationCountPolling onNotFound={markPageDeleted} />
+                )}
+                <div
+                    data-nav-rail
+                    className="sticky top-0 hidden h-svh w-20 shrink-0 md:block lg:w-(--sidebar-width)"
+                >
+                    <AppNav onSearch={openSearch} onCompose={compose} />
+                </div>
 
-            {!isMessages && (
-                <AppAside
-                    onShowShortcuts={showShortcuts}
-                    onSearch={openSearch}
-                />
-            )}
+                <main
+                    data-main
+                    className={cn(
+                        'min-w-0 flex-1 bg-card pb-40 md:max-w-[620px] md:border-x md:pb-0 lg:max-w-[calc(876px-var(--sidebar-width))]',
+                        {
+                            'pb-20 md:max-w-[940px] lg:max-w-[calc(1196px-var(--sidebar-width))]':
+                                isMessages,
+                        },
+                    )}
+                >
+                    <div data-nav-content>
+                        <MobileHeader onSearch={openSearch} />
+                        <CommitStarPolling>{children}</CommitStarPolling>
+                    </div>
+                </main>
 
-            <MobileNav>
                 {!isMessages && (
-                    <MobileCommitButton
-                        isHidden={hasComposer && isComposerInView}
-                        onCompose={compose}
+                    <AppAside
+                        onShowShortcuts={showShortcuts}
+                        onSearch={openSearch}
                     />
                 )}
-            </MobileNav>
 
-            <CommitImageViewer />
+                <MobileNav>
+                    {!isMessages && (
+                        <MobileCommitButton
+                            isHidden={hasComposer && isComposerInView}
+                            onCompose={compose}
+                        />
+                    )}
+                </MobileNav>
 
-            {auth.user !== null && auth.remotes !== null && !isMessages && (
-                <ChatDock user={auth.user} />
-            )}
+                {deletedPage === null ? (
+                    <CommitImageViewer />
+                ) : (
+                    <DeletedPageDialog page={deletedPage} />
+                )}
 
-            <SearchDialog open={isSearching} onOpenChange={setIsSearching} />
+                {auth.user !== null && auth.remotes !== null && !isMessages && (
+                    <ChatDock user={auth.user} />
+                )}
 
-            <CommitComposerDialog
-                open={isComposing}
-                onOpenChange={setIsComposing}
-            />
+                <SearchDialog
+                    open={isSearching}
+                    onOpenChange={setIsSearching}
+                />
 
-            <KeyboardShortcutsDialog
-                open={isShowingShortcuts}
-                onOpenChange={setIsShowingShortcuts}
-                canModerate={auth.isAdmin}
-            />
+                <CommitComposerDialog
+                    open={isComposing}
+                    onOpenChange={setIsComposing}
+                />
 
-            {isGuest && <LocalSignInDialog />}
-        </div>
+                <KeyboardShortcutsDialog
+                    open={isShowingShortcuts}
+                    onOpenChange={setIsShowingShortcuts}
+                    canModerate={auth.isAdmin}
+                />
+
+                {isGuest && <LocalSignInDialog />}
+            </div>
+        </>
     );
 }
 
-function NotificationCountPolling() {
+/**
+ * The counts reload with the page's own URL, so they are also what first finds out that the page's commit is gone: the
+ * page then stays as it was, instead of turning into a 404, and the polling stops until another page is visited.
+ */
+function NotificationCountPolling({ onNotFound }: { onNotFound: () => void }) {
     usePoll(
         30_000,
-        { only: ['auth.unreadNotificationsCount', 'auth.unreadMessagesCount'] },
+        backgroundPollOptions({
+            only: ['auth.unreadNotificationsCount', 'auth.unreadMessagesCount'],
+            onHttpException: (response) => {
+                if (response.status !== 404) {
+                    return;
+                }
+
+                onNotFound();
+
+                return false;
+            },
+        }),
         { mode: 'rest', background: 'pause' },
     );
 

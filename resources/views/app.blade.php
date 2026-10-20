@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" @class(['dark' => ($appearance ?? 'system') == 'dark'])>
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
         <meta name="description" content="{{ $preview['description'] ?? 'A social network for developers. Sign in with GitHub, commit plain text to a shared log.' }}">
         @if (($appearance ?? 'system') === 'system')
             <meta name="theme-color" content="#f6f7f8" media="(prefers-color-scheme: light)">
@@ -87,6 +87,13 @@
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
         <link rel="manifest" href="/site.webmanifest">
+
+        {{-- Installed as an app: no browser chrome, and a status bar in the page's colors --}}
+        <meta name="application-name" content="/dev/null">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-title" content="/dev/null">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
         @fonts
 

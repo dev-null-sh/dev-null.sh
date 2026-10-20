@@ -8,6 +8,7 @@ import {
     MessageSquareReply,
     Quote,
     Star,
+    UserCheck,
     UserPlus,
     X,
 } from 'lucide-react';
@@ -23,24 +24,45 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
+import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
-import { FollowButton } from '@/components/follow-button';
+import { replaceFailedImage } from '@/components/commit-images';
+import {
+    onFollowHttpException,
+    useIsFollowing,
+} from '@/components/follow-button';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
+import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
+import { backgroundPollOptions } from '@/lib/background-poll';
 import {
     cn,
     formatDayLabel,
+    formatFullDateTime,
     formatRelativeTime,
+    isDeleted,
     laneColor,
     localDayKey,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { CursorPaginated, Notification, NotificationGroup } from '@/types';
+import type {
+    BodySegment,
+    Commit,
+    CursorPaginated,
+    DeletedCommit,
+    Notification,
+    NotificationGroup,
+} from '@/types';
 
 type Filters = { type: string };
 
@@ -137,7 +159,7 @@ export default function Index({
     const [arrivals, setArrivals] = useState(0);
     const { start, stop } = usePoll(
         30_000,
-        () => ({
+        backgroundPollOptions(() => ({
             only: ['notifications', 'auth.unreadNotificationsCount'],
             reset: ['notifications'],
             data: {
@@ -158,7 +180,7 @@ export default function Index({
             onFinish: () => {
                 pollRequest.current = null;
             },
-        }),
+        })),
         { mode: 'rest', background: 'pause' },
     );
     const filterVisit = useRef(0);
@@ -657,23 +679,81 @@ function NotificationGroupItem({
     );
 }
 
+/**
+ * An icon rather than a full button, since an expanded group of followers repeats it on every row. A group's summary
+ * row leaves it out, as it could only follow one of several people back.
+ */
 function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
-    const [isFollowing, setIsFollowing] = useState(actor.is_followed);
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        actor,
+        actor.is_followed,
+    );
+    const Icon = isFollowing ? UserCheck : UserPlus;
 
     return (
-        <FollowButton
-            user={actor}
-            isFollowing={isFollowing}
-            size="sm"
-            className="min-w-24 shrink-0"
-            only={['auth']}
-            preserveState
-            onSuccess={() => {
-                setIsFollowing(!isFollowing);
-                router.flushAll();
-            }}
-        />
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Link
+                    href={
+                        isFollowing
+                            ? UserFollowController.destroy(actor)
+                            : UserFollowController.store(actor)
+                    }
+                    as="button"
+                    only={['auth']}
+                    preserveState
+                    preserveScroll
+                    onHttpException={(response) =>
+                        onFollowHttpException(actor, response)
+                    }
+                    onSuccess={() => {
+                        setIsFollowing(!isFollowing);
+                        router.flushAll();
+                    }}
+                    aria-label={
+                        isFollowing
+                            ? `Unfollow @${actor.username}`
+                            : `Follow @${actor.username}`
+                    }
+                    className={cn(
+                        'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                        { 'text-primary hover:text-primary': isFollowing },
+                    )}
+                >
+                    <Icon aria-hidden className="size-4" />
+                </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+                {isFollowing
+                    ? `Following @${actor.username}`
+                    : `Follow @${actor.username} back`}
+            </TooltipContent>
+        </Tooltip>
     );
+}
+
+function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
+    return (
+        <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
+            <CommitBodyExcerpt segments={segments} className="max-h-[73px]" />
+        </div>
+    );
+}
+
+/**
+ * A quote always quotes the recipient's own commit, so it shows like the other commits of theirs here, or as the usual
+ * tombstone once deleted.
+ */
+function QuotedOwnCommit({
+    commit,
+}: {
+    commit: Pick<Commit, 'body_segments' | 'deleted_at'> | DeletedCommit | null;
+}) {
+    if (commit === null || isDeleted(commit)) {
+        return <QuotedCommit commit={commit} />;
+    }
+
+    return <OwnCommitExcerpt segments={commit.body_segments} />;
 }
 
 function NotificationContent({
@@ -705,6 +785,17 @@ function NotificationContent({
     const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
     const isOwnCommit = notification.type === 'starred' || moderation;
+    const starredImages =
+        notification.type === 'starred'
+            ? (notification.commit.images ?? [])
+            : [];
+    const isImageOnly =
+        starredImages.length > 0 &&
+        notification.commit?.body_segments.length === 0;
+    const isActorsCommit =
+        notification.type === 'replied' ||
+        notification.type === 'quoted' ||
+        notification.type === 'mentioned';
     const Icon = {
         followed: UserPlus,
         replied: MessageSquareReply,
@@ -735,7 +826,7 @@ function NotificationContent({
     const time = (
         <time
             dateTime={notification.created_at}
-            title={new Date(notification.created_at).toLocaleString()}
+            title={formatFullDateTime(notification.created_at)}
             className="ml-auto min-w-[3ch] shrink-0 text-right font-mono text-[13px] text-muted-foreground"
         >
             {formatRelativeTime(notification.created_at, now)}
@@ -745,24 +836,25 @@ function NotificationContent({
         followed: 'followed you',
         replied: 'replied to your commit',
         quoted: 'quoted your commit',
-        starred: 'starred your commit',
+        starred: isImageOnly
+            ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
+            : 'starred your commit',
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
     }[notification.type];
     const excerpt =
-        notification.type === 'followed' ? null : isOwnCommit ? (
-            <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
-                <CommitBodyExcerpt
-                    segments={notification.commit.body_segments}
-                    className="max-h-[73px]"
-                />
-            </div>
+        notification.type === 'followed' || isImageOnly ? null : isOwnCommit ? (
+            <OwnCommitExcerpt segments={notification.commit.body_segments} />
         ) : (
             <CommitBodyExcerpt
                 segments={notification.commit.body_segments}
                 className="mt-1 max-h-40"
             />
+        );
+    const quote = notification.type === 'quoted' &&
+        notification.commit.quoted_commit !== undefined && (
+            <QuotedOwnCommit commit={notification.commit.quoted_commit} />
         );
     const reason = notification.type === 'rejected' && (
         <div className="mt-2 text-sm text-muted-foreground">
@@ -797,7 +889,7 @@ function NotificationContent({
                                 {actor.name}
                             </span>
                             <span
-                                className="hidden shrink-[4] truncate font-mono text-[13px] text-muted-foreground sm:inline"
+                                className="hidden shrink-4 truncate font-mono text-[13px] text-muted-foreground sm:inline"
                                 title={`@${actor.username}`}
                             >
                                 @{actor.username}
@@ -807,7 +899,7 @@ function NotificationContent({
                                 {action}
                             </span>
                             <span className="ml-auto flex shrink-0 items-center gap-2 pl-2">
-                                {icon}
+                                {notification.type !== 'followed' && icon}
                                 {time}
                             </span>
                         </div>
@@ -821,95 +913,174 @@ function NotificationContent({
         );
     }
 
+    const rowLink = (
+        <Link
+            href={href}
+            data-notification-link
+            className="after:absolute after:inset-0 after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
+        >
+            {action}
+        </Link>
+    );
+
     return (
         <div className="flex">
             <GraphRail
                 lane={rail}
                 previousLane={hasPrevious ? rail : undefined}
+                nodePosition={isActorsCommit ? 'author' : 'top'}
                 node={
-                    <span
-                        className={cn(
-                            'flex size-9 items-center justify-center rounded-full border-2 bg-card transition-colors',
-                            isNew ? 'border-primary' : 'border-rail',
-                        )}
-                    >
-                        {icon}
-                    </span>
+                    isActorsCommit ? (
+                        <span className="flex rounded-full bg-card">
+                            <span
+                                className={cn(
+                                    'flex rounded-full border-2 p-0.5 transition-colors',
+                                    isNew ? 'border-primary' : 'border-rail',
+                                )}
+                            >
+                                <UserAvatar user={actor} className="size-10" />
+                            </span>
+                        </span>
+                    ) : (
+                        <span
+                            className={cn(
+                                'flex size-9 items-center justify-center rounded-full border-2 bg-card transition-colors',
+                                isNew ? 'border-primary' : 'border-rail',
+                            )}
+                        >
+                            {icon}
+                        </span>
+                    )
                 }
             />
             <div className="min-w-0 flex-1 border-b py-3 pr-4">
                 <div className="flex items-start gap-3">
-                    <Link
-                        href={href}
-                        data-notification-link
-                        className="min-w-0 flex-1 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
-                    >
-                        <div className="flex h-10 items-center gap-2">
-                            {moderation ? (
-                                <span
-                                    className={cn(
-                                        'rounded-full px-2 py-0.5 font-mono text-xs',
-                                        notification.type === 'rejected'
-                                            ? 'bg-destructive/10 text-destructive'
-                                            : 'bg-muted text-muted-foreground',
+                    <div className="relative isolate min-w-0 flex-1">
+                        {isActorsCommit ? (
+                            <>
+                                <div className="flex items-baseline gap-1.5 text-[15px]">
+                                    {isNew && (
+                                        <span className="sr-only">New. </span>
                                     )}
-                                >
-                                    {notification.type}
-                                </span>
-                            ) : (
-                                <span className="flex -space-x-2" aria-hidden>
-                                    {actors.map((stacked, position) => (
-                                        <UserAvatar
-                                            key={stacked.id}
-                                            user={stacked}
-                                            className="relative size-8 ring-2 ring-card"
-                                            style={{
-                                                zIndex:
-                                                    actors.length - position,
-                                            }}
-                                        />
-                                    ))}
-                                    {actorsCount > actors.length && (
-                                        <span className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card">
-                                            +{actorsCount - actors.length}
-                                        </span>
-                                    )}
-                                </span>
-                            )}
-                            {time}
-                        </div>
-                        <p className="mt-1 text-[15px] wrap-anywhere">
-                            {isNew && <span className="sr-only">New. </span>}
-                            {moderation ? (
-                                `${action}.`
-                            ) : (
-                                <>
-                                    <span
-                                        className="inline-block max-w-full truncate align-bottom font-semibold"
+                                    <Link
+                                        href={show(actor)}
+                                        className="relative z-10 truncate font-semibold hover:underline"
                                         title={actor.name}
                                     >
                                         {actor.name}
-                                    </span>{' '}
-                                    {otherActors > 0 ? (
-                                        `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
+                                    </Link>
+                                    <Link
+                                        href={show(actor)}
+                                        tabIndex={-1}
+                                        className="relative z-10 shrink-4 truncate font-mono text-[13px] text-muted-foreground"
+                                        title={`@${actor.username}`}
+                                    >
+                                        @{actor.username}
+                                    </Link>
+                                    {time}
+                                </div>
+                                <p className="text-sm text-muted-foreground first-letter:uppercase">
+                                    {rowLink}
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex h-10 items-center gap-2">
+                                    {moderation ? (
+                                        <span
+                                            className={cn(
+                                                'rounded-full px-2 py-0.5 font-mono text-xs',
+                                                notification.type === 'rejected'
+                                                    ? 'bg-destructive/10 text-destructive'
+                                                    : 'bg-muted text-muted-foreground',
+                                            )}
+                                        >
+                                            {notification.type}
+                                        </span>
                                     ) : (
-                                        <>
-                                            <span
-                                                className="inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
-                                                title={`@${actor.username}`}
-                                            >
-                                                @{actor.username}
-                                            </span>{' '}
-                                        </>
+                                        <span
+                                            className="isolate flex -space-x-2"
+                                            aria-hidden
+                                        >
+                                            {actors.map((stacked, position) => (
+                                                <UserAvatar
+                                                    key={stacked.id}
+                                                    user={stacked}
+                                                    className="relative size-8 ring-2 ring-card"
+                                                    style={{
+                                                        zIndex:
+                                                            actors.length -
+                                                            position,
+                                                    }}
+                                                />
+                                            ))}
+                                            {actorsCount > actors.length && (
+                                                <span className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card">
+                                                    +
+                                                    {actorsCount -
+                                                        actors.length}
+                                                </span>
+                                            )}
+                                        </span>
                                     )}
-                                    {action}
-                                </>
-                            )}
-                        </p>
+                                    {time}
+                                </div>
+                                <div className="mt-1 flex items-center gap-3">
+                                    <p className="min-w-0 flex-1 text-[15px] wrap-anywhere">
+                                        {isNew && (
+                                            <span className="sr-only">
+                                                New.{' '}
+                                            </span>
+                                        )}
+                                        {!moderation && (
+                                            <>
+                                                <Link
+                                                    href={show(actor)}
+                                                    className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
+                                                    title={actor.name}
+                                                >
+                                                    {actor.name}
+                                                </Link>{' '}
+                                                {otherActors > 0 ? (
+                                                    `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `
+                                                ) : (
+                                                    <>
+                                                        <Link
+                                                            href={show(actor)}
+                                                            tabIndex={-1}
+                                                            className="relative z-10 inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
+                                                            title={`@${actor.username}`}
+                                                        >
+                                                            @{actor.username}
+                                                        </Link>{' '}
+                                                    </>
+                                                )}
+                                            </>
+                                        )}
+                                        {rowLink}
+                                        {moderation && '.'}
+                                    </p>
+                                    {starredImages[0] && (
+                                        <img
+                                            src={starredImages[0].url}
+                                            alt=""
+                                            loading="lazy"
+                                            onError={(event) =>
+                                                replaceFailedImage(
+                                                    event.currentTarget,
+                                                )
+                                            }
+                                            className="size-10 shrink-0 rounded-md border bg-muted object-cover"
+                                        />
+                                    )}
+                                </div>
+                            </>
+                        )}
                         {excerpt}
+                        {quote}
                         {reason}
-                    </Link>
-                    {notification.type === 'followed' && (
+                    </div>
+                    {notification.type === 'followed' && actorsCount === 1 && (
                         <span className="flex h-10 items-center">
                             <FollowBackButton actor={actor} />
                         </span>

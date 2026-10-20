@@ -1,6 +1,6 @@
 import { InfiniteScroll, router, usePage } from '@inertiajs/react';
 import { Pin } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { PointerEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
@@ -9,7 +9,8 @@ import {
     restoreFeedCommit,
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
-import { formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
+import { isDeliberateHover } from '@/lib/feed-hover';
+import { cn, formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;
@@ -26,6 +27,7 @@ export function CommitFeed({
     isRanked = false,
     isFolded = true,
     interlude,
+    isBelowComposer = false,
 }: {
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
@@ -38,9 +40,11 @@ export function CommitFeed({
     isRanked?: boolean;
     isFolded?: boolean;
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
+    isBelowComposer?: boolean;
 }) {
     const now = useNow();
     const page = usePage();
+    const { dimsLanes } = page.props;
     const isModeration = page.component === 'moderation/show';
     const isSaved = page.component === 'bookmark/index';
     const profileUserId =
@@ -56,17 +60,61 @@ export function CommitFeed({
         null,
     );
     const unhighlightTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+    const isScrolling = useRef(false);
+    const authorUnderPointer = useRef<string | null>(null);
 
     useEffect(() => () => clearTimeout(unhighlightTimer.current), []);
 
-    const highlightCommit = (commitId: string, isHovering: boolean) => {
-        clearTimeout(unhighlightTimer.current);
+    useEffect(() => {
+        let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
+        const unhighlight = () => {
+            isScrolling.current = true;
+            clearTimeout(unhighlightTimer.current);
+            setHighlightedCommit(null);
+            setHighlightedAuthor(null);
+
+            clearTimeout(settleTimer);
+            settleTimer = setTimeout(() => {
+                isScrolling.current = false;
+            }, 300);
+        };
+
+        window.addEventListener('scroll', unhighlight, { passive: true });
+
+        return () => {
+            window.removeEventListener('scroll', unhighlight);
+            clearTimeout(settleTimer);
+        };
+    }, []);
+
+    const highlightAuthor = (userId: string, isHovering: boolean) => {
+        authorUnderPointer.current = isHovering ? userId : null;
+
+        if (!isHovering) {
+            setHighlightedAuthor(null);
+        } else if (!isScrolling.current) {
+            setHighlightedAuthor(userId);
+        }
+    };
+
+    const highlightCommit = (
+        commitId: string,
+        isHovering: boolean,
+        event: PointerEvent<HTMLElement>,
+    ) => {
         if (isHovering) {
-            setHighlightedCommit(commitId);
+            if (isDeliberateHover(event, isScrolling.current)) {
+                clearTimeout(unhighlightTimer.current);
+                setHighlightedCommit(commitId);
+                // Author targets only report entering, so one that slid under the pointer while scrolling lights up on the next move.
+                setHighlightedAuthor(authorUnderPointer.current);
+            }
 
             return;
         }
+
+        clearTimeout(unhighlightTimer.current);
 
         // Crossing a day marker between two commits shouldn't flash the whole feed back on.
         unhighlightTimer.current = setTimeout(
@@ -137,9 +185,10 @@ export function CommitFeed({
     }
 
     const isDimmed = (commit: Commit) =>
-        highlightedAuthor !== null
+        dimsLanes &&
+        (highlightedAuthor !== null
             ? commit.user_id !== highlightedAuthor
-            : highlightedCommit !== null && commit.id !== highlightedCommit;
+            : highlightedCommit !== null && commit.id !== highlightedCommit);
 
     const lastCommit = listed.at(-1) ?? pinnedCommit;
     const interludeIndex = Math.min(interludeAfter, listed.length) - 1;
@@ -159,9 +208,11 @@ export function CommitFeed({
             threadActions={threadActions?.(commit)}
             isFolded={isFolded}
             onAuthorHover={(isHovering) =>
-                setHighlightedAuthor(isHovering ? commit.user_id : null)
+                highlightAuthor(commit.user_id, isHovering)
             }
-            onHover={(isHovering) => highlightCommit(commit.id, isHovering)}
+            onHover={(isHovering, event) =>
+                highlightCommit(commit.id, isHovering, event)
+            }
         />
     );
 
@@ -180,8 +231,8 @@ export function CommitFeed({
                         commit={pinnedCommit}
                         endsWithDot
                         isDimmed={isDimmed(pinnedCommit)}
-                        onHover={(isHovering) =>
-                            highlightCommit(pinnedCommit.id, isHovering)
+                        onHover={(isHovering, event) =>
+                            highlightCommit(pinnedCommit.id, isHovering, event)
                         }
                         isHighlighted={
                             highlightedPeriod !== null &&
@@ -211,11 +262,15 @@ export function CommitFeed({
                         (!previous ||
                             localDayKey(previous.created_at) !==
                                 localDayKey(commit.created_at));
+                    const stagedLane =
+                        isBelowComposer && index === 0 && !pinnedCommit
+                            ? 'var(--rail)'
+                            : undefined;
 
                     return (
                         <Fragment key={commit.id}>
                             {!isRanked && commit.id === firstSeenId && (
-                                <LastVisitMarker />
+                                <LastVisitMarker stagedLane={stagedLane} />
                             )}
                             {startsDay && (
                                 <DayMarker
@@ -223,6 +278,7 @@ export function CommitFeed({
                                         commit.created_at,
                                         now,
                                     )}
+                                    stagedLane={stagedLane}
                                 />
                             )}
                             {card(commit)}
@@ -252,10 +308,23 @@ export function CommitFeed({
     );
 }
 
-function DayMarker({ label }: { label: string }) {
+function DayMarker({
+    label,
+    stagedLane,
+}: {
+    label: string;
+    stagedLane?: string;
+}) {
     return (
         <div className="flex">
-            <RailSegment />
+            <RailSegment
+                lane={stagedLane}
+                isDashed
+                className={cn(
+                    stagedLane &&
+                        '[view-transition-class:staged-rail] [view-transition-name:staged-rail-day]',
+                )}
+            />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <h3 className="font-mono text-xs text-muted-foreground">
                     {label}
@@ -265,14 +334,21 @@ function DayMarker({ label }: { label: string }) {
     );
 }
 
-function LastVisitMarker() {
+function LastVisitMarker({ stagedLane }: { stagedLane?: string }) {
     return (
         <div
             role="separator"
             aria-label="Commits above are new since your last visit"
             className="flex"
         >
-            <RailSegment />
+            <RailSegment
+                lane={stagedLane}
+                isDashed
+                className={cn(
+                    stagedLane &&
+                        '[view-transition-class:staged-rail] [view-transition-name:staged-rail-visit]',
+                )}
+            />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <span className="font-mono text-xs text-muted-foreground">
                     HEAD@{'{last visit}'}
