@@ -40,8 +40,6 @@ export type StoryContributor = {
     commits: number;
 };
 
-export const repositoryUrl = 'https://github.com/nunomaduro/dev-null.sh';
-
 export const storyBefore: StoryEvent[] = [
     {
         time: 'Sep 15',

@@ -9,6 +9,7 @@ use App\Ai\Agents\CommitTranslator;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
+use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\Poll;
@@ -71,6 +72,55 @@ it('leaves a tombstone for a reply of a deleted user that other people replied t
         ->and($tombstone->parent_id)->toBe($commit->id)
         ->and(Commit::query()->pluck('id')->sort()->values()->all())->toBe(collect([$commit->id, $otherReply->id])->sort()->values()->all())
         ->and(Commit::withTrashed()->whereKey($nestedReply->id)->exists())->toBeFalse();
+});
+
+it('erases what a deleted user wrote from the tombstones they leave', function (): void {
+    $user = User::factory()->create();
+    $mentioned = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($commit, 'parent')->for(LinkPreview::factory())->create([
+        'body' => "@{$mentioned->username} have a look at https://example.com",
+        'mentions' => [$mentioned->username => $mentioned->id],
+        'embedding' => embeddingVector(0),
+    ]);
+    $deletedReply = Commit::factory()->for($user)->for($commit, 'parent')->create();
+    Commit::factory()->for($reply, 'parent')->create();
+    Commit::factory()->for($deletedReply, 'parent')->create();
+    $deletedReply->delete();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $tombstones = Commit::withTrashed()->whereKey([$reply->id, $deletedReply->id]);
+
+    expect($tombstones->count())->toBe(2)
+        ->and($tombstones->pluck('body')->all())->toBe(['', ''])
+        ->and($tombstones->pluck('mentions')->all())->toBe([null, null])
+        ->and($tombstones->pluck('embedding')->all())->toBe([null, null])
+        ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null]);
+});
+
+it('erases what deleted accounts wrote from the tombstones they already left', function (): void {
+    $mentioned = User::factory()->create();
+    $orphan = Commit::factory()->for(LinkPreview::factory())->create([
+        'user_id' => null,
+        'mentions' => [$mentioned->username => $mentioned->id],
+        'embedding' => embeddingVector(0),
+        'deleted_at' => now(),
+    ]);
+    $deleted = Commit::factory()->create(['deleted_at' => now()]);
+    $live = Commit::factory()->create();
+
+    $migration = require database_path('migrations/2026_10_20_092957_erase_the_body_of_orphaned_commits.php');
+    $migration->up();
+
+    $tombstone = Commit::withTrashed()->whereKey($orphan->id);
+
+    expect($tombstone->value('body'))->toBe('')
+        ->and($tombstone->value('mentions'))->toBeNull()
+        ->and($tombstone->value('embedding'))->toBeNull()
+        ->and($tombstone->value('link_preview_id'))->toBeNull()
+        ->and(Commit::withTrashed()->whereKey($deleted->id)->value('body'))->toBe($deleted->body)
+        ->and(Commit::withTrashed()->whereKey($live->id)->value('body'))->toBe($live->body);
 });
 
 it('erases the replies of a deleted user that only have their own replies under them', function (): void {

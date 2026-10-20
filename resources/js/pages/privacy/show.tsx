@@ -52,6 +52,16 @@ export default function Show() {
                                 who you follow and who follows you.
                             </>,
                             <>
+                                <strong>
+                                    From the commit script, when you run it:
+                                </strong>{' '}
+                                the public SSH keys in your SSH agent and{' '}
+                                <code>~/.ssh</code>, without their comments, to
+                                find the one on your GitHub account. They are
+                                only compared in memory against the fingerprints
+                                we store, and are never stored or logged.
+                            </>,
+                            <>
                                 <strong>What you post and do:</strong> commits,
                                 replies, quotes, images, polls, votes, stars,
                                 follows, mutes, blocks, reports, settings, and

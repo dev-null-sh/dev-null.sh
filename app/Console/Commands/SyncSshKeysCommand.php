@@ -52,6 +52,6 @@ final class SyncSshKeysCommand extends Command
     {
         report($exception);
 
-        $this->components->warn("Could not sync the SSH keys of @{$user->username}.");
+        $this->components->warn("Could not sync the SSH keys of {$user->mention()}.");
     }
 }

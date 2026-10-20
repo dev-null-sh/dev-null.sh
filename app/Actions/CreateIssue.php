@@ -52,7 +52,7 @@ final readonly class CreateIssue
 
         return $this->github->createIssue(
             Str::limit($title, 256, '') ?: ucfirst($type).' report',
-            $body.$this->details($environment)."\n\n---\n\nReported by @{$user->username} via [/dev/null](".route('user.show', $user).').',
+            $body.$this->details($environment)."\n\n---\n\nReported by {$user->mention()} via [/dev/null](".route('user.show', $user).').',
             [$type === 'feature' ? 'enhancement' : 'bug'],
         );
     }

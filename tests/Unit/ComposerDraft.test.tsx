@@ -21,6 +21,8 @@ const draft = {
     drop: vi.fn(),
 };
 const user = { id: 'viewer', username: 'viewer', lane: 1 };
+let flash: Record<string, unknown> = {};
+let effects: (() => void)[] = [];
 const http = {
     processing: false,
     transform: vi.fn(),
@@ -29,7 +31,9 @@ const http = {
 
 vi.doMock('react', () => ({
     ...React,
-    useEffect: () => {},
+    useEffect: (effect: () => void) => {
+        effects.push(effect);
+    },
     useLayoutEffect: (effect: () => void | (() => void)) => effect(),
     useMemo: (factory: () => unknown) => factory(),
     useId: () => `preview-${cursor++}`,
@@ -58,7 +62,7 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user, isAdmin: false } } }),
+    usePage: () => ({ props: { auth: { user, isAdmin: false } }, flash }),
     useHttp: () => http,
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
@@ -118,6 +122,8 @@ function render() {
 beforeEach(() => {
     vi.clearAllMocks();
     state = [];
+    flash = {};
+    effects = [];
     draft.body = 'A restored draft https://example.com';
     draft.images = [];
     draft.descriptions = [];
@@ -172,6 +178,28 @@ test('preserves restored images and link cards and allows scheduling them', () =
     } finally {
         vi.unstubAllGlobals();
     }
+});
+
+test('drops a restored draft that the reloaded page says was already committed', () => {
+    draft.body = 'Shipped it :rocket:\n\n\n\nwith  spaces kept';
+    flash = {
+        committed: { id: 'commit', body: 'Shipped it 🚀\n\nwith  spaces kept' },
+    };
+    render();
+    effects.forEach((effect) => effect());
+
+    assert.equal(draft.drop.mock.calls.length, 1);
+});
+
+test('keeps a restored draft that is not the commit the page says was committed', () => {
+    flash = { committed: { id: 'commit', body: 'Another commit' } };
+    render();
+    effects.forEach((effect) => effect());
+    flash = {};
+    render();
+    effects.forEach((effect) => effect());
+
+    assert.equal(draft.drop.mock.calls.length, 0);
 });
 
 test('removing restored images enables polls and successful posting resets the poll', () => {
@@ -598,6 +626,44 @@ test('a draft that mentions a bug suggests /bug, keeps the text when used, and c
         view.fields.some((element) => element.type === IssueCommandHint),
         false,
     );
+});
+
+test('switching a discounted commit to an issue enforces the literal limit for the button and shortcut', () => {
+    draft.body =
+        'bug ' + 'a'.repeat(3972) + ' https://example.com/long-path-here';
+    let view = render();
+    assert.equal(
+        view.fields.find(
+            (element) => element.props['data-test'] === 'create-commit-button',
+        )!.props.disabled,
+        false,
+    );
+    const hint = view.fields.find(
+        (element) => element.type === IssueCommandHint,
+    )!;
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        (hint.props.onUse as (kind: string) => void)('bug');
+        view = render();
+        keyDown(view, 'Enter', { metaKey: true });
+        assert.equal(http.submit.mock.calls.length, 0);
+        assert.equal(
+            view.fields.find(
+                (element) => element.props['data-test'] === 'open-issue-button',
+            )!.props.disabled,
+            true,
+        );
+
+        draft.body = 'a'.repeat(3965) + ' https://example.com/long-path-here';
+        assert.equal(
+            render().fields.find(
+                (element) => element.props['data-test'] === 'open-issue-button',
+            )!.props.disabled,
+            false,
+        );
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });
 
 test('commands are not offered while the draft has images, a poll or a schedule', () => {
