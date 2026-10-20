@@ -362,6 +362,7 @@ export function useThread(
     };
 
     const commitId = commit.id;
+    const onRepliesLoaded = useEffectEvent(applyPage);
 
     useEffect(() => {
         if (!shouldLoadReplies) {
@@ -381,11 +382,7 @@ export function useThread(
         )
             .then((page) => {
                 if (isCurrent && request === replyRequest.current) {
-                    setThread((current) => ({
-                        ...current,
-                        replies: page.data,
-                        nextCursor: page.next_cursor,
-                    }));
+                    onRepliesLoaded(page.data, page.next_cursor);
                 }
             })
             .catch(() => undefined)
@@ -405,7 +402,6 @@ export function useThread(
         except,
         repliesPerPage,
         initialReplyLimit,
-        setThread,
     ]);
 
     const onExceptChanged = useEffectEvent(() => {

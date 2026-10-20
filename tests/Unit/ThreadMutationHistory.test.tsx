@@ -13,6 +13,8 @@ type Saved = {
 let saved: Saved;
 vi.doMock('react', () => ({
     ...React,
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
+    useEffectEvent: (event: unknown) => event,
     useEffect: (effect: () => void | VoidFunction) => {
         effects.push(effect);
     },
@@ -136,6 +138,7 @@ test('revalidates restored document history even when both cached props and repl
         ['one', 'three', 'four', 'five'],
     );
     assert.equal(restored.isOpen, true);
+    assert.equal(restored.count, 4);
 });
 
 test('waits for history revalidation before loading another reply page', async () => {
