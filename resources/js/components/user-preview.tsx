@@ -11,6 +11,7 @@ import {
     useFollowHover,
     useIsFollowing,
 } from '@/components/follow-button';
+import { ContributorBadge } from '@/components/contributor-badge';
 import {
     LiveAvatarMarker,
     LiveStreamCard,
@@ -444,9 +445,10 @@ function UserPreviewContent({
 
             <Link
                 href={show(user)}
-                className="mt-3 block truncate font-semibold hover:underline"
+                className="mt-3 flex min-w-0 items-center gap-1.5 font-semibold hover:underline"
             >
-                {user.name}
+                <span className="truncate">{user.name}</span>
+                {user.contributor && <ContributorBadge />}
             </Link>
             <p className="flex items-center gap-1.5 font-mono text-[13px] text-muted-foreground">
                 <span

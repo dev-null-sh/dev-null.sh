@@ -19,6 +19,7 @@ import { AchievementsShelf } from '@/components/achievements-shelf';
 import { ActivityGraph } from '@/components/activity-graph';
 import { ActivityStreaks } from '@/components/activity-streaks';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { ContributorBadge } from '@/components/contributor-badge';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import {
@@ -106,7 +107,10 @@ export default function Show({
             <Head title={`${user.name} (@${user.username})`} />
 
             <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6">
-                <p className="min-w-0 truncate font-semibold">{user.name}</p>
+                <p className="flex min-w-0 items-center gap-1.5 font-semibold">
+                    <span className="truncate">{user.name}</span>
+                    {user.contributor && <ContributorBadge />}
+                </p>
                 <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
                     {user.commits_count}{' '}
                     {pluralize(user.commits_count, 'commit', 'commits')}
@@ -205,8 +209,9 @@ export default function Show({
                     </div>
                 </div>
 
-                <h1 className="mt-4 text-2xl font-semibold tracking-tight text-balance">
-                    {user.name}
+                <h1 className="mt-4 flex items-center gap-2 text-2xl font-semibold tracking-tight text-balance">
+                    <span className="min-w-0 truncate">{user.name}</span>
+                    {user.contributor && <ContributorBadge />}
                 </h1>
                 <div className="flex items-center gap-2">
                     <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">

@@ -27,6 +27,7 @@ import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { useCommitTranslation } from '@/components/commit-translation';
+import { ContributorBadge } from '@/components/contributor-badge';
 import {
     ComposerPreviewBody,
     PreviewToggle,
@@ -1041,6 +1042,7 @@ function CommitReply({
                             >
                                 {reply.user.name}
                             </Link>
+                            {reply.user.contributor && <ContributorBadge />}
                             <Link
                                 href={show(reply.user)}
                                 tabIndex={-1}

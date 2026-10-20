@@ -6,6 +6,7 @@ import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { ChangelogPopover } from '@/components/changelog-popover';
+import { ContributorBadge } from '@/components/contributor-badge';
 import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -95,8 +96,11 @@ export function AppAside({
                     >
                         <UserAvatar user={user} className="size-12" />
                         <span className="min-w-0">
-                            <span className="block truncate font-semibold group-hover:underline">
-                                {user.name}
+                            <span className="flex min-w-0 items-center gap-1.5">
+                                <span className="truncate font-semibold group-hover:underline">
+                                    {user.name}
+                                </span>
+                                {user.contributor && <ContributorBadge />}
                             </span>
                             <span className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
                                 <span

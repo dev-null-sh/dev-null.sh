@@ -1,6 +1,7 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
 import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { ContributorBadge } from '@/components/contributor-badge';
 import { FollowButton, useHasBlockWith } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import {
@@ -121,8 +122,11 @@ export function SuggestedUserRow({
                                 <UserAvatar user={user} className="size-9" />
                             </span>
                             <span className="min-w-0">
-                                <span className="block truncate text-sm font-semibold group-hover:underline">
-                                    {user.name}
+                                <span className="flex min-w-0 items-center gap-1">
+                                    <span className="truncate text-sm font-semibold group-hover:underline">
+                                        {user.name}
+                                    </span>
+                                    {user.contributor && <ContributorBadge />}
                                 </span>
                                 <span className="flex min-w-0 items-center gap-1.5 font-mono text-xs text-muted-foreground">
                                     <span

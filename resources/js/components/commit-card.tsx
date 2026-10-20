@@ -19,6 +19,7 @@ import {
     useThread,
 } from '@/components/commit-thread';
 import { useCommitTranslation } from '@/components/commit-translation';
+import { ContributorBadge } from '@/components/contributor-badge';
 import {
     GraphRail,
     RailAvatar,
@@ -277,6 +278,9 @@ export function CommitCard({
                                     >
                                         {commit.user.name}
                                     </Link>
+                                    {commit.user.contributor && (
+                                        <ContributorBadge />
+                                    )}
                                     <Link
                                         href={show(commit.user)}
                                         tabIndex={-1}
