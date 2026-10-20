@@ -24,7 +24,6 @@ import {
 import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { clearStashes } from '@/hooks/use-stash';
-import { repositoryUrl } from '@/lib/about';
 import { logout } from '@/routes';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
@@ -35,7 +34,7 @@ type Props = {
 };
 
 export function UserMenuContent({ user }: Props) {
-    const { auth } = usePage().props;
+    const { auth, repository } = usePage().props;
     const cleanup = useMobileNavigation();
 
     const handleLogout = () => {
@@ -132,7 +131,7 @@ export function UserMenuContent({ user }: Props) {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                     <a
-                        href={repositoryUrl}
+                        href={`https://github.com/${repository}`}
                         className="cursor-pointer"
                         target="_blank"
                         rel="noopener noreferrer"

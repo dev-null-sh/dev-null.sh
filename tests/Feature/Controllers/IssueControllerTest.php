@@ -19,6 +19,26 @@ beforeEach(function (): void {
     config(['services.github_app' => ['id' => '12345', 'private_key' => str_replace("\n", '\n', $privateKey)]]);
 });
 
+it('files issues in the configured upstream with a token scoped to that repository', function (): void {
+    config(['services.github.repository' => 'example/upstream']);
+    Http::fake([
+        'api.github.com/repos/example/upstream/installation' => Http::response(['id' => 99]),
+        'api.github.com/app/installations/99/access_tokens' => Http::response(['token' => 'installation-token'], 201),
+        'api.github.com/repos/example/upstream/issues' => Http::response([
+            'number' => 123, 'html_url' => 'https://github.com/example/upstream/issues/123',
+        ], 201),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken search'])
+        ->assertCreated()
+        ->assertJsonPath('url', 'https://github.com/example/upstream/issues/123');
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/access_tokens')
+        && $request['repositories'] === ['upstream']
+        && $request['permissions'] === ['issues' => 'write']);
+});
+
 function fakeGitHubApp(array $issue = []): void
 {
     Http::fake([

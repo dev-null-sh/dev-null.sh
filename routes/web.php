@@ -43,6 +43,7 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
+use App\Http\Controllers\IssueSuggestionController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
@@ -377,6 +378,10 @@ Route::middleware('auth')->group(function (): void {
     Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
         ->middleware('throttle:people')
         ->name('mention-suggestion.index');
+
+    Route::get('search/issues', [IssueSuggestionController::class, 'index'])
+        ->middleware('throttle:people')
+        ->name('issue-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
