@@ -46,14 +46,14 @@ export function CommitFeed({
     const now = useNow();
     const page = usePage();
     const { dimsLanes } = page.props;
-    const isModeration = page.component === "moderation/show";
-    const isStarred = page.component === "starred/index";
+    const isModeration = page.component === 'moderation/show';
+    const isStarred = page.component === 'starred/index';
     const profileUserId =
-        page.component === "user/show"
+        page.component === 'user/show'
             ? (page.props.user as { id: string }).id
             : null;
     const isProfileReplies =
-        profileUserId !== null && page.props.tab === "replies";
+        profileUserId !== null && page.props.tab === 'replies';
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
