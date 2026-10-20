@@ -18,6 +18,9 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
+use Laravel\Socialite\Contracts\Provider;
+use Laravel\Socialite\Socialite;
+use Laravel\Socialite\Two\GithubProvider;
 use Tempest\Highlight\Highlighter;
 
 final class AppServiceProvider extends ServiceProvider
@@ -33,6 +36,20 @@ final class AppServiceProvider extends ServiceProvider
         $this->bootRateLimitingDefaults();
 
         $this->bootExceptionHandling();
+
+        $this->bootSocialiteDrivers();
+    }
+
+    /**
+     * Follow on GitHub uses the OAuth app of signing in, with the follow scope alone and a callback of its own, so
+     * signing in never asks for it.
+     */
+    private function bootSocialiteDrivers(): void
+    {
+        Socialite::extend('github-follow', fn (): Provider => Socialite::buildProvider(GithubProvider::class, [
+            ...config()->array('services.github'),
+            'redirect' => route('user-github-follow.store'),
+        ])->setScopes(['user:follow']));
     }
 
     private function bootExceptionHandling(): void

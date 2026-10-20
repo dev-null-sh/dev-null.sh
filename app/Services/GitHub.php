@@ -38,9 +38,9 @@ final readonly class GitHub
      * Looks the account up by its immutable ID: a username can be renamed and then claimed by someone else.
      * Null when the account no longer exists.
      */
-    public function login(string $githubId): ?string
+    public function login(string $githubId, ?string $token = null): ?string
     {
-        $response = $this->request()->get("user/{$githubId}");
+        $response = $this->request($token)->get("user/{$githubId}");
 
         if ($response->notFound()) {
             return null;
@@ -50,6 +50,16 @@ final readonly class GitHub
         assert(is_string($login));
 
         return $login;
+    }
+
+    /**
+     * Revokes a token of the OAuth app, which only the app itself can do, with its client credentials.
+     */
+    public function revoke(string $token): void
+    {
+        $this->request()->delete('applications/'.config()->string('services.github.client_id').'/token', [
+            'access_token' => $token,
+        ])->throw();
     }
 
     /**

@@ -53,6 +53,15 @@ export default function Show() {
                             </>,
                             <>
                                 <strong>
+                                    From GitHub, when you follow someone on
+                                    GitHub from here:
+                                </strong>{' '}
+                                permission to follow people for you, which we
+                                use for that one follow and revoke right away.
+                                We never store it.
+                            </>,
+                            <>
+                                <strong>
                                     From the commit script, when you run it:
                                 </strong>{' '}
                                 the public SSH keys in your SSH agent and{' '}

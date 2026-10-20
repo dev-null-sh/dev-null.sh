@@ -16,7 +16,7 @@ Assume the database has already been leaked. Every column, row, cache entry, log
 
 ## Never store secrets
 
-- Never persist tokens, secrets, passwords, private keys, OAuth access or refresh tokens, API keys, session ids, raw signatures, or anything that grants access. The GitHub OAuth token is used for the sign-in request and discarded; it is never written anywhere.
+- Never persist tokens, secrets, passwords, private keys, OAuth access or refresh tokens, API keys, session ids, raw signatures, or anything that grants access. The GitHub OAuth token is used for the sign-in request and discarded; it is never written anywhere. The token for Follow on GitHub follows one account and is revoked in the same request.
 - Credentials the app needs come from the environment (`config/services.php`), never from a table, a seeder, a test fixture, or a committed file.
 - A short-lived secret that must be held between requests (the GitHub App installation token) goes in the cache, encrypted with `Crypt::encryptString()`, with a TTL shorter than its lifetime. Never in the database, never unencrypted.
 - Never log or report a secret, a request body, a message body, an email address, or a full request. Log identifiers (user id, commit id, status code) and nothing else.
@@ -41,6 +41,6 @@ Assume the database has already been leaked. Every column, row, cache entry, log
 
 ## Third parties and uploads
 
-- Request the narrowest OAuth scopes and API permissions that work (public profile and public keys from GitHub, `issues:write` on one repository for the GitHub App). Never ask for access to a user's private data to make a feature slightly easier.
+- Request the narrowest OAuth scopes and API permissions that work (public profile and public keys from GitHub, `user:follow` only when someone clicks Follow on GitHub, `issues:write` on one repository for the GitHub App). Never ask for access to a user's private data to make a feature slightly easier.
 - Uploaded files are re-encoded, stored under a random name on a private disk, and served through an authorizing endpoint. Never keep the original upload, its original filename, or its metadata (EXIF, location).
 - Before sending user content to a third party (OpenAI moderation and embeddings, GitHub issues), send only the text the call needs: no emails, ids, IP addresses, or other users' data.

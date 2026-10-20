@@ -2,8 +2,10 @@ import { router } from '@inertiajs/react';
 import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
+import UserGitHubFollowController from '@/actions/App/Http/Controllers/UserGitHubFollowController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
 import { rememberBlock } from '@/components/follow-button';
+import { GitHubIcon } from '@/components/github-icon';
 import { clearMentionSuggestionsCache } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,6 +20,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -30,7 +33,7 @@ export function UserSafetyMenu({
     className,
     onOpenChange,
 }: {
-    user: Pick<User, 'id' | 'username'>;
+    user: Pick<User, 'id' | 'username' | 'has_github_account'>;
     isMuting: boolean;
     isBlocking: boolean;
     className?: string;
@@ -86,6 +89,25 @@ export function UserSafetyMenu({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
+                    {user.has_github_account && !isBlocking && (
+                        <>
+                            {/* A full page visit to GitHub, which asks for the follow scope and comes back to the profile... */}
+                            <DropdownMenuItem
+                                disabled={isSaving}
+                                onSelect={() =>
+                                    router.visit(
+                                        UserGitHubFollowController.create(user),
+                                        { onStart: () => setIsSaving(true) },
+                                    )
+                                }
+                                data-test="github-follow"
+                            >
+                                <GitHubIcon />
+                                Follow on GitHub
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                        </>
+                    )}
                     <DropdownMenuItem
                         disabled={isSaving}
                         onSelect={() =>

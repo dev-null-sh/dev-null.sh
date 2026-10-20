@@ -24,6 +24,10 @@ With `APP_ENV=local`, run `composer dev`, visit `http://localhost:8000` (or your
 
 Outside the local environment, users sign in with GitHub. Create a [GitHub OAuth app](https://github.com/settings/developers) with the callback URL `{APP_URL}/auth/github/callback`, then set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `.env`.
 
+### Follow on GitHub
+
+A profile's menu can also follow that developer on GitHub. GitHub asks for the `user:follow` scope on that click, never at sign-in, and comes back to `{APP_URL}/auth/github/callback/follow`, under the sign-in callback. If wildcard matching is off for the sign-in callback URL, add this one to the OAuth app as a second callback URL. The token follows that one account and is revoked before the profile loads again, so it is never stored.
+
 ### Issue commands
 
 The `/feature` and `/bug` commands below the composer open an issue on `nunomaduro/dev-null.sh` from the draft, as a GitHub App crediting the reporter. No user grants any extra permission and no user token is stored. Create a [GitHub App](https://github.com/settings/apps/new) with webhooks disabled and only the **Issues: Read and write** repository permission, install it on `nunomaduro/dev-null.sh` alone, generate a private key, then set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (the PEM contents, with newlines written as `\n`) in `.env`. Each installation token is requested for issues on this repository only and is cached, encrypted, for 50 minutes.

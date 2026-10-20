@@ -141,9 +141,11 @@ Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and 
 
 Follow or unfollow from a developer's profile or a follow control elsewhere in the app. Following puts their commits in your Following log. You cannot follow yourself or follow across a block. GitHub follows are imported once: connections to developers already on /dev/null are added in both directions, with up to 1,000 GitHub connections checked each way. This is not continuous synchronization, so unfollowing someone on /dev/null sticks.
 
+A profile's **⋯** menu also offers **Follow on GitHub**, which follows them on GitHub from your own account. The first time, GitHub asks you to let /dev/null follow people for you. It happens only when you click it: following or unfollowing on /dev/null never changes GitHub, and /dev/null keeps no access to your GitHub account after the follow. If the browser is signed in to GitHub as another account, nothing is followed.
+
 **Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Someone who already follows you gets **Follow back**. Show or hide these suggestions in Settings → Appearance. You can also follow back from the notifications list.
 
-Sources: [follow import](app/Actions/CreateUserGitHubFollows.php), [appearance settings](resources/js/pages/appearance/update.tsx), [notifications page](resources/js/pages/notification/index.tsx).
+Sources: [follow import](app/Actions/CreateUserGitHubFollows.php), [follow on GitHub](app/Http/Controllers/UserGitHubFollowController.php), [appearance settings](resources/js/pages/appearance/update.tsx), [notifications page](resources/js/pages/notification/index.tsx).
 
 ### Following, Latest, and Trending logs
 

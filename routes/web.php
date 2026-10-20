@@ -82,6 +82,7 @@ use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
+use App\Http\Controllers\UserGitHubFollowController;
 use App\Http\Controllers\UserLaneController;
 use App\Http\Controllers\UserLiveController;
 use App\Http\Controllers\UserMuteController;
@@ -432,6 +433,13 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('@{user:username}/follow', [UserFollowController::class, 'destroy'])
         ->middleware('throttle:follows')
         ->name('user-follow.destroy');
+
+    // User GitHub Follow, through GitHub, which comes back to a callback of its own...
+    Route::post('@{user:username}/github-follow', [UserGitHubFollowController::class, 'create'])
+        ->middleware('throttle:follows')
+        ->name('user-github-follow.create');
+    Route::get('auth/github/callback/follow', [UserGitHubFollowController::class, 'store'])
+        ->name('user-github-follow.store');
 
     // User Mute...
     Route::post('@{user:username}/mute', [UserMuteController::class, 'store'])
