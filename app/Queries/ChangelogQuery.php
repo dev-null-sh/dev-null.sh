@@ -17,8 +17,6 @@ use Illuminate\Support\Facades\Cache;
  */
 final readonly class ChangelogQuery
 {
-    public const string Repository = 'nunomaduro/dev-null.sh';
-
     public const string Branch = 'production';
 
     private const int PerPage = 100;
@@ -93,10 +91,12 @@ final readonly class ChangelogQuery
      */
     private function page(int $page): ?array
     {
+        $repository = config()->string('services.github.repository');
+
         /** @var list<GitHubPullRequest>|null */
-        return Cache::remember("changelog:page:{$page}", 1800, function () use ($page): ?array {
+        return Cache::remember("changelog:{$repository}:page:{$page}", 1800, function () use ($repository, $page): ?array {
             try {
-                $pullRequests = $this->github->request()->get('repos/'.self::Repository.'/pulls', [
+                $pullRequests = $this->github->request()->get("repos/{$repository}/pulls", [
                     'state' => 'closed',
                     'base' => self::Branch,
                     'sort' => 'updated',
@@ -152,7 +152,7 @@ final readonly class ChangelogQuery
                 ...$this->titles->parse($pullRequest['title']),
                 'url' => $pullRequest['html_url'],
                 'sha' => $pullRequest['merge_commit_sha'],
-                'commit_url' => 'https://github.com/'.self::Repository.'/commit/'.$pullRequest['merge_commit_sha'],
+                'commit_url' => 'https://github.com/'.config()->string('services.github.repository').'/commit/'.$pullRequest['merge_commit_sha'],
                 'merged_at' => (string) $pullRequest['merged_at'],
                 'author' => [
                     'login' => $pullRequest['user']['login'],

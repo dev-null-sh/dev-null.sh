@@ -5,8 +5,10 @@ import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import { BioText } from '@/components/bio-text';
 import {
     FollowLabel,
+    followVisitOptions,
     onFollowHttpException,
     useFollowHover,
     useIsFollowing,
@@ -24,7 +26,7 @@ import { cn, laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
 import { show as userPreview } from '@/routes/user-preview';
-import type { MaintainedOrg, Profile, User } from '@/types';
+import type { Commit, CursorPaginated, MaintainedOrg, Profile, User } from '@/types';
 
 type PreviewData = {
     isFollowing: boolean;
@@ -327,7 +329,10 @@ function UserPreviewContent({
     onChange: (data: PreviewData) => void;
     onMenuOpenChange: (isOpen: boolean) => void;
 }) {
-    const { auth } = usePage().props;
+    const {
+        component,
+        props: { auth, log, commits },
+    } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
 
@@ -364,8 +369,11 @@ function UserPreviewContent({
             {
                 preserveScroll: true,
                 preserveState: true,
+                async: true,
+                ...followVisitOptions(component, log, commits),
                 onSuccess: () => {
                     setIsFollowing(follows);
+                    router.flushAll();
                     onChange({
                         ...data,
                         isFollowing: follows,
@@ -483,7 +491,7 @@ function UserPreviewContent({
 
             {user.bio && !data?.isUnavailable && (
                 <p className="mt-2 line-clamp-3 text-sm text-pretty">
-                    {user.bio}
+                    <BioText bio={user.bio} />
                 </p>
             )}
 

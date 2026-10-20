@@ -73,7 +73,6 @@ export default function Show({
 
             {ancestors.map((ancestor, index) => {
                 const previous = ancestors[index - 1];
-                const following = ancestors[index + 1] ?? commit;
                 const previousLane = previous ? laneOf(previous) : undefined;
 
                 return isDeleted(ancestor) ? (
@@ -86,7 +85,6 @@ export default function Show({
                         key={ancestor.id}
                         commit={ancestor}
                         previousLane={previousLane}
-                        nextLane={laneOf(following)}
                         isGroupedWithPrevious={isSameAuthor(previous, ancestor)}
                         canDelete={false}
                         threadPosition={positionAt(
@@ -100,7 +98,6 @@ export default function Show({
                 key={commit.id}
                 commit={commit}
                 previousLane={lastAncestor ? laneOf(lastAncestor) : undefined}
-                nextLane={shown[0] ? laneOf(shown[0]) : undefined}
                 isGroupedWithPrevious={isSameAuthor(lastAncestor, commit)}
                 initialReplies={replies ?? undefined}
                 exceptReplyId={shown[0]?.id}
@@ -120,7 +117,6 @@ export default function Show({
                         key={next.id}
                         commit={next}
                         previousLane={laneOf(previous)}
-                        nextLane={following ? laneOf(following) : undefined}
                         isGroupedWithPrevious
                         exceptReplyId={exceptReplyId}
                         loadsReplies={isLast && nextId === null}

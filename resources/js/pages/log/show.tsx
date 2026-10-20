@@ -1,6 +1,6 @@
 import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
@@ -15,6 +15,7 @@ import { useComposerVisibility } from '@/hooks/use-composer-visibility';
 import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
+import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
@@ -41,6 +42,7 @@ export default function Show({
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
+    const followAnchor = useRef<{ row: HTMLElement; top: number } | null>(null);
     const [composer, setComposer] = useState<HTMLDivElement | null>(null);
     useLaneSwipe(feedRef, log);
     useComposerVisibility(composer, tabsHeight);
@@ -62,15 +64,64 @@ export default function Show({
         return () => observer.disconnect();
     }, []);
 
+    useEffect(
+        () =>
+            router.on('beforeUpdate', ({ detail: { page } }) => {
+                if (
+                    log !== 'following' ||
+                    page.component !== 'log/show' ||
+                    !page.scrollProps?.commits?.reset
+                ) {
+                    return;
+                }
+
+                const incoming = page.props.commits as CursorPaginated<Commit>;
+                followAnchor.current = null;
+
+                if (incoming === commits) {
+                    return;
+                }
+
+                const ids = new Set(incoming.data.map((commit) => commit.id));
+                const headerBottom =
+                    tabsRef.current?.getBoundingClientRect().bottom ?? 0;
+                const rows =
+                    feedRef.current?.querySelectorAll<HTMLElement>(
+                        '[data-commit]',
+                    ) ?? [];
+                const row = Array.from(rows).find(
+                    (row) =>
+                        ids.has(row.dataset.commit ?? '') &&
+                        row.getBoundingClientRect().bottom > headerBottom,
+                );
+                followAnchor.current = row
+                    ? { row, top: row.getBoundingClientRect().top }
+                    : null;
+            }),
+        [log, commits],
+    );
+
+    useLayoutEffect(() => {
+        const anchor = followAnchor.current;
+        followAnchor.current = null;
+
+        if (anchor?.row.isConnected) {
+            window.scrollBy(
+                0,
+                anchor.row.getBoundingClientRect().top - anchor.top,
+            );
+        }
+    }, [commits]);
+
     const firstSeenId = useLastVisit(viewerId, log, commits.data);
 
     const { stop: stopPolling } = usePoll(
         30_000,
-        () => ({
+        backgroundPollOptions(() => ({
             only: ['newCommitsCount'],
             data: { since: newestId },
             preserveUrl: true,
-        }),
+        })),
         { autoStart: newestId !== undefined },
     );
 
@@ -161,6 +212,7 @@ export default function Show({
                     commits={commits}
                     firstSeenId={firstSeenId}
                     isRanked={isRanked}
+                    isBelowComposer={user !== null}
                     end="That's the root commit. There's nothing before it."
                     interlude={() => <WhoToFollowInLog />}
                     empty={

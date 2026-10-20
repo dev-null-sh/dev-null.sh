@@ -1,5 +1,6 @@
 import type { InertiaLinkProps } from '@inertiajs/react';
 import { usePage } from '@inertiajs/react';
+import type { CommitPhoto } from '@/lib/commit-photo';
 import { toUrl } from '@/lib/utils';
 
 export type IsCurrentUrlFn = (
@@ -27,9 +28,9 @@ export type UseCurrentUrlReturn = {
 };
 
 export function useCurrentUrl(): UseCurrentUrlReturn {
-    const page = usePage();
+    const page = usePage<{ photo?: CommitPhoto }>();
     const currentUrlPath = new URL(
-        page.url,
+        page.props.photo?.backgroundUrl ?? page.url,
         typeof window !== 'undefined'
             ? window.location.origin
             : 'http://localhost',

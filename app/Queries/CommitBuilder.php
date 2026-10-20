@@ -216,23 +216,6 @@ final class CommitBuilder extends Builder
             ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
-    /**
-     * Guests have nothing saved, yet still get the state, so they see the same save button that asks them to sign in.
-     */
-    public function withSavedState(?User $user): self
-    {
-        $bookmarks = $this->getModel()->bookmarks();
-
-        return $this
-            ->addSelect(['is_saved' => $this->whetherViewerHasRow(
-                $bookmarks->getRelated()->newQuery()->toBase(),
-                $bookmarks->getQualifiedForeignKeyName(),
-                $bookmarks->getRelated()->qualifyColumn('user_id'),
-                $user,
-            )])
-            ->withCasts(['is_saved' => 'bool']);
-    }
-
     public function pending(): self
     {
         return $this->where('status', CommitStatus::Pending);
@@ -290,7 +273,6 @@ final class CommitBuilder extends Builder
         return $this
             ->with(['user', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)
-            ->withSavedState($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)
             ->afterQuery(fn (Collection $commits) => resolve(CommitTranslations::class)->attach($commits));
@@ -298,7 +280,7 @@ final class CommitBuilder extends Builder
 
     /**
      * Looked up commit by commit rather than with exists(), which the database answers by first gathering every row
-     * the viewer has, however many stars or saves that is.
+     * the viewer has, however many stars that is.
      */
     private function whetherViewerHasRow(QueryBuilder $rows, string $commitColumn, string $userColumn, ?User $viewer): QueryBuilder
     {

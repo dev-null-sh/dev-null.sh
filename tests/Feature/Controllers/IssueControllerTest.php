@@ -19,6 +19,26 @@ beforeEach(function (): void {
     config(['services.github_app' => ['id' => '12345', 'private_key' => str_replace("\n", '\n', $privateKey)]]);
 });
 
+it('files issues in the configured upstream with a token scoped to that repository', function (): void {
+    config(['services.github.repository' => 'example/upstream']);
+    Http::fake([
+        'api.github.com/repos/example/upstream/installation' => Http::response(['id' => 99]),
+        'api.github.com/app/installations/99/access_tokens' => Http::response(['token' => 'installation-token'], 201),
+        'api.github.com/repos/example/upstream/issues' => Http::response([
+            'number' => 123, 'html_url' => 'https://github.com/example/upstream/issues/123',
+        ], 201),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken search'])
+        ->assertCreated()
+        ->assertJsonPath('url', 'https://github.com/example/upstream/issues/123');
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/access_tokens')
+        && $request['repositories'] === ['upstream']
+        && $request['permissions'] === ['issues' => 'write']);
+});
+
 function fakeGitHubApp(array $issue = []): void
 {
     Http::fake([
@@ -179,18 +199,22 @@ it('validates the command and the body', function (array $payload, string $field
     'blank lines only' => [['command' => '/bug', 'body' => "a\n\n\n\n"], 'body'],
 ]);
 
-it('requires authentication and limits opened issues to five an hour', function (): void {
+it('requires authentication and limits opened issues to ten a day', function (): void {
     fakeGitHubApp();
     $this->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertUnauthorized();
 
     $user = User::factory()->create();
-    foreach (range(1, 5) as $attempt) {
+    foreach (range(1, 10) as $attempt) {
+        $this->travel(1)->minute();
         $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => "Broken {$attempt}."])->assertCreated();
     }
 
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken again.'])
         ->assertTooManyRequests()
-        ->assertJsonPath('message', 'Issue limit reached. Try again in an hour.');
+        ->assertJsonPath('message', 'Issue limit reached: 10 a day. Try again tomorrow.');
+
+    $this->travel(23)->hours();
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken again.'])->assertTooManyRequests();
 
     $this->travel(1)->hours();
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken later.'])->assertCreated();

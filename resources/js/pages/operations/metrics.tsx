@@ -17,6 +17,7 @@ import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
 import { cn, formatZonedDate } from '@/lib/utils';
 import type {
+    ActivationDay,
     ActiveUsers,
     ActivityBucket,
     CommitResponses,
@@ -101,13 +102,11 @@ function Rate({
     label,
     change,
     isWorst,
-    hasHistory,
 }: {
     rate: number | null;
     label: string;
     change: number | null;
     isWorst: boolean;
-    hasHistory: boolean;
 }) {
     return (
         <div
@@ -120,18 +119,16 @@ function Rate({
                 {percent(rate)}
             </p>
             <p className="text-muted-foreground">{label}</p>
-            <p
-                className={cn(
-                    'tabular-nums',
-                    isWorst ? 'font-semibold' : 'text-muted-foreground',
-                )}
-            >
-                {change !== null
-                    ? `${change >= 0 ? '+' : '−'}${Math.abs(change * 100).toFixed(1)} pt`
-                    : hasHistory
-                      ? '–'
-                      : 'not enough history'}
-            </p>
+            {change !== null && (
+                <p
+                    className={cn(
+                        'tabular-nums',
+                        isWorst ? 'font-semibold' : 'text-muted-foreground',
+                    )}
+                >
+                    {`${change >= 0 ? '+' : '−'}${Math.abs(change * 100).toFixed(1)} pt`}
+                </p>
+            )}
         </div>
     );
 }
@@ -194,23 +191,18 @@ function Definition({
 }
 
 function retentionDefinition(funnel: Funnel): string {
-    if (funnel.retention_horizon === null) {
-        return 'Came back at least once, 14 days or more after signing up. Not measurable yet: no signup has reached its first day since tracking started.';
-    }
+    const definition =
+        'Came back at least once from the day after signing up, day 1, while /dev/null is days old; day 14 later.';
 
-    const day =
-        funnel.retention_horizon === 14
-            ? 'day 14'
-            : `day ${funnel.retention_horizon} for now, day 14 from ${funnel.retention_full_on}`;
-
-    return `Came back at least once from ${day} after signing up. Retention rate = retained ÷ the ${formatCount(funnel.retention_eligible)} sign-ups old enough to tell.`;
+    return funnel.retention_eligible === 0
+        ? `${definition} Not measurable yet: no signup has got through its day 1 since tracking started.`
+        : `${definition} Retention rate = retained ÷ the ${formatCount(funnel.retention_eligible)} sign-ups old enough to tell.`;
 }
 
 function FunnelValue({ funnel }: { funnel: Funnel }) {
     const changes = Object.entries(funnel.changes).filter(
         (entry): entry is [FunnelRate, number] => entry[1] !== null,
     );
-    const hasHistory = changes.length > 0;
     const worst = changes
         .filter(([, change]) => change < 0)
         .sort(([, a], [, b]) => a - b)[0]?.[0];
@@ -221,7 +213,6 @@ function FunnelValue({ funnel }: { funnel: Funnel }) {
             label={label}
             change={funnel.changes[key]}
             isWorst={worst === key}
-            hasHistory={hasHistory}
         />
     );
 
@@ -265,8 +256,8 @@ function FunnelValue({ funnel }: { funnel: Funnel }) {
             />
             <Definition title="Activation">
                 Got something from the network in their first 12 hours: starred
-                or saved commits by 3+ people, or someone replied to, quoted or
-                starred their post. Activation rate = activated ÷ the{' '}
+                by 3+ people, or someone replied to, quoted or starred their
+                post. Activation rate = activated ÷ the{' '}
                 {formatCount(funnel.activation_eligible)} sign-ups at least 12
                 hours old.
             </Definition>
@@ -281,43 +272,6 @@ function FunnelValue({ funnel }: { funnel: Funnel }) {
             <Definition title="Retention">
                 {retentionDefinition(funnel)}
             </Definition>
-
-            <div className="col-span-full my-4 border-t border-dashed" />
-
-            {rate('referral', 'referral rate')}
-            <div className="self-center font-mono text-[13px]">
-                <div
-                    aria-hidden
-                    className="flex h-3 overflow-hidden rounded-full bg-muted"
-                >
-                    <span
-                        className="bg-(--lane-2)"
-                        style={{
-                            width: `${(funnel.rates.referral ?? 0) * 100}%`,
-                        }}
-                    />
-                </div>
-                <div className="mt-2 flex justify-between gap-3 text-muted-foreground">
-                    <span>
-                        members{' '}
-                        {funnel.referral
-                            ? formatCount(funnel.referral.members)
-                            : '–'}
-                    </span>
-                    <span>
-                        team{' '}
-                        {funnel.referral
-                            ? formatCount(funnel.referral.team)
-                            : '–'}
-                    </span>
-                </div>
-            </div>
-            <Definition title="Referral">
-                Visits from outside that start on a member's profile or commit
-                rather than the team's: when it rises, members bring people in,
-                not us. Referral rate = member visits ÷ visits starting on a
-                profile or commit.
-            </Definition>
         </div>
     );
 }
@@ -328,77 +282,216 @@ function FunnelSkeleton() {
             aria-hidden
             className="animate-in space-y-3 delay-300 duration-300 fill-mode-both fade-in"
         >
-            {[0, 1, 2, 3, 4].map((row) => (
+            {[0, 1, 2, 3].map((row) => (
                 <Skeleton key={row} className="h-24 w-full rounded-lg" />
             ))}
         </div>
     );
 }
 
-function ActiveUserCounts({ counts }: { counts: ActivityBucket[] }) {
-    if (counts.length === 0) {
+type DailyBar = {
+    date: string;
+    value: number;
+    isPartial: boolean;
+    label: string;
+};
+
+/**
+ * One slot per day of the range, so charts of the same range line up, with a bar on the days that have one, as tall as
+ * its value against the tallest, and a line at the average of the range, to tell the days above it from the days below.
+ * A partial day, still counting, is lighter. Tooltips of the bars near an edge align with it, so they stay on screen.
+ */
+function DailyBars({
+    range,
+    bars,
+    average,
+    caption,
+    column,
+    empty,
+    format,
+}: {
+    range: TrafficRange;
+    bars: DailyBar[];
+    average: number | null;
+    caption: string;
+    column: string;
+    empty: string;
+    format: (value: number) => string;
+}) {
+    if (bars.length === 0) {
         return (
             <p className="rounded-lg border px-4 py-2.5 font-mono text-[13px] text-muted-foreground">
-                nothing yet: days are counted from the day tracking started
+                {empty}
             </p>
         );
     }
 
-    const top = Math.max(1, ...counts.map((day) => day.count));
-    const today = utcDate();
+    const top = Math.max(
+        Number.MIN_VALUE,
+        average ?? 0,
+        ...bars.map((bar) => bar.value),
+    );
     const label = (date: string) => formatZonedDate(date, 'UTC');
+    const byDate = new Map(bars.map((bar) => [bar.date, bar]));
+    const dates: string[] = [];
+
+    for (
+        let day = Date.parse(range.from);
+        day <= Date.parse(range.to);
+        day += 86_400_000
+    ) {
+        dates.push(new Date(day).toISOString().slice(0, 10));
+    }
 
     return (
-        <figure>
-            <div className="flex h-48 items-end gap-1 border-b border-rail sm:gap-2">
-                {counts.map((day) => (
+        <figure className="pt-5">
+            <div className="relative flex h-48 items-end gap-1 border-b border-rail sm:gap-2">
+                {average !== null && (
                     <div
-                        key={day.date}
-                        className="group relative flex h-full flex-1 items-end"
+                        className="pointer-events-none absolute inset-x-0 z-[1] border-t border-dashed border-foreground/50"
+                        style={{ bottom: `${(average / top) * 100}%` }}
                     >
-                        <div
-                            className={cn(
-                                'w-full rounded-t',
-                                day.date === today
-                                    ? 'bg-primary/40'
-                                    : 'bg-primary',
-                            )}
-                            style={{ height: `${(day.count / top) * 100}%` }}
-                        />
-                        <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block">
-                            <p className="text-muted-foreground">
-                                {label(day.date)}
-                                {day.date === today && ', so far'}
-                            </p>
-                            <p className="font-medium tabular-nums">
-                                {formatCount(day.count)} active
-                            </p>
-                        </div>
+                        <span className="absolute bottom-full left-0 mb-0.5 rounded-sm bg-background/90 px-1 font-mono text-xs text-muted-foreground tabular-nums">
+                            avg {format(average)}
+                        </span>
                     </div>
-                ))}
+                )}
+                {dates.map((date, index) => {
+                    const bar = byDate.get(date);
+
+                    return (
+                        <div
+                            key={date}
+                            className="group relative flex h-full flex-1 items-end"
+                        >
+                            {bar && (
+                                <>
+                                    <div
+                                        className={cn(
+                                            'w-full rounded-t',
+                                            bar.isPartial
+                                                ? 'bg-primary/40'
+                                                : 'bg-primary',
+                                        )}
+                                        style={{
+                                            height: `${(bar.value / top) * 100}%`,
+                                        }}
+                                    />
+                                    <div
+                                        className={cn(
+                                            'pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
+                                            index < dates.length / 3
+                                                ? 'left-0'
+                                                : index >=
+                                                    (dates.length * 2) / 3
+                                                  ? 'right-0'
+                                                  : 'left-1/2 -translate-x-1/2',
+                                        )}
+                                    >
+                                        <p className="text-muted-foreground">
+                                            {label(date)}
+                                            {bar.isPartial && ', so far'}
+                                        </p>
+                                        <p className="font-medium tabular-nums">
+                                            {bar.label}
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
             <div className="mt-1.5 flex justify-between font-mono text-xs text-muted-foreground">
-                <span>{label(counts[0].date)}</span>
-                <span>{label(counts[counts.length - 1].date)}</span>
+                <span>{label(range.from)}</span>
+                <span>{label(range.to)}</span>
             </div>
-            <table className="sr-only">
-                <caption>Daily active users</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Day</th>
-                        <th scope="col">Active users</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {counts.map((day) => (
-                        <tr key={day.date}>
-                            <th scope="row">{day.date}</th>
-                            <td>{day.count}</td>
+            <div className="sr-only">
+                <table>
+                    <caption>{caption}</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Day</th>
+                            <th scope="col">{column}</th>
                         </tr>
-                    ))}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {bars.map((bar) => (
+                            <tr key={bar.date}>
+                                <th scope="row">{bar.date}</th>
+                                <td>{bar.label}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </figure>
+    );
+}
+
+function ActivationByDay({
+    range,
+    days,
+    average,
+}: {
+    range: TrafficRange;
+    days: ActivationDay[];
+    average: number | null;
+}) {
+    return (
+        <DailyBars
+            range={range}
+            average={average}
+            bars={days.map((day) => {
+                const rate = day.activated / day.eligible;
+
+                return {
+                    date: day.date,
+                    value: rate,
+                    isPartial: !day.complete,
+                    label: `${percent(rate)} of ${formatCount(day.eligible)} sign-ups`,
+                };
+            })}
+            caption="Activation rate by signup day"
+            column="Activation rate"
+            format={percent}
+            empty="nothing yet: a signup day shows once its first sign-ups are 12 hours old"
+        />
+    );
+}
+
+function ActiveUserCounts({
+    range,
+    counts,
+}: {
+    range: TrafficRange;
+    counts: ActivityBucket[];
+}) {
+    const today = utcDate();
+    const complete = counts.filter((day) => day.date !== today);
+
+    return (
+        <DailyBars
+            range={range}
+            average={
+                complete.length === 0
+                    ? null
+                    : Math.round(
+                          complete.reduce((sum, day) => sum + day.count, 0) /
+                              complete.length,
+                      )
+            }
+            bars={counts.map((day) => ({
+                date: day.date,
+                value: day.count,
+                isPartial: day.date === today,
+                label: `${formatCount(day.count)} active`,
+            }))}
+            caption="Daily active users"
+            column="Active users"
+            format={formatCount}
+            empty="nothing yet: days are counted from the day tracking started"
+        />
     );
 }
 
@@ -440,6 +533,25 @@ export default function Show({
             >
                 <Deferred data="funnel" fallback={<FunnelSkeleton />}>
                     {funnel && <FunnelValue funnel={funnel} />}
+                </Deferred>
+            </Section>
+
+            <Section title="Daily active users" meta="by day, utc">
+                <ActiveUserCounts range={range} counts={activeUserCounts} />
+            </Section>
+
+            <Section title="Activation by signup day" meta="by day, utc">
+                <Deferred
+                    data="funnel"
+                    fallback={<Skeleton className="h-48 w-full rounded-lg" />}
+                >
+                    {funnel && (
+                        <ActivationByDay
+                            range={range}
+                            days={funnel.activation_by_day}
+                            average={funnel.rates.activation}
+                        />
+                    )}
                 </Deferred>
             </Section>
 
@@ -527,10 +639,6 @@ export default function Show({
                         ]}
                     />
                 </div>
-            </Section>
-
-            <Section title="Daily active users" meta="by day, utc">
-                <ActiveUserCounts counts={activeUserCounts} />
             </Section>
         </>
     );
