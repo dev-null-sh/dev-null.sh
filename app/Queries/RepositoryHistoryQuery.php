@@ -72,7 +72,8 @@ final readonly class RepositoryHistoryQuery
             ->whereNotNull('onboarded_at')
             ->whereIn('github_id', collect($result['pull_requests'])->merge($result['commits'])->pluck('github_id')->filter()->unique())
             ->get(['github_id', 'username'])
-            ->mapWithKeys(fn (User $user): array => [$user->github_id => '@'.$user->username]);
+            ->reject(fn (User $user): bool => str_starts_with($user->username, '_'))
+            ->mapWithKeys(fn (User $user): array => [$user->github_id => $user->mention()]);
 
         foreach (['pull_requests', 'commits'] as $key) {
             $result[$key] = collect($result[$key])->mapInto(Fluent::class)->map(fn (Fluent $item): array => [

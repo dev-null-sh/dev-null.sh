@@ -137,7 +137,7 @@ final readonly class PageMetadata
         $url = route('commit.show', [$user, $commit]);
 
         $author = $parentUser instanceof User
-            ? "{$user->nameWithHandle()} replying to @{$parentUser->username} on /dev/null"
+            ? "{$user->nameWithHandle()} replying to {$parentUser->mention()} on /dev/null"
             : "{$user->nameWithHandle()} on /dev/null";
 
         $body = Str::squish($this->urls->withShortenedUrls($commit->body));
@@ -211,7 +211,7 @@ final readonly class PageMetadata
         return [
             'type' => 'profile',
             'title' => $title,
-            'description' => $user->bio ?? "Read @{$user->username}'s commits on /dev/null, a social network for developers.",
+            'description' => $user->bio ?? "Read {$user->mention()}'s commits on /dev/null, a social network for developers.",
             'url' => route('user.show', $user),
             'robots' => self::INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
@@ -256,8 +256,8 @@ final readonly class PageMetadata
             'type' => 'profile',
             'title' => $title,
             'description' => $type === 'followers'
-                ? "See who follows @{$user->username} on /dev/null, a social network for developers."
-                : "See who @{$user->username} follows on /dev/null, a social network for developers.",
+                ? "See who follows {$user->mention()} on /dev/null, a social network for developers."
+                : "See who {$user->mention()} follows on /dev/null, a social network for developers.",
             'url' => route($type === 'followers' ? 'user-followers.index' : 'user-following.index', $user),
             'robots' => self::NOT_INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
@@ -375,7 +375,7 @@ final readonly class PageMetadata
         return [
             '@type' => 'Person',
             'name' => $user->name,
-            'alternateName' => "@{$user->username}",
+            'alternateName' => $user->mention(),
             'url' => route('user.show', $user),
         ];
     }

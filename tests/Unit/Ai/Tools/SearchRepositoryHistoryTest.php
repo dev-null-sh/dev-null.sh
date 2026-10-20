@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateStaleUsernames;
 use App\Ai\Tools\SearchRepositoryHistory;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
@@ -71,6 +72,15 @@ it('resolves current onboarded members even when GitHub history is cached', func
     $author->update(['onboarded_at' => now(), 'username' => 'alice-renamed']);
     User::factory()->create(['github_id' => '456', 'username' => 'alice']);
     expect(json_decode(new SearchRepositoryHistory()->handle($request), true)['commits'][0]['mention'])->toBe('@alice-renamed');
+
+    resolve(UpdateStaleUsernames::class)->handle('alice-renamed', '789');
+    $result = new SearchRepositoryHistory()->handle($request);
+    expect($author->refresh()->username)->toBe('_renamed-123');
+    expect($result)->not->toContain('_renamed-123', 'github_id');
+    expect(json_decode($result, true)['commits'][0])->toMatchArray(['mention' => null, 'commit_author' => 'alice']);
+
+    $author->update(['username' => 'alice-restored']);
+    expect(json_decode(new SearchRepositoryHistory()->handle($request), true)['commits'][0]['mention'])->toBe('@alice-restored');
 
     $author->delete();
     expect(json_decode(new SearchRepositoryHistory()->handle($request), true)['commits'][0]['mention'])->toBeNull();
