@@ -11,6 +11,7 @@ use App\Actions\UpdateCommitHotScores;
 use App\Actions\UpdateConversationReadThrough;
 use App\Enums\RemotesFrom;
 use App\Models\Commit;
+use App\Models\Notification;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
@@ -62,7 +63,35 @@ final class DatabaseSeeder extends Seeder
         $localDeveloper->following()->syncWithoutDetaching($users->random(3)->modelKeys());
         $localDeveloper->followers()->syncWithoutDetaching($users->random(5)->modelKeys());
 
+        $this->seedNotifications($localDeveloper, $users);
+
         $this->converse($localDeveloper, $users);
+    }
+
+    /**
+     * Give the local sign-in account an inbox with a few different kinds of activity.
+     *
+     * @param  Collection<int, User>  $users
+     */
+    private function seedNotifications(User $localDeveloper, Collection $users): void
+    {
+        $follower = $localDeveloper->followers()->firstOrFail();
+        [$stargazer, $replier, $mentioner] = $users->except([$follower->id])->random(3)->values()->all();
+        $commit = $localDeveloper->commits()->firstOrFail();
+
+        Notification::factory()->for($localDeveloper, 'recipient')->for($follower, 'actor')->create([
+            'created_at' => now()->subDays(2),
+            'read_at' => now()->subDay(),
+        ]);
+
+        Notification::factory()->for($localDeveloper, 'recipient')->for($stargazer, 'actor')
+            ->starred($commit)->create(['created_at' => now()->subHours(3)]);
+
+        Notification::factory()->for($localDeveloper, 'recipient')->for($replier, 'actor')
+            ->replied($commit)->create(['created_at' => now()->subHour()]);
+
+        Notification::factory()->for($localDeveloper, 'recipient')->for($mentioner, 'actor')
+            ->mentioned()->create(['created_at' => now()->subMinutes(10)]);
     }
 
     /**

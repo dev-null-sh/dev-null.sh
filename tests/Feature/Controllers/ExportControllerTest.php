@@ -6,7 +6,6 @@ use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\CommitTranslator;
 use App\Enums\NotificationType;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
@@ -114,7 +113,6 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'polls' => [],
         'poll_votes' => [],
         'stars' => [],
-        'bookmarks' => [],
         'following' => [],
         'followers' => [],
         'muting' => [],
@@ -206,7 +204,7 @@ it('exports commit image urls in order', function (): void {
     ])->and($response->streamedContent())->not->toContain($first->path);
 });
 
-it('exports starred and saved commit ids, including deleted commits, but not other users stars or bookmarks', function (): void {
+it('exports starred commit ids, including deleted commits, but not other users stars', function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
     $starred = Commit::factory()->for($other)->create();
@@ -214,16 +212,13 @@ it('exports starred and saved commit ids, including deleted commits, but not oth
     $saved = Commit::factory()->for($other)->create();
     $user->starredCommits()->attach([$starred->id, $deletedStarred->id]);
     $deletedStarred->delete();
-    Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $saved->id]);
     $otherStarred = Commit::factory()->create();
     $other->starredCommits()->attach($otherStarred);
-    Bookmark::factory()->create(['user_id' => $other->id, 'commit_id' => $otherStarred->id]);
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect(collect($data['stars'])->sort()->values()->all())->toBe(collect([$starred->id, $deletedStarred->id])->sort()->values()->all())
-        ->and($data['bookmarks'])->toBe([$saved->id])
         ->and($response->streamedContent())->not->toContain($otherStarred->id, $saved->body, $starred->body);
 });
 

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Enums\NotificationType;
 use App\Http\Controllers\SessionController;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
@@ -84,6 +85,10 @@ it('signs in as the seeded local developer', function (): void {
         ->assertSessionHasNoErrors();
 
     $this->assertAuthenticatedAs($localDeveloper);
+
+    expect($localDeveloper->notifications()->get()->pluck('type')->all())
+        ->toContain(NotificationType::Followed, NotificationType::Starred, NotificationType::Replied, NotificationType::Mentioned)
+        ->and($localDeveloper->notifications()->unread()->count())->toBe(3);
 });
 
 it('loads the signed in page in full, as signing in with GitHub does', function (): void {

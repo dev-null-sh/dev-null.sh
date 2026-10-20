@@ -113,7 +113,7 @@ Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live
 
 ### Achievement badges and XP
 
-Profiles display **13 achievement badges**. Locked badges show progress toward their requirements; unlocked badges are highlighted. Open the achievements dialog from a profile's badge or rank to see the full list.
+Profiles have **13 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
 
 | Badge | When it unlocks |
 | --- | --- |
@@ -195,6 +195,10 @@ Commit and reply text supports inline code in backticks and fenced code blocks w
 
 Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions are limited to the org's members. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
+Typing **#123** in a composer looks up that exact issue or pull request in the configured upstream repository (`nunomaduro/dev-null.sh` by default). The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
+
+The upstream is configured with `GITHUB_REPOSITORY=owner/repo` through `services.github.repository`. Issue suggestions, issue filing, the changelog, repository insights and history, and public repository links share this setting. Repository-specific caches are scoped to it.
+
 Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
 ### Draft previews and secret warnings
@@ -218,6 +222,8 @@ Attach up to **three JPEG, PNG, or WebP images** to a commit or reply. Each imag
 Sources: [image picker](resources/js/components/commit-image-picker.tsx), [image limits](app/Actions/CreateCommitImages.php), [attachment validation](app/Http/Requests/CreateCommitRequest.php), [photo controller](app/Http/Controllers/CommitPhotoController.php).
 
 ### Links, link cards, and embedded players
+
+Each link in a commit or reply counts as at most **23 characters** toward the 4,000-character allowance; shorter links count at their actual length. This also applies to quotes, scheduled commits, previews, and terminal and app submissions. The full URL is stored and followed directly, not through a redirect service. Prose URLs longer than **2,048 characters** are rejected, including the inferred `https://` scheme for bare domains. Code still counts literally toward the 4,000-character allowance. Bodies are additionally capped at 40,000 raw characters to bound storage and processing. Private messages and issue drafts keep their existing literal character limits.
 
 URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit and reply composers, choose another link from the body or choose no card; quotes, terminal commits, and app commits always use the first link. Missing site metadata may leave a link without a rich preview.
 
@@ -481,7 +487,7 @@ Sources: [operations controller](app/Http/Controllers/OperationsController.php),
 
 ### Product metrics
 
-Administrators follow the product in Operations → **Metrics**, for a range of signup dates (all time by default). The funnel counts visitors who are not signed in, signups, **activation** (getting something from the network within 12 hours of signing up: starring or saving commits by three or more people, or a reply, quote, or star from someone else on your own post), and **retention** (coming back at least once from day 14 after signing up, or day 7 or day 1 until signups get that far). Each step shows its rate and how it changed since the period before, and a chart shows the activation rate of each signup day. The tab also shows active users, how often commits get an answer within 24 hours, how many people newcomers follow in their first day, and a chart of daily active users. Bots are left out everywhere.
+Administrators follow the product in Operations → **Metrics**, for a range of signup dates (all time by default). The funnel counts visitors who are not signed in, signups, **activation** (getting something from the network within 12 hours of signing up: starring or saving commits by three or more people, or a reply, quote, or star from someone else on your own post), and **retention** (coming back at least once from the day after signing up). Each step shows its rate and how it changed since the period before, and a chart shows the activation rate of each signup day. The tab also shows active users, how often commits get an answer within 24 hours, how many people newcomers follow in their first day, and a chart of daily active users. Bots are left out everywhere.
 
 To count active people, /dev/null remembers the **last day** you were signed in and opened a page, did something, or used the API from the mobile app, the terminal, or the GitHub Action, the day and not the time. Background refreshes do not count. That day is the only thing stored about you for metrics: it is never shown to other people, it is included in your export, and it is deleted with your account. Each day's number of active people is kept as one anonymous count. Visitors and the conversion rate come from Fathom, which counts anonymously: the browser sends a `guest-visit` event once per session when you are not signed in and a `signup` event right after an account is created, with nothing that identifies you.
 

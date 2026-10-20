@@ -238,8 +238,7 @@ it('lists only approved replies to guests', function (): void {
 
     $response->assertOk()
         ->assertJsonCount(1, 'data')
-        ->assertJsonPath('data.0.body', 'Approved')
-        ->assertJsonPath('data.0.is_saved', false);
+        ->assertJsonPath('data.0.body', 'Approved');
 });
 
 it('returns not found to guests for the replies of a commit that is not approved', function (): void {

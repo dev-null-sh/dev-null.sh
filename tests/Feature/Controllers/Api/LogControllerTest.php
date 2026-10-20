@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
 use App\Enums\Log;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
@@ -77,7 +76,6 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'status' => 'approved',
         'is_pinned' => false,
         'starred' => false,
-        'is_saved' => false,
         'pasteis_count' => 2,
         'deleted_at' => null,
         'quoted_commit_id' => null,
@@ -110,7 +108,6 @@ it('shows what the web shows on a commit', function (): void {
     $commit = Commit::factory()->for($author)->for($linkPreview)->create(['body' => 'Ask @NunoMaduro about https://laravel.com']);
     $image = CommitImage::factory()->for($commit)->create(['width' => 640, 'height' => 480]);
     $commit->stars()->attach([$this->user->id, User::factory()->create()->id]);
-    Bookmark::factory()->create(['user_id' => $this->user->id, 'commit_id' => $commit->id]);
     $author->forceFill(['pinned_commit_id' => $commit->id])->save();
 
     $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'));
@@ -118,7 +115,6 @@ it('shows what the web shows on a commit', function (): void {
     $response->assertOk()
         ->assertJsonPath('data.0.stars_count', 2)
         ->assertJsonPath('data.0.starred', true)
-        ->assertJsonPath('data.0.is_saved', true)
         ->assertJsonPath('data.0.is_pinned', true)
         ->assertJsonPath('data.0.mentions', [['username' => 'NunoMaduro', 'offset' => 4, 'length' => 11]])
         ->assertJsonPath('data.0.link_preview', [
@@ -143,15 +139,13 @@ it('shows what the web shows on a commit', function (): void {
 it('only shows the saves and stars of the user', function (): void {
     $commit = Commit::factory()->create();
     $commit->stars()->attach(User::factory()->create());
-    Bookmark::factory()->create(['commit_id' => $commit->id]);
 
     $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'));
 
     $response->assertOk()
         ->assertJsonPath('data.0.id', $commit->id)
         ->assertJsonPath('data.0.stars_count', 1)
-        ->assertJsonPath('data.0.starred', false)
-        ->assertJsonPath('data.0.is_saved', false);
+        ->assertJsonPath('data.0.starred', false);
 });
 
 it('lists the commits of the users followed and the user', function (): void {

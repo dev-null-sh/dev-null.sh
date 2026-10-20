@@ -1055,7 +1055,7 @@ export function NotificationContent({
         <Link
             href={href}
             data-notification-link
-            className="after:absolute after:inset-0 after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
+            className="after:absolute after:inset-0 after:z-[1] after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
         >
             {action}
         </Link>
@@ -1261,7 +1261,7 @@ export function NotificationContent({
                             </>
                         )}
                         {excerpt}
-                        {quote}
+                        {quote && <div className="relative z-10">{quote}</div>}
                         {reason}
                     </div>
                     {notification.type === 'followed' && actorsCount === 1 && (
