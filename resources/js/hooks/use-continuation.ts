@@ -1,3 +1,4 @@
+import { useRemember } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitContinuationController from '@/actions/App/Http/Controllers/CommitContinuationController';
@@ -6,10 +7,15 @@ import type { Commit, ThreadContinuation } from '@/types';
 
 export function useContinuation(continuation: ThreadContinuation) {
     const [loaded, setLoaded] = useState(continuation);
-    const [shown, setShown] = useState(continuation.data);
-    const [nextId, setNextId] = useState(continuation.next_id);
-    const [size, setSize] = useState(sizeOf(continuation));
-    const [isCapped, setIsCapped] = useState(continuation.is_capped);
+    const [{ shown, nextId, size, isCapped }, setThread] = useRemember(
+        {
+            shown: continuation.data,
+            nextId: continuation.next_id,
+            size: sizeOf(continuation),
+            isCapped: continuation.is_capped,
+        },
+        'continuation',
+    );
     const [isLoading, setIsLoading] = useState(false);
     const [focusId, setFocusId] = useState<string | null>(null);
     const request = useRef<AbortController | null>(null);
@@ -21,14 +27,19 @@ export function useContinuation(continuation: ThreadContinuation) {
             const refreshed = new Map(
                 continuation.data.map((part) => [part.id, part]),
             );
-            setShown((current) =>
-                current.map((part) => refreshed.get(part.id) ?? part),
-            );
+            setThread((current) => ({
+                ...current,
+                shown: current.shown.map(
+                    (part) => refreshed.get(part.id) ?? part,
+                ),
+            }));
         } else {
-            setShown(continuation.data);
-            setNextId(continuation.next_id);
-            setSize(sizeOf(continuation));
-            setIsCapped(continuation.is_capped);
+            setThread({
+                shown: continuation.data,
+                nextId: continuation.next_id,
+                size: sizeOf(continuation),
+                isCapped: continuation.is_capped,
+            });
         }
     }
 
@@ -72,10 +83,12 @@ export function useContinuation(continuation: ThreadContinuation) {
                 return response.json() as Promise<ThreadContinuation>;
             })
             .then((page) => {
-                setShown((parts) => [...parts, ...page.data]);
-                setNextId(page.next_id);
-                setSize(lastPosition + page.length);
-                setIsCapped(page.is_capped);
+                setThread((current) => ({
+                    shown: [...current.shown, ...page.data],
+                    nextId: page.next_id,
+                    size: lastPosition + page.length,
+                    isCapped: page.is_capped,
+                }));
                 setFocusId(page.data[0]?.id ?? null);
             })
             .catch(() => {

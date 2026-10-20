@@ -43,7 +43,7 @@ it('groups stars per commit, newest stargazer first', function (): void {
         starAt($stargazer, $commit, 10 - $index);
     }
 
-    $groups = resolve(NotificationGroupsQuery::class)->paginate($commit->user);
+    $groups = resolve(NotificationGroupsQuery::class)->paginate($commit->user, 'stars');
 
     $group = $groups->items()[0];
 

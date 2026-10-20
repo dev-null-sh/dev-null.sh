@@ -10,6 +10,7 @@ import TrafficController from '@/actions/App/Http/Controllers/TrafficController'
 import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { backgroundPollOptions } from '@/lib/background-poll';
 import { cn } from '@/lib/utils';
 
 const REFRESH_SECONDS = 15;
@@ -46,7 +47,7 @@ export const TAB_PROPS: Record<OperationsTab, string[]> = {
 };
 
 function Poll({ only }: { only: string[] }) {
-    usePoll(REFRESH_SECONDS * 1000, { only });
+    usePoll(REFRESH_SECONDS * 1000, backgroundPollOptions({ only }));
 
     return null;
 }

@@ -48,6 +48,7 @@ import {
 import { useNow } from '@/hooks/use-now';
 import { clickedCommit } from '@/lib/commit-click';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
+import { measureCommitSize } from '@/lib/commit-size';
 import {
     cn,
     formatFullDateTime,
@@ -159,23 +160,57 @@ export function CommitCard({
 
         window.setTimeout(
             () =>
-                router.visit(CommitController.destroy(commit), {
-                    ...commitMutationOptions(component),
-                    onError: () => setDeletion('idle'),
-                    onHttpException: (response) => {
-                        if (commitNotFound(commit.id, response)) {
-                            setDeletion('idle');
+                router
+                    .optimistic(
+                        (props: {
+                            commits?: CursorPaginated<Commit>;
+                            user?: { commits_count?: number };
+                            pinnedCommit?: Commit | null;
+                        }) => ({
+                            ...(props.commits?.data
+                                ? {
+                                      commits: {
+                                          ...props.commits,
+                                          data: props.commits.data.filter(
+                                              (c: Commit) => c.id !== commit.id,
+                                          ),
+                                      },
+                                  }
+                                : {}),
+                            ...(props.user?.commits_count !== undefined
+                                ? {
+                                      user: {
+                                          ...props.user,
+                                          commits_count: Math.max(
+                                              0,
+                                              props.user.commits_count - 1,
+                                          ),
+                                      },
+                                  }
+                                : {}),
+                            ...(props.pinnedCommit?.id === commit.id
+                                ? { pinnedCommit: null }
+                                : {}),
+                        }),
+                    )
+                    .visit(CommitController.destroy(commit), {
+                        ...commitMutationOptions(component),
+                        onError: () => setDeletion('idle'),
+                        onHttpException: (response) => {
+                            if (commitNotFound(commit.id, response)) {
+                                setDeletion('idle');
 
-                            return false;
-                        }
-                    },
-                }),
+                                return false;
+                            }
+                        },
+                    }),
             prefersReducedMotion ? 0 : 700,
         );
     };
 
     return (
         <article
+            ref={measureCommitSize}
             className={cn(
                 'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none hover:bg-accent/50 focus-visible:bg-accent',
                 {

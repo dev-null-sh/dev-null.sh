@@ -152,10 +152,14 @@ function positionFor(textarea: HTMLTextAreaElement, index: number): Position {
 async function fetchSuggestions(
     query: string,
     org: string | undefined,
+    reply: string | undefined,
+    quote: string | undefined,
     signal: AbortSignal,
 ): Promise<User[]> {
     const response = await fetch(
-        MentionSuggestionController.index({ query: { q: query, org } }).url,
+        MentionSuggestionController.index({
+            query: { q: query, org, reply, quote },
+        }).url,
         {
             headers: {
                 Accept: 'application/json',
@@ -172,7 +176,13 @@ async function fetchSuggestions(
     }
 
     const data = (await response.json()) as { users: User[] };
-    cache.set(`${org ?? ''}:${query.toLowerCase()}`, data.users);
+    // Replies need fresh participants when someone joins the thread.
+    if (!reply) {
+        cache.set(
+            `${org ?? ''}:${reply ?? ''}:${quote ?? ''}:${query.toLowerCase()}`,
+            data.users,
+        );
+    }
 
     return data.users;
 }
@@ -226,6 +236,8 @@ export function MentionTextarea({
     maxLength,
     suggestsMentions = true,
     org,
+    reply,
+    quote,
     ...props
 }: Omit<ComponentProps<'textarea'>, 'value' | 'onChange'> & {
     ref?: Ref<HTMLTextAreaElement>;
@@ -233,6 +245,8 @@ export function MentionTextarea({
     onValueChange: (value: string) => void;
     suggestsMentions?: boolean;
     org?: string;
+    reply?: string;
+    quote?: string;
 }) {
     const id = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -244,7 +258,10 @@ export function MentionTextarea({
 
     const query =
         trigger?.kind === 'mention' ? trigger.query.toLowerCase() : null;
-    const key = query === null ? null : `${org ?? ''}:${query}`;
+    const key =
+        query === null
+            ? null
+            : `${org ?? ''}:${reply ?? ''}:${quote ?? ''}:${query}`;
 
     const setRefs = (element: HTMLTextAreaElement | null) => {
         textareaRef.current = element;
@@ -290,7 +307,7 @@ export function MentionTextarea({
         const controller = new AbortController();
         const timeout = setTimeout(
             () =>
-                fetchSuggestions(query, org, controller.signal)
+                fetchSuggestions(query, org, reply, quote, controller.signal)
                     .then((users) => setResults({ key, users }))
                     .catch(() => undefined),
             query === '' ? 0 : debounce,
@@ -300,7 +317,7 @@ export function MentionTextarea({
             clearTimeout(timeout);
             controller.abort();
         };
-    }, [key, query, org]);
+    }, [key, query, org, reply, quote]);
 
     useEffect(() => {
         if (!trigger) {
@@ -570,14 +587,19 @@ export function MentionTextarea({
                                 aria-label="Mention a developer"
                                 className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
                             >
-                                {current?.key === `${org ?? ''}:` && (
-                                    <li
-                                        role="presentation"
-                                        className="px-2.5 pt-1 pb-1.5 text-xs text-muted-foreground"
-                                    >
-                                        {org ? 'Members' : 'People you follow'}
-                                    </li>
-                                )}
+                                {query === '' &&
+                                    !reply &&
+                                    !quote &&
+                                    current?.key === key && (
+                                        <li
+                                            role="presentation"
+                                            className="px-2.5 pt-1 pb-1.5 text-xs text-muted-foreground"
+                                        >
+                                            {org
+                                                ? 'Members'
+                                                : 'People you follow'}
+                                        </li>
+                                    )}
                                 {suggestions.map((user, index) => (
                                     <li
                                         key={user.id}
