@@ -20,16 +20,17 @@ final readonly class RepositoryHistoryQuery
     /** @return array<string, mixed>|null */
     public function get(string $query): ?array
     {
+        $repository = config()->string('services.github.repository');
         $terms = str($query)->explode(' ')->map(fn (string $term): string => '"'.$term.'"')->implode(' ');
 
-        $result = Cache::remember('repository-history:v2:'.hash('sha256', $query), 900, function () use ($terms): ?array {
+        $result = Cache::remember("repository-history:v2:{$repository}:".hash('sha256', $query), 900, function () use ($repository, $terms): ?array {
             try {
                 $pullRequests = $this->github->request()->get('search/issues', [
-                    'q' => 'repo:'.ChangelogQuery::Repository.' is:pr is:merged base:'.ChangelogQuery::Branch.' in:title,body '.$terms,
+                    'q' => 'repo:'.$repository.' is:pr is:merged base:'.ChangelogQuery::Branch.' in:title,body '.$terms,
                     'per_page' => 5,
                 ])->throw();
                 $commits = $this->github->request()->get('search/commits', [
-                    'q' => 'repo:'.ChangelogQuery::Repository.' merge:false '.$terms,
+                    'q' => 'repo:'.$repository.' merge:false '.$terms,
                     'per_page' => 5,
                 ])->throw();
 
@@ -41,7 +42,7 @@ final readonly class RepositoryHistoryQuery
             }
 
             return [
-                'repository' => ChangelogQuery::Repository,
+                'repository' => $repository,
                 'as_of' => now()->toIso8601String(),
                 'freshness' => 'Cached for 15 minutes. GitHub search indexing can lag.',
                 'complete' => false,

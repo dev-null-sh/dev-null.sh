@@ -23,7 +23,7 @@ final readonly class ChangelogController
         return response()->json([
             'pullRequests' => $days['pullRequests'] ?? null,
             'olderBefore' => $days['olderBefore'] ?? null,
-            'commitsUrl' => 'https://github.com/'.ChangelogQuery::Repository.'/commits/'.ChangelogQuery::Branch,
+            'commitsUrl' => 'https://github.com/'.config()->string('services.github.repository').'/commits/'.ChangelogQuery::Branch,
         ]);
     }
 }

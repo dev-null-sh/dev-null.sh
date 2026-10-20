@@ -900,7 +900,6 @@ it('shows guests the commit with its approved replies and a link preview', funct
             ->where('commit.replies_count', 1)
             ->where('commit.stars_count', 1)
             ->where('commit.starred', false)
-            ->where('commit.is_saved', false)
             ->has('ancestors', 0)
             ->has('replies.data', 1)
             ->where('replies.data.0.body', 'A reply everyone may read'))

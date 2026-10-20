@@ -113,7 +113,7 @@ Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live
 
 ### Achievement badges and XP
 
-Profiles display **13 achievement badges**. Locked badges show progress toward their requirements; unlocked badges are highlighted. Open the achievements dialog from a profile's badge or rank to see the full list.
+Profiles have **13 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
 
 | Badge | When it unlocks |
 | --- | --- |
@@ -139,7 +139,7 @@ Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and 
 
 ### Following developers and suggestions
 
-Follow or unfollow from a developer's profile or a follow control elsewhere in the app. Following puts their commits in your Following log. You cannot follow yourself or follow across a block. GitHub follows are imported once: connections to developers already on /dev/null are added in both directions, with up to 1,000 GitHub connections checked each way. This is not continuous synchronization, so unfollowing someone on /dev/null sticks.
+Follow or unfollow from a developer's profile or a follow control elsewhere in the app. Following puts their commits in your Following log. Following or unfollowing from a log updates the controls, counts, and live-following sidebar without navigating away: Latest and Trending keep their loaded commits and ranking, while Following updates its commits and empty-state suggestions. You cannot follow yourself or follow across a block. GitHub follows are imported once: connections to developers already on /dev/null are added in both directions, with up to 1,000 GitHub connections checked each way. This is not continuous synchronization, so unfollowing someone on /dev/null sticks.
 
 **Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Someone who already follows you gets **Follow back**. Show or hide these suggestions in Settings → Appearance. You can also follow back from the notifications list.
 
@@ -158,6 +158,8 @@ Sources: [log types](app/Enums/Log.php), [log queries](app/Queries/LogQueries), 
 ### Searching developers and commits
 
 Open search with **⌘/Ctrl+K** or **/**. Developer search finds people by name or GitHub username. Commit search, also available at `/search`, finds posts by meaning rather than requiring an exact phrase: describe the topic you want to read about. Commit queries must contain at least three characters and at most 100, and cover replies as well as top-level commits. An AI relevance check filters the nearest matches, so a search can return fewer results than asked. Results respect visibility, mutes, and blocks; semantic matching does not guarantee that every relevant commit will be returned. Guests can search too. Commit search is limited to 15 searches a minute per person (or per IP for guests).
+
+Signed-in users see their three most recent distinct searches above the suggested searches, newest first. Repeating a search moves it to the top; adding a fourth discards the oldest from storage, not just from the display. Recent searches stay in this browser, scoped to the signed-in account, and do not sync to other devices or create server-side history. They are cleared on sign-out or account deletion in that browser. Guests do not retain recent searches.
 
 The public search searches developers and commits, not this knowledge-base file. Feature documentation is available to the internal knowledge-base retriever once indexed; there is no public knowledge-base search endpoint yet.
 
@@ -194,6 +196,10 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting and a copy control. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
 
 Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions are limited to the org's members. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
+
+Typing **#123** in a composer looks up that exact issue or pull request in the configured upstream repository (`nunomaduro/dev-null.sh` by default). The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
+
+The upstream is configured with `GITHUB_REPOSITORY=owner/repo` through `services.github.repository`. Issue suggestions, issue filing, the changelog, repository insights and history, and public repository links share this setting. Repository-specific caches are scoped to it.
 
 Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
@@ -485,7 +491,7 @@ Sources: [operations controller](app/Http/Controllers/OperationsController.php),
 
 ### Product metrics
 
-Administrators follow the product in Operations → **Metrics**, for a range of signup dates (all time by default). The funnel counts visitors who are not signed in, signups, **activation** (getting something from the network within 12 hours of signing up: starring or saving commits by three or more people, or a reply, quote, or star from someone else on your own post), and **retention** (coming back at least once from day 14 after signing up, or day 7 or day 1 until signups get that far). Each step shows its rate and how it changed since the period before, and a chart shows the activation rate of each signup day. The tab also shows active users, how often commits get an answer within 24 hours, how many people newcomers follow in their first day, and a chart of daily active users. Bots are left out everywhere.
+Administrators follow the product in Operations → **Metrics**, for a range of signup dates (all time by default). The funnel counts visitors who are not signed in, signups, **activation** (getting something from the network within 12 hours of signing up: starring or saving commits by three or more people, or a reply, quote, or star from someone else on your own post), and **retention** (coming back at least once from the day after signing up). Each step shows its rate and how it changed since the period before, and a chart shows the activation rate of each signup day. The tab also shows active users, how often commits get an answer within 24 hours, how many people newcomers follow in their first day, and a chart of daily active users. Bots are left out everywhere.
 
 To count active people, /dev/null remembers the **last day** you were signed in and opened a page, did something, or used the API from the mobile app, the terminal, or the GitHub Action, the day and not the time. Background refreshes do not count. That day is the only thing stored about you for metrics: it is never shown to other people, it is included in your export, and it is deleted with your account. Each day's number of active people is kept as one anonymous count. Visitors and the conversion rate come from Fathom, which counts anonymously: the browser sends a `guest-visit` event once per session when you are not signed in and a `signup` event right after an account is created, with nothing that identifies you.
 

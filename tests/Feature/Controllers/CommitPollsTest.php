@@ -10,7 +10,6 @@ use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
 use App\Jobs\UnfurlLink;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\Poll;
 use App\Models\PollVote;
@@ -268,13 +267,13 @@ it('shows the poll of a quoted commit in moderation and after undoing a deletion
         ->assertInertiaFlash('restored.quoted_commit.poll.options.0.label', 'Tabs');
 });
 
-it('shows polls on profiles and saved commits', function (): void {
+it('shows polls on profiles and starred commits', function (): void {
     $user = User::factory()->create();
     $author = User::factory()->create();
     $pinned = Poll::factory()->for(Commit::factory()->for($author))->withOptions('Tabs', 'Spaces')->create();
     $latest = Poll::factory()->for(Commit::factory()->for($author))->withOptions('Vim', 'Emacs')->create();
     $author->update(['pinned_commit_id' => $pinned->commit_id]);
-    Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $latest->commit_id]);
+    $user->starredCommits()->attach($latest->commit);
 
     $this->actingAs($user)
         ->get(route('user.show', $author))
@@ -282,7 +281,7 @@ it('shows polls on profiles and saved commits', function (): void {
             ->where('pinnedCommit.poll.options.0.label', 'Tabs')
             ->where('commits.data.0.poll.options.0.label', 'Vim'));
 
-    $this->get(route('bookmark.index'))
+    $this->get(route('starred.index'))
         ->assertInertia(fn ($page) => $page->where('commits.data.0.poll.options.0.label', 'Vim'));
 });
 

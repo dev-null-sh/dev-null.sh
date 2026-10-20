@@ -16,6 +16,7 @@ declare module '@inertiajs/core' {
         };
         sharedPageProps: {
             name: string;
+            repository: string;
             auth: Auth;
             hasUnmoderatedCommits: boolean;
             sidebarOpen: boolean;

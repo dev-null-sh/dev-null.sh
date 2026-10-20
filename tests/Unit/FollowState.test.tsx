@@ -2,13 +2,21 @@
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { afterAll, test, vi } from 'vite-plus/test';
+import { afterAll, afterEach, test, vi } from 'vite-plus/test';
 import type { Profile, SuggestedUser, User } from '../../resources/js/types';
 
 type Props = Record<string, unknown> & { children?: ReactNode };
 
 let showPreview = false;
+let component = 'user/show';
+let log: string | undefined;
+let loadedCommits: { data: { id: string }[] } | undefined;
 type VisitOptions = {
+    only?: string[];
+    headers?: Record<string, string>;
+    async?: boolean;
+    preserveState?: boolean;
+    preserveScroll?: boolean;
     onHttpException?: (response: { status: number }) => boolean | void;
     onSuccess?: () => void;
     onError?: () => void;
@@ -32,8 +40,7 @@ vi.doMock('react', () => ({
               : initial,
         () => {},
     ],
-    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) =>
-        read(),
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));
 vi.doMock('react-dom', async () => ({
     ...(await vi.importActual('react-dom')),
@@ -41,7 +48,14 @@ vi.doMock('react-dom', async () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user: { id: 'viewer' } } } }),
+    usePage: () => ({
+        component,
+        props: {
+            auth: { user: { id: 'viewer' } },
+            log,
+            commits: loadedCommits,
+        },
+    }),
     router: {
         flushAll: () => {},
         visit: (url: { method: string }, options: VisitOptions) =>
@@ -75,6 +89,11 @@ const { ConversationActions } =
 vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
 vi.stubGlobal('document', { body: {} });
 afterAll(() => vi.unstubAllGlobals());
+afterEach(() => {
+    component = 'user/show';
+    log = undefined;
+    loadedCommits = undefined;
+});
 
 function find(
     node: ReactNode,
@@ -319,8 +338,10 @@ test('unfollowing through a cached preview keeps its follower count', () => {
     followFromProfile(user);
     const changes: { user: Profile }[] = [];
 
-    (previewFollowButton(user, false, (data) => changes.push(data)).props
-        .onClick as () => void)();
+    (
+        previewFollowButton(user, false, (data) => changes.push(data)).props
+            .onClick as () => void
+    )();
     visits.at(-1)?.onSuccess?.();
 
     assert.equal(changes.at(-1)?.user.followers_count, 0);
@@ -394,4 +415,79 @@ test('a second click on a follow still on its way sends nothing', () => {
     const finished = suggestionFollowLink(user);
     assert.equal(finished.disabled, false);
     assert.equal((finished.onBefore as () => boolean)(), true);
+});
+
+for (const lane of ['latest', 'trending']) {
+    test(`following a suggestion in ${lane} preserves the loaded log`, () => {
+        component = 'log/show';
+        log = lane;
+
+        const follow = suggestionFollowLink(suggestion(`suggested-${lane}`));
+
+        assert.deepEqual(follow.only, ['auth.user', 'liveFollowing']);
+        assert.equal(follow.async, true);
+        assert.equal(follow.preserveState, true);
+        assert.equal(follow.preserveScroll, true);
+    });
+
+    test(`following from a preview in ${lane} is a silent partial visit`, () => {
+        component = 'log/show';
+        log = lane;
+
+        (
+            previewFollowButton(suggestion(`preview-${lane}`)).props
+                .onClick as () => void
+        )();
+
+        assert.deepEqual(visits.at(-1)?.only, ['auth.user', 'liveFollowing']);
+        assert.equal(visits.at(-1)?.async, true);
+        assert.equal(visits.at(-1)?.preserveState, true);
+        assert.equal(visits.at(-1)?.preserveScroll, true);
+    });
+}
+
+test('following from either log control replaces Following results and its empty state', () => {
+    component = 'log/show';
+    log = 'following';
+    const expected = [
+        'auth.user',
+        'liveFollowing',
+        'commits',
+        'suggestions',
+        'newCommitsCount',
+    ];
+
+    const follow = suggestionFollowLink(suggestion('following-suggestion'));
+    (
+        previewFollowButton(suggestion('following-preview')).props
+            .onClick as () => void
+    )();
+
+    for (const request of [follow, visits.at(-1)]) {
+        assert.deepEqual(request?.only, expected);
+        assert.deepEqual(request?.headers, {
+            'X-Follow-Request': 'true',
+            'X-Inertia-Reset': 'commits',
+        });
+    }
+});
+
+test('both Following controls carry the oldest loaded row through the follow redirect', () => {
+    component = 'log/show';
+    log = 'following';
+    loadedCommits = { data: [{ id: 'newest' }, { id: 'oldest-loaded' }] };
+
+    const follow = suggestionFollowLink(suggestion('range-suggestion'));
+    (
+        previewFollowButton(suggestion('range-preview')).props
+            .onClick as () => void
+    )();
+
+    for (const request of [follow, visits.at(-1)]) {
+        assert.deepEqual(request?.headers, {
+            'X-Follow-Request': 'true',
+            'X-Inertia-Reset': 'commits',
+            'X-Log-Through': 'oldest-loaded',
+        });
+    }
 });
