@@ -20,6 +20,11 @@ import { ActivityGraph } from '@/components/activity-graph';
 import { ActivityStreaks } from '@/components/activity-streaks';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import {
+    CoverImage,
+    CoverPill,
+    profileCoverAspect,
+} from '@/components/cover-image';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import {
@@ -71,6 +76,8 @@ export default function Show({
     commits,
     tab,
     pinnedCommit,
+    coverImageUrl,
+    coverImagePending,
 }: {
     user: Profile;
     pasteisReceived: number | null;
@@ -85,6 +92,8 @@ export default function Show({
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies';
     pinnedCommit: Commit | null;
+    coverImageUrl: string | null;
+    coverImagePending: boolean;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
@@ -126,13 +135,26 @@ export default function Show({
                 </p>
             </div>
 
-            <header className="border-b px-4 pt-6 pb-5 sm:px-6">
+            <CoverImage
+                lane={user.lane}
+                src={coverImageUrl}
+                className={profileCoverAspect}
+                data-test="profile-cover"
+            >
+                {coverImagePending && (
+                    <CoverPill>
+                        Waiting for review: only you see this cover
+                    </CoverPill>
+                )}
+            </CoverImage>
+
+            <header className="border-b px-4 pb-5 sm:px-6">
                 <div className="flex items-start justify-between gap-4">
                     {user.live ? (
                         <LiveStreamTrigger
                             user={user}
                             showProfile={false}
-                            className="flex"
+                            className="-mt-10 flex"
                         >
                             <a
                                 href={user.live.url}
@@ -153,13 +175,13 @@ export default function Show({
                     ) : (
                         <UserAvatar
                             user={user}
-                            className="size-20 text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
+                            className="-mt-10 size-20 text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
                             pixels={160}
                             style={{ '--lane': lane } as CSSProperties}
                         />
                     )}
 
-                    <div className="flex shrink-0 gap-1.5 sm:gap-2">
+                    <div className="mt-3 flex shrink-0 gap-1.5 sm:gap-2">
                         <ProfileShareButton
                             username={user.username}
                             href={show(user).url}

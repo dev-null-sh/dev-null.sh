@@ -45,6 +45,8 @@ use Illuminate\Support\Facades\DB;
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read string|null $cover_image_path
+ * @property-read CarbonInterface|null $cover_image_approved_at
  * @property-read string|null $translation_language
  * @property-read string|null $timezone
  * @property-read bool $show_local_time
@@ -95,6 +97,8 @@ use Illuminate\Support\Facades\DB;
     'pasteis_given_today',
     'pasteis_given_on',
     'pinned_commit_id',
+    'cover_image_path',
+    'cover_image_approved_at',
     'github_synced_at',
     'log',
     'onboarded_at',
@@ -142,6 +146,8 @@ final class User extends Authenticatable
         'live_platform' => null,
         'live_url' => null,
         'live_ends_at' => null,
+        'cover_image_path' => null,
+        'cover_image_approved_at' => null,
         'last_seen_at' => null,
         'banned_at' => null,
         'commit_rules_accepted_at' => null,
@@ -182,6 +188,8 @@ final class User extends Authenticatable
             'pasteis_given_today' => 'integer',
             'pasteis_given_on' => 'date',
             'pinned_commit_id' => 'string',
+            'cover_image_path' => 'string',
+            'cover_image_approved_at' => 'datetime',
             'timezone' => 'string',
             'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
@@ -217,6 +225,42 @@ final class User extends Authenticatable
         return $this->created_at->lt(now()->subHour())
             && $this->commits()->approved()->exists()
             && $this->followers()->skip(9)->exists();
+    }
+
+    /**
+     * A cover waiting for a moderator is shown only to its owner and moderators. The query string changes with the file,
+     * so a replaced cover is not served from the browser's cache.
+     */
+    public function coverImageUrl(?self $viewer): ?string
+    {
+        if ($this->cover_image_path === null
+            || ($this->cover_image_approved_at === null && $viewer?->id !== $this->id && $viewer?->isAdmin() !== true)) {
+            return null;
+        }
+
+        return route('user-cover-image.show', ['user' => $this, 'v' => $this->coverImageVersion()]);
+    }
+
+    public function coverImageIsPending(): bool
+    {
+        return $this->cover_image_path !== null && $this->cover_image_approved_at === null;
+    }
+
+    /**
+     * Names the stored file without revealing its path, so moderators act on the cover they saw.
+     */
+    public function coverImageVersion(): ?string
+    {
+        return $this->cover_image_path === null ? null : hash('xxh3', $this->cover_image_path);
+    }
+
+    /**
+     * Commits and cover images of admins, and of authors with a good reputation, skip the moderation queue.
+     * Callers that already know the author's reputation pass it in instead of querying it again.
+     */
+    public function skipsModeration(?bool $hasGoodReputation = null): bool
+    {
+        return $this->isAdmin() || ($hasGoodReputation ?? $this->hasGoodReputation());
     }
 
     /**
