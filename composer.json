@@ -113,8 +113,10 @@
             "@test:lint",
             "@test:types",
             "@test:type-coverage",
-            "@test:unit"
-        ]
+            "@test:unit",
+            "@test:mutations"
+        ],
+        "test:mutations": "bun run test:mutations"
     },
     "extra": {
         "laravel": {

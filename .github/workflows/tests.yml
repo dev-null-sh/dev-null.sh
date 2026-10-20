@@ -146,5 +146,8 @@ jobs:
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: bun run build
 
+      - name: GIF Security Mutations
+        run: composer test:mutations
+
       - name: Tests
         run: composer test:unit

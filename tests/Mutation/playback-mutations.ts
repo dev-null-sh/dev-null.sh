@@ -1,0 +1,81 @@
+import type { GifMutation } from './php-gif-mutations.ts';
+
+export const playbackMutations: GifMutation[] = [
+    {
+        name: 'autoplay arbitrary hosts',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: 'GIF_AUTOPLAY_HOSTS.has(url.hostname)',
+        after: 'true',
+    },
+    {
+        name: 'ignore reduced motion',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: '!reducedMotion && canAutoplayGif(source)',
+        after: 'canAutoplayGif(source)',
+    },
+    {
+        name: 'ignore visibility',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: '        !isVisible ||\n',
+        after: '',
+    },
+    {
+        name: 'ignore static cards',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: '        isStatic ||\n',
+        after: '',
+    },
+    {
+        name: 'ignore failed loads',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: '        hasFailed ||\n',
+        after: '',
+    },
+    {
+        name: 'ignore Stop',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: '        playback === GIF_PLAYBACK_MODE.STOPPED',
+        after: '        false',
+    },
+    {
+        name: 'deny explicit Play',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: 'playback === GIF_PLAYBACK_MODE.PLAYING',
+        after: 'false',
+    },
+    {
+        name: 'allow HTTP',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: "            url.protocol !== 'https:' ||\n",
+        after: '',
+    },
+    {
+        name: 'allow username',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: "            url.username !== '' ||\n",
+        after: '',
+    },
+    {
+        name: 'allow password',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: "            url.password !== '' ||\n",
+        after: '',
+    },
+    {
+        name: 'allow non-default port',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: "            url.password !== '' ||\n            url.port !== ''",
+        after: "            url.password !== ''",
+    },
+];
