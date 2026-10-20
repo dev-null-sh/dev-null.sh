@@ -89,7 +89,9 @@ export function LaneOptions({
                 .trim();
         }
 
-        colorInput.showPicker();
+        // iOS color pickers open on focus; other browsers need click activation.
+        colorInput.focus({ preventScroll: true });
+        colorInput.click();
     };
 
     const chooseCustomColor = (color: string) => {

@@ -4,6 +4,8 @@ import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { store } from '@/actions/App/Http/Controllers/IssueController';
+import { collectEnvironment } from '@/lib/environment';
+import type { IssueEnvironment } from '@/lib/environment';
 import type { IssueCommand, IssueKind } from '@/lib/issue-commands';
 import {
     hintedCommand,
@@ -46,7 +48,7 @@ export function useIssueCommand({
     const [focused, setFocused] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(isHintDismissed);
     const request = useHttp<
-        { command: string; body: string },
+        { command: string; body: string; environment?: IssueEnvironment },
         { number: number; url: string }
     >({ command: '', body: '' });
     const command =
@@ -88,7 +90,11 @@ export function useIssueCommand({
             return;
         }
 
-        request.transform(() => ({ command: command.name, body }));
+        request.transform(() => ({
+            command: command.name,
+            body,
+            environment: collectEnvironment(),
+        }));
 
         try {
             const issue = await request.submit(store(), {
@@ -242,7 +248,8 @@ export function IssueCommandBadge({
                 </button>
             </span>
             <span className="min-w-0 truncate text-muted-foreground">
-                Public issue on nunomaduro/dev-null.sh, crediting you
+                Public issue on nunomaduro/dev-null.sh, crediting you, with your
+                browser and screen details
             </span>
         </div>
     );

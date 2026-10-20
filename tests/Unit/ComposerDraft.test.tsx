@@ -521,21 +521,46 @@ test('typing a command and a space turns the draft into an issue, and backspace 
 });
 
 test('picking a suggestion with Enter starts an empty issue, and the shortcut opens it instead of committing', () => {
-    draft.body = '/';
-    focus(render());
-    keyDown(render(), 'ArrowDown');
-    const enter = keyDown(render(), 'Enter');
-    assert.equal(enter.preventDefault.mock.calls.length, 1);
-    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
-
-    draft.body = 'Search loses its filters';
-    keyDown(render(), 'Enter', { metaKey: true });
-    assert.equal(http.submit.mock.calls.length, 1);
-    const payload = http.transform.mock.calls[0][0] as () => unknown;
-    assert.deepEqual(payload(), {
-        command: '/bug',
-        body: 'Search loses its filters',
+    vi.stubGlobal('navigator', {
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140.0.0.0',
+        language: 'en-US',
     });
+    vi.stubGlobal('window', {
+        innerWidth: 1440,
+        innerHeight: 900,
+        devicePixelRatio: 2,
+        matchMedia: () => ({ matches: true }),
+        location: { pathname: '/log' },
+    });
+
+    try {
+        draft.body = '/';
+        focus(render());
+        keyDown(render(), 'ArrowDown');
+        const enter = keyDown(render(), 'Enter');
+        assert.equal(enter.preventDefault.mock.calls.length, 1);
+        assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
+
+        draft.body = 'Search loses its filters';
+        keyDown(render(), 'Enter', { metaKey: true });
+        assert.equal(http.submit.mock.calls.length, 1);
+        const payload = http.transform.mock.calls[0][0] as () => unknown;
+        assert.deepEqual(payload(), {
+            command: '/bug',
+            body: 'Search loses its filters',
+            environment: {
+                browser: 'Chrome 140.0.0.0',
+                os: 'macOS',
+                viewport: '1440x900',
+                pixel_ratio: '2',
+                language: 'en-US',
+                color_scheme: 'dark',
+                page: '/log',
+            },
+        });
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });
 
 test('a draft that mentions a bug suggests /bug, keeps the text when used, and can be dismissed', () => {
@@ -676,4 +701,17 @@ test('picker clears its selection before a pending read finishes so the same fil
 
     reads.forEach((resolve) => resolve());
     await Promise.all([first, retry]);
+});
+
+test('ignores further submits while a commit is being posted', () => {
+    draft.body = 'A commit that is posted once';
+    draft.images = [];
+    draft.descriptions = [];
+    const { form } = render();
+
+    assert.equal(form.props.onBefore(), true);
+    form.props.onStart();
+    assert.equal(form.props.onBefore(), false);
+    form.props.onFinish();
+    assert.equal(form.props.onBefore(), true);
 });

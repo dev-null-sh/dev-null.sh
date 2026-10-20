@@ -18,6 +18,7 @@ import { AchievementsDialog } from '@/components/achievements-dialog';
 import { AchievementsShelf } from '@/components/achievements-shelf';
 import { ActivityGraph } from '@/components/activity-graph';
 import { ActivityStreaks } from '@/components/activity-streaks';
+import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
@@ -246,7 +247,7 @@ export default function Show({
 
                 {user.bio && (
                     <p className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap">
-                        {user.bio}
+                        <BioText bio={user.bio} />
                     </p>
                 )}
 
@@ -254,7 +255,9 @@ export default function Show({
                     {user.company && (
                         <li className="flex items-center gap-1.5">
                             <Building2 className="size-4" />
-                            {user.company}
+                            <span>
+                                <BioText bio={user.company} />
+                            </span>
                         </li>
                     )}
                     {user.location && (

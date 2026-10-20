@@ -13,7 +13,7 @@ import type { Commit } from '@/types';
 const explanations = {
     checking:
         'Running a quick automated check. This usually takes a few seconds, and only you can see this commit until then.',
-    review: 'Your first commits are reviewed by a moderator before anyone else can see them. Once one is approved, the next ones go live right away.',
+    review: 'A moderator reviews this commit before anyone else can see it. Commits from established accounts with a following and no recent reports go live right away.',
     rejected: 'This commit was rejected. Only you can see it.',
     approved: 'Your commit is now live for everyone.',
 } as const;

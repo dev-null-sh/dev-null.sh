@@ -47,6 +47,7 @@ import {
 import { useNow } from '@/hooks/use-now';
 import { clickedCommit } from '@/lib/commit-click';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
+import { measureCommitSize } from '@/lib/commit-size';
 import {
     cn,
     formatFullDateTime,
@@ -175,6 +176,7 @@ export function CommitCard({
 
     return (
         <article
+            ref={measureCommitSize}
             className={cn(
                 'grid scroll-mt-28 transition-[grid-template-rows,opacity,background-color] duration-300 ease-out outline-none hover:bg-accent/50 focus-visible:bg-accent',
                 {

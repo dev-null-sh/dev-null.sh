@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Ai\Agents;
 
 use App\Actions\CreateTomFriendship;
+use App\Ai\Tools\CommunityStats;
+use App\Ai\Tools\RepositoryInsights;
 use App\Ai\Tools\SearchCommits;
 use App\Ai\Tools\SearchKnowledgeBase;
 use App\Models\Commit;
+use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Attributes\MaxSteps;
@@ -44,6 +47,8 @@ final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
         $characters = mb_strlen($this->commit->body) + $messages->sum(fn (Message $message): int => mb_strlen($message->content ?? ''));
 
         return mb_trim(view('ai.agents.tom', [
+            'botUsername' => User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->value('username') ?? CreateTomFriendship::USERNAME,
+            'username' => $this->commit->user?->username,
             'nearlyFull' => $characters >= 9600 || $messages->count() >= 10,
         ])->render());
     }
@@ -77,6 +82,8 @@ final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
         return [
             new SearchCommits,
             new SearchKnowledgeBase,
+            new RepositoryInsights,
+            new CommunityStats,
         ];
     }
 

@@ -257,6 +257,7 @@ void test('keeps the sensitive text warning beside preview', () => {
     );
     assert.equal((markup.match(/data-test="preview-toggle"/g) ?? []).length, 1);
     assert.ok(markup.includes('Remove detected secrets'));
+    assert.ok(markup.includes('data-test="secret-warning-minimize"'));
     assert.ok(!markup.includes('Publish possible secrets?'));
 });
 

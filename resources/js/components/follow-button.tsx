@@ -83,12 +83,14 @@ export function onFollowHttpException(
 export function FollowLabel({
     isFollowing,
     isJustToggled,
+    followsYou = false,
 }: {
     isFollowing: boolean;
     isJustToggled: boolean;
+    followsYou?: boolean;
 }) {
     if (!isFollowing) {
-        return 'Follow';
+        return followsYou ? 'Follow back' : 'Follow';
     }
 
     if (isJustToggled) {
@@ -111,6 +113,7 @@ export function FollowLabel({
 export function FollowButton({
     user,
     isFollowing: initialIsFollowing,
+    followsYou = false,
     size,
     className,
     onClick,
@@ -119,6 +122,7 @@ export function FollowButton({
 }: {
     user: Pick<User, 'id' | 'username'>;
     isFollowing: boolean;
+    followsYou?: boolean;
     size?: ComponentProps<typeof Button>['size'];
     className?: string;
 } & Omit<InertiaLinkProps, 'href' | 'as' | 'method' | 'size' | 'className'>) {
@@ -166,14 +170,14 @@ export function FollowButton({
                 onBefore={() => !isPending}
                 onStart={() => setIsPending(true)}
                 onFinish={() => setIsPending(false)}
-                aria-disabled={isPending}
+                disabled={isPending}
                 onHttpException={(response) =>
                     onFollowHttpException(user, response)
                 }
                 aria-label={
                     isFollowing
                         ? `Unfollow @${user.username}`
-                        : `Follow @${user.username}`
+                        : `${followsYou ? 'Follow back' : 'Follow'} @${user.username}`
                 }
                 data-test="follow-button"
                 onClick={(event) => {
@@ -190,6 +194,7 @@ export function FollowButton({
                 <FollowLabel
                     isFollowing={isFollowing}
                     isJustToggled={isJustToggled}
+                    followsYou={followsYou}
                 />
             </Link>
         </Button>
