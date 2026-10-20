@@ -2,6 +2,7 @@ import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { CommitUndoToast } from '@/components/commit-undo-toast';
+import { showTimeout } from '@/components/timeout-dialog';
 import { dropConfetti } from '@/lib/confetti';
 import { emojify } from '@/lib/emoji';
 import { shortHash } from '@/lib/utils';
@@ -14,7 +15,12 @@ export function useFlashToast(): void {
                 committed,
                 deleted,
                 achievementsUnlocked,
+                timeout,
             } = event.detail.flash;
+
+            if (timeout) {
+                showTimeout(timeout);
+            }
 
             if (achievementsUnlocked?.length) {
                 dropConfetti();

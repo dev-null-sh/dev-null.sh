@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\ModerationReason;
 use App\Enums\RemotesFrom;
+use App\Models\Ban;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -37,9 +39,32 @@ final class UserFactory extends Factory
             'lane_color' => null,
             'pinned_commit_id' => null,
             'onboarded_at' => now(),
+            'commit_rules_accepted_at' => now(),
             'remember_token' => Str::random(10),
             'github_synced_at' => null,
         ];
+    }
+
+    /**
+     * Someone who never posted, and so hasn't read the commit rules yet.
+     */
+    public function firstTimePoster(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'commit_rules_accepted_at' => null,
+        ]);
+    }
+
+    /**
+     * Banned the way moderators ban: by the GitHub account, and on the user.
+     */
+    public function banned(ModerationReason $reason = ModerationReason::Spam): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'banned_at' => now(),
+        ])->afterCreating(function (User $user) use ($reason): void {
+            Ban::factory()->create(['github_id' => $user->github_id, 'reason' => $reason]);
+        });
     }
 
     public function notOnboarded(): self

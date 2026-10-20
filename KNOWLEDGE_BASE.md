@@ -476,7 +476,13 @@ Moderators are the site administrators. They review pending commits and reported
 
 Posts awaiting automated checks stay pending if those checks fail; a failed check never approves a post.
 
-Sources: [status transitions](app/Actions/UpdateCommitStatuses.php), [reports controller](app/Http/Controllers/ReportedCommitController.php).
+Before your very first commit, reply, or quote, the composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms.
+
+Moderators can put someone in **timeout** for 1 hour, 1 day, 3 days, 7 days, or 30 days, with a reason taken from the commit rules. During a timeout the person can still read and react, but cannot commit, reply, quote, schedule, send remotes, or start, rename, or add people to orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Moderators can end a timeout early, and a profile shows moderators how many timeouts the person has had, ended ones included. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again neither ends a timeout nor resets the count.
+
+Moderators can also **ban** someone, with a reason. A banned person is sent from every page to one that says why, where they can only sign out or delete their account; the app refuses everything but deleting the account, and the terminal refuses them outright. A ban belongs to the GitHub account, so deleting the /dev/null account and signing in again does not lift it. Banning someone cancels their scheduled commits, so lifting the ban later doesn't send them all at once. Admins cannot be put in timeout or banned. Moderation → **Timeouts & bans** lists everyone in timeout and every ban, where moderators can end a timeout or lift a ban, including one on a deleted account.
+
+Sources: [status transitions](app/Actions/UpdateCommitStatuses.php), [reports controller](app/Http/Controllers/ReportedCommitController.php), [timeouts](app/Http/Middleware/PreventPostingInTimeout.php), [bans](app/Http/Middleware/RedirectBannedUsers.php), [commit rules](resources/js/components/commit-rules.tsx).
 
 ### About, changelog, and policies
 
