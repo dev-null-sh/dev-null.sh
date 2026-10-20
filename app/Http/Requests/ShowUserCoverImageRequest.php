@@ -19,10 +19,7 @@ final class ShowUserCoverImageRequest extends FormRequest
         $user = $this->route('user');
         assert($user instanceof User);
 
-        $viewer = $this->user();
-        assert($viewer === null || $viewer instanceof User);
-
-        return $user->coverImageUrl($viewer) !== null && Storage::disk()->exists((string) $user->cover_image_path)
+        return $user->coverImageUrl($this->user()) !== null && Storage::disk()->exists((string) $user->cover_image_path)
             ? Response::allow()
             : Response::denyAsNotFound();
     }
