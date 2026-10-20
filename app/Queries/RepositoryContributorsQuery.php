@@ -9,11 +9,12 @@ use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Fluent;
 use RuntimeException;
+use Throwable;
 
 /**
  * GitHub accounts that have commits on the repository's default branch. Cached; soft-fails to nobody when GitHub is down.
  */
-final class RepositoryContributorsQuery
+final readonly class RepositoryContributorsQuery
 {
     private const string CacheKey = 'repository-contributors:usernames';
 
@@ -37,16 +38,25 @@ final class RepositoryContributorsQuery
     public function usernames(): array
     {
         return once(function (): array {
-            /** @var list<string>|null $cached */
-            $cached = Cache::get(self::CacheKey);
+            try {
+                /** @var list<string>|null $cached */
+                $cached = Cache::get(self::CacheKey);
 
-            if (is_array($cached)) {
-                return $cached;
+                if (is_array($cached)) {
+                    return $cached;
+                }
+            } catch (Throwable) {
+                //
             }
 
             try {
                 $usernames = $this->fetch();
-                Cache::put(self::CacheKey, $usernames, self::CacheSeconds);
+
+                try {
+                    Cache::put(self::CacheKey, $usernames, self::CacheSeconds);
+                } catch (Throwable) {
+                    //
+                }
 
                 return $usernames;
             } catch (HttpClientException|RuntimeException) {
@@ -68,13 +78,7 @@ final class RepositoryContributorsQuery
                 'page' => $page,
             ])->throw()->collect();
 
-            foreach ($contributors as $contributor) {
-                $contributor = new Fluent($contributor);
-
-                if ($contributor->string('type')->value() !== 'User') {
-                    continue;
-                }
-
+            foreach ($contributors->where('type', 'User')->mapInto(Fluent::class) as $contributor) {
                 $login = mb_strtolower($contributor->string('login')->value());
 
                 if ($login !== '') {

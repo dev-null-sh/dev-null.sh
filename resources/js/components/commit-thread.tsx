@@ -27,12 +27,12 @@ import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { useCommitTranslation } from '@/components/commit-translation';
-import { ContributorBadge } from '@/components/contributor-badge';
 import {
     ComposerPreviewBody,
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { ContributorBadge } from '@/components/contributor-badge';
 import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';

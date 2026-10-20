@@ -32,13 +32,11 @@ it('pages through contributors until a short page', function (): void {
     ])->all();
 
     Http::fake([
-        'api.github.com/repos/nunomaduro/dev-null.sh/contributors*' => function (Request $request) use ($page) {
-            return Http::response(match ((int) $request['page']) {
-                1 => $page(1),
-                2 => array_slice($page(2), 0, 3),
-                default => [],
-            });
-        },
+        'api.github.com/repos/nunomaduro/dev-null.sh/contributors*' => fn (Request $request) => Http::response(match ((int) $request['page']) {
+            1 => $page(1),
+            2 => array_slice($page(2), 0, 3),
+            default => [],
+        }),
     ]);
 
     expect(resolve(RepositoryContributorsQuery::class)->usernames())->toHaveCount(103)
