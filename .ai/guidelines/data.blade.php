@@ -10,6 +10,10 @@ Assume the database has already been leaked. Every column, row, cache entry, log
 - Prefer short-lived over permanent. Typing indicators, signature nonces, and sync markers live in the cache with a TTL, not in a table.
 - Every new column needs three answers in the migration's pull request: why the feature cannot work without it, who is allowed to see it, and when it is deleted. If any answer is "not sure", do not add the column.
 
+## Name timestamps after the moment
+
+- Every date or time column ends in `_at` and names the moment it records: `created_at`, `updated_at`, `live_ends_at`, `onboarded_at`. Never `_since`, `_on`, `_date`, `_time`, or a bare noun, so every timestamp reads the same way across features.
+
 ## Never store secrets
 
 - Never persist tokens, secrets, passwords, private keys, OAuth access or refresh tokens, API keys, session ids, raw signatures, or anything that grants access. The GitHub OAuth token is used for the sign-in request and discarded; it is never written anywhere.

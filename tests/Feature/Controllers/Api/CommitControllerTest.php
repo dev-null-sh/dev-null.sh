@@ -206,6 +206,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
     $commit = Commit::factory()->for($user)->for($root, 'parent')->create([
         'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
         'body' => 'Ask @nunomaduro about `@Override`',
+        'pasteis_count' => 4,
     ]);
     $image = CommitImage::factory()->for($commit)->create();
     Commit::factory()->for($commit, 'parent')->create();
@@ -257,6 +258,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'is_pinned' => false,
                 'starred' => true,
                 'is_saved' => true,
+                'pasteis_count' => 4,
                 'deleted_at' => null,
                 'quoted_commit_id' => null,
                 'quoted_commit' => null,
@@ -280,6 +282,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'is_pinned' => false,
                 'starred' => false,
                 'is_saved' => false,
+                'pasteis_count' => 0,
                 'deleted_at' => null,
                 'quoted_commit_id' => null,
                 'quoted_commit' => null,
@@ -511,6 +514,8 @@ it('creates a commit from a signed request, pending review', function (): void {
         ->assertJsonPath('data.starred', false)
         ->assertJsonPath('data.is_saved', false)
         ->assertJsonPath('data.images', [])
+        ->assertJsonPath('data.quoted_commit_id', null)
+        ->assertJsonPath('data.quoted_commit', null)
         ->assertJsonPath('data.author.id', $user->id)
         ->assertJsonMissingPath('ancestors');
 
@@ -565,7 +570,7 @@ it('validates a commit from a signed request', function (Closure $data, string $
     expect($user->commits()->exists())->toBeFalse();
 })->with([
     'missing body' => [fn (): array => [], 'body', 'The body field is required.'],
-    'too short' => [fn (): array => ['body' => '  ab  '], 'body', 'The body field must be at least 3 characters.'],
+    'blank body' => [fn (): array => ['body' => '   '], 'body', 'The body field is required.'],
     'too long' => [fn (): array => ['body' => str_repeat('a', Commit::MAX_BODY_LENGTH + 1)], 'body', 'The body field must not be greater than '.Commit::MAX_BODY_LENGTH.' characters.'],
     'parent that is not a uuid' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => 'abc'], 'parent_id', 'The parent id field must be a valid UUID.'],
     'unknown parent' => [fn (): array => ['body' => 'It was DNS.', 'parent_id' => '0199e3a4-0000-7000-8000-000000000000'], 'parent_id', 'That commit is no longer available to reply to.'],
@@ -586,6 +591,74 @@ it('may not reply to a commit across a block, as on the web', function (): void 
 
     expect($user->commits()->exists())->toBeFalse();
 });
+
+it('quotes a commit from a signed request, and answers with the commit it quotes', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $quoted = Commit::factory()->create(['body' => 'Required reading.']);
+
+    $response = signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'This, all of it.', 'quoted_commit_id' => $quoted->id]);
+
+    $commit = $user->commits()->sole();
+
+    $response->assertCreated()
+        ->assertJsonPath('data.id', $commit->id)
+        ->assertJsonPath('data.parent_id', null)
+        ->assertJsonPath('data.quoted_commit_id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit.id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit.body', 'Required reading.')
+        ->assertJsonPath('data.quoted_commit.author.id', $quoted->user_id);
+
+    expect($commit->quoted_commit_id)->toBe($quoted->id)
+        ->and($commit->parent_id)->toBeNull();
+});
+
+it('may quote their own pending commit, as on the web', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $quoted = Commit::factory()->for($user)->pending()->create();
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'Follow-up.', 'quoted_commit_id' => $quoted->id])
+        ->assertCreated()
+        ->assertJsonPath('data.quoted_commit_id', $quoted->id)
+        ->assertJsonPath('data.quoted_commit.id', $quoted->id);
+});
+
+it('may only quote a commit the web would let the user quote', function (Closure $data, string $message): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), $data())
+        ->assertUnprocessable()
+        ->assertOnlyJsonValidationErrors(['quoted_commit_id' => $message]);
+
+    expect($user->commits()->exists())->toBeFalse();
+})->with([
+    'not a uuid' => [fn (): array => ['body' => 'This.', 'quoted_commit_id' => 'abc'], 'The quoted commit id field must be a valid UUID.'],
+    'unknown' => [fn (): array => ['body' => 'This.', 'quoted_commit_id' => '0199e3a4-0000-7000-8000-000000000000'], 'That commit is no longer available to quote.'],
+    'pending' => [fn (): array => ['body' => 'This.', 'quoted_commit_id' => Commit::factory()->pending()->create()->id], 'That commit is no longer available to quote.'],
+    'rejected' => [fn (): array => ['body' => 'This.', 'quoted_commit_id' => Commit::factory()->rejected()->create()->id], 'That commit is no longer available to quote.'],
+    'deleted' => [fn (): array => ['body' => 'This.', 'quoted_commit_id' => tap(Commit::factory()->create())->delete()->id], 'That commit is no longer available to quote.'],
+    'also a reply' => [function (): array {
+        $commit = Commit::factory()->create();
+
+        return ['body' => 'This.', 'parent_id' => $commit->id, 'quoted_commit_id' => $commit->id];
+    }, 'The quoted commit id field prohibits parent id from being present.'],
+]);
+
+it('may not quote a commit across a block, as on the web', function (bool $quoterBlocks): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $quoted = Commit::factory()->create();
+
+    $quoterBlocks ? $user->blocking()->attach($quoted->user) : $quoted->user->blocking()->attach($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'This.', 'quoted_commit_id' => $quoted->id])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['quoted_commit_id' => 'That commit is no longer available to quote.']);
+
+    expect($quoted->quotes()->count())->toBe(0);
+})->with(['blocking' => true, 'blocked' => false]);
 
 it('sends a commit from a signed request to the ai moderation the web uses', function (): void {
     config(['services.openai.key' => 'sk-test']);

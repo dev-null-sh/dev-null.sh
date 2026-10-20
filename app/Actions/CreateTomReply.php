@@ -24,8 +24,11 @@ final readonly class CreateTomReply
         $commit = Commit::query()->visibleTo(null)->with('user')->find($commitId);
         $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->where('username', CreateTomFriendship::USERNAME)->first();
 
-        if (! $commit instanceof Commit || ! $tom instanceof User || ! $this->replyable($commit, $tom)
-            || $commit->user?->is($tom) || ($commit->mentions[CreateTomFriendship::USERNAME] ?? null) !== $tom->id) {
+        if (! $commit instanceof Commit || ! $tom instanceof User) {
+            return;
+        }
+
+        if (! $this->replyable($commit, $tom) || $commit->user?->is($tom) || ! $this->isAddressedToTom($commit, $tom)) {
             return;
         }
 
@@ -45,6 +48,12 @@ final readonly class CreateTomReply
 
             $this->createCommit->handle($tom, Str::limit($body, Commit::MAX_BODY_LENGTH - 3), parent: $current, linkPreview: false);
         });
+    }
+
+    private function isAddressedToTom(Commit $commit, User $tom): bool
+    {
+        return ($commit->mentions[CreateTomFriendship::USERNAME] ?? null) === $tom->id
+            || $commit->parent?->user_id === $tom->id;
     }
 
     /**

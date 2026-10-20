@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import Index from '../../resources/js/pages/notification/index';
 import type { Commit, NotificationGroup, User } from '../../resources/js/types';
 
@@ -72,7 +73,11 @@ async function render(notifications: NotificationGroup[]): Promise<string> {
             />
         ),
         render: renderToString,
-        setup: ({ App, props }) => <App {...props} />,
+        setup: ({ App, props }) => (
+            <TooltipProvider>
+                <App {...props} />
+            </TooltipProvider>
+        ),
     });
 
     assert.ok(result);
@@ -85,7 +90,7 @@ void test('renders a code block highlighted in a notification', async () => {
 
     assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
     assert.doesNotMatch(body, /```/);
-    assert.equal(body.match(/<a\b/g)?.length, 1);
+    assert.equal(body.match(/<a\b/g)?.length, 3);
     assert.doesNotMatch(body, /<button\b/);
     assert.match(body, /<pre[^>]*tabindex="-1"/i);
 });
@@ -105,7 +110,7 @@ for (const isFollowing of [false, true]) {
         const body = await render([notification, followed]);
 
         assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
-        assert.equal(body.match(/<a\b/g)?.length, 2);
+        assert.equal(body.match(/<a\b/g)?.length, 6);
         assert.equal(body.match(/<button\b/g)?.length, 1);
         assert.doesNotMatch(body, /<a\b[^>]*>(?:(?!<\/a>).)*<button\b/s);
         assert.match(
@@ -118,3 +123,48 @@ for (const isFollowing of [false, true]) {
         assert.doesNotMatch(body, /```/);
     });
 }
+
+void test('shows the image of a starred image-only commit beside who starred it', async () => {
+    const starred = {
+        ...notification,
+        type: 'starred',
+        actors_count: 3,
+        commit: {
+            id: 'image-only',
+            body: '',
+            body_segments: [],
+            images: [
+                {
+                    id: 'image',
+                    url: '/commit-images/image',
+                    width: 1200,
+                    height: 800,
+                    description: null,
+                },
+            ],
+        } as unknown as Omit<Commit, 'user'>,
+    } as NotificationGroup;
+    const body = (await render([starred])).replaceAll('<!-- -->', '');
+
+    assert.match(
+        body,
+        /and 2 others <a\b[^>]*data-notification-link[^>]*>starred your image<\/a>/,
+    );
+    assert.match(body, /<img[^>]*src="\/commit-images\/image"/);
+    assert.doesNotMatch(body, /<div[^>]*>(?:<div[^>]*>)*(?:<\/div>)+<\/a>/);
+});
+
+void test('links the actor to their profile apart from the commit link', async () => {
+    const starred = { ...notification, type: 'starred' } as NotificationGroup;
+    const body = await render([starred]);
+    const links = [...body.matchAll(/<a\b[^>]*>/g)].map((match) => match[0]);
+
+    assert.deepEqual(
+        links.map((link) => link.match(/href="([^"]*)"/)?.[1]),
+        ['/@mnapoli', '/@mnapoli', '/@nunomaduro/commits/reply'],
+    );
+    assert.match(links[0], /hover:underline/);
+    assert.doesNotMatch(links[1], /hover:underline/);
+    assert.doesNotMatch(body, /<a\b(?:(?!<\/a>).)*<a\b/s);
+    assert.match(body, /starred your commit<\/a>/);
+});

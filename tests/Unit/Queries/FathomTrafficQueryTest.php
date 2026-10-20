@@ -110,3 +110,42 @@ it('is null when Fathom cannot be reached or answers with something unexpected',
     'no total' => fn () => Http::response(['message' => 'nope']),
     'a timeout' => fn () => Http::failedConnection(),
 ]);
+
+it('counts the people who sent an event, and the visits that started on a matching page, cached for five minutes', function (): void {
+    Http::fake([
+        'api.usefathom.com/v1/aggregations*' => fn (Request $request) => Http::response([
+            ($request->data()['entity'] ?? null) === 'event' ? ['unique_conversions' => '7'] : ['visits' => '12'],
+        ]),
+    ]);
+
+    $query = resolve(FathomTrafficQuery::class);
+    $from = CarbonImmutable::parse('2026-10-01');
+    $to = CarbonImmutable::parse('2026-10-18');
+
+    expect($query->eventVisitors($from, $to, 'signup'))->toBe(7)
+        ->and($query->entries($from, $to, '^/@[^/]+$'))->toBe(12)
+        ->and($query->eventVisitors($from, $to, 'signup'))->toBe(7);
+
+    Http::assertSentCount(2);
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.usefathom.com/v1/aggregations?entity=event&site_id=SITE'
+        .'&entity_name=signup&date_from=2026-10-01%2000%3A00%3A00&date_to=2026-10-18%2012%3A00%3A00&timezone=UTC&aggregates=unique_conversions');
+    Http::assertSent(fn (Request $request): bool => ($request->data()['aggregates'] ?? null) === 'visits'
+        && $request->data()['filters'] === '[{"property":"entry_page","operator":"matching","value":"^\\/@[^\\/]+$"}]');
+});
+
+it('has no counts without Fathom, and stops asking it for the rest of the request once it cannot be reached', function (): void {
+    $from = CarbonImmutable::parse('2026-10-01');
+    $to = CarbonImmutable::parse('2026-10-18');
+
+    config(['services.fathom.token' => null]);
+
+    expect(resolve(FathomTrafficQuery::class)->eventVisitors($from, $to, 'signup'))->toBeNull();
+
+    config(['services.fathom.token' => 'token']);
+    Http::fake(['api.usefathom.com/*' => Http::response(status: 500)]);
+
+    expect(resolve(FathomTrafficQuery::class)->eventVisitors($from, $to, 'signup'))->toBeNull()
+        ->and(resolve(FathomTrafficQuery::class)->entries($from, $to, '^/$'))->toBeNull();
+
+    Http::assertSentCount(1);
+});

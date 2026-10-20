@@ -6,6 +6,7 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it('may star a commit', function (): void {
     $user = User::factory()->create();
@@ -83,6 +84,23 @@ it('may unstar a commit', function (): void {
         ->assertExactJson(['starred' => false, 'stars_count' => 1]);
 
     expect($user->hasStarred($commit))->toBeFalse();
+});
+
+it('counts the stars on the pivot table alone', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    User::factory()->create()->starredCommits()->attach($commit);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $this->actingAs($user)->postJson(route('commit-star.store', $commit))->assertExactJson(['starred' => true, 'stars_count' => 2]);
+    $this->deleteJson(route('commit-star.destroy', $commit))->assertExactJson(['starred' => false, 'stars_count' => 1]);
+
+    $counts = array_values(array_filter(array_column(DB::getQueryLog(), 'query'), fn (string $query): bool => str_contains($query, 'count(*)')));
+
+    expect($counts)->toBe(array_fill(0, 2, 'select count(*) as "aggregate" from "stars" where "stars"."commit_id" = ?'));
+
+    DB::disableQueryLog();
 });
 
 it('requires authentication to star', function (): void {

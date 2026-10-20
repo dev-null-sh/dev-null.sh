@@ -5,15 +5,22 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Fluent;
 
 final readonly class FathomTrafficQuery
 {
+    /**
+     * The hidden context key marking Fathom as not answering for the rest of the request.
+     */
+    private const string UNAVAILABLE = 'fathom-unavailable';
+
     /**
      * Each breakdown and the Fathom field it groups by.
      */
@@ -70,6 +77,49 @@ final readonly class FathomTrafficQuery
     }
 
     /**
+     * The people who sent the event in the range, a custom event tracked in the browser, or null when Fathom isn't set
+     * up or didn't answer. Cached for five minutes, like the report.
+     */
+    public function eventVisitors(CarbonImmutable $from, CarbonImmutable $to, string $event): ?int
+    {
+        return $this->count("event:{$event}:{$from->toDateString()}:{$to->toDateString()}", fn (): int => $this->aggregate($from, $to, [
+            'aggregates' => 'unique_conversions',
+        ], $event)->fluent('0')->integer('unique_conversions'));
+    }
+
+    /**
+     * The visits that started on a page whose path matches the pattern, a regular expression that Fathom runs, or null
+     * when Fathom isn't set up or didn't answer. Cached for five minutes, like the report.
+     */
+    public function entries(CarbonImmutable $from, CarbonImmutable $to, string $pattern): ?int
+    {
+        return $this->count('entries:'.hash('xxh128', $pattern).":{$from->toDateString()}:{$to->toDateString()}", fn (): int => $this->aggregate($from, $to, [
+            'aggregates' => 'visits',
+            'filters' => json_encode([['property' => 'entry_page', 'operator' => 'matching', 'value' => $pattern]], JSON_THROW_ON_ERROR),
+        ])->fluent('0')->integer('visits'));
+    }
+
+    /**
+     * Once Fathom fails to answer, the rest of the request stops asking it, so a slow Fathom is only waited on once.
+     *
+     * @param  Closure(): int  $count
+     */
+    private function count(string $key, Closure $count): ?int
+    {
+        if (! $this->isConfigured() || Context::hasHidden(self::UNAVAILABLE)) {
+            return null;
+        }
+
+        try {
+            return Cache::remember("operations:fathom-{$key}", 300, $count);
+        } catch (HttpClientException) {
+            Context::addHidden(self::UNAVAILABLE, true);
+
+            return null;
+        }
+    }
+
+    /**
      * @return array<int, array{name: string, visitors: int, pageviews: int}>
      */
     private function breakdown(CarbonImmutable $from, CarbonImmutable $to, string $field): array
@@ -88,16 +138,18 @@ final readonly class FathomTrafficQuery
     }
 
     /**
-     * The range runs from the start of its first day to the end of its last, or now when that is today.
+     * The range runs from the start of its first day to the end of its last, or now when that is today. It reports on
+     * pageviews, or on the custom event named.
      *
      * @param  array<string, string|int>  $query
      */
-    private function aggregate(CarbonImmutable $from, CarbonImmutable $to, array $query): Response
+    private function aggregate(CarbonImmutable $from, CarbonImmutable $to, array $query, ?string $event = null): Response
     {
         return $this->request()
             ->get('aggregations', [
-                'entity' => 'pageview',
-                'entity_id' => config('services.fathom.site_id'),
+                ...$event === null
+                    ? ['entity' => 'pageview', 'entity_id' => config('services.fathom.site_id')]
+                    : ['entity' => 'event', 'site_id' => config('services.fathom.site_id'), 'entity_name' => $event],
                 'date_from' => $from->utc()->startOfDay()->format('Y-m-d H:i:s'),
                 'date_to' => $to->utc()->endOfDay()->min(now())->format('Y-m-d H:i:s'),
                 'timezone' => 'UTC',

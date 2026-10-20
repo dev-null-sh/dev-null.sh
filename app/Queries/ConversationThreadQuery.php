@@ -72,6 +72,13 @@ final readonly class ConversationThreadQuery
         $sponsorships = $showsHidden ? $user->sponsorshipsAsMaintainer()->get()->keyBy('sponsor_id') : new EloquentCollection();
         [$messages, $hasOlder] = $this->page($org, $mine->visible_from_id, $after, $before, withPeople: true);
 
+        $typingUsers = $participants
+            ->reject(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id)
+            ->mapWithKeys(fn (ConversationParticipant $participant): array => [
+                UpdateConversationTyping::key($participant->user, $org) => $participant->user->username,
+            ]);
+        $typingStatuses = Cache::many($typingUsers->keys()->all());
+
         return [
             'messages' => $messages,
             'has_older' => $hasOlder,
@@ -85,10 +92,8 @@ final readonly class ConversationThreadQuery
                 'is_hidden' => $participant->is_hidden,
                 'sponsorship' => $this->sponsorship($sponsorships->get($participant->user_id)),
             ])->values()->toBase(),
-            'typing' => $participants
-                ->reject(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id)
-                ->filter(fn (ConversationParticipant $participant): bool => Cache::has(UpdateConversationTyping::key($participant->user, $org)))
-                ->map(fn (ConversationParticipant $participant): string => $participant->user->username)
+            'typing' => $typingUsers
+                ->filter(fn (string $username, string $key): bool => (bool) ($typingStatuses[$key] ?? false))
                 ->values()
                 ->all(),
             'is_archived' => $mine->archived_at !== null,
