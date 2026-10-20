@@ -18,6 +18,7 @@ import { AchievementsDialog } from '@/components/achievements-dialog';
 import { AchievementsShelf } from '@/components/achievements-shelf';
 import { ActivityGraph } from '@/components/activity-graph';
 import { ActivityStreaks } from '@/components/activity-streaks';
+import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
@@ -31,6 +32,11 @@ import { ProfileActionsMenu } from '@/components/profile-actions-menu';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import type { UserModeration } from '@/components/user-moderation-menu';
+import {
+    UserModerationMenu,
+    UserModerationStatus,
+} from '@/components/user-moderation-menu';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
@@ -56,6 +62,7 @@ export default function Show({
     followsYou,
     isMuting,
     canPush,
+    moderation,
     activity,
     streaks,
     achievements,
@@ -69,6 +76,7 @@ export default function Show({
     followsYou: boolean;
     isMuting: boolean;
     canPush: boolean;
+    moderation: UserModeration | null;
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
@@ -167,6 +175,12 @@ export default function Show({
                             </>
                         ) : (
                             <>
+                                {moderation && (
+                                    <UserModerationMenu
+                                        user={user}
+                                        moderation={moderation}
+                                    />
+                                )}
                                 {auth.user && (
                                     <UserSafetyMenu
                                         user={user}
@@ -244,9 +258,11 @@ export default function Show({
                     </button>
                 </div>
 
+                {moderation && <UserModerationStatus moderation={moderation} />}
+
                 {user.bio && (
                     <p className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap">
-                        {user.bio}
+                        <BioText bio={user.bio} />
                     </p>
                 )}
 
@@ -254,7 +270,9 @@ export default function Show({
                     {user.company && (
                         <li className="flex items-center gap-1.5">
                             <Building2 className="size-4" />
-                            {user.company}
+                            <span>
+                                <BioText bio={user.company} />
+                            </span>
                         </li>
                     )}
                     {user.location && (
@@ -403,68 +421,70 @@ export default function Show({
                 lane={lane}
             />
 
-            <PageTabs
-                label="Profile feed"
-                preserveScroll
-                only={['tab', 'commits', 'pinnedCommit']}
-                reset={['commits']}
-                tabs={[
-                    {
-                        title: 'Commits',
-                        href: show(user),
-                        isActive: tab === 'commits',
-                    },
-                    {
-                        title: 'Replies',
-                        href: show(user, { query: { tab: 'replies' } }),
-                        isActive: tab === 'replies',
-                    },
-                ]}
-            />
+            <div className="min-h-dvh">
+                <PageTabs
+                    label="Profile feed"
+                    preserveScroll
+                    only={['tab', 'commits', 'pinnedCommit']}
+                    reset={['commits']}
+                    tabs={[
+                        {
+                            title: 'Commits',
+                            href: show(user),
+                            isActive: tab === 'commits',
+                        },
+                        {
+                            title: 'Replies',
+                            href: show(user, { query: { tab: 'replies' } }),
+                            isActive: tab === 'replies',
+                        },
+                    ]}
+                />
 
-            <CommitFeed
-                key={`${user.id}:${tab}`}
-                commits={commits}
-                pinnedCommit={tab === 'commits' ? pinnedCommit : null}
-                threadActions={
-                    isCurrentUser && tab === 'commits'
-                        ? (commit) => (
-                              <PinCommitButton
-                                  commit={commit}
-                                  isPinned={commit.id === pinnedCommit?.id}
-                              />
-                          )
-                        : undefined
-                }
-                highlightedPeriod={highlightedPeriod}
-                end={
-                    tab === 'replies'
-                        ? isCurrentUser
-                            ? 'That was your first reply.'
-                            : `That's @${user.username}'s first reply.`
-                        : isCurrentUser
-                          ? 'That was your first commit. Everyone starts somewhere.'
-                          : `That's @${user.username}'s root commit.`
-                }
-                empty={
-                    tab === 'replies' ? (
-                        <EmptyFeed command="fatal: no replies yet">
-                            {isCurrentUser
-                                ? 'Your replies show up here. Join a conversation from your log.'
-                                : `@${user.username} hasn't replied to anything yet.`}
-                        </EmptyFeed>
-                    ) : isCurrentUser ? (
-                        <EmptyFeed command="fatal: you do not have any commits yet">
-                            Your commits show up here. Make your first one from
-                            your log.
-                        </EmptyFeed>
-                    ) : (
-                        <EmptyFeed command="fatal: no commits yet">
-                            @{user.username} hasn't committed anything yet.
-                        </EmptyFeed>
-                    )
-                }
-            />
+                <CommitFeed
+                    key={`${user.id}:${tab}`}
+                    commits={commits}
+                    pinnedCommit={tab === 'commits' ? pinnedCommit : null}
+                    threadActions={
+                        isCurrentUser && tab === 'commits'
+                            ? (commit) => (
+                                  <PinCommitButton
+                                      commit={commit}
+                                      isPinned={commit.id === pinnedCommit?.id}
+                                  />
+                              )
+                            : undefined
+                    }
+                    highlightedPeriod={highlightedPeriod}
+                    end={
+                        tab === 'replies'
+                            ? isCurrentUser
+                                ? 'That was your first reply.'
+                                : `That's @${user.username}'s first reply.`
+                            : isCurrentUser
+                              ? 'That was your first commit. Everyone starts somewhere.'
+                              : `That's @${user.username}'s root commit.`
+                    }
+                    empty={
+                        tab === 'replies' ? (
+                            <EmptyFeed command="fatal: no replies yet">
+                                {isCurrentUser
+                                    ? 'Your replies show up here. Join a conversation from your log.'
+                                    : `@${user.username} hasn't replied to anything yet.`}
+                            </EmptyFeed>
+                        ) : isCurrentUser ? (
+                            <EmptyFeed command="fatal: you do not have any commits yet">
+                                Your commits show up here. Make your first one
+                                from your log.
+                            </EmptyFeed>
+                        ) : (
+                            <EmptyFeed command="fatal: no commits yet">
+                                @{user.username} hasn't committed anything yet.
+                            </EmptyFeed>
+                        )
+                    }
+                />
+            </div>
         </>
     );
 }

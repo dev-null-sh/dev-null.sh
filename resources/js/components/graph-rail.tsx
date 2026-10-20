@@ -7,8 +7,6 @@ import type { User } from '@/types';
 type Props = {
     lane: string;
     previousLane?: string;
-    /** When set, the outbound rail fades into this lane toward the next commit. */
-    nextLane?: string;
     variant?: 'commit' | 'staged' | 'root';
     isFilled?: boolean;
     isFresh?: boolean;
@@ -32,7 +30,6 @@ const dimmedNode = 'group-data-dimmed/rail-node:opacity-60';
 export function GraphRail({
     lane,
     previousLane,
-    nextLane,
     variant = 'commit',
     isFilled = true,
     isFresh = false,
@@ -80,7 +77,7 @@ export function GraphRail({
                             'bottom-5 h-auto': nodePosition === 'bottom',
                         },
                     )}
-                    style={{ background: lane }}
+                    style={{ background: previousLane }}
                     data-test="rail-previous"
                 />
             )}
@@ -89,18 +86,17 @@ export function GraphRail({
                 (variant === 'staged' ? (
                     <span
                         className="absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2"
-                        style={laneStrokeStyle(
-                            'var(--rail)',
-                            nextLane ?? 'var(--rail)',
-                            { hold: 0.75, dash: stagedDash, anchor: 'end' },
-                        )}
+                        style={laneStrokeStyle('var(--rail)', {
+                            dash: stagedDash,
+                            anchor: 'end',
+                        })}
                         data-test="rail-staged-tail"
                     />
                 ) : (
                     <span
                         className={cn(
                             // Start 1px early so this meets the previous segment without a seam.
-                            'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2',
+                            'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane)',
                             dimmable,
                             {
                                 'opacity-60': isDimmed,
@@ -110,9 +106,6 @@ export function GraphRail({
                                 'top-[22px]': nodePosition === 'author',
                             },
                         )}
-                        style={laneStrokeStyle(lane, nextLane ?? lane, {
-                            dashed: false,
-                        })}
                         data-test="rail-tail"
                     />
                 ))}
@@ -197,46 +190,60 @@ export function RailAvatar({
         <span className="relative flex rounded-full bg-card">
             <span
                 className={cn(
-                    'relative flex rounded-full border-2 border-(--lane) p-0.5 transition-[border-color,opacity] duration-200',
+                    'relative flex rounded-full border-2 border-(--lane) p-0.5 transition-opacity duration-200',
                     dimmedNode,
                     {
-                        'border-dashed': progress === 0,
                         'border-red-600': isLive,
-                        'border-transparent':
-                            progress !== undefined && progress > 0,
+                        'border-transparent': progress !== undefined,
                     },
                 )}
             >
-                {progress !== undefined && progress > 0 && (
-                    <svg
-                        viewBox="0 0 48 48"
-                        className="pointer-events-none absolute -inset-0.5 size-12 -rotate-90"
-                        fill="none"
-                        strokeWidth={2}
-                    >
-                        <circle
-                            cx="24"
-                            cy="24"
-                            r="23"
+                {progress !== undefined && (
+                    <>
+                        <span
                             className={cn(
-                                isLive ? 'stroke-red-600' : 'stroke-(--lane)',
-                                'opacity-25',
+                                'pointer-events-none absolute -inset-0.5 rounded-full border-2 border-dashed transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                                isLive ? 'border-red-600' : 'border-(--lane)',
+                                progress > 0 ? 'opacity-0' : 'opacity-100',
                             )}
                         />
-                        <circle
-                            cx="24"
-                            cy="24"
-                            r="23"
-                            pathLength={1}
-                            strokeDasharray={1}
-                            strokeLinecap="round"
-                            strokeDashoffset={1 - Math.min(progress, 1)}
+                        <svg
+                            viewBox="0 0 48 48"
                             className={cn(
-                                isLive ? 'stroke-red-600' : 'stroke-(--lane)',
-                                'transition-[stroke-dashoffset] duration-200',
+                                'pointer-events-none absolute -inset-0.5 size-12 -rotate-90 transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                                progress > 0 ? 'opacity-100' : 'opacity-0',
                             )}
-                        />
-                    </svg>
+                            fill="none"
+                            strokeWidth={2}
+                        >
+                            <circle
+                                cx="24"
+                                cy="24"
+                                r="23"
+                                className={cn(
+                                    isLive
+                                        ? 'stroke-red-600'
+                                        : 'stroke-(--lane)',
+                                    'opacity-25',
+                                )}
+                            />
+                            <circle
+                                cx="24"
+                                cy="24"
+                                r="23"
+                                pathLength={1}
+                                strokeDasharray={1}
+                                strokeLinecap="round"
+                                strokeDashoffset={1 - Math.min(progress, 1)}
+                                className={cn(
+                                    isLive
+                                        ? 'stroke-red-600'
+                                        : 'stroke-(--lane)',
+                                    'transition-[stroke-dashoffset] duration-150 ease-out motion-reduce:transition-none',
+                                )}
+                            />
+                        </svg>
+                    </>
                 )}
                 <UserAvatar user={user} className="size-10" />
             </span>
@@ -272,7 +279,7 @@ export function RailSegment({
                     )}
                     style={
                         isDashed
-                            ? laneStrokeStyle(lane, lane, { dash: stagedDash })
+                            ? laneStrokeStyle(lane, { dash: stagedDash })
                             : { background: lane }
                     }
                 />

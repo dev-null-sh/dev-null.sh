@@ -9,29 +9,7 @@ import {
 const stagedTail = (markup: string): string | undefined =>
     markup.match(/<span[^>]*data-test="rail-staged-tail"[^>]*>/)?.[0];
 
-test('fades the staged rail from the draft grey into the next lane', () => {
-    const tail = stagedTail(
-        renderToStaticMarkup(
-            <GraphRail
-                lane="var(--lane-1)"
-                nextLane="var(--lane-4)"
-                variant="staged"
-            />,
-        ),
-    );
-
-    assert.ok(tail);
-    assert.match(
-        tail,
-        /linear-gradient\(to bottom, var\(--rail\) 0%, var\(--rail\) 75%, var\(--lane-4\) 100%\)/,
-    );
-    assert.match(
-        tail,
-        /mask-image:repeating-linear-gradient\(to top, transparent 0 4px, #000 4px 8px\)/,
-    );
-});
-
-test('keeps the staged rail grey when nothing follows it', () => {
+test('keeps the staged rail grey', () => {
     const tail = stagedTail(
         renderToStaticMarkup(
             <GraphRail lane="var(--lane-1)" variant="staged" />,
@@ -41,6 +19,10 @@ test('keeps the staged rail grey when nothing follows it', () => {
     assert.ok(tail);
     assert.match(tail, /background-color:var\(--rail\)/);
     assert.doesNotMatch(tail, /(?<!repeating-)linear-gradient/);
+    assert.match(
+        tail,
+        /mask-image:repeating-linear-gradient\(to top, transparent 0 4px, #000 4px 8px\)/,
+    );
 });
 
 test('carries a dashed rail through a segment in the given lane', () => {

@@ -1,4 +1,4 @@
-import { Link, router, useHttp, usePage } from '@inertiajs/react';
+import { Link, router, useRemember, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
     CornerDownRight,
@@ -7,7 +7,7 @@ import {
     Trash2,
 } from 'lucide-react';
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
-import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
@@ -23,6 +23,7 @@ import {
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
+import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
@@ -39,6 +40,7 @@ import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
+import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import {
@@ -61,7 +63,12 @@ import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
-import { maxBodyLength, minBodyLength } from '@/lib/commit';
+import {
+    bodyCharacterCount,
+    maxBodyLength,
+    maxRawBodyLength,
+    minBodyLength,
+} from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
 import {
@@ -70,7 +77,6 @@ import {
     formatRelativeTime,
     isDeleted,
     laneOf,
-    laneStrokeHold,
     laneStrokeStyle,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -182,7 +188,7 @@ async function fetchReplies(
 }
 
 async function fetchRepliesAfter(
-    commit: ThreadCommit,
+    commit: Pick<ThreadCommit, 'id'>,
     replies: ThreadCommit[],
     cursor: string | null,
     minimum: number,
@@ -207,7 +213,7 @@ async function fetchRepliesAfter(
 }
 
 async function fetchRepliesUntil(
-    commit: ThreadCommit,
+    commit: Pick<ThreadCommit, 'id'>,
     minimum: number,
     perPage: number,
     newest: boolean,
@@ -242,38 +248,66 @@ export function useThread(
     const isPreview = preview !== undefined;
     const initial = preview ?? initialReplies;
     const { repliesPerPage, continuation } = usePage().props;
-    const [replies, setReplies] = useState<ThreadCommit[] | null>(
-        initial?.data ?? null,
-    );
-    const [nextCursor, setNextCursor] = useState<string | null>(
-        initial?.next_cursor ?? null,
-    );
+    const historyKey = `thread:${commit.id}:${except ?? ''}`;
+    const remembered = router.restore<{
+        replies: ThreadCommit[] | null;
+        nextCursor: string | null;
+        isOpen: boolean;
+    }>(historyKey);
     const [count, setCount] = useSharedState(
         commitStateKey('replies_count', commit.id),
         commit.replies_count ?? 0,
     );
+    const restoresDocument =
+        remembered !== undefined &&
+        (
+            performance.getEntriesByType('navigation')[0] as
+                | PerformanceNavigationTiming
+                | undefined
+        )?.type === 'back_forward';
     const [shouldLoadReplies] = useState(
-        (loadsReplies && count > 0) ||
-            (initial !== undefined && changedThreadIds.has(commit.id)),
+        (remembered?.isOpen === true && remembered.replies === null) ||
+            (remembered === undefined && loadsReplies && count > 0) ||
+            ((initial !== undefined || remembered?.replies != null) &&
+                (changedThreadIds.has(commit.id) || restoresDocument)),
     );
-    const [isOpen, setIsOpen] = useState(
-        initial !== undefined || shouldLoadReplies,
+    const [initialReplyLimit] = useState(
+        remembered?.replies?.length
+            ? remembered.nextCursor === null
+                ? Infinity
+                : remembered.replies.length
+            : repliesPerPage,
     );
-    const [isLoading, setIsLoading] = useState(false);
+    const [{ replies, nextCursor, isOpen }, setThread] = useRemember(
+        {
+            replies: initial?.data ?? null,
+            nextCursor: initial?.next_cursor ?? null,
+            isOpen: initial !== undefined || shouldLoadReplies,
+        },
+        historyKey,
+    );
+    const [isLoading, setIsLoading] = useState(shouldLoadReplies);
+    const replyRequest = useRef(0);
     const [isReplying, setIsReplying] = useState(false);
 
     const [previousPreview, setPreviousPreview] = useState(preview);
     if (preview !== previousPreview) {
         setPreviousPreview(preview);
         if (preview !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
-            setReplies(preview.data);
-            setNextCursor(preview.next_cursor);
+            setThread((current) => ({
+                ...current,
+                replies: preview.data,
+                nextCursor: preview.next_cursor,
+            }));
         }
     }
 
     const applyPage = (loaded: ThreadCommit[], cursor: string | null) => {
-        setReplies(loaded);
-        setNextCursor(cursor);
+        setThread((current) => ({
+            ...current,
+            replies: loaded,
+            nextCursor: cursor,
+        }));
 
         if (cursor === null) {
             setCount(loaded.length);
@@ -288,12 +322,21 @@ export function useThread(
                   ? Infinity
                   : replies.length + extra;
 
+        const request = ++replyRequest.current;
         setIsLoading(true);
 
         fetchRepliesUntil(commit, minimum, repliesPerPage, isPreview, except)
-            .then((page) => applyPage(page.data, page.next_cursor))
+            .then((page) => {
+                if (request === replyRequest.current) {
+                    applyPage(page.data, page.next_cursor);
+                }
+            })
             .catch(() => undefined)
-            .finally(() => setIsLoading(false));
+            .finally(() => {
+                if (request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
     };
 
     const loadUntil = (minimum: number) => {
@@ -301,6 +344,7 @@ export function useThread(
             return;
         }
 
+        const request = ++replyRequest.current;
         setIsLoading(true);
 
         fetchRepliesAfter(
@@ -311,12 +355,21 @@ export function useThread(
             isPreview,
             except,
         )
-            .then((page) => applyPage(page.data, page.next_cursor))
+            .then((page) => {
+                if (request === replyRequest.current) {
+                    applyPage(page.data, page.next_cursor);
+                }
+            })
             .catch(() => undefined)
-            .finally(() => setIsLoading(false));
+            .finally(() => {
+                if (request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
     };
 
     const commitId = commit.id;
+    const onRepliesLoaded = useEffectEvent(applyPage);
 
     useEffect(() => {
         if (!shouldLoadReplies) {
@@ -324,20 +377,39 @@ export function useThread(
         }
 
         let isCurrent = true;
+        const request = ++replyRequest.current;
+        setIsLoading(true);
 
-        fetchReplies({ id: commitId }, null, isPreview, repliesPerPage, except)
+        fetchRepliesUntil(
+            { id: commitId },
+            initialReplyLimit,
+            repliesPerPage,
+            isPreview,
+            except,
+        )
             .then((page) => {
-                if (isCurrent) {
-                    setReplies(page.data);
-                    setNextCursor(page.next_cursor);
+                if (isCurrent && request === replyRequest.current) {
+                    onRepliesLoaded(page.data, page.next_cursor);
                 }
             })
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(() => {
+                if (isCurrent && request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
 
         return () => {
             isCurrent = false;
         };
-    }, [commitId, shouldLoadReplies, isPreview, except, repliesPerPage]);
+    }, [
+        commitId,
+        shouldLoadReplies,
+        isPreview,
+        except,
+        repliesPerPage,
+        initialReplyLimit,
+    ]);
 
     const onExceptChanged = useEffectEvent(() => {
         if (replies !== null && !shouldLoadReplies) {
@@ -399,7 +471,7 @@ export function useThread(
                 reload();
             }
 
-            setIsOpen(!isOpen);
+            setThread((current) => ({ ...current, isOpen: !current.isOpen }));
         },
         loadMore: () => loadUntil((replies?.length ?? 0) + repliesPerPage),
         loadAll: () => loadUntil(Infinity),
@@ -411,7 +483,7 @@ export function useThread(
             setCount(parent.replies_count);
 
             if (parent.continuation_id === continuationId) {
-                setIsOpen(true);
+                setThread((current) => ({ ...current, isOpen: true }));
                 reload();
 
                 return;
@@ -590,59 +662,39 @@ const replyLink =
 
 function ReplyLinks({
     previousLane,
-    parentLane,
     lane,
-    nextLane,
+    hasNext,
 }: {
     previousLane: string | null;
-    parentLane: string;
     lane: string;
-    nextLane: string | null;
+    hasNext: boolean;
 }) {
     return (
         <span aria-hidden>
             {previousLane === null ? (
-                <ThreadElbow from={parentLane} to={lane} />
+                <ThreadElbow />
             ) : (
                 <span
                     className={cn(replyLink, 'top-0 h-1.5')}
-                    style={laneStrokeStyle(lane)}
+                    style={laneStrokeStyle(previousLane)}
                     data-test="reply-link"
                 />
             )}
-            {nextLane !== null && (
-                <ReplyTail
-                    from={lane}
-                    to={nextLane}
-                    className="top-[38px] bottom-0 sm:top-[42px]"
+            {hasNext && (
+                <span
+                    className={cn(
+                        replyLink,
+                        'top-[38px] bottom-0 sm:top-[42px]',
+                    )}
+                    style={laneStrokeStyle(lane)}
+                    data-test="reply-tail"
                 />
             )}
         </span>
     );
 }
 
-function ReplyTail({
-    from,
-    to,
-    className,
-}: {
-    from: string;
-    to: string;
-    className?: string;
-}) {
-    return (
-        <span
-            className={cn(replyLink, className)}
-            style={laneStrokeStyle(from, to)}
-            data-test="reply-tail"
-        />
-    );
-}
-
-function ThreadElbow({ from, to }: { from: string; to: string }) {
-    const gradientId = `elbow-${useId().replaceAll(':', '')}`;
-    const hold = `${laneStrokeHold * 100}%`;
-
+function ThreadElbow() {
     return (
         <svg
             aria-hidden
@@ -652,24 +704,10 @@ function ThreadElbow({ from, to }: { from: string; to: string }) {
             fill="none"
             data-test="thread-elbow"
         >
-            <defs>
-                <linearGradient
-                    id={gradientId}
-                    gradientUnits="objectBoundingBox"
-                    x1="0"
-                    y1="0"
-                    x2="1"
-                    y2="1"
-                >
-                    <stop offset="0%" stopColor={from} />
-                    <stop offset={hold} stopColor={from} />
-                    <stop offset="100%" stopColor={to} />
-                </linearGradient>
-            </defs>
             {/* Quarter-circle corner matching rounded-bl-xl. */}
             <path
                 d="M 0 0 L 0 12 Q 0 23.5 12 23.5 L 32 23.5"
-                stroke={from === to ? from : `url(#${gradientId})`}
+                stroke="var(--lane)"
                 strokeWidth="1"
                 strokeDasharray="2 2"
                 vectorEffect="non-scaling-stroke"
@@ -721,14 +759,10 @@ export function ThreadReplies({
                                                 ? null
                                                 : laneOf(replies[index - 1])
                                         }
-                                        parentLane={laneOf(thread.commit)}
                                         lane={laneOf(reply)}
-                                        nextLane={
-                                            index < replies.length - 1
-                                                ? laneOf(replies[index + 1])
-                                                : thread.hasMore
-                                                  ? laneOf(reply)
-                                                  : null
+                                        hasNext={
+                                            index < replies.length - 1 ||
+                                            thread.hasMore
                                         }
                                     />
                                 )
@@ -1208,6 +1242,7 @@ function ReplyComposer({
             images: File[];
             image_descriptions: string[];
             link_preview_url?: string;
+            commit_rules_accepted?: boolean;
         },
         CreatedReply
     >({
@@ -1217,8 +1252,10 @@ function ReplyComposer({
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const secrets = useSecretWarning(body);
+    const commitRules = useCommitRules();
     const isReplyable =
-        images.length > 0 || characterCount(body.trim()) >= minBodyLength;
+        (images.length > 0 || characterCount(body.trim()) >= minBodyLength) &&
+        bodyCharacterCount(body) <= maxBodyLength;
     const preview = useComposerPreview({
         body,
         textareaRef,
@@ -1264,6 +1301,7 @@ function ReplyComposer({
         if (
             request.processing ||
             attachments.isReading() ||
+            !commitRules.beforeSubmit() ||
             !secrets.beforeSubmit()
         ) {
             return;
@@ -1273,6 +1311,7 @@ function ReplyComposer({
             body,
             images,
             image_descriptions: descriptions,
+            commit_rules_accepted: commitRules.hasAccepted(),
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
@@ -1291,7 +1330,11 @@ function ReplyComposer({
                     onReplied(reply.parent);
                 },
                 onHttpException: (response) => {
-                    if (!commitNotFound(parent.id, response)) {
+                    const timeout = timeoutFrom(response.status, response.data);
+
+                    if (timeout) {
+                        showTimeout(timeout);
+                    } else if (!commitNotFound(parent.id, response)) {
                         toast.error(replyFailureMessage(response));
                     }
                 },
@@ -1320,6 +1363,7 @@ function ReplyComposer({
             <div className="grid">
                 <MentionTextarea
                     ref={textareaRef}
+                    reply={parent.id}
                     id={`reply-${parent.id}`}
                     name="body"
                     rows={1}
@@ -1329,7 +1373,7 @@ function ReplyComposer({
                     onKeyDown={onKeyDown}
                     onPaste={attachments.onPaste}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
-                    maxLength={maxBodyLength}
+                    maxLength={maxRawBodyLength}
                     placeholder={`Reply to @${parent.user.username}`}
                     className={cn(
                         'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
@@ -1358,6 +1402,7 @@ function ReplyComposer({
                     onRemove={attachments.remove}
                 />
             )}
+            <CommitRulesDialog rules={commitRules} textarea={textareaRef} />
             <SecretWarning
                 body={body}
                 findings={secrets.findings}

@@ -112,9 +112,8 @@ final class AppServiceProvider extends ServiceProvider
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
 
-        // Commit actions: rapid j/k with a star or bookmark on most commits stays well under these...
+        // Commit actions: rapid j/k with a star on most commits stays well under these...
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
-        RateLimiter::for('bookmarks', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('pins', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
 
         // Messages: polling an open conversation every second or so stays well under the first...
@@ -128,6 +127,13 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('people', fn (Request $request): Limit => Limit::perMinute(120)->by(
             $request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip(),
         ));
+
+        // Every issue lookup GitHub hasn't answered in the last five minutes costs a request out of the shared hourly budget,
+        // which also keeps SSH keys in sync for the CLI, so it gets a budget of its own...
+        RateLimiter::for('issue-suggestions', fn (Request $request): array => [
+            Limit::perMinute(30)->by($this->userId($request)),
+            Limit::perDay(300)->by('day:'.$this->userId($request)),
+        ]);
 
         // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
         RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)

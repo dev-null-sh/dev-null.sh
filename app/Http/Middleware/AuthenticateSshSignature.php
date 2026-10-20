@@ -41,6 +41,8 @@ final readonly class AuthenticateSshSignature
             abort(401, $invalidArgumentException->getMessage());
         }
 
+        abort_if($commit['user']->isBanned(), 403, __('Your account is banned from /dev/null.'));
+
         Auth::setUser($commit['user']);
 
         $request->merge([

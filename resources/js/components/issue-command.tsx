@@ -1,4 +1,4 @@
-import { useHttp } from '@inertiajs/react';
+import { useHttp, usePage } from '@inertiajs/react';
 import { Bug, Lightbulb, X } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
@@ -106,7 +106,7 @@ export function useIssueCommand({
                 onHttpException: (response) => {
                     toast.error(
                         response.status === 429
-                            ? 'Issue limit reached. Try again in an hour.'
+                            ? 'Issue limit reached: 10 a day. Try again tomorrow.'
                             : 'GitHub did not confirm the issue. Check upstream before retrying. Your draft is safe.',
                     );
                 },
@@ -231,6 +231,7 @@ export function IssueCommandBadge({
     command: IssueCommand;
     onExit: () => void;
 }) {
+    const { repository } = usePage().props;
     const Icon = icons[command.kind];
 
     return (
@@ -248,8 +249,8 @@ export function IssueCommandBadge({
                 </button>
             </span>
             <span className="min-w-0 truncate text-muted-foreground">
-                Public issue on nunomaduro/dev-null.sh, crediting you, with your
-                browser and screen details
+                Public issue on {repository}, crediting you, with your browser
+                and screen details
             </span>
         </div>
     );

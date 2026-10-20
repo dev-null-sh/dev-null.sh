@@ -143,6 +143,25 @@ it('shows the images of a starred commit', function (): void {
         ->where('notifications.data.0.commit.images.0.url', route('commit-image.show', $image)));
 });
 
+it('shows the level reached with its rank, in all notifications only', function (): void {
+    $user = User::factory()->create();
+    Notification::factory()->for($user, 'recipient')->leveledUp(5)->create();
+
+    $this->actingAs($user)->get(route('notification.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('notifications.data.0.type', 'leveled_up')
+            ->where('notifications.data.0.level', 5)
+            ->where('notifications.data.0.rank', 'wheel')
+            ->where('notifications.data.0.rank_description', 'Member of the trusted wheel administrative group')
+            ->where('notifications.data.0.actor.id', $user->id)
+            ->where('notifications.data.0.commit', null));
+
+    $this->get(route('notification.index', ['type' => 'stars']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('notifications.data', []));
+});
+
 it('says whether the user follows each new follower back', function (): void {
     $user = User::factory()->create();
     $followedBack = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinute()]);
