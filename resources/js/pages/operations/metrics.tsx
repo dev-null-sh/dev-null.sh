@@ -275,43 +275,6 @@ function FunnelValue({ funnel }: { funnel: Funnel }) {
             <Definition title="Retention">
                 {retentionDefinition(funnel)}
             </Definition>
-
-            <div className="col-span-full my-4 border-t border-dashed" />
-
-            {rate('referral', 'referral rate')}
-            <div className="self-center font-mono text-[13px]">
-                <div
-                    aria-hidden
-                    className="flex h-3 overflow-hidden rounded-full bg-muted"
-                >
-                    <span
-                        className="bg-(--lane-2)"
-                        style={{
-                            width: `${(funnel.rates.referral ?? 0) * 100}%`,
-                        }}
-                    />
-                </div>
-                <div className="mt-2 flex justify-between gap-3 text-muted-foreground">
-                    <span>
-                        members{' '}
-                        {funnel.referral
-                            ? formatCount(funnel.referral.members)
-                            : '–'}
-                    </span>
-                    <span>
-                        team{' '}
-                        {funnel.referral
-                            ? formatCount(funnel.referral.team)
-                            : '–'}
-                    </span>
-                </div>
-            </div>
-            <Definition title="Referral">
-                Visits from outside that start on a member's profile or commit
-                rather than the team's: when it rises, members bring people in,
-                not us. Referral rate = member visits ÷ visits starting on a
-                profile or commit.
-            </Definition>
         </div>
     );
 }
@@ -322,7 +285,7 @@ function FunnelSkeleton() {
             aria-hidden
             className="animate-in space-y-3 delay-300 duration-300 fill-mode-both fade-in"
         >
-            {[0, 1, 2, 3, 4].map((row) => (
+            {[0, 1, 2, 3].map((row) => (
                 <Skeleton key={row} className="h-24 w-full rounded-lg" />
             ))}
         </div>

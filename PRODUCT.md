@@ -39,7 +39,7 @@ What exists, one line each (details in the knowledge base):
 - **Notifications:** in-app only.
 - **Search:** developers by name, commits by meaning.
 - **Safety:** mute, block, reports, and moderation.
-- **Bots:** @tom answers questions about /dev/null from the knowledge base, the public repository, and aggregate community statistics; @world answers "hello world".
+- **Bots:** Tom answers questions about /dev/null from the knowledge base, the public repository, and aggregate community statistics; World answers "hello world". They use @tom and @world until those GitHub owners sign in, then keep working as @devnull-tom and @devnull-world.
 - **Data:** JSON export and account deletion.
 
 Rules every feature must keep:

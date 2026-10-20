@@ -84,7 +84,7 @@ export type TrafficRange = {
 
 export type MetricsRange = TrafficRange & { all_time: boolean };
 
-export type FunnelRate = 'conversion' | 'activation' | 'retention' | 'referral';
+export type FunnelRate = 'conversion' | 'activation' | 'retention';
 
 export type Funnel = {
     visitors: number | null;
@@ -95,7 +95,6 @@ export type Funnel = {
     retention_eligible: number;
     retention_horizon: 1 | 7 | 14 | null;
     retention_full_on: string | null;
-    referral: { members: number; team: number } | null;
     rates: Record<FunnelRate, number | null>;
     changes: Record<FunnelRate, number | null>;
 };

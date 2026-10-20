@@ -2,7 +2,7 @@
 
 How /dev/null measures whether it works: which metrics exist, exactly how each is counted, what was measured on purpose and what was left for later. The numbers live in Operations → Metrics (`/operations/metrics`, admins only).
 
-The goal is to know where the product leaks and what to act on, not to collect data. The page follows AARRR (acquisition, activation, retention, referral; there is no revenue), plus a few community health metrics.
+The goal is to know where the product leaks and what to act on, not to collect data. The page follows AARRR (acquisition, activation, retention; referral is not measured yet, and there is no revenue), plus a few community health metrics.
 
 Status: **implemented** metrics are on the Metrics tab. **Not yet** metrics are ideas kept for later, with what they would need.
 
@@ -11,7 +11,6 @@ Status: **implemented** metrics are on the Metrics tab. **Not yet** metrics are 
 - **Store as little as possible.** Most metrics are computed from data the app already has (users, commits, stars, bookmarks, follows) and from Fathom, which is anonymous. Only three things were added for metrics: the last day each person was seen, one anonymous count of active people per day, and two anonymous Fathom events for the conversion rate.
 - **No personal attribution.** Nobody's referrer, landing page or campaign is stored. Where people come from is read from Fathom, in aggregate.
 - **Bots are left out** everywhere: Tom and @world (`User::BOT_GITHUB_IDS`).
-- **The team is the admins** (`ADMINS`), when a metric needs to tell the team's content from everyone else's.
 - **Read trends, not thresholds, at first.** With a few days of history, metrics say little on their own. a16z notes that they only become predictive with a few thousand active users and several cohorts past day 30.
 
 ## What is stored
@@ -69,14 +68,6 @@ The funnel follows the people who **signed up in the selected range** (all time 
   - A cohort's retention keeps rising a little as late visitors come back, so older cohorts look slightly better than recent ones.
   - Deleted accounts disappear from their cohort instead of counting as gone.
 
-### Referral
-
-- **Referral**: visits from outside that **start on a member's profile or commit**, rather than on the team's (the admins). When it rises, members bring people in, not us.
-- **Referral rate** = visits starting on a member's profile or commit ÷ visits starting on any profile or commit.
-- Source: Fathom, filtered by entry page with a regular expression (`^/@[^/]+(/commits/[^/]+)?/?$` for all profiles and commits, the same restricted to the admins' usernames for the team). Direct visits count: links shared in Slack, Discord or messaging apps often lose their referrer, and nobody types a commit's id by hand.
-- Why it is not a slice of the funnel: it counts **visits**, from every cohort, not people of the signup cohort. Drawn as the next slice, it would read "x% of retained people referred someone", which is not measured (that would need to store who brought whom).
-- Not measured: whether those visitors sign up. Fathom doesn't link a visit to a signup.
-
 ### Changes and the orange highlight
 
 - **All time**: changes compare the **last 7 days with the 7 before**. Retention compares the signups whose day N is in the last 7 days with the 7 before, at the same day N.
@@ -132,6 +123,7 @@ Activation is right if it predicts retention. Once cohorts reach day 14, compare
 | Conversation depth | Share of commits whose thread has 2+ people besides the author | Computable from existing data |
 | Signups by source | Which channels bring people who stay | Per-person attribution, turned down for privacy. A Fathom event on "Sign in with GitHub" would give an anonymous approximation |
 | Monthly growth on the page | The a16z growth benchmark | Computable from signups and active users |
+| Referral | Whether members bring people in, not only the team | Knowing who shared the link, not whose content it points to (see below) |
 
 ## Decisions
 
@@ -140,10 +132,11 @@ Taken on 2026-10-19, when /dev/null was a few days old, had about 6,000 people a
 - Retention matters more than growth: active users level off at daily signups × average active lifetime, and the loops that bring people in run on the people who stay.
 - Activation counts value received within 12 hours, as a reader or as an author; posting alone is not activation.
 - Retention is unbounded, from `last_seen_at`, headline day 14, with a fallback to day 7 and day 1 meanwhile.
-- No per-person referrer or source: Fathom covers acquisition and referral, anonymously.
+- No per-person referrer or source: Fathom covers acquisition, anonymously.
 - Signups are counted from the database; the conversion rate is counted entirely by Fathom, so ad blockers cancel out, and only over visitors not signed in.
 - Daily active users come from `last_seen_at`, not from Fathom, which ad blockers hide and which can't see the mobile app.
 - The highlight follows the trend, not the level, since the steps can't be compared with each other.
+- Referral was dropped on 2026-10-20, a day after it shipped. It split outside visits starting on a profile or a commit between the team's and the members'. Signed-in members browsing each other's profiles made it read 99%, and even counting only people not signed in, it measures whose content a visit lands on, not who shared it: when the team tweets a member's profile, the visit counts for the member. A later version could attribute visits to whoever shared the link, with the copy-link and share buttons adding `?via=<username>` and an anonymous Fathom event telling the team from members. It would only see links shared with those buttons.
 
 ## Sources
 
@@ -156,5 +149,5 @@ Taken on 2026-10-19, when /dev/null was a few days old, had about 6,000 people a
 - [CHAOSS, Time to first response](https://chaoss.community/kb/metric-time-to-first-response/)
 - [Josh Elman on Twitter's growth driver](https://mattermark.com/putting-it-all-together-how-josh-elman-identified-a-growth-driver-at-twitter/)
 - [Quick ratio (Social Capital), as quoted by David Jaxon](https://davidjaxon.wordpress.com/2016/03/15/a-simple-metric-to-measure-the-quality-of-your-user-growth/)
-- [Fathom API](https://usefathom.com/api), for event `unique_conversions`, `visits` and entry page filters
+- [Fathom API](https://usefathom.com/api), for event `unique_conversions`
 - [SealMetrics, analytics tools against ad blockers](https://sealmetrics.com/blog/analytics-tools-ad-blocker-test/) (a competitor's test) and [Fathom on custom domains](https://usefathom.com/changelog/mar2023-firewall-settings)

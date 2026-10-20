@@ -18,7 +18,17 @@ use Laravel\Ai\Embeddings;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Tools\Request as ToolRequest;
 
-it('executes semantic and statistics tools through OpenCode and sends only public evidence', function (): void {
+it('uses the reserved bot handle in its instructions after the real tom joins', function (): void {
+    User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $owner = User::factory()->create(['username' => 'tom']);
+    $question = Commit::factory()->for($owner)->create(['body' => '@devnull-tom hello']);
+
+    $instructions = new Tom($question)->instructions();
+
+    expect($instructions)->toContain('You are Tom (@devnull-tom)', 'The latest message is by @tom.');
+});
+
+it('executes semantic, history and statistics tools through OpenCode and sends only public evidence', function (): void {
     config(['ai.providers.opencode.key' => 'test-opencode', 'services.openai.key' => 'test']);
     resolve(Features::class)->update(Feature::Translations, false);
     Embeddings::fake([[embeddingVector(0)], [embeddingVector(0)]]);
@@ -31,11 +41,18 @@ it('executes semantic and statistics tools through OpenCode and sends only publi
     Http::fake([
         'api.openai.com/v1/decisions' => Http::response(relevanceResponse([true])),
         'api.github.com/repos/nunomaduro/dev-null.sh/languages' => Http::response(['PHP' => 123]),
+        'api.github.com/search/issues*' => Http::response(['incomplete_results' => false, 'items' => []]),
+        'api.github.com/search/commits*' => Http::response(['incomplete_results' => false, 'items' => [[
+            'html_url' => 'https://github.com/nunomaduro/dev-null.sh/commit/abc',
+            'author' => ['login' => 'alice'], 'committer' => ['login' => 'not-the-author'],
+            'commit' => ['message' => "feat: database search\n\nsecret trailer", 'author' => ['email' => 'secret@example.com', 'date' => '2025-01-01T00:00:00Z']],
+        ]]]),
         'opencode.ai/zen/v1/chat/completions' => Http::sequence()->push([
             'choices' => [['finish_reason' => 'tool_calls', 'message' => ['role' => 'assistant', 'content' => '', 'tool_calls' => [
                 ['id' => 'kb', 'type' => 'function', 'function' => ['name' => 'SearchKnowledgeBase', 'arguments' => '{"query":"platform database"}']],
                 ['id' => 'posts', 'type' => 'function', 'function' => ['name' => 'SearchCommits', 'arguments' => '{"query":"database"}']],
                 ['id' => 'repo', 'type' => 'function', 'function' => ['name' => 'RepositoryInsights', 'arguments' => '{"metric":"languages"}']],
+                ['id' => 'history', 'type' => 'function', 'function' => ['name' => 'SearchRepositoryHistory', 'arguments' => '{"query":"database search"}']],
                 ['id' => 'community', 'type' => 'function', 'function' => ['name' => 'CommunityStats', 'arguments' => '{"metric":"location","term":"Portugal"}']],
             ]]]],
         ])->push([
@@ -59,6 +76,9 @@ it('executes semantic and statistics tools through OpenCode and sends only publi
             && str_contains($tools, 'The platform uses PostgreSQL.')
             && str_contains($tools, 'Public database topic')
             && str_contains($tools, '"languages":{"PHP":123}')
+            && str_contains($tools, '"commit_author":"alice"')
+            && str_contains(stripslashes($tools), 'https://github.com/nunomaduro/dev-null.sh/commit/abc')
+            && ! str_contains($tools, 'not-the-author')
             && str_contains($tools, '"count":1')
             && str_contains($tools, 'Not nationality or verified residence')
             && str_contains(stripslashes($tools), route('commit.show', [$public->user, $public]))

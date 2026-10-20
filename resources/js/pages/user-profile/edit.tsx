@@ -12,17 +12,21 @@ import { RemotesSetting } from '@/components/remotes-setting';
 import { SponsorsOrgSetting } from '@/components/sponsors-org-setting';
 import type { SponsorsOrg } from '@/components/sponsors-org-setting';
 import TimezonePicker from '@/components/timezone-picker';
+import TranslationLanguageSetting from '@/components/translation-language-setting';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import type { TranslationLanguage } from '@/lib/translation-languages';
 import { formatFullDateTime, formatSyncedAgo } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Lane } from '@/types';
 
 export default function Edit({
+    translationLanguage,
+    translationLanguages,
     preferredLane,
     automaticLane,
     githubSyncedAt,
@@ -30,6 +34,8 @@ export default function Edit({
     profileUrl,
     sponsorsOrg,
 }: {
+    translationLanguage: string | null;
+    translationLanguages: TranslationLanguage[];
     preferredLane: Lane | null;
     automaticLane: number;
     githubSyncedAt: string | null;
@@ -113,6 +119,11 @@ export default function Edit({
             />
 
             <TimezonePicker />
+
+            <TranslationLanguageSetting
+                language={translationLanguage}
+                languages={translationLanguages}
+            />
 
             <PasteisModeSetting />
 

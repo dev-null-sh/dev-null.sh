@@ -28,9 +28,11 @@ final readonly class Urls
         'mx', 'ar', 'kr', 'cn', 'tw', 'hk', 'sg', 'vn', 'th',
     ];
 
+    private string $pattern;
+
     public function __construct(private CodeSpans $codeSpans)
     {
-        //
+        $this->pattern = $this->pattern();
     }
 
     /**
@@ -50,7 +52,11 @@ final readonly class Urls
      */
     public function all(string $text): array
     {
-        preg_match_all($this->pattern(), $this->codeSpans->withoutCode($text), $matches);
+        if (! str_contains($text, '.') && ! str_contains($text, '://')) {
+            return [];
+        }
+
+        preg_match_all($this->pattern, $this->codeSpans->withoutCode($text), $matches);
 
         $urls = [];
 
@@ -71,7 +77,11 @@ final readonly class Urls
      */
     public function withShortenedUrls(string $text): string
     {
-        return $this->codeSpans->mapProse($text, fn (string $prose): string => (string) preg_replace_callback($this->pattern(), function (array $matches): string {
+        if (! str_contains($text, '.') && ! str_contains($text, '://')) {
+            return $text;
+        }
+
+        return $this->codeSpans->mapProse($text, fn (string $prose): string => (string) preg_replace_callback($this->pattern, function (array $matches): string {
             $match = $this->withoutTrailingPunctuation($matches[0]);
             $url = preg_match('/^https?:\/\//i', $match) === 1 ? $match : 'https://'.$match;
 
@@ -121,12 +131,14 @@ final readonly class Urls
 
     /**
      * Strips punctuation that ends a sentence rather than the URL, keeping closing brackets that pair with one inside it.
+     * That includes the ellipsis that ends an excerpt and the closing quotes smart punctuation types (” and ’). Keep the
+     * characters in sync with resources/js/components/linkified-text.tsx.
      */
     private function withoutTrailingPunctuation(string $url): string
     {
         do {
             $previous = $url;
-            $url = mb_rtrim($url, '.,;:!?\'"');
+            $url = mb_rtrim($url, '.,;:!?\'"…”’');
 
             foreach (['(' => ')', '[' => ']'] as $open => $close) {
                 if (str_ends_with($url, $close) && mb_substr_count($url, $open) < mb_substr_count($url, $close)) {
