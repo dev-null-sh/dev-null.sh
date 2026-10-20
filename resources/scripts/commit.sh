@@ -21,9 +21,10 @@
 #   1. Lists your public keys (`ssh-add -L` and ~/.ssh/*.pub) and asks /dev/null which one is
 #      on your GitHub account. Public keys are public: GitHub publishes them too.
 #   2. Signs your message (and the SHA-256 of each image) with that key, using `ssh-keygen -Y sign`
-#      with the "devnull-commit" namespace ("devnull-commit-images" when images are attached): the
-#      signature is only valid for /dev/null commits, it can't be used to sign git commits or to
-#      log in anywhere.
+#      with "devnull-commit" or "devnull-commit-images" for immediate commits, and
+#      "devnull-scheduled-commit" or "devnull-scheduled-commit-images" for scheduled commits.
+#      The signature covers the scheduled time too, and is only valid for /dev/null commits:
+#      it can't be used to sign git commits or to log in anywhere.
 #   3. Sends the message, the images, and the signature to /dev/null.
 #
 # It never reads or sends private keys (ssh-keygen or your SSH agent uses them), never changes
@@ -188,17 +189,13 @@ main() {
 
   local nonce
   nonce="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
-  if [ -n "$scheduled_at" ]; then
+  {
+    printf '%s\n%s\n%s\n' "$(date +%s)" "$nonce" "${scheduled_at:-$reply_to}"
     if $has_images; then
-      printf '%s\n%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$scheduled_at" "$hashes" "$message" > "$TMP_DIR/commit"
-    else
-      printf '%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$scheduled_at" "$message" > "$TMP_DIR/commit"
+      printf '%s\n' "$hashes"
     fi
-  elif $has_images; then
-    printf '%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$hashes" "$message" > "$TMP_DIR/commit"
-  else
-    printf '%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$message" > "$TMP_DIR/commit"
-  fi
+    printf '%s' "$message"
+  } > "$TMP_DIR/commit"
 
   # Passphrase prompts go to /dev/tty: keep ssh-keygen away from stdin, which is this script.
   if ! ssh-keygen -Y sign -n "$NAMESPACE" -f "$signing_key" "$TMP_DIR/commit" < /dev/null 2> "$TMP_DIR/ssh-keygen.log"; then
@@ -218,10 +215,10 @@ main() {
   # runs from inside the private directory, so curl's --form parser, which gives , ; and " special
   # meaning, only ever sees the fixed file names, never a path.
   if $has_images; then
-    (cd "$TMP_DIR" && request --max-time 600 --speed-limit 1024 --speed-time 60 --header "X-SSH-Signature: $signature" "${schedule_headers[@]}" \
+    (cd "$TMP_DIR" && request --max-time 600 --speed-limit 1024 --speed-time 60 --header "X-SSH-Signature: $signature" ${schedule_headers[@]+"${schedule_headers[@]}"} \
       --form "payload=@commit" "${image_fields[@]}" "$DEVNULL_URL/api/cli/commits") || exit 1
   else
-    request --header 'Content-Type: text/plain; charset=utf-8' --header "X-SSH-Signature: $signature" "${schedule_headers[@]}" \
+    request --header 'Content-Type: text/plain; charset=utf-8' --header "X-SSH-Signature: $signature" ${schedule_headers[@]+"${schedule_headers[@]}"} \
       --data-binary @"$TMP_DIR/commit" "$DEVNULL_URL/api/cli/commits"
   fi
   sanitize < "$TMP_DIR/response"

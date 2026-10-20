@@ -18,9 +18,9 @@ final readonly class CommitController
     public function store(CreateCliCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CreateScheduledCommit $schedule): Response
     {
         if ($request->filled('scheduled_at')) {
-            $scheduled = $schedule->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images());
+            $schedule->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value()), $request->images());
 
-            return response('Scheduled for '.$scheduled->scheduled_at->toIso8601String().': '.route('scheduled-commit.index')."\n", 201)->header('Content-Type', 'text/plain; charset=utf-8');
+            return response('Scheduled for '.$request->string('scheduled_at')->value().': '.route('scheduled-commit.index')."\n", 201)->header('Content-Type', 'text/plain; charset=utf-8');
         }
 
         $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), images: $request->images());

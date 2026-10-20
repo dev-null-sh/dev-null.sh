@@ -20,6 +20,14 @@ use Illuminate\Validation\Rules\In;
 
 final class CreateScheduledCommitRequest extends FormRequest
 {
+    /**
+     * @return list<string|ValidationRule>
+     */
+    public static function scheduledAtRules(User $user, bool $required = true): array
+    {
+        return [$required ? 'required' : 'nullable', 'date_format:Y-m-d\TH:i:sP,Y-m-d\TH:i:s\Z', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)];
+    }
+
     public function authorize(): bool
     {
         return $this->user() !== null;
@@ -34,7 +42,7 @@ final class CreateScheduledCommitRequest extends FormRequest
 
         return [
             'body' => $this->hasFile('images') ? CreateCommitRequest::BODY_WITH_IMAGES_RULES : CreateCommitRequest::BODY_RULES,
-            'scheduled_at' => ['required', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
+            'scheduled_at' => self::scheduledAtRules($user),
             'parent_id' => ['prohibited'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...CreateCommitRequest::attachmentRules(),

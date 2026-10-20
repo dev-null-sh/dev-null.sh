@@ -16,12 +16,18 @@ use InvalidArgumentException;
  * with images is signed under its own namespace, so the signature states which format it covers, and
  * carries one more line before the body: the comma-separated SHA-256 of each image, in the order
  * they are attached, so the signature covers the images as well as the text.
+ * Scheduled commits use their own namespaces and replace the reply line with the ISO 8601
+ * scheduled time. They cannot be replies. The optional image hashes still precede the body.
  */
 final readonly class SignedCommits
 {
     public const string Namespace = 'devnull-commit';
 
     public const string ImagesNamespace = 'devnull-commit-images';
+
+    public const string ScheduledNamespace = 'devnull-scheduled-commit';
+
+    public const string ScheduledImagesNamespace = 'devnull-scheduled-commit-images';
 
     public function __construct(private SshSignatures $sshSignatures)
     {
@@ -36,23 +42,17 @@ final readonly class SignedCommits
     {
         $withImages = $imageHashes instanceof Closure;
 
-        $publicKey = $this->sshSignatures->verify($payload, $signature, $scheduled ? ($withImages ? 'devnull-scheduled-commit-images' : 'devnull-scheduled-commit') : ($withImages ? self::ImagesNamespace : self::Namespace));
+        $publicKey = $this->sshSignatures->verify($payload, $signature, $scheduled ? ($withImages ? self::ScheduledImagesNamespace : self::ScheduledNamespace) : ($withImages ? self::ImagesNamespace : self::Namespace));
 
-        $lines = ($withImages ? 5 : 4) + ($scheduled ? 1 : 0);
+        $lines = $withImages ? 5 : 4;
         $parts = explode("\n", $payload, $lines);
 
         throw_if(count($parts) !== $lines || ! mb_check_encoding($payload, 'UTF-8'), InvalidArgumentException::class, 'Malformed payload.');
 
-        $scheduledAt = null;
-        if ($scheduled) {
-            $scheduledAt = $parts[3];
-            array_splice($parts, 3, 1);
-        }
-
         if ($withImages) {
-            [$timestamp, $nonce, $replyTo, $signedHashes, $body] = $parts;
+            [$timestamp, $nonce, $metadata, $signedHashes, $body] = $parts;
         } else {
-            [$timestamp, $nonce, $replyTo, $body] = $parts;
+            [$timestamp, $nonce, $metadata, $body] = $parts;
             $signedHashes = '';
         }
 
@@ -80,9 +80,9 @@ final readonly class SignedCommits
 
         return [
             'user' => $user,
-            'reply_to' => $replyTo === '' ? null : $replyTo,
+            'reply_to' => $scheduled || $metadata === '' ? null : $metadata,
             'body' => mb_trim($body),
-            'scheduled_at' => $scheduledAt,
+            'scheduled_at' => $scheduled ? $metadata : null,
         ];
     }
 }

@@ -220,3 +220,22 @@ it('checks github at most every 5 minutes', function (): void {
 
     Http::assertSentCount(3);
 });
+
+it('verifies a scheduled payload without a reply line', function (bool $withImages): void {
+    $time = '2026-10-21T09:00:00+03:00';
+    $hashes = [hash('sha256', 'image')];
+    $payload = implode("\n", [now()->timestamp, bin2hex(random_bytes(16)), $time, ...($withImages ? [implode(',', $hashes)] : []), "Tomorrow.\nSecond line."]);
+    $namespace = $withImages ? SignedCommits::ScheduledImagesNamespace : SignedCommits::ScheduledNamespace;
+    $result = resolve(SignedCommits::class)->verify($payload, $this->keyPair->sign($payload, $namespace), $withImages ? fn (): array => $hashes : null, scheduled: true);
+
+    expect($result['scheduled_at'])->toBe($time)
+        ->and($result['reply_to'])->toBeNull()
+        ->and($result['body'])->toBe("Tomorrow.\nSecond line.");
+})->with([false, true]);
+
+it('rejects a modified signed scheduled time', function (): void {
+    $payload = implode("\n", [now()->timestamp, bin2hex(random_bytes(16)), '2026-10-21T09:00:00+03:00', 'Tomorrow.']);
+    $signature = $this->keyPair->sign($payload, SignedCommits::ScheduledNamespace);
+
+    expect(fn (): array => resolve(SignedCommits::class)->verify(str_replace('09:00:00', '10:00:00', $payload), $signature, scheduled: true))->toThrow(InvalidArgumentException::class);
+});

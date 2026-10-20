@@ -69,11 +69,12 @@ export default function Show({ url }: { url: string }) {
                     />
                     <CopyableCode
                         label="schedule command"
-                        code={`curl -fsSL ${url}/commit | bash -s -- --schedule '${new Date(Date.now() + 86400000).toISOString().replace(/\.\d{3}Z$/, '+00:00')}' 'Tomorrow’s update.'`}
+                        code={`curl -fsSL ${url}/commit | bash -s -- --schedule '2026-10-21T09:00:00+03:00' 'A scheduled update.'`}
                     />
                     <p className="text-sm text-muted-foreground">
                         Schedule up to 30 days ahead using an ISO 8601 date with
-                        a timezone. You can include images. Replies cannot be
+                        a timezone. Replace the example date with your desired
+                        future time. You can include images. Replies cannot be
                         scheduled.
                     </p>
                 </div>

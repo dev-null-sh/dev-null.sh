@@ -6,6 +6,7 @@ use App\Enums\CommitStatus;
 use App\Http\Middleware\AuthenticateSshSignature;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\ScheduledCommit;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -487,21 +488,25 @@ it('answers unexpected errors in plain text', function (): void {
 });
 
 it('schedules a signed terminal commit and validates its time', function (string $time, int $status): void {
-    $payload = implode("\n", [(string) now()->timestamp, bin2hex(random_bytes(16)), '', $time, 'Tomorrow update.']);
-    $this->call('POST', route('cli-commit.store'), server: [
+    $payload = implode("\n", [(string) now()->timestamp, bin2hex(random_bytes(16)), $time, 'Tomorrow update.']);
+    $response = $this->call('POST', route('cli-commit.store'), server: [
         'CONTENT_TYPE' => 'text/plain; charset=utf-8',
         'HTTP_X_COMMIT_SCHEDULED' => '1',
         'HTTP_X_SSH_SIGNATURE' => $this->keyPair->sign($payload, 'devnull-scheduled-commit'),
-    ], content: $payload)->assertStatus($status);
+    ], content: $payload);
+    $response->assertStatus($status);
 
     expect($this->user->commits()->count())->toBe(0);
     if ($status === 201) {
-        expect(App\Models\ScheduledCommit::query()->sole()->body)->toBe('Tomorrow update.');
+        $response->assertSeeText('Scheduled for '.$time.':');
+        expect(ScheduledCommit::query()->sole()->body)->toBe('Tomorrow update.');
     } else {
-        expect(App\Models\ScheduledCommit::query()->count())->toBe(0);
+        expect(ScheduledCommit::query()->count())->toBe(0);
     }
 })->with([
     'future with offset' => [fn () => now()->addDay()->toIso8601String(), 201],
+    'future with non-UTC offset' => [fn () => now()->addDay()->setTimezone('Africa/Nairobi')->toIso8601String(), 201],
+    'future with Z' => [fn () => now()->addDay()->utc()->format('Y-m-d\TH:i:s\Z'), 201],
     'past' => [fn () => now()->subDay()->toIso8601String(), 422],
     'too far ahead' => [fn () => now()->addDays(31)->toIso8601String(), 422],
     'missing timezone' => [fn () => now()->addDay()->format('Y-m-d\TH:i:s'), 422],

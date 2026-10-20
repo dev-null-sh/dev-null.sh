@@ -348,3 +348,27 @@ it('runs nothing when the download is cut short', function (): void {
 it('does not contain recursive deletions', function (): void {
     expect($this->script)->not->toMatch('/\brm\s+(-\w*r|--recursive)/');
 });
+
+it('signs scheduled commits with the time in place of the reply line', function (bool $withImages, string $time): void {
+    $arguments = ['--schedule', $time];
+    if ($withImages) {
+        File::put("{$this->sandbox}/home/first.png", 'first image');
+        $arguments = [...$arguments, '--image', "{$this->sandbox}/home/first.png"];
+    }
+
+    $result = ($this->runScript)($this->script, [...$arguments, "Tomorrow.\nSecond line."]);
+    $expected = $time."\n".($withImages ? hash('sha256', 'first image')."\n" : '')."Tomorrow.\nSecond line.";
+
+    expect($result->exitCode())->toBe(0)
+        ->and(File::get("{$this->sandbox}/signed"))->toEndWith("\n".$expected)
+        ->and(($this->calls)())->toContain('--header X-Commit-Scheduled: 1')
+        ->toContain('-n '.($withImages ? 'devnull-scheduled-commit-images' : 'devnull-scheduled-commit'));
+})->with([false, true])->with(['2026-10-21T09:00:00+03:00', '2026-10-21T06:00:00Z']);
+
+it('rejects scheduling a reply before signing or sending anything', function (): void {
+    $result = ($this->runScript)($this->script, ['--schedule', '2026-10-21T09:00:00+03:00', '--reply', '0be0130', 'Reply.']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toContain('Scheduled commits cannot be replies.')
+        ->and(($this->calls)())->toBe('');
+});
