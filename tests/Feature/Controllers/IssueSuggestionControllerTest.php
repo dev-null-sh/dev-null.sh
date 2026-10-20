@@ -62,6 +62,50 @@ it('leaves missing or temporarily unavailable references alone', function (int $
         ->assertExactJson(['issue' => null]);
 })->with([404, 403, 429, 500]);
 
+it('asks GitHub only once for a reference it could not find', function (): void {
+    Http::fake([
+        'api.github.com/repos/nunomaduro/dev-null.sh/issues/722' => Http::response([], 404),
+    ]);
+
+    $this->actingAs(User::factory()->create());
+
+    foreach (range(1, 2) as $attempt) {
+        $this->getJson(route('issue-suggestion.index', ['q' => '722']))->assertExactJson(['issue' => null]);
+    }
+
+    Http::assertSentCount(1);
+
+    $this->travel(6)->minutes();
+
+    $this->getJson(route('issue-suggestion.index', ['q' => '722']))->assertExactJson(['issue' => null]);
+
+    Http::assertSentCount(2);
+});
+
+it('limits how many references each user may look up in a day', function (): void {
+    Http::fake([
+        'api.github.com/*' => Http::response([], 404),
+    ]);
+
+    $this->actingAs(User::factory()->create());
+
+    foreach (range(1, 300) as $attempt) {
+        if ($attempt % 30 === 0) {
+            $this->travel(1)->minute();
+        }
+
+        $this->getJson(route('issue-suggestion.index', ['q' => (string) $attempt]))->assertOk();
+    }
+
+    $this->travel(1)->minute();
+
+    $this->getJson(route('issue-suggestion.index', ['q' => '301']))->assertTooManyRequests();
+
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('issue-suggestion.index', ['q' => '301']))
+        ->assertOk();
+});
+
 it('leaves references alone when GitHub cannot be reached', function (): void {
     Http::fake([
         'api.github.com/repos/nunomaduro/dev-null.sh/issues/722' => Http::failedConnection(),

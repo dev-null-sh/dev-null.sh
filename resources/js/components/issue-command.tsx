@@ -106,7 +106,7 @@ export function useIssueCommand({
                 onHttpException: (response) => {
                     toast.error(
                         response.status === 429
-                            ? 'Issue limit reached. Try again in an hour.'
+                            ? 'Issue limit reached: 10 a day. Try again tomorrow.'
                             : 'GitHub did not confirm the issue. Check upstream before retrying. Your draft is safe.',
                     );
                 },

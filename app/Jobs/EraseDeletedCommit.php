@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Actions\DeleteCommitImages;
+use App\Actions\DeleteCommitContent;
 use App\Models\Commit;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 
 #[DeleteWhenMissingModels]
-final class EraseDeletedCommitImages implements ShouldQueue
+final class EraseDeletedCommit implements ShouldQueue
 {
     use Queueable;
 
@@ -20,7 +20,7 @@ final class EraseDeletedCommitImages implements ShouldQueue
         //
     }
 
-    public function handle(DeleteCommitImages $action): void
+    public function handle(DeleteCommitContent $action): void
     {
         $action->handle($this->commit);
     }
