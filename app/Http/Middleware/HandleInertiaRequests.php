@@ -10,6 +10,7 @@ use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
+use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
@@ -68,6 +69,9 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
+            'liveFollowing' => fn (): Collection => $user instanceof User && ! $request->routeIs('onboarding.show')
+                ? resolve(LiveFollowingQuery::class)->get($user)
+                : collect(),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
             // Onboarding has no sidebar to show them in, and the people followed during it change who is suggested.

@@ -8,6 +8,7 @@ import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowin
 import { BioText } from '@/components/bio-text';
 import { ChangelogPopover } from '@/components/changelog-popover';
 import { GitHubIcon } from '@/components/github-icon';
+import { LiveFollowing } from '@/components/live-following';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
@@ -164,6 +165,7 @@ export function AppAside({
                 </section>
             )}
 
+            <LiveFollowing />
             <WhoToFollow />
 
             <div className="-mt-4 flex gap-4 border-t pt-4 text-sm text-muted-foreground">
