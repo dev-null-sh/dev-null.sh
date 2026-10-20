@@ -46,6 +46,7 @@ it('shows a public profile with public counts', function (): void {
             'commits_count' => 2,
             'followers_count' => 3,
             'following_count' => 1,
+            'contributor' => false,
         ]]);
 });
 
@@ -115,6 +116,7 @@ it('shows a signed request the profile as the web shows it to its user', functio
                 'commits_count' => 3,
                 'followers_count' => 1,
                 'following_count' => 2,
+                'contributor' => false,
                 'lane' => $user->lane(),
             ],
             'is_following' => true,

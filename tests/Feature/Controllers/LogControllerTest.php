@@ -11,6 +11,7 @@ use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 it('renders own commits and commits of followed users newest first', function (): void {
     $user = User::factory()->create();
@@ -37,6 +38,28 @@ it('renders own commits and commits of followed users newest first', function ()
             ->where('commits.data.0.starred', false)
             ->missing('commits.data.0.user.email')
             ->where('commits.data.1.body', 'Mine'));
+});
+
+it('marks repository contributors on commit authors', function (): void {
+    Http::fake(['api.github.com/repos/nunomaduro/dev-null.sh/contributors*' => Http::response([
+        ['type' => 'User', 'login' => 'octocat', 'contributions' => 3],
+    ])]);
+
+    $viewer = User::factory()->create();
+    $contributor = User::factory()->create(['username' => 'octocat']);
+    $other = User::factory()->create(['username' => 'stranger']);
+
+    Commit::factory()->for($contributor)->create(['created_at' => now()->subMinute()]);
+    Commit::factory()->for($other)->create();
+
+    $this->actingAs($viewer)
+        ->get('/log/latest')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.user.username', 'stranger')
+            ->where('commits.data.0.user.contributor', false)
+            ->where('commits.data.1.user.username', 'octocat')
+            ->where('commits.data.1.user.contributor', true));
 });
 
 it('renders each author with their effective lane', function (): void {

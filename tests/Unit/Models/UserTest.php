@@ -7,6 +7,7 @@ use App\Models\Device;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 test('to array', function (): void {
     $user = User::factory()->create()->refresh();
@@ -27,6 +28,7 @@ test('to array', function (): void {
             'timezone',
             'lane',
             'has_github_account',
+            'contributor',
             'live',
         ]);
 });
@@ -209,6 +211,18 @@ it('serializes the effective lane', function (?int $preferredLane, ?string $colo
     'chosen' => [0, null, 0],
     'custom' => [null, '#1a2b3c', '#1a2b3c'],
 ]);
+
+it('serializes whether it contributed to the repository', function (): void {
+    Http::fake(['api.github.com/repos/nunomaduro/dev-null.sh/contributors*' => Http::response([
+        ['type' => 'User', 'login' => 'octocat', 'contributions' => 1],
+    ])]);
+
+    $contributor = User::factory()->create(['username' => 'octocat']);
+    $other = User::factory()->create(['username' => 'stranger']);
+
+    expect($contributor->toArray()['contributor'])->toBeTrue()
+        ->and($other->toArray()['contributor'])->toBeFalse();
+});
 
 it('knows who it mutes and who mutes it', function (): void {
     $user = User::factory()->create();

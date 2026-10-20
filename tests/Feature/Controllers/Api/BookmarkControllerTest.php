@@ -197,6 +197,7 @@ it('lists the saved commits of the user, last saved first', function (): void {
             'html_url' => route('user.show', $author),
             'feed_url' => route('user-feed.show', $author),
             'created_at' => now()->toIso8601ZuluString(),
+            'contributor' => false,
             'lane' => $author->lane(),
         ],
         'body_segments' => [['type' => 'text', 'text' => 'It was DNS.']],
